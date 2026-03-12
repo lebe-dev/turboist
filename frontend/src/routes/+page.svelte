@@ -2,11 +2,15 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { collapsedStore } from '$lib/stores/collapsed.svelte';
+	import type { Task } from '$lib/api/types';
 	import TaskList from '$lib/components/TaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
+	import ChevronsDownUpIcon from '@lucide/svelte/icons/chevrons-down-up';
+	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import { toggleMode } from 'mode-watcher';
@@ -46,12 +50,38 @@
 		contextsStore.activeView;
 		searchQuery = '';
 	});
+
+	function collectParentIds(tasks: Task[]): string[] {
+		const result: string[] = [];
+		function walk(t: Task) {
+			if (t.sub_task_count > 0) result.push(t.id);
+			for (const c of t.children) walk(c);
+		}
+		for (const t of tasks) walk(t);
+		return result;
+	}
+
+	function toggleAllSubtasks() {
+		if (collapsedStore.hasAny) {
+			collapsedStore.expandAll();
+		} else {
+			collapsedStore.collapseAll(collectParentIds(tasksStore.tasks));
+		}
+	}
 </script>
 
 <div class="flex h-full flex-col">
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
-		<div class="relative ml-auto mr-2 flex items-center">
+		<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-muted-foreground">
+			{#if collapsedStore.hasAny}
+				<ChevronsUpDownIcon class="h-4 w-4" />
+			{:else}
+				<ChevronsDownUpIcon class="h-4 w-4" />
+			{/if}
+			<span class="sr-only">Toggle all subtasks</span>
+		</Button>
+		<div class="relative mr-2 flex items-center">
 			<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
 			<input
 				type="text"

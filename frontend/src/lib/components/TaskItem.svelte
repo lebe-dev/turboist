@@ -2,8 +2,10 @@
 	import type { Task } from '$lib/api/types';
 	import { completeTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
+	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 
 	let { task, depth = 0, searchQuery = '' }: { task: Task; depth?: number; searchQuery?: string } = $props();
 
@@ -37,6 +39,9 @@
 	const visible = $derived(
 		!searchQuery || task.content.toLowerCase().includes(searchQuery.toLowerCase())
 	);
+
+	const hasChildren = $derived(task.children && task.children.length > 0);
+	const collapsed = $derived(collapsedStore.isCollapsed(task.id));
 
 	let completing = $state(false);
 
@@ -133,16 +138,23 @@
 							</span>
 						{/if}
 						{#if task.sub_task_count > 0}
-							<span class="text-[11px] tabular-nums text-muted-foreground">
+							<button
+								class="flex items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors"
+								onclick={() => collapsedStore.toggle(task.id)}
+								aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
+							>
+								<ChevronRightIcon
+									class="h-3 w-3 transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
+								/>
 								{task.completed_sub_task_count}/{task.sub_task_count}
-							</span>
+							</button>
 						{/if}
 					</div>
 				{/if}
 			</div>
 		</div>
 
-		{#if task.children && task.children.length > 0}
+		{#if hasChildren && !collapsed}
 			<div>
 				{#each task.children as child (child.id)}
 					<svelte:self task={child} depth={depth + 1} {searchQuery} />

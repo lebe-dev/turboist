@@ -3,21 +3,55 @@ import type { Context } from '$lib/api/types';
 
 export type View = 'all' | 'weekly' | 'next-week';
 
+const CONTEXT_KEY = 'turboist:context';
+const VIEW_KEY = 'turboist:view';
+
+const VALID_VIEWS: View[] = ['all', 'weekly', 'next-week'];
+
+function loadContext(): string | null {
+	try {
+		return localStorage.getItem(CONTEXT_KEY) || null;
+	} catch {
+		return null;
+	}
+}
+
+function loadView(): View {
+	try {
+		const v = localStorage.getItem(VIEW_KEY) as View | null;
+		if (v && VALID_VIEWS.includes(v)) return v;
+	} catch {
+		// ignore
+	}
+	return 'all';
+}
+
 function createContextsStore() {
 	let contexts = $state<Context[]>([]);
-	let activeContextId = $state<string | null>(null);
-	let activeView = $state<View>('all');
+	let activeContextId = $state<string | null>(loadContext());
+	let activeView = $state<View>(loadView());
 
 	async function load(): Promise<void> {
 		contexts = await getContexts();
+		// Validate saved context still exists
+		if (activeContextId && !contexts.some((c) => c.id === activeContextId)) {
+			activeContextId = null;
+			localStorage.removeItem(CONTEXT_KEY);
+		}
 	}
 
 	function setContext(id: string | null): void {
 		activeContextId = id;
+		if (id) {
+			localStorage.setItem(CONTEXT_KEY, id);
+		} else {
+			localStorage.removeItem(CONTEXT_KEY);
+		}
 	}
 
 	function setView(view: View): void {
 		activeView = view;
+		localStorage.setItem(VIEW_KEY, view);
 	}
 
 	return {
