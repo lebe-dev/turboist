@@ -16,13 +16,17 @@ type EnvConfig struct {
 	AdminPassword string
 }
 
-type Config struct {
-	Env          EnvConfig
+type AppConfig struct {
 	PollInterval time.Duration
 	Contexts     map[string]ContextConfig
 	Weekly       WeeklyConfig
 	NextWeek     NextWeekConfig
 	AutoExpire   []AutoExpireConfig
+}
+
+type Config struct {
+	Env EnvConfig
+	App AppConfig
 }
 
 type ContextConfig struct {
@@ -46,21 +50,65 @@ type NextWeekConfig struct {
 }
 
 type AutoExpireConfig struct {
-	Label string        `yaml:"label"`
-	TTL   time.Duration `yaml:"ttl"`
+	Label string
+	TTL   time.Duration
 }
 
 type yamlFile struct {
-	PollInterval string                    `yaml:"poll_interval"`
-	Contexts     map[string]ContextConfig  `yaml:"contexts"`
-	Weekly       WeeklyConfig              `yaml:"weekly"`
-	NextWeek     NextWeekConfig            `yaml:"next_week"`
-	AutoExpire   []yamlAutoExpire          `yaml:"auto_expire"`
+	PollInterval string                   `yaml:"poll_interval"`
+	Contexts     map[string]ContextConfig `yaml:"contexts"`
+	Weekly       WeeklyConfig             `yaml:"weekly"`
+	NextWeek     NextWeekConfig           `yaml:"next_week"`
+	AutoExpire   []yamlAutoExpire         `yaml:"auto_expire"`
 }
 
 type yamlAutoExpire struct {
 	Label string `yaml:"label"`
 	TTL   string `yaml:"ttl"`
+}
+
+func LoadAppConfig(path string) (AppConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return AppConfig{}, err
+	}
+	return ParseAppConfig(data)
+}
+
+func ParseAppConfig(data []byte) (AppConfig, error) {
+	var yf yamlFile
+	if err := yaml.Unmarshal(data, &yf); err != nil {
+		return AppConfig{}, err
+	}
+
+	if yf.PollInterval == "" {
+		yf.PollInterval = "30s"
+	}
+
+	pollInterval, err := time.ParseDuration(yf.PollInterval)
+	if err != nil {
+		return AppConfig{}, fmt.Errorf("poll_interval: %w", err)
+	}
+
+	app := AppConfig{
+		PollInterval: pollInterval,
+		Contexts:     yf.Contexts,
+		Weekly:       yf.Weekly,
+		NextWeek:     yf.NextWeek,
+	}
+
+	for _, ae := range yf.AutoExpire {
+		ttl, err := time.ParseDuration(ae.TTL)
+		if err != nil {
+			return AppConfig{}, fmt.Errorf("auto_expire ttl for %q: %w", ae.Label, err)
+		}
+		app.AutoExpire = append(app.AutoExpire, AutoExpireConfig{
+			Label: ae.Label,
+			TTL:   ttl,
+		})
+	}
+
+	return app, nil
 }
 
 func loadEnv() (EnvConfig, error) {
@@ -86,47 +134,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	cfg := &Config{Env: env}
-
-	yf, err := loadYAML("config.yml")
+	app, err := LoadAppConfig("config.yml")
 	if err != nil {
 		return nil, fmt.Errorf("config.yml: %w", err)
 	}
 
-	cfg.PollInterval, err = time.ParseDuration(yf.PollInterval)
-	if err != nil {
-		return nil, fmt.Errorf("poll_interval: %w", err)
-	}
-
-	cfg.Contexts = yf.Contexts
-	cfg.Weekly = yf.Weekly
-	cfg.NextWeek = yf.NextWeek
-
-
-	for _, ae := range yf.AutoExpire {
-		ttl, err := time.ParseDuration(ae.TTL)
-		if err != nil {
-			return nil, fmt.Errorf("auto_expire ttl for %q: %w", ae.Label, err)
-		}
-		cfg.AutoExpire = append(cfg.AutoExpire, AutoExpireConfig{
-			Label: ae.Label,
-			TTL:   ttl,
-		})
-	}
-
-	return cfg, nil
-}
-
-func loadYAML(path string) (*yamlFile, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var yf yamlFile
-	if err := yaml.Unmarshal(data, &yf); err != nil {
-		return nil, err
-	}
-	return &yf, nil
+	return &Config{Env: env, App: app}, nil
 }
 
 func getEnv(key, fallback string) string {
