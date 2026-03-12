@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { contextsStore } from '$lib/stores/contexts';
+	import { contextsStore } from '$lib/stores/contexts.svelte';
 
 	const views = [
 		{ id: 'all' as const, label: 'Все задачи' },

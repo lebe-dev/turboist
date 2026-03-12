@@ -1,23 +1,43 @@
+# Todoist API polling interval. Format: Go duration (5s, 30s, 1m, ...)
+# Default: 30s
 poll_interval: "30s"
 
+# Contexts — named filter sets for tasks.
+# The key (dev, personal) is the context identifier used in query params (?context=dev).
+# All conditions within a single context are combined with AND.
+# Multiple values within an array are combined with OR.
 contexts:
   dev:
+    # Display name shown in the UI
     display_name: "Разработка"
     filters:
+      # Filter by Todoist project names (OR between items)
       projects: ["Проекты"]
+      # Filter by section names within a project (OR between items)
       sections: ["Категория - Разработка"]
+      # Filter by Todoist labels (OR between items, optional)
+      # labels: ["work"]
   personal:
     display_name: "Личное"
     filters:
       projects: ["Личное"]
 
+# Tasks for the current week
 weekly:
+  # Todoist label that marks tasks for the current week
   label: "на неделе"
+  # Maximum number of tasks per week (used for the progress bar and warnings)
   max_tasks: 15
 
+# Tasks for the next week
 next_week:
+  # Todoist label for next week's tasks
   label: "на след неделе"
 
+# Auto-expire: tasks with the given label are closed (completed) after the TTL elapses.
+# TTL is counted from the moment the label is first seen in the cache (first_seen).
+# The timer resets on application restart.
+# Tasks are closed (not deleted): they remain in the completed history and can be restored.
 auto_expire:
   - label: "срочное"
     ttl: "24h"

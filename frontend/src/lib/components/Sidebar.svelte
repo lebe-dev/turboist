@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { auth } from '$lib/stores/auth';
-	import { contextsStore } from '$lib/stores/contexts';
+	import { auth } from '$lib/stores/auth.svelte';
+	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import ContextSwitcher from './ContextSwitcher.svelte';
 
 	let { onClose }: { onClose?: () => void } = $props();

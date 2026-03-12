@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { auth } from '$lib/stores/auth';
+	import { auth } from '$lib/stores/auth.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';

@@ -21,7 +21,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 		throw new Error(`${res.status}: ${text}`);
 	}
 
-	return res.json() as Promise<T>;
+	const contentType = res.headers.get('content-type');
+	if (contentType?.includes('application/json')) {
+		return res.json() as Promise<T>;
+	}
+
+	return undefined as unknown as T;
 }
 
 export async function login(password: string): Promise<void> {

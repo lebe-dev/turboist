@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -90,5 +92,54 @@ func TestParseAppConfig_DefaultPollInterval(t *testing.T) {
 	}
 	if app.PollInterval != 30*time.Second {
 		t.Errorf("default poll_interval: got %v, want 30s", app.PollInterval)
+	}
+}
+
+func TestLoadDotEnv_SetsVars(t *testing.T) {
+	f := filepath.Join(t.TempDir(), ".env")
+	content := `
+# comment
+TURBOIST_TEST_KEY=hello
+TURBOIST_TEST_QUOTED="world"
+`
+	if err := os.WriteFile(f, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TURBOIST_TEST_KEY", "")
+	t.Setenv("TURBOIST_TEST_QUOTED", "")
+
+	if err := loadDotEnv(f); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := os.Getenv("TURBOIST_TEST_KEY"); got != "hello" {
+		t.Errorf("TURBOIST_TEST_KEY: got %q, want %q", got, "hello")
+	}
+	if got := os.Getenv("TURBOIST_TEST_QUOTED"); got != "world" {
+		t.Errorf("TURBOIST_TEST_QUOTED: got %q, want %q", got, "world")
+	}
+}
+
+func TestLoadDotEnv_NoOverride(t *testing.T) {
+	t.Setenv("TURBOIST_TEST_NOOVERRIDE", "original")
+
+	f := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(f, []byte("TURBOIST_TEST_NOOVERRIDE=replaced\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := loadDotEnv(f); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := os.Getenv("TURBOIST_TEST_NOOVERRIDE"); got != "original" {
+		t.Errorf("TURBOIST_TEST_NOOVERRIDE: got %q, want %q", got, "original")
+	}
+}
+
+func TestLoadDotEnv_MissingFile(t *testing.T) {
+	err := loadDotEnv("/nonexistent/.env")
+	if err != nil {
+		t.Errorf("expected no error for missing file, got %v", err)
 	}
 }

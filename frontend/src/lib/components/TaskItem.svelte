@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Task } from '$lib/api/types';
 	import { completeTask } from '$lib/api/client';
-	import { tasksStore } from '$lib/stores/tasks';
+	import { tasksStore } from '$lib/stores/tasks.svelte';
 
 	let { task, depth = 0 }: { task: Task; depth?: number } = $props();
 

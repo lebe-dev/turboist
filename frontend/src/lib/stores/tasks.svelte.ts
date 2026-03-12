@@ -1,6 +1,6 @@
 import { getConfig, getTasks, getWeeklyTasks, getNextWeekTasks } from '$lib/api/client';
 import type { Meta, Task } from '$lib/api/types';
-import { contextsStore, type View } from './contexts';
+import { contextsStore, type View } from './contexts.svelte';
 import { createPoller, type Poller } from '$lib/utils/polling';
 
 const DEFAULT_INTERVAL_MS = 30_000;

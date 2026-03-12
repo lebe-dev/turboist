@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -130,7 +131,43 @@ func loadEnv() (EnvConfig, error) {
 	return env, nil
 }
 
+// loadDotEnv reads KEY=VALUE pairs from path and sets them as env vars,
+// skipping keys that are already set. Missing file is silently ignored.
+func loadDotEnv(path string) error {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+			v = v[1 : len(v)-1]
+		}
+		if os.Getenv(k) == "" {
+			os.Setenv(k, v) //nolint:errcheck
+		}
+	}
+	return nil
+}
+
 func Load() (*Config, error) {
+	if err := loadDotEnv(".env"); err != nil {
+		return nil, fmt.Errorf(".env: %w", err)
+	}
+
 	env, err := loadEnv()
 	if err != nil {
 		return nil, err

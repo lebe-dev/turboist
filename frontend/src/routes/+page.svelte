@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { tasksStore } from '$lib/stores/tasks';
-	import { contextsStore } from '$lib/stores/contexts';
+	import { tasksStore } from '$lib/stores/tasks.svelte';
+	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import TaskList from '$lib/components/TaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
 
