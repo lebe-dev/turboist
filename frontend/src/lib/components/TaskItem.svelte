@@ -5,7 +5,38 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 
-	let { task, depth = 0 }: { task: Task; depth?: number } = $props();
+	let { task, depth = 0, searchQuery = '' }: { task: Task; depth?: number; searchQuery?: string } = $props();
+
+	const priorityColor = $derived.by(() => {
+		switch (task.priority) {
+			case 4: return 'border-red-500';
+			case 3: return 'border-orange-400';
+			case 2: return 'border-blue-400';
+			default: return 'border-muted-foreground/25';
+		}
+	});
+
+	const priorityHoverColor = $derived.by(() => {
+		switch (task.priority) {
+			case 4: return 'hover:border-red-500 hover:bg-red-500/10';
+			case 3: return 'hover:border-orange-400 hover:bg-orange-400/10';
+			case 2: return 'hover:border-blue-400 hover:bg-blue-400/10';
+			default: return 'hover:border-primary hover:bg-primary/10';
+		}
+	});
+
+	const priorityCheckColor = $derived.by(() => {
+		switch (task.priority) {
+			case 4: return 'border-red-500 bg-red-500';
+			case 3: return 'border-orange-400 bg-orange-400';
+			case 2: return 'border-blue-400 bg-blue-400';
+			default: return 'border-primary bg-primary';
+		}
+	});
+
+	const visible = $derived(
+		!searchQuery || task.content.toLowerCase().includes(searchQuery.toLowerCase())
+	);
 
 	let completing = $state(false);
 
@@ -55,12 +86,12 @@
 		{#if task.children.length > 0}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={0} />
+					<svelte:self task={child} depth={0} {searchQuery} />
 				{/each}
 			</div>
 		{/if}
 	</div>
-{:else}
+{:else if visible}
 	<div style="padding-left: {depth * 20}px">
 		<div
 			class="group flex items-start gap-3 rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-accent/50"
@@ -70,8 +101,8 @@
 			<button
 				class="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
 					{completing
-					? 'border-primary bg-primary'
-					: 'border-muted-foreground/25 hover:border-primary hover:bg-primary/10'}"
+					? priorityCheckColor
+					: priorityColor + ' ' + priorityHoverColor}"
 				style="-webkit-tap-highlight-color: transparent;"
 				onclick={handleComplete}
 				disabled={completing}
@@ -89,7 +120,7 @@
 				{#if task.labels.length > 0 || task.due || task.sub_task_count > 0}
 					<div class="mt-1 flex flex-wrap items-center gap-1.5">
 						{#each task.labels as label (label)}
-							<span class="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary/80">{label}</span>
+							<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
 						{/each}
 						{#if dueLabel}
 							<span
@@ -114,7 +145,7 @@
 		{#if task.children && task.children.length > 0}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={depth + 1} />
+					<svelte:self task={child} depth={depth + 1} {searchQuery} />
 				{/each}
 			</div>
 		{/if}

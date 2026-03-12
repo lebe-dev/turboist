@@ -3,7 +3,7 @@
 	import TaskItem from './TaskItem.svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 
-	let { tasks }: { tasks: Task[] } = $props();
+	let { tasks, searchQuery = '' }: { tasks: Task[]; searchQuery?: string } = $props();
 </script>
 
 {#if tasks.length === 0}
@@ -15,7 +15,7 @@
 	<div class="space-y-px px-1">
 		{#each tasks as task, i (task.id)}
 			<div class="animate-fade-in-up" style="animation-delay: {Math.min(i * 30, 300)}ms">
-				<TaskItem {task} />
+				<TaskItem {task} {searchQuery} />
 			</div>
 		{/each}
 	</div>
