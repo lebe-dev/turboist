@@ -122,6 +122,9 @@
 
 			<div class="min-w-0 flex-1">
 				<span class="break-words text-[13px] leading-relaxed text-foreground/90">{task.content}</span>
+				{#if task.description}
+					<p class="truncate text-[12px] text-muted-foreground">{task.description}</p>
+				{/if}
 				{#if task.labels.length > 0 || task.due || task.sub_task_count > 0}
 					<div class="mt-1 flex flex-wrap items-center gap-1.5">
 						{#each task.labels as label (label)}
