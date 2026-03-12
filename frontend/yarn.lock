@@ -215,10 +215,10 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@lucide/svelte@^0.561.0":
-  version "0.561.0"
-  resolved "https://registry.yarnpkg.com/@lucide/svelte/-/svelte-0.561.0.tgz#ca5f8ce6ed843da99ec47eebdc9e5b1681ff8862"
-  integrity sha512-vofKV2UFVrKE6I4ewKJ3dfCXSV6iP6nWVmiM83MLjsU91EeJcEg7LoWUABLp/aOTxj1HQNbJD1f3g3L0JQgH9A==
+"@lucide/svelte@^0.577.0":
+  version "0.577.0"
+  resolved "https://registry.yarnpkg.com/@lucide/svelte/-/svelte-0.577.0.tgz#467278dfbb7f80ba0005014afa2f67088881a400"
+  integrity sha512-0P6mkySd2MapIEgq08tADPmcN4DHndC/02PWwaLkOerXlx5Sv9aT4BxyXLIY+eccr0g/nEyCYiJesqS61YdBZQ==
 
 "@napi-rs/wasm-runtime@^1.1.1":
   version "1.1.1"

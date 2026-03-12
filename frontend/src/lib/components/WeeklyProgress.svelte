@@ -7,28 +7,27 @@
 </script>
 
 {#if weekly_limit > 0}
-	<div class="border-b border-border px-4 py-3">
-		<div class="mb-1.5 flex items-center justify-between text-sm">
-			<span class="font-medium text-foreground">На неделе</span>
+	<div class="border-b border-border/50 px-6 py-3">
+		<div class="mb-2 flex items-baseline justify-between">
+			<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+				На неделе
+			</span>
 			<span
-				class:text-yellow-500={isWarning}
-				class:text-destructive={isOver}
-				class="tabular-nums text-muted-foreground"
+				class="tabular-nums text-sm font-semibold
+					{isOver ? 'text-destructive' : isWarning ? 'text-yellow-500' : 'text-foreground'}"
 			>
-				{weekly_count} / {weekly_limit}
+				{weekly_count}<span class="text-muted-foreground/50">/{weekly_limit}</span>
 			</span>
 		</div>
-		<div class="h-1.5 overflow-hidden rounded-full bg-muted">
+		<div class="h-1 overflow-hidden rounded-full bg-muted">
 			<div
-				class="h-full rounded-full transition-all duration-300"
-				class:bg-primary={!isWarning && !isOver}
-				class:bg-yellow-500={isWarning}
-				class:bg-destructive={isOver}
+				class="h-full rounded-full transition-all duration-500 ease-out
+					{isOver ? 'bg-destructive' : isWarning ? 'bg-yellow-500' : 'bg-primary'}"
 				style="width: {percent}%"
 			></div>
 		</div>
 		{#if isOver}
-			<p class="mt-1.5 text-xs text-destructive">Лимит задач на неделю превышен</p>
+			<p class="mt-1.5 text-[11px] text-destructive/80">Лимит задач на неделю превышен</p>
 		{/if}
 	</div>
 {/if}

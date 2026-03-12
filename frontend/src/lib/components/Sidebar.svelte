@@ -3,6 +3,9 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import ContextSwitcher from './ContextSwitcher.svelte';
+	import ZapIcon from '@lucide/svelte/icons/zap';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
+	import XIcon from '@lucide/svelte/icons/x';
 
 	let { onClose }: { onClose?: () => void } = $props();
 
@@ -12,43 +15,32 @@
 </script>
 
 <aside
-	class="flex h-screen w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+	class="flex h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
 >
-	<div class="flex h-14 items-center border-b border-sidebar-border px-4">
-		<span class="text-base font-semibold">Turboist</span>
+	<div class="flex h-12 items-center gap-2.5 border-b border-sidebar-border px-4">
+		<ZapIcon class="h-4 w-4 text-primary" fill="currentColor" />
+		<span class="text-sm font-bold tracking-widest uppercase text-foreground">Turboist</span>
 		{#if onClose}
 			<button
-				class="ml-auto flex h-8 w-8 items-center justify-center rounded-md hover:bg-sidebar-accent md:hidden"
+				class="ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:hidden"
 				onclick={onClose}
-				aria-label="Закрыть меню"
+				aria-label="Close menu"
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="18"
-					height="18"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<line x1="18" y1="6" x2="6" y2="18" />
-					<line x1="6" y1="6" x2="18" y2="18" />
-				</svg>
+				<XIcon class="h-4 w-4" />
 			</button>
 		{/if}
 	</div>
 
-	<div class="flex-1 overflow-y-auto p-3">
+	<div class="flex-1 overflow-y-auto px-3 py-4">
 		<ContextSwitcher />
 	</div>
 
 	<div class="border-t border-sidebar-border p-3">
 		<button
-			class="w-full rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+			class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 			onclick={() => auth.logout()}
 		>
+			<LogOutIcon class="h-3.5 w-3.5" />
 			Выйти
 		</button>
 	</div>

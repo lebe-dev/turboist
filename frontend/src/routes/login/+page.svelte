@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { auth } from '$lib/stores/auth.svelte';
+	import ZapIcon from '@lucide/svelte/icons/zap';
 
 	let password = $state('');
 	let error = $state('');
@@ -19,34 +20,52 @@
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center">
-	<div class="w-full max-w-sm space-y-6 p-8">
-		<h1 class="text-2xl font-semibold">Turboist</h1>
+<div class="flex min-h-screen items-center justify-center bg-background">
+	<div class="relative w-full max-w-xs px-6">
+		<div class="absolute -top-32 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-primary/5 blur-3xl"></div>
 
-		<form onsubmit={handleSubmit} class="space-y-4">
-			<div class="space-y-2">
-				<label for="password" class="text-sm font-medium">Пароль</label>
-				<input
-					id="password"
-					type="password"
-					bind:value={password}
-					disabled={loading}
-					autocomplete="current-password"
-					class="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-				/>
+		<div class="relative space-y-8">
+			<div class="flex items-center justify-center gap-2.5">
+				<ZapIcon class="h-5 w-5 text-primary" fill="currentColor" />
+				<h1 class="text-lg font-bold tracking-widest uppercase text-foreground">Turboist</h1>
 			</div>
 
-			{#if error}
-				<p class="text-sm text-destructive">{error}</p>
-			{/if}
+			<form onsubmit={handleSubmit} class="space-y-5">
+				<div class="space-y-2">
+					<label for="password" class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+						Пароль
+					</label>
+					<input
+						id="password"
+						type="password"
+						bind:value={password}
+						disabled={loading}
+						autocomplete="current-password"
+						placeholder="..."
+						class="w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-sm text-foreground
+							placeholder:text-muted-foreground/30
+							focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30
+							disabled:opacity-50 transition-all duration-200"
+					/>
+				</div>
 
-			<button
-				type="submit"
-				disabled={loading || !password}
-				class="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-			>
-				{loading ? 'Вход...' : 'Войти'}
-			</button>
-		</form>
+				{#if error}
+					<p class="text-[12px] text-destructive">{error}</p>
+				{/if}
+
+				<button
+					type="submit"
+					disabled={loading || !password}
+					class="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-200
+						hover:brightness-110 hover:shadow-lg hover:shadow-primary/20
+						active:scale-[0.98]
+						disabled:opacity-40 disabled:hover:shadow-none disabled:active:scale-100"
+				>
+					{loading ? 'Вход...' : 'Войти'}
+				</button>
+			</form>
+
+			<p class="text-center text-[11px] text-muted-foreground/30">Augments your Todoist</p>
+		</div>
 	</div>
 </div>

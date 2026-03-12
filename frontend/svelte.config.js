@@ -9,9 +9,6 @@ const config = {
 			fallback: 'index.html'
 		})
 	},
-	vitePlugin: {
-		dynamicCompileOptions: ({ filename }) => ({ runes: !filename.includes('node_modules') })
-	}
 };
 
 export default config;

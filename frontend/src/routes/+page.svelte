@@ -4,6 +4,7 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import TaskList from '$lib/components/TaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	onMount(() => {
 		tasksStore.start();
@@ -33,13 +34,14 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<header class="flex h-14 shrink-0 items-center border-b border-border px-6">
-		<h1 class="text-lg font-semibold">{title}</h1>
+	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
+		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 	</header>
 
 	{#if tasksStore.isStale}
-		<div class="shrink-0 border-b border-yellow-500/20 bg-yellow-500/10 px-6 py-2 text-sm text-yellow-600 dark:text-yellow-400">
-			Данные могут быть устаревшими — синхронизация с Todoist прервана
+		<div class="flex shrink-0 items-center gap-2 border-b border-yellow-500/10 bg-yellow-500/5 px-6 py-2">
+			<TriangleAlertIcon class="h-3.5 w-3.5 text-yellow-500/70" />
+			<span class="text-[12px] text-yellow-500/70">Данные могут быть устаревшими</span>
 		</div>
 	{/if}
 
@@ -50,11 +52,13 @@
 		/>
 	{/if}
 
-	<div class="flex-1 overflow-y-auto p-4">
+	<div class="flex-1 overflow-y-auto px-3 py-3">
 		{#if tasksStore.loading}
-			<p class="py-8 text-center text-sm text-muted-foreground">Загрузка...</p>
+			<div class="flex items-center justify-center py-20">
+				<div class="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+			</div>
 		{:else if tasksStore.error}
-			<p class="py-8 text-center text-sm text-destructive">{tasksStore.error}</p>
+			<p class="py-8 text-center text-sm text-destructive/80">{tasksStore.error}</p>
 		{:else}
 			<TaskList tasks={tasksStore.tasks} />
 		{/if}
