@@ -1,4 +1,5 @@
 # --- Variables ---
+
 version := `cat cmd/turboist/main.go | grep Version | head -1 | cut -d " " -f 4 | tr -d "\""`
 
 # --- Utility ---
@@ -35,7 +36,7 @@ lint: format
 
 # --- Tests ---
 test name="":
-    go test -run "{{name}}" ./...
+    go test -run "{{ name }}" ./...
 
 # --- Coverage ---
 coverage:
@@ -53,7 +54,7 @@ run-backend:
     go run ./cmd/turboist
 
 run-frontend:
-    cd frontend && yarn dev
+    cd frontend && yarn dev -- --port=4200
 
 dev:
     cd frontend && yarn dev &
