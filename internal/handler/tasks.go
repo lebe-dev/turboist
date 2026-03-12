@@ -97,8 +97,8 @@ func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {
 	if contextKey == "" {
 		return tasks
 	}
-	ctx, ok := h.cfg.Contexts[contextKey]
-	if !ok {
+	ctx := h.cfg.FindContext(contextKey)
+	if ctx == nil {
 		return tasks
 	}
 	return ctxfilter.FilterTasks(tasks, ctx.Filters, h.cache.Projects(), h.cache.Sections())

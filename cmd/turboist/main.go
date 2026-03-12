@@ -22,6 +22,17 @@ func main() {
 		log.Fatal("failed to load config", "err", err)
 	}
 
+	log.Info("config loaded",
+		"bind", cfg.Env.Bind,
+		"base_url", cfg.Env.BaseURL,
+		"dev", cfg.Env.Dev,
+		"poll_interval", cfg.App.PollInterval,
+		"contexts", len(cfg.App.Contexts),
+		"weekly_label", cfg.App.Weekly.Label,
+		"weekly_max_tasks", cfg.App.Weekly.MaxTasks,
+		"auto_expire_rules", len(cfg.App.AutoExpire),
+	)
+
 	client := todoist.NewClient(cfg.Env.TodoistAPIKey)
 
 	log.Info("warming cache...")

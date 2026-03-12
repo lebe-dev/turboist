@@ -20,10 +20,20 @@ type EnvConfig struct {
 
 type AppConfig struct {
 	PollInterval time.Duration
-	Contexts     map[string]ContextConfig
+	Contexts     []ContextConfig
 	Weekly       WeeklyConfig
 	NextWeek     NextWeekConfig
 	AutoExpire   []AutoExpireConfig
+}
+
+// FindContext returns the context with the given ID, or nil if not found.
+func (c *AppConfig) FindContext(id string) *ContextConfig {
+	for i := range c.Contexts {
+		if c.Contexts[i].ID == id {
+			return &c.Contexts[i]
+		}
+	}
+	return nil
 }
 
 type Config struct {
@@ -32,6 +42,7 @@ type Config struct {
 }
 
 type ContextConfig struct {
+	ID          string         `yaml:"id"`
 	DisplayName string         `yaml:"display_name"`
 	Filters     ContextFilters `yaml:"filters"`
 }
@@ -57,11 +68,11 @@ type AutoExpireConfig struct {
 }
 
 type yamlFile struct {
-	PollInterval string                   `yaml:"poll_interval"`
-	Contexts     map[string]ContextConfig `yaml:"contexts"`
-	Weekly       WeeklyConfig             `yaml:"weekly"`
-	NextWeek     NextWeekConfig           `yaml:"next_week"`
-	AutoExpire   []yamlAutoExpire         `yaml:"auto_expire"`
+	PollInterval string           `yaml:"poll_interval"`
+	Contexts     []ContextConfig  `yaml:"contexts"`
+	Weekly       WeeklyConfig     `yaml:"weekly"`
+	NextWeek     NextWeekConfig   `yaml:"next_week"`
+	AutoExpire   []yamlAutoExpire `yaml:"auto_expire"`
 }
 
 type yamlAutoExpire struct {

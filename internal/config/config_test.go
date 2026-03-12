@@ -11,12 +11,12 @@ const archMdExample = `
 poll_interval: "30s"
 
 contexts:
-  dev:
+  - id: dev
     display_name: "Разработка"
     filters:
       projects: ["Проекты"]
       sections: ["Категория - Разработка"]
-  personal:
+  - id: personal
     display_name: "Личное"
     filters:
       projects: ["Личное"]
@@ -49,8 +49,8 @@ func TestParseAppConfig(t *testing.T) {
 		t.Errorf("contexts: got %d, want 2", len(app.Contexts))
 	}
 
-	dev, ok := app.Contexts["dev"]
-	if !ok {
+	dev := app.FindContext("dev")
+	if dev == nil {
 		t.Fatal("context 'dev' not found")
 	}
 	if dev.DisplayName != "Разработка" {

@@ -14,22 +14,18 @@ func NewContextsHandler(cfg *config.AppConfig) *ContextsHandler {
 }
 
 type contextItem struct {
-	Key         string `json:"key"`
+	ID          string `json:"id"`
 	DisplayName string `json:"display_name"`
-}
-
-type contextsResponse struct {
-	Contexts []contextItem `json:"contexts"`
 }
 
 // Contexts handles GET /api/contexts
 func (h *ContextsHandler) Contexts(c fiber.Ctx) error {
 	items := make([]contextItem, 0, len(h.cfg.Contexts))
-	for key, ctx := range h.cfg.Contexts {
+	for _, ctx := range h.cfg.Contexts {
 		items = append(items, contextItem{
-			Key:         key,
+			ID:          ctx.ID,
 			DisplayName: ctx.DisplayName,
 		})
 	}
-	return c.JSON(contextsResponse{Contexts: items})
+	return c.JSON(items)
 }

@@ -3,24 +3,30 @@
 poll_interval: "30s"
 
 # Contexts — named filter sets for tasks.
-# The key (dev, personal) is the context identifier used in query params (?context=dev).
+# Each context has a unique id used in query params (?context=health).
 # All conditions within a single context are combined with AND.
 # Multiple values within an array are combined with OR.
 contexts:
-  dev:
-    # Display name shown in the UI
+  - id: health
+    display_name: "Здоровье"
+    filters:
+      # Filter by Todoist labels (OR between items)
+      labels: ["здоровье"]
+
+  - id: dev
     display_name: "Разработка"
     filters:
       # Filter by Todoist project names (OR between items)
       projects: ["Проекты"]
       # Filter by section names within a project (OR between items)
-      sections: ["Категория - Разработка"]
-      # Filter by Todoist labels (OR between items, optional)
-      # labels: ["work"]
-  personal:
-    display_name: "Личное"
+      sections: ["Секция - Разработка"]
+      # Filter by Todoist labels (OR between items)
+      labels: ["проект"]
+
+  - id: work
+    display_name: "Работа"
     filters:
-      projects: ["Личное"]
+      labels: ["работа"]
 
 # Tasks for the current week
 weekly:

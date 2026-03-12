@@ -46,6 +46,7 @@ function createTasksStore() {
 		let intervalMs = DEFAULT_INTERVAL_MS;
 		try {
 			const cfg = await getConfig();
+			console.log('[config] loaded from API', cfg);
 			const parsed = cfg.poll_interval * 1000;
 			if (Number.isFinite(parsed) && parsed >= 1000) {
 				intervalMs = parsed;
