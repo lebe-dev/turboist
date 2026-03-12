@@ -36,6 +36,7 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 	app.Get("/api/tasks", tasksHandler.Tasks)
 	app.Get("/api/tasks/weekly", tasksHandler.Weekly)
 	app.Get("/api/tasks/next-week", tasksHandler.NextWeek)
+	app.Post("/api/tasks", tasksHandler.Create)
 	app.Post("/api/tasks/:id/complete", tasksHandler.Complete)
 
 	projectsHandler := handler.NewProjectsHandler(cache)

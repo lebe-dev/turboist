@@ -12,18 +12,18 @@ type Due struct {
 
 // Task is an internal representation of a Todoist task.
 type Task struct {
-	ID                     string  `json:"id"`
-	Content                string  `json:"content"`
-	Description            string  `json:"description"`
-	ProjectID              string  `json:"project_id"`
-	SectionID              *string `json:"section_id"`
-	ParentID               *string `json:"parent_id"`
-	Labels                 []string `json:"labels"`
-	Priority               int     `json:"priority"`
-	Due                    *Due    `json:"due"`
-	SubTaskCount           int     `json:"sub_task_count"`
-	CompletedSubTaskCount  int     `json:"completed_sub_task_count"`
-	Children               []*Task `json:"children"`
+	ID                    string   `json:"id"`
+	Content               string   `json:"content"`
+	Description           string   `json:"description"`
+	ProjectID             string   `json:"project_id"`
+	SectionID             *string  `json:"section_id"`
+	ParentID              *string  `json:"parent_id"`
+	Labels                []string `json:"labels"`
+	Priority              int      `json:"priority"`
+	Due                   *Due     `json:"due"`
+	SubTaskCount          int      `json:"sub_task_count"`
+	CompletedSubTaskCount int      `json:"completed_sub_task_count"`
+	Children              []*Task  `json:"children"`
 }
 
 // Project is an internal representation of a Todoist project.

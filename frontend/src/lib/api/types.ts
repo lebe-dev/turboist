@@ -51,9 +51,23 @@ export interface Label {
 	order: number;
 }
 
+export interface ContextFilters {
+	projects: string[];
+	sections: string[];
+	labels: string[];
+}
+
 export interface Context {
 	id: string;
 	display_name: string;
+	filters: ContextFilters;
+}
+
+export interface CreateTaskRequest {
+	content: string;
+	description: string;
+	labels: string[];
+	priority: number;
 }
 
 export interface Config {

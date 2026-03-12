@@ -3,8 +3,8 @@ package context_test
 import (
 	"testing"
 
-	appctx "github.com/lebe-dev/turboist/internal/context"
 	"github.com/lebe-dev/turboist/internal/config"
+	appctx "github.com/lebe-dev/turboist/internal/context"
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
 

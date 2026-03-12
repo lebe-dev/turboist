@@ -1,8 +1,9 @@
 package handler
 
 import (
-	ctxfilter "github.com/lebe-dev/turboist/internal/context"
+	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/lebe-dev/turboist/internal/config"
+	ctxfilter "github.com/lebe-dev/turboist/internal/context"
 	"github.com/lebe-dev/turboist/internal/todoist"
 
 	"github.com/charmbracelet/log"
@@ -79,6 +80,102 @@ func (h *TasksHandler) NextWeek(c fiber.Ctx) error {
 			WeeklyCount: weeklyCount,
 		},
 	})
+}
+
+type createTaskRequest struct {
+	Content     string   `json:"content"`
+	Description string   `json:"description"`
+	Labels      []string `json:"labels"`
+	Priority    int      `json:"priority"`
+}
+
+// Create handles POST /api/tasks?context=...
+func (h *TasksHandler) Create(c fiber.Ctx) error {
+	var req createTaskRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if req.Content == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "content is required"})
+	}
+
+	args := &synctodoist.TaskAddArgs{
+		Content: req.Content,
+	}
+
+	if req.Description != "" {
+		args.Description = &req.Description
+	}
+	if req.Priority >= 1 && req.Priority <= 4 {
+		args.Priority = &req.Priority
+	}
+
+	labels := make([]string, 0)
+	if len(req.Labels) > 0 {
+		labels = append(labels, req.Labels...)
+	}
+
+	// Resolve context defaults: project, section, labels
+	contextKey := c.Query("context")
+	if contextKey != "" {
+		ctx := h.cfg.FindContext(contextKey)
+		if ctx != nil {
+			// Set project from context filter (first match)
+			if len(ctx.Filters.Projects) > 0 {
+				projectID := resolveProjectID(ctx.Filters.Projects[0], h.cache.Projects())
+				if projectID != "" {
+					args.ProjectID = &projectID
+				}
+			}
+			// Set section from context filter (first match)
+			if len(ctx.Filters.Sections) > 0 {
+				sectionID := resolveSectionID(ctx.Filters.Sections[0], h.cache.Sections())
+				if sectionID != "" {
+					args.SectionID = &sectionID
+				}
+			}
+			// Merge context labels (avoid duplicates)
+			existing := make(map[string]struct{}, len(labels))
+			for _, l := range labels {
+				existing[l] = struct{}{}
+			}
+			for _, l := range ctx.Filters.Labels {
+				if _, ok := existing[l]; !ok {
+					labels = append(labels, l)
+				}
+			}
+		}
+	}
+
+	if len(labels) > 0 {
+		args.Labels = labels
+	}
+
+	log.Debug("create task", "content", req.Content, "context", contextKey, "labels", labels)
+	if err := h.cache.AddTask(c.Context(), args); err != nil {
+		log.Error("create task failed", "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true})
+}
+
+func resolveProjectID(name string, projects []*todoist.Project) string {
+	for _, p := range projects {
+		if p.Name == name {
+			return p.ID
+		}
+	}
+	return ""
+}
+
+func resolveSectionID(name string, sections []*todoist.Section) string {
+	for _, s := range sections {
+		if s.Name == name {
+			return s.ID
+		}
+	}
+	return ""
 }
 
 // Complete handles POST /api/tasks/:id/complete

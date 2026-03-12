@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	extclient "github.com/CnTeng/todoist-api-go/todoist"
 	"github.com/CnTeng/todoist-api-go/sync"
+	extclient "github.com/CnTeng/todoist-api-go/todoist"
 )
 
 // APIError wraps errors returned by the Todoist API.
@@ -130,6 +130,15 @@ func (c *Client) GetLabels(ctx context.Context) ([]*Label, error) {
 		return nil, err
 	}
 	return result.Labels, nil
+}
+
+// AddTask creates a new task via the Todoist API.
+func (c *Client) AddTask(ctx context.Context, args *sync.TaskAddArgs) error {
+	_, err := c.taskSvc.AddTask(ctx, args)
+	if err != nil {
+		return &APIError{Op: "AddTask", Err: err}
+	}
+	return nil
 }
 
 // CompleteTask closes a task via the Todoist API.

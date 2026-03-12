@@ -1,5 +1,5 @@
 import { goto } from '$app/navigation';
-import type { Config, Context, Label, Project, Task, TasksResponse } from './types';
+import type { Config, Context, CreateTaskRequest, Label, Project, Task, TasksResponse } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const res = await fetch(path, {
@@ -60,11 +60,13 @@ export async function getNextWeekTasks(context?: string): Promise<TasksResponse>
 }
 
 export async function getProjects(): Promise<Project[]> {
-	return request<Project[]>('/api/projects');
+	const res = await request<{ projects: Project[] }>('/api/projects');
+	return res.projects;
 }
 
 export async function getLabels(): Promise<Label[]> {
-	return request<Label[]>('/api/labels');
+	const res = await request<{ labels: Label[] }>('/api/labels');
+	return res.labels;
 }
 
 export async function getContexts(): Promise<Context[]> {
@@ -73,6 +75,14 @@ export async function getContexts(): Promise<Context[]> {
 
 export async function getConfig(): Promise<Config> {
 	return request<Config>('/api/config');
+}
+
+export async function createTask(data: CreateTaskRequest, context?: string): Promise<void> {
+	const params = context ? `?context=${encodeURIComponent(context)}` : '';
+	await request(`/api/tasks${params}`, {
+		method: 'POST',
+		body: JSON.stringify(data)
+	});
 }
 
 export async function completeTask(id: string): Promise<void> {

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/charmbracelet/log"
 	"golang.org/x/sync/singleflight"
 )
@@ -105,6 +106,14 @@ func (c *Cache) RefreshAfterMutation(ctx context.Context) error {
 		return nil, c.Refresh(ctx)
 	})
 	return err
+}
+
+// AddTask creates a task via the Todoist API and refreshes the cache.
+func (c *Cache) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) error {
+	if err := c.client.AddTask(ctx, args); err != nil {
+		return err
+	}
+	return c.RefreshAfterMutation(ctx)
 }
 
 // CompleteTask closes a task via the Todoist API and refreshes the cache.

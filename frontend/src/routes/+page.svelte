@@ -6,9 +6,11 @@
 	import type { Task } from '$lib/api/types';
 	import TaskList from '$lib/components/TaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
+	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ChevronsDownUpIcon from '@lucide/svelte/icons/chevrons-down-up';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import SunIcon from '@lucide/svelte/icons/sun';
@@ -68,12 +70,30 @@
 			collapsedStore.collapseAll(collectParentIds(tasksStore.tasks));
 		}
 	}
+
+	let createDialogOpen = $state(false);
 </script>
+
+<svelte:window
+	onkeydown={(e) => {
+		if (e.key === 'q' && !e.ctrlKey && !e.metaKey && !e.altKey && !createDialogOpen) {
+			const tag = (e.target as HTMLElement)?.tagName;
+			if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+				e.preventDefault();
+				createDialogOpen = true;
+			}
+		}
+	}}
+/>
 
 <div class="flex h-full flex-col">
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
-		<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-muted-foreground">
+		<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-primary hover:text-primary" title="Add task (Q)">
+			<PlusIcon class="h-4 w-4" />
+			<span class="sr-only">Add task</span>
+		</Button>
+		<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="me-2 h-8 w-8 text-muted-foreground">
 			{#if collapsedStore.hasAny}
 				<ChevronsUpDownIcon class="h-4 w-4" />
 			{:else}
@@ -132,3 +152,14 @@
 		{/if}
 	</div>
 </div>
+
+<!-- Mobile FAB -->
+<button
+	class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden"
+	onclick={() => (createDialogOpen = true)}
+	aria-label="Add task"
+>
+	<PlusIcon class="h-5 w-5" />
+</button>
+
+<CreateTaskDialog bind:open={createDialogOpen} />
