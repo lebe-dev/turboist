@@ -46,7 +46,10 @@ function createTasksStore() {
 		let intervalMs = DEFAULT_INTERVAL_MS;
 		try {
 			const cfg = await getConfig();
-			intervalMs = cfg.poll_interval * 1000;
+			const parsed = cfg.poll_interval * 1000;
+			if (Number.isFinite(parsed) && parsed >= 1000) {
+				intervalMs = parsed;
+			}
 		} catch {
 			// fallback to default
 		}

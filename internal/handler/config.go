@@ -18,7 +18,7 @@ func NewConfigHandler(cache *todoist.Cache, cfg *config.AppConfig) *ConfigHandle
 }
 
 type configResponse struct {
-	PollInterval string    `json:"poll_interval"`
+	PollInterval int       `json:"poll_interval"`
 	WeeklyLabel  string    `json:"weekly_label"`
 	WeeklyLimit  int       `json:"weekly_limit"`
 	LastSyncedAt time.Time `json:"last_synced_at"`
@@ -27,7 +27,7 @@ type configResponse struct {
 // Config handles GET /api/config
 func (h *ConfigHandler) Config(c fiber.Ctx) error {
 	return c.JSON(configResponse{
-		PollInterval: h.cfg.PollInterval.String(),
+		PollInterval: int(h.cfg.PollInterval.Seconds()),
 		WeeklyLabel:  h.cfg.Weekly.Label,
 		WeeklyLimit:  h.cfg.Weekly.MaxTasks,
 		LastSyncedAt: h.cache.LastSyncedAt(),
