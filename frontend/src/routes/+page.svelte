@@ -5,6 +5,10 @@
 	import TaskList from '$lib/components/TaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import SunIcon from '@lucide/svelte/icons/sun';
+	import MoonIcon from '@lucide/svelte/icons/moon';
+	import { toggleMode } from 'mode-watcher';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	onMount(() => {
 		tasksStore.start();
@@ -36,6 +40,11 @@
 <div class="flex h-full flex-col">
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
+		<Button onclick={toggleMode} variant="ghost" size="icon" class="ml-auto h-8 w-8 text-muted-foreground">
+			<SunIcon class="h-4 w-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+			<MoonIcon class="absolute h-4 w-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+			<span class="sr-only">Toggle theme</span>
+		</Button>
 	</header>
 
 	{#if tasksStore.isStale}
