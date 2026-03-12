@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/auth"
 )
@@ -29,13 +30,17 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	}
 
 	if subtle.ConstantTimeCompare([]byte(body.Password), []byte(h.password)) != 1 {
+		log.Warn("login: invalid password attempt")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid password"})
 	}
 
 	token, err := h.store.CreateSession()
 	if err != nil {
+		log.Error("login: create session", "err", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal error"})
 	}
+
+	log.Debug("login: session created")
 
 	c.Cookie(&fiber.Cookie{
 		Name:     cookieName,
@@ -53,6 +58,7 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 	token := c.Cookies(cookieName)
 	if token != "" {
 		h.store.DeleteSession(token)
+		log.Debug("logout: session deleted")
 	}
 
 	c.Cookie(&fiber.Cookie{

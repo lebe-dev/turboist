@@ -3,3 +3,5 @@
 !DEV.md
 /tasks
 /turboist
+/.env
+/config.yml

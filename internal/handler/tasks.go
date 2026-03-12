@@ -5,6 +5,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/todoist"
 
+	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -83,7 +84,9 @@ func (h *TasksHandler) NextWeek(c fiber.Ctx) error {
 // Complete handles POST /api/tasks/:id/complete
 func (h *TasksHandler) Complete(c fiber.Ctx) error {
 	id := c.Params("id")
+	log.Debug("complete task", "id", id)
 	if err := h.cache.CompleteTask(c.Context(), id); err != nil {
+		log.Error("complete task failed", "id", id, "err", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.SendStatus(fiber.StatusOK)

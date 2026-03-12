@@ -1,6 +1,7 @@
 package context
 
 import (
+	"github.com/charmbracelet/log"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
@@ -16,12 +17,20 @@ func FilterTasks(
 	sections []*todoist.Section,
 ) []*todoist.Task {
 	if len(filters.Projects) == 0 && len(filters.Sections) == 0 && len(filters.Labels) == 0 {
+		log.Debug("filter: no filters defined, returning all tasks", "count", len(tasks))
 		return tasks
 	}
 
 	allowedProjects := nameSetToIDs(filters.Projects, projects)
 	allowedSections := nameSetToSectionIDs(filters.Sections, sections)
 	allowedLabels := toSet(filters.Labels)
+
+	log.Debug("filter: applying filters",
+		"projects", filters.Projects,
+		"sections", filters.Sections,
+		"labels", filters.Labels,
+		"input_tasks", len(tasks),
+	)
 
 	result := make([]*todoist.Task, 0)
 	for _, t := range tasks {
@@ -30,6 +39,8 @@ func FilterTasks(
 		}
 		result = append(result, t)
 	}
+
+	log.Debug("filter: done", "matched", len(result), "total", len(tasks))
 	return result
 }
 

@@ -27,6 +27,7 @@ func NewWeeklyLimit(reader TaskReader, cfg config.WeeklyConfig) *WeeklyLimit {
 // Job implements scheduler.Job. Register it with the Scheduler.
 func (wl *WeeklyLimit) Job(_ context.Context) {
 	if wl.cfg.MaxTasks <= 0 || wl.cfg.Label == "" {
+		log.Debug("weekly_limit: disabled, skipping")
 		return
 	}
 
@@ -36,6 +37,8 @@ func (wl *WeeklyLimit) Job(_ context.Context) {
 			count++
 		}
 	}
+
+	log.Debug("weekly_limit: checked", "label", wl.cfg.Label, "count", count, "max", wl.cfg.MaxTasks)
 
 	if count > wl.cfg.MaxTasks {
 		log.Warn("weekly_limit: exceeded",
