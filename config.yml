@@ -1,0 +1,25 @@
+poll_interval: "30s"
+
+contexts:
+  dev:
+    display_name: "Разработка"
+    filters:
+      projects: ["Проекты"]
+      sections: ["Категория - Разработка"]
+  personal:
+    display_name: "Личное"
+    filters:
+      projects: ["Личное"]
+
+weekly:
+  label: "на неделе"
+  max_tasks: 15
+
+next_week:
+  label: "на след неделе"
+
+auto_expire:
+  - label: "срочное"
+    ttl: "24h"
+  - label: "горит"
+    ttl: "4h"
