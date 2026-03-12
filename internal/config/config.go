@@ -14,6 +14,7 @@ type EnvConfig struct {
 	BaseURL       string
 	TodoistAPIKey string
 	AdminPassword string
+	Dev           bool
 }
 
 type AppConfig struct {
@@ -118,6 +119,7 @@ func loadEnv() (EnvConfig, error) {
 		BaseURL:       getEnv("BASE_URL", "http://localhost:8080"),
 		TodoistAPIKey: os.Getenv("TODOIST_API_KEY"),
 		AdminPassword: os.Getenv("TURBOIST_ADMIN_PASSWORD"),
+		Dev:           os.Getenv("DEV") == "true",
 	}
 	if env.TodoistAPIKey == "" {
 		return env, fmt.Errorf("TODOIST_API_KEY is required")
