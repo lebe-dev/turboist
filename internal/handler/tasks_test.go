@@ -2,6 +2,7 @@ package handler
 
 import (
 	"testing"
+	"time"
 
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
@@ -76,6 +77,33 @@ func TestFilterByLabel_emptyLabel(t *testing.T) {
 	got := filterByLabel(tasks, "")
 	if len(got) != 2 {
 		t.Fatalf("expected all tasks returned for empty label, got %d", len(got))
+	}
+}
+
+func TestFilterByDueDate_exactMatch(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Due: &todoist.Due{Date: "2026-03-13"}},
+		{ID: "2", Due: &todoist.Due{Date: "2026-03-14"}},
+		{ID: "3"},
+	}
+	target, _ := time.Parse("2006-01-02", "2026-03-13")
+	got := filterByDueDate(tasks, target, false)
+	if len(got) != 1 || got[0].ID != "1" {
+		t.Fatalf("expected 1 task (id=1), got %d", len(got))
+	}
+}
+
+func TestFilterByDueDate_includeOverdue(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Due: &todoist.Due{Date: "2026-03-11"}}, // overdue
+		{ID: "2", Due: &todoist.Due{Date: "2026-03-13"}}, // today
+		{ID: "3", Due: &todoist.Due{Date: "2026-03-14"}}, // future
+		{ID: "4"},                                         // no due
+	}
+	target, _ := time.Parse("2006-01-02", "2026-03-13")
+	got := filterByDueDate(tasks, target, true)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 tasks (overdue + today), got %d", len(got))
 	}
 }
 

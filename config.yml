@@ -31,7 +31,14 @@ weekly:
 
 # Tasks for the next week
 next_week:
-  label: "на след неделе"
+  label: "след неделя"
+
+# Tasks for today (by due date)
+today:
+  include_overdue: true  # also show overdue tasks
+
+# Tasks for tomorrow (by due date)
+tomorrow: {}
 
 # Auto-expire
 auto_expire:

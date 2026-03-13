@@ -40,6 +40,14 @@ next_week:
   # Todoist label for next week's tasks
   label: "на след неделе"
 
+# Tasks for today (filtered by due date)
+today:
+  # Include overdue tasks (due date before today) in the "Today" view
+  include_overdue: true
+
+# Tasks for tomorrow (filtered by due date)
+tomorrow: {}
+
 # Auto-expire: tasks with the given label are closed (completed) after the TTL elapses.
 # TTL is counted from the moment the label is first seen in the cache (first_seen).
 # The timer resets on application restart.

@@ -59,6 +59,16 @@ export async function getNextWeekTasks(context?: string): Promise<TasksResponse>
 	return request<TasksResponse>(`/api/tasks/next-week${params}`);
 }
 
+export async function getTodayTasks(context?: string): Promise<TasksResponse> {
+	const params = context ? `?context=${encodeURIComponent(context)}` : '';
+	return request<TasksResponse>(`/api/tasks/today${params}`);
+}
+
+export async function getTomorrowTasks(context?: string): Promise<TasksResponse> {
+	const params = context ? `?context=${encodeURIComponent(context)}` : '';
+	return request<TasksResponse>(`/api/tasks/tomorrow${params}`);
+}
+
 export async function getProjects(): Promise<Project[]> {
 	const res = await request<{ projects: Project[] }>('/api/projects');
 	return res.projects;

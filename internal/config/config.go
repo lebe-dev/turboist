@@ -23,6 +23,8 @@ type AppConfig struct {
 	Contexts     []ContextConfig
 	Weekly       WeeklyConfig
 	NextWeek     NextWeekConfig
+	Today        TodayConfig
+	Tomorrow     TomorrowConfig
 	AutoExpire   []AutoExpireConfig
 }
 
@@ -62,6 +64,13 @@ type NextWeekConfig struct {
 	Label string `yaml:"label"`
 }
 
+type TodayConfig struct {
+	IncludeOverdue bool `yaml:"include_overdue"`
+}
+
+type TomorrowConfig struct {
+}
+
 type AutoExpireConfig struct {
 	Label string
 	TTL   time.Duration
@@ -72,6 +81,8 @@ type yamlFile struct {
 	Contexts     []ContextConfig  `yaml:"contexts"`
 	Weekly       WeeklyConfig     `yaml:"weekly"`
 	NextWeek     NextWeekConfig   `yaml:"next_week"`
+	Today        TodayConfig      `yaml:"today"`
+	Tomorrow     TomorrowConfig   `yaml:"tomorrow"`
 	AutoExpire   []yamlAutoExpire `yaml:"auto_expire"`
 }
 
@@ -108,6 +119,8 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		Contexts:     yf.Contexts,
 		Weekly:       yf.Weekly,
 		NextWeek:     yf.NextWeek,
+		Today:        yf.Today,
+		Tomorrow:     yf.Tomorrow,
 	}
 
 	for _, ae := range yf.AutoExpire {

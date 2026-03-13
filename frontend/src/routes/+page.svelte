@@ -39,6 +39,8 @@
 
 	const viewTitles: Record<string, string> = {
 		all: 'Все задачи',
+		today: 'Сегодня',
+		tomorrow: 'Завтра',
 		weekly: 'На неделе',
 		'next-week': 'На следующей неделе'
 	};

@@ -84,6 +84,42 @@ func (h *TasksHandler) NextWeek(c fiber.Ctx) error {
 	})
 }
 
+// Today handles GET /api/tasks/today?context=...
+func (h *TasksHandler) Today(c fiber.Ctx) error {
+	contextKey := c.Query("context")
+	tasks := h.filterByContext(contextKey)
+	today := filterByDueDate(tasks, time.Now(), h.cfg.Today.IncludeOverdue)
+	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
+	tree := buildTree(today)
+
+	return c.JSON(tasksResponse{
+		Tasks: tree,
+		Meta: tasksMeta{
+			Context:     contextKey,
+			WeeklyLimit: h.cfg.Weekly.MaxTasks,
+			WeeklyCount: weeklyCount,
+		},
+	})
+}
+
+// Tomorrow handles GET /api/tasks/tomorrow?context=...
+func (h *TasksHandler) Tomorrow(c fiber.Ctx) error {
+	contextKey := c.Query("context")
+	tasks := h.filterByContext(contextKey)
+	tomorrow := filterByDueDate(tasks, time.Now().AddDate(0, 0, 1), false)
+	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
+	tree := buildTree(tomorrow)
+
+	return c.JSON(tasksResponse{
+		Tasks: tree,
+		Meta: tasksMeta{
+			Context:     contextKey,
+			WeeklyLimit: h.cfg.Weekly.MaxTasks,
+			WeeklyCount: weeklyCount,
+		},
+	})
+}
+
 type createTaskRequest struct {
 	Content     string   `json:"content"`
 	Description string   `json:"description"`
@@ -325,4 +361,24 @@ func countWithLabel(tasks []*todoist.Task, label string) int {
 		}
 	}
 	return count
+}
+
+// filterByDueDate returns tasks due on the given date.
+// If includeOverdue is true, tasks with due dates before the target date are also included.
+func filterByDueDate(tasks []*todoist.Task, target time.Time, includeOverdue bool) []*todoist.Task {
+	targetDate := target.Format("2006-01-02")
+	result := make([]*todoist.Task, 0)
+	for _, t := range tasks {
+		if t.Due == nil {
+			continue
+		}
+		if t.Due.Date == targetDate {
+			result = append(result, t)
+			continue
+		}
+		if includeOverdue && t.Due.Date < targetDate {
+			result = append(result, t)
+		}
+	}
+	return result
 }

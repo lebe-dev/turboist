@@ -4,11 +4,15 @@
 	import ListIcon from '@lucide/svelte/icons/list';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+	import SunIcon from '@lucide/svelte/icons/sun';
+	import SunriseIcon from '@lucide/svelte/icons/sunrise';
 
 	const views = [
-		{ id: 'all' as const, label: 'Все задачи', icon: ListIcon },
+		{ id: 'today' as const, label: 'Сегодня', icon: SunIcon },
+		{ id: 'tomorrow' as const, label: 'Завтра', icon: SunriseIcon },
 		{ id: 'weekly' as const, label: 'На неделе', icon: CalendarDaysIcon },
-		{ id: 'next-week' as const, label: 'След. неделю', icon: CalendarClockIcon }
+		{ id: 'next-week' as const, label: 'След. неделю', icon: CalendarClockIcon },
+		{ id: 'all' as const, label: 'Все задачи', icon: ListIcon }
 	];
 </script>
 
@@ -17,17 +21,6 @@
 		{contextsStore.activeContextId !== null ? 'text-primary' : 'text-muted-foreground/60'}">
 		Контексты
 	</p>
-
-	<button
-		class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150
-			{contextsStore.activeContextId === null
-			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => contextsStore.setContext(null)}
-	>
-		<LayersIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
-		Все
-	</button>
 
 	{#each contextsStore.contexts as ctx (ctx.id)}
 		<button
@@ -46,6 +39,17 @@
 			{ctx.display_name}
 		</button>
 	{/each}
+
+	<button
+		class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150
+			{contextsStore.activeContextId === null
+			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+		onclick={() => contextsStore.setContext(null)}
+	>
+		<LayersIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
+		Все
+	</button>
 
 	<div class="my-3 border-t border-sidebar-border"></div>
 
