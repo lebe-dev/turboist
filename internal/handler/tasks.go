@@ -128,6 +128,33 @@ func (h *TasksHandler) Tomorrow(c fiber.Ctx) error {
 	})
 }
 
+// Inbox handles GET /api/tasks/inbox?context=...
+func (h *TasksHandler) Inbox(c fiber.Ctx) error {
+	contextKey := c.Query("context")
+	tasks := h.filterByContext(contextKey)
+
+	inboxProjectID := h.cache.InboxProjectID()
+	inbox := make([]*todoist.Task, 0)
+	for _, t := range tasks {
+		if t.ProjectID == inboxProjectID {
+			inbox = append(inbox, t)
+		}
+	}
+
+	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
+	tree := buildTree(inbox)
+	sortTasks(tree, h.cfg.TaskSort)
+
+	return c.JSON(tasksResponse{
+		Tasks: tree,
+		Meta: tasksMeta{
+			Context:     contextKey,
+			WeeklyLimit: h.cfg.Weekly.MaxTasks,
+			WeeklyCount: weeklyCount,
+		},
+	})
+}
+
 // Completed handles GET /api/tasks/completed
 func (h *TasksHandler) Completed(c fiber.Ctx) error {
 	now := time.Now()

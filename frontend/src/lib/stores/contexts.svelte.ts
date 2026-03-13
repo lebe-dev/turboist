@@ -1,12 +1,12 @@
 import { getContexts } from '$lib/api/client';
 import type { Context } from '$lib/api/types';
 
-export type View = 'all' | 'weekly' | 'next-week' | 'today' | 'tomorrow' | 'completed';
+export type View = 'all' | 'inbox' | 'weekly' | 'next-week' | 'today' | 'tomorrow' | 'completed';
 
 const CONTEXT_KEY = 'turboist:context';
 const VIEW_KEY = 'turboist:view';
 
-const VALID_VIEWS: View[] = ['all', 'today', 'tomorrow', 'weekly', 'next-week', 'completed'];
+const VALID_VIEWS: View[] = ['all', 'inbox', 'today', 'tomorrow', 'weekly', 'next-week', 'completed'];
 
 function loadContext(): string | null {
 	try {

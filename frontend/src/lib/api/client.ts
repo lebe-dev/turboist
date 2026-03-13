@@ -49,6 +49,11 @@ export async function getTasks(context?: string): Promise<TasksResponse> {
 	return request<TasksResponse>(`/api/tasks${params}`);
 }
 
+export async function getInboxTasks(context?: string): Promise<TasksResponse> {
+	const params = context ? `?context=${encodeURIComponent(context)}` : '';
+	return request<TasksResponse>(`/api/tasks/inbox${params}`);
+}
+
 export async function getWeeklyTasks(context?: string): Promise<TasksResponse> {
 	const params = context ? `?context=${encodeURIComponent(context)}` : '';
 	return request<TasksResponse>(`/api/tasks/weekly${params}`);

@@ -99,6 +99,18 @@ func (c *Cache) LastSyncedAt() time.Time {
 	return c.lastSyncedAt
 }
 
+// InboxProjectID returns the ID of the Todoist Inbox project, or empty string if not found.
+func (c *Cache) InboxProjectID() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, p := range c.projects {
+		if p.IsInbox {
+			return p.ID
+		}
+	}
+	return ""
+}
+
 // Client returns the underlying Todoist API client.
 func (c *Cache) Client() *Client {
 	return c.client

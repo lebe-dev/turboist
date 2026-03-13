@@ -29,8 +29,9 @@ type Task struct {
 
 // Project is an internal representation of a Todoist project.
 type Project struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	IsInbox bool   `json:"is_inbox,omitempty"`
 }
 
 // Section is an internal representation of a Todoist section.
@@ -82,8 +83,9 @@ func TaskFromSync(t *sync.Task) *Task {
 // ProjectFromSync maps a sync.Project to our internal Project model.
 func ProjectFromSync(p *sync.Project) *Project {
 	return &Project{
-		ID:   p.ID,
-		Name: p.Name,
+		ID:      p.ID,
+		Name:    p.Name,
+		IsInbox: p.InboxProject,
 	}
 }
 

@@ -7,10 +7,12 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import SunriseIcon from '@lucide/svelte/icons/sunrise';
 	import CircleCheckBigIcon from '@lucide/svelte/icons/circle-check-big';
+	import InboxIcon from '@lucide/svelte/icons/inbox';
 
 	let { collapsed = false }: { collapsed?: boolean } = $props();
 
 	const views = [
+		{ id: 'inbox' as const, label: 'Входящие', icon: InboxIcon },
 		{ id: 'today' as const, label: 'Сегодня', icon: SunIcon },
 		{ id: 'tomorrow' as const, label: 'Завтра', icon: SunriseIcon },
 		{ id: 'weekly' as const, label: 'На неделе', icon: CalendarDaysIcon },

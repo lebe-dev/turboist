@@ -1,4 +1,4 @@
-import { getConfig, getTasks, getWeeklyTasks, getNextWeekTasks, getTodayTasks, getTomorrowTasks, getCompletedTasks } from '$lib/api/client';
+import { getConfig, getTasks, getInboxTasks, getWeeklyTasks, getNextWeekTasks, getTodayTasks, getTomorrowTasks, getCompletedTasks } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
 import { createPoller, type Poller } from '$lib/utils/polling';
@@ -22,6 +22,7 @@ function createTasksStore() {
 		const view: View = contextsStore.activeView;
 
 		const fetcherMap: Record<string, typeof getTasks> = {
+			inbox: getInboxTasks,
 			weekly: getWeeklyTasks,
 			'next-week': getNextWeekTasks,
 			today: getTodayTasks,
@@ -99,6 +100,17 @@ function createTasksStore() {
 		tasks = walk(tasks);
 	}
 
+	/** Optimistically remove a task (and its children) from the local store. */
+	function removeTaskLocal(taskId: string): void {
+		function walk(list: Task[]): Task[] {
+			return list.flatMap((t) => {
+				if (t.id === taskId) return [];
+				return [{ ...t, children: walk(t.children) }];
+			});
+		}
+		tasks = walk(tasks);
+	}
+
 	return {
 		get tasks() {
 			return tasks;
@@ -121,7 +133,8 @@ function createTasksStore() {
 		start,
 		stop,
 		refresh,
-		updateTaskLocal
+		updateTaskLocal,
+		removeTaskLocal
 	};
 }
 
