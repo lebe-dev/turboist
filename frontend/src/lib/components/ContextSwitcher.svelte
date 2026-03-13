@@ -18,6 +18,27 @@
 
 <nav class="flex flex-col gap-0.5">
 	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150
+		{contextsStore.activeView !== 'all' ? 'text-primary' : 'text-muted-foreground/60'}">
+		Виды
+	</p>
+
+	{#each views as view (view.id)}
+		{@const ViewIcon = view.icon}
+		<button
+			class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150
+				{contextsStore.activeView === view.id
+				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+			onclick={() => contextsStore.setView(view.id)}
+		>
+			<ViewIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
+			{view.label}
+		</button>
+	{/each}
+
+	<div class="my-3 border-t border-sidebar-border"></div>
+
+	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150
 		{contextsStore.activeContextId !== null ? 'text-primary' : 'text-muted-foreground/60'}">
 		Контексты
 	</p>
@@ -50,25 +71,4 @@
 		<LayersIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
 		Все
 	</button>
-
-	<div class="my-3 border-t border-sidebar-border"></div>
-
-	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150
-		{contextsStore.activeView !== 'all' ? 'text-primary' : 'text-muted-foreground/60'}">
-		Виды
-	</p>
-
-	{#each views as view (view.id)}
-		{@const ViewIcon = view.icon}
-		<button
-			class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150
-				{contextsStore.activeView === view.id
-				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-			onclick={() => contextsStore.setView(view.id)}
-		>
-			<ViewIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
-			{view.label}
-		</button>
-	{/each}
 </nav>
