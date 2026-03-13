@@ -87,6 +87,7 @@ export interface DayPart {
 
 export interface Config {
 	poll_interval: number; // seconds
+	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
 	weekly_limit: number;
 	last_synced_at: string | null; // ISO 8601
 	day_parts: DayPart[];

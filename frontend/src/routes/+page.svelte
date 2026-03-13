@@ -157,6 +157,7 @@
 				<DayPartTaskList
 					tasks={tasksStore.tasks}
 					dayParts={tasksStore.config!.day_parts}
+					timezone={tasksStore.config!.timezone}
 					{searchQuery}
 					onselect={(id) => (selectedTaskId = id)}
 				/>

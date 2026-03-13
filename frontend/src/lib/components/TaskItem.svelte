@@ -108,7 +108,7 @@
 					{completing
 					? priorityCheckColor
 					: dimmed
-						? 'border-muted-foreground/20 hover:border-muted-foreground/40 hover:bg-muted-foreground/5'
+						? 'border-muted-foreground/40 hover:border-muted-foreground/60 hover:bg-muted-foreground/5'
 						: priorityColor + ' ' + priorityHoverColor}"
 				style="-webkit-tap-highlight-color: transparent;"
 				onclick={handleComplete}

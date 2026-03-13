@@ -13,11 +13,13 @@
 	let {
 		tasks,
 		dayParts,
+		timezone = '',
 		searchQuery = '',
 		onselect
 	}: {
 		tasks: Task[];
 		dayParts: DayPart[];
+		timezone?: string;
 		searchQuery?: string;
 		onselect?: (id: string) => void;
 	} = $props();
@@ -90,8 +92,13 @@
 		};
 	}
 
+	function getHourInTimezone(tz: string): number {
+		if (!tz) return new Date().getHours();
+		return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date()));
+	}
+
 	const currentDayPartLabel = $derived.by(() => {
-		const hour = new Date().getHours();
+		const hour = getHourInTimezone(timezone);
 		return dayParts.find((dp) => hour >= dp.start && hour < dp.end)?.label ?? null;
 	});
 
@@ -144,7 +151,7 @@
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
 							<div class="animate-fade-in-up group/daypart relative" style="animation-delay: {Math.min(i * 30, 300)}ms">
-								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={currentDayPartLabel !== null && section.dayPart?.label !== currentDayPartLabel} hideTodayDue />
+								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={section.dayPart !== null && section.dayPart.label !== currentDayPartLabel} hideTodayDue />
 								<!-- Move buttons -->
 								<div
 									class="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border/50 bg-popover/95 px-0.5 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/daypart:opacity-100"

@@ -1,3 +1,8 @@
+# IANA timezone for day part calculations (e.g. "Europe/Moscow", "America/New_York").
+# Overrides browser-detected timezone on the frontend.
+# Default: UTC
+timezone: "Europe/Moscow"
+
 # Todoist API polling interval. Format: Go duration (5s, 30s, 1m, ...)
 # Default: 30s
 poll_interval: "30s"

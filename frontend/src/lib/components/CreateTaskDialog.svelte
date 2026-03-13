@@ -55,30 +55,33 @@
 		}
 	});
 
+	function getHourInTimezone(tz: string | undefined): number {
+		if (!tz) return new Date().getHours();
+		return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date()));
+	}
+
 	function currentDayPartLabel(): string | null {
 		const dayParts = tasksStore.config?.day_parts;
 		if (!dayParts?.length || contextsStore.activeView !== 'today') return null;
-		const hour = new Date().getHours();
+		const hour = getHourInTimezone(tasksStore.config?.timezone);
 		const match = dayParts.find((dp: DayPart) => hour >= dp.start && hour < dp.end);
 		return match?.label ?? null;
 	}
 
 	$effect(() => {
 		if (open) {
-			// Pre-fill context labels
-			selectedLabels = [...contextLabels];
-			// Auto-assign day-part label in today view
+			const initial = [...contextLabels];
 			const dpLabel = currentDayPartLabel();
-			if (dpLabel && !selectedLabels.includes(dpLabel)) {
-				selectedLabels = [...selectedLabels, dpLabel];
+			if (dpLabel && !initial.includes(dpLabel)) {
+				initial.push(dpLabel);
 			}
+			selectedLabels = initial;
 			content = '';
 			description = '';
 			priority = 1;
 			showLabelPicker = false;
 			showPriorityPicker = false;
 			labelSearch = '';
-			// Focus on next tick
 			requestAnimationFrame(() => contentInput?.focus());
 		}
 	});

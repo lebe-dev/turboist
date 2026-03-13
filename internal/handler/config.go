@@ -25,6 +25,7 @@ type dayPartResponse struct {
 
 type configResponse struct {
 	PollInterval int               `json:"poll_interval"`
+	Timezone     string            `json:"timezone"`
 	WeeklyLabel  string            `json:"weekly_label"`
 	WeeklyLimit  int               `json:"weekly_limit"`
 	LastSyncedAt time.Time         `json:"last_synced_at"`
@@ -44,6 +45,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 
 	return c.JSON(configResponse{
 		PollInterval: int(h.cfg.PollInterval.Seconds()),
+		Timezone:     h.cfg.Timezone,
 		WeeklyLabel:  h.cfg.Weekly.Label,
 		WeeklyLimit:  h.cfg.Weekly.MaxTasks,
 		LastSyncedAt: h.cache.LastSyncedAt(),

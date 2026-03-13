@@ -29,6 +29,7 @@ const (
 
 type AppConfig struct {
 	PollInterval time.Duration
+	Timezone     string
 	TaskSort     TaskSort
 	Contexts     []ContextConfig
 	Weekly       WeeklyConfig
@@ -94,6 +95,7 @@ type AutoExpireConfig struct {
 }
 
 type yamlFile struct {
+	Timezone     string           `yaml:"timezone"`
 	PollInterval string           `yaml:"poll_interval"`
 	TaskSort     string           `yaml:"task_sort"`
 	Contexts     []ContextConfig  `yaml:"contexts"`
@@ -132,6 +134,14 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		return AppConfig{}, fmt.Errorf("poll_interval: %w", err)
 	}
 
+	tz := yf.Timezone
+	if tz == "" {
+		tz = "UTC"
+	}
+	if _, err := time.LoadLocation(tz); err != nil {
+		return AppConfig{}, fmt.Errorf("timezone: %w", err)
+	}
+
 	taskSort := TaskSort(yf.TaskSort)
 	switch taskSort {
 	case TaskSortPriority, TaskSortDueDate, TaskSortContent:
@@ -143,6 +153,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 
 	app := AppConfig{
 		PollInterval: pollInterval,
+		Timezone:     tz,
 		TaskSort:     taskSort,
 		Contexts:     yf.Contexts,
 		Weekly:       yf.Weekly,

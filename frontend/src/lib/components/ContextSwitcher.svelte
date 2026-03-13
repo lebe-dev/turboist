@@ -17,8 +17,7 @@
 </script>
 
 <nav class="flex flex-col gap-0.5">
-	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150
-		{contextsStore.activeView !== 'all' ? 'text-primary' : 'text-muted-foreground/60'}">
+	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
 		Виды
 	</p>
 
@@ -38,8 +37,7 @@
 
 	<div class="my-3 border-t border-sidebar-border"></div>
 
-	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150
-		{contextsStore.activeContextId !== null ? 'text-primary' : 'text-muted-foreground/60'}">
+	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
 		Контексты
 	</p>
 
