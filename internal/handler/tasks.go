@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"time"
+
 	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/lebe-dev/turboist/internal/config"
 	ctxfilter "github.com/lebe-dev/turboist/internal/context"
@@ -87,6 +89,7 @@ type createTaskRequest struct {
 	Description string   `json:"description"`
 	Labels      []string `json:"labels"`
 	Priority    int      `json:"priority"`
+	ParentID    string   `json:"parent_id"`
 }
 
 // Create handles POST /api/tasks?context=...
@@ -151,6 +154,10 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 		args.Labels = labels
 	}
 
+	if req.ParentID != "" {
+		args.ParentID = &req.ParentID
+	}
+
 	log.Debug("create task", "content", req.Content, "context", contextKey, "labels", labels)
 	if err := h.cache.AddTask(c.Context(), args); err != nil {
 		log.Error("create task failed", "err", err)
@@ -187,6 +194,53 @@ func (h *TasksHandler) Complete(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.SendStatus(fiber.StatusOK)
+}
+
+type updateTaskRequest struct {
+	Content     *string  `json:"content"`
+	Description *string  `json:"description"`
+	Labels      []string `json:"labels"`
+	Priority    *int     `json:"priority"`
+	DueDate     *string  `json:"due_date"`
+}
+
+// Update handles PATCH /api/tasks/:id
+func (h *TasksHandler) Update(c fiber.Ctx) error {
+	id := c.Params("id")
+	var req updateTaskRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	args := &synctodoist.TaskUpdateArgs{ID: id}
+
+	if req.Content != nil {
+		args.Content = req.Content
+	}
+	if req.Description != nil {
+		args.Description = req.Description
+	}
+	if req.Priority != nil {
+		args.Priority = req.Priority
+	}
+	if req.Labels != nil {
+		args.Labels = req.Labels
+	}
+	if req.DueDate != nil && *req.DueDate != "" {
+		dueDate, err := time.Parse("2006-01-02", *req.DueDate)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid due_date format, expected YYYY-MM-DD"})
+		}
+		args.Due = &synctodoist.Due{Date: &dueDate}
+	}
+
+	log.Debug("update task", "id", id)
+	if err := h.cache.UpdateTask(c.Context(), args); err != nil {
+		log.Error("update task failed", "id", id, "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"ok": true})
 }
 
 func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {

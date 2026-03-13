@@ -7,6 +7,7 @@
 	import TaskList from '$lib/components/TaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
+	import TaskDetailPanel from '$lib/components/TaskDetailPanel.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -72,11 +73,12 @@
 	}
 
 	let createDialogOpen = $state(false);
+	let selectedTaskId = $state<string | null>(null);
 </script>
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === 'q' && !e.ctrlKey && !e.metaKey && !e.altKey && !createDialogOpen) {
+		if (e.key === 'q' && !e.ctrlKey && !e.metaKey && !e.altKey && !createDialogOpen && !selectedTaskId) {
 			const tag = (e.target as HTMLElement)?.tagName;
 			if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
 				e.preventDefault();
@@ -148,7 +150,7 @@
 		{:else if tasksStore.error}
 			<p class="py-8 text-center text-sm text-destructive/80">{tasksStore.error}</p>
 		{:else}
-			<TaskList tasks={tasksStore.tasks} {searchQuery} />
+			<TaskList tasks={tasksStore.tasks} {searchQuery} onselect={(id) => (selectedTaskId = id)} />
 		{/if}
 	</div>
 </div>
@@ -163,3 +165,7 @@
 </button>
 
 <CreateTaskDialog bind:open={createDialogOpen} />
+
+{#if selectedTaskId}
+	<TaskDetailPanel taskId={selectedTaskId} onclose={() => (selectedTaskId = null)} />
+{/if}

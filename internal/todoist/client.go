@@ -141,6 +141,15 @@ func (c *Client) AddTask(ctx context.Context, args *sync.TaskAddArgs) error {
 	return nil
 }
 
+// UpdateTask updates an existing task via the Todoist API.
+func (c *Client) UpdateTask(ctx context.Context, args *sync.TaskUpdateArgs) error {
+	_, err := c.taskSvc.UpdateTask(ctx, args)
+	if err != nil {
+		return &APIError{Op: "UpdateTask", Err: err}
+	}
+	return nil
+}
+
 // CompleteTask closes a task via the Todoist API.
 func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	_, err := c.taskSvc.CloseTask(ctx, &sync.TaskCloseArgs{ID: id})

@@ -7,7 +7,7 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 
-	let { task, depth = 0, searchQuery = '' }: { task: Task; depth?: number; searchQuery?: string } = $props();
+	let { task, depth = 0, searchQuery = '', onselect }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -91,7 +91,7 @@
 		{#if task.children.length > 0}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={0} {searchQuery} />
+					<svelte:self task={child} depth={0} {searchQuery} {onselect} />
 				{/each}
 			</div>
 		{/if}
@@ -120,7 +120,9 @@
 				{/if}
 			</button>
 
-			<div class="min-w-0 flex-1">
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="min-w-0 flex-1 cursor-pointer" onclick={() => onselect?.(task.id)}>
 				<span class="break-words text-[13px] leading-relaxed text-foreground/90">{task.content}</span>
 				{#if task.description}
 					<p class="truncate text-[12px] text-muted-foreground">{task.description}</p>
@@ -160,7 +162,7 @@
 		{#if hasChildren && !collapsed}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={depth + 1} {searchQuery} />
+					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} />
 				{/each}
 			</div>
 		{/if}

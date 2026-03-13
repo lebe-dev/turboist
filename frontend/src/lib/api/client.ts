@@ -1,5 +1,5 @@
 import { goto } from '$app/navigation';
-import type { Config, Context, CreateTaskRequest, Label, Project, Task, TasksResponse } from './types';
+import type { Config, Context, CreateTaskRequest, Label, Project, Task, TasksResponse, UpdateTaskRequest } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const res = await fetch(path, {
@@ -81,6 +81,13 @@ export async function createTask(data: CreateTaskRequest, context?: string): Pro
 	const params = context ? `?context=${encodeURIComponent(context)}` : '';
 	await request(`/api/tasks${params}`, {
 		method: 'POST',
+		body: JSON.stringify(data)
+	});
+}
+
+export async function updateTask(id: string, data: UpdateTaskRequest): Promise<void> {
+	await request(`/api/tasks/${encodeURIComponent(id)}`, {
+		method: 'PATCH',
 		body: JSON.stringify(data)
 	});
 }

@@ -116,6 +116,14 @@ func (c *Cache) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) erro
 	return c.RefreshAfterMutation(ctx)
 }
 
+// UpdateTask updates a task via the Todoist API and refreshes the cache.
+func (c *Cache) UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs) error {
+	if err := c.client.UpdateTask(ctx, args); err != nil {
+		return err
+	}
+	return c.RefreshAfterMutation(ctx)
+}
+
 // CompleteTask closes a task via the Todoist API and refreshes the cache.
 func (c *Cache) CompleteTask(ctx context.Context, id string) error {
 	if err := c.client.CompleteTask(ctx, id); err != nil {

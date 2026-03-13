@@ -68,6 +68,15 @@ export interface CreateTaskRequest {
 	description: string;
 	labels: string[];
 	priority: number;
+	parent_id?: string;
+}
+
+export interface UpdateTaskRequest {
+	content?: string;
+	description?: string;
+	labels?: string[];
+	priority?: number;
+	due_date?: string;
 }
 
 export interface Config {
