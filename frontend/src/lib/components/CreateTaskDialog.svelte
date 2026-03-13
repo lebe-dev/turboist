@@ -2,7 +2,7 @@
 	import { createTask, getLabels } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
-	import type { DayPart, Label } from '$lib/api/types';
+	import type { DayPart, Label, Task } from '$lib/api/types';
 	import { onMount } from 'svelte';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import FlagIcon from '@lucide/svelte/icons/flag';
@@ -100,24 +100,42 @@
 
 	async function handleSubmit() {
 		if (!content.trim() || submitting) return;
-		submitting = true;
+		const trimmedContent = content.trim();
+		const trimmedDesc = description.trim();
+		const labels = [...selectedLabels];
+		const pri = priority;
+		const context = contextsStore.activeContextId ?? undefined;
+
+		// Optimistic: close immediately and add temp task to store
+		const tempId = `temp-${Date.now()}`;
+		const optimistic: Task = {
+			id: tempId,
+			content: trimmedContent,
+			description: trimmedDesc,
+			project_id: '',
+			section_id: null,
+			parent_id: null,
+			labels,
+			priority: pri,
+			due: null,
+			sub_task_count: 0,
+			completed_sub_task_count: 0,
+			completed_at: null,
+			is_project_task: false,
+			children: []
+		};
+		open = false;
+		tasksStore.addTaskLocal(optimistic);
+
 		try {
 			await createTask(
-				{
-					content: content.trim(),
-					description: description.trim(),
-					labels: selectedLabels,
-					priority
-				},
-				contextsStore.activeContextId ?? undefined
+				{ content: trimmedContent, description: trimmedDesc, labels, priority: pri },
+				context
 			);
-			tasksStore.refresh();
-			open = false;
 		} catch (e) {
 			console.error('Failed to create task', e);
-		} finally {
-			submitting = false;
 		}
+		tasksStore.refresh();
 	}
 
 	function handleKeydown(e: KeyboardEvent) {

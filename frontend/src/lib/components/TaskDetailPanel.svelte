@@ -199,7 +199,13 @@
 		if (!value) return;
 		const currentDate = task.due?.date ?? '';
 		if (value === currentDate) return;
-		await updateTask(task.id, { due_date: value });
+		// Optimistic: update local due date immediately
+		updateLocal((t) => ({ ...t, due: { date: value, recurring: t.due?.recurring ?? false } }));
+		try {
+			await updateTask(task.id, { due_date: value });
+		} catch (e) {
+			console.error('Failed to update due date', e);
+		}
 		tasksStore.refresh();
 	}
 
@@ -263,13 +269,26 @@
 		const targetId = id ?? task?.id;
 		if (!targetId || completing) return;
 		completing = true;
+		// Optimistic: short delay for animation, then remove locally
+		await new Promise((r) => setTimeout(r, 200));
+		if (targetId === task?.id) {
+			// Completing the main task — remove and close panel
+			tasksStore.removeTaskLocal(targetId);
+		} else {
+			// Completing a subtask — remove from children
+			updateLocal((t) => ({
+				...t,
+				children: t.children.filter((c) => c.id !== targetId),
+				sub_task_count: Math.max(0, t.sub_task_count - 1),
+				completed_sub_task_count: t.completed_sub_task_count + 1
+			}));
+		}
+		completing = false;
 		try {
 			await completeTask(targetId);
-			tasksStore.refresh();
 		} catch (e) {
 			console.error('Failed to complete task', e);
-		} finally {
-			completing = false;
+			tasksStore.refresh();
 		}
 	}
 
@@ -288,25 +307,42 @@
 	async function saveSubtask() {
 		if (!task || !subtaskContent.trim() || addingSubtask) return;
 		addingSubtask = true;
+		const content = subtaskContent.trim();
+		const labels = [...task.labels];
+		const tempId = `temp-${Date.now()}`;
+		const optimistic: Task = {
+			id: tempId,
+			content,
+			description: '',
+			project_id: task.project_id,
+			section_id: task.section_id,
+			parent_id: task.id,
+			labels,
+			priority: 1,
+			due: null,
+			sub_task_count: 0,
+			completed_sub_task_count: 0,
+			completed_at: null,
+			is_project_task: false,
+			children: []
+		};
+		updateLocal((t) => ({
+			...t,
+			children: [...t.children, optimistic],
+			sub_task_count: t.sub_task_count + 1
+		}));
+		subtaskContent = '';
+		showSubtaskForm = false;
+		addingSubtask = false;
 		try {
 			await createTask(
-				{
-					content: subtaskContent.trim(),
-					description: '',
-					labels: [...task.labels],
-					priority: 1,
-					parent_id: task.id
-				},
+				{ content, description: '', labels, priority: 1, parent_id: task.id },
 				contextsStore.activeContextId ?? undefined
 			);
-			subtaskContent = '';
-			showSubtaskForm = false;
-			tasksStore.refresh();
 		} catch (e) {
 			console.error('Failed to create subtask', e);
-		} finally {
-			addingSubtask = false;
 		}
+		tasksStore.refresh();
 	}
 
 	// --- Due date display ---

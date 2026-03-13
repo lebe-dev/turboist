@@ -111,6 +111,11 @@ function createTasksStore() {
 		tasks = walk(tasks);
 	}
 
+	/** Optimistically add a task to the top of the local store. */
+	function addTaskLocal(task: Task): void {
+		tasks = [task, ...tasks];
+	}
+
 	return {
 		get tasks() {
 			return tasks;
@@ -134,7 +139,8 @@ function createTasksStore() {
 		stop,
 		refresh,
 		updateTaskLocal,
-		removeTaskLocal
+		removeTaskLocal,
+		addTaskLocal
 	};
 }
 
