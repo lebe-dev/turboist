@@ -38,21 +38,23 @@
 	let taskFromApi = $state<Task | null>(null);
 	let taskFetching = $state(false);
 
-	// If not in current view, load from API
+	// Always fetch full task from API (store version may have filtered children)
 	$effect(() => {
-		if (taskFromStore) {
-			taskFromApi = null;
-			return;
-		}
 		taskFetching = true;
 		taskFromApi = null;
 		getTask(taskId)
 			.then((t) => { taskFromApi = t; })
-			.catch(() => onclose())
+			.catch(() => { if (!taskFromStore) onclose(); })
 			.finally(() => { taskFetching = false; });
 	});
 
-	const task = $derived(taskFromStore ?? taskFromApi);
+	// Prefer API version (has all children); fall back to store for instant display
+	const task = $derived(taskFromApi ?? taskFromStore);
+
+	function updateLocal(updater: (t: Task) => Task) {
+		if (taskFromApi) taskFromApi = updater(taskFromApi);
+		if (task) tasksStore.updateTaskLocal(task.id, updater);
+	}
 
 	let parentTask = $state<Task | null>(null);
 
@@ -92,8 +94,17 @@
 		editingTitle = false;
 		const trimmed = titleValue.trim();
 		if (!trimmed || trimmed === task.content) return;
-		await updateTask(task.id, { content: trimmed });
+		updateLocal((t) => ({ ...t, content: trimmed }));
+		try {
+			await updateTask(task.id, { content: trimmed });
+		} catch (e) {
+			console.error('Failed to update title', e);
+		}
 		tasksStore.refresh();
+	}
+
+	function cancelTitle() {
+		editingTitle = false;
 	}
 
 	// --- Description editing ---
@@ -117,9 +128,19 @@
 	async function saveDesc() {
 		if (!task || !editingDesc) return;
 		editingDesc = false;
-		if (descValue.trim() === task.description) return;
-		await updateTask(task.id, { description: descValue.trim() });
+		const trimmed = descValue.trim();
+		if (trimmed === task.description) return;
+		updateLocal((t) => ({ ...t, description: trimmed }));
+		try {
+			await updateTask(task.id, { description: trimmed });
+		} catch (e) {
+			console.error('Failed to update description', e);
+		}
 		tasksStore.refresh();
+	}
+
+	function cancelDesc() {
+		editingDesc = false;
 	}
 
 	// --- Priority (optimistic) ---
@@ -412,19 +433,30 @@
 						</button>
 
 						{#if editingTitle}
-							<input
-								bind:this={titleInput}
-								bind:value={titleValue}
-								type="text"
-								class="flex-1 bg-transparent text-lg font-semibold text-foreground focus:outline-none"
-								onblur={saveTitle}
-								onkeydown={(e) => {
-									if (e.key === 'Enter') {
-										e.preventDefault();
-										saveTitle();
-									}
-								}}
-							/>
+							<div class="flex-1">
+								<input
+									bind:this={titleInput}
+									bind:value={titleValue}
+									type="text"
+									class="w-full bg-transparent text-lg font-semibold text-foreground focus:outline-none"
+									onkeydown={(e) => {
+										if (e.key === 'Enter') {
+											e.preventDefault();
+											saveTitle();
+										}
+									}}
+								/>
+								<div class="mt-2 flex items-center gap-2">
+									<button
+										class="rounded-md bg-primary px-3 py-1 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+										onclick={saveTitle}
+									>Save</button>
+									<button
+										class="rounded-md px-3 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										onclick={cancelTitle}
+									>Cancel</button>
+								</div>
+							</div>
 						{:else}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -446,13 +478,22 @@
 								class="w-full resize-none rounded-md border border-border/50 bg-transparent p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-border focus:outline-none"
 								placeholder="Add description..."
 								rows="3"
-								onblur={saveDesc}
 								oninput={(e) => {
 									const target = e.currentTarget;
 									target.style.height = 'auto';
 									target.style.height = target.scrollHeight + 'px';
 								}}
 							></textarea>
+							<div class="mt-2 flex items-center gap-2">
+								<button
+									class="rounded-md bg-primary px-3 py-1 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+									onclick={saveDesc}
+								>Save</button>
+								<button
+									class="rounded-md px-3 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onclick={cancelDesc}
+								>Cancel</button>
+							</div>
 						{:else}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->

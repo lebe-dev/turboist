@@ -146,9 +146,6 @@
 					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
 				{:else if task.labels.length > 0 || task.due || task.sub_task_count > 0}
 					<div class="mt-1 flex flex-wrap items-center gap-1.5">
-						{#each task.labels as label (label)}
-							<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
-						{/each}
 						{#if dueLabel}
 							<span
 								class="flex items-center gap-1 text-[11px] {isOverdue
@@ -159,6 +156,9 @@
 								{dueLabel}
 							</span>
 						{/if}
+						{#each task.labels as label (label)}
+							<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
+						{/each}
 						{#if task.sub_task_count > 0}
 							<button
 								class="flex items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors"

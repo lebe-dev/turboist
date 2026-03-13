@@ -290,6 +290,7 @@ func (h *TasksHandler) GetByID(c fiber.Ctx) error {
 	id := c.Params("id")
 	all := h.cache.Tasks()
 	tree := buildTree(all)
+	sortTasks(tree, h.cfg.TaskSort)
 	if t := findInTree(tree, id); t != nil {
 		return c.JSON(t)
 	}
