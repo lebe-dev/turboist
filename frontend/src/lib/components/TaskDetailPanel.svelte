@@ -209,6 +209,41 @@
 		tasksStore.refresh();
 	}
 
+	async function clearDate() {
+		if (!task || !task.due) return;
+		updateLocal((t) => ({ ...t, due: null }));
+		try {
+			await updateTask(task.id, { due_date: '' });
+		} catch (e) {
+			console.error('Failed to clear due date', e);
+		}
+		tasksStore.refresh();
+	}
+
+	function todayDateStr(): string {
+		const d = new Date();
+		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+	}
+
+	function tomorrowDateStr(): string {
+		const d = new Date();
+		d.setDate(d.getDate() + 1);
+		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+	}
+
+	async function setDateQuick(date: string) {
+		if (!task) return;
+		const currentDate = task.due?.date ?? '';
+		if (date === currentDate) return;
+		updateLocal((t) => ({ ...t, due: { date, recurring: false } }));
+		try {
+			await updateTask(task.id, { due_date: date });
+		} catch (e) {
+			console.error('Failed to set due date', e);
+		}
+		tasksStore.refresh();
+	}
+
 	// --- Labels (optimistic) ---
 	let allLabels = $state<Label[]>([]);
 	let showLabelPicker = $state(false);
@@ -663,22 +698,45 @@
 								onblur={() => (editingDate = false)}
 							/>
 						{:else}
-							<button
-								class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent
-									{task.due && isOverdue(task.due.date) ? 'text-destructive' : 'text-foreground/80'}"
-								onclick={startEditDate}
-							>
-								<CalendarIcon class="h-4 w-4 text-muted-foreground" />
-								{#if task.due}
-									{formatDueDate(task.due.date)}
-									{#if task.due.recurring}
-										<RepeatIcon class="h-3 w-3 text-muted-foreground" />
+							<div class="flex items-center gap-1">
+								<button
+									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent
+										{task.due && isOverdue(task.due.date) ? 'text-destructive' : 'text-foreground/80'}"
+									onclick={startEditDate}
+								>
+									<CalendarIcon class="h-4 w-4 text-muted-foreground" />
+									{#if task.due}
+										{formatDueDate(task.due.date)}
+										{#if task.due.recurring}
+											<RepeatIcon class="h-3 w-3 text-muted-foreground" />
+										{/if}
+									{:else}
+										<span class="text-muted-foreground/50">No date</span>
 									{/if}
-								{:else}
-									<span class="text-muted-foreground/50">No date</span>
+								</button>
+								{#if task.due}
+									<button
+										class="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+										onclick={clearDate}
+										aria-label="Clear date"
+									>
+										<XIcon class="h-3.5 w-3.5" />
+									</button>
 								{/if}
-							</button>
+							</div>
 						{/if}
+						<div class="mt-1.5 flex items-center gap-1">
+							<button
+								class="rounded-md px-2 py-1 text-[12px] transition-colors hover:bg-accent
+									{task.due?.date === todayDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground'}"
+								onclick={() => setDateQuick(todayDateStr())}
+							>Today</button>
+							<button
+								class="rounded-md px-2 py-1 text-[12px] transition-colors hover:bg-accent
+									{task.due?.date === tomorrowDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground'}"
+								onclick={() => setDateQuick(tomorrowDateStr())}
+							>Tomorrow</button>
+						</div>
 					</div>
 
 					<!-- Priority -->

@@ -350,12 +350,18 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	if req.Labels != nil {
 		args.Labels = req.Labels
 	}
-	if req.DueDate != nil && *req.DueDate != "" {
-		dueDate, err := time.Parse("2006-01-02", *req.DueDate)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid due_date format, expected YYYY-MM-DD"})
+	if req.DueDate != nil {
+		if *req.DueDate == "" {
+			// Clear the due date
+			noDate := "no date"
+			args.Due = &synctodoist.Due{String: &noDate}
+		} else {
+			dueDate, err := time.Parse("2006-01-02", *req.DueDate)
+			if err != nil {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid due_date format, expected YYYY-MM-DD"})
+			}
+			args.Due = &synctodoist.Due{Date: &dueDate}
 		}
-		args.Due = &synctodoist.Due{Date: &dueDate}
 	}
 
 	log.Debug("update task", "id", id)
