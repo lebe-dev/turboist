@@ -98,7 +98,7 @@ func TestFilterByDueDate_includeOverdue(t *testing.T) {
 		{ID: "1", Due: &todoist.Due{Date: "2026-03-11"}}, // overdue
 		{ID: "2", Due: &todoist.Due{Date: "2026-03-13"}}, // today
 		{ID: "3", Due: &todoist.Due{Date: "2026-03-14"}}, // future
-		{ID: "4"},                                         // no due
+		{ID: "4"}, // no due
 	}
 	target, _ := time.Parse("2006-01-02", "2026-03-13")
 	got := filterByDueDate(tasks, target, true)

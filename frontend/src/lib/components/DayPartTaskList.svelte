@@ -90,6 +90,11 @@
 		};
 	}
 
+	const currentDayPartLabel = $derived.by(() => {
+		const hour = new Date().getHours();
+		return dayParts.find((dp) => hour >= dp.start && hour < dp.end)?.label ?? null;
+	});
+
 	function sectionIcon(index: number, total: number) {
 		if (index >= total) return ClockIcon; // unassigned
 		if (index === 0) return SunriseIcon;
@@ -138,7 +143,7 @@
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
 							<div class="animate-fade-in-up group/daypart relative" style="animation-delay: {Math.min(i * 30, 300)}ms">
-								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} />
+								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={currentDayPartLabel !== null && section.dayPart?.label !== currentDayPartLabel} />
 								<!-- Move buttons -->
 								<div
 									class="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border/50 bg-popover/95 px-0.5 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/daypart:opacity-100"

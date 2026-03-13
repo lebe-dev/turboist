@@ -7,7 +7,7 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 
-	let { task, depth = 0, searchQuery = '', onselect }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void } = $props();
+	let { task, depth = 0, searchQuery = '', onselect, dimmed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -107,7 +107,9 @@
 				class="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
 					{completing
 					? priorityCheckColor
-					: priorityColor + ' ' + priorityHoverColor}"
+					: dimmed
+						? 'border-muted-foreground/20 hover:border-muted-foreground/40 hover:bg-muted-foreground/5'
+						: priorityColor + ' ' + priorityHoverColor}"
 				style="-webkit-tap-highlight-color: transparent;"
 				onclick={handleComplete}
 				disabled={completing}
@@ -162,7 +164,7 @@
 		{#if hasChildren && !collapsed}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} />
+					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} />
 				{/each}
 			</div>
 		{/if}
