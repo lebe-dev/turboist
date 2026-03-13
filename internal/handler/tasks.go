@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"cmp"
+	"slices"
+	"strings"
 	"time"
 
 	synctodoist "github.com/CnTeng/todoist-api-go/sync"
@@ -38,6 +41,7 @@ func (h *TasksHandler) Tasks(c fiber.Ctx) error {
 	tasks := h.filterByContext(contextKey)
 	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
 	tree := buildTree(tasks)
+	sortTasks(tree, h.cfg.TaskSort)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
@@ -55,6 +59,7 @@ func (h *TasksHandler) Weekly(c fiber.Ctx) error {
 	tasks := h.filterByContext(contextKey)
 	weekly := filterByLabel(tasks, h.cfg.Weekly.Label)
 	tree := buildTree(weekly)
+	sortTasks(tree, h.cfg.TaskSort)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
@@ -73,6 +78,7 @@ func (h *TasksHandler) NextWeek(c fiber.Ctx) error {
 	nextWeek := filterByLabel(tasks, h.cfg.NextWeek.Label)
 	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
 	tree := buildTree(nextWeek)
+	sortTasks(tree, h.cfg.TaskSort)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
@@ -91,6 +97,7 @@ func (h *TasksHandler) Today(c fiber.Ctx) error {
 	today := filterByDueDate(tasks, time.Now(), h.cfg.Today.IncludeOverdue)
 	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
 	tree := buildTree(today)
+	sortTasks(tree, h.cfg.TaskSort)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
@@ -109,6 +116,7 @@ func (h *TasksHandler) Tomorrow(c fiber.Ctx) error {
 	tomorrow := filterByDueDate(tasks, time.Now().AddDate(0, 0, 1), false)
 	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
 	tree := buildTree(tomorrow)
+	sortTasks(tree, h.cfg.TaskSort)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
@@ -322,6 +330,44 @@ func buildTree(tasks []*todoist.Task) []*todoist.Task {
 	}
 
 	return roots
+}
+
+// sortTasks sorts tasks in place according to the configured sort mode.
+// Also recursively sorts children.
+func sortTasks(tasks []*todoist.Task, mode config.TaskSort) {
+	slices.SortStableFunc(tasks, func(a, b *todoist.Task) int {
+		switch mode {
+		case config.TaskSortDueDate:
+			return compareDueDate(a, b)
+		case config.TaskSortContent:
+			return cmp.Compare(strings.ToLower(a.Content), strings.ToLower(b.Content))
+		default: // priority
+			// Todoist priority: 4 = highest, 1 = lowest; sort descending
+			if c := cmp.Compare(b.Priority, a.Priority); c != 0 {
+				return c
+			}
+			return compareDueDate(a, b)
+		}
+	})
+	for _, t := range tasks {
+		if len(t.Children) > 1 {
+			sortTasks(t.Children, mode)
+		}
+	}
+}
+
+// compareDueDate compares two tasks by due date. Tasks without due date go last.
+func compareDueDate(a, b *todoist.Task) int {
+	switch {
+	case a.Due == nil && b.Due == nil:
+		return 0
+	case a.Due == nil:
+		return 1
+	case b.Due == nil:
+		return -1
+	default:
+		return cmp.Compare(a.Due.Date, b.Due.Date)
+	}
 }
 
 func populateSubtaskCounts(t *todoist.Task) {

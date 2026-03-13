@@ -85,6 +85,33 @@ func TestParseAppConfig(t *testing.T) {
 	}
 }
 
+func TestParseAppConfig_TaskSort(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`task_sort: "due_date"`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.TaskSort != TaskSortDueDate {
+		t.Errorf("task_sort: got %q, want %q", app.TaskSort, TaskSortDueDate)
+	}
+}
+
+func TestParseAppConfig_TaskSortDefault(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.TaskSort != TaskSortPriority {
+		t.Errorf("task_sort default: got %q, want %q", app.TaskSort, TaskSortPriority)
+	}
+}
+
+func TestParseAppConfig_TaskSortInvalid(t *testing.T) {
+	_, err := ParseAppConfig([]byte(`task_sort: "unknown"`))
+	if err == nil {
+		t.Fatal("expected error for invalid task_sort")
+	}
+}
+
 func TestParseAppConfig_DefaultPollInterval(t *testing.T) {
 	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
 	if err != nil {
@@ -92,6 +119,92 @@ func TestParseAppConfig_DefaultPollInterval(t *testing.T) {
 	}
 	if app.PollInterval != 30*time.Second {
 		t.Errorf("default poll_interval: got %v, want 30s", app.PollInterval)
+	}
+}
+
+func TestParseAppConfig_DayParts(t *testing.T) {
+	yaml := `
+today:
+  include_overdue: true
+  day_parts:
+    - label: "morning"
+      start: 6
+      end: 12
+    - label: "afternoon"
+      start: 12
+      end: 18
+    - label: "evening"
+      start: 18
+      end: 23
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.Today.DayParts) != 3 {
+		t.Fatalf("expected 3 day parts, got %d", len(app.Today.DayParts))
+	}
+	if app.Today.DayParts[0].Label != "morning" {
+		t.Errorf("day_parts[0].label: got %q", app.Today.DayParts[0].Label)
+	}
+	if app.Today.DayParts[1].Start != 12 || app.Today.DayParts[1].End != 18 {
+		t.Errorf("day_parts[1]: got start=%d end=%d", app.Today.DayParts[1].Start, app.Today.DayParts[1].End)
+	}
+}
+
+func TestParseAppConfig_DayPartsEmpty(t *testing.T) {
+	yaml := `today: {include_overdue: true}`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.Today.DayParts) != 0 {
+		t.Errorf("expected 0 day parts, got %d", len(app.Today.DayParts))
+	}
+}
+
+func TestParseAppConfig_DayPartsInvalidRange(t *testing.T) {
+	yaml := `
+today:
+  day_parts:
+    - label: "bad"
+      start: 18
+      end: 6
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for invalid range")
+	}
+}
+
+func TestParseAppConfig_DayPartsOverlapping(t *testing.T) {
+	yaml := `
+today:
+  day_parts:
+    - label: "a"
+      start: 6
+      end: 14
+    - label: "b"
+      start: 12
+      end: 18
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for overlapping ranges")
+	}
+}
+
+func TestParseAppConfig_DayPartsEmptyLabel(t *testing.T) {
+	yaml := `
+today:
+  day_parts:
+    - label: ""
+      start: 6
+      end: 12
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty label")
 	}
 }
 

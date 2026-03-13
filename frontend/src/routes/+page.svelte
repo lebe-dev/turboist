@@ -5,6 +5,7 @@
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskList from '$lib/components/TaskList.svelte';
+	import DayPartTaskList from '$lib/components/DayPartTaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import TaskDetailPanel from '$lib/components/TaskDetailPanel.svelte';
@@ -152,7 +153,16 @@
 		{:else if tasksStore.error}
 			<p class="py-8 text-center text-sm text-destructive/80">{tasksStore.error}</p>
 		{:else}
-			<TaskList tasks={tasksStore.tasks} {searchQuery} onselect={(id) => (selectedTaskId = id)} />
+			{#if contextsStore.activeView === 'today' && (tasksStore.config?.day_parts?.length ?? 0) > 0}
+				<DayPartTaskList
+					tasks={tasksStore.tasks}
+					dayParts={tasksStore.config!.day_parts}
+					{searchQuery}
+					onselect={(id) => (selectedTaskId = id)}
+				/>
+			{:else}
+				<TaskList tasks={tasksStore.tasks} {searchQuery} onselect={(id) => (selectedTaskId = id)} />
+			{/if}
 		{/if}
 	</div>
 </div>

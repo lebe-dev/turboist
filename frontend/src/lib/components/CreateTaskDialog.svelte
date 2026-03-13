@@ -2,7 +2,7 @@
 	import { createTask, getLabels } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
-	import type { Label } from '$lib/api/types';
+	import type { DayPart, Label } from '$lib/api/types';
 	import { onMount } from 'svelte';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import FlagIcon from '@lucide/svelte/icons/flag';
@@ -55,10 +55,23 @@
 		}
 	});
 
+	function currentDayPartLabel(): string | null {
+		const dayParts = tasksStore.config?.day_parts;
+		if (!dayParts?.length || contextsStore.activeView !== 'today') return null;
+		const hour = new Date().getHours();
+		const match = dayParts.find((dp: DayPart) => hour >= dp.start && hour < dp.end);
+		return match?.label ?? null;
+	}
+
 	$effect(() => {
 		if (open) {
 			// Pre-fill context labels
 			selectedLabels = [...contextLabels];
+			// Auto-assign day-part label in today view
+			const dpLabel = currentDayPartLabel();
+			if (dpLabel && !selectedLabels.includes(dpLabel)) {
+				selectedLabels = [...selectedLabels, dpLabel];
+			}
 			content = '';
 			description = '';
 			priority = 1;

@@ -79,8 +79,15 @@ export interface UpdateTaskRequest {
 	due_date?: string;
 }
 
+export interface DayPart {
+	label: string;
+	start: number; // hour 0-23
+	end: number; // hour 0-23
+}
+
 export interface Config {
 	poll_interval: number; // seconds
 	weekly_limit: number;
 	last_synced_at: string | null; // ISO 8601
+	day_parts: DayPart[];
 }

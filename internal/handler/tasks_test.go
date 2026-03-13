@@ -107,6 +107,67 @@ func TestFilterByDueDate_includeOverdue(t *testing.T) {
 	}
 }
 
+func TestSortTasks_Priority(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "low", Priority: 1, Children: []*todoist.Task{}},
+		{ID: "2", Content: "high", Priority: 4, Children: []*todoist.Task{}},
+		{ID: "3", Content: "med", Priority: 2, Children: []*todoist.Task{}},
+	}
+	sortTasks(tasks, "priority")
+	if tasks[0].ID != "2" || tasks[1].ID != "3" || tasks[2].ID != "1" {
+		t.Errorf("expected order [2,3,1], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
+	}
+}
+
+func TestSortTasks_PriorityThenDueDate(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "a", Priority: 4, Due: &todoist.Due{Date: "2026-03-15"}, Children: []*todoist.Task{}},
+		{ID: "2", Content: "b", Priority: 4, Due: &todoist.Due{Date: "2026-03-10"}, Children: []*todoist.Task{}},
+		{ID: "3", Content: "c", Priority: 4, Children: []*todoist.Task{}}, // no due date
+	}
+	sortTasks(tasks, "priority")
+	if tasks[0].ID != "2" || tasks[1].ID != "1" || tasks[2].ID != "3" {
+		t.Errorf("expected order [2,1,3], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
+	}
+}
+
+func TestSortTasks_DueDate(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "a", Due: &todoist.Due{Date: "2026-03-15"}, Children: []*todoist.Task{}},
+		{ID: "2", Content: "b", Children: []*todoist.Task{}}, // no due
+		{ID: "3", Content: "c", Due: &todoist.Due{Date: "2026-03-10"}, Children: []*todoist.Task{}},
+	}
+	sortTasks(tasks, "due_date")
+	if tasks[0].ID != "3" || tasks[1].ID != "1" || tasks[2].ID != "2" {
+		t.Errorf("expected order [3,1,2], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
+	}
+}
+
+func TestSortTasks_Content(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "Charlie", Children: []*todoist.Task{}},
+		{ID: "2", Content: "alpha", Children: []*todoist.Task{}},
+		{ID: "3", Content: "Bravo", Children: []*todoist.Task{}},
+	}
+	sortTasks(tasks, "content")
+	if tasks[0].ID != "2" || tasks[1].ID != "3" || tasks[2].ID != "1" {
+		t.Errorf("expected order [2,3,1], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
+	}
+}
+
+func TestSortTasks_Recursive(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "parent", Priority: 1, Children: []*todoist.Task{
+			{ID: "c1", Content: "child-low", Priority: 1, Children: []*todoist.Task{}},
+			{ID: "c2", Content: "child-high", Priority: 4, Children: []*todoist.Task{}},
+		}},
+	}
+	sortTasks(tasks, "priority")
+	if tasks[0].Children[0].ID != "c2" {
+		t.Errorf("expected children sorted, got first child %s", tasks[0].Children[0].ID)
+	}
+}
+
 func TestCountWithLabel(t *testing.T) {
 	tasks := []*todoist.Task{
 		{ID: "1", Labels: []string{"на неделе"}},

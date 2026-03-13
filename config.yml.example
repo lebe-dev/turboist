@@ -40,10 +40,27 @@ next_week:
   # Todoist label for next week's tasks
   label: "на след неделе"
 
+# Task sorting. Options: priority, due_date, content
+# Default: priority (highest first, then by due date)
+task_sort: "priority"
+
 # Tasks for today (filtered by due date)
 today:
   # Include overdue tasks (due date before today) in the "Today" view
   include_overdue: true
+  # Day parts: split today's tasks into time-based sections.
+  # Tasks are assigned to sections via Todoist labels.
+  # Omit or leave empty to disable sectioning.
+  day_parts:
+    - label: "утро"
+      start: 6
+      end: 12
+    - label: "день"
+      start: 12
+      end: 18
+    - label: "вечер"
+      start: 18
+      end: 23
 
 # Tasks for tomorrow (filtered by due date)
 tomorrow: {}

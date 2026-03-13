@@ -1,5 +1,5 @@
 import { getConfig, getTasks, getWeeklyTasks, getNextWeekTasks, getTodayTasks, getTomorrowTasks } from '$lib/api/client';
-import type { Meta, Task } from '$lib/api/types';
+import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
 import { createPoller, type Poller } from '$lib/utils/polling';
 
@@ -10,6 +10,7 @@ const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 function createTasksStore() {
 	let tasks = $state<Task[]>([]);
 	let meta = $state<Meta>({ context: '', weekly_limit: 0, weekly_count: 0 });
+	let config = $state<Config | null>(null);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let isStale = $state(false);
@@ -32,8 +33,11 @@ function createTasksStore() {
 		tasks = res.tasks;
 		meta = res.meta;
 
-		if (cfg?.last_synced_at) {
-			isStale = Date.now() - new Date(cfg.last_synced_at).getTime() > STALE_THRESHOLD_MS;
+		if (cfg) {
+			config = cfg;
+			isStale = cfg.last_synced_at
+				? Date.now() - new Date(cfg.last_synced_at).getTime() > STALE_THRESHOLD_MS
+				: false;
 		} else {
 			isStale = false;
 		}
@@ -80,12 +84,29 @@ function createTasksStore() {
 		});
 	}
 
+	/** Optimistically update a task's fields in the local store. */
+	function updateTaskLocal(taskId: string, updater: (task: Task) => Task): void {
+		function walk(list: Task[]): Task[] {
+			return list.map((t) => {
+				const updated = t.id === taskId ? updater(t) : t;
+				if (updated.children.length > 0) {
+					return { ...updated, children: walk(updated.children) };
+				}
+				return updated;
+			});
+		}
+		tasks = walk(tasks);
+	}
+
 	return {
 		get tasks() {
 			return tasks;
 		},
 		get meta() {
 			return meta;
+		},
+		get config() {
+			return config;
 		},
 		get loading() {
 			return loading;
@@ -98,7 +119,8 @@ function createTasksStore() {
 		},
 		start,
 		stop,
-		refresh
+		refresh,
+		updateTaskLocal
 	};
 }
 

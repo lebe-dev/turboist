@@ -18,8 +18,18 @@ type EnvConfig struct {
 	Dev           bool
 }
 
+// TaskSort defines how tasks are sorted in API responses.
+type TaskSort string
+
+const (
+	TaskSortPriority TaskSort = "priority"
+	TaskSortDueDate  TaskSort = "due_date"
+	TaskSortContent  TaskSort = "content"
+)
+
 type AppConfig struct {
 	PollInterval time.Duration
+	TaskSort     TaskSort
 	Contexts     []ContextConfig
 	Weekly       WeeklyConfig
 	NextWeek     NextWeekConfig
@@ -64,8 +74,15 @@ type NextWeekConfig struct {
 	Label string `yaml:"label"`
 }
 
+type DayPartConfig struct {
+	Label string `yaml:"label"`
+	Start int    `yaml:"start"` // hour 0-23
+	End   int    `yaml:"end"`   // hour 0-23
+}
+
 type TodayConfig struct {
-	IncludeOverdue bool `yaml:"include_overdue"`
+	IncludeOverdue bool            `yaml:"include_overdue"`
+	DayParts       []DayPartConfig `yaml:"day_parts"`
 }
 
 type TomorrowConfig struct {
@@ -78,6 +95,7 @@ type AutoExpireConfig struct {
 
 type yamlFile struct {
 	PollInterval string           `yaml:"poll_interval"`
+	TaskSort     string           `yaml:"task_sort"`
 	Contexts     []ContextConfig  `yaml:"contexts"`
 	Weekly       WeeklyConfig     `yaml:"weekly"`
 	NextWeek     NextWeekConfig   `yaml:"next_week"`
@@ -114,13 +132,27 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		return AppConfig{}, fmt.Errorf("poll_interval: %w", err)
 	}
 
+	taskSort := TaskSort(yf.TaskSort)
+	switch taskSort {
+	case TaskSortPriority, TaskSortDueDate, TaskSortContent:
+	case "":
+		taskSort = TaskSortPriority
+	default:
+		return AppConfig{}, fmt.Errorf("task_sort: unknown value %q", yf.TaskSort)
+	}
+
 	app := AppConfig{
 		PollInterval: pollInterval,
+		TaskSort:     taskSort,
 		Contexts:     yf.Contexts,
 		Weekly:       yf.Weekly,
 		NextWeek:     yf.NextWeek,
 		Today:        yf.Today,
 		Tomorrow:     yf.Tomorrow,
+	}
+
+	if err := validateDayParts(yf.Today.DayParts); err != nil {
+		return AppConfig{}, err
 	}
 
 	for _, ae := range yf.AutoExpire {
@@ -210,4 +242,31 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func validateDayParts(parts []DayPartConfig) error {
+	for i, p := range parts {
+		if p.Label == "" {
+			return fmt.Errorf("today.day_parts[%d]: label is required", i)
+		}
+		if p.Start < 0 || p.Start > 23 {
+			return fmt.Errorf("today.day_parts[%d]: start must be 0-23, got %d", i, p.Start)
+		}
+		if p.End < 0 || p.End > 23 {
+			return fmt.Errorf("today.day_parts[%d]: end must be 0-23, got %d", i, p.End)
+		}
+		if p.Start >= p.End {
+			return fmt.Errorf("today.day_parts[%d]: start (%d) must be less than end (%d)", i, p.Start, p.End)
+		}
+	}
+	// Check for overlapping ranges
+	for i := 0; i < len(parts); i++ {
+		for j := i + 1; j < len(parts); j++ {
+			if parts[i].Start < parts[j].End && parts[j].Start < parts[i].End {
+				return fmt.Errorf("today.day_parts: ranges [%d,%d) and [%d,%d) overlap",
+					parts[i].Start, parts[i].End, parts[j].Start, parts[j].End)
+			}
+		}
+	}
+	return nil
 }
