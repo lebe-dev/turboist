@@ -40,7 +40,7 @@
 
 	const priorityItems = [
 		{ value: 4, label: 'P1', color: 'text-red-500' },
-		{ value: 3, label: 'P2', color: 'text-orange-400' },
+		{ value: 3, label: 'P2', color: 'text-amber-500' },
 		{ value: 2, label: 'P3', color: 'text-blue-400' },
 		{ value: 1, label: 'P4', color: 'text-muted-foreground' }
 	];

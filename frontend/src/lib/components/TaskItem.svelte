@@ -12,7 +12,7 @@
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
 			case 4: return 'border-red-500';
-			case 3: return 'border-orange-400';
+			case 3: return 'border-amber-500';
 			case 2: return 'border-blue-400';
 			default: return 'border-muted-foreground/25';
 		}
@@ -21,7 +21,7 @@
 	const priorityHoverColor = $derived.by(() => {
 		switch (task.priority) {
 			case 4: return 'hover:border-red-500 hover:bg-red-500/10';
-			case 3: return 'hover:border-orange-400 hover:bg-orange-400/10';
+			case 3: return 'hover:border-amber-500 hover:bg-amber-500/10';
 			case 2: return 'hover:border-blue-400 hover:bg-blue-400/10';
 			default: return 'hover:border-primary hover:bg-primary/10';
 		}
@@ -30,7 +30,7 @@
 	const priorityCheckColor = $derived.by(() => {
 		switch (task.priority) {
 			case 4: return 'border-red-500 bg-red-500';
-			case 3: return 'border-orange-400 bg-orange-400';
+			case 3: return 'border-amber-500 bg-amber-500';
 			case 2: return 'border-blue-400 bg-blue-400';
 			default: return 'border-primary bg-primary';
 		}

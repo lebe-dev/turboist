@@ -8,6 +8,8 @@
 	import SunriseIcon from '@lucide/svelte/icons/sunrise';
 	import CircleCheckBigIcon from '@lucide/svelte/icons/circle-check-big';
 
+	let { collapsed = false }: { collapsed?: boolean } = $props();
+
 	const views = [
 		{ id: 'today' as const, label: 'Сегодня', icon: SunIcon },
 		{ id: 'tomorrow' as const, label: 'Завтра', icon: SunriseIcon },
@@ -19,37 +21,47 @@
 </script>
 
 <nav class="flex flex-col gap-0.5">
-	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-		Виды
-	</p>
+	{#if !collapsed}
+		<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+			Виды
+		</p>
+	{/if}
 
 	{#each views as view (view.id)}
 		{@const ViewIcon = view.icon}
 		<button
-			class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150
+			class="group flex items-center rounded-lg text-[13px] transition-all duration-150
+				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-1.5'}
 				{contextsStore.activeView === view.id
 				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 			onclick={() => contextsStore.setView(view.id)}
+			title={collapsed ? view.label : undefined}
 		>
 			<ViewIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
-			{view.label}
+			{#if !collapsed}
+				{view.label}
+			{/if}
 		</button>
 	{/each}
 
 	<div class="my-3 border-t border-sidebar-border"></div>
 
-	<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-		Контексты
-	</p>
+	{#if !collapsed}
+		<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+			Контексты
+		</p>
+	{/if}
 
 	{#each contextsStore.contexts as ctx (ctx.id)}
 		<button
-			class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150
+			class="group flex items-center rounded-lg text-[13px] transition-all duration-150
+				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-1.5'}
 				{contextsStore.activeContextId === ctx.id
 				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 			onclick={() => contextsStore.setContext(ctx.id)}
+			title={collapsed ? ctx.display_name : undefined}
 		>
 			<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
 				<span
@@ -57,18 +69,24 @@
 						{contextsStore.activeContextId === ctx.id ? 'bg-primary' : 'bg-muted-foreground/40'}"
 				></span>
 			</span>
-			{ctx.display_name}
+			{#if !collapsed}
+				{ctx.display_name}
+			{/if}
 		</button>
 	{/each}
 
 	<button
-		class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-all duration-150
+		class="group flex items-center rounded-lg text-[13px] transition-all duration-150
+			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-1.5'}
 			{contextsStore.activeContextId === null
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 		onclick={() => contextsStore.setContext(null)}
+		title={collapsed ? 'Все' : undefined}
 	>
 		<LayersIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
-		Все
+		{#if !collapsed}
+			Все
+		{/if}
 	</button>
 </nav>

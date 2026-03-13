@@ -99,7 +99,7 @@
 
 	const priorityItems = [
 		{ value: 4, label: 'P1', color: 'text-red-500', border: 'border-red-500' },
-		{ value: 3, label: 'P2', color: 'text-orange-400', border: 'border-orange-400' },
+		{ value: 3, label: 'P2', color: 'text-amber-500', border: 'border-amber-500' },
 		{ value: 2, label: 'P3', color: 'text-blue-400', border: 'border-blue-400' },
 		{ value: 1, label: 'P4', color: 'text-muted-foreground', border: 'border-muted-foreground/25' }
 	];
@@ -275,7 +275,7 @@
 	function priorityBorder(p: number): string {
 		switch (p) {
 			case 4: return 'border-red-500';
-			case 3: return 'border-orange-400';
+			case 3: return 'border-amber-500';
 			case 2: return 'border-blue-400';
 			default: return 'border-muted-foreground/25';
 		}
@@ -284,7 +284,7 @@
 	function priorityHover(p: number): string {
 		switch (p) {
 			case 4: return 'hover:border-red-500 hover:bg-red-500/10';
-			case 3: return 'hover:border-orange-400 hover:bg-orange-400/10';
+			case 3: return 'hover:border-amber-500 hover:bg-amber-500/10';
 			case 2: return 'hover:border-blue-400 hover:bg-blue-400/10';
 			default: return 'hover:border-primary hover:bg-primary/10';
 		}
