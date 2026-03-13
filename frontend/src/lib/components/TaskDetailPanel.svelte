@@ -86,8 +86,16 @@
 		tasksStore.refresh();
 	}
 
-	// --- Priority ---
+	// --- Priority (optimistic) ---
 	let showPriorityPicker = $state(false);
+	let localPriority = $state(1);
+	let prioritySyncing = $state(false);
+
+	$effect(() => {
+		if (task && !prioritySyncing) {
+			localPriority = task.priority;
+		}
+	});
 
 	const priorityItems = [
 		{ value: 4, label: 'P1', color: 'text-red-500', border: 'border-red-500' },
@@ -96,14 +104,23 @@
 		{ value: 1, label: 'P4', color: 'text-muted-foreground', border: 'border-muted-foreground/25' }
 	];
 
-	const activePriority = $derived(priorityItems.find((p) => p.value === (task?.priority ?? 1)));
+	const activePriority = $derived(priorityItems.find((p) => p.value === localPriority));
 
 	async function setPriority(value: number) {
 		if (!task) return;
 		showPriorityPicker = false;
-		if (value === task.priority) return;
-		await updateTask(task.id, { priority: value });
-		tasksStore.refresh();
+		if (value === localPriority) return;
+		localPriority = value;
+		prioritySyncing = true;
+		try {
+			await updateTask(task.id, { priority: value });
+			tasksStore.refresh();
+		} catch (e) {
+			if (task) localPriority = task.priority;
+			console.error('Failed to update priority', e);
+		} finally {
+			prioritySyncing = false;
+		}
 	}
 
 	// --- Due date ---
@@ -129,10 +146,19 @@
 		tasksStore.refresh();
 	}
 
-	// --- Labels ---
+	// --- Labels (optimistic) ---
 	let allLabels = $state<Label[]>([]);
 	let showLabelPicker = $state(false);
 	let labelSearch = $state('');
+	let localLabels = $state<string[]>([]);
+	let labelsSyncing = $state(false);
+
+	// Sync local labels from store when task updates (skip during pending API call)
+	$effect(() => {
+		if (task && !labelsSyncing) {
+			localLabels = [...task.labels];
+		}
+	});
 
 	onMount(async () => {
 		try {
@@ -157,12 +183,20 @@
 
 	async function toggleLabel(name: string) {
 		if (!task) return;
-		const current = task.labels;
-		const newLabels = current.includes(name)
-			? current.filter((l) => l !== name)
-			: [...current, name];
-		await updateTask(task.id, { labels: newLabels });
-		tasksStore.refresh();
+		const newLabels = localLabels.includes(name)
+			? localLabels.filter((l) => l !== name)
+			: [...localLabels, name];
+		localLabels = newLabels;
+		labelsSyncing = true;
+		try {
+			await updateTask(task.id, { labels: newLabels });
+			tasksStore.refresh();
+		} catch (e) {
+			if (task) localLabels = [...task.labels];
+			console.error('Failed to update labels', e);
+		} finally {
+			labelsSyncing = false;
+		}
 	}
 
 	// --- Complete task ---
@@ -325,7 +359,7 @@
 							class="mt-1 flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
 								{completing
 									? 'border-primary bg-primary'
-									: priorityBorder(task.priority) + ' ' + priorityHover(task.priority)}"
+									: priorityBorder(localPriority) + ' ' + priorityHover(localPriority)}"
 							onclick={() => handleComplete()}
 							disabled={completing}
 							aria-label="Complete task"
@@ -526,7 +560,7 @@
 										{#each priorityItems as p (p.value)}
 											<button
 												class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
-													{task.priority === p.value ? 'bg-accent' : ''}"
+													{localPriority === p.value ? 'bg-accent' : ''}"
 												onclick={() => setPriority(p.value)}
 											>
 												<FlagIcon class="h-3.5 w-3.5 {p.color}" />
@@ -542,9 +576,9 @@
 					<!-- Labels -->
 					<div>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Labels</h3>
-						{#if task.labels.length > 0}
+						{#if localLabels.length > 0}
 							<div class="mb-2 flex flex-wrap gap-1.5">
-								{#each task.labels as label (label)}
+								{#each localLabels as label (label)}
 									<button
 										class="flex items-center gap-1 rounded-md px-2 py-0.5 text-[12px] font-medium transition-colors
 											{contextLabels.includes(label)
@@ -567,7 +601,7 @@
 								onclick={() => { showLabelPicker = !showLabelPicker; labelSearch = ''; }}
 							>
 								<TagIcon class="h-3.5 w-3.5" />
-								{task.labels.length > 0 ? 'Edit labels' : 'Add labels'}
+								{localLabels.length > 0 ? 'Edit labels' : 'Add labels'}
 							</button>
 
 							{#if showLabelPicker}
@@ -588,9 +622,9 @@
 											>
 												<div
 													class="flex h-4 w-4 items-center justify-center rounded border border-border/50
-														{task.labels.includes(label.name) ? 'border-primary bg-primary' : ''}"
+														{localLabels.includes(label.name) ? 'border-primary bg-primary' : ''}"
 												>
-													{#if task.labels.includes(label.name)}
+													{#if localLabels.includes(label.name)}
 														<CheckIcon class="h-3 w-3 text-primary-foreground" strokeWidth={3} />
 													{/if}
 												</div>
