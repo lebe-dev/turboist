@@ -31,6 +31,10 @@ type CompletedConfig struct {
 	Days int `yaml:"days"`
 }
 
+type QuickCaptureConfig struct {
+	Title string `yaml:"title"`
+}
+
 type AppConfig struct {
 	PollInterval time.Duration
 	Timezone     string
@@ -42,6 +46,7 @@ type AppConfig struct {
 	Tomorrow     TomorrowConfig
 	Completed    CompletedConfig
 	AutoExpire   []AutoExpireConfig
+	QuickCapture *QuickCaptureConfig
 }
 
 // FindContext returns the context with the given ID, or nil if not found.
@@ -100,16 +105,17 @@ type AutoExpireConfig struct {
 }
 
 type yamlFile struct {
-	Timezone     string           `yaml:"timezone"`
-	PollInterval string           `yaml:"poll_interval"`
-	TaskSort     string           `yaml:"task_sort"`
-	Contexts     []ContextConfig  `yaml:"contexts"`
-	Weekly       WeeklyConfig     `yaml:"weekly"`
-	NextWeek     NextWeekConfig   `yaml:"next_week"`
-	Today        TodayConfig      `yaml:"today"`
-	Tomorrow     TomorrowConfig   `yaml:"tomorrow"`
-	Completed    CompletedConfig  `yaml:"completed"`
-	AutoExpire   []yamlAutoExpire `yaml:"auto_expire"`
+	Timezone     string              `yaml:"timezone"`
+	PollInterval string              `yaml:"poll_interval"`
+	TaskSort     string              `yaml:"task_sort"`
+	Contexts     []ContextConfig     `yaml:"contexts"`
+	Weekly       WeeklyConfig        `yaml:"weekly"`
+	NextWeek     NextWeekConfig      `yaml:"next_week"`
+	Today        TodayConfig         `yaml:"today"`
+	Tomorrow     TomorrowConfig      `yaml:"tomorrow"`
+	Completed    CompletedConfig     `yaml:"completed"`
+	AutoExpire   []yamlAutoExpire    `yaml:"auto_expire"`
+	QuickCapture *QuickCaptureConfig `yaml:"quick_capture"`
 }
 
 type yamlAutoExpire struct {
@@ -172,6 +178,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		Today:        yf.Today,
 		Tomorrow:     yf.Tomorrow,
 		Completed:    completed,
+		QuickCapture: yf.QuickCapture,
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {

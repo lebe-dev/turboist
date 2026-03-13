@@ -79,3 +79,7 @@ auto_expire:
     ttl: "24h"
   - label: "горит"
     ttl: "4h"
+
+# Quick capture — save ideas as subtasks under a parent task
+quick_capture:
+  title: "Проект - turboist"

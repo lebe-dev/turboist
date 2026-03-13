@@ -1,5 +1,5 @@
 import { goto } from '$app/navigation';
-import type { Config, Context, CreateTaskRequest, Label, Project, Task, TasksResponse, UpdateTaskRequest } from './types';
+import type { Config, Context, CreateTaskRequest, Label, Project, QuickCaptureConfig, Task, TasksResponse, UpdateTaskRequest } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const res = await fetch(path, {
@@ -49,6 +49,10 @@ export async function getTasks(context?: string): Promise<TasksResponse> {
 	return request<TasksResponse>(`/api/tasks${params}`);
 }
 
+export async function getTask(id: string): Promise<Task> {
+	return request<Task>(`/api/tasks/${encodeURIComponent(id)}`);
+}
+
 export async function getInboxTasks(context?: string): Promise<TasksResponse> {
 	const params = context ? `?context=${encodeURIComponent(context)}` : '';
 	return request<TasksResponse>(`/api/tasks/inbox${params}`);
@@ -94,6 +98,10 @@ export async function getContexts(): Promise<Context[]> {
 
 export async function getConfig(): Promise<Config> {
 	return request<Config>('/api/config');
+}
+
+export async function getQuickCapture(): Promise<QuickCaptureConfig> {
+	return request<QuickCaptureConfig>('/api/quick-capture');
 }
 
 export async function createTask(data: CreateTaskRequest, context?: string): Promise<void> {

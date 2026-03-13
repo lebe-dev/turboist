@@ -94,3 +94,7 @@ export interface Config {
 	last_synced_at: string | null; // ISO 8601
 	day_parts: DayPart[];
 }
+
+export interface QuickCaptureConfig {
+	parent_task_id: string;
+}

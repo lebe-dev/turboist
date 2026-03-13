@@ -8,6 +8,7 @@
 	import DayPartTaskList from '$lib/components/DayPartTaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
+	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
 	import TaskDetailPanel from '$lib/components/TaskDetailPanel.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -79,17 +80,23 @@
 	}
 
 	let createDialogOpen = $state(false);
+	let quickCaptureOpen = $state(false);
 	let selectedTaskId = $state<string | null>(null);
 </script>
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === 'q' && !e.ctrlKey && !e.metaKey && !e.altKey && !createDialogOpen && !selectedTaskId) {
-			const tag = (e.target as HTMLElement)?.tagName;
-			if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
-				e.preventDefault();
-				createDialogOpen = true;
-			}
+		const tag = (e.target as HTMLElement)?.tagName;
+		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (createDialogOpen || quickCaptureOpen || selectedTaskId) return;
+
+		if (e.key === 'q') {
+			e.preventDefault();
+			createDialogOpen = true;
+		} else if (e.key === 'i') {
+			e.preventDefault();
+			quickCaptureOpen = true;
 		}
 	}}
 />
@@ -188,7 +195,8 @@
 {/if}
 
 <CreateTaskDialog bind:open={createDialogOpen} />
+<QuickCaptureButton bind:open={quickCaptureOpen} />
 
 {#if selectedTaskId && !isCompletedView}
-	<TaskDetailPanel taskId={selectedTaskId} onclose={() => (selectedTaskId = null)} />
+	<TaskDetailPanel taskId={selectedTaskId} onclose={() => (selectedTaskId = null)} onselect={(id) => (selectedTaskId = id)} />
 {/if}

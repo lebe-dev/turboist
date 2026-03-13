@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
-	import { updateTask, createTask, completeTask, getLabels } from '$lib/api/client';
+	import { updateTask, createTask, completeTask, getLabels, getTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
@@ -16,10 +16,12 @@
 
 	let {
 		taskId,
-		onclose
+		onclose,
+		onselect
 	}: {
 		taskId: string;
 		onclose: () => void;
+		onselect?: (id: string) => void;
 	} = $props();
 
 	// Find task by ID recursively in the tree
@@ -32,11 +34,45 @@
 		return null;
 	}
 
-	const task = $derived(findTask(tasksStore.tasks, taskId));
+	const taskFromStore = $derived(findTask(tasksStore.tasks, taskId));
+	let taskFromApi = $state<Task | null>(null);
+	let taskFetching = $state(false);
 
-	// Close panel if task disappears (e.g. completed)
+	// If not in current view, load from API
 	$effect(() => {
-		if (!task) onclose();
+		if (taskFromStore) {
+			taskFromApi = null;
+			return;
+		}
+		taskFetching = true;
+		taskFromApi = null;
+		getTask(taskId)
+			.then((t) => { taskFromApi = t; })
+			.catch(() => onclose())
+			.finally(() => { taskFetching = false; });
+	});
+
+	const task = $derived(taskFromStore ?? taskFromApi);
+
+	let parentTask = $state<Task | null>(null);
+
+	$effect(() => {
+		const pid = task?.parent_id ?? null;
+		if (!pid) {
+			parentTask = null;
+			return;
+		}
+		const found = findTask(tasksStore.tasks, pid);
+		if (found) {
+			parentTask = found;
+			return;
+		}
+		getTask(pid).then((t) => (parentTask = t)).catch(() => (parentTask = null));
+	});
+
+	// Close panel if task disappears (e.g. completed) — skip during API fetch
+	$effect(() => {
+		if (!task && !taskFetching) onclose();
 	});
 
 	// --- Title editing ---
@@ -236,7 +272,7 @@
 				{
 					content: subtaskContent.trim(),
 					description: '',
-					labels: [],
+					labels: [...task.labels],
 					priority: 1,
 					parent_id: task.id
 				},
@@ -334,8 +370,14 @@
 			<!-- Header -->
 			<div class="flex shrink-0 items-center justify-between border-b border-border/50 px-5 py-3">
 				<div class="flex items-center gap-2 text-[12px] text-muted-foreground">
-					{#if task.parent_id}
-						<span>Subtask</span>
+					{#if task.parent_id && parentTask}
+						<button
+							class="flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
+							onclick={() => onselect?.(parentTask.id)}
+						>
+							<ChevronRightIcon class="h-3 w-3 rotate-180" />
+							{parentTask.content}
+						</button>
 					{:else if task.sub_task_count > 0}
 						<span>{task.completed_sub_task_count}/{task.sub_task_count} subtasks</span>
 					{/if}
@@ -454,7 +496,27 @@
 											>
 												<CheckIcon class="h-2 w-2 text-primary opacity-0 transition-opacity group-hover:opacity-50" strokeWidth={3} />
 											</button>
-											<span class="text-[13px] text-foreground/90">{child.content}</span>
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<div
+												class="min-w-0 flex-1 {onselect ? 'cursor-pointer' : ''}"
+												onclick={() => onselect?.(child.id)}
+											>
+												<span class="text-[13px] text-foreground/90">{child.content}</span>
+												{#if child.labels.length > 0 || child.due}
+													<div class="mt-0.5 flex flex-wrap items-center gap-1">
+														{#each child.labels as label (label)}
+															<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
+														{/each}
+														{#if child.due}
+															<span class="flex items-center gap-0.5 text-[11px] {isOverdue(child.due.date) ? 'text-destructive' : 'text-muted-foreground'}">
+																<CalendarIcon class="h-3 w-3" />
+																{formatDueDate(child.due.date)}
+															</span>
+														{/if}
+													</div>
+												{/if}
+											</div>
 										</div>
 									{/each}
 								</div>

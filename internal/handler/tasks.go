@@ -285,6 +285,29 @@ func resolveSectionID(name string, sections []*todoist.Section) string {
 	return ""
 }
 
+// GetByID handles GET /api/tasks/:id
+func (h *TasksHandler) GetByID(c fiber.Ctx) error {
+	id := c.Params("id")
+	all := h.cache.Tasks()
+	tree := buildTree(all)
+	if t := findInTree(tree, id); t != nil {
+		return c.JSON(t)
+	}
+	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
+}
+
+func findInTree(tasks []*todoist.Task, id string) *todoist.Task {
+	for _, t := range tasks {
+		if t.ID == id {
+			return t
+		}
+		if found := findInTree(t.Children, id); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 // Complete handles POST /api/tasks/:id/complete
 func (h *TasksHandler) Complete(c fiber.Ctx) error {
 	id := c.Params("id")
