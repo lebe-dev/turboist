@@ -148,18 +148,19 @@
 				{@const isActive = currentDayPartLabel !== null && section.dayPart?.label === currentDayPartLabel}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
+					class="rounded-xl transition-all duration-300 {isActive ? 'border border-border/60 bg-muted/30 py-2.5' : 'py-0'}"
 					onmouseenter={() => hoveredSection = section.key}
 					onmouseleave={() => hoveredSection = null}
 				>
 					<div class="mb-1.5 flex items-center gap-2 px-3">
-						<Icon class="h-3.5 w-3.5 {isActive ? 'text-foreground/70' : 'text-muted-foreground/60'}" />
-						<span class="text-[11px] font-semibold uppercase tracking-wider {isActive ? 'text-foreground/70' : 'text-muted-foreground/60'}">
+						<Icon class="{isActive ? 'h-4 w-4 text-foreground/70' : 'h-3.5 w-3.5 text-muted-foreground/60'}" />
+						<span class="font-semibold uppercase tracking-wider {isActive ? 'text-[13px] text-foreground/70' : 'text-[11px] text-muted-foreground/60'}">
 							{section.label}
 						</span>
 						{#if section.timeRange}
-							<span class="text-[10px] {isActive ? 'text-foreground/40' : 'text-muted-foreground/40'}">{section.timeRange}</span>
+							<span class="{isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.timeRange}</span>
 						{/if}
-						<span class="text-[10px] tabular-nums {isActive ? 'text-foreground/40' : 'text-muted-foreground/40'}">{section.tasks.length}</span>
+						<span class="tabular-nums {isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.tasks.length}</span>
 					</div>
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}

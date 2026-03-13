@@ -1,4 +1,4 @@
-import { getConfig, getTasks, getWeeklyTasks, getNextWeekTasks, getTodayTasks, getTomorrowTasks } from '$lib/api/client';
+import { getConfig, getTasks, getWeeklyTasks, getNextWeekTasks, getTodayTasks, getTomorrowTasks, getCompletedTasks } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
 import { createPoller, type Poller } from '$lib/utils/polling';
@@ -26,6 +26,7 @@ function createTasksStore() {
 			'next-week': getNextWeekTasks,
 			today: getTodayTasks,
 			tomorrow: getTomorrowTasks,
+			completed: getCompletedTasks,
 		};
 		const fetcher = fetcherMap[view] ?? getTasks;
 

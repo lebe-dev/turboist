@@ -99,6 +99,11 @@ func (c *Cache) LastSyncedAt() time.Time {
 	return c.lastSyncedAt
 }
 
+// Client returns the underlying Todoist API client.
+func (c *Cache) Client() *Client {
+	return c.client
+}
+
 // RefreshAfterMutation triggers a cache refresh deduplicated via singleflight.
 // Concurrent calls while a refresh is in flight share the same result.
 func (c *Cache) RefreshAfterMutation(ctx context.Context) error {

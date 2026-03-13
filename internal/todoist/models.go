@@ -23,6 +23,7 @@ type Task struct {
 	Due                   *Due     `json:"due"`
 	SubTaskCount          int      `json:"sub_task_count"`
 	CompletedSubTaskCount int      `json:"completed_sub_task_count"`
+	CompletedAt           *string  `json:"completed_at"`
 	Children              []*Task  `json:"children"`
 }
 
@@ -56,6 +57,7 @@ func TaskFromSync(t *sync.Task) *Task {
 		ParentID:    t.ParentID,
 		Labels:      t.Labels,
 		Priority:    t.Priority,
+		CompletedAt: t.CompletedAt,
 		Children:    []*Task{},
 	}
 

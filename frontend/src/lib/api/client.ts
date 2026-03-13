@@ -69,6 +69,10 @@ export async function getTomorrowTasks(context?: string): Promise<TasksResponse>
 	return request<TasksResponse>(`/api/tasks/tomorrow${params}`);
 }
 
+export async function getCompletedTasks(_context?: string): Promise<TasksResponse> {
+	return request<TasksResponse>('/api/tasks/completed');
+}
+
 export async function getProjects(): Promise<Project[]> {
 	const res = await request<{ projects: Project[] }>('/api/projects');
 	return res.projects;

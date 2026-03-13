@@ -6,13 +6,15 @@
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import SunriseIcon from '@lucide/svelte/icons/sunrise';
+	import CircleCheckBigIcon from '@lucide/svelte/icons/circle-check-big';
 
 	const views = [
 		{ id: 'today' as const, label: 'Сегодня', icon: SunIcon },
 		{ id: 'tomorrow' as const, label: 'Завтра', icon: SunriseIcon },
 		{ id: 'weekly' as const, label: 'На неделе', icon: CalendarDaysIcon },
 		{ id: 'next-week' as const, label: 'След. неделю', icon: CalendarClockIcon },
-		{ id: 'all' as const, label: 'Все задачи', icon: ListIcon }
+		{ id: 'all' as const, label: 'Все задачи', icon: ListIcon },
+		{ id: 'completed' as const, label: 'Выполненные', icon: CircleCheckBigIcon }
 	];
 </script>
 

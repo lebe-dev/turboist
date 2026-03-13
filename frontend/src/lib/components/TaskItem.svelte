@@ -7,7 +7,7 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 
-	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean } = $props();
+	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean; completed?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -77,6 +77,12 @@
 		today.setHours(0, 0, 0, 0);
 		return d < today;
 	});
+
+	const completedAtLabel = $derived.by(() => {
+		if (!task.completed_at) return null;
+		const d = new Date(task.completed_at);
+		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+	});
 </script>
 
 {#if task.is_project_task}
@@ -103,33 +109,41 @@
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
 		>
-			<button
-				class="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
-					{completing
-					? priorityCheckColor
-					: dimmed
-						? 'border-muted-foreground/40 hover:border-muted-foreground/60 hover:bg-muted-foreground/5'
-						: priorityColor + ' ' + priorityHoverColor}"
-				style="-webkit-tap-highlight-color: transparent;"
-				onclick={handleComplete}
-				disabled={completing}
-				aria-label="Complete task"
-			>
-				{#if completing}
-					<CheckIcon class="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
-				{:else}
-					<CheckIcon class="h-2.5 w-2.5 text-primary opacity-0 transition-opacity duration-150 group-hover:opacity-50" strokeWidth={3} />
-				{/if}
-			</button>
+			{#if completed}
+				<span class="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/30 bg-muted-foreground/10">
+					<CheckIcon class="h-2.5 w-2.5 text-muted-foreground/60" strokeWidth={3} />
+				</span>
+			{:else}
+				<button
+					class="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
+						{completing
+						? priorityCheckColor
+						: dimmed
+							? 'border-muted-foreground/40 hover:border-muted-foreground/60 hover:bg-muted-foreground/5'
+							: priorityColor + ' ' + priorityHoverColor}"
+					style="-webkit-tap-highlight-color: transparent;"
+					onclick={handleComplete}
+					disabled={completing}
+					aria-label="Complete task"
+				>
+					{#if completing}
+						<CheckIcon class="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
+					{:else}
+						<CheckIcon class="h-2.5 w-2.5 text-primary opacity-0 transition-opacity duration-150 group-hover:opacity-50" strokeWidth={3} />
+					{/if}
+				</button>
+			{/if}
 
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="min-w-0 flex-1 cursor-pointer" onclick={() => onselect?.(task.id)}>
-				<span class="break-words text-[13px] leading-relaxed text-foreground/90">{task.content}</span>
-				{#if task.description}
+			<div class="min-w-0 flex-1" class:cursor-pointer={!completed} onclick={() => { if (!completed) onselect?.(task.id); }}>
+				<span class="break-words text-[13px] leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}">{task.content}</span>
+				{#if task.description && !completed}
 					<p class="truncate text-[12px] text-muted-foreground">{task.description}</p>
 				{/if}
-				{#if task.labels.length > 0 || task.due || task.sub_task_count > 0}
+				{#if completed && completedAtLabel}
+					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
+				{:else if task.labels.length > 0 || task.due || task.sub_task_count > 0}
 					<div class="mt-1 flex flex-wrap items-center gap-1.5">
 						{#each task.labels as label (label)}
 							<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
@@ -161,7 +175,7 @@
 			</div>
 		</div>
 
-		{#if hasChildren && !collapsed}
+		{#if hasChildren && !collapsed && !completed}
 			<div>
 				{#each task.children as child (child.id)}
 					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} {hideTodayDue} />

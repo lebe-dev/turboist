@@ -3,7 +3,7 @@
 	import TaskItem from './TaskItem.svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 
-	let { tasks, searchQuery = '', onselect }: { tasks: Task[]; searchQuery?: string; onselect?: (id: string) => void } = $props();
+	let { tasks, searchQuery = '', onselect, completed = false }: { tasks: Task[]; searchQuery?: string; onselect?: (id: string) => void; completed?: boolean } = $props();
 </script>
 
 {#if tasks.length === 0}
@@ -15,7 +15,7 @@
 	<div class="space-y-px px-1">
 		{#each tasks as task, i (task.id)}
 			<div class="animate-fade-in-up" style="animation-delay: {Math.min(i * 30, 300)}ms">
-				<TaskItem {task} {searchQuery} {onselect} />
+				<TaskItem {task} {searchQuery} {onselect} {completed} />
 			</div>
 		{/each}
 	</div>

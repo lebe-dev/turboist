@@ -208,6 +208,26 @@ today:
 	}
 }
 
+func TestParseAppConfig_CompletedDefault(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Completed.Days != 3 {
+		t.Errorf("completed.days default: got %d, want 3", app.Completed.Days)
+	}
+}
+
+func TestParseAppConfig_CompletedCustom(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`completed: {days: 7}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Completed.Days != 7 {
+		t.Errorf("completed.days: got %d, want 7", app.Completed.Days)
+	}
+}
+
 func TestLoadDotEnv_SetsVars(t *testing.T) {
 	f := filepath.Join(t.TempDir(), ".env")
 	content := `

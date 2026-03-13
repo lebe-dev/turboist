@@ -27,6 +27,10 @@ const (
 	TaskSortContent  TaskSort = "content"
 )
 
+type CompletedConfig struct {
+	Days int `yaml:"days"`
+}
+
 type AppConfig struct {
 	PollInterval time.Duration
 	Timezone     string
@@ -36,6 +40,7 @@ type AppConfig struct {
 	NextWeek     NextWeekConfig
 	Today        TodayConfig
 	Tomorrow     TomorrowConfig
+	Completed    CompletedConfig
 	AutoExpire   []AutoExpireConfig
 }
 
@@ -103,6 +108,7 @@ type yamlFile struct {
 	NextWeek     NextWeekConfig   `yaml:"next_week"`
 	Today        TodayConfig      `yaml:"today"`
 	Tomorrow     TomorrowConfig   `yaml:"tomorrow"`
+	Completed    CompletedConfig  `yaml:"completed"`
 	AutoExpire   []yamlAutoExpire `yaml:"auto_expire"`
 }
 
@@ -151,6 +157,11 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		return AppConfig{}, fmt.Errorf("task_sort: unknown value %q", yf.TaskSort)
 	}
 
+	completed := yf.Completed
+	if completed.Days <= 0 {
+		completed.Days = 3
+	}
+
 	app := AppConfig{
 		PollInterval: pollInterval,
 		Timezone:     tz,
@@ -160,6 +171,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		NextWeek:     yf.NextWeek,
 		Today:        yf.Today,
 		Tomorrow:     yf.Tomorrow,
+		Completed:    completed,
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {

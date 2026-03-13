@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/CnTeng/todoist-api-go/rest"
 	"github.com/CnTeng/todoist-api-go/sync"
 	extclient "github.com/CnTeng/todoist-api-go/todoist"
 )
@@ -148,6 +150,23 @@ func (c *Client) UpdateTask(ctx context.Context, args *sync.TaskUpdateArgs) erro
 		return &APIError{Op: "UpdateTask", Err: err}
 	}
 	return nil
+}
+
+// FetchCompletedTasks returns tasks completed between since and until.
+func (c *Client) FetchCompletedTasks(ctx context.Context, since, until time.Time) ([]*Task, error) {
+	items, err := c.taskSvc.GetAllCompletedTasksByCompletionDate(ctx, &rest.TaskGetCompletedByCompletionDateParams{
+		Since: since,
+		Until: until,
+	})
+	if err != nil {
+		return nil, &APIError{Op: "FetchCompletedTasks", Err: err}
+	}
+
+	tasks := make([]*Task, 0, len(items))
+	for _, t := range items {
+		tasks = append(tasks, TaskFromSync(t))
+	}
+	return tasks, nil
 }
 
 // CompleteTask closes a task via the Todoist API.

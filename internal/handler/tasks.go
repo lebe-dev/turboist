@@ -128,6 +128,35 @@ func (h *TasksHandler) Tomorrow(c fiber.Ctx) error {
 	})
 }
 
+// Completed handles GET /api/tasks/completed
+func (h *TasksHandler) Completed(c fiber.Ctx) error {
+	now := time.Now()
+	since := now.AddDate(0, 0, -h.cfg.Completed.Days)
+
+	tasks, err := h.cache.Client().FetchCompletedTasks(c.Context(), since, now)
+	if err != nil {
+		log.Error("fetch completed tasks failed", "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Sort by completed_at descending (newest first)
+	slices.SortStableFunc(tasks, func(a, b *todoist.Task) int {
+		ca, cb := "", ""
+		if a.CompletedAt != nil {
+			ca = *a.CompletedAt
+		}
+		if b.CompletedAt != nil {
+			cb = *b.CompletedAt
+		}
+		return cmp.Compare(cb, ca)
+	})
+
+	return c.JSON(tasksResponse{
+		Tasks: tasks,
+		Meta:  tasksMeta{},
+	})
+}
+
 type createTaskRequest struct {
 	Content     string   `json:"content"`
 	Description string   `json:"description"`

@@ -15,6 +15,7 @@ export interface Task {
 	due: Due | null;
 	sub_task_count: number;
 	completed_sub_task_count: number;
+	completed_at: string | null;
 	is_project_task: boolean;
 	children: Task[];
 }
@@ -89,6 +90,7 @@ export interface Config {
 	poll_interval: number; // seconds
 	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
 	weekly_limit: number;
+	completed_days: number;
 	last_synced_at: string | null; // ISO 8601
 	day_parts: DayPart[];
 }

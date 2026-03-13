@@ -43,10 +43,12 @@
 		today: 'Сегодня',
 		tomorrow: 'Завтра',
 		weekly: 'На неделе',
-		'next-week': 'На следующей неделе'
+		'next-week': 'На следующей неделе',
+		completed: 'Выполненные'
 	};
 
 	const title = $derived(viewTitles[contextsStore.activeView] ?? 'Задачи');
+	const isCompletedView = $derived(contextsStore.activeView === 'completed');
 
 	let searchQuery = $state('');
 
@@ -94,36 +96,40 @@
 <div class="flex h-full flex-col">
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
-		<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-primary hover:text-primary" title="Add task (Q)">
-			<PlusIcon class="h-4 w-4" />
-			<span class="sr-only">Add task</span>
-		</Button>
-		<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="me-2 h-8 w-8 text-muted-foreground">
-			{#if collapsedStore.hasAny}
-				<ChevronsUpDownIcon class="h-4 w-4" />
-			{:else}
-				<ChevronsDownUpIcon class="h-4 w-4" />
-			{/if}
-			<span class="sr-only">Toggle all subtasks</span>
-		</Button>
-		<div class="relative mr-2 flex items-center">
-			<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
-			<input
-				type="text"
-				placeholder="Поиск..."
-				bind:value={searchQuery}
-				class="h-8 w-48 rounded-md border border-border/50 bg-transparent pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:border-border focus:outline-none"
-			/>
-			{#if searchQuery}
-				<button
-					class="absolute right-2 flex items-center text-muted-foreground/60 hover:text-foreground"
-					onclick={() => (searchQuery = '')}
-					aria-label="Clear search"
-				>
-					<XIcon class="h-3.5 w-3.5" />
-				</button>
-			{/if}
-		</div>
+		{#if !isCompletedView}
+			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-primary hover:text-primary" title="Add task (Q)">
+				<PlusIcon class="h-4 w-4" />
+				<span class="sr-only">Add task</span>
+			</Button>
+			<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="me-2 h-8 w-8 text-muted-foreground">
+				{#if collapsedStore.hasAny}
+					<ChevronsUpDownIcon class="h-4 w-4" />
+				{:else}
+					<ChevronsDownUpIcon class="h-4 w-4" />
+				{/if}
+				<span class="sr-only">Toggle all subtasks</span>
+			</Button>
+			<div class="relative mr-2 flex items-center">
+				<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+				<input
+					type="text"
+					placeholder="Поиск..."
+					bind:value={searchQuery}
+					class="h-8 w-48 rounded-md border border-border/50 bg-transparent pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:border-border focus:outline-none"
+				/>
+				{#if searchQuery}
+					<button
+						class="absolute right-2 flex items-center text-muted-foreground/60 hover:text-foreground"
+						onclick={() => (searchQuery = '')}
+						aria-label="Clear search"
+					>
+						<XIcon class="h-3.5 w-3.5" />
+					</button>
+				{/if}
+			</div>
+		{:else}
+			<div class="ml-auto"></div>
+		{/if}
 		<Button onclick={toggleMode} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground">
 			<SunIcon class="h-4 w-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
 			<MoonIcon class="absolute h-4 w-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
@@ -162,23 +168,25 @@
 					onselect={(id) => (selectedTaskId = id)}
 				/>
 			{:else}
-				<TaskList tasks={tasksStore.tasks} {searchQuery} onselect={(id) => (selectedTaskId = id)} />
+				<TaskList tasks={tasksStore.tasks} {searchQuery} onselect={(id) => (selectedTaskId = id)} completed={isCompletedView} />
 			{/if}
 		{/if}
 	</div>
 </div>
 
-<!-- Mobile FAB -->
-<button
-	class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden"
-	onclick={() => (createDialogOpen = true)}
-	aria-label="Add task"
->
-	<PlusIcon class="h-5 w-5" />
-</button>
+{#if !isCompletedView}
+	<!-- Mobile FAB -->
+	<button
+		class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden"
+		onclick={() => (createDialogOpen = true)}
+		aria-label="Add task"
+	>
+		<PlusIcon class="h-5 w-5" />
+	</button>
+{/if}
 
 <CreateTaskDialog bind:open={createDialogOpen} />
 
-{#if selectedTaskId}
+{#if selectedTaskId && !isCompletedView}
 	<TaskDetailPanel taskId={selectedTaskId} onclose={() => (selectedTaskId = null)} />
 {/if}
