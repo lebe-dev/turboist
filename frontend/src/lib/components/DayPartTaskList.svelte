@@ -129,21 +129,22 @@
 		{#each sections as section, sectionIdx (section.key)}
 			{@const Icon = sectionIcon(sectionIdx, dayParts.length)}
 			{#if section.tasks.length > 0}
+				{@const isActive = currentDayPartLabel !== null && section.dayPart?.label === currentDayPartLabel}
 				<div>
 					<div class="mb-1.5 flex items-center gap-2 px-3">
-						<Icon class="h-3.5 w-3.5 text-muted-foreground/60" />
-						<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+						<Icon class="h-3.5 w-3.5 {isActive ? 'text-foreground/70' : 'text-muted-foreground/60'}" />
+						<span class="text-[11px] font-semibold uppercase tracking-wider {isActive ? 'text-foreground/70' : 'text-muted-foreground/60'}">
 							{section.label}
 						</span>
 						{#if section.timeRange}
-							<span class="text-[10px] text-muted-foreground/40">{section.timeRange}</span>
+							<span class="text-[10px] {isActive ? 'text-foreground/40' : 'text-muted-foreground/40'}">{section.timeRange}</span>
 						{/if}
-						<span class="text-[10px] tabular-nums text-muted-foreground/40">{section.tasks.length}</span>
+						<span class="text-[10px] tabular-nums {isActive ? 'text-foreground/40' : 'text-muted-foreground/40'}">{section.tasks.length}</span>
 					</div>
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
 							<div class="animate-fade-in-up group/daypart relative" style="animation-delay: {Math.min(i * 30, 300)}ms">
-								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={currentDayPartLabel !== null && section.dayPart?.label !== currentDayPartLabel} />
+								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={currentDayPartLabel !== null && section.dayPart?.label !== currentDayPartLabel} hideTodayDue />
 								<!-- Move buttons -->
 								<div
 									class="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border/50 bg-popover/95 px-0.5 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/daypart:opacity-100"

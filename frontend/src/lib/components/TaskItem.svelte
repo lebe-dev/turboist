@@ -7,7 +7,7 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 
-	let { task, depth = 0, searchQuery = '', onselect, dimmed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean } = $props();
+	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -65,7 +65,7 @@
 		today.setHours(0, 0, 0, 0);
 		const tomorrow = new Date(today);
 		tomorrow.setDate(tomorrow.getDate() + 1);
-		if (d.getTime() === today.getTime()) return 'Сегодня';
+		if (d.getTime() === today.getTime()) return hideTodayDue ? null : 'Сегодня';
 		if (d.getTime() === tomorrow.getTime()) return 'Завтра';
 		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 	});
@@ -164,7 +164,7 @@
 		{#if hasChildren && !collapsed}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} />
+					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} {hideTodayDue} />
 				{/each}
 			</div>
 		{/if}
