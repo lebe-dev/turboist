@@ -14,12 +14,14 @@
 		tasks,
 		dayParts,
 		timezone = '',
+		view = 'today',
 		searchQuery = '',
 		onselect
 	}: {
 		tasks: Task[];
 		dayParts: DayPart[];
 		timezone?: string;
+		view?: 'today' | 'tomorrow';
 		searchQuery?: string;
 		onselect?: (id: string) => void;
 	} = $props();
@@ -60,6 +62,10 @@
 			}
 		}
 
+		const sortTasks = view === 'tomorrow'
+			? (list: Task[]) => [...list].sort((a, b) => b.priority - a.priority)
+			: (list: Task[]) => list;
+
 		const result: Section[] = [];
 		for (const dp of dayParts) {
 			const t = sectionMap.get(dp.label)!;
@@ -68,7 +74,7 @@
 				label: dp.label,
 				timeRange: `${dp.start}:00\u2013${dp.end}:00`,
 				dayPart: dp,
-				tasks: t
+				tasks: sortTasks(t)
 			});
 		}
 
@@ -78,7 +84,7 @@
 			label: 'Без времени',
 			timeRange: '',
 			dayPart: null,
-			tasks: unassigned
+			tasks: sortTasks(unassigned)
 		});
 
 		return result;
@@ -112,9 +118,8 @@
 	let hoveredSection = $state<string | null>(null);
 
 	function isDimmed(section: Section): boolean {
-		if (section.dayPart === null) {
-			return hoveredSection !== section.key;
-		}
+		if (view === 'tomorrow') return false;
+		if (section.dayPart === null) return hoveredSection !== section.key;
 		return section.dayPart.label !== currentDayPartLabel;
 	}
 
@@ -145,7 +150,7 @@
 		{#each sections as section, sectionIdx (section.key)}
 			{@const Icon = sectionIcon(sectionIdx, dayParts.length)}
 			{#if section.tasks.length > 0}
-				{@const isActive = currentDayPartLabel !== null && section.dayPart?.label === currentDayPartLabel}
+				{@const isActive = view !== 'tomorrow' && currentDayPartLabel !== null && section.dayPart?.label === currentDayPartLabel}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="rounded-xl transition-all duration-300 {isActive ? 'border border-border/60 bg-muted/30 py-2.5' : 'py-0'}"
@@ -165,7 +170,7 @@
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
 							<div class="animate-fade-in-up group/daypart relative" style="animation-delay: {Math.min(i * 30, 300)}ms">
-								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={isDimmed(section)} hideTodayDue />
+								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'} />
 								<!-- Move buttons -->
 								<div
 									class="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border/50 bg-popover/95 px-0.5 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/daypart:opacity-100"

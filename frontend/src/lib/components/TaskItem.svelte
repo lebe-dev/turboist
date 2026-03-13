@@ -48,13 +48,14 @@
 	async function handleComplete() {
 		if (completing) return;
 		completing = true;
+		await new Promise((r) => setTimeout(r, 200));
+		tasksStore.removeTaskLocal(task.id);
+		completing = false;
 		try {
 			await completeTask(task.id);
-			tasksStore.refresh();
 		} catch (e) {
 			console.error('Failed to complete task', e);
-		} finally {
-			completing = false;
+			tasksStore.refresh();
 		}
 	}
 
@@ -66,7 +67,7 @@
 		const tomorrow = new Date(today);
 		tomorrow.setDate(tomorrow.getDate() + 1);
 		if (d.getTime() === today.getTime()) return hideTodayDue ? null : 'Сегодня';
-		if (d.getTime() === tomorrow.getTime()) return 'Завтра';
+		if (d.getTime() === tomorrow.getTime()) return hideTomorrowDue ? null : 'Завтра';
 		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 	});
 
@@ -178,7 +179,7 @@
 		{#if hasChildren && !collapsed && !completed}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} {hideTodayDue} />
+					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} {hideTodayDue} {hideTomorrowDue} />
 				{/each}
 			</div>
 		{/if}

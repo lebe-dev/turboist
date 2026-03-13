@@ -160,11 +160,12 @@
 		{:else if tasksStore.error}
 			<p class="py-8 text-center text-sm text-destructive/80">{tasksStore.error}</p>
 		{:else}
-			{#if contextsStore.activeView === 'today' && (tasksStore.config?.day_parts?.length ?? 0) > 0}
+			{#if (contextsStore.activeView === 'today' || contextsStore.activeView === 'tomorrow') && (tasksStore.config?.day_parts?.length ?? 0) > 0}
 				<DayPartTaskList
 					tasks={tasksStore.tasks}
 					dayParts={tasksStore.config!.day_parts}
 					timezone={tasksStore.config!.timezone}
+					view={contextsStore.activeView === 'tomorrow' ? 'tomorrow' : 'today'}
 					{searchQuery}
 					onselect={(id) => (selectedTaskId = id)}
 				/>
