@@ -62,6 +62,7 @@ export interface ContextFilters {
 export interface Context {
 	id: string;
 	display_name: string;
+	color?: string;
 	filters: ContextFilters;
 }
 

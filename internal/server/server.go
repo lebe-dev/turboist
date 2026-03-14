@@ -44,6 +44,7 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 	app.Get("/api/tasks/:id", tasksHandler.GetByID)
 	app.Patch("/api/tasks/:id", tasksHandler.Update)
 	app.Post("/api/tasks/:id/complete", tasksHandler.Complete)
+	app.Post("/api/tasks/:id/duplicate", tasksHandler.Duplicate)
 	app.Delete("/api/tasks/:id", tasksHandler.Delete)
 	app.Get("/api/tasks/:id/completed-subtasks", tasksHandler.CompletedSubtasks)
 

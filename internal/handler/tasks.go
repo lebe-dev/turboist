@@ -384,6 +384,53 @@ func (h *TasksHandler) Delete(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusOK)
 }
 
+// Duplicate handles POST /api/tasks/:id/duplicate
+func (h *TasksHandler) Duplicate(c fiber.Ctx) error {
+	id := c.Params("id")
+	all := h.cache.Tasks()
+
+	var src *todoist.Task
+	for _, t := range all {
+		if t.ID == id {
+			src = t
+			break
+		}
+	}
+	if src == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
+	}
+
+	args := &synctodoist.TaskAddArgs{
+		Content:   src.Content,
+		ProjectID: &src.ProjectID,
+		SectionID: src.SectionID,
+		ParentID:  src.ParentID,
+	}
+	if src.Description != "" {
+		args.Description = &src.Description
+	}
+	if src.Priority >= 1 && src.Priority <= 4 {
+		args.Priority = &src.Priority
+	}
+	if len(src.Labels) > 0 {
+		args.Labels = src.Labels
+	}
+	if src.Due != nil {
+		dueDate, err := time.Parse("2006-01-02", src.Due.Date)
+		if err == nil {
+			args.Due = &synctodoist.Due{Date: &dueDate}
+		}
+	}
+
+	log.Debug("duplicate task", "id", id, "content", src.Content)
+	if err := h.cache.AddTask(c.Context(), args); err != nil {
+		log.Error("duplicate task failed", "id", id, "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true})
+}
+
 // CompletedSubtasks handles GET /api/tasks/:id/completed-subtasks
 func (h *TasksHandler) CompletedSubtasks(c fiber.Ctx) error {
 	id := c.Params("id")

@@ -8,6 +8,7 @@
 	import DayPartTaskList from '$lib/components/DayPartTaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
+	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
 	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -223,4 +224,7 @@
 {/if}
 
 <CreateTaskDialog bind:open={createDialogOpen} />
+{#if !isCompletedView}
+	<NextActionDialog />
+{/if}
 <QuickCaptureButton bind:open={quickCaptureOpen} />

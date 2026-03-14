@@ -22,6 +22,7 @@ type contextFiltersResponse struct {
 type contextItem struct {
 	ID          string                 `json:"id"`
 	DisplayName string                 `json:"display_name"`
+	Color       string                 `json:"color,omitempty"`
 	Filters     contextFiltersResponse `json:"filters"`
 }
 
@@ -46,6 +47,7 @@ func (h *ContextsHandler) Contexts(c fiber.Ctx) error {
 		items = append(items, contextItem{
 			ID:          ctx.ID,
 			DisplayName: ctx.DisplayName,
+			Color:       ctx.Color,
 			Filters:     filters,
 		})
 	}

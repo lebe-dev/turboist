@@ -106,10 +106,17 @@
 			title={collapsed ? ctx.display_name : undefined}
 		>
 			<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-				<span
-					class="h-1.5 w-1.5 rounded-full transition-colors duration-150
-						{contextsStore.activeContextId === ctx.id ? 'bg-primary' : 'bg-muted-foreground/40'}"
-				></span>
+				{#if ctx.color}
+					<span
+						class="h-1.5 w-1.5 rounded-full transition-opacity duration-150"
+						style="background-color: {ctx.color}; opacity: {contextsStore.activeContextId === ctx.id ? 1 : 0.4}"
+					></span>
+				{:else}
+					<span
+						class="h-1.5 w-1.5 rounded-full transition-colors duration-150
+							{contextsStore.activeContextId === ctx.id ? 'bg-primary' : 'bg-muted-foreground/40'}"
+					></span>
+				{/if}
 			</span>
 			{#if !collapsed}
 				{ctx.display_name}

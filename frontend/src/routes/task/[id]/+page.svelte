@@ -4,6 +4,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import TaskDetailPanel from '$lib/components/TaskDetailPanel.svelte';
+	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
 
 	const taskId = $derived($page.params.id as string);
 
@@ -22,3 +23,4 @@
 	onclose={() => history.back()}
 	onselect={(id) => goto(`/task/${id}`)}
 />
+<NextActionDialog />

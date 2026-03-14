@@ -218,6 +218,42 @@ func TestParseAppConfig_CompletedDefault(t *testing.T) {
 	}
 }
 
+func TestParseAppConfig_ContextColor(t *testing.T) {
+	yaml := `
+contexts:
+  - id: work
+    display_name: "Work"
+    color: "#FF5733"
+    filters:
+      labels: ["work"]
+  - id: personal
+    display_name: "Personal"
+    color: green
+    filters:
+      labels: ["personal"]
+  - id: misc
+    display_name: "Misc"
+    filters:
+      labels: ["misc"]
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.Contexts) != 3 {
+		t.Fatalf("contexts: got %d, want 3", len(app.Contexts))
+	}
+	if app.Contexts[0].Color != "#FF5733" {
+		t.Errorf("contexts[0].color: got %q, want %q", app.Contexts[0].Color, "#FF5733")
+	}
+	if app.Contexts[1].Color != "green" {
+		t.Errorf("contexts[1].color: got %q, want %q", app.Contexts[1].Color, "green")
+	}
+	if app.Contexts[2].Color != "" {
+		t.Errorf("contexts[2].color: got %q, want empty", app.Contexts[2].Color)
+	}
+}
+
 func TestParseAppConfig_CompletedCustom(t *testing.T) {
 	app, err := ParseAppConfig([]byte(`completed: {days: 7}`))
 	if err != nil {

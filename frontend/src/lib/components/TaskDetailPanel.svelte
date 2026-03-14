@@ -4,6 +4,8 @@
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
+	import { nextActionStore } from '$lib/stores/next-action.svelte';
+	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -336,6 +338,8 @@
 	// --- Complete task ---
 	let completing = $state(false);
 
+	const isCompletedView = $derived(contextsStore.activeView === 'completed');
+
 	async function handleComplete(id?: string) {
 		const targetId = id ?? task?.id;
 		if (!targetId || completing) return;
@@ -345,6 +349,31 @@
 		if (targetId === task?.id) {
 			// Completing the main task — remove and navigate to parent or close
 			const parentId = task?.parent_id ?? null;
+
+			// Show next-action toast
+			if (!isCompletedView) {
+				const completedTask = { ...task! };
+				const isSubtask = parentId && parentTask?.content;
+				const isLeafTask = !parentId && completedTask.sub_task_count === 0 && completedTask.completed_sub_task_count === 0;
+
+				if (isSubtask || isLeafTask) {
+					toast.dismiss();
+					toast(`Completed: ${completedTask.content}`, {
+						duration: 8000,
+						action: {
+							label: isSubtask ? 'Next action' : 'Follow-up',
+							onClick: () => {
+								if (isSubtask) {
+									nextActionStore.trigger(completedTask, parentTask!.content);
+								} else {
+									nextActionStore.triggerFollowUp(completedTask);
+								}
+							}
+						}
+					});
+				}
+			}
+
 			tasksStore.removeTaskLocal(targetId);
 			if (parentId) {
 				onselect?.(parentId);
@@ -352,7 +381,23 @@
 				onclose();
 			}
 		} else {
-			// Completing a subtask — remove from children
+			// Completing a subtask — capture info before removing
+			const child = task?.children.find((c) => c.id === targetId);
+			if (child && task && !isCompletedView) {
+				const completedChild = { ...child, parent_id: child.parent_id ?? task.id };
+				const parentName = task.content;
+				toast.dismiss();
+				toast(`Completed: ${completedChild.content}`, {
+					duration: 8000,
+					action: {
+						label: 'Next action',
+						onClick: () => {
+							nextActionStore.trigger(completedChild, parentName);
+						}
+					}
+				});
+			}
+
 			updateLocal((t) => ({
 				...t,
 				children: t.children.filter((c) => c.id !== targetId),

@@ -68,6 +68,7 @@ type Config struct {
 type ContextConfig struct {
 	ID          string         `yaml:"id"`
 	DisplayName string         `yaml:"display_name"`
+	Color       string         `yaml:"color"`
 	Filters     ContextFilters `yaml:"filters"`
 }
 

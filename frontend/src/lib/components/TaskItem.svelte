@@ -1,15 +1,19 @@
 <script lang="ts">
 	import type { Task } from '$lib/api/types';
-	import { completeTask, deleteTask, updateTask } from '$lib/api/client';
+	import { completeTask, deleteTask, duplicateTask, updateTask, getTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
+	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { nextActionStore } from '$lib/stores/next-action.svelte';
+	import { toast } from 'svelte-sonner';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
@@ -56,14 +60,68 @@
 	const hasChildren = $derived(task.children && task.children.length > 0);
 	const collapsed = $derived(collapsedStore.isCollapsed(task.id));
 
+	// Find task by ID recursively in the tree
+	function findTaskInStore(tasks: import('$lib/api/types').Task[], id: string): import('$lib/api/types').Task | null {
+		for (const t of tasks) {
+			if (t.id === id) return t;
+			const found = findTaskInStore(t.children, id);
+			if (found) return found;
+		}
+		return null;
+	}
+
+	const isCompletedView = $derived(contextsStore.activeView === 'completed');
+
 	let completing = $state(false);
 
 	async function handleComplete() {
 		if (completing) return;
 		completing = true;
+
+		// Capture parent info before removing from store
+		const parentId = task.parent_id;
+		let parentContent: string | null = null;
+		if (parentId && !isCompletedView) {
+			const parent = findTaskInStore(tasksStore.tasks, parentId);
+			parentContent = parent?.content ?? null;
+			if (!parentContent) {
+				try {
+					const fetched = await getTask(parentId);
+					parentContent = fetched.content;
+				} catch {
+					// fallback — skip next-action prompt
+				}
+			}
+		}
+		const completedTask = task;
+
 		await new Promise((r) => setTimeout(r, 200));
 		tasksStore.removeTaskLocal(task.id);
 		completing = false;
+
+		// Show next-action toast
+		if (!isCompletedView) {
+			const isSubtask = parentId && parentContent;
+			const isLeafTask = !parentId && completedTask.sub_task_count === 0 && completedTask.completed_sub_task_count === 0;
+
+			if (isSubtask || isLeafTask) {
+				toast.dismiss();
+				toast(`Completed: ${completedTask.content}`, {
+					duration: 8000,
+					action: {
+						label: isSubtask ? 'Next action' : 'Follow-up',
+						onClick: () => {
+							if (isSubtask) {
+								nextActionStore.trigger(completedTask, parentContent!);
+							} else {
+								nextActionStore.triggerFollowUp(completedTask);
+							}
+						}
+					}
+				});
+			}
+		}
+
 		try {
 			await completeTask(task.id);
 		} catch (e) {
@@ -187,6 +245,23 @@
 	}
 
 	let dropdownOpen = $state(false);
+
+	// --- Duplicate ---
+	let duplicating = $state(false);
+
+	async function handleDuplicate() {
+		if (duplicating) return;
+		duplicating = true;
+		dropdownOpen = false;
+		try {
+			await duplicateTask(task.id);
+			tasksStore.refresh();
+		} catch (e) {
+			console.error('Failed to duplicate task', e);
+		} finally {
+			duplicating = false;
+		}
+	}
 
 	// --- Delete ---
 	let showDeleteConfirm = $state(false);
@@ -318,6 +393,12 @@
 						<DropdownMenu.Item onclick={() => goto(`/task/${task.id}`)}>
 							<PencilIcon class="h-4 w-4" />
 							Edit
+						</DropdownMenu.Item>
+
+						<!-- Duplicate -->
+						<DropdownMenu.Item onclick={handleDuplicate} disabled={duplicating}>
+							<CopyPlusIcon class="h-4 w-4" />
+							Duplicate
 						</DropdownMenu.Item>
 
 						{#if canPin}

@@ -14,12 +14,14 @@ poll_interval: "30s"
 contexts:
   - id: health
     display_name: "Здоровье"
+    color: green
     filters:
       # Filter by Todoist labels (OR between items)
       labels: ["здоровье"]
 
   - id: dev
     display_name: "Разработка"
+    color: "#FF5733"
     filters:
       # Filter by Todoist project names (OR between items)
       projects: ["Проекты"]
@@ -30,6 +32,7 @@ contexts:
 
   - id: work
     display_name: "Работа"
+    color: "#3B82F6"
     filters:
       labels: ["работа"]
 

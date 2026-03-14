@@ -8,6 +8,7 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Toaster } from '$lib/components/ui/sonner';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 
@@ -28,6 +29,7 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <ModeWatcher />
+<Toaster />
 
 {#if showSidebar}
 	<div class="flex h-screen overflow-hidden bg-background">
