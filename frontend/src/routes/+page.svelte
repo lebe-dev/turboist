@@ -114,7 +114,7 @@
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 		{#if !isCompletedView}
-			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-primary hover:text-primary" title="Add task (Q)">
+			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)">
 				<PlusIcon class="h-4 w-4" />
 				<span class="sr-only">Add task</span>
 			</Button>

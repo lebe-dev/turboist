@@ -62,6 +62,7 @@
 			<LogOutIcon class="h-3.5 w-3.5 shrink-0" />
 			{#if !sidebarStore.collapsed}
 				Выйти
+				<span class="ml-auto text-xs text-muted-foreground/50">v{__APP_VERSION__}</span>
 			{/if}
 		</button>
 	</div>

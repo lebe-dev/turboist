@@ -373,6 +373,17 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
+// Delete handles DELETE /api/tasks/:id
+func (h *TasksHandler) Delete(c fiber.Ctx) error {
+	id := c.Params("id")
+	log.Debug("delete task", "id", id)
+	if err := h.cache.DeleteTask(c.Context(), id); err != nil {
+		log.Error("delete task failed", "id", id, "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.SendStatus(fiber.StatusOK)
+}
+
 func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {
 	tasks := h.cache.Tasks()
 	if contextKey == "" {

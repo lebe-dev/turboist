@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
-	import { updateTask, createTask, completeTask, getLabels, getTask } from '$lib/api/client';
+	import { updateTask, createTask, completeTask, deleteTask, getLabels, getTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
@@ -13,7 +13,10 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import RepeatIcon from '@lucide/svelte/icons/repeat';
+	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import MarkdownContent from './MarkdownContent.svelte';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	let {
 		taskId,
@@ -464,6 +467,26 @@
 	}
 
 	const collapsed = $derived(task ? collapsedStore.isCollapsed(task.id) : false);
+
+	// --- Delete task ---
+	let showDeleteConfirm = $state(false);
+	let deleting = $state(false);
+
+	async function handleDelete() {
+		if (!task || deleting) return;
+		deleting = true;
+		tasksStore.removeTaskLocal(task.id);
+		showDeleteConfirm = false;
+		onclose();
+		try {
+			await deleteTask(task.id);
+		} catch (e) {
+			console.error('Failed to delete task', e);
+			tasksStore.refresh();
+		} finally {
+			deleting = false;
+		}
+	}
 </script>
 
 {#if task}
@@ -493,13 +516,31 @@
 						<span>{task.completed_sub_task_count}/{task.sub_task_count} subtasks</span>
 					{/if}
 				</div>
-				<button
-					class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-					onclick={onclose}
-					aria-label="Close"
-				>
-					<XIcon class="h-4 w-4" />
-				</button>
+				<div class="flex items-center gap-1">
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger
+							class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						>
+							<EllipsisVerticalIcon class="h-4 w-4" />
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="end" class="w-40">
+							<DropdownMenu.Item
+								variant="destructive"
+								onclick={() => { showDeleteConfirm = true; }}
+							>
+								<TrashIcon class="h-4 w-4" />
+								Delete
+							</DropdownMenu.Item>
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+					<button
+						class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						onclick={onclose}
+						aria-label="Close"
+					>
+						<XIcon class="h-4 w-4" />
+					</button>
+				</div>
 			</div>
 
 			<!-- Content -->
@@ -859,6 +900,43 @@
 			</div>
 		</div>
 	</div>
+
+	{#if showDeleteConfirm}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div
+			class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+			onclick={() => { showDeleteConfirm = false; }}
+			onkeydown={(e) => { if (e.key === 'Escape') showDeleteConfirm = false; }}
+		>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-xl"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<h3 class="text-lg font-semibold text-foreground">Delete task?</h3>
+				<p class="mt-2 text-sm text-muted-foreground">
+					The <span class="font-medium text-foreground">{task.content}</span> task will be permanently deleted.
+				</p>
+				<div class="mt-4 flex justify-end gap-2">
+					<button
+						class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						onclick={() => { showDeleteConfirm = false; }}
+					>
+						Cancel
+					</button>
+					<button
+						class="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-destructive/90"
+						onclick={handleDelete}
+						disabled={deleting}
+					>
+						Delete
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 {/if}
 
 <style>

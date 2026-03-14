@@ -177,3 +177,12 @@ func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// DeleteTask deletes a task and all its sub-tasks via the Todoist API.
+func (c *Client) DeleteTask(ctx context.Context, id string) error {
+	_, err := c.taskSvc.DeleteTask(ctx, &sync.TaskDeleteArgs{ID: id})
+	if err != nil {
+		return &APIError{Op: "DeleteTask", Err: err}
+	}
+	return nil
+}

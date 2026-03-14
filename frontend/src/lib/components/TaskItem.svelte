@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Task } from '$lib/api/types';
-	import { completeTask } from '$lib/api/client';
+	import { completeTask, deleteTask, updateTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
@@ -8,7 +8,15 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PinIcon from '@lucide/svelte/icons/pin';
+	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
+	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import SunIcon from '@lucide/svelte/icons/sun';
+	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import XIcon from '@lucide/svelte/icons/x';
+	import FlagIcon from '@lucide/svelte/icons/flag';
 	import MarkdownContent from './MarkdownContent.svelte';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean } = $props();
 
@@ -102,6 +110,95 @@
 			pinnedStore.pin({ id: task.id, content: task.content });
 		}
 	}
+
+	// --- Date helpers ---
+	function todayStr(): string {
+		const d = new Date();
+		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+	}
+
+	function tomorrowStr(): string {
+		const d = new Date();
+		d.setDate(d.getDate() + 1);
+		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+	}
+
+	const isToday = $derived(task.due?.date === todayStr());
+	const isTomorrow = $derived(task.due?.date === tomorrowStr());
+
+	async function setDate(date: string) {
+		if (task.due?.date === date) return;
+		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: { date, recurring: false } }));
+		try {
+			await updateTask(task.id, { due_date: date });
+		} catch (e) {
+			console.error('Failed to set due date', e);
+		}
+		tasksStore.refresh();
+	}
+
+	async function clearDate() {
+		if (!task.due) return;
+		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: null }));
+		try {
+			await updateTask(task.id, { due_date: '' });
+		} catch (e) {
+			console.error('Failed to clear due date', e);
+		}
+		tasksStore.refresh();
+	}
+
+	let dateInput: HTMLInputElement | undefined = $state();
+
+	function openDatePicker() {
+		requestAnimationFrame(() => {
+			dateInput?.showPicker?.();
+			dateInput?.focus();
+		});
+	}
+
+	async function onDatePicked(e: Event) {
+		const value = (e.target as HTMLInputElement).value;
+		if (value) await setDate(value);
+	}
+
+	// --- Priority ---
+	const priorityItems = [
+		{ value: 4, label: 'P1', color: 'text-red-500' },
+		{ value: 3, label: 'P2', color: 'text-amber-500' },
+		{ value: 2, label: 'P3', color: 'text-blue-400' },
+		{ value: 1, label: 'P4', color: 'text-muted-foreground' },
+	];
+
+	async function setPriority(value: number) {
+		if (task.priority === value) return;
+		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, priority: value }));
+		try {
+			await updateTask(task.id, { priority: value });
+		} catch (e) {
+			console.error('Failed to update priority', e);
+		}
+		tasksStore.refresh();
+	}
+
+	// --- Delete ---
+	let showDeleteConfirm = $state(false);
+	let deleting = $state(false);
+
+	async function handleDelete() {
+		if (deleting) return;
+		deleting = true;
+		tasksStore.removeTaskLocal(task.id);
+		showDeleteConfirm = false;
+		try {
+			await deleteTask(task.id);
+		} catch (e) {
+			console.error('Failed to delete task', e);
+			tasksStore.refresh();
+		} finally {
+			deleting = false;
+		}
+	}
 </script>
 
 {#if task.is_project_task}
@@ -193,19 +290,146 @@
 				{/if}
 			</div>
 
-			{#if !completed && canPin}
-				<button
-					class="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded transition-all duration-150
-						{isPinned
-						? 'text-primary opacity-60 hover:opacity-100'
-						: 'text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-muted-foreground'}"
-					onclick={handlePin}
-					aria-label={isPinned ? 'Unpin task' : 'Pin task'}
-				>
-					<PinIcon class="h-3 w-3" />
-				</button>
+			{#if !completed}
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger
+						class="absolute right-1 top-1.5 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
+						onclick={(e: MouseEvent) => e.stopPropagation()}
+					>
+						<EllipsisVerticalIcon class="h-3.5 w-3.5" />
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end" class="w-52">
+						<!-- Edit -->
+						<DropdownMenu.Item onclick={() => onselect?.(task.id)}>
+							<PencilIcon class="h-4 w-4" />
+							Edit
+						</DropdownMenu.Item>
+
+						{#if canPin}
+							<DropdownMenu.Item onclick={(e: MouseEvent) => handlePin(e)}>
+								<PinIcon class="h-4 w-4" />
+								{isPinned ? 'Unpin' : 'Pin'}
+							</DropdownMenu.Item>
+						{/if}
+
+						<DropdownMenu.Separator />
+
+						<!-- Date -->
+						<div class="px-2 py-1.5">
+							<p class="text-xs font-semibold text-muted-foreground">Date</p>
+							<div class="mt-1.5 flex items-center gap-1">
+								<button
+									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+										{isToday ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
+									onclick={() => setDate(todayStr())}
+									aria-label="Today"
+								>
+									<CalendarIcon class="h-4 w-4" />
+								</button>
+								<button
+									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+										{isTomorrow ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
+									onclick={() => setDate(tomorrowStr())}
+									aria-label="Tomorrow"
+								>
+									<SunIcon class="h-4 w-4" />
+								</button>
+								<div class="relative">
+									<button
+										class="flex h-7 w-7 items-center justify-center rounded-md text-purple-400 transition-colors hover:bg-accent"
+										onclick={openDatePicker}
+										aria-label="Pick date"
+									>
+										<ArrowRightIcon class="h-4 w-4" />
+									</button>
+									<input
+										bind:this={dateInput}
+										type="date"
+										value={task.due?.date ?? ''}
+										class="pointer-events-none absolute left-0 top-0 h-0 w-0 opacity-0"
+										onchange={onDatePicked}
+									/>
+								</div>
+								{#if task.due}
+									<button
+										class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										onclick={clearDate}
+										aria-label="Clear date"
+									>
+										<XIcon class="h-3.5 w-3.5" />
+									</button>
+								{/if}
+							</div>
+						</div>
+
+						<!-- Priority -->
+						<div class="px-2 py-1.5">
+							<p class="text-xs font-semibold text-muted-foreground">Priority</p>
+							<div class="mt-1.5 flex items-center gap-1">
+								{#each priorityItems as p (p.value)}
+									<button
+										class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
+											{task.priority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
+										onclick={() => setPriority(p.value)}
+										aria-label={p.label}
+									>
+										<FlagIcon class="h-4 w-4" />
+									</button>
+								{/each}
+							</div>
+						</div>
+
+						<DropdownMenu.Separator />
+
+						<!-- Delete -->
+						<DropdownMenu.Item
+							variant="destructive"
+							onclick={() => { showDeleteConfirm = true; }}
+						>
+							<TrashIcon class="h-4 w-4" />
+							Delete
+						</DropdownMenu.Item>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
 			{/if}
 		</div>
+
+		{#if showDeleteConfirm}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<div
+				class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+				onclick={() => { showDeleteConfirm = false; }}
+				onkeydown={(e) => { if (e.key === 'Escape') showDeleteConfirm = false; }}
+			>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-xl"
+					onclick={(e) => e.stopPropagation()}
+				>
+					<h3 class="text-lg font-semibold text-foreground">Delete task?</h3>
+					<p class="mt-2 text-sm text-muted-foreground">
+						The <span class="font-medium text-foreground">{task.content}</span> task will be permanently deleted.
+					</p>
+					<div class="mt-4 flex justify-end gap-2">
+						<button
+							class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							onclick={() => { showDeleteConfirm = false; }}
+						>
+							Cancel
+						</button>
+						<button
+							class="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-destructive/90"
+							onclick={handleDelete}
+							disabled={deleting}
+						>
+							Delete
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		{#if hasChildren && !collapsed && !completed}
 			<div>

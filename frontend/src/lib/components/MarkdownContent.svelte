@@ -32,7 +32,7 @@
 		href={seg.href}
 		target="_blank"
 		rel="noopener noreferrer"
-		class="text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary/60"
+		class="text-muted-foreground underline decoration-muted-foreground/30 underline-offset-2 hover:decoration-muted-foreground/60"
 		onclick={(e) => e.stopPropagation()}
 	>{seg.text}</a>{:else}{seg.value}{/if}{/each}</span>
 {:else}
