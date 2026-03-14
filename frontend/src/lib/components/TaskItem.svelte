@@ -172,6 +172,7 @@
 	];
 
 	async function setPriority(value: number) {
+		dropdownOpen = false;
 		if (task.priority === value) return;
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, priority: value }));
 		try {
@@ -181,6 +182,8 @@
 		}
 		tasksStore.refresh();
 	}
+
+	let dropdownOpen = $state(false);
 
 	// --- Delete ---
 	let showDeleteConfirm = $state(false);
@@ -292,7 +295,7 @@
 			</div>
 
 			{#if !completed}
-				<DropdownMenu.Root>
+				<DropdownMenu.Root bind:open={dropdownOpen}>
 					<DropdownMenu.Trigger
 						class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
 						onclick={(e: MouseEvent) => e.stopPropagation()}

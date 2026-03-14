@@ -15,6 +15,10 @@
 	import RepeatIcon from '@lucide/svelte/icons/repeat';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
+	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
+	import SunIcon from '@lucide/svelte/icons/sun';
+	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
@@ -313,6 +317,7 @@
 		if (targetId === task?.id) {
 			// Completing the main task — remove and close panel
 			tasksStore.removeTaskLocal(targetId);
+			onclose();
 		} else {
 			// Completing a subtask — remove from children
 			updateLocal((t) => ({
@@ -331,9 +336,13 @@
 		}
 	}
 
+	// --- Subtask menu ---
+	let openSubtaskMenuId = $state<string | null>(null);
+
 	// --- Subtask priority (optimistic) ---
 	async function setSubtaskPriority(childId: string, value: number) {
 		if (!task) return;
+		openSubtaskMenuId = null;
 		updateLocal((t) => ({
 			...t,
 			children: t.children
@@ -344,6 +353,72 @@
 			await updateTask(childId, { priority: value });
 		} catch (e) {
 			console.error('Failed to update subtask priority', e);
+		}
+		tasksStore.refresh();
+	}
+
+	// --- Subtask date ---
+	async function setSubtaskDate(childId: string, date: string) {
+		if (!task) return;
+		updateLocal((t) => ({
+			...t,
+			children: t.children.map((c) =>
+				c.id === childId ? { ...c, due: { date, recurring: false } } : c
+			)
+		}));
+		try {
+			await updateTask(childId, { due_date: date });
+		} catch (e) {
+			console.error('Failed to set subtask date', e);
+		}
+		tasksStore.refresh();
+	}
+
+	async function clearSubtaskDate(childId: string) {
+		if (!task) return;
+		updateLocal((t) => ({
+			...t,
+			children: t.children.map((c) =>
+				c.id === childId ? { ...c, due: null } : c
+			)
+		}));
+		try {
+			await updateTask(childId, { due_date: '' });
+		} catch (e) {
+			console.error('Failed to clear subtask date', e);
+		}
+		tasksStore.refresh();
+	}
+
+	let subtaskDateInput: HTMLInputElement | undefined = $state();
+	let subtaskDateTargetId = $state<string | null>(null);
+
+	function openSubtaskDatePicker(childId: string) {
+		subtaskDateTargetId = childId;
+		requestAnimationFrame(() => {
+			subtaskDateInput?.showPicker?.();
+			subtaskDateInput?.focus();
+		});
+	}
+
+	async function onSubtaskDatePicked(e: Event) {
+		const value = (e.target as HTMLInputElement).value;
+		if (value && subtaskDateTargetId) await setSubtaskDate(subtaskDateTargetId, value);
+		subtaskDateTargetId = null;
+	}
+
+	// --- Delete subtask ---
+	async function deleteSubtask(childId: string) {
+		if (!task) return;
+		updateLocal((t) => ({
+			...t,
+			children: t.children.filter((c) => c.id !== childId),
+			sub_task_count: Math.max(0, t.sub_task_count - 1)
+		}));
+		try {
+			await deleteTask(childId);
+		} catch (e) {
+			console.error('Failed to delete subtask', e);
 		}
 		tasksStore.refresh();
 	}
@@ -364,7 +439,7 @@
 		if (!task || !subtaskContent.trim() || addingSubtask) return;
 		addingSubtask = true;
 		const content = subtaskContent.trim();
-		const labels = [...task.labels];
+		const labels = [...new Set([...task.labels, ...contextLabels])];
 		const tempId = `temp-${Date.now()}`;
 		const optimistic: Task = {
 			id: tempId,
@@ -659,7 +734,7 @@
 							{#if !collapsed}
 								<div class="space-y-0.5">
 									{#each task.children as child (child.id)}
-										<div class="group flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50">
+										<div class="group relative flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50">
 											<button
 												class="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
 													{priorityBorder(child.priority)} {priorityHover(child.priority)}"
@@ -682,14 +757,105 @@
 															{formatDueDate(child.due.date)}
 														</span>
 													{/if}
-																										{#each child.labels as label (label)}
+													{#each child.labels as label (label)}
 														<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
 													{/each}
 												</div>
 											</div>
+											<DropdownMenu.Root open={openSubtaskMenuId === child.id} onOpenChange={(v) => { openSubtaskMenuId = v ? child.id : null; }}>
+												<DropdownMenu.Trigger
+													class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
+													onclick={(e: MouseEvent) => e.stopPropagation()}
+												>
+													<EllipsisIcon class="h-4 w-4" />
+												</DropdownMenu.Trigger>
+												<DropdownMenu.Content align="end" class="w-52">
+													<DropdownMenu.Item onclick={() => onselect?.(child.id)}>
+														<PencilIcon class="h-4 w-4" />
+														Edit
+													</DropdownMenu.Item>
+
+													<DropdownMenu.Separator />
+
+													<!-- Date -->
+													<div class="px-2 py-1.5">
+														<p class="text-xs font-semibold text-muted-foreground">Date</p>
+														<div class="mt-1.5 flex items-center gap-1">
+															<button
+																class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+																	{child.due?.date === todayDateStr() ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
+																onclick={() => setSubtaskDate(child.id, todayDateStr())}
+																aria-label="Today"
+															>
+																<CalendarIcon class="h-4 w-4" />
+															</button>
+															<button
+																class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+																	{child.due?.date === tomorrowDateStr() ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
+																onclick={() => setSubtaskDate(child.id, tomorrowDateStr())}
+																aria-label="Tomorrow"
+															>
+																<SunIcon class="h-4 w-4" />
+															</button>
+															<div class="relative">
+																<button
+																	class="flex h-7 w-7 items-center justify-center rounded-md text-purple-400 transition-colors hover:bg-accent"
+																	onclick={() => openSubtaskDatePicker(child.id)}
+																	aria-label="Pick date"
+																>
+																	<ArrowRightIcon class="h-4 w-4" />
+																</button>
+															</div>
+															{#if child.due}
+																<button
+																	class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+																	onclick={() => clearSubtaskDate(child.id)}
+																	aria-label="Clear date"
+																>
+																	<XIcon class="h-3.5 w-3.5" />
+																</button>
+															{/if}
+														</div>
+													</div>
+
+													<!-- Priority -->
+													<div class="px-2 py-1.5">
+														<p class="text-xs font-semibold text-muted-foreground">Priority</p>
+														<div class="mt-1.5 flex items-center gap-1">
+															{#each priorityItems as p (p.value)}
+																<button
+																	class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
+																		{child.priority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
+																	onclick={() => setSubtaskPriority(child.id, p.value)}
+																	aria-label={p.label}
+																>
+																	<FlagIcon class="h-4 w-4" />
+																</button>
+															{/each}
+														</div>
+													</div>
+
+													<DropdownMenu.Separator />
+
+													<DropdownMenu.Item
+														variant="destructive"
+														onclick={() => deleteSubtask(child.id)}
+													>
+														<TrashIcon class="h-4 w-4" />
+														Delete
+													</DropdownMenu.Item>
+												</DropdownMenu.Content>
+											</DropdownMenu.Root>
 										</div>
 									{/each}
 								</div>
+								<!-- Hidden date input for subtask date picker -->
+								<input
+									bind:this={subtaskDateInput}
+									type="date"
+									class="pointer-events-none absolute h-0 w-0 opacity-0"
+									onchange={onSubtaskDatePicked}
+								/>
 							{/if}
 						</div>
 					{/if}

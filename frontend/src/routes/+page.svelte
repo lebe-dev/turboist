@@ -17,10 +17,12 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ChevronsDownUpIcon from '@lucide/svelte/icons/chevrons-down-up';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import LinkIcon from '@lucide/svelte/icons/link';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import { toggleMode } from 'mode-watcher';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Toggle } from '$lib/components/ui/toggle/index.js';
 
 	onMount(() => {
 		tasksStore.start();
@@ -62,12 +64,35 @@
 	const isCompletedView = $derived(contextsStore.activeView === 'completed');
 
 	let searchQuery = $state('');
+	let linksOnly = $state(false);
 
-	// Reset search when context/view changes
+	const URL_RE = /https?:\/\/\S+/;
+
+	function taskHasLink(task: Task): boolean {
+		if (URL_RE.test(task.content) || URL_RE.test(task.description)) return true;
+		return task.children.some(taskHasLink);
+	}
+
+	const filteredTasks = $derived(
+		linksOnly ? tasksStore.tasks.filter(taskHasLink) : tasksStore.tasks
+	);
+
+	const activeContextName = $derived.by(() => {
+		const id = contextsStore.activeContextId;
+		if (!id) return '';
+		return contextsStore.contexts.find((c) => c.id === id)?.display_name ?? '';
+	});
+
+	function resetContext() {
+		contextsStore.setContext(null);
+	}
+
+	// Reset search and link filter when context/view changes
 	$effect(() => {
 		contextsStore.activeContextId;
 		contextsStore.activeView;
 		searchQuery = '';
+		linksOnly = false;
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {
@@ -114,10 +139,14 @@
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 		{#if !isCompletedView}
-			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-2 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)">
+			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-1 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)">
 				<PlusIcon class="h-4 w-4" />
 				<span class="sr-only">Add task</span>
 			</Button>
+			<Toggle bind:pressed={linksOnly} size="sm" class="me-1 h-8 w-8 text-muted-foreground" title="Show only tasks with links">
+				<LinkIcon class="h-4 w-4" />
+				<span class="sr-only">Filter by links</span>
+			</Toggle>
 			<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="me-2 h-8 w-8 text-muted-foreground">
 				{#if collapsedStore.hasAny}
 					<ChevronsUpDownIcon class="h-4 w-4" />
@@ -178,15 +207,17 @@
 		{:else}
 			{#if (contextsStore.activeView === 'today' || contextsStore.activeView === 'tomorrow') && (tasksStore.config?.day_parts?.length ?? 0) > 0}
 				<DayPartTaskList
-					tasks={tasksStore.tasks}
+					tasks={filteredTasks}
 					dayParts={tasksStore.config!.day_parts}
 					timezone={tasksStore.config!.timezone}
 					view={contextsStore.activeView === 'tomorrow' ? 'tomorrow' : 'today'}
 					{searchQuery}
 					onselect={(id) => (selectedTaskId = id)}
+					contextName={activeContextName}
+					onResetContext={resetContext}
 				/>
 			{:else}
-				<TaskList tasks={tasksStore.tasks} {searchQuery} onselect={(id) => (selectedTaskId = id)} completed={isCompletedView} />
+				<TaskList tasks={filteredTasks} {searchQuery} onselect={(id) => (selectedTaskId = id)} completed={isCompletedView} contextName={activeContextName} onResetContext={resetContext} />
 			{/if}
 		{/if}
 	</div>
