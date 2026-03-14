@@ -8,6 +8,7 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PinIcon from '@lucide/svelte/icons/pin';
+	import MarkdownContent from './MarkdownContent.svelte';
 
 	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean } = $props();
 
@@ -87,6 +88,9 @@
 		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 	});
 
+	const dayPartLabels = $derived(new Set(tasksStore.config?.day_parts?.map((dp) => dp.label) ?? []));
+	const visibleLabels = $derived(task.labels.filter((l) => !dayPartLabels.has(l)));
+
 	const isPinned = $derived(pinnedStore.isPinned(task.id));
 	const canPin = $derived(isPinned || !pinnedStore.isFull);
 
@@ -152,13 +156,13 @@
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="min-w-0 flex-1" class:cursor-pointer={!completed} onclick={() => { if (!completed) onselect?.(task.id); }}>
-				<span class="break-words text-[13px] leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}">{task.content}</span>
+				<MarkdownContent text={task.content} class="break-words text-[13px] leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}" />
 				{#if task.description && !completed}
-					<p class="truncate text-[12px] text-muted-foreground">{task.description}</p>
+					<p class="truncate text-[12px] text-muted-foreground"><MarkdownContent text={task.description} /></p>
 				{/if}
 				{#if completed && completedAtLabel}
 					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
-				{:else if task.labels.length > 0 || task.due || task.sub_task_count > 0}
+				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0}
 					<div class="mt-1 flex flex-wrap items-center gap-1.5">
 						{#if dueLabel}
 							<span
@@ -170,7 +174,7 @@
 								{dueLabel}
 							</span>
 						{/if}
-						{#each task.labels as label (label)}
+						{#each visibleLabels as label (label)}
 							<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
 						{/each}
 						{#if task.sub_task_count > 0}

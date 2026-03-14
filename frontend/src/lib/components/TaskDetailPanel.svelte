@@ -13,6 +13,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import RepeatIcon from '@lucide/svelte/icons/repeat';
+	import MarkdownContent from './MarkdownContent.svelte';
 
 	let {
 		taskId,
@@ -328,13 +329,6 @@
 	}
 
 	// --- Subtask priority (optimistic) ---
-	const subtaskPriorityDots = [
-		{ value: 4, bg: 'bg-red-500', border: 'border-red-500', hover: 'hover:bg-red-500/30' },
-		{ value: 3, bg: 'bg-amber-500', border: 'border-amber-500', hover: 'hover:bg-amber-500/30' },
-		{ value: 2, bg: 'bg-blue-400', border: 'border-blue-400', hover: 'hover:bg-blue-400/30' },
-		{ value: 1, bg: '', border: 'border-muted-foreground/40', hover: 'hover:bg-muted-foreground/20' }
-	];
-
 	async function setSubtaskPriority(childId: string, value: number) {
 		if (!task) return;
 		updateLocal((t) => ({
@@ -382,6 +376,7 @@
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
 			completed_at: null,
+			added_at: new Date().toISOString(),
 			is_project_task: false,
 			children: []
 		};
@@ -489,7 +484,7 @@
 					{#if task.parent_id && parentTask}
 						<button
 							class="flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
-							onclick={() => onselect?.(parentTask.id)}
+							onclick={() => onselect?.(parentTask!.id)}
 						>
 							<ChevronRightIcon class="h-3 w-3 rotate-180" />
 							{parentTask.content}
@@ -559,7 +554,7 @@
 								class="flex-1 cursor-text text-lg font-semibold leading-snug text-foreground"
 								onclick={startEditTitle}
 							>
-								{task.content}
+								<MarkdownContent text={task.content} />
 							</h2>
 						{/if}
 					</div>
@@ -598,7 +593,7 @@
 								onclick={startEditDesc}
 							>
 								{#if task.description}
-									<p class="whitespace-pre-wrap">{task.description}</p>
+									<p class="whitespace-pre-wrap"><MarkdownContent text={task.description} /></p>
 								{:else}
 									Add description...
 								{/if}
@@ -638,31 +633,28 @@
 												class="min-w-0 flex-1 {onselect ? 'cursor-pointer' : ''}"
 												onclick={() => onselect?.(child.id)}
 											>
-												<span class="text-[13px] text-foreground/90">{child.content}</span>
+												<MarkdownContent text={child.content} class="text-[13px] text-foreground/90" />
 												<div class="mt-1 flex items-center gap-2">
-													<div class="flex items-center gap-1">
-														{#each subtaskPriorityDots as dot (dot.value)}
-															<!-- svelte-ignore a11y_click_events_have_key_events -->
-															<!-- svelte-ignore a11y_no_static_element_interactions -->
-															<span
-																class="inline-block h-[10px] w-[10px] cursor-pointer rounded-full border-[1.5px] transition-all duration-100
-																	{dot.border}
-																	{child.priority === dot.value ? dot.bg : dot.hover}"
-																role="button"
-																tabindex="-1"
-																onclick={(e) => { e.stopPropagation(); setSubtaskPriority(child.id, dot.value); }}
-															></span>
-														{/each}
-													</div>
-													{#each child.labels as label (label)}
-														<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
-													{/each}
 													{#if child.due}
 														<span class="flex items-center gap-0.5 text-[11px] {isOverdue(child.due.date) ? 'text-destructive' : 'text-muted-foreground'}">
 															<CalendarIcon class="h-3 w-3" />
 															{formatDueDate(child.due.date)}
 														</span>
 													{/if}
+													{#if child.priority > 1}
+														<!-- svelte-ignore a11y_click_events_have_key_events -->
+														<!-- svelte-ignore a11y_no_static_element_interactions -->
+														<span
+															class="cursor-pointer rounded px-1 py-0.5 text-[10px] font-medium transition-colors
+																{child.priority === 4 ? 'text-red-500' : child.priority === 3 ? 'text-amber-500' : 'text-blue-400'}"
+															role="button"
+															tabindex="-1"
+															onclick={(e) => { e.stopPropagation(); setSubtaskPriority(child.id, child.priority === 4 ? 3 : child.priority === 3 ? 2 : 1); }}
+														>{child.priority === 4 ? 'P1' : child.priority === 3 ? 'P2' : 'P3'}</span>
+													{/if}
+													{#each child.labels as label (label)}
+														<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
+													{/each}
 												</div>
 											</div>
 										</div>
@@ -724,54 +716,54 @@
 					<!-- Date -->
 					<div>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
-						{#if editingDate}
-							<input
-								bind:this={dateInput}
-								type="date"
-								value={task.due?.date ?? ''}
-								class="w-full rounded-md border border-border/50 bg-transparent px-2.5 py-1.5 text-[13px] text-foreground focus:border-border focus:outline-none"
-								onchange={saveDate}
-								onblur={() => (editingDate = false)}
-							/>
-						{:else}
-							<div class="flex items-center gap-1">
-								<button
-									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent
-										{task.due && isOverdue(task.due.date) ? 'text-destructive' : 'text-foreground/80'}"
-									onclick={startEditDate}
-								>
-									<CalendarIcon class="h-4 w-4 text-muted-foreground" />
-									{#if task.due}
-										{formatDueDate(task.due.date)}
-										{#if task.due.recurring}
-											<RepeatIcon class="h-3 w-3 text-muted-foreground" />
-										{/if}
-									{:else}
-										<span class="text-muted-foreground/50">No date</span>
+						{#if task.due}
+							<div class="mb-2 flex items-center gap-1.5">
+								<span class="flex items-center gap-1.5 text-[13px] {isOverdue(task.due.date) ? 'text-destructive' : 'text-foreground/80'}">
+									<CalendarIcon class="h-3.5 w-3.5 text-muted-foreground" />
+									{formatDueDate(task.due.date)}
+									{#if task.due.recurring}
+										<RepeatIcon class="h-3 w-3 text-muted-foreground" />
 									{/if}
+								</span>
+								<button
+									class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+									onclick={clearDate}
+									aria-label="Clear date"
+								>
+									<XIcon class="h-3 w-3" />
 								</button>
-								{#if task.due}
-									<button
-										class="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-										onclick={clearDate}
-										aria-label="Clear date"
-									>
-										<XIcon class="h-3.5 w-3.5" />
-									</button>
-								{/if}
 							</div>
 						{/if}
-						<div class="mt-1.5 flex items-center gap-1">
+						<div class="flex items-center gap-1.5">
 							<button
-								class="rounded-md px-2 py-1 text-[12px] transition-colors hover:bg-accent
-									{task.due?.date === todayDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground'}"
+								class="rounded-md px-2.5 py-1 text-[12px] transition-colors
+									{task.due?.date === todayDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 								onclick={() => setDateQuick(todayDateStr())}
 							>Today</button>
 							<button
-								class="rounded-md px-2 py-1 text-[12px] transition-colors hover:bg-accent
-									{task.due?.date === tomorrowDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground'}"
+								class="rounded-md px-2.5 py-1 text-[12px] transition-colors
+									{task.due?.date === tomorrowDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 								onclick={() => setDateQuick(tomorrowDateStr())}
 							>Tomorrow</button>
+							<div class="relative">
+								<button
+									class="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onclick={startEditDate}
+									aria-label="Pick custom date"
+								>
+									<CalendarIcon class="h-3.5 w-3.5" />
+								</button>
+								{#if editingDate}
+									<input
+										bind:this={dateInput}
+										type="date"
+										value={task.due?.date ?? ''}
+										class="absolute left-0 top-full z-10 mt-1 w-44 rounded-md border border-border/50 bg-popover px-2.5 py-1.5 text-[13px] text-foreground shadow-lg focus:border-border focus:outline-none"
+										onchange={saveDate}
+										onblur={() => (editingDate = false)}
+									/>
+								{/if}
+							</div>
 						</div>
 					</div>
 

@@ -143,7 +143,7 @@ func (h *TasksHandler) Inbox(c fiber.Ctx) error {
 
 	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
 	tree := buildTree(inbox)
-	sortTasks(tree, h.cfg.TaskSort)
+	sortTasksByAddedAt(tree)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
@@ -438,6 +438,19 @@ func sortTasks(tasks []*todoist.Task, mode config.TaskSort) {
 	for _, t := range tasks {
 		if len(t.Children) > 1 {
 			sortTasks(t.Children, mode)
+		}
+	}
+}
+
+// sortTasksByAddedAt sorts tasks by creation date descending (newest first).
+// Also recursively sorts children.
+func sortTasksByAddedAt(tasks []*todoist.Task) {
+	slices.SortStableFunc(tasks, func(a, b *todoist.Task) int {
+		return cmp.Compare(b.AddedAt, a.AddedAt)
+	})
+	for _, t := range tasks {
+		if len(t.Children) > 1 {
+			sortTasksByAddedAt(t.Children)
 		}
 	}
 }

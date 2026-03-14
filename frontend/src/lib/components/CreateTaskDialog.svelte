@@ -121,6 +121,7 @@
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
 			completed_at: null,
+			added_at: new Date().toISOString(),
 			is_project_task: false,
 			children: []
 		};

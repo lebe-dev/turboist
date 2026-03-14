@@ -16,6 +16,7 @@ export interface Task {
 	sub_task_count: number;
 	completed_sub_task_count: number;
 	completed_at: string | null;
+	added_at: string;
 	is_project_task: boolean;
 	children: Task[];
 }
