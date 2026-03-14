@@ -1,0 +1,10 @@
+services:
+  turboist:
+    image: tinyops/turboist:0.1.0
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+    restart: unless-stopped

@@ -1,10 +1,7 @@
 # --- Variables ---
 
 version := `cat cmd/turboist/main.go | grep Version | head -1 | cut -d " " -f 4 | tr -d "\""`
-
-# --- Utility ---
-cleanup:
-    rm -f turboist
+imageName := 'tinyops/turboist'
 
 # --- Dependencies ---
 bump-backend-deps:
@@ -60,16 +57,24 @@ dev:
     cd frontend && yarn dev &
     go run ./cmd/turboist
 
-# --- Release ---
-release-linux-static: test && lint
-    just cleanup
-    rm -rf out
-    docker build --progress=plain --platform linux/amd64 --target binary -o out .
-    mv out/turboist .
-    rm -rf out
-    tar -czf turboist-v{{ version }}-linux-amd64.tar.gz turboist README.md
+# --- Development Environment ---
+start-env: stop-env
+    docker compose up -d
 
-release-macos: test && lint
-    just cleanup
-    go build -ldflags="-w -s" -o turboist ./cmd/turboist
-    zip -9 turboist-v{{ version }}-macos-arm.zip turboist README.md
+stop-env:
+    docker compose down
+
+# --- Image ---
+build-image: test && lint
+    docker build --progress=plain --platform linux/amd64 -t {{ imageName }}:{{ version }} .
+
+push-image:
+    docker push {{ imageName }}:{{ version }}
+
+release-image: build-image && push-image
+
+release: release-image
+
+# --- Deploy ---
+deploy:
+    ssh kaiman "cd /opt/turboist && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose up -d"

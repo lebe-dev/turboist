@@ -1,36 +1,53 @@
-# -- Build stage --
-FROM golang:1.25-alpine AS build
+FROM node:22-alpine3.23 AS frontend-build
 
-RUN apk add --no-cache nodejs yarn upx
+WORKDIR /build
 
-WORKDIR /src
-COPY . .
+COPY frontend/ /build
+COPY cmd/turboist/main.go /build/main.go
 
-# Extract version from main.go and patch frontend/package.json
-RUN VERSION=$(grep 'const Version' cmd/turboist/main.go | head -1 | cut -d'"' -f2) && \
-    sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" frontend/package.json
+RUN APP_VERSION=$(grep 'Version' /build/main.go | head -1 | cut -d '"' -f 2) && \
+    sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$APP_VERSION\"/" /build/package.json && \
+    yarn --frozen-lockfile && \
+    yarn build
 
-RUN cd frontend && yarn --frozen-lockfile && yarn build
+FROM golang:1.25-alpine3.23 AS app-build
 
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /turboist ./cmd/turboist && \
-    upx -9 /turboist
+WORKDIR /build
 
-# -- Binary export stage (for `docker build --target binary -o out .`) --
+RUN apk --no-cache add upx
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . /build
+COPY --from=frontend-build /build/build/ /build/frontend/build/
+
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o turboist ./cmd/turboist && \
+    upx -9 --lzma turboist && \
+    chmod +x turboist
+
+# Binary export stage (for `docker build --target binary -o out .`)
 FROM scratch AS binary
-COPY --from=build /turboist /turboist
+COPY --from=app-build /build/turboist /turboist
 
-# -- Runtime stage --
-FROM alpine:3.22
+FROM alpine:3.23.3
 
-RUN addgroup -g 10001 -S app && \
-    adduser -u 10001 -S app -G app
-
-COPY --from=build /turboist /usr/local/bin/turboist
-
-USER 10001:10001
 WORKDIR /app
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -qO- http://localhost:8080/api/health || exit 1
+RUN apk --no-cache add tzdata && \
+    addgroup -g 10001 turboist && \
+    adduser -h /app -D -u 10001 -G turboist turboist && \
+    chmod 700 /app && \
+    chown -R turboist: /app
 
-ENTRYPOINT ["turboist"]
+COPY --from=app-build /build/turboist /app/turboist
+# COPY --from=app-build /build/config.yml /app/config.yml
+
+RUN chown -R turboist: /app && chmod +x /app/turboist
+
+USER turboist
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O- http://localhost:8080/api/health || exit 1
+
+CMD ["/app/turboist"]
