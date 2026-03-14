@@ -362,8 +362,8 @@
 			await completeTask(targetId);
 		} catch (e) {
 			console.error('Failed to complete task', e);
+			tasksStore.refresh();
 		}
-		tasksStore.refresh();
 	}
 
 	// --- Subtask menu ---

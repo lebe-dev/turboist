@@ -16,7 +16,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ChevronsDownUpIcon from '@lucide/svelte/icons/chevrons-down-up';
-	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import ChevronsDownIcon from '@lucide/svelte/icons/chevrons-down';
 	import LinkIcon from '@lucide/svelte/icons/link';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
@@ -143,13 +143,13 @@
 				<PlusIcon class="h-4 w-4" />
 				<span class="sr-only">Add task</span>
 			</Button>
-			<Toggle bind:pressed={linksOnly} size="sm" class="me-1 h-8 w-8 text-muted-foreground" title="Show only tasks with links">
-				<LinkIcon class="h-4 w-4" />
+			<Toggle bind:pressed={linksOnly} size="sm" class="me-1 h-7 w-7 text-muted-foreground" title="Show only tasks with links">
+				<LinkIcon class="h-3.5 w-3.5" />
 				<span class="sr-only">Filter by links</span>
 			</Toggle>
 			<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="me-2 h-8 w-8 text-muted-foreground">
 				{#if collapsedStore.hasAny}
-					<ChevronsUpDownIcon class="h-4 w-4" />
+					<ChevronsDownIcon class="h-4 w-4" />
 				{:else}
 					<ChevronsDownUpIcon class="h-4 w-4" />
 				{/if}

@@ -81,11 +81,11 @@
 </script>
 
 <button
-	class="fixed bottom-6 right-6 z-30 hidden items-center justify-center rounded-full border border-border/50 bg-background p-2.5 text-muted-foreground shadow-sm transition-colors hover:text-yellow-400 md:flex"
+	class="fixed bottom-6 right-6 z-30 hidden items-center justify-center rounded-full border border-border/50 bg-background p-1.5 text-muted-foreground shadow-sm transition-colors hover:text-yellow-400 md:flex"
 	onclick={() => (open = true)}
 	title="Quick capture idea (I)"
 >
-	<LightbulbIcon class="h-5 w-5" />
+	<LightbulbIcon class="h-3.5 w-3.5" />
 </button>
 
 {#if open}
