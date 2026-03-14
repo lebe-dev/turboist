@@ -16,6 +16,12 @@ var skipPaths = []string{
 func NewMiddleware(store *SessionStore) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		path := c.Path()
+
+		// Only protect API routes; let frontend static files through
+		if !strings.HasPrefix(path, "/api/") {
+			return c.Next()
+		}
+
 		for _, skip := range skipPaths {
 			if strings.HasPrefix(path, skip) {
 				return c.Next()
