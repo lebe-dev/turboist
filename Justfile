@@ -64,7 +64,7 @@ dev:
 release-linux-static: test && lint
     just cleanup
     rm -rf out
-    docker build --progress=plain --platform linux/amd64 -f docker/Dockerfile-binary -o out .
+    docker build --progress=plain --platform linux/amd64 --target binary -o out .
     mv out/turboist .
     rm -rf out
     tar -czf turboist-v{{ version }}-linux-amd64.tar.gz turboist README.md
