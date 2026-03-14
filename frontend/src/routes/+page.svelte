@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskList from '$lib/components/TaskList.svelte';
@@ -37,6 +38,14 @@
 		contextsStore.activeView;
 		if (mounted) tasksStore.refresh();
 		mounted = true;
+	});
+
+	// Open task detail panel when a pinned task is clicked in the sidebar
+	$effect(() => {
+		const id = pinnedStore.selectedTaskId;
+		if (id) {
+			selectedTaskId = pinnedStore.consumeSelection();
+		}
 	});
 
 	const viewTitles: Record<string, string> = {

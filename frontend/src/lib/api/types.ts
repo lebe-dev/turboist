@@ -91,6 +91,7 @@ export interface Config {
 	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
 	weekly_limit: number;
 	completed_days: number;
+	max_pinned: number;
 	last_synced_at: string | null; // ISO 8601
 	day_parts: DayPart[];
 }

@@ -1,6 +1,7 @@
 import { getConfig, getTasks, getInboxTasks, getWeeklyTasks, getNextWeekTasks, getTodayTasks, getTomorrowTasks, getCompletedTasks } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
+import { pinnedStore } from './pinned.svelte';
 import { createPoller, type Poller } from '$lib/utils/polling';
 
 const DEFAULT_INTERVAL_MS = 30_000;
@@ -57,6 +58,9 @@ function createTasksStore() {
 			const parsed = cfg.poll_interval * 1000;
 			if (Number.isFinite(parsed) && parsed >= 1000) {
 				intervalMs = parsed;
+			}
+			if (cfg.max_pinned > 0) {
+				pinnedStore.setMaxPinned(cfg.max_pinned);
 			}
 		} catch {
 			// fallback to default

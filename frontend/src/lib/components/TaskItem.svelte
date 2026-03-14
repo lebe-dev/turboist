@@ -3,9 +3,11 @@
 	import { completeTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
+	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import PinIcon from '@lucide/svelte/icons/pin';
 
 	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean } = $props();
 
@@ -84,6 +86,18 @@
 		const d = new Date(task.completed_at);
 		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 	});
+
+	const isPinned = $derived(pinnedStore.isPinned(task.id));
+	const canPin = $derived(isPinned || !pinnedStore.isFull);
+
+	function handlePin(e: MouseEvent) {
+		e.stopPropagation();
+		if (isPinned) {
+			pinnedStore.unpin(task.id);
+		} else {
+			pinnedStore.pin({ id: task.id, content: task.content });
+		}
+	}
 </script>
 
 {#if task.is_project_task}
@@ -106,7 +120,7 @@
 {:else if visible}
 	<div style="padding-left: {depth * 20}px">
 		<div
-			class="group flex items-start gap-3 rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-accent/50"
+			class="group relative flex items-start gap-3 rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-accent/50"
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
 		>
@@ -174,6 +188,19 @@
 					</div>
 				{/if}
 			</div>
+
+			{#if !completed && canPin}
+				<button
+					class="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded transition-all duration-150
+						{isPinned
+						? 'text-primary opacity-60 hover:opacity-100'
+						: 'text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-muted-foreground'}"
+					onclick={handlePin}
+					aria-label={isPinned ? 'Unpin task' : 'Pin task'}
+				>
+					<PinIcon class="h-3 w-3" />
+				</button>
+			{/if}
 		</div>
 
 		{#if hasChildren && !collapsed && !completed}

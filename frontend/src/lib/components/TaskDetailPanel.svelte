@@ -327,6 +327,30 @@
 		}
 	}
 
+	// --- Subtask priority (optimistic) ---
+	const subtaskPriorityDots = [
+		{ value: 4, bg: 'bg-red-500', border: 'border-red-500', hover: 'hover:bg-red-500/30' },
+		{ value: 3, bg: 'bg-amber-500', border: 'border-amber-500', hover: 'hover:bg-amber-500/30' },
+		{ value: 2, bg: 'bg-blue-400', border: 'border-blue-400', hover: 'hover:bg-blue-400/30' },
+		{ value: 1, bg: '', border: 'border-muted-foreground/40', hover: 'hover:bg-muted-foreground/20' }
+	];
+
+	async function setSubtaskPriority(childId: string, value: number) {
+		if (!task) return;
+		updateLocal((t) => ({
+			...t,
+			children: t.children
+				.map((c) => (c.id === childId ? { ...c, priority: value } : c))
+				.sort((a, b) => b.priority - a.priority)
+		}));
+		try {
+			await updateTask(childId, { priority: value });
+		} catch (e) {
+			console.error('Failed to update subtask priority', e);
+		}
+		tasksStore.refresh();
+	}
+
 	// --- Add sub-task ---
 	let showSubtaskForm = $state(false);
 	let subtaskContent = $state('');
@@ -615,19 +639,31 @@
 												onclick={() => onselect?.(child.id)}
 											>
 												<span class="text-[13px] text-foreground/90">{child.content}</span>
-												{#if child.labels.length > 0 || child.due}
-													<div class="mt-0.5 flex flex-wrap items-center gap-1">
-														{#each child.labels as label (label)}
-															<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
+												<div class="mt-1 flex items-center gap-2">
+													<div class="flex items-center gap-1">
+														{#each subtaskPriorityDots as dot (dot.value)}
+															<!-- svelte-ignore a11y_click_events_have_key_events -->
+															<!-- svelte-ignore a11y_no_static_element_interactions -->
+															<span
+																class="inline-block h-[10px] w-[10px] cursor-pointer rounded-full border-[1.5px] transition-all duration-100
+																	{dot.border}
+																	{child.priority === dot.value ? dot.bg : dot.hover}"
+																role="button"
+																tabindex="-1"
+																onclick={(e) => { e.stopPropagation(); setSubtaskPriority(child.id, dot.value); }}
+															></span>
 														{/each}
-														{#if child.due}
-															<span class="flex items-center gap-0.5 text-[11px] {isOverdue(child.due.date) ? 'text-destructive' : 'text-muted-foreground'}">
-																<CalendarIcon class="h-3 w-3" />
-																{formatDueDate(child.due.date)}
-															</span>
-														{/if}
 													</div>
-												{/if}
+													{#each child.labels as label (label)}
+														<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
+													{/each}
+													{#if child.due}
+														<span class="flex items-center gap-0.5 text-[11px] {isOverdue(child.due.date) ? 'text-destructive' : 'text-muted-foreground'}">
+															<CalendarIcon class="h-3 w-3" />
+															{formatDueDate(child.due.date)}
+														</span>
+													{/if}
+												</div>
 											</div>
 										</div>
 									{/each}

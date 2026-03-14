@@ -39,6 +39,7 @@ type AppConfig struct {
 	PollInterval time.Duration
 	Timezone     string
 	TaskSort     TaskSort
+	MaxPinned    int
 	Contexts     []ContextConfig
 	Weekly       WeeklyConfig
 	NextWeek     NextWeekConfig
@@ -108,6 +109,7 @@ type yamlFile struct {
 	Timezone     string              `yaml:"timezone"`
 	PollInterval string              `yaml:"poll_interval"`
 	TaskSort     string              `yaml:"task_sort"`
+	MaxPinned    int                 `yaml:"max_pinned"`
 	Contexts     []ContextConfig     `yaml:"contexts"`
 	Weekly       WeeklyConfig        `yaml:"weekly"`
 	NextWeek     NextWeekConfig      `yaml:"next_week"`
@@ -168,10 +170,16 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		completed.Days = 3
 	}
 
+	maxPinned := yf.MaxPinned
+	if maxPinned <= 0 {
+		maxPinned = 5
+	}
+
 	app := AppConfig{
 		PollInterval: pollInterval,
 		Timezone:     tz,
 		TaskSort:     taskSort,
+		MaxPinned:    maxPinned,
 		Contexts:     yf.Contexts,
 		Weekly:       yf.Weekly,
 		NextWeek:     yf.NextWeek,

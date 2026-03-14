@@ -29,6 +29,7 @@ type configResponse struct {
 	WeeklyLabel   string            `json:"weekly_label"`
 	WeeklyLimit   int               `json:"weekly_limit"`
 	CompletedDays int               `json:"completed_days"`
+	MaxPinned     int               `json:"max_pinned"`
 	LastSyncedAt  time.Time         `json:"last_synced_at"`
 	DayParts      []dayPartResponse `json:"day_parts"`
 }
@@ -50,6 +51,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		WeeklyLabel:   h.cfg.Weekly.Label,
 		WeeklyLimit:   h.cfg.Weekly.MaxTasks,
 		CompletedDays: h.cfg.Completed.Days,
+		MaxPinned:     h.cfg.MaxPinned,
 		LastSyncedAt:  h.cache.LastSyncedAt(),
 		DayParts:      dayParts,
 	})
