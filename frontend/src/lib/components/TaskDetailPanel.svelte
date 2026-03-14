@@ -463,8 +463,27 @@
 		return match ? match[1] : '';
 	}
 
+	function detectPrefixFromSiblings(children: Task[]): string {
+		const prefixes: Record<string, number> = {};
+		for (const child of children) {
+			const p = extractPrefix(child.content);
+			if (p) prefixes[p] = (prefixes[p] ?? 0) + 1;
+		}
+		let best = '';
+		let bestCount = 0;
+		for (const [p, count] of Object.entries(prefixes)) {
+			if (count > bestCount) {
+				best = p;
+				bestCount = count;
+			}
+		}
+		return best;
+	}
+
 	function startAddSubtask() {
-		const prefix = task ? extractPrefix(task.content) : '';
+		if (!task) return;
+		const siblingPrefix = detectPrefixFromSiblings(task.children);
+		const prefix = siblingPrefix || extractPrefix(task.content);
 		subtaskContent = prefix;
 		showSubtaskForm = true;
 		requestAnimationFrame(() => subtaskInput?.focus());
@@ -626,8 +645,6 @@
 							<ChevronRightIcon class="h-3 w-3 rotate-180" />
 							{parentTask.content}
 						</button>
-					{:else if task.sub_task_count > 0}
-						<span>{task.completed_sub_task_count}/{task.sub_task_count} subtasks</span>
 					{/if}
 				</div>
 				<div class="flex items-center gap-1">
@@ -742,7 +759,7 @@
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
-								class="cursor-text rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent/50
+								class="cursor-text rounded-md py-1.5 text-sm transition-colors hover:bg-accent/50
 									{task.description ? 'text-foreground/80' : 'text-muted-foreground/40'}"
 								onclick={startEditDesc}
 							>
@@ -757,7 +774,7 @@
 
 					<!-- Subtasks -->
 					{#if task.children.length > 0}
-						<div class="mt-6 pl-8">
+						<div class="mt-6">
 							<div class="mb-2 flex items-center gap-2">
 								<button
 									class="flex items-center gap-1 text-[12px] tabular-nums text-muted-foreground transition-colors hover:text-foreground"
@@ -900,7 +917,7 @@
 					{/if}
 
 					<!-- Add sub-task -->
-					<div class="mt-4 pl-8">
+					<div class="mt-4">
 						{#if showSubtaskForm}
 							<div class="flex items-center gap-2">
 								<div class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/25"></div>
@@ -947,7 +964,7 @@
 
 					<!-- Completed subtasks -->
 					{#if completedSubtasks.length > 0}
-						<div class="mt-4 pl-8">
+						<div class="mt-4">
 							<button
 								class="flex items-center gap-1 text-[12px] tabular-nums text-muted-foreground transition-colors hover:text-foreground"
 								onclick={() => (completedCollapsed = !completedCollapsed)}
