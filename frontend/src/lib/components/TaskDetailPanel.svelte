@@ -340,9 +340,14 @@
 		// Optimistic: short delay for animation, then remove locally
 		await new Promise((r) => setTimeout(r, 200));
 		if (targetId === task?.id) {
-			// Completing the main task — remove and close panel
+			// Completing the main task — remove and navigate to parent or close
+			const parentId = task?.parent_id ?? null;
 			tasksStore.removeTaskLocal(targetId);
-			onclose();
+			if (parentId) {
+				onselect?.(parentId);
+			} else {
+				onclose();
+			}
 		} else {
 			// Completing a subtask — remove from children
 			updateLocal((t) => ({
@@ -767,9 +772,9 @@
 							{#if !collapsed}
 								<div class="space-y-0.5">
 									{#each task.children as child (child.id)}
-										<div class="group relative flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50">
+										<div class="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50">
 											<button
-												class="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
+												class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
 													{priorityBorder(child.priority)} {priorityHover(child.priority)}"
 												onclick={() => handleComplete(child.id)}
 												aria-label="Complete subtask"
