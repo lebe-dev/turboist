@@ -302,6 +302,12 @@
 		} catch {
 			// ignore
 		}
+
+		const mq = window.matchMedia('(max-width: 767px)');
+		isMobile = mq.matches;
+		const handleMq = (e: MediaQueryListEvent) => { isMobile = e.matches; };
+		mq.addEventListener('change', handleMq);
+		return () => mq.removeEventListener('change', handleMq);
 	});
 
 	const filteredLabels = $derived.by(() => {
@@ -504,7 +510,9 @@
 	let showSubtaskForm = $state(false);
 	let subtaskContent = $state('');
 	let subtaskInput: HTMLInputElement | undefined = $state();
+	let subtaskTextarea: HTMLTextAreaElement | undefined = $state();
 	let addingSubtask = $state(false);
+	let isMobile = $state(false);
 
 	function extractPrefix(content: string): string {
 		const match = content.match(/^(.+?(?::\s|\s-\s))/);
@@ -534,7 +542,13 @@
 		const prefix = siblingPrefix || extractPrefix(task.content);
 		subtaskContent = prefix;
 		showSubtaskForm = true;
-		requestAnimationFrame(() => subtaskInput?.focus());
+		requestAnimationFrame(() => {
+			if (isMobile) {
+				subtaskTextarea?.focus();
+			} else {
+				subtaskInput?.focus();
+			}
+		});
 	}
 
 	async function saveSubtask() {
@@ -966,7 +980,8 @@
 
 					<!-- Add sub-task -->
 					<div class="mt-4">
-						{#if showSubtaskForm}
+						{#if showSubtaskForm && !isMobile}
+							<!-- Desktop: inline form -->
 							<div class="flex items-center gap-2">
 								<div class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/25"></div>
 								<input
@@ -1009,6 +1024,67 @@
 							</button>
 						{/if}
 					</div>
+
+					<!-- Mobile: subtask dialog -->
+					{#if showSubtaskForm && isMobile}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+							onclick={(e) => {
+								if (e.target === e.currentTarget) {
+									showSubtaskForm = false;
+									subtaskContent = '';
+								}
+							}}
+							onkeydown={(e) => {
+								if (e.key === 'Escape') {
+									showSubtaskForm = false;
+									subtaskContent = '';
+								}
+							}}
+						>
+							<div class="w-full max-w-sm mx-4 rounded-xl border border-border bg-popover shadow-2xl">
+								<div class="px-4 pt-4 pb-2">
+									<textarea
+										bind:this={subtaskTextarea}
+										bind:value={subtaskContent}
+										placeholder="Sub-task name"
+										rows="2"
+										class="w-full resize-none bg-transparent text-base leading-snug text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+										disabled={addingSubtask}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' && !e.shiftKey) {
+												e.preventDefault();
+												saveSubtask();
+											}
+											if (e.key === 'Escape') {
+												showSubtaskForm = false;
+												subtaskContent = '';
+											}
+										}}
+									></textarea>
+								</div>
+								<div class="flex items-center justify-end gap-2 border-t border-border/50 px-4 py-3">
+									<button
+										class="rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										onclick={() => { showSubtaskForm = false; subtaskContent = ''; }}
+									>
+										Cancel
+									</button>
+									<button
+										class="rounded-lg px-4 py-1.5 text-[13px] font-medium transition-colors
+											{subtaskContent.trim()
+												? 'bg-primary text-primary-foreground hover:bg-primary/90'
+												: 'bg-muted text-muted-foreground cursor-not-allowed'}"
+										disabled={!subtaskContent.trim() || addingSubtask}
+										onclick={saveSubtask}
+									>
+										{addingSubtask ? '...' : 'Add'}
+									</button>
+								</div>
+							</div>
+						</div>
+					{/if}
 
 					<!-- Completed subtasks -->
 					{#if completedSubtasks.length > 0}

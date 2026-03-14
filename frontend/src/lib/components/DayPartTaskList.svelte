@@ -168,7 +168,7 @@
 					onmouseenter={() => hoveredSection = section.key}
 					onmouseleave={() => hoveredSection = null}
 				>
-					<div class="mb-1.5 flex items-center gap-2 px-3">
+					<div class="mb-1.5 flex items-center gap-2 px-2 md:px-3">
 						<Icon class="{isActive ? 'h-4 w-4 text-foreground/70' : 'h-3.5 w-3.5 text-muted-foreground/60'}" />
 						<span class="font-semibold uppercase tracking-wider {isActive ? 'text-[13px] text-foreground/70' : 'text-[11px] text-muted-foreground/60'}">
 							{section.label}

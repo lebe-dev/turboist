@@ -285,7 +285,7 @@
 
 {#if task.is_project_task}
 	<div class="mt-6 first:mt-0">
-		<div class="mb-1.5 flex items-center gap-3 px-3">
+		<div class="mb-1.5 flex items-center gap-2 px-2 md:gap-3 md:px-3">
 			<div class="h-px flex-1 bg-border/60"></div>
 			<h3 class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
 				{task.content}
@@ -301,9 +301,9 @@
 		{/if}
 	</div>
 {:else if visible}
-	<div style="padding-left: {depth * 20}px">
+	<div style="padding-left: {depth * 16}px">
 		<div
-			class="group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-accent/50"
+			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2"
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
 		>
@@ -340,7 +340,7 @@
 				{#if completed && completedAtLabel}
 					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
 				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0}
-					<div class="mt-1 flex flex-wrap items-center gap-1.5">
+					<div class="mt-0.5 flex flex-wrap items-center gap-1 md:mt-1 md:gap-1.5">
 						{#if dueLabel}
 							<span
 								class="flex items-center gap-1 text-[11px] {isOverdue
@@ -371,11 +371,11 @@
 			{/snippet}
 
 			{#if completed}
-				<div class="min-w-0 flex-1">
+				<div class="min-w-0 flex-1 overflow-hidden">
 					{@render taskContentInner()}
 				</div>
 			{:else}
-				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer">
+				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer overflow-hidden">
 					{@render taskContentInner()}
 				</a>
 			{/if}

@@ -174,7 +174,7 @@
 	</header>
 
 	{#if tasksStore.isStale}
-		<div class="flex shrink-0 items-center gap-2 border-b border-yellow-500/10 bg-yellow-500/5 px-6 py-2">
+		<div class="flex shrink-0 items-center gap-2 border-b border-yellow-500/10 bg-yellow-500/5 px-3 py-2 md:px-6">
 			<TriangleAlertIcon class="h-3.5 w-3.5 text-yellow-500/70" />
 			<span class="text-[12px] text-yellow-500/70">Данные могут быть устаревшими</span>
 		</div>
@@ -187,7 +187,7 @@
 		/>
 	{/if}
 
-	<div class="flex-1 overflow-y-auto px-3 py-3">
+	<div class="flex-1 overflow-y-auto px-1 py-2 md:px-3 md:py-3">
 		{#if tasksStore.loading}
 			<div class="flex items-center justify-center py-20">
 				<div class="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
