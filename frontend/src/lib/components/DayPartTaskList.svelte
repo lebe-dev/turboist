@@ -16,7 +16,6 @@
 		timezone = '',
 		view = 'today',
 		searchQuery = '',
-		onselect,
 		contextName = '',
 		onResetContext
 	}: {
@@ -25,7 +24,6 @@
 		timezone?: string;
 		view?: 'today' | 'tomorrow';
 		searchQuery?: string;
-		onselect?: (id: string) => void;
 		contextName?: string;
 		onResetContext?: () => void;
 	} = $props();
@@ -183,7 +181,7 @@
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
 							<div class="animate-fade-in-up group/daypart relative" style="animation-delay: {Math.min(i * 30, 300)}ms">
-								<TaskItem task={stripDayPartLabels(task)} {searchQuery} {onselect} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'} />
+								<TaskItem task={stripDayPartLabels(task)} {searchQuery} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'} />
 								<!-- Move buttons -->
 								<div
 									class="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border/50 bg-popover/95 px-0.5 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/daypart:opacity-100"

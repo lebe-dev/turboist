@@ -6,6 +6,7 @@
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { onMount } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import FlagIcon from '@lucide/svelte/icons/flag';
@@ -28,11 +29,13 @@
 	let {
 		taskId,
 		onclose,
-		onselect
+		onselect,
+		fullPage = false
 	}: {
 		taskId: string;
 		onclose: () => void;
 		onselect?: (id: string) => void;
+		fullPage?: boolean;
 	} = $props();
 
 	// Find task by ID recursively in the tree
@@ -623,47 +626,46 @@
 </script>
 
 {#if task}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm"
-		onkeydown={handleKeydown}
-		onclick={handleBackdropClick}
-	>
-		<div
-			class="flex h-full w-full flex-col bg-background shadow-2xl
-				md:max-w-3xl md:border-l md:border-border"
-			style="animation: slideInRight 200ms ease-out"
-		>
-			<!-- Header -->
-			<div class="flex shrink-0 items-center justify-between border-b border-border/50 px-5 py-3">
-				<div class="flex items-center gap-2 text-[12px] text-muted-foreground">
-					{#if task.parent_id && parentTask}
-						<button
-							class="flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
-							onclick={() => onselect?.(parentTask!.id)}
+	{#snippet panelContent()}
+		<!-- Header -->
+		<div class="flex shrink-0 items-center justify-between border-b border-border/50 px-5 py-3">
+			<div class="flex items-center gap-2 text-[12px] text-muted-foreground">
+				{#if fullPage}
+					<button
+						class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						onclick={onclose}
+					>
+						<ArrowLeftIcon class="h-3.5 w-3.5" />
+					</button>
+				{/if}
+				{#if task.parent_id && parentTask}
+					<button
+						class="flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
+						onclick={() => onselect?.(parentTask!.id)}
+					>
+						<ChevronRightIcon class="h-3 w-3 rotate-180" />
+						{parentTask.content}
+					</button>
+				{/if}
+			</div>
+			<div class="flex items-center gap-1">
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger
+						class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					>
+						<EllipsisVerticalIcon class="h-4 w-4" />
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end" class="w-40">
+						<DropdownMenu.Item
+							variant="destructive"
+							onclick={() => { showDeleteConfirm = true; }}
 						>
-							<ChevronRightIcon class="h-3 w-3 rotate-180" />
-							{parentTask.content}
-						</button>
-					{/if}
-				</div>
-				<div class="flex items-center gap-1">
-					<DropdownMenu.Root>
-						<DropdownMenu.Trigger
-							class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						>
-							<EllipsisVerticalIcon class="h-4 w-4" />
-						</DropdownMenu.Trigger>
-						<DropdownMenu.Content align="end" class="w-40">
-							<DropdownMenu.Item
-								variant="destructive"
-								onclick={() => { showDeleteConfirm = true; }}
-							>
-								<TrashIcon class="h-4 w-4" />
-								Delete
-							</DropdownMenu.Item>
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
+							<TrashIcon class="h-4 w-4" />
+							Delete
+						</DropdownMenu.Item>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+				{#if !fullPage}
 					<button
 						class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onclick={onclose}
@@ -671,8 +673,9 @@
 					>
 						<XIcon class="h-4 w-4" />
 					</button>
-				</div>
+				{/if}
 			</div>
+		</div>
 
 			<!-- Content -->
 			<div class="flex min-h-0 flex-1 overflow-hidden">
@@ -1141,8 +1144,28 @@
 					</div>
 				</div>
 			</div>
+	{/snippet}
+
+	{#if fullPage}
+		<div class="flex h-full flex-col" onkeydown={handleKeydown}>
+			{@render panelContent()}
 		</div>
-	</div>
+	{:else}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm"
+			onkeydown={handleKeydown}
+			onclick={handleBackdropClick}
+		>
+			<div
+				class="flex h-full w-full flex-col bg-background shadow-2xl
+					md:max-w-3xl md:border-l md:border-border"
+				style="animation: slideInRight 200ms ease-out"
+			>
+				{@render panelContent()}
+			</div>
+		</div>
+	{/if}
 
 	{#if showDeleteConfirm}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->

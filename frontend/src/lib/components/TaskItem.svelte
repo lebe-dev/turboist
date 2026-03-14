@@ -18,8 +18,9 @@
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { portal } from '$lib/utils/portal';
+	import { goto } from '$app/navigation';
 
-	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean } = $props();
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -219,7 +220,7 @@
 		{#if task.children.length > 0}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={0} {searchQuery} {onselect} />
+					<svelte:self task={child} depth={0} {searchQuery} />
 				{/each}
 			</div>
 		{/if}
@@ -256,9 +257,7 @@
 				</button>
 			{/if}
 
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="min-w-0 flex-1" class:cursor-pointer={!completed} onclick={() => { if (!completed) onselect?.(task.id); }}>
+			{#snippet taskContentInner()}
 				<MarkdownContent text={task.content} class="break-words text-[13px] leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}" />
 				{#if task.description && !completed}
 					<p class="truncate text-[12px] text-muted-foreground"><MarkdownContent text={task.description} /></p>
@@ -283,7 +282,7 @@
 						{#if task.sub_task_count > 0}
 							<button
 								class="flex items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors"
-								onclick={() => collapsedStore.toggle(task.id)}
+								onclick={(e) => { e.preventDefault(); collapsedStore.toggle(task.id); }}
 								aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
 							>
 								<ChevronRightIcon
@@ -294,7 +293,17 @@
 						{/if}
 					</div>
 				{/if}
-			</div>
+			{/snippet}
+
+			{#if completed}
+				<div class="min-w-0 flex-1">
+					{@render taskContentInner()}
+				</div>
+			{:else}
+				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer">
+					{@render taskContentInner()}
+				</a>
+			{/if}
 
 			{#if !completed}
 				<DropdownMenu.Root bind:open={dropdownOpen}>
@@ -306,7 +315,7 @@
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="w-52">
 						<!-- Edit -->
-						<DropdownMenu.Item onclick={() => onselect?.(task.id)}>
+						<DropdownMenu.Item onclick={() => goto(`/task/${task.id}`)}>
 							<PencilIcon class="h-4 w-4" />
 							Edit
 						</DropdownMenu.Item>
@@ -403,7 +412,7 @@
 			{#if hasChildren && !collapsed && !completed}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} {hideTodayDue} {hideTomorrowDue} />
+					<svelte:self task={child} depth={depth + 1} {searchQuery} {dimmed} {hideTodayDue} {hideTomorrowDue} />
 				{/each}
 			</div>
 		{/if}

@@ -60,11 +60,11 @@
 		{/if}
 
 		{#each pinnedStore.items as pinned (pinned.id)}
-			<button
+			<a
+				href="/task/{pinned.id}"
 				class="group flex items-center rounded-lg text-[13px] transition-all duration-150
 					{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-1.5'}
 					text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-				onclick={() => pinnedStore.selectTask(pinned.id)}
 				title={collapsed ? pinned.content : undefined}
 			>
 				<PinIcon class="h-3.5 w-3.5 shrink-0 opacity-60" />
@@ -80,7 +80,7 @@
 						<XIcon class="h-3 w-3" />
 					</span>
 				{/if}
-			</button>
+			</a>
 		{/each}
 	{/if}
 

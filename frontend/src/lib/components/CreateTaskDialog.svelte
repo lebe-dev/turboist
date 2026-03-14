@@ -192,6 +192,12 @@
 						target.style.height = 'auto';
 						target.style.height = target.scrollHeight + 'px';
 					}}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+							e.preventDefault();
+							handleSubmit();
+						}
+					}}
 				></textarea>
 			</div>
 
