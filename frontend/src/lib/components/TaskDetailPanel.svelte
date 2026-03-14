@@ -716,24 +716,6 @@
 					<!-- Date -->
 					<div>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
-						{#if task.due}
-							<div class="mb-2 flex items-center gap-1.5">
-								<span class="flex items-center gap-1.5 text-[13px] {isOverdue(task.due.date) ? 'text-destructive' : 'text-foreground/80'}">
-									<CalendarIcon class="h-3.5 w-3.5 text-muted-foreground" />
-									{formatDueDate(task.due.date)}
-									{#if task.due.recurring}
-										<RepeatIcon class="h-3 w-3 text-muted-foreground" />
-									{/if}
-								</span>
-								<button
-									class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
-									onclick={clearDate}
-									aria-label="Clear date"
-								>
-									<XIcon class="h-3 w-3" />
-								</button>
-							</div>
-						{/if}
 						<div class="flex items-center gap-1.5">
 							<button
 								class="rounded-md px-2.5 py-1 text-[12px] transition-colors
@@ -764,6 +746,15 @@
 									/>
 								{/if}
 							</div>
+							{#if task.due}
+								<button
+									class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+									onclick={clearDate}
+									aria-label="Clear date"
+								>
+									<XIcon class="h-3 w-3" />
+								</button>
+							{/if}
 						</div>
 					</div>
 
