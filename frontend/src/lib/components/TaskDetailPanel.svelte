@@ -682,18 +682,7 @@
 															{formatDueDate(child.due.date)}
 														</span>
 													{/if}
-													{#if child.priority > 1}
-														<!-- svelte-ignore a11y_click_events_have_key_events -->
-														<!-- svelte-ignore a11y_no_static_element_interactions -->
-														<span
-															class="cursor-pointer rounded px-1 py-0.5 text-[10px] font-medium transition-colors
-																{child.priority === 4 ? 'text-red-500' : child.priority === 3 ? 'text-amber-500' : 'text-blue-400'}"
-															role="button"
-															tabindex="-1"
-															onclick={(e) => { e.stopPropagation(); setSubtaskPriority(child.id, child.priority === 4 ? 3 : child.priority === 3 ? 2 : 1); }}
-														>{child.priority === 4 ? 'P1' : child.priority === 3 ? 'P2' : 'P3'}</span>
-													{/if}
-													{#each child.labels as label (label)}
+																										{#each child.labels as label (label)}
 														<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
 													{/each}
 												</div>
