@@ -85,7 +85,13 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 			FS:         subFS,
 			IndexNames: []string{"index.html"},
 			NotFoundHandler: func(c fiber.Ctx) error {
-				return c.Next()
+				// SPA fallback: serve index.html for client-side routing
+				content, err := fs.ReadFile(subFS, "index.html")
+				if err != nil {
+					return c.Next()
+				}
+				c.Set("Content-Type", "text/html; charset=utf-8")
+				return c.Send(content)
 			},
 		}))
 	}

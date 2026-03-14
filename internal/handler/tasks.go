@@ -237,14 +237,16 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 					args.SectionID = &sectionID
 				}
 			}
-			// Merge context labels (avoid duplicates)
-			existing := make(map[string]struct{}, len(labels))
-			for _, l := range labels {
-				existing[l] = struct{}{}
-			}
-			for _, l := range ctx.Filters.Labels {
-				if _, ok := existing[l]; !ok {
-					labels = append(labels, l)
+			// Merge context labels (avoid duplicates) if inherit_labels is enabled
+			if ctx.ShouldInheritLabels() {
+				existing := make(map[string]struct{}, len(labels))
+				for _, l := range labels {
+					existing[l] = struct{}{}
+				}
+				for _, l := range ctx.Filters.Labels {
+					if _, ok := existing[l]; !ok {
+						labels = append(labels, l)
+					}
 				}
 			}
 		}

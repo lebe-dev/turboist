@@ -264,6 +264,70 @@ func TestParseAppConfig_CompletedCustom(t *testing.T) {
 	}
 }
 
+func TestContextConfig_ShouldInheritLabels(t *testing.T) {
+	t.Run("default (nil) returns true", func(t *testing.T) {
+		ctx := ContextConfig{ID: "test"}
+		if !ctx.ShouldInheritLabels() {
+			t.Error("expected true when InheritLabels is nil")
+		}
+	})
+
+	t.Run("explicit true", func(t *testing.T) {
+		v := true
+		ctx := ContextConfig{ID: "test", InheritLabels: &v}
+		if !ctx.ShouldInheritLabels() {
+			t.Error("expected true")
+		}
+	})
+
+	t.Run("explicit false", func(t *testing.T) {
+		v := false
+		ctx := ContextConfig{ID: "test", InheritLabels: &v}
+		if ctx.ShouldInheritLabels() {
+			t.Error("expected false")
+		}
+	})
+}
+
+func TestParseAppConfig_InheritLabels(t *testing.T) {
+	yaml := `
+contexts:
+  - id: with_inherit
+    display_name: "With"
+    filters:
+      labels: ["a"]
+  - id: no_inherit
+    display_name: "Without"
+    inherit_labels: false
+    filters:
+      labels: ["b"]
+  - id: explicit_inherit
+    display_name: "Explicit"
+    inherit_labels: true
+    filters:
+      labels: ["c"]
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	with := app.FindContext("with_inherit")
+	if with == nil || !with.ShouldInheritLabels() {
+		t.Error("with_inherit: expected inherit_labels=true by default")
+	}
+
+	no := app.FindContext("no_inherit")
+	if no == nil || no.ShouldInheritLabels() {
+		t.Error("no_inherit: expected inherit_labels=false")
+	}
+
+	explicit := app.FindContext("explicit_inherit")
+	if explicit == nil || !explicit.ShouldInheritLabels() {
+		t.Error("explicit_inherit: expected inherit_labels=true")
+	}
+}
+
 func TestLoadDotEnv_SetsVars(t *testing.T) {
 	f := filepath.Join(t.TempDir(), ".env")
 	content := `

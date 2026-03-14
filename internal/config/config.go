@@ -66,10 +66,20 @@ type Config struct {
 }
 
 type ContextConfig struct {
-	ID          string         `yaml:"id"`
-	DisplayName string         `yaml:"display_name"`
-	Color       string         `yaml:"color"`
-	Filters     ContextFilters `yaml:"filters"`
+	ID            string         `yaml:"id"`
+	DisplayName   string         `yaml:"display_name"`
+	Color         string         `yaml:"color"`
+	InheritLabels *bool          `yaml:"inherit_labels"`
+	Filters       ContextFilters `yaml:"filters"`
+}
+
+// ShouldInheritLabels returns whether labels should be inherited on task creation.
+// Defaults to true when InheritLabels is nil.
+func (c *ContextConfig) ShouldInheritLabels() bool {
+	if c.InheritLabels == nil {
+		return true
+	}
+	return *c.InheritLabels
 }
 
 type ContextFilters struct {

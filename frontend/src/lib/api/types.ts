@@ -63,6 +63,7 @@ export interface Context {
 	id: string;
 	display_name: string;
 	color?: string;
+	inherit_labels: boolean;
 	filters: ContextFilters;
 }
 

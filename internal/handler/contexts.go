@@ -20,10 +20,11 @@ type contextFiltersResponse struct {
 }
 
 type contextItem struct {
-	ID          string                 `json:"id"`
-	DisplayName string                 `json:"display_name"`
-	Color       string                 `json:"color,omitempty"`
-	Filters     contextFiltersResponse `json:"filters"`
+	ID            string                 `json:"id"`
+	DisplayName   string                 `json:"display_name"`
+	Color         string                 `json:"color,omitempty"`
+	InheritLabels bool                   `json:"inherit_labels"`
+	Filters       contextFiltersResponse `json:"filters"`
 }
 
 // Contexts handles GET /api/contexts
@@ -45,10 +46,11 @@ func (h *ContextsHandler) Contexts(c fiber.Ctx) error {
 			filters.Labels = []string{}
 		}
 		items = append(items, contextItem{
-			ID:          ctx.ID,
-			DisplayName: ctx.DisplayName,
-			Color:       ctx.Color,
-			Filters:     filters,
+			ID:            ctx.ID,
+			DisplayName:   ctx.DisplayName,
+			Color:         ctx.Color,
+			InheritLabels: ctx.ShouldInheritLabels(),
+			Filters:       filters,
 		})
 	}
 	return c.JSON(items)

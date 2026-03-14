@@ -14,6 +14,7 @@ poll_interval: "30s"
 contexts:
   - id: health
     display_name: "Здоровье"
+    inherit_labels: true
     color: green
     filters:
       # Filter by Todoist labels (OR between items)
@@ -22,6 +23,7 @@ contexts:
   - id: dev
     display_name: "Разработка"
     color: "#FF5733"
+    inherit_labels: false
     filters:
       # Filter by Todoist project names (OR between items)
       projects: ["Проекты"]
@@ -33,6 +35,7 @@ contexts:
   - id: work
     display_name: "Работа"
     color: "#3B82F6"
+    inherit_labels: true
     filters:
       labels: ["работа"]
 
