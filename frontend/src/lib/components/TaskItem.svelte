@@ -17,6 +17,7 @@
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { portal } from '$lib/utils/portal';
 
 	let { task, depth = 0, searchQuery = '', onselect, dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; onselect?: (id: string) => void; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean } = $props();
 
@@ -394,49 +395,50 @@
 			{/if}
 		</div>
 
-		{#if showDeleteConfirm}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<div
-				class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-				onclick={() => { showDeleteConfirm = false; }}
-				onkeydown={(e) => { if (e.key === 'Escape') showDeleteConfirm = false; }}
-			>
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					class="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-xl"
-					onclick={(e) => e.stopPropagation()}
-				>
-					<h3 class="text-lg font-semibold text-foreground">Delete task?</h3>
-					<p class="mt-2 text-sm text-muted-foreground">
-						The <span class="font-medium text-foreground">{task.content}</span> task will be permanently deleted.
-					</p>
-					<div class="mt-4 flex justify-end gap-2">
-						<button
-							class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-							onclick={() => { showDeleteConfirm = false; }}
-						>
-							Cancel
-						</button>
-						<button
-							class="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-destructive/90"
-							onclick={handleDelete}
-							disabled={deleting}
-						>
-							Delete
-						</button>
-					</div>
-				</div>
-			</div>
-		{/if}
-
-		{#if hasChildren && !collapsed && !completed}
+			{#if hasChildren && !collapsed && !completed}
 			<div>
 				{#each task.children as child (child.id)}
 					<svelte:self task={child} depth={depth + 1} {searchQuery} {onselect} {dimmed} {hideTodayDue} {hideTomorrowDue} />
 				{/each}
 			</div>
 		{/if}
+	</div>
+{/if}
+
+{#if showDeleteConfirm}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div
+		use:portal
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+		onclick={() => { showDeleteConfirm = false; }}
+		onkeydown={(e) => { if (e.key === 'Escape') showDeleteConfirm = false; }}
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-xl"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<h3 class="text-lg font-semibold text-foreground">Delete task?</h3>
+			<p class="mt-2 truncate text-sm text-muted-foreground">
+				The <span class="font-medium text-foreground">{task.content}</span> task will be permanently deleted.
+			</p>
+			<div class="mt-4 flex justify-end gap-2">
+				<button
+					class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					onclick={() => { showDeleteConfirm = false; }}
+				>
+					Cancel
+				</button>
+				<button
+					class="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-destructive/90"
+					onclick={handleDelete}
+					disabled={deleting}
+				>
+					Delete
+				</button>
+			</div>
+		</div>
 	</div>
 {/if}
