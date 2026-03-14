@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
-	import { updateTask, createTask, completeTask, deleteTask, getLabels, getTask } from '$lib/api/client';
+	import { updateTask, createTask, completeTask, deleteTask, getLabels, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
@@ -20,7 +20,10 @@
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import MarkdownContent from './MarkdownContent.svelte';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { Calendar } from '$lib/components/ui/calendar';
+	import { parseDate, type DateValue } from '@internationalized/date';
 
 	let {
 		taskId,
@@ -85,16 +88,36 @@
 		if (!task && !taskFetching) onclose();
 	});
 
+	// --- Completed subtasks ---
+	let completedSubtasks = $state<Task[]>([]);
+	let completedCollapsed = $state(true);
+
+	$effect(() => {
+		const t = task;
+		if (!t || t.completed_sub_task_count === 0) {
+			completedSubtasks = [];
+			return;
+		}
+		getCompletedSubtasks(t.id)
+			.then((tasks) => { completedSubtasks = tasks; })
+			.catch(() => { completedSubtasks = []; });
+	});
+
 	// --- Title editing ---
 	let editingTitle = $state(false);
 	let titleValue = $state('');
-	let titleInput: HTMLInputElement | undefined = $state();
+	let titleInput: HTMLTextAreaElement | null = $state(null);
 
 	function startEditTitle() {
 		if (!task) return;
 		titleValue = task.content;
 		editingTitle = true;
-		requestAnimationFrame(() => titleInput?.focus());
+		requestAnimationFrame(() => {
+			if (!titleInput) return;
+			titleInput.focus();
+			const len = titleValue.length;
+			titleInput.setSelectionRange(len, len);
+		});
 	}
 
 	async function saveTitle() {
@@ -189,28 +212,30 @@
 	}
 
 	// --- Due date ---
-	let editingDate = $state(false);
-	let dateInput: HTMLInputElement | undefined = $state();
+	let showCalendar = $state(false);
 
-	function startEditDate() {
-		editingDate = true;
-		requestAnimationFrame(() => {
-			dateInput?.showPicker?.();
-			dateInput?.focus();
-		});
-	}
+	let calendarValue = $state<DateValue | undefined>(undefined);
 
-	async function saveDate(e: Event) {
-		if (!task) return;
-		editingDate = false;
-		const value = (e.target as HTMLInputElement).value;
-		if (!value) return;
+	$effect(() => {
+		if (task?.due?.date) {
+			calendarValue = parseDate(task.due.date);
+		} else {
+			calendarValue = undefined;
+		}
+	});
+
+	async function onCalendarSelect(value: DateValue | undefined) {
+		if (!task || !value) return;
+		const dateStr = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
 		const currentDate = task.due?.date ?? '';
-		if (value === currentDate) return;
-		// Optimistic: update local due date immediately
-		updateLocal((t) => ({ ...t, due: { date: value, recurring: t.due?.recurring ?? false } }));
+		if (dateStr === currentDate) {
+			showCalendar = false;
+			return;
+		}
+		showCalendar = false;
+		updateLocal((t) => ({ ...t, due: { date: dateStr, recurring: t.due?.recurring ?? false } }));
 		try {
-			await updateTask(task.id, { due_date: value });
+			await updateTask(task.id, { due_date: dateStr });
 		} catch (e) {
 			console.error('Failed to update due date', e);
 		}
@@ -332,8 +357,8 @@
 			await completeTask(targetId);
 		} catch (e) {
 			console.error('Failed to complete task', e);
-			tasksStore.refresh();
 		}
+		tasksStore.refresh();
 	}
 
 	// --- Subtask menu ---
@@ -359,6 +384,7 @@
 
 	// --- Subtask date ---
 	async function setSubtaskDate(childId: string, date: string) {
+		openSubtaskMenuId = null;
 		if (!task) return;
 		updateLocal((t) => ({
 			...t,
@@ -375,6 +401,7 @@
 	}
 
 	async function clearSubtaskDate(childId: string) {
+		openSubtaskMenuId = null;
 		if (!task) return;
 		updateLocal((t) => ({
 			...t,
@@ -390,21 +417,18 @@
 		tasksStore.refresh();
 	}
 
-	let subtaskDateInput: HTMLInputElement | undefined = $state();
-	let subtaskDateTargetId = $state<string | null>(null);
+	let subtaskCalendarTargetId = $state<string | null>(null);
 
 	function openSubtaskDatePicker(childId: string) {
-		subtaskDateTargetId = childId;
-		requestAnimationFrame(() => {
-			subtaskDateInput?.showPicker?.();
-			subtaskDateInput?.focus();
-		});
+		subtaskCalendarTargetId = subtaskCalendarTargetId === childId ? null : childId;
 	}
 
-	async function onSubtaskDatePicked(e: Event) {
-		const value = (e.target as HTMLInputElement).value;
-		if (value && subtaskDateTargetId) await setSubtaskDate(subtaskDateTargetId, value);
-		subtaskDateTargetId = null;
+	async function onSubtaskCalendarSelect(value: DateValue | undefined) {
+		if (!value || !subtaskCalendarTargetId) return;
+		const dateStr = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
+		const targetId = subtaskCalendarTargetId;
+		subtaskCalendarTargetId = null;
+		await setSubtaskDate(targetId, dateStr);
 	}
 
 	// --- Delete subtask ---
@@ -429,8 +453,14 @@
 	let subtaskInput: HTMLInputElement | undefined = $state();
 	let addingSubtask = $state(false);
 
+	function extractPrefix(content: string): string {
+		const match = content.match(/^(.+?(?::\s|\s-\s))/);
+		return match ? match[1] : '';
+	}
+
 	function startAddSubtask() {
-		subtaskContent = '';
+		const prefix = task ? extractPrefix(task.content) : '';
+		subtaskContent = prefix;
 		showSubtaskForm = true;
 		requestAnimationFrame(() => subtaskInput?.focus());
 	}
@@ -518,7 +548,11 @@
 	// --- Keyboard ---
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
-			if (showLabelPicker) {
+			if (showCalendar) {
+				showCalendar = false;
+			} else if (subtaskCalendarTargetId) {
+				subtaskCalendarTargetId = null;
+			} else if (showLabelPicker) {
 				showLabelPicker = false;
 			} else if (showPriorityPicker) {
 				showPriorityPicker = false;
@@ -640,13 +674,12 @@
 
 						{#if editingTitle}
 							<div class="flex-1">
-								<input
-									bind:this={titleInput}
+								<Textarea
+									bind:ref={titleInput}
 									bind:value={titleValue}
-									type="text"
-									class="w-full bg-transparent text-lg font-semibold text-foreground focus:outline-none"
+									class="min-h-0 w-full resize-none rounded-none border-none bg-transparent p-0 text-lg md:text-lg font-semibold leading-snug text-foreground shadow-none focus-visible:ring-0"
 									onkeydown={(e) => {
-										if (e.key === 'Enter') {
+										if (e.key === 'Enter' && !e.shiftKey) {
 											e.preventDefault();
 											saveTitle();
 										}
@@ -769,7 +802,7 @@
 												>
 													<EllipsisIcon class="h-4 w-4" />
 												</DropdownMenu.Trigger>
-												<DropdownMenu.Content align="end" class="w-52">
+												<DropdownMenu.Content align="end" class="w-64">
 													<DropdownMenu.Item onclick={() => onselect?.(child.id)}>
 														<PencilIcon class="h-4 w-4" />
 														Edit
@@ -797,15 +830,13 @@
 															>
 																<SunIcon class="h-4 w-4" />
 															</button>
-															<div class="relative">
-																<button
-																	class="flex h-7 w-7 items-center justify-center rounded-md text-purple-400 transition-colors hover:bg-accent"
-																	onclick={() => openSubtaskDatePicker(child.id)}
-																	aria-label="Pick date"
-																>
-																	<ArrowRightIcon class="h-4 w-4" />
-																</button>
-															</div>
+															<button
+															class="flex h-7 w-7 items-center justify-center rounded-md text-purple-400 transition-colors hover:bg-accent"
+															onclick={() => openSubtaskDatePicker(child.id)}
+															aria-label="Pick date"
+														>
+															<ArrowRightIcon class="h-4 w-4" />
+														</button>
 															{#if child.due}
 																<button
 																	class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -816,6 +847,16 @@
 																</button>
 															{/if}
 														</div>
+														{#if subtaskCalendarTargetId === child.id}
+															<div class="mt-1">
+																<Calendar
+																	type="single"
+																	value={child.due?.date ? parseDate(child.due.date) : undefined}
+																	onValueChange={onSubtaskCalendarSelect}
+																	class="rounded-md border border-border"
+																/>
+															</div>
+														{/if}
 													</div>
 
 													<!-- Priority -->
@@ -849,14 +890,7 @@
 										</div>
 									{/each}
 								</div>
-								<!-- Hidden date input for subtask date picker -->
-								<input
-									bind:this={subtaskDateInput}
-									type="date"
-									class="pointer-events-none absolute h-0 w-0 opacity-0"
-									onchange={onSubtaskDatePicked}
-								/>
-							{/if}
+								{/if}
 						</div>
 					{/if}
 
@@ -905,10 +939,44 @@
 							</button>
 						{/if}
 					</div>
+
+					<!-- Completed subtasks -->
+					{#if completedSubtasks.length > 0}
+						<div class="mt-4 pl-8">
+							<button
+								class="flex items-center gap-1 text-[12px] tabular-nums text-muted-foreground transition-colors hover:text-foreground"
+								onclick={() => (completedCollapsed = !completedCollapsed)}
+							>
+								<ChevronRightIcon
+									class="h-3.5 w-3.5 transition-transform duration-150 {completedCollapsed ? '' : 'rotate-90'}"
+								/>
+								Completed {completedSubtasks.length}
+							</button>
+							{#if !completedCollapsed}
+								<div class="mt-2 space-y-0.5">
+									{#each completedSubtasks as child (child.id)}
+										<div class="flex items-start gap-2.5 rounded-lg px-2 py-1.5">
+											<div class="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary">
+												<CheckIcon class="h-2 w-2 text-primary-foreground" strokeWidth={3} />
+											</div>
+											<div class="min-w-0 flex-1">
+												<span class="text-[13px] text-muted-foreground line-through">{child.content}</span>
+												{#if child.completed_at}
+													<p class="mt-0.5 text-[11px] text-muted-foreground/60">
+														{new Date(child.completed_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+													</p>
+												{/if}
+											</div>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Right: sidebar -->
-				<div class="hidden w-60 shrink-0 space-y-5 overflow-y-auto border-l border-border/50 p-5 md:block">
+				<div class="hidden w-72 shrink-0 space-y-5 overflow-y-auto border-l border-border/50 p-5 md:block">
 					<!-- Date -->
 					<div>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
@@ -923,25 +991,13 @@
 									{task.due?.date === tomorrowDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 								onclick={() => setDateQuick(tomorrowDateStr())}
 							>Tomorrow</button>
-							<div class="relative">
-								<button
-									class="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-									onclick={startEditDate}
-									aria-label="Pick custom date"
-								>
-									<CalendarIcon class="h-3.5 w-3.5" />
-								</button>
-								{#if editingDate}
-									<input
-										bind:this={dateInput}
-										type="date"
-										value={task.due?.date ?? ''}
-										class="absolute left-0 top-full z-10 mt-1 w-44 rounded-md border border-border/50 bg-popover px-2.5 py-1.5 text-[13px] text-foreground shadow-lg focus:border-border focus:outline-none"
-										onchange={saveDate}
-										onblur={() => (editingDate = false)}
-									/>
-								{/if}
-							</div>
+							<button
+								class="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+								onclick={() => (showCalendar = !showCalendar)}
+								aria-label="Pick custom date"
+							>
+								<CalendarIcon class="h-3.5 w-3.5" />
+							</button>
 							{#if task.due}
 								<button
 									class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
@@ -952,6 +1008,16 @@
 								</button>
 							{/if}
 						</div>
+						{#if showCalendar}
+							<div class="mt-2">
+								<Calendar
+									type="single"
+									value={calendarValue}
+									onValueChange={onCalendarSelect}
+									class="rounded-md border border-border"
+								/>
+							</div>
+						{/if}
 					</div>
 
 					<!-- Priority -->

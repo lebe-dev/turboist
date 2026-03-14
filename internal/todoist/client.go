@@ -169,6 +169,28 @@ func (c *Client) FetchCompletedTasks(ctx context.Context, since, until time.Time
 	return tasks, nil
 }
 
+// FetchCompletedSubtasks returns subtasks of the given parent completed in the last 90 days.
+func (c *Client) FetchCompletedSubtasks(ctx context.Context, parentID string) ([]*Task, error) {
+	now := time.Now()
+	since := now.AddDate(0, -3, 0) // 3 months back
+
+	items, err := c.taskSvc.GetAllCompletedTasksByCompletionDate(ctx, &rest.TaskGetCompletedByCompletionDateParams{
+		Since: since,
+		Until: now,
+	})
+	if err != nil {
+		return nil, &APIError{Op: "FetchCompletedSubtasks", Err: err}
+	}
+
+	tasks := make([]*Task, 0)
+	for _, t := range items {
+		if t.ParentID != nil && *t.ParentID == parentID {
+			tasks = append(tasks, TaskFromSync(t))
+		}
+	}
+	return tasks, nil
+}
+
 // CompleteTask closes a task via the Todoist API.
 func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	_, err := c.taskSvc.CloseTask(ctx, &sync.TaskCloseArgs{ID: id})

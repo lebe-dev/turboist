@@ -126,3 +126,8 @@ export async function completeTask(id: string): Promise<void> {
 export async function deleteTask(id: string): Promise<void> {
 	await request(`/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+
+export async function getCompletedSubtasks(id: string): Promise<Task[]> {
+	const res = await request<{ tasks: Task[] }>(`/api/tasks/${encodeURIComponent(id)}/completed-subtasks`);
+	return res.tasks;
+}

@@ -128,6 +128,7 @@
 	const isTomorrow = $derived(task.due?.date === tomorrowStr());
 
 	async function setDate(date: string) {
+		dropdownOpen = false;
 		if (task.due?.date === date) return;
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: { date, recurring: false } }));
 		try {
@@ -139,6 +140,7 @@
 	}
 
 	async function clearDate() {
+		dropdownOpen = false;
 		if (!task.due) return;
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: null }));
 		try {
@@ -225,17 +227,17 @@
 {:else if visible}
 	<div style="padding-left: {depth * 20}px">
 		<div
-			class="group relative flex items-start gap-3 rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-accent/50"
+			class="group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-150 hover:bg-accent/50"
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
 		>
 			{#if completed}
-				<span class="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/30 bg-muted-foreground/10">
+				<span class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/30 bg-muted-foreground/10">
 					<CheckIcon class="h-2.5 w-2.5 text-muted-foreground/60" strokeWidth={3} />
 				</span>
 			{:else}
 				<button
-					class="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
+					class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
 						{completing
 						? priorityCheckColor
 						: dimmed

@@ -45,6 +45,7 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 	app.Patch("/api/tasks/:id", tasksHandler.Update)
 	app.Post("/api/tasks/:id/complete", tasksHandler.Complete)
 	app.Delete("/api/tasks/:id", tasksHandler.Delete)
+	app.Get("/api/tasks/:id/completed-subtasks", tasksHandler.CompletedSubtasks)
 
 	quickCaptureHandler := handler.NewQuickCaptureHandler(cache, &cfg.App)
 	app.Get("/api/quick-capture", quickCaptureHandler.QuickCapture)

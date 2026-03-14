@@ -384,6 +384,30 @@ func (h *TasksHandler) Delete(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusOK)
 }
 
+// CompletedSubtasks handles GET /api/tasks/:id/completed-subtasks
+func (h *TasksHandler) CompletedSubtasks(c fiber.Ctx) error {
+	id := c.Params("id")
+	tasks, err := h.cache.Client().FetchCompletedSubtasks(c.Context(), id)
+	if err != nil {
+		log.Error("fetch completed subtasks failed", "id", id, "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Sort by completed_at descending (newest first)
+	slices.SortStableFunc(tasks, func(a, b *todoist.Task) int {
+		ca, cb := "", ""
+		if a.CompletedAt != nil {
+			ca = *a.CompletedAt
+		}
+		if b.CompletedAt != nil {
+			cb = *b.CompletedAt
+		}
+		return cmp.Compare(cb, ca)
+	})
+
+	return c.JSON(fiber.Map{"tasks": tasks})
+}
+
 func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {
 	tasks := h.cache.Tasks()
 	if contextKey == "" {
