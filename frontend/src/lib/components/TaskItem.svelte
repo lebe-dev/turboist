@@ -8,7 +8,7 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PinIcon from '@lucide/svelte/icons/pin';
-	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
+	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import SunIcon from '@lucide/svelte/icons/sun';
@@ -293,10 +293,10 @@
 			{#if !completed}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger
-						class="absolute right-1 top-1.5 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
+						class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
 						onclick={(e: MouseEvent) => e.stopPropagation()}
 					>
-						<EllipsisVerticalIcon class="h-3.5 w-3.5" />
+						<EllipsisIcon class="h-5 w-5" />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="w-52">
 						<!-- Edit -->
