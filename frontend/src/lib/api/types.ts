@@ -73,6 +73,7 @@ export interface CreateTaskRequest {
 	labels: string[];
 	priority: number;
 	parent_id?: string;
+	due_date?: string;
 }
 
 export interface UpdateTaskRequest {

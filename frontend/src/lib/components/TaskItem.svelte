@@ -383,7 +383,7 @@
 			{#if !completed}
 				<DropdownMenu.Root bind:open={dropdownOpen}>
 					<DropdownMenu.Trigger
-						class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
+						class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 transition-all duration-150 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground"
 						onclick={(e: MouseEvent) => e.stopPropagation()}
 					>
 						<EllipsisIcon class="h-5 w-5" />

@@ -190,6 +190,7 @@ type createTaskRequest struct {
 	Labels      []string `json:"labels"`
 	Priority    int      `json:"priority"`
 	ParentID    string   `json:"parent_id"`
+	DueDate     string   `json:"due_date"`
 }
 
 // Create handles POST /api/tasks?context=...
@@ -258,6 +259,14 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 
 	if req.ParentID != "" {
 		args.ParentID = &req.ParentID
+	}
+
+	if req.DueDate != "" {
+		dueDate, err := time.Parse("2006-01-02", req.DueDate)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid due_date format, expected YYYY-MM-DD"})
+		}
+		args.Due = &synctodoist.Due{Date: &dueDate}
 	}
 
 	log.Debug("create task", "content", req.Content, "context", contextKey, "labels", labels)

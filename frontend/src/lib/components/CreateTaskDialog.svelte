@@ -9,7 +9,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import CheckIcon from '@lucide/svelte/icons/check';
 
-	let { open = $bindable(false) }: { open: boolean } = $props();
+	let { open = $bindable(false), dueDate = '' }: { open: boolean; dueDate?: string } = $props();
 
 	let content = $state('');
 	let description = $state('');
@@ -117,7 +117,7 @@
 			parent_id: null,
 			labels,
 			priority: pri,
-			due: null,
+			due: dueDate ? { date: dueDate, recurring: false } : null,
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
 			completed_at: null,
@@ -128,11 +128,11 @@
 		open = false;
 		tasksStore.addTaskLocal(optimistic);
 
+		const req: Parameters<typeof createTask>[0] = { content: trimmedContent, description: trimmedDesc, labels, priority: pri };
+		if (dueDate) req.due_date = dueDate;
+
 		try {
-			await createTask(
-				{ content: trimmedContent, description: trimmedDesc, labels, priority: pri },
-				context
-			);
+			await createTask(req, context);
 		} catch (e) {
 			console.error('Failed to create task', e);
 		}

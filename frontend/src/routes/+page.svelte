@@ -84,6 +84,7 @@
 		contextsStore.activeView;
 		searchQuery = '';
 		linksOnly = false;
+		mobileSearchOpen = false;
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {
@@ -104,8 +105,26 @@
 		}
 	}
 
+	let mobileSearchOpen = $state(false);
 	let createDialogOpen = $state(false);
 	let quickCaptureOpen = $state(false);
+
+	function todayStr(): string {
+		const d = new Date();
+		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+	}
+
+	function tomorrowStr(): string {
+		const d = new Date();
+		d.setDate(d.getDate() + 1);
+		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+	}
+
+	const createDueDate = $derived.by(() => {
+		if (contextsStore.activeView === 'today') return todayStr();
+		if (contextsStore.activeView === 'tomorrow') return tomorrowStr();
+		return '';
+	});
 </script>
 
 <svelte:window
@@ -126,6 +145,7 @@
 />
 
 <div class="flex h-full flex-col">
+	<!-- Desktop header -->
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 		{#if !isCompletedView}
@@ -172,6 +192,54 @@
 			<span class="sr-only">Toggle theme</span>
 		</Button>
 	</header>
+
+	<!-- Mobile header -->
+	<header class="flex shrink-0 items-center border-b border-border/50 px-3 py-2 md:hidden">
+		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
+		{#if !isCompletedView}
+			<div class="ml-auto flex items-center gap-0.5">
+				<Toggle bind:pressed={linksOnly} size="sm" class="h-8 w-8 text-muted-foreground" title="Show only tasks with links">
+					<LinkIcon class="h-4 w-4" />
+					<span class="sr-only">Filter by links</span>
+				</Toggle>
+				<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground">
+					{#if collapsedStore.hasAny}
+						<ChevronsDownIcon class="h-4 w-4" />
+					{:else}
+						<ChevronsDownUpIcon class="h-4 w-4" />
+					{/if}
+					<span class="sr-only">Toggle all subtasks</span>
+				</Button>
+				<Button onclick={() => (mobileSearchOpen = !mobileSearchOpen)} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground">
+					<SearchIcon class="h-4 w-4" />
+					<span class="sr-only">Search</span>
+				</Button>
+			</div>
+		{/if}
+	</header>
+
+	{#if mobileSearchOpen && !isCompletedView}
+		<div class="flex shrink-0 items-center border-b border-border/50 px-3 py-2 md:hidden">
+			<div class="relative flex flex-1 items-center">
+				<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+				<input
+					type="text"
+					placeholder="Поиск..."
+					bind:value={searchQuery}
+					class="h-8 w-full rounded-md border border-border/50 bg-transparent pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:border-border focus:outline-none"
+				/>
+				{#if searchQuery}
+					<button
+						class="absolute right-2 flex items-center text-muted-foreground/60 hover:text-foreground"
+						onclick={() => (searchQuery = '')}
+						aria-label="Clear search"
+					>
+						<XIcon class="h-3.5 w-3.5" />
+					</button>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	{#if tasksStore.isStale}
 		<div class="flex shrink-0 items-center gap-2 border-b border-yellow-500/10 bg-yellow-500/5 px-3 py-2 md:px-6">
@@ -223,7 +291,7 @@
 	</button>
 {/if}
 
-<CreateTaskDialog bind:open={createDialogOpen} />
+<CreateTaskDialog bind:open={createDialogOpen} dueDate={createDueDate} />
 {#if !isCompletedView}
 	<NextActionDialog />
 {/if}
