@@ -25,7 +25,7 @@ lint-backend: format
     golangci-lint run ./...
 
 lint-frontend:
-    cd frontend && yarn check
+    cd frontend && yarn run check
 
 lint: format
     just lint-backend
