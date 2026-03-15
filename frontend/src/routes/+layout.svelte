@@ -3,7 +3,10 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { contextsStore, type View } from '$lib/stores/contexts.svelte';
+	import { planningStore } from '$lib/stores/planning.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
+	import { t } from 'svelte-intl-precompile';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { initLocale } from '$lib/i18n';
@@ -62,7 +65,19 @@
 						<line x1="3" y1="18" x2="21" y2="18" />
 					</svg>
 				</button>
-				<span class="ml-3 text-sm font-bold tracking-widest uppercase text-foreground">Turboist</span>
+				<div class="ml-2 flex gap-1">
+				{#each [{ id: 'today', key: 'views.today' }, { id: 'tomorrow', key: 'views.tomorrow' }, { id: 'weekly', key: 'views.weekly' }] as view (view.id)}
+					<button
+						class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors duration-150
+							{contextsStore.activeView === view.id
+								? 'bg-accent text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+						onclick={() => { if (planningStore.active) planningStore.exit(); if ($page.url.pathname.startsWith('/task/')) goto('/'); contextsStore.setView(view.id as View); }}
+					>
+						{$t(view.key)}
+					</button>
+				{/each}
+			</div>
 			</div>
 			<div class="flex-1 overflow-y-auto">
 				{@render children()}
