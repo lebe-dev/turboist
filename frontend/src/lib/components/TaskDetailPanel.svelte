@@ -312,12 +312,8 @@
 		}
 	});
 
-	onMount(async () => {
-		try {
-			allLabels = await getLabels();
-		} catch {
-			// ignore
-		}
+	onMount(() => {
+		getLabels().then((labels) => { allLabels = labels; }).catch(() => {});
 
 		const mq = window.matchMedia('(max-width: 767px)');
 		isMobile = mq.matches;
