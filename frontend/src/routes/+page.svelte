@@ -38,7 +38,7 @@
 		// Track context/view changes and refresh tasks
 		contextsStore.activeContextId;
 		contextsStore.activeView;
-		if (mounted) tasksStore.refresh();
+		if (mounted) tasksStore.refreshWithLoading();
 		mounted = true;
 	});
 
@@ -165,7 +165,7 @@
 				<span class="sr-only">Add task</span>
 			</Button>
 			<Toggle bind:pressed={linksOnly} size="sm" class="me-1 h-7 w-7 text-muted-foreground" title="Show only tasks with links">
-				<LinkIcon class="h-3.5 w-3.5" />
+				<LinkIcon class="h-2.5 w-2.5" />
 				<span class="sr-only">Filter by links</span>
 			</Toggle>
 			<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="me-2 h-8 w-8 text-muted-foreground">
@@ -231,7 +231,7 @@
 				{/if}
 			</div>
 			<Toggle bind:pressed={linksOnly} size="sm" class="h-8 w-8 shrink-0 text-muted-foreground" title="Show only tasks with links">
-				<LinkIcon class="h-4 w-4" />
+				<LinkIcon class="h-3 w-3" />
 				<span class="sr-only">Filter by links</span>
 			</Toggle>
 			<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="h-8 w-8 shrink-0 text-muted-foreground">

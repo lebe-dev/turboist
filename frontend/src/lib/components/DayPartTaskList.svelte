@@ -9,6 +9,7 @@
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import XIcon from '@lucide/svelte/icons/x';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	let {
 		tasks,
@@ -180,34 +181,36 @@
 					</div>
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
-							<div class="animate-fade-in-up group/daypart relative" style="animation-delay: {Math.min(i * 30, 300)}ms">
-								<TaskItem task={stripDayPartLabels(task)} {searchQuery} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'} />
-								<!-- Move buttons -->
-								<div
-									class="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border/50 bg-popover/95 px-0.5 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/daypart:opacity-100"
-								>
-									{#each dayParts as dp, dpIdx (dp.label)}
-										{@const DPIcon = sectionIcon(dpIdx, dayParts.length)}
-										{#if dp.label !== section.dayPart?.label}
-											<button
-												class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-												title={dp.label}
-												onclick={() => moveTask(task, dp.label)}
-											>
-												<DPIcon class="h-3 w-3" />
-											</button>
-										{/if}
-									{/each}
-									{#if section.dayPart}
-										<button
-											class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-											title="Remove time"
-											onclick={() => moveTask(task, null)}
-										>
-											<XIcon class="h-3 w-3" />
-										</button>
-									{/if}
-								</div>
+							<div class="animate-fade-in-up" style="animation-delay: {Math.min(i * 30, 300)}ms">
+								<TaskItem task={stripDayPartLabels(task)} {searchQuery} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'}>
+									{#snippet dropdownExtra()}
+										<div class="px-2 py-1.5">
+											<p class="text-xs font-semibold text-muted-foreground">Time of day</p>
+											<div class="mt-1.5 flex items-center gap-1">
+												{#each dayParts as dp, dpIdx (dp.label)}
+													{@const DPIcon = sectionIcon(dpIdx, dayParts.length)}
+													<button
+														class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+															{dp.label === section.dayPart?.label ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+														title={dp.label}
+														onclick={() => { if (dp.label !== section.dayPart?.label) moveTask(task, dp.label); }}
+													>
+														<DPIcon class="h-4 w-4" />
+													</button>
+												{/each}
+												{#if section.dayPart}
+													<button
+														class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+														title="Remove time"
+														onclick={() => moveTask(task, null)}
+													>
+														<XIcon class="h-3.5 w-3.5" />
+													</button>
+												{/if}
+											</div>
+										</div>
+									{/snippet}
+								</TaskItem>
 							</div>
 						{/each}
 					</div>

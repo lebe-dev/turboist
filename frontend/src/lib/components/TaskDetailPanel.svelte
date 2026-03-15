@@ -205,6 +205,7 @@
 
 	async function setPriority(value: number) {
 		if (!task) return;
+		dropdownOpen = false;
 		showPriorityPicker = false;
 		if (value === localPriority) return;
 		localPriority = value;
@@ -253,6 +254,7 @@
 
 	async function clearDate() {
 		if (!task || !task.due) return;
+		dropdownOpen = false;
 		updateLocal((t) => ({ ...t, due: null }));
 		try {
 			await updateTask(task.id, { due_date: '' });
@@ -275,6 +277,7 @@
 
 	async function setDateQuick(date: string) {
 		if (!task) return;
+		dropdownOpen = false;
 		const currentDate = task.due?.date ?? '';
 		if (date === currentDate) return;
 		updateLocal((t) => ({ ...t, due: { date, recurring: false } }));
@@ -416,6 +419,7 @@
 			await completeTask(targetId);
 		} catch (e) {
 			console.error('Failed to complete task', e);
+			tasksStore.clearPendingRemoval(targetId);
 			tasksStore.refresh();
 		}
 	}
@@ -509,7 +513,6 @@
 	// --- Add sub-task ---
 	let showSubtaskForm = $state(false);
 	let subtaskContent = $state('');
-	let subtaskInput: HTMLInputElement | undefined = $state();
 	let subtaskTextarea: HTMLTextAreaElement | undefined = $state();
 	let addingSubtask = $state(false);
 	let isMobile = $state(false);
@@ -543,11 +546,7 @@
 		subtaskContent = prefix;
 		showSubtaskForm = true;
 		requestAnimationFrame(() => {
-			if (isMobile) {
-				subtaskTextarea?.focus();
-			} else {
-				subtaskInput?.focus();
-			}
+			subtaskTextarea?.focus();
 		});
 	}
 
@@ -676,12 +675,16 @@
 
 	const collapsed = $derived(task ? collapsedStore.isCollapsed(task.id) : false);
 
+	// --- Dropdown state ---
+	let dropdownOpen = $state(false);
+
 	// --- Duplicate task ---
 	let duplicating = $state(false);
 
 	async function handleDuplicate() {
 		if (!task || duplicating) return;
 		duplicating = true;
+		dropdownOpen = false;
 		const tempId = `temp-dup-${Date.now()}`;
 		const clone: Task = {
 			...task,
@@ -707,6 +710,7 @@
 
 	function handlePin() {
 		if (!task) return;
+		dropdownOpen = false;
 		if (isPinned) {
 			pinnedStore.unpin(task.id);
 		} else {
@@ -728,6 +732,7 @@
 			await deleteTask(task.id);
 		} catch (e) {
 			console.error('Failed to delete task', e);
+			tasksStore.clearPendingRemoval(task.id);
 			tasksStore.refresh();
 		} finally {
 			deleting = false;
@@ -768,7 +773,7 @@
 				{/if}
 			</div>
 			<div class="flex items-center gap-1">
-				<DropdownMenu.Root>
+				<DropdownMenu.Root bind:open={dropdownOpen}>
 					<DropdownMenu.Trigger
 						class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					>
@@ -844,7 +849,7 @@
 						<!-- Delete -->
 						<DropdownMenu.Item
 							variant="destructive"
-							onclick={() => { showDeleteConfirm = true; }}
+							onclick={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 						>
 							<TrashIcon class="h-4 w-4" />
 							Delete
@@ -1107,53 +1112,17 @@
 
 					<!-- Add sub-task -->
 					<div class="mt-4">
-						{#if showSubtaskForm && !isMobile}
-							<!-- Desktop: inline form -->
-							<div class="flex items-center gap-2">
-								<div class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/25"></div>
-								<input
-									bind:this={subtaskInput}
-									bind:value={subtaskContent}
-									type="text"
-									class="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-									placeholder="Sub-task name"
-									disabled={addingSubtask}
-									onkeydown={(e) => {
-										if (e.key === 'Enter') {
-											e.preventDefault();
-											saveSubtask();
-										}
-										if (e.key === 'Escape') {
-											showSubtaskForm = false;
-										}
-									}}
-									onblur={() => {
-										if (!subtaskContent.trim()) showSubtaskForm = false;
-									}}
-								/>
-								{#if subtaskContent.trim()}
-									<button
-										class="rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-										onclick={saveSubtask}
-										disabled={addingSubtask}
-									>
-										{addingSubtask ? '...' : 'Add'}
-									</button>
-								{/if}
-							</div>
-						{:else}
-							<button
-								class="flex items-center gap-2 text-[13px] text-muted-foreground transition-colors hover:text-primary"
-								onclick={startAddSubtask}
-							>
-								<PlusIcon class="h-4 w-4" />
-								Add sub-task
-							</button>
-						{/if}
+						<button
+							class="flex items-center gap-2 text-[13px] text-muted-foreground transition-colors hover:text-primary"
+							onclick={startAddSubtask}
+						>
+							<PlusIcon class="h-4 w-4" />
+							Add sub-task
+						</button>
 					</div>
 
-					<!-- Mobile: subtask dialog -->
-					{#if showSubtaskForm && isMobile}
+					<!-- Subtask dialog -->
+					{#if showSubtaskForm}
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div
 							class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"

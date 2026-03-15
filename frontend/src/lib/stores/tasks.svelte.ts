@@ -18,6 +18,9 @@ function createTasksStore() {
 
 	let poller: Poller | null = null;
 
+	// IDs of tasks optimistically removed — survives fetches until server catches up
+	const pendingRemovals = new Set<string>();
+
 	async function fetchTasks(): Promise<void> {
 		const contextId = contextsStore.activeContextId ?? undefined;
 		const view: View = contextsStore.activeView;
@@ -33,7 +36,30 @@ function createTasksStore() {
 		const fetcher = fetcherMap[view] ?? getTasks;
 
 		const [res, cfg] = await Promise.all([fetcher(contextId), getConfig().catch(() => null)]);
-		tasks = res.tasks;
+
+		if (pendingRemovals.size > 0) {
+			function hasId(list: Task[], id: string): boolean {
+				return list.some((t) => t.id === id || hasId(t.children, id));
+			}
+			// Auto-clear removals the server has caught up with
+			for (const id of [...pendingRemovals]) {
+				if (!hasId(res.tasks, id)) pendingRemovals.delete(id);
+			}
+			if (pendingRemovals.size > 0) {
+				function filterPending(list: Task[]): Task[] {
+					return list.flatMap((t) => {
+						if (pendingRemovals.has(t.id)) return [];
+						return [{ ...t, children: filterPending(t.children) }];
+					});
+				}
+				tasks = filterPending(res.tasks);
+			} else {
+				tasks = res.tasks;
+			}
+		} else {
+			tasks = res.tasks;
+		}
+
 		meta = res.meta;
 
 		if (cfg) {
@@ -90,6 +116,20 @@ function createTasksStore() {
 		});
 	}
 
+	/** Clear tasks, show loading spinner, and fetch fresh data (for view transitions). */
+	async function refreshWithLoading(): Promise<void> {
+		tasks = [];
+		loading = true;
+		error = null;
+		try {
+			await fetchTasks();
+		} catch (err) {
+			error = err instanceof Error ? err.message : String(err);
+		} finally {
+			loading = false;
+		}
+	}
+
 	/** Optimistically update a task's fields in the local store. */
 	function updateTaskLocal(taskId: string, updater: (task: Task) => Task): void {
 		function walk(list: Task[]): Task[] {
@@ -106,6 +146,7 @@ function createTasksStore() {
 
 	/** Optimistically remove a task (and its children) from the local store. */
 	function removeTaskLocal(taskId: string): void {
+		pendingRemovals.add(taskId);
 		function walk(list: Task[]): Task[] {
 			return list.flatMap((t) => {
 				if (t.id === taskId) return [];
@@ -113,6 +154,11 @@ function createTasksStore() {
 			});
 		}
 		tasks = walk(tasks);
+	}
+
+	/** Clear a pending removal (call on API error before refresh). */
+	function clearPendingRemoval(taskId: string): void {
+		pendingRemovals.delete(taskId);
 	}
 
 	/** Optimistically add a task to the top of the local store. */
@@ -156,8 +202,10 @@ function createTasksStore() {
 		start,
 		stop,
 		refresh,
+		refreshWithLoading,
 		updateTaskLocal,
 		removeTaskLocal,
+		clearPendingRemoval,
 		addTaskLocal,
 		insertAfterLocal
 	};

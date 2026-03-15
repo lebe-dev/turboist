@@ -23,8 +23,11 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { portal } from '$lib/utils/portal';
 	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 
-	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean } = $props();
+	import type { Snippet } from 'svelte';
+
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, dropdownExtra }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; dropdownExtra?: Snippet } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -126,6 +129,7 @@
 			await completeTask(task.id);
 		} catch (e) {
 			console.error('Failed to complete task', e);
+			tasksStore.clearPendingRemoval(task.id);
 			tasksStore.refresh();
 		}
 	}
@@ -283,27 +287,31 @@
 	async function handleDuplicate() {
 		if (duplicating) return;
 		duplicating = true;
-		dropdownOpen = false;
 
-		// Optimistic: insert a local copy right after the original
+		// Snapshot task data and ID before dropdown closes
+		const sourceId = task.id;
 		const tempId = `temp-dup-${Date.now()}`;
 		const clone: import('$lib/api/types').Task = {
-			...task,
+			...$state.snapshot(task),
 			id: tempId,
 			children: [],
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
 		};
-		tasksStore.insertAfterLocal(task.id, clone);
+
+		// Let bits-ui close the dropdown first, then insert
+		dropdownOpen = false;
+		await tick();
+		tasksStore.insertAfterLocal(sourceId, clone);
 
 		try {
-			await duplicateTask(task.id);
+			await duplicateTask(sourceId);
 		} catch (e) {
 			console.error('Failed to duplicate task', e);
 			tasksStore.removeTaskLocal(tempId);
+		} finally {
+			duplicating = false;
 		}
-		tasksStore.refresh();
-		duplicating = false;
 	}
 
 	// --- Delete ---
@@ -319,6 +327,7 @@
 			await deleteTask(task.id);
 		} catch (e) {
 			console.error('Failed to delete task', e);
+			tasksStore.clearPendingRemoval(task.id);
 			tasksStore.refresh();
 		} finally {
 			deleting = false;
@@ -347,7 +356,7 @@
 	<div style="padding-left: {depth * 16}px">
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2"
+			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2 select-none"
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
 			ontouchstart={!completed ? handleTouchStart : undefined}
@@ -424,7 +433,7 @@
 					{@render taskContentInner()}
 				</div>
 			{:else}
-				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer overflow-hidden">
+				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer overflow-hidden" style="-webkit-touch-callout: none;">
 					{@render taskContentInner()}
 				</a>
 			{/if}
@@ -432,8 +441,10 @@
 			{#if !completed}
 				<DropdownMenu.Root bind:open={dropdownOpen}>
 					<DropdownMenu.Trigger
-						class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 transition-all duration-150 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground"
+						class="absolute right-1 top-1/2 -translate-y-1/2 flex h-8 w-8 md:h-6 md:w-6 items-center justify-center rounded text-muted-foreground/40 transition-all duration-150 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground"
 						onclick={(e: MouseEvent) => e.stopPropagation()}
+						ontouchstart={(e: TouchEvent) => e.stopPropagation()}
+						ontouchend={(e: TouchEvent) => e.stopPropagation()}
 					>
 						<EllipsisIcon class="h-5 w-5" />
 					</DropdownMenu.Trigger>
@@ -455,6 +466,11 @@
 								<PinIcon class="h-4 w-4" />
 								{isPinned ? 'Unpin' : 'Pin'}
 							</DropdownMenu.Item>
+						{/if}
+
+						{#if dropdownExtra}
+							<DropdownMenu.Separator />
+							{@render dropdownExtra()}
 						{/if}
 
 						<DropdownMenu.Separator />
@@ -529,7 +545,7 @@
 						<!-- Delete -->
 						<DropdownMenu.Item
 							variant="destructive"
-							onclick={() => { showDeleteConfirm = true; }}
+							onclick={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 						>
 							<TrashIcon class="h-4 w-4" />
 							Delete
