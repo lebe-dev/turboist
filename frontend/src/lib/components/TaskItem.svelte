@@ -443,7 +443,9 @@
 			{/if}
 
 			{#if actionButton}
-				{@render actionButton()}
+				<div class="relative z-10">
+					{@render actionButton()}
+				</div>
 			{/if}
 
 			{#if !completed}

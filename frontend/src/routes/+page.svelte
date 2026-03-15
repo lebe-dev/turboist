@@ -420,7 +420,7 @@
 		/>
 	{/if}
 
-	<div class="flex-1 overflow-y-auto px-1 py-2 md:px-3 md:py-3">
+	<div class="flex-1 overflow-y-auto px-1 pb-20 pt-2 md:px-3 md:py-3">
 		{#if tasksStore.loading}
 			<div class="flex items-center justify-center py-20">
 				<div class="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
