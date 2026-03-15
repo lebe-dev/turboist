@@ -29,8 +29,6 @@
 		onResetContext?: () => void;
 	} = $props();
 
-	const dayPartLabels = $derived(new Set(dayParts.map((dp) => dp.label)));
-
 	interface Section {
 		key: string;
 		label: string;
@@ -93,14 +91,6 @@
 		return result;
 	});
 
-	function stripDayPartLabels(task: Task): Task {
-		return {
-			...task,
-			labels: task.labels.filter((l) => !dayPartLabels.has(l)),
-			children: task.children.map(stripDayPartLabels)
-		};
-	}
-
 	function getHourInTimezone(tz: string): number {
 		if (!tz) return new Date().getHours();
 		return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date()));
@@ -125,6 +115,8 @@
 		if (section.dayPart === null) return hoveredSection !== section.key;
 		return section.dayPart.label !== currentDayPartLabel;
 	}
+
+	const dayPartLabels = $derived(new Set(dayParts.map((dp) => dp.label)));
 
 	function moveTask(task: Task, targetLabel: string | null) {
 		const newLabels = task.labels.filter((l) => !dayPartLabels.has(l));
@@ -182,7 +174,7 @@
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
 							<div class="animate-fade-in-up" style="animation-delay: {Math.min(i * 30, 300)}ms">
-								<TaskItem task={stripDayPartLabels(task)} {searchQuery} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'}>
+								<TaskItem {task} {searchQuery} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'}>
 									{#snippet dropdownExtra()}
 										<div class="px-2 py-1.5">
 											<p class="text-xs font-semibold text-muted-foreground">Time of day</p>

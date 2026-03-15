@@ -740,6 +740,8 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 {#if task}
 	{#snippet panelContent()}
 		<!-- Header -->
@@ -1364,14 +1366,13 @@
 	{/snippet}
 
 	{#if fullPage}
-		<div class="flex h-full flex-col" onkeydown={handleKeydown}>
+		<div class="flex h-full flex-col">
 			{@render panelContent()}
 		</div>
 	{:else}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm"
-			onkeydown={handleKeydown}
 			onclick={handleBackdropClick}
 		>
 			<div
