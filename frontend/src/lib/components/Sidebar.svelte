@@ -60,7 +60,7 @@
 	</div>
 
 	<div class="flex-1 overflow-y-auto {effectiveCollapsed ? 'px-1.5 py-2' : 'px-3 py-4'}">
-		<ContextSwitcher collapsed={effectiveCollapsed} />
+		<ContextSwitcher collapsed={effectiveCollapsed} onItemClick={onClose} />
 	</div>
 
 	<div class="border-t border-sidebar-border {effectiveCollapsed ? 'p-1.5' : 'p-3'}">

@@ -14,7 +14,7 @@
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import XIcon from '@lucide/svelte/icons/x';
 
-	let { collapsed = false }: { collapsed?: boolean } = $props();
+	let { collapsed = false, onItemClick }: { collapsed?: boolean; onItemClick?: () => void } = $props();
 
 	function closeTaskDetailIfOpen() {
 		if ($page.url.pathname.startsWith('/task/')) {
@@ -47,7 +47,7 @@
 				{contextsStore.activeView === view.id
 				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-			onclick={() => { closeTaskDetailIfOpen(); contextsStore.setView(view.id); }}
+			onclick={() => { closeTaskDetailIfOpen(); contextsStore.setView(view.id); onItemClick?.(); }}
 			title={collapsed ? view.label : undefined}
 		>
 			<ViewIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
@@ -74,6 +74,7 @@
 					{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
 					text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
 				title={collapsed ? pinned.content : undefined}
+			onclick={() => onItemClick?.()}
 			>
 				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
 				{#if !collapsed}
@@ -110,7 +111,7 @@
 				{contextsStore.activeContextId === ctx.id
 				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-			onclick={() => { closeTaskDetailIfOpen(); contextsStore.setContext(ctx.id); }}
+			onclick={() => { closeTaskDetailIfOpen(); contextsStore.setContext(ctx.id); onItemClick?.(); }}
 			title={collapsed ? ctx.display_name : undefined}
 		>
 			<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
@@ -138,7 +139,7 @@
 			{contextsStore.activeContextId === null
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => { closeTaskDetailIfOpen(); contextsStore.setContext(null); }}
+		onclick={() => { closeTaskDetailIfOpen(); contextsStore.setContext(null); onItemClick?.(); }}
 		title={collapsed ? 'Все' : undefined}
 	>
 		<LayersIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />

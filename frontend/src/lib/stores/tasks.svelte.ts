@@ -83,9 +83,9 @@ function createTasksStore() {
 		poller = null;
 	}
 
-	/** Перезапустить polling (при смене контекста/вида) */
-	function refresh(): void {
-		fetchTasks().catch((err) => {
+	/** Restart polling (on context/view change) */
+	function refresh(): Promise<void> {
+		return fetchTasks().catch((err) => {
 			error = err instanceof Error ? err.message : String(err);
 		});
 	}
@@ -120,6 +120,20 @@ function createTasksStore() {
 		tasks = [task, ...tasks];
 	}
 
+	/** Optimistically insert a task right after a sibling (at any depth). */
+	function insertAfterLocal(siblingId: string, newTask: Task): void {
+		function walk(list: Task[]): Task[] {
+			const result: Task[] = [];
+			for (const t of list) {
+				const updated = { ...t, children: walk(t.children) };
+				result.push(updated);
+				if (t.id === siblingId) result.push(newTask);
+			}
+			return result;
+		}
+		tasks = walk(tasks);
+	}
+
 	return {
 		get tasks() {
 			return tasks;
@@ -144,7 +158,8 @@ function createTasksStore() {
 		refresh,
 		updateTaskLocal,
 		removeTaskLocal,
-		addTaskLocal
+		addTaskLocal,
+		insertAfterLocal
 	};
 }
 

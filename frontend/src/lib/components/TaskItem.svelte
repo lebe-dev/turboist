@@ -246,6 +246,37 @@
 
 	let dropdownOpen = $state(false);
 
+	// --- Long-press to open dropdown ---
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let longPressTriggered = false;
+
+	function handleTouchStart() {
+		longPressTriggered = false;
+		longPressTimer = setTimeout(() => {
+			longPressTimer = null;
+			longPressTriggered = true;
+			dropdownOpen = true;
+		}, 500);
+	}
+
+	function handleTouchEnd(e: TouchEvent) {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+		if (longPressTriggered) {
+			e.preventDefault();
+			longPressTriggered = false;
+		}
+	}
+
+	function handleTouchMove() {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+	}
+
 	// --- Duplicate ---
 	let duplicating = $state(false);
 
@@ -253,14 +284,26 @@
 		if (duplicating) return;
 		duplicating = true;
 		dropdownOpen = false;
+
+		// Optimistic: insert a local copy right after the original
+		const tempId = `temp-dup-${Date.now()}`;
+		const clone: import('$lib/api/types').Task = {
+			...task,
+			id: tempId,
+			children: [],
+			sub_task_count: 0,
+			completed_sub_task_count: 0,
+		};
+		tasksStore.insertAfterLocal(task.id, clone);
+
 		try {
 			await duplicateTask(task.id);
-			tasksStore.refresh();
 		} catch (e) {
 			console.error('Failed to duplicate task', e);
-		} finally {
-			duplicating = false;
+			tasksStore.removeTaskLocal(tempId);
 		}
+		tasksStore.refresh();
+		duplicating = false;
 	}
 
 	// --- Delete ---
@@ -302,10 +345,16 @@
 	</div>
 {:else if visible}
 	<div style="padding-left: {depth * 16}px">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2"
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
+			ontouchstart={!completed ? handleTouchStart : undefined}
+			ontouchend={!completed ? handleTouchEnd : undefined}
+			ontouchmove={!completed ? handleTouchMove : undefined}
+			ontouchcancel={!completed ? handleTouchEnd : undefined}
+			oncontextmenu={!completed ? (e) => e.preventDefault() : undefined}
 		>
 			{#if completed}
 				<span class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/30 bg-muted-foreground/10">

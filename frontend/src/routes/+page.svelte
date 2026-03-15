@@ -17,6 +17,7 @@
 	import ChevronsDownUpIcon from '@lucide/svelte/icons/chevrons-down-up';
 	import ChevronsDownIcon from '@lucide/svelte/icons/chevrons-down';
 	import LinkIcon from '@lucide/svelte/icons/link';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import { toggleMode } from 'mode-watcher';
@@ -84,7 +85,6 @@
 		contextsStore.activeView;
 		searchQuery = '';
 		linksOnly = false;
-		mobileSearchOpen = false;
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {
@@ -105,7 +105,18 @@
 		}
 	}
 
-	let mobileSearchOpen = $state(false);
+	let syncing = $state(false);
+
+	async function handleSync() {
+		if (syncing) return;
+		syncing = true;
+		try {
+			await tasksStore.refresh();
+		} finally {
+			syncing = false;
+		}
+	}
+
 	let createDialogOpen = $state(false);
 	let quickCaptureOpen = $state(false);
 
@@ -186,6 +197,10 @@
 		{:else}
 			<div class="ml-auto"></div>
 		{/if}
+		<Button onclick={handleSync} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground" title="Sync" disabled={syncing}>
+			<RefreshCwIcon class="h-4 w-4 {syncing ? 'animate-spin' : ''}" />
+			<span class="sr-only">Sync</span>
+		</Button>
 		<Button onclick={toggleMode} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground">
 			<SunIcon class="h-4 w-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
 			<MoonIcon class="absolute h-4 w-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
@@ -194,33 +209,10 @@
 	</header>
 
 	<!-- Mobile header -->
-	<header class="flex shrink-0 items-center border-b border-border/50 px-3 py-2 md:hidden">
-		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
+	<header class="flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-2 md:hidden">
+		<h1 class="shrink-0 text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 		{#if !isCompletedView}
-			<div class="ml-auto flex items-center gap-0.5">
-				<Toggle bind:pressed={linksOnly} size="sm" class="h-8 w-8 text-muted-foreground" title="Show only tasks with links">
-					<LinkIcon class="h-4 w-4" />
-					<span class="sr-only">Filter by links</span>
-				</Toggle>
-				<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground">
-					{#if collapsedStore.hasAny}
-						<ChevronsDownIcon class="h-4 w-4" />
-					{:else}
-						<ChevronsDownUpIcon class="h-4 w-4" />
-					{/if}
-					<span class="sr-only">Toggle all subtasks</span>
-				</Button>
-				<Button onclick={() => (mobileSearchOpen = !mobileSearchOpen)} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground">
-					<SearchIcon class="h-4 w-4" />
-					<span class="sr-only">Search</span>
-				</Button>
-			</div>
-		{/if}
-	</header>
-
-	{#if mobileSearchOpen && !isCompletedView}
-		<div class="flex shrink-0 items-center border-b border-border/50 px-3 py-2 md:hidden">
-			<div class="relative flex flex-1 items-center">
+			<div class="relative flex min-w-0 flex-1 items-center">
 				<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
 				<input
 					type="text"
@@ -238,8 +230,24 @@
 					</button>
 				{/if}
 			</div>
-		</div>
-	{/if}
+			<Toggle bind:pressed={linksOnly} size="sm" class="h-8 w-8 shrink-0 text-muted-foreground" title="Show only tasks with links">
+				<LinkIcon class="h-4 w-4" />
+				<span class="sr-only">Filter by links</span>
+			</Toggle>
+			<Button onclick={toggleAllSubtasks} variant="ghost" size="icon" class="h-8 w-8 shrink-0 text-muted-foreground">
+				{#if collapsedStore.hasAny}
+					<ChevronsDownIcon class="h-4 w-4" />
+				{:else}
+					<ChevronsDownUpIcon class="h-4 w-4" />
+				{/if}
+				<span class="sr-only">Toggle all subtasks</span>
+			</Button>
+		{/if}
+		<Button onclick={handleSync} variant="ghost" size="icon" class="h-8 w-8 shrink-0 text-muted-foreground" title="Sync" disabled={syncing}>
+			<RefreshCwIcon class="h-4 w-4 {syncing ? 'animate-spin' : ''}" />
+			<span class="sr-only">Sync</span>
+		</Button>
+	</header>
 
 	{#if tasksStore.isStale}
 		<div class="flex shrink-0 items-center gap-2 border-b border-yellow-500/10 bg-yellow-500/5 px-3 py-2 md:px-6">

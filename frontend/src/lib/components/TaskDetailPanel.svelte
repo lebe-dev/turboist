@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
-	import { updateTask, createTask, completeTask, deleteTask, getLabels, getTask, getCompletedSubtasks } from '$lib/api/client';
+	import { updateTask, createTask, completeTask, deleteTask, duplicateTask, getLabels, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
+	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
@@ -17,6 +18,8 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import RepeatIcon from '@lucide/svelte/icons/repeat';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
+	import PinIcon from '@lucide/svelte/icons/pin';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import SunIcon from '@lucide/svelte/icons/sun';
@@ -65,7 +68,8 @@
 	});
 
 	// Prefer API version (has all children); fall back to store for instant display
-	const task = $derived(taskFromApi ?? taskFromStore);
+	// Guard: ignore stale taskFromApi when taskId has changed but $effect hasn't re-run yet
+	const task = $derived((taskFromApi?.id === taskId ? taskFromApi : null) ?? taskFromStore);
 
 	function updateLocal(updater: (t: Task) => Task) {
 		if (taskFromApi) taskFromApi = updater(taskFromApi);
@@ -381,11 +385,7 @@
 			}
 
 			tasksStore.removeTaskLocal(targetId);
-			if (parentId) {
-				onselect?.(parentId);
-			} else {
-				onclose();
-			}
+			onclose();
 		} else {
 			// Completing a subtask — capture info before removing
 			const child = task?.children.find((c) => c.id === targetId);
@@ -632,6 +632,13 @@
 	}
 
 	// --- Keyboard ---
+	function isEditingText(): boolean {
+		const el = document.activeElement;
+		if (!el) return false;
+		const tag = el.tagName;
+		return tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement).isContentEditable;
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
 			if (showCalendar) {
@@ -652,6 +659,12 @@
 				onclose();
 			}
 			e.stopPropagation();
+			return;
+		}
+
+		if ((e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey && !isEditingText()) {
+			e.preventDefault();
+			startAddSubtask();
 		}
 	}
 
@@ -662,6 +675,44 @@
 	}
 
 	const collapsed = $derived(task ? collapsedStore.isCollapsed(task.id) : false);
+
+	// --- Duplicate task ---
+	let duplicating = $state(false);
+
+	async function handleDuplicate() {
+		if (!task || duplicating) return;
+		duplicating = true;
+		const tempId = `temp-dup-${Date.now()}`;
+		const clone: Task = {
+			...task,
+			id: tempId,
+			children: [],
+			sub_task_count: 0,
+			completed_sub_task_count: 0,
+		};
+		tasksStore.insertAfterLocal(task.id, clone);
+		try {
+			await duplicateTask(task.id);
+		} catch (e) {
+			console.error('Failed to duplicate task', e);
+			tasksStore.removeTaskLocal(tempId);
+		}
+		tasksStore.refresh();
+		duplicating = false;
+	}
+
+	// --- Pin ---
+	const isPinned = $derived(task ? pinnedStore.isPinned(task.id) : false);
+	const canPin = $derived(isPinned || !pinnedStore.isFull);
+
+	function handlePin() {
+		if (!task) return;
+		if (isPinned) {
+			pinnedStore.unpin(task.id);
+		} else {
+			pinnedStore.pin({ id: task.id, content: task.content });
+		}
+	}
 
 	// --- Delete task ---
 	let showDeleteConfirm = $state(false);
@@ -690,14 +741,23 @@
 		<div class="flex shrink-0 items-center justify-between border-b border-border/50 px-5 py-3">
 			<div class="flex items-center gap-2 text-[12px] text-muted-foreground">
 				{#if fullPage}
-					<button
-						class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						onclick={onclose}
-					>
-						<ArrowLeftIcon class="h-3.5 w-3.5" />
-					</button>
-				{/if}
-				{#if task.parent_id && parentTask}
+					{#if task.parent_id && parentTask}
+						<button
+							class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							onclick={() => onselect?.(parentTask!.id)}
+						>
+							<ArrowLeftIcon class="h-3.5 w-3.5" />
+							<span class="truncate">{parentTask.content}</span>
+						</button>
+					{:else}
+						<button
+							class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							onclick={onclose}
+						>
+							<ArrowLeftIcon class="h-3.5 w-3.5" />
+						</button>
+					{/if}
+				{:else if task.parent_id && parentTask}
 					<button
 						class="flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-foreground"
 						onclick={() => onselect?.(parentTask!.id)}
@@ -714,7 +774,74 @@
 					>
 						<EllipsisVerticalIcon class="h-4 w-4" />
 					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" class="w-40">
+					<DropdownMenu.Content align="end" class="w-52">
+						<!-- Duplicate -->
+						<DropdownMenu.Item onclick={handleDuplicate} disabled={duplicating}>
+							<CopyPlusIcon class="h-4 w-4" />
+							Duplicate
+						</DropdownMenu.Item>
+
+						{#if canPin}
+							<DropdownMenu.Item onclick={handlePin}>
+								<PinIcon class="h-4 w-4" />
+								{isPinned ? 'Unpin' : 'Pin'}
+							</DropdownMenu.Item>
+						{/if}
+
+						<DropdownMenu.Separator />
+
+						<!-- Date -->
+						<div class="px-2 py-1.5">
+							<p class="text-xs font-semibold text-muted-foreground">Date</p>
+							<div class="mt-1.5 flex items-center gap-1">
+								<button
+									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+										{task.due?.date === todayDateStr() ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
+									onclick={() => setDateQuick(todayDateStr())}
+									aria-label="Today"
+								>
+									<CalendarIcon class="h-4 w-4" />
+								</button>
+								<button
+									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+										{task.due?.date === tomorrowDateStr() ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
+									onclick={() => setDateQuick(tomorrowDateStr())}
+									aria-label="Tomorrow"
+								>
+									<SunIcon class="h-4 w-4" />
+								</button>
+								{#if task.due}
+									<button
+										class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										onclick={clearDate}
+										aria-label="Clear date"
+									>
+										<XIcon class="h-3.5 w-3.5" />
+									</button>
+								{/if}
+							</div>
+						</div>
+
+						<!-- Priority -->
+						<div class="px-2 py-1.5">
+							<p class="text-xs font-semibold text-muted-foreground">Priority</p>
+							<div class="mt-1.5 flex items-center gap-1">
+								{#each priorityItems as p (p.value)}
+									<button
+										class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
+											{localPriority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
+										onclick={() => setPriority(p.value)}
+										aria-label={p.label}
+									>
+										<FlagIcon class="h-4 w-4" />
+									</button>
+								{/each}
+							</div>
+						</div>
+
+						<DropdownMenu.Separator />
+
+						<!-- Delete -->
 						<DropdownMenu.Item
 							variant="destructive"
 							onclick={() => { showDeleteConfirm = true; }}
