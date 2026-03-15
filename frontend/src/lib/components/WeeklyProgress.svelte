@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { t } from 'svelte-intl-precompile';
+
 	let { weekly_count, weekly_limit }: { weekly_count: number; weekly_limit: number } = $props();
 
 	const percent = $derived(Math.min(100, Math.round((weekly_count / weekly_limit) * 100)));
@@ -10,7 +12,7 @@
 	<div class="border-b border-border/50 px-6 py-3">
 		<div class="mb-2 flex items-baseline justify-between">
 			<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-				На неделе
+				{$t('tasks.weeklyLabel')}
 			</span>
 			<span
 				class="tabular-nums text-sm font-semibold
@@ -27,7 +29,7 @@
 			></div>
 		</div>
 		{#if isOver}
-			<p class="mt-1.5 text-[11px] text-destructive/80">Лимит задач на неделю превышен</p>
+			<p class="mt-1.5 text-[11px] text-destructive/80">{$t('tasks.weeklyLimitExceeded')}</p>
 		{/if}
 	</div>
 {/if}

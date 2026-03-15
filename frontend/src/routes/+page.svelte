@@ -20,6 +20,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
+	import { t } from 'svelte-intl-precompile';
 
 	onMount(() => {
 		tasksStore.start();
@@ -39,17 +40,17 @@
 		mounted = true;
 	});
 
-	const viewTitles: Record<string, string> = {
-		all: 'Все задачи',
-		inbox: 'Входящие',
-		today: 'Сегодня',
-		tomorrow: 'Завтра',
-		weekly: 'На неделе',
-		'next-week': 'На следующей неделе',
-		completed: 'Выполненные'
+	const viewTitleKeys: Record<string, string> = {
+		all: 'views.all',
+		inbox: 'views.inbox',
+		today: 'views.today',
+		tomorrow: 'views.tomorrow',
+		weekly: 'views.weekly',
+		'next-week': 'views.nextWeek',
+		completed: 'views.completed'
 	};
 
-	const title = $derived(viewTitles[contextsStore.activeView] ?? 'Задачи');
+	const title = $derived($t(viewTitleKeys[contextsStore.activeView] ?? 'views.tasks'));
 	const isCompletedView = $derived(contextsStore.activeView === 'completed');
 
 	let searchQuery = $state('');
@@ -177,7 +178,7 @@
 				<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
 				<input
 					type="text"
-					placeholder="Поиск..."
+					placeholder={$t('tasks.search')}
 					bind:value={searchQuery}
 					class="h-8 w-48 rounded-md border border-border/50 bg-transparent pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:border-border focus:outline-none"
 				/>
@@ -208,7 +209,7 @@
 				<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
 				<input
 					type="text"
-					placeholder="Поиск..."
+					placeholder={$t('tasks.search')}
 					bind:value={searchQuery}
 					class="h-8 w-full rounded-md border border-border/50 bg-transparent pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:border-border focus:outline-none"
 				/>
@@ -244,7 +245,7 @@
 	{#if tasksStore.isStale}
 		<div class="flex shrink-0 items-center gap-2 border-b border-yellow-500/10 bg-yellow-500/5 px-3 py-2 md:px-6">
 			<TriangleAlertIcon class="h-3.5 w-3.5 text-yellow-500/70" />
-			<span class="text-[12px] text-yellow-500/70">Данные могут быть устаревшими</span>
+			<span class="text-[12px] text-yellow-500/70">{$t('tasks.staleWarning')}</span>
 		</div>
 	{/if}
 

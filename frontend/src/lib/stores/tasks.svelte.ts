@@ -76,7 +76,7 @@ function createTasksStore() {
 		loading = true;
 		error = null;
 
-		// Получаем poll_interval из конфига
+		// Get poll_interval from config
 		let intervalMs = DEFAULT_INTERVAL_MS;
 		try {
 			const cfg = await getConfig();

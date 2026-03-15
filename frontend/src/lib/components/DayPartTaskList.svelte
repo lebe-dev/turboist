@@ -10,6 +10,7 @@
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import XIcon from '@lucide/svelte/icons/x';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { t } from 'svelte-intl-precompile';
 
 	let {
 		tasks,
@@ -82,7 +83,7 @@
 		const unassigned = sectionMap.get('__unassigned__')!;
 		result.push({
 			key: '__unassigned__',
-			label: 'Без времени',
+			label: $t('tasks.noTime'),
 			timeRange: '',
 			dayPart: null,
 			tasks: sortTasks(unassigned)
@@ -138,13 +139,13 @@
 {#if tasks.length === 0}
 	<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
 		<InboxIcon class="mb-3 h-10 w-10 animate-float opacity-20" />
-		<p class="text-sm">Нет задач</p>
+		<p class="text-sm">{$t('tasks.noTasks')}</p>
 		{#if contextName}
 			<p class="mt-2 text-xs text-muted-foreground/60">
-				Контекст: {contextName}
+				{$t('tasks.context', { values: { name: contextName } })}
 				{#if onResetContext}
 					<span class="mx-1">·</span>
-					<button class="text-muted-foreground/60 underline underline-offset-2 transition-colors hover:text-muted-foreground" onclick={onResetContext}>сбросить</button>
+					<button class="text-muted-foreground/60 underline underline-offset-2 transition-colors hover:text-muted-foreground" onclick={onResetContext}>{$t('tasks.reset')}</button>
 				{/if}
 			</p>
 		{/if}
@@ -177,7 +178,7 @@
 								<TaskItem {task} {searchQuery} dimmed={isDimmed(section)} hideTodayDue={view === 'today'} hideTomorrowDue={view === 'tomorrow'}>
 									{#snippet dropdownExtra()}
 										<div class="px-2 py-1.5">
-											<p class="text-xs font-semibold text-muted-foreground">Time of day</p>
+											<p class="text-xs font-semibold text-muted-foreground">{$t('task.timeOfDay')}</p>
 											<div class="mt-1.5 flex items-center gap-1">
 												{#each dayParts as dp, dpIdx (dp.label)}
 													{@const DPIcon = sectionIcon(dpIdx, dayParts.length)}

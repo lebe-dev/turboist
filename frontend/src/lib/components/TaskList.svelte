@@ -2,6 +2,7 @@
 	import type { Task } from '$lib/api/types';
 	import TaskItem from './TaskItem.svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
+	import { t } from 'svelte-intl-precompile';
 
 	let { tasks, searchQuery = '', completed = false, contextName = '', onResetContext }: { tasks: Task[]; searchQuery?: string; completed?: boolean; contextName?: string; onResetContext?: () => void } = $props();
 </script>
@@ -9,13 +10,13 @@
 {#if tasks.length === 0}
 	<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
 		<InboxIcon class="mb-3 h-10 w-10 animate-float opacity-20" />
-		<p class="text-sm">Нет задач</p>
+		<p class="text-sm">{$t('tasks.noTasks')}</p>
 		{#if contextName}
 			<p class="mt-2 text-xs text-muted-foreground/60">
-				Контекст: {contextName}
+				{$t('tasks.context', { values: { name: contextName } })}
 				{#if onResetContext}
 					<span class="mx-1">·</span>
-					<button class="text-muted-foreground/60 underline underline-offset-2 transition-colors hover:text-muted-foreground" onclick={onResetContext}>сбросить</button>
+					<button class="text-muted-foreground/60 underline underline-offset-2 transition-colors hover:text-muted-foreground" onclick={onResetContext}>{$t('tasks.reset')}</button>
 				{/if}
 			</p>
 		{/if}

@@ -3,6 +3,7 @@
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
 	import { toast } from 'svelte-sonner';
+	import { t } from 'svelte-intl-precompile';
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
@@ -36,7 +37,7 @@
 			const cfg = await getQuickCapture();
 			parentTaskId = cfg.parent_task_id;
 		} catch {
-			loadError = 'Quick capture not configured';
+			loadError = $t('quickCapture.notConfigured');
 		}
 	}
 
@@ -101,7 +102,7 @@
 				<div class="px-4 py-6 text-center text-sm text-muted-foreground">{loadError}</div>
 			{:else}
 				<div class="px-4 pt-4">
-					<h2 class="text-sm font-medium text-muted-foreground">Идея для Turboist:</h2>
+					<h2 class="text-sm font-medium text-muted-foreground">{$t('quickCapture.title')}</h2>
 				</div>
 				<!-- Content -->
 				<div class="px-4 pb-2 pt-2">
@@ -109,7 +110,7 @@
 						bind:this={contentInput}
 						bind:value={content}
 						type="text"
-						placeholder="Idea..."
+						placeholder={$t('quickCapture.ideaPlaceholder')}
 						class="w-full bg-transparent text-lg font-medium text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
 						onkeydown={(e) => {
 							if (e.key === 'Enter' && !e.shiftKey) {
@@ -120,7 +121,7 @@
 					/>
 					<textarea
 						bind:value={description}
-						placeholder="Description"
+						placeholder={$t('quickCapture.descriptionPlaceholder')}
 						rows="1"
 						class="mt-1 w-full resize-none bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/30 focus:outline-none"
 						oninput={(e) => {
@@ -143,7 +144,7 @@
 						class="rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onclick={() => (open = false)}
 					>
-						Cancel
+						{$t('dialog.cancel')}
 					</button>
 					<button
 						class="rounded-lg px-4 py-1.5 text-[13px] font-medium transition-colors
@@ -153,7 +154,7 @@
 						disabled={!content.trim() || submitting || !parentTaskId}
 						onclick={handleSubmit}
 					>
-						{submitting ? 'Saving...' : 'Save idea'}
+						{submitting ? $t('quickCapture.saving') : $t('quickCapture.saveIdea')}
 					</button>
 				</div>
 			{/if}

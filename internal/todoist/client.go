@@ -134,13 +134,16 @@ func (c *Client) GetLabels(ctx context.Context) ([]*Label, error) {
 	return result.Labels, nil
 }
 
-// AddTask creates a new task via the Todoist API.
-func (c *Client) AddTask(ctx context.Context, args *sync.TaskAddArgs) error {
-	_, err := c.taskSvc.AddTask(ctx, args)
+// AddTask creates a new task via the Todoist API and returns the new task ID.
+func (c *Client) AddTask(ctx context.Context, args *sync.TaskAddArgs) (string, error) {
+	resp, err := c.taskSvc.AddTask(ctx, args)
 	if err != nil {
-		return &APIError{Op: "AddTask", Err: err}
+		return "", &APIError{Op: "AddTask", Err: err}
 	}
-	return nil
+	for _, id := range resp.TempIDMapping {
+		return id, nil
+	}
+	return "", nil
 }
 
 // UpdateTask updates an existing task via the Todoist API.

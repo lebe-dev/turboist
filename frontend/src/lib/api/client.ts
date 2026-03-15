@@ -123,8 +123,9 @@ export async function completeTask(id: string): Promise<void> {
 	await request(`/api/tasks/${encodeURIComponent(id)}/complete`, { method: 'POST' });
 }
 
-export async function duplicateTask(id: string): Promise<void> {
-	await request(`/api/tasks/${encodeURIComponent(id)}/duplicate`, { method: 'POST' });
+export async function duplicateTask(id: string): Promise<string> {
+	const res = await request<{ task_id: string }>(`/api/tasks/${encodeURIComponent(id)}/duplicate`, { method: 'POST' });
+	return res.task_id;
 }
 
 export async function deleteTask(id: string): Promise<void> {

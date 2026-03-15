@@ -1,16 +1,23 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { setMode, userPrefersMode } from 'mode-watcher';
+	import { t, locale } from 'svelte-intl-precompile';
+	import { availableLocales } from '$lib/i18n';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import MonitorIcon from '@lucide/svelte/icons/monitor';
 
 	const themes = [
-		{ value: 'light' as const, label: 'Светлая', icon: SunIcon },
-		{ value: 'dark' as const, label: 'Тёмная', icon: MoonIcon },
-		{ value: 'system' as const, label: 'Система', icon: MonitorIcon }
+		{ value: 'light' as const, key: 'settings.theme.light', icon: SunIcon },
+		{ value: 'dark' as const, key: 'settings.theme.dark', icon: MoonIcon },
+		{ value: 'system' as const, key: 'settings.theme.system', icon: MonitorIcon }
 	];
+
+	const localeLabels: Record<string, string> = {
+		en: 'English',
+		ru: 'Русский'
+	};
 </script>
 
 <div class="flex h-full flex-col">
@@ -22,12 +29,12 @@
 		>
 			<ArrowLeftIcon class="h-4 w-4" />
 		</button>
-		<h1 class="text-sm font-semibold tracking-wide text-foreground">Настройки</h1>
+		<h1 class="text-sm font-semibold tracking-wide text-foreground">{$t('settings.title')}</h1>
 	</header>
 
 	<div class="flex-1 overflow-y-auto px-4 py-6 md:px-6">
 		<section>
-			<h2 class="mb-3 text-xs font-medium tracking-wider uppercase text-muted-foreground">Внешний вид</h2>
+			<h2 class="mb-3 text-xs font-medium tracking-wider uppercase text-muted-foreground">{$t('settings.appearance')}</h2>
 			<div class="grid grid-cols-3 gap-2">
 				{#each themes as theme}
 					<button
@@ -38,7 +45,24 @@
 						onclick={() => setMode(theme.value)}
 					>
 						<theme.icon class="h-5 w-5" />
-						{theme.label}
+						{$t(theme.key)}
+					</button>
+				{/each}
+			</div>
+		</section>
+
+		<section class="mt-8">
+			<h2 class="mb-3 text-xs font-medium tracking-wider uppercase text-muted-foreground">{$t('settings.language')}</h2>
+			<div class="grid grid-cols-2 gap-2">
+				{#each availableLocales as loc}
+					<button
+						class="flex items-center justify-center gap-2 rounded-lg border px-3 py-4 text-sm transition-colors
+							{$locale === loc
+								? 'border-primary/50 bg-primary/5 text-foreground'
+								: 'border-border/50 text-muted-foreground hover:bg-accent/30'}"
+						onclick={() => locale.set(loc)}
+					>
+						{localeLabels[loc] ?? loc}
 					</button>
 				{/each}
 			</div>

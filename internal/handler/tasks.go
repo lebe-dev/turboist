@@ -270,7 +270,7 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 	}
 
 	log.Debug("create task", "content", req.Content, "context", contextKey, "labels", labels)
-	if err := h.cache.AddTask(c.Context(), args); err != nil {
+	if _, err := h.cache.AddTask(c.Context(), args); err != nil {
 		log.Error("create task failed", "err", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -434,12 +434,13 @@ func (h *TasksHandler) Duplicate(c fiber.Ctx) error {
 	}
 
 	log.Debug("duplicate task", "id", id, "content", src.Content)
-	if err := h.cache.AddTask(c.Context(), args); err != nil {
+	newID, err := h.cache.AddTask(c.Context(), args)
+	if err != nil {
 		log.Error("duplicate task failed", "id", id, "err", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true, "task_id": newID})
 }
 
 // CompletedSubtasks handles GET /api/tasks/:id/completed-subtasks

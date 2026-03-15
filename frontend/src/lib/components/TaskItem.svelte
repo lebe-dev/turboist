@@ -24,6 +24,7 @@
 	import { portal } from '$lib/utils/portal';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
+	import { t, locale } from 'svelte-intl-precompile';
 
 	import type { Snippet } from 'svelte';
 
@@ -141,9 +142,10 @@
 		today.setHours(0, 0, 0, 0);
 		const tomorrow = new Date(today);
 		tomorrow.setDate(tomorrow.getDate() + 1);
-		if (d.getTime() === today.getTime()) return hideTodayDue ? null : 'Сегодня';
-		if (d.getTime() === tomorrow.getTime()) return hideTomorrowDue ? null : 'Завтра';
-		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+		if (d.getTime() === today.getTime()) return hideTodayDue ? null : $t('due.today');
+		if (d.getTime() === tomorrow.getTime()) return hideTomorrowDue ? null : $t('due.tomorrow');
+		const loc = $locale === 'ru' ? 'ru-RU' : 'en-US';
+		return d.toLocaleDateString(loc, { day: 'numeric', month: 'short' });
 	});
 
 	const isOverdue = $derived.by(() => {
@@ -157,7 +159,8 @@
 	const completedAtLabel = $derived.by(() => {
 		if (!task.completed_at) return null;
 		const d = new Date(task.completed_at);
-		return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+		const loc = $locale === 'ru' ? 'ru-RU' : 'en-US';
+		return d.toLocaleDateString(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 	});
 
 	const dayPartLabels = $derived(new Set(tasksStore.config?.day_parts?.map((dp) => dp.label) ?? []));
@@ -290,6 +293,7 @@
 
 		// Snapshot task data and ID before dropdown closes
 		const sourceId = task.id;
+		const taskContent = task.content;
 		const tempId = `temp-dup-${Date.now()}`;
 		const clone: import('$lib/api/types').Task = {
 			...$state.snapshot(task),
@@ -305,10 +309,19 @@
 		tasksStore.insertAfterLocal(sourceId, clone);
 
 		try {
-			await duplicateTask(sourceId);
+			const newId = await duplicateTask(sourceId);
+			toast.dismiss();
+			toast(`Duplicated: ${taskContent}`, {
+				duration: 5000,
+				action: {
+					label: 'Open',
+					onClick: () => goto(`/task/${newId}`)
+				}
+			});
 		} catch (e) {
 			console.error('Failed to duplicate task', e);
 			tasksStore.removeTaskLocal(tempId);
+			toast.error('Failed to duplicate task');
 		} finally {
 			duplicating = false;
 		}
@@ -452,19 +465,19 @@
 						<!-- Edit -->
 						<DropdownMenu.Item onclick={() => goto(`/task/${task.id}`)}>
 							<PencilIcon class="h-4 w-4" />
-							Edit
+							{$t('task.edit')}
 						</DropdownMenu.Item>
 
 						<!-- Duplicate -->
 						<DropdownMenu.Item onclick={handleDuplicate} disabled={duplicating}>
 							<CopyPlusIcon class="h-4 w-4" />
-							Duplicate
+							{$t('task.duplicate')}
 						</DropdownMenu.Item>
 
 						{#if canPin}
 							<DropdownMenu.Item onclick={(e: MouseEvent) => handlePin(e)}>
 								<PinIcon class="h-4 w-4" />
-								{isPinned ? 'Unpin' : 'Pin'}
+								{isPinned ? $t('task.unpin') : $t('task.pin')}
 							</DropdownMenu.Item>
 						{/if}
 
@@ -477,7 +490,7 @@
 
 						<!-- Date -->
 						<div class="px-2 py-1.5">
-							<p class="text-xs font-semibold text-muted-foreground">Date</p>
+							<p class="text-xs font-semibold text-muted-foreground">{$t('task.date')}</p>
 							<div class="mt-1.5 flex items-center gap-1">
 								<button
 									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
@@ -525,7 +538,7 @@
 
 						<!-- Priority -->
 						<div class="px-2 py-1.5">
-							<p class="text-xs font-semibold text-muted-foreground">Priority</p>
+							<p class="text-xs font-semibold text-muted-foreground">{$t('task.priority')}</p>
 							<div class="mt-1.5 flex items-center gap-1">
 								{#each priorityItems as p (p.value)}
 									<button
@@ -548,7 +561,7 @@
 							onclick={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 						>
 							<TrashIcon class="h-4 w-4" />
-							Delete
+							{$t('dialog.delete')}
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
@@ -580,23 +593,23 @@
 			class="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-xl"
 			onclick={(e) => e.stopPropagation()}
 		>
-			<h3 class="text-lg font-semibold text-foreground">Delete task?</h3>
+			<h3 class="text-lg font-semibold text-foreground">{$t('task.deleteConfirm')}</h3>
 			<p class="mt-2 truncate text-sm text-muted-foreground">
-				The <span class="font-medium text-foreground">{task.content}</span> task will be permanently deleted.
+				{$t('task.deleteDescription', { values: { name: task.content } })}
 			</p>
 			<div class="mt-4 flex justify-end gap-2">
 				<button
 					class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					onclick={() => { showDeleteConfirm = false; }}
 				>
-					Cancel
+					{$t('dialog.cancel')}
 				</button>
 				<button
 					class="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-destructive/90"
 					onclick={handleDelete}
 					disabled={deleting}
 				>
-					Delete
+					{$t('dialog.delete')}
 				</button>
 			</div>
 		</div>

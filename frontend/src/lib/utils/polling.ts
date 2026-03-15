@@ -1,9 +1,9 @@
 export interface PollingOptions {
-	/** Интервал в миллисекундах */
+	/** Interval in milliseconds */
 	interval: number;
-	/** Вызывается при каждом тике (и сразу при старте) */
+	/** Called on each tick (and immediately on start) */
 	fn: () => Promise<void>;
-	/** Вызывается при ошибке (кроме 401 — он останавливает polling) */
+	/** Called on error (except 401 which stops polling) */
 	onError?: (err: unknown) => void;
 }
 
@@ -28,7 +28,7 @@ export function createPoller(options: PollingOptions): Poller {
 		try {
 			await options.fn();
 		} catch (err) {
-			// 401 обрабатывается в client.ts (goto /login) — останавливаем polling
+			// 401 is handled in client.ts (goto /login) — stop polling
 			if (err instanceof Error && err.message.startsWith('401')) {
 				stop();
 				return;
@@ -46,7 +46,7 @@ export function createPoller(options: PollingOptions): Poller {
 				timerId = null;
 			}
 		} else if (running) {
-			// Немедленный тик при возврате на вкладку
+			// Immediate tick on tab re-focus
 			tick();
 		}
 	}

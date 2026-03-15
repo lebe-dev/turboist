@@ -9,6 +9,7 @@
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import XIcon from '@lucide/svelte/icons/x';
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import { t } from 'svelte-intl-precompile';
 
 	let content = $state('');
 	let description = $state('');
@@ -237,9 +238,9 @@
 			<div class="px-4 pt-3 pb-1">
 				<p class="text-[12px] font-medium text-muted-foreground">
 					{#if pending.parentId}
-						Next action for: <span class="text-foreground">{pending.parentContent}</span>
+						{$t('task.nextAction')} <span class="text-foreground">{pending.parentContent}</span>
 					{:else}
-						Follow-up for: <span class="text-foreground">{pending.completedTaskContent}</span>
+						{$t('task.followUp')} <span class="text-foreground">{pending.completedTaskContent}</span>
 					{/if}
 				</p>
 			</div>
@@ -250,7 +251,7 @@
 					bind:this={contentInput}
 					bind:value={content}
 					type="text"
-					placeholder="Next action..."
+					placeholder={$t('task.nextActionPlaceholder')}
 					class="w-full bg-transparent text-lg font-medium text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && !e.shiftKey) {
@@ -261,7 +262,7 @@
 				/>
 				<textarea
 					bind:value={description}
-					placeholder="Description"
+					placeholder={$t('task.description')}
 					rows="1"
 					class="mt-1 w-full resize-none bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/30 focus:outline-none"
 					oninput={(e) => {
@@ -306,7 +307,7 @@
 						onclick={() => { showLabelPicker = !showLabelPicker; showPriorityPicker = false; }}
 					>
 						<TagIcon class="h-3.5 w-3.5" />
-						Labels
+						{$t('task.labels')}
 					</button>
 
 					{#if showLabelPicker}
@@ -315,7 +316,7 @@
 								<input
 									bind:value={labelSearch}
 									type="text"
-									placeholder="Search labels..."
+									placeholder={$t('task.searchLabels')}
 									class="w-full rounded-md border border-border/50 bg-transparent px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/40 focus:border-border focus:outline-none"
 								/>
 							</div>
@@ -335,7 +336,7 @@
 									</button>
 								{/each}
 								{#if filteredLabels.length === 0}
-									<p class="px-2.5 py-2 text-[12px] text-muted-foreground">No labels found</p>
+									<p class="px-2.5 py-2 text-[12px] text-muted-foreground">{$t('task.noLabelsFound')}</p>
 								{/if}
 							</div>
 						</div>
@@ -349,7 +350,7 @@
 						onclick={() => { showPriorityPicker = !showPriorityPicker; showLabelPicker = false; }}
 					>
 						<FlagIcon class="h-3.5 w-3.5" />
-						{priority > 1 ? activePriority?.label : 'Priority'}
+						{priority > 1 ? activePriority?.label : $t('task.priority')}
 					</button>
 
 					{#if showPriorityPicker}
@@ -377,7 +378,7 @@
 					class="rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					onclick={handleSkip}
 				>
-					Skip
+					{$t('dialog.skip')}
 				</button>
 				<button
 					class="rounded-lg px-4 py-1.5 text-[13px] font-medium transition-colors
@@ -387,7 +388,7 @@
 					disabled={!content.trim() || submitting}
 					onclick={handleSubmit}
 				>
-					{submitting ? 'Adding...' : 'Add'}
+					{submitting ? $t('task.adding') : $t('task.add')}
 				</button>
 			</div>
 		</div>

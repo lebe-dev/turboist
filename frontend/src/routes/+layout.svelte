@@ -6,8 +6,11 @@
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
+	import { initLocale } from '$lib/i18n';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+
+	initLocale();
 
 	let { children } = $props();
 

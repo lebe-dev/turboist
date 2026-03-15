@@ -126,11 +126,13 @@ func (c *Cache) RefreshAfterMutation(ctx context.Context) error {
 }
 
 // AddTask creates a task via the Todoist API and refreshes the cache.
-func (c *Cache) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) error {
-	if err := c.client.AddTask(ctx, args); err != nil {
-		return err
+// Returns the new task ID.
+func (c *Cache) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error) {
+	newID, err := c.client.AddTask(ctx, args)
+	if err != nil {
+		return "", err
 	}
-	return c.RefreshAfterMutation(ctx)
+	return newID, c.RefreshAfterMutation(ctx)
 }
 
 // UpdateTask updates a task via the Todoist API and refreshes the cache.

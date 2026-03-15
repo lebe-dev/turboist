@@ -13,6 +13,7 @@
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import XIcon from '@lucide/svelte/icons/x';
+	import { t } from 'svelte-intl-precompile';
 
 	let { collapsed = false, onItemClick }: { collapsed?: boolean; onItemClick?: () => void } = $props();
 
@@ -22,14 +23,14 @@
 		}
 	}
 
-	const views = [
-		{ id: 'inbox' as const, label: 'Входящие', icon: InboxIcon },
-		{ id: 'today' as const, label: 'Сегодня', icon: SunIcon },
-		{ id: 'tomorrow' as const, label: 'Завтра', icon: SunriseIcon },
-		{ id: 'weekly' as const, label: 'На неделе', icon: CalendarDaysIcon },
-		{ id: 'next-week' as const, label: 'След. неделю', icon: CalendarClockIcon },
-		{ id: 'all' as const, label: 'Все задачи', icon: ListIcon },
-		{ id: 'completed' as const, label: 'Выполненные', icon: CircleCheckBigIcon }
+	const viewDefs = [
+		{ id: 'inbox' as const, key: 'views.inbox', icon: InboxIcon },
+		{ id: 'today' as const, key: 'views.today', icon: SunIcon },
+		{ id: 'tomorrow' as const, key: 'views.tomorrow', icon: SunriseIcon },
+		{ id: 'weekly' as const, key: 'views.weekly', icon: CalendarDaysIcon },
+		{ id: 'next-week' as const, key: 'views.nextWeek', icon: CalendarClockIcon },
+		{ id: 'all' as const, key: 'views.all', icon: ListIcon },
+		{ id: 'completed' as const, key: 'views.completed', icon: CircleCheckBigIcon }
 	];
 
 	function unpinTask(e: MouseEvent, taskId: string) {
@@ -39,8 +40,9 @@
 </script>
 
 <nav class="flex flex-col gap-0.5">
-	{#each views as view (view.id)}
+	{#each viewDefs as view (view.id)}
 		{@const ViewIcon = view.icon}
+		{@const viewLabel = $t(view.key)}
 		<button
 			class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
@@ -48,11 +50,11 @@
 				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 			onclick={() => { closeTaskDetailIfOpen(); contextsStore.setView(view.id); onItemClick?.(); }}
-			title={collapsed ? view.label : undefined}
+			title={collapsed ? viewLabel : undefined}
 		>
 			<ViewIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
 			{#if !collapsed}
-				{view.label}
+				{viewLabel}
 			{/if}
 		</button>
 	{/each}
@@ -63,7 +65,7 @@
 
 		{#if !collapsed}
 			<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-				Закреплённое
+				{$t('sidebar.pinned')}
 			</p>
 		{/if}
 
@@ -100,7 +102,7 @@
 		<p
 			class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60"
 		>
-			Контекст
+			{$t('sidebar.context')}
 		</p>
 	{/if}
 
@@ -140,11 +142,11 @@
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 		onclick={() => { closeTaskDetailIfOpen(); contextsStore.setContext(null); onItemClick?.(); }}
-		title={collapsed ? 'Все' : undefined}
+		title={collapsed ? $t('sidebar.all') : undefined}
 	>
 		<LayersIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
 		{#if !collapsed}
-			Все
+			{$t('sidebar.all')}
 		{/if}
 	</button>
 </nav>

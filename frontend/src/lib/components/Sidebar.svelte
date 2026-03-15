@@ -12,6 +12,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import PanelLeftCloseIcon from '@lucide/svelte/icons/panel-left-close';
 	import PanelLeftOpenIcon from '@lucide/svelte/icons/panel-left-open';
+	import { t } from 'svelte-intl-precompile';
 
 	let { onClose }: { onClose?: () => void } = $props();
 
@@ -74,22 +75,22 @@
 					: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'}
 				{effectiveCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'}"
 			onclick={() => { goto('/settings'); onClose?.(); }}
-			title={effectiveCollapsed ? 'Настройки' : undefined}
+			title={effectiveCollapsed ? $t('sidebar.settings') : undefined}
 		>
 			<SettingsIcon class="h-3.5 w-3.5 shrink-0" />
 			{#if !effectiveCollapsed}
-				Настройки
+				{$t('sidebar.settings')}
 			{/if}
 		</button>
 		<button
 			class="flex w-full items-center rounded-lg text-sm text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
 				{effectiveCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'}"
 			onclick={() => auth.logout()}
-			title={effectiveCollapsed ? 'Выйти' : undefined}
+			title={effectiveCollapsed ? $t('sidebar.logout') : undefined}
 		>
 			<LogOutIcon class="h-3.5 w-3.5 shrink-0" />
 			{#if !effectiveCollapsed}
-				Выйти
+				{$t('sidebar.logout')}
 				<span class="ml-auto text-xs text-muted-foreground/50">v{__APP_VERSION__}</span>
 			{/if}
 		</button>

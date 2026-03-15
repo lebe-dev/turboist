@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { auth } from '$lib/stores/auth.svelte';
 	import ZapIcon from '@lucide/svelte/icons/zap';
+	import { t } from 'svelte-intl-precompile';
 
 	let password = $state('');
 	let error = $state('');
@@ -13,7 +14,7 @@
 		try {
 			await auth.login(password);
 		} catch {
-			error = 'Неверный пароль';
+			error = $t('login.wrongPassword');
 		} finally {
 			loading = false;
 		}
@@ -33,7 +34,7 @@
 			<form onsubmit={handleSubmit} class="space-y-5">
 				<div class="space-y-2">
 					<label for="password" class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-						Пароль
+						{$t('login.password')}
 					</label>
 					<input
 						id="password"
@@ -61,11 +62,11 @@
 						active:scale-[0.98]
 						disabled:opacity-40 disabled:hover:shadow-none disabled:active:scale-100"
 				>
-					{loading ? 'Вход...' : 'Войти'}
+					{loading ? $t('login.signingIn') : $t('login.signIn')}
 				</button>
 			</form>
 
-			<p class="text-center text-[11px] text-muted-foreground/30">Augments your Todoist</p>
+			<p class="text-center text-[11px] text-muted-foreground/30">{$t('login.tagline')}</p>
 		</div>
 	</div>
 </div>
