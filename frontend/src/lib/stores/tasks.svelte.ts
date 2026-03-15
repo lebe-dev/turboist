@@ -21,6 +21,18 @@ function createTasksStore() {
 	// IDs of tasks optimistically removed — survives fetches until server catches up
 	const pendingRemovals = new Set<string>();
 
+	// Last seen JSON snapshots — used to skip reactive updates when data is unchanged
+	let lastTasksJson = '';
+	let lastMetaJson = '';
+
+	/** Only assign to $state if the value actually changed (avoids reactive cascade on poll). */
+	function setTasksIfChanged(newTasks: Task[]): void {
+		const json = JSON.stringify(newTasks);
+		if (json === lastTasksJson) return;
+		lastTasksJson = json;
+		tasks = newTasks;
+	}
+
 	async function fetchTasks(): Promise<void> {
 		const contextId = contextsStore.activeContextId ?? undefined;
 		const view: View = contextsStore.activeView;
@@ -52,15 +64,19 @@ function createTasksStore() {
 						return [{ ...t, children: filterPending(t.children) }];
 					});
 				}
-				tasks = filterPending(res.tasks);
+				setTasksIfChanged(filterPending(res.tasks));
 			} else {
-				tasks = res.tasks;
+				setTasksIfChanged(res.tasks);
 			}
 		} else {
-			tasks = res.tasks;
+			setTasksIfChanged(res.tasks);
 		}
 
-		meta = res.meta;
+		const newMetaJson = JSON.stringify(res.meta);
+		if (newMetaJson !== lastMetaJson) {
+			lastMetaJson = newMetaJson;
+			meta = res.meta;
+		}
 
 		if (cfg) {
 			config = cfg;
@@ -118,6 +134,8 @@ function createTasksStore() {
 
 	/** Clear tasks, show loading spinner, and fetch fresh data (for view transitions). */
 	async function refreshWithLoading(): Promise<void> {
+		lastTasksJson = '';
+		lastMetaJson = '';
 		tasks = [];
 		loading = true;
 		error = null;
@@ -130,8 +148,14 @@ function createTasksStore() {
 		}
 	}
 
+	/** Invalidate the JSON cache so the next fetch always applies. */
+	function invalidateCache(): void {
+		lastTasksJson = '';
+	}
+
 	/** Optimistically update a task's fields in the local store. */
 	function updateTaskLocal(taskId: string, updater: (task: Task) => Task): void {
+		invalidateCache();
 		function walk(list: Task[]): Task[] {
 			return list.map((t) => {
 				const updated = t.id === taskId ? updater(t) : t;
@@ -146,6 +170,7 @@ function createTasksStore() {
 
 	/** Optimistically remove a task (and its children) from the local store. */
 	function removeTaskLocal(taskId: string): void {
+		invalidateCache();
 		pendingRemovals.add(taskId);
 		function walk(list: Task[]): Task[] {
 			return list.flatMap((t) => {
@@ -163,11 +188,13 @@ function createTasksStore() {
 
 	/** Optimistically add a task to the top of the local store. */
 	function addTaskLocal(task: Task): void {
+		invalidateCache();
 		tasks = [task, ...tasks];
 	}
 
 	/** Optimistically insert a task right after a sibling (at any depth). */
 	function insertAfterLocal(siblingId: string, newTask: Task): void {
+		invalidateCache();
 		function walk(list: Task[]): Task[] {
 			const result: Task[] = [];
 			for (const t of list) {

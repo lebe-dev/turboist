@@ -80,8 +80,13 @@
 
 	let parentTask = $state<Task | null>(null);
 
+	// Stable primitives derived from task — prevents effects from re-running on every store update
+	const taskParentId = $derived(task?.parent_id ?? null);
+	const taskCompletedSubCount = $derived(task?.completed_sub_task_count ?? 0);
+	const taskLabelsKey = $derived(task ? task.labels.join(',') : null);
+
 	$effect(() => {
-		const pid = task?.parent_id ?? null;
+		const pid = taskParentId;
 		if (!pid) {
 			parentTask = null;
 			return;
@@ -104,12 +109,13 @@
 	let completedCollapsed = $state(true);
 
 	$effect(() => {
-		const t = task;
-		if (!t || t.completed_sub_task_count === 0) {
+		const id = taskId;
+		const count = taskCompletedSubCount;
+		if (!id || count === 0) {
 			completedSubtasks = [];
 			return;
 		}
-		getCompletedSubtasks(t.id)
+		getCompletedSubtasks(id)
 			.then((tasks) => { completedSubtasks = tasks; })
 			.catch(() => { completedSubtasks = []; });
 	});
@@ -298,10 +304,11 @@
 	let localLabels = $state<string[]>([]);
 	let labelsSyncing = $state(false);
 
-	// Sync local labels from store when task updates (skip during pending API call)
+	// Sync local labels from store when task labels change (skip during pending API call)
 	$effect(() => {
-		if (task && !labelsSyncing) {
-			localLabels = [...task.labels];
+		const key = taskLabelsKey;
+		if (key !== null && !labelsSyncing) {
+			localLabels = key ? key.split(',') : [];
 		}
 	});
 
