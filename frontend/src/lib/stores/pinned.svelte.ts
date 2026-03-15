@@ -1,50 +1,32 @@
-export interface PinnedTask {
-	id: string;
-	content: string;
-}
+import { patchState } from '$lib/api/client';
+import type { PinnedTask } from '$lib/api/types';
 
-const PINNED_KEY = 'turboist:pinned-tasks';
-
-function loadPinned(): PinnedTask[] {
-	try {
-		const raw = localStorage.getItem(PINNED_KEY);
-		return raw ? JSON.parse(raw) : [];
-	} catch {
-		return [];
-	}
-}
+export type { PinnedTask };
 
 function createPinnedStore() {
-	let items = $state<PinnedTask[]>(loadPinned());
+	let items = $state<PinnedTask[]>([]);
 	let maxPinned = $state(5);
 	let _selectedTaskId = $state<string | null>(null);
 
-	function save(): void {
-		localStorage.setItem(PINNED_KEY, JSON.stringify(items));
+	function init(tasks: PinnedTask[], max: number): void {
+		items = tasks;
+		maxPinned = max;
 	}
 
 	function pin(task: PinnedTask): void {
 		if (items.some((t) => t.id === task.id)) return;
 		if (items.length >= maxPinned) return;
 		items = [...items, task];
-		save();
+		patchState({ pinned_tasks: items }).catch(console.error);
 	}
 
 	function unpin(taskId: string): void {
 		items = items.filter((t) => t.id !== taskId);
-		save();
+		patchState({ pinned_tasks: items }).catch(console.error);
 	}
 
 	function isPinned(taskId: string): boolean {
 		return items.some((t) => t.id === taskId);
-	}
-
-	function setMaxPinned(value: number): void {
-		maxPinned = value;
-		if (items.length > maxPinned) {
-			items = items.slice(0, maxPinned);
-			save();
-		}
 	}
 
 	function selectTask(taskId: string): void {
@@ -73,7 +55,7 @@ function createPinnedStore() {
 		pin,
 		unpin,
 		isPinned,
-		setMaxPinned,
+		init,
 		selectTask,
 		consumeSelection
 	};

@@ -25,6 +25,7 @@ const (
 	TaskSortPriority TaskSort = "priority"
 	TaskSortDueDate  TaskSort = "due_date"
 	TaskSortContent  TaskSort = "content"
+	TaskSortAddedAt  TaskSort = "added_at"
 )
 
 type CompletedConfig struct {
@@ -42,7 +43,7 @@ type AppConfig struct {
 	MaxPinned    int
 	Contexts     []ContextConfig
 	Weekly       WeeklyConfig
-	NextWeek     NextWeekConfig
+	Backlog      BacklogConfig
 	Today        TodayConfig
 	Tomorrow     TomorrowConfig
 	Completed    CompletedConfig
@@ -93,8 +94,10 @@ type WeeklyConfig struct {
 	MaxTasks int    `yaml:"max_tasks"`
 }
 
-type NextWeekConfig struct {
-	Label string `yaml:"label"`
+type BacklogConfig struct {
+	Label    string   `yaml:"label"`
+	TaskSort TaskSort `yaml:"task_sort"`
+	MaxLimit int      `yaml:"max_limit"`
 }
 
 type DayPartConfig struct {
@@ -123,7 +126,7 @@ type yamlFile struct {
 	MaxPinned    int                 `yaml:"max_pinned"`
 	Contexts     []ContextConfig     `yaml:"contexts"`
 	Weekly       WeeklyConfig        `yaml:"weekly"`
-	NextWeek     NextWeekConfig      `yaml:"next_week"`
+	Backlog      BacklogConfig       `yaml:"backlog"`
 	Today        TodayConfig         `yaml:"today"`
 	Tomorrow     TomorrowConfig      `yaml:"tomorrow"`
 	Completed    CompletedConfig     `yaml:"completed"`
@@ -169,7 +172,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 
 	taskSort := TaskSort(yf.TaskSort)
 	switch taskSort {
-	case TaskSortPriority, TaskSortDueDate, TaskSortContent:
+	case TaskSortPriority, TaskSortDueDate, TaskSortContent, TaskSortAddedAt:
 	case "":
 		taskSort = TaskSortPriority
 	default:
@@ -186,6 +189,18 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		maxPinned = 5
 	}
 
+	backlog := yf.Backlog
+	switch backlog.TaskSort {
+	case TaskSortPriority, TaskSortDueDate, TaskSortContent, TaskSortAddedAt:
+	case "":
+		backlog.TaskSort = TaskSortAddedAt
+	default:
+		return AppConfig{}, fmt.Errorf("backlog.task_sort: unknown value %q", backlog.TaskSort)
+	}
+	if backlog.MaxLimit <= 0 {
+		backlog.MaxLimit = 20
+	}
+
 	app := AppConfig{
 		PollInterval: pollInterval,
 		Timezone:     tz,
@@ -193,7 +208,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		MaxPinned:    maxPinned,
 		Contexts:     yf.Contexts,
 		Weekly:       yf.Weekly,
-		NextWeek:     yf.NextWeek,
+		Backlog:      backlog,
 		Today:        yf.Today,
 		Tomorrow:     yf.Tomorrow,
 		Completed:    completed,

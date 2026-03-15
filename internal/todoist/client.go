@@ -9,6 +9,7 @@ import (
 	"github.com/CnTeng/todoist-api-go/rest"
 	"github.com/CnTeng/todoist-api-go/sync"
 	extclient "github.com/CnTeng/todoist-api-go/todoist"
+	"github.com/google/uuid"
 )
 
 // APIError wraps errors returned by the Todoist API.
@@ -151,6 +152,25 @@ func (c *Client) UpdateTask(ctx context.Context, args *sync.TaskUpdateArgs) erro
 	_, err := c.taskSvc.UpdateTask(ctx, args)
 	if err != nil {
 		return &APIError{Op: "UpdateTask", Err: err}
+	}
+	return nil
+}
+
+// SetTasksLabels updates labels for multiple tasks in a single sync call.
+// Unlike UpdateTask, this always sends the labels field (even when empty)
+// to work around the omitempty tag on TaskUpdateArgs.Labels.
+func (c *Client) SetTasksLabels(ctx context.Context, updates map[string][]string) error {
+	cmds := make(sync.Commands, 0, len(updates))
+	for id, labels := range updates {
+		cmds = append(cmds, &sync.Command{
+			Type: "item_update",
+			UUID: uuid.New(),
+			Args: map[string]any{"id": id, "labels": labels},
+		})
+	}
+	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	if err != nil {
+		return &APIError{Op: "SetTasksLabels", Err: err}
 	}
 	return nil
 }

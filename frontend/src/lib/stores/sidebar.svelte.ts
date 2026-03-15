@@ -1,15 +1,11 @@
-const STORAGE_KEY = 'turboist:sidebar-collapsed';
-
-function load(): boolean {
-	try {
-		return localStorage.getItem(STORAGE_KEY) === 'true';
-	} catch {
-		return false;
-	}
-}
+import { patchState } from '$lib/api/client';
 
 function createSidebarStore() {
-	let collapsed = $state(load());
+	let collapsed = $state(false);
+
+	function init(initialCollapsed: boolean): void {
+		collapsed = initialCollapsed;
+	}
 
 	return {
 		get collapsed(): boolean {
@@ -17,8 +13,9 @@ function createSidebarStore() {
 		},
 		toggle(): void {
 			collapsed = !collapsed;
-			localStorage.setItem(STORAGE_KEY, String(collapsed));
-		}
+			patchState({ sidebar_collapsed: collapsed }).catch(console.error);
+		},
+		init
 	};
 }
 

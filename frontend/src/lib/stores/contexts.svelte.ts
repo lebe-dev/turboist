@@ -1,57 +1,32 @@
-import { getContexts } from '$lib/api/client';
+import { patchState } from '$lib/api/client';
 import type { Context } from '$lib/api/types';
 
-export type View = 'all' | 'inbox' | 'weekly' | 'next-week' | 'today' | 'tomorrow' | 'completed';
-
-const CONTEXT_KEY = 'turboist:context';
-const VIEW_KEY = 'turboist:view';
-
-const VALID_VIEWS: View[] = ['all', 'inbox', 'today', 'tomorrow', 'weekly', 'next-week', 'completed'];
-
-function loadContext(): string | null {
-	try {
-		return localStorage.getItem(CONTEXT_KEY) || null;
-	} catch {
-		return null;
-	}
-}
-
-function loadView(): View {
-	try {
-		const v = localStorage.getItem(VIEW_KEY) as View | null;
-		if (v && VALID_VIEWS.includes(v)) return v;
-	} catch {
-		// ignore
-	}
-	return 'all';
-}
+export type View = 'all' | 'inbox' | 'weekly' | 'backlog' | 'today' | 'tomorrow' | 'completed';
 
 function createContextsStore() {
 	let contexts = $state<Context[]>([]);
-	let activeContextId = $state<string | null>(loadContext());
-	let activeView = $state<View>(loadView());
+	let activeContextId = $state<string | null>(null);
+	let activeView = $state<View>('all');
 
-	async function load(): Promise<void> {
-		contexts = await getContexts();
+	function init(items: Context[], contextId: string, view: View): void {
+		contexts = items;
+		activeContextId = contextId || null;
+		activeView = view;
 		// Validate saved context still exists
 		if (activeContextId && !contexts.some((c) => c.id === activeContextId)) {
 			activeContextId = null;
-			localStorage.removeItem(CONTEXT_KEY);
+			patchState({ active_context_id: '' }).catch(console.error);
 		}
 	}
 
 	function setContext(id: string | null): void {
 		activeContextId = id;
-		if (id) {
-			localStorage.setItem(CONTEXT_KEY, id);
-		} else {
-			localStorage.removeItem(CONTEXT_KEY);
-		}
+		patchState({ active_context_id: id ?? '' }).catch(console.error);
 	}
 
 	function setView(view: View): void {
 		activeView = view;
-		localStorage.setItem(VIEW_KEY, view);
+		patchState({ active_view: view }).catch(console.error);
 	}
 
 	return {
@@ -64,7 +39,7 @@ function createContextsStore() {
 		get activeView() {
 			return activeView;
 		},
-		load,
+		init,
 		setContext,
 		setView
 	};

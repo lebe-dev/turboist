@@ -14,11 +14,13 @@
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
+	import CopyIcon from '@lucide/svelte/icons/copy';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import XIcon from '@lucide/svelte/icons/x';
 	import FlagIcon from '@lucide/svelte/icons/flag';
+	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { portal } from '$lib/utils/portal';
@@ -168,6 +170,26 @@
 
 	const isPinned = $derived(pinnedStore.isPinned(task.id));
 	const canPin = $derived(isPinned || !pinnedStore.isFull);
+
+	const backlogLabel = $derived(tasksStore.config?.backlog_label ?? '');
+	const isInBacklog = $derived(backlogLabel !== '' && task.labels.includes(backlogLabel));
+
+	async function toggleBacklog() {
+		if (!backlogLabel) return;
+		dropdownOpen = false;
+
+		const newLabels = isInBacklog
+			? task.labels.filter((l) => l !== backlogLabel)
+			: [...task.labels, backlogLabel];
+
+		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, labels: newLabels }));
+		try {
+			await updateTask(task.id, { labels: newLabels });
+		} catch (e) {
+			console.error('Failed to toggle backlog label', e);
+		}
+		tasksStore.refresh();
+	}
 
 	function handlePin(e: MouseEvent) {
 		e.stopPropagation();
@@ -478,10 +500,23 @@
 							{$t('task.duplicate')}
 						</DropdownMenu.Item>
 
+						<!-- Copy -->
+						<DropdownMenu.Item onclick={() => { navigator.clipboard.writeText(task.content); dropdownOpen = false; }}>
+							<CopyIcon class="h-4 w-4" />
+							{$t('task.copy')}
+						</DropdownMenu.Item>
+
 						{#if canPin}
 							<DropdownMenu.Item onclick={(e: MouseEvent) => handlePin(e)}>
 								<PinIcon class="h-4 w-4" />
 								{isPinned ? $t('task.unpin') : $t('task.pin')}
+							</DropdownMenu.Item>
+						{/if}
+
+						{#if backlogLabel}
+							<DropdownMenu.Item onclick={toggleBacklog}>
+								<InboxIcon class="h-4 w-4" />
+								{isInBacklog ? $t('task.removeFromBacklog') : $t('task.addToBacklog')}
 							</DropdownMenu.Item>
 						{/if}
 

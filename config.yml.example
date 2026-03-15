@@ -47,9 +47,11 @@ weekly:
   max_tasks: 15
 
 # Tasks for the next week
-next_week:
+backlog:
   # Todoist label for next week's tasks
   label: "на след неделе"
+
+  #task_sort: ""
 
 # Task sorting. Options: priority, due_date, content
 # Default: priority (highest first, then by due date)
@@ -64,13 +66,13 @@ today:
   # Omit or leave empty to disable sectioning.
   day_parts:
     - label: "утро"
-      start: 6
+      start: 8
       end: 12
     - label: "день"
       start: 12
-      end: 18
+      end: 16
     - label: "вечер"
-      start: 18
+      start: 16
       end: 23
 
 # Tasks for tomorrow (filtered by due date)

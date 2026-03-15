@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { createTask, getQuickCapture } from '$lib/api/client';
+	import { createTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
 	import { toast } from 'svelte-sonner';
 	import { t } from 'svelte-intl-precompile';
@@ -10,7 +11,7 @@
 	let content = $state('');
 	let description = $state('');
 	let submitting = $state(false);
-	let parentTaskId = $state<string | null>(null);
+	const parentTaskId = $derived(appStore.quickCapture?.parent_task_id ?? null);
 	let loadError = $state<string | null>(null);
 
 	let contentInput: HTMLInputElement | undefined = $state();
@@ -21,8 +22,7 @@
 			content = 'turboist: ';
 			description = '';
 			submitting = false;
-			loadError = null;
-			loadConfig();
+			loadError = parentTaskId ? null : $t('quickCapture.notConfigured');
 			requestAnimationFrame(() => {
 				if (contentInput) {
 					contentInput.focus();
@@ -31,15 +31,6 @@
 			});
 		}
 	});
-
-	async function loadConfig() {
-		try {
-			const cfg = await getQuickCapture();
-			parentTaskId = cfg.parent_task_id;
-		} catch {
-			loadError = $t('quickCapture.notConfigured');
-		}
-	}
 
 	async function handleSubmit() {
 		if (!content.trim() || submitting || !parentTaskId) return;

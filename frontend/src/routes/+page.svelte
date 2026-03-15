@@ -8,6 +8,7 @@
 	import TaskList from '$lib/components/TaskList.svelte';
 	import DayPartTaskList from '$lib/components/DayPartTaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
+	import BacklogProgress from '$lib/components/BacklogProgress.svelte';
 	import PlanningView from '$lib/components/PlanningView.svelte';
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
@@ -48,7 +49,7 @@
 		today: 'views.today',
 		tomorrow: 'views.tomorrow',
 		weekly: 'views.weekly',
-		'next-week': 'views.nextWeek',
+		backlog: 'views.backlog',
 		completed: 'views.completed'
 	};
 
@@ -136,6 +137,12 @@
 		if (contextsStore.activeView === 'tomorrow') return tomorrowStr();
 		return '';
 	});
+
+	const isBacklogAtLimit = $derived(
+		contextsStore.activeView === 'backlog' &&
+		tasksStore.meta.backlog_limit > 0 &&
+		tasksStore.meta.backlog_count >= tasksStore.meta.backlog_limit
+	);
 </script>
 
 <svelte:window
@@ -146,7 +153,7 @@
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		if (createDialogOpen || quickCaptureOpen) return;
 
-		if (e.key === 'q') {
+		if (e.key === 'q' && !isBacklogAtLimit) {
 			e.preventDefault();
 			createDialogOpen = true;
 		} else if (e.key === 'i') {
@@ -165,7 +172,7 @@
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 		{#if !isCompletedView}
-			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-1 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)">
+			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-1 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)" disabled={isBacklogAtLimit}>
 				<PlusIcon class="h-4 w-4" />
 				<span class="sr-only">Add task</span>
 			</Button>
@@ -263,6 +270,13 @@
 		/>
 	{/if}
 
+	{#if contextsStore.activeView === 'backlog'}
+		<BacklogProgress
+			backlog_count={tasksStore.meta.backlog_count}
+			backlog_limit={tasksStore.meta.backlog_limit}
+		/>
+	{/if}
+
 	<div class="flex-1 overflow-y-auto px-1 py-2 md:px-3 md:py-3">
 		{#if tasksStore.loading}
 			<div class="flex items-center justify-center py-20">
@@ -288,7 +302,7 @@
 	</div>
 </div>
 
-{#if !isCompletedView}
+{#if !isCompletedView && !isBacklogAtLimit}
 	<!-- Mobile FAB -->
 	<button
 		class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden"

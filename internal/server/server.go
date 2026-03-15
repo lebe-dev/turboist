@@ -14,10 +14,11 @@ import (
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/handler"
+	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
 
-func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
+func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: "turboist",
 	})
@@ -25,9 +26,9 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 	app.Use(recover.New())
 	app.Use(logger.New())
 
-	store := auth.NewSessionStore()
-	authHandler := handler.NewAuthHandler(store, cfg.Env.AdminPassword, cfg.Env.Dev)
-	app.Use(auth.NewMiddleware(store))
+	sessionStore := auth.NewSessionStore()
+	authHandler := handler.NewAuthHandler(sessionStore, cfg.Env.AdminPassword, cfg.Env.Dev)
+	app.Use(auth.NewMiddleware(sessionStore))
 
 	healthHandler := handler.NewHealthHandler(cache)
 	app.Get("/api/health", healthHandler.Health)
@@ -41,6 +42,7 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 	app.Get("/api/tasks/completed", tasksHandler.Completed)
 	app.Get("/api/tasks/tomorrow", tasksHandler.Tomorrow)
 	app.Get("/api/tasks/backlog", tasksHandler.Backlog)
+	app.Post("/api/tasks/reset-weekly", tasksHandler.ResetWeekly)
 	app.Post("/api/tasks", tasksHandler.Create)
 	app.Get("/api/tasks/:id", tasksHandler.GetByID)
 	app.Patch("/api/tasks/:id", tasksHandler.Update)
@@ -49,20 +51,11 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 	app.Delete("/api/tasks/:id", tasksHandler.Delete)
 	app.Get("/api/tasks/:id/completed-subtasks", tasksHandler.CompletedSubtasks)
 
-	quickCaptureHandler := handler.NewQuickCaptureHandler(cache, &cfg.App)
-	app.Get("/api/quick-capture", quickCaptureHandler.QuickCapture)
-
-	projectsHandler := handler.NewProjectsHandler(cache)
-	app.Get("/api/projects", projectsHandler.Projects)
-
-	labelsHandler := handler.NewLabelsHandler(cache)
-	app.Get("/api/labels", labelsHandler.Labels)
-
-	contextsHandler := handler.NewContextsHandler(&cfg.App)
-	app.Get("/api/contexts", contextsHandler.Contexts)
-
-	configHandler := handler.NewConfigHandler(cache, &cfg.App)
+	configHandler := handler.NewConfigHandler(cache, &cfg.App, store)
 	app.Get("/api/config", configHandler.Config)
+
+	stateHandler := handler.NewStateHandler(store, &cfg.App)
+	app.Patch("/api/state", stateHandler.Update)
 
 	api := app.Group("/api/auth")
 	api.Post("/login", authHandler.Login)

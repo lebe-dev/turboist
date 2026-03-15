@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { createTask, getLabels } from '$lib/api/client';
+	import { createTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import type { DayPart, Label, Task } from '$lib/api/types';
-	import { onMount } from 'svelte';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -18,7 +18,7 @@
 	let priority = $state(1);
 	let submitting = $state(false);
 
-	let allLabels = $state<Label[]>([]);
+	const allLabels = $derived(appStore.labels);
 	let showLabelPicker = $state(false);
 	let showPriorityPicker = $state(false);
 	let labelSearch = $state('');
@@ -30,7 +30,8 @@
 		const ctxId = contextsStore.activeContextId;
 		if (!ctxId) return [];
 		const ctx = contextsStore.contexts.find((c) => c.id === ctxId);
-		return ctx?.filters.labels ?? [];
+		if (!ctx?.inherit_labels) return [];
+		return ctx.filters.labels ?? [];
 	});
 
 	const filteredLabels = $derived.by(() => {
@@ -47,14 +48,6 @@
 	];
 
 	const activePriority = $derived(priorityItems.find((p) => p.value === priority));
-
-	onMount(async () => {
-		try {
-			allLabels = await getLabels();
-		} catch {
-			// ignore
-		}
-	});
 
 	function getHourInTimezone(tz: string | undefined): number {
 		if (!tz) return new Date().getHours();
@@ -75,6 +68,13 @@
 			const dpLabel = currentDayPartLabel();
 			if (dpLabel && !initial.includes(dpLabel)) {
 				initial.push(dpLabel);
+			}
+			// Auto-add backlog label when creating from backlog view
+			if (contextsStore.activeView === 'backlog') {
+				const bl = tasksStore.config?.backlog_label;
+				if (bl && !initial.includes(bl)) {
+					initial.push(bl);
+				}
 			}
 			selectedLabels = initial;
 			content = '';

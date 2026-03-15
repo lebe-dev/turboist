@@ -1,5 +1,12 @@
 import { goto } from '$app/navigation';
-import type { Config, Context, CreateTaskRequest, Label, Project, QuickCaptureConfig, Task, TasksResponse, UpdateTaskRequest } from './types';
+import type {
+	AppConfig,
+	CreateTaskRequest,
+	Task,
+	TasksResponse,
+	UpdateTaskRequest,
+	UserState
+} from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const res = await fetch(path, {
@@ -87,26 +94,19 @@ export async function getBacklogTasks(context?: string): Promise<TasksResponse> 
 	return request<TasksResponse>(`/api/tasks/backlog${params}`);
 }
 
-export async function getProjects(): Promise<Project[]> {
-	const res = await request<{ projects: Project[] }>('/api/projects');
-	return res.projects;
+export async function resetWeeklyLabel(): Promise<{ updated: number }> {
+	return request<{ updated: number }>('/api/tasks/reset-weekly', { method: 'POST' });
 }
 
-export async function getLabels(): Promise<Label[]> {
-	const res = await request<{ labels: Label[] }>('/api/labels');
-	return res.labels;
+export async function getAppConfig(): Promise<AppConfig> {
+	return request<AppConfig>('/api/config');
 }
 
-export async function getContexts(): Promise<Context[]> {
-	return request<Context[]>('/api/contexts');
-}
-
-export async function getConfig(): Promise<Config> {
-	return request<Config>('/api/config');
-}
-
-export async function getQuickCapture(): Promise<QuickCaptureConfig> {
-	return request<QuickCaptureConfig>('/api/quick-capture');
+export async function patchState(update: Partial<UserState>): Promise<void> {
+	await request('/api/state', {
+		method: 'PATCH',
+		body: JSON.stringify(update)
+	});
 }
 
 export async function createTask(data: CreateTaskRequest, context?: string): Promise<void> {
@@ -129,7 +129,10 @@ export async function completeTask(id: string): Promise<void> {
 }
 
 export async function duplicateTask(id: string): Promise<string> {
-	const res = await request<{ task_id: string }>(`/api/tasks/${encodeURIComponent(id)}/duplicate`, { method: 'POST' });
+	const res = await request<{ task_id: string }>(
+		`/api/tasks/${encodeURIComponent(id)}/duplicate`,
+		{ method: 'POST' }
+	);
 	return res.task_id;
 }
 
@@ -138,6 +141,8 @@ export async function deleteTask(id: string): Promise<void> {
 }
 
 export async function getCompletedSubtasks(id: string): Promise<Task[]> {
-	const res = await request<{ tasks: Task[] }>(`/api/tasks/${encodeURIComponent(id)}/completed-subtasks`);
+	const res = await request<{ tasks: Task[] }>(
+		`/api/tasks/${encodeURIComponent(id)}/completed-subtasks`
+	);
 	return res.tasks;
 }

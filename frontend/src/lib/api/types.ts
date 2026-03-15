@@ -25,6 +25,8 @@ export interface Meta {
 	context: string;
 	weekly_limit: number;
 	weekly_count: number;
+	backlog_limit: number;
+	backlog_count: number;
 }
 
 export interface TasksResponse {
@@ -90,12 +92,29 @@ export interface DayPart {
 	end: number; // hour 0-23
 }
 
-export interface Config {
+export interface PinnedTask {
+	id: string;
+	content: string;
+}
+
+export type View = 'all' | 'inbox' | 'today' | 'tomorrow' | 'weekly' | 'backlog' | 'completed';
+
+export interface UserState {
+	pinned_tasks: PinnedTask[];
+	active_context_id: string;
+	active_view: View;
+	collapsed_ids: string[];
+	sidebar_collapsed: boolean;
+	planning_open: boolean;
+}
+
+export interface Settings {
 	poll_interval: number; // seconds
 	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
 	weekly_label: string;
-	next_week_label: string;
+	backlog_label: string;
 	weekly_limit: number;
+	backlog_limit: number;
 	completed_days: number;
 	max_pinned: number;
 	last_synced_at: string | null; // ISO 8601
@@ -105,3 +124,15 @@ export interface Config {
 export interface QuickCaptureConfig {
 	parent_task_id: string;
 }
+
+export interface AppConfig {
+	settings: Settings;
+	contexts: Context[];
+	projects: Project[];
+	labels: Label[];
+	quick_capture: QuickCaptureConfig | null;
+	state: UserState;
+}
+
+// Legacy alias for backward compatibility within tasks/planning stores
+export type Config = Settings;

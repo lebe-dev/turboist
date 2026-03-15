@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { createTask, getLabels, getTask } from '$lib/api/client';
+	import { createTask, getTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import type { Label, Task } from '$lib/api/types';
-	import { onMount } from 'svelte';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -17,7 +17,7 @@
 	let priority = $state(1);
 	let submitting = $state(false);
 
-	let allLabels = $state<Label[]>([]);
+	const allLabels = $derived(appStore.labels);
 	let showLabelPicker = $state(false);
 	let showPriorityPicker = $state(false);
 	let labelSearch = $state('');
@@ -34,7 +34,8 @@
 		const ctxId = contextsStore.activeContextId;
 		if (!ctxId) return [];
 		const ctx = contextsStore.contexts.find((c) => c.id === ctxId);
-		return ctx?.filters.labels ?? [];
+		if (!ctx?.inherit_labels) return [];
+		return ctx.filters.labels ?? [];
 	});
 
 	const filteredLabels = $derived.by(() => {
@@ -51,14 +52,6 @@
 	];
 
 	const activePriority = $derived(priorityItems.find((p) => p.value === priority));
-
-	onMount(async () => {
-		try {
-			allLabels = await getLabels();
-		} catch {
-			// ignore
-		}
-	});
 
 	function extractPrefix(content: string): string {
 		const match = content.match(/^(.+?(?::\s|\s-\s))/);
@@ -100,8 +93,16 @@
 	$effect(() => {
 		if (!pending) return;
 
-		// Set labels from completed task + context labels
-		const labels = [...new Set([...pending.completedTaskLabels, ...contextLabels])];
+		// Set labels from completed task + context labels (respecting inherit_labels)
+		const shouldInherit = (() => {
+			const ctxId = contextsStore.activeContextId;
+			if (!ctxId) return true;
+			const ctx = contextsStore.contexts.find((c) => c.id === ctxId);
+			return ctx?.inherit_labels ?? true;
+		})();
+		const labels = shouldInherit
+			? [...new Set([...pending.completedTaskLabels, ...contextLabels])]
+			: [];
 		selectedLabels = labels;
 		description = '';
 		priority = 1;

@@ -11,7 +11,7 @@
 
 	let searchQuery = $state('');
 
-	const nextWeekLabel = $derived(planningStore.config?.next_week_label ?? '');
+	const backlogLabel = $derived(planningStore.config?.backlog_label ?? '');
 
 	const filteredTasks = $derived(
 		searchQuery
@@ -27,8 +27,8 @@
 		return contextsStore.contexts.find((c) => c.id === id)?.display_name ?? '';
 	});
 
-	function hasNextWeekLabel(task: Task): boolean {
-		return nextWeekLabel !== '' && task.labels.includes(nextWeekLabel);
+	function hasBacklogLabel(task: Task): boolean {
+		return backlogLabel !== '' && task.labels.includes(backlogLabel);
 	}
 
 	// Reset search when context changes
@@ -90,7 +90,7 @@
 							</button>
 						{/snippet}
 					</TaskItem>
-					{#if hasNextWeekLabel(task)}
+					{#if hasBacklogLabel(task)}
 						<!-- Next week badge is shown via labels in TaskItem -->
 					{/if}
 				{/each}

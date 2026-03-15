@@ -9,6 +9,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/scheduler"
 	"github.com/lebe-dev/turboist/internal/server"
+	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
 
@@ -45,6 +46,13 @@ func main() {
 	cache.StartPolling(ctx, cfg.App.PollInterval)
 	log.Info("cache polling started", "interval", cfg.App.PollInterval)
 
+	store, err := storage.New("./data/turboist.db")
+	if err != nil {
+		log.Fatal("failed to init storage", "err", err)
+	}
+	defer func() { _ = store.Close() }()
+	log.Info("storage initialized")
+
 	sched := scheduler.New(cfg.App.PollInterval)
 	if len(cfg.App.AutoExpire) > 0 {
 		ae := scheduler.NewAutoExpire(cache, cfg.App.AutoExpire)
@@ -59,7 +67,7 @@ func main() {
 	sched.Start(ctx)
 	log.Info("scheduler started", "interval", cfg.App.PollInterval)
 
-	app := server.New(cfg, cache)
+	app := server.New(cfg, cache, store)
 
 	go func() {
 		<-ctx.Done()

@@ -23,7 +23,6 @@
 	const effectiveCollapsed = $derived(sidebarStore.collapsed && !isMobile);
 
 	onMount(() => {
-		contextsStore.load().catch(console.error);
 		const mq = window.matchMedia('(max-width: 767px)');
 		isMobile = mq.matches;
 		const handler = (e: MediaQueryListEvent) => (isMobile = e.matches);

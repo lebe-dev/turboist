@@ -1,21 +1,11 @@
-const STORAGE_KEY = 'turboist:collapsed';
-
-function load(): Set<string> {
-	try {
-		const raw = localStorage.getItem(STORAGE_KEY);
-		if (raw) return new Set(JSON.parse(raw));
-	} catch {
-		// ignore
-	}
-	return new Set();
-}
-
-function save(ids: Set<string>): void {
-	localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
-}
+import { patchState } from '$lib/api/client';
 
 function createCollapsedStore() {
-	let ids = $state(load());
+	let ids = $state(new Set<string>());
+
+	function init(initialIds: string[]): void {
+		ids = new Set(initialIds);
+	}
 
 	return {
 		get hasAny(): boolean {
@@ -31,16 +21,17 @@ function createCollapsedStore() {
 				ids.add(id);
 			}
 			ids = new Set(ids);
-			save(ids);
+			patchState({ collapsed_ids: [...ids] }).catch(console.error);
 		},
 		collapseAll(taskIds: string[]): void {
 			ids = new Set(taskIds);
-			save(ids);
+			patchState({ collapsed_ids: [...ids] }).catch(console.error);
 		},
 		expandAll(): void {
 			ids = new Set();
-			save(ids);
-		}
+			patchState({ collapsed_ids: [] }).catch(console.error);
+		},
+		init
 	};
 }
 

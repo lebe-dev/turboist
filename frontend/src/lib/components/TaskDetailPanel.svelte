@@ -1,11 +1,12 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
-	import { updateTask, createTask, completeTask, deleteTask, duplicateTask, getLabels, getTask, getCompletedSubtasks } from '$lib/api/client';
+	import { updateTask, createTask, completeTask, deleteTask, duplicateTask, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -20,12 +21,14 @@
 	import RepeatIcon from '@lucide/svelte/icons/repeat';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
+	import CopyIcon from '@lucide/svelte/icons/copy';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import LayersIcon from '@lucide/svelte/icons/layers';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -298,7 +301,7 @@
 	}
 
 	// --- Labels (optimistic) ---
-	let allLabels = $state<Label[]>([]);
+	const allLabels = $derived(appStore.labels);
 	let showLabelPicker = $state(false);
 	let labelSearch = $state('');
 	let localLabels = $state<string[]>([]);
@@ -313,8 +316,6 @@
 	});
 
 	onMount(() => {
-		getLabels().then((labels) => { allLabels = labels; }).catch(() => {});
-
 		const mq = window.matchMedia('(max-width: 767px)');
 		isMobile = mq.matches;
 		const handleMq = (e: MediaQueryListEvent) => { isMobile = e.matches; };
@@ -595,6 +596,8 @@
 			console.error('Failed to create subtask', e);
 		}
 		tasksStore.refresh();
+		// Re-fetch to replace temp child IDs with real ones
+		getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
 	}
 
 	// --- Due date display ---
@@ -734,6 +737,53 @@
 		}
 	}
 
+	// --- Bulk operations (subtasks only) ---
+	async function resetSubtaskPriorities() {
+		if (!task) return;
+		dropdownOpen = false;
+		const children = task.children;
+		if (children.length === 0) return;
+		for (const child of children) {
+			if (child.priority !== 1) {
+				updateLocal((t) => ({
+					...t,
+					children: t.children.map((c) => c.id === child.id ? { ...c, priority: 1 } : c)
+				}));
+			}
+		}
+		try {
+			await Promise.all(
+				children.filter((c) => c.priority !== 1).map((c) => updateTask(c.id, { priority: 1 }))
+			);
+		} catch (e) {
+			console.error('Failed to reset subtask priorities', e);
+		}
+		tasksStore.refresh();
+	}
+
+	async function resetSubtaskLabels() {
+		if (!task) return;
+		dropdownOpen = false;
+		const children = task.children;
+		if (children.length === 0) return;
+		for (const child of children) {
+			if (child.labels.length > 0) {
+				updateLocal((t) => ({
+					...t,
+					children: t.children.map((c) => c.id === child.id ? { ...c, labels: [] } : c)
+				}));
+			}
+		}
+		try {
+			await Promise.all(
+				children.filter((c) => c.labels.length > 0).map((c) => updateTask(c.id, { labels: [] }))
+			);
+		} catch (e) {
+			console.error('Failed to reset subtask labels', e);
+		}
+		tasksStore.refresh();
+	}
+
 	// --- Delete task ---
 	let showDeleteConfirm = $state(false);
 	let deleting = $state(false);
@@ -804,11 +854,36 @@
 							{$t('task.duplicate')}
 						</DropdownMenu.Item>
 
+						<!-- Copy -->
+						<DropdownMenu.Item onclick={() => { if (task) navigator.clipboard.writeText(task.content); dropdownOpen = false; }}>
+							<CopyIcon class="h-4 w-4" />
+							{$t('task.copy')}
+						</DropdownMenu.Item>
+
 						{#if canPin}
 							<DropdownMenu.Item onclick={handlePin}>
 								<PinIcon class="h-4 w-4" />
 								{isPinned ? $t('task.unpin') : $t('task.pin')}
 							</DropdownMenu.Item>
+						{/if}
+
+						{#if task.children.length > 0}
+							<DropdownMenu.Sub>
+								<DropdownMenu.SubTrigger>
+									<LayersIcon class="h-4 w-4" />
+									{$t('task.bulkOperations')}
+								</DropdownMenu.SubTrigger>
+								<DropdownMenu.SubContent>
+									<DropdownMenu.Item onclick={resetSubtaskPriorities}>
+										<FlagIcon class="h-4 w-4" />
+										{$t('task.resetSubtaskPriorities')}
+									</DropdownMenu.Item>
+									<DropdownMenu.Item onclick={resetSubtaskLabels}>
+										<TagIcon class="h-4 w-4" />
+										{$t('task.resetSubtaskLabels')}
+									</DropdownMenu.Item>
+								</DropdownMenu.SubContent>
+							</DropdownMenu.Sub>
 						{/if}
 
 						<DropdownMenu.Separator />

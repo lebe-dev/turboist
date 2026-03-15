@@ -25,7 +25,7 @@ weekly:
   label: "на неделе"
   max_tasks: 15
 
-next_week:
+backlog:
   label: "на след неделе"
 
 auto_expire:
@@ -70,8 +70,8 @@ func TestParseAppConfig(t *testing.T) {
 		t.Errorf("weekly.max_tasks: got %d, want 15", app.Weekly.MaxTasks)
 	}
 
-	if app.NextWeek.Label != "на след неделе" {
-		t.Errorf("next_week.label: got %q", app.NextWeek.Label)
+	if app.Backlog.Label != "на след неделе" {
+		t.Errorf("backlog.label: got %q", app.Backlog.Label)
 	}
 
 	if len(app.AutoExpire) != 2 {

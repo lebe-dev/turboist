@@ -5,6 +5,7 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { contextsStore, type View } from '$lib/stores/contexts.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import { t } from 'svelte-intl-precompile';
 	import { ModeWatcher } from 'mode-watcher';
@@ -26,6 +27,10 @@
 		await auth.check();
 		if (auth.state === 'unauthenticated' && !isLoginPage) {
 			goto('/login');
+			return;
+		}
+		if (auth.isAuthenticated) {
+			await appStore.init();
 		}
 	});
 </script>

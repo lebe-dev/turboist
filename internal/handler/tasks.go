@@ -25,9 +25,11 @@ func NewTasksHandler(cache *todoist.Cache, cfg *config.AppConfig) *TasksHandler 
 }
 
 type tasksMeta struct {
-	Context     string `json:"context"`
-	WeeklyLimit int    `json:"weekly_limit"`
-	WeeklyCount int    `json:"weekly_count"`
+	Context      string `json:"context"`
+	WeeklyLimit  int    `json:"weekly_limit"`
+	WeeklyCount  int    `json:"weekly_count"`
+	BacklogLimit int    `json:"backlog_limit"`
+	BacklogCount int    `json:"backlog_count"`
 }
 
 type tasksResponse struct {
@@ -72,20 +74,23 @@ func (h *TasksHandler) Weekly(c fiber.Ctx) error {
 }
 
 // NextWeek handles GET /api/tasks/next-week?context=...
+// Returns tasks with the backlog label, sorted per backlog config.
 func (h *TasksHandler) NextWeek(c fiber.Ctx) error {
 	contextKey := c.Query("context")
 	tasks := h.filterByContext(contextKey)
-	nextWeek := filterByLabel(tasks, h.cfg.NextWeek.Label)
+	backlogTasks := filterByLabel(tasks, h.cfg.Backlog.Label)
 	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
-	tree := buildTree(nextWeek)
-	sortTasks(tree, h.cfg.TaskSort)
+	tree := buildTree(backlogTasks)
+	sortBacklogTasks(tree, h.cfg.Backlog.TaskSort)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
 		Meta: tasksMeta{
-			Context:     contextKey,
-			WeeklyLimit: h.cfg.Weekly.MaxTasks,
-			WeeklyCount: weeklyCount,
+			Context:      contextKey,
+			WeeklyLimit:  h.cfg.Weekly.MaxTasks,
+			WeeklyCount:  weeklyCount,
+			BacklogLimit: h.cfg.Backlog.MaxLimit,
+			BacklogCount: len(backlogTasks),
 		},
 	})
 }
@@ -521,6 +526,8 @@ func sortTasks(tasks []*todoist.Task, mode config.TaskSort) {
 			return compareDueDate(a, b)
 		case config.TaskSortContent:
 			return cmp.Compare(strings.ToLower(a.Content), strings.ToLower(b.Content))
+		case config.TaskSortAddedAt:
+			return cmp.Compare(b.AddedAt, a.AddedAt)
 		default: // priority
 			// Todoist priority: 4 = highest, 1 = lowest; sort descending
 			if c := cmp.Compare(b.Priority, a.Priority); c != 0 {
@@ -534,6 +541,11 @@ func sortTasks(tasks []*todoist.Task, mode config.TaskSort) {
 			sortTasks(t.Children, mode)
 		}
 	}
+}
+
+// sortBacklogTasks is an alias for sortTasks used by the backlog endpoint.
+func sortBacklogTasks(tasks []*todoist.Task, mode config.TaskSort) {
+	sortTasks(tasks, mode)
 }
 
 // sortTasksByAddedAt sorts tasks by creation date descending (newest first).
@@ -602,15 +614,54 @@ func countWithLabel(tasks []*todoist.Task, label string) int {
 	return count
 }
 
+// ResetWeekly handles POST /api/tasks/reset-weekly
+// Removes the weekly label from all tasks that have it.
+func (h *TasksHandler) ResetWeekly(c fiber.Ctx) error {
+	label := h.cfg.Weekly.Label
+	if label == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "weekly label not configured"})
+	}
+
+	tasks := filterByLabel(h.cache.Tasks(), label)
+	if len(tasks) == 0 {
+		return c.JSON(fiber.Map{"ok": true, "updated": 0})
+	}
+
+	// Build label updates for all tasks in one batch.
+	// Uses SetTasksLabels to bypass omitempty on empty label slices.
+	updates := make(map[string][]string, len(tasks))
+	for _, t := range tasks {
+		newLabels := make([]string, 0, len(t.Labels))
+		for _, l := range t.Labels {
+			if l != label {
+				newLabels = append(newLabels, l)
+			}
+		}
+		updates[t.ID] = newLabels
+	}
+
+	if err := h.cache.Client().SetTasksLabels(c.Context(), updates); err != nil {
+		log.Error("reset weekly: batch update failed", "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if err := h.cache.RefreshAfterMutation(c.Context()); err != nil {
+		log.Error("reset weekly: cache refresh failed", "err", err)
+	}
+
+	log.Info("reset weekly labels", "updated", len(tasks))
+	return c.JSON(fiber.Map{"ok": true, "updated": len(tasks)})
+}
+
 // Backlog handles GET /api/tasks/backlog?context=...
-// Returns tasks without the weekly label. Weekly count is computed from ALL tasks (not context-filtered).
+// Returns tasks with the backlog label. Weekly count is computed from ALL tasks (not context-filtered).
 func (h *TasksHandler) Backlog(c fiber.Ctx) error {
 	contextKey := c.Query("context")
 	tasks := h.filterByContext(contextKey)
 	weeklyCount := countWithLabel(h.cache.Tasks(), h.cfg.Weekly.Label)
-	backlog := excludeByLabel(tasks, h.cfg.Weekly.Label)
+	backlog := filterByLabel(tasks, h.cfg.Backlog.Label)
 	tree := buildTree(backlog)
-	sortTasks(tree, h.cfg.TaskSort)
+	sortBacklogTasks(tree, h.cfg.Backlog.TaskSort)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,

@@ -1,7 +1,15 @@
-import { getConfig, getTasks, getInboxTasks, getWeeklyTasks, getNextWeekTasks, getTodayTasks, getTomorrowTasks, getCompletedTasks } from '$lib/api/client';
+import {
+	getAppConfig,
+	getTasks,
+	getInboxTasks,
+	getWeeklyTasks,
+	getNextWeekTasks,
+	getTodayTasks,
+	getTomorrowTasks,
+	getCompletedTasks
+} from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
-import { pinnedStore } from './pinned.svelte';
 import { createPoller, type Poller } from '$lib/utils/polling';
 
 const DEFAULT_INTERVAL_MS = 30_000;
@@ -10,7 +18,7 @@ const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 function createTasksStore() {
 	let tasks = $state<Task[]>([]);
-	let meta = $state<Meta>({ context: '', weekly_limit: 0, weekly_count: 0 });
+	let meta = $state<Meta>({ context: '', weekly_limit: 0, weekly_count: 0, backlog_limit: 0, backlog_count: 0 });
 	let config = $state<Config | null>(null);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
@@ -40,14 +48,19 @@ function createTasksStore() {
 		const fetcherMap: Record<string, typeof getTasks> = {
 			inbox: getInboxTasks,
 			weekly: getWeeklyTasks,
-			'next-week': getNextWeekTasks,
+			backlog: getNextWeekTasks,
 			today: getTodayTasks,
 			tomorrow: getTomorrowTasks,
-			completed: getCompletedTasks,
+			completed: getCompletedTasks
 		};
 		const fetcher = fetcherMap[view] ?? getTasks;
 
-		const [res, cfg] = await Promise.all([fetcher(contextId), getConfig().catch(() => null)]);
+		const [res, cfg] = await Promise.all([
+			fetcher(contextId),
+			getAppConfig()
+				.then((c) => c.settings)
+				.catch(() => null)
+		]);
 
 		if (pendingRemovals.size > 0) {
 			function hasId(list: Task[], id: string): boolean {
@@ -88,24 +101,13 @@ function createTasksStore() {
 		}
 	}
 
-	async function start(): Promise<void> {
+	async function start(pollInterval?: number): Promise<void> {
 		loading = true;
 		error = null;
 
-		// Get poll_interval from config
-		let intervalMs = DEFAULT_INTERVAL_MS;
-		try {
-			const cfg = await getConfig();
-			console.log('[config] loaded from API', cfg);
-			const parsed = cfg.poll_interval * 1000;
-			if (Number.isFinite(parsed) && parsed >= 1000) {
-				intervalMs = parsed;
-			}
-			if (cfg.max_pinned > 0) {
-				pinnedStore.setMaxPinned(cfg.max_pinned);
-			}
-		} catch {
-			// fallback to default
+		let intervalMs = pollInterval ? pollInterval * 1000 : DEFAULT_INTERVAL_MS;
+		if (!Number.isFinite(intervalMs) || intervalMs < 1000) {
+			intervalMs = DEFAULT_INTERVAL_MS;
 		}
 
 		poller = createPoller({
