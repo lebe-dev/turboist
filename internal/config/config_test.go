@@ -328,6 +328,103 @@ contexts:
 	}
 }
 
+func TestLabelConfig_ShouldInheritToSubtasks(t *testing.T) {
+	t.Run("default (nil) returns true", func(t *testing.T) {
+		lc := LabelConfig{Name: "test"}
+		if !lc.ShouldInheritToSubtasks() {
+			t.Error("expected true when InheritToSubtasks is nil")
+		}
+	})
+
+	t.Run("explicit true", func(t *testing.T) {
+		v := true
+		lc := LabelConfig{Name: "test", InheritToSubtasks: &v}
+		if !lc.ShouldInheritToSubtasks() {
+			t.Error("expected true")
+		}
+	})
+
+	t.Run("explicit false", func(t *testing.T) {
+		v := false
+		lc := LabelConfig{Name: "test", InheritToSubtasks: &v}
+		if lc.ShouldInheritToSubtasks() {
+			t.Error("expected false")
+		}
+	})
+}
+
+func TestParseAppConfig_Labels(t *testing.T) {
+	yaml := `
+labels:
+  - name: "weekly"
+    inherit_to_subtasks: false
+  - name: "backlog"
+    inherit_to_subtasks: false
+  - name: "important"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.Labels) != 3 {
+		t.Fatalf("labels: got %d, want 3", len(app.Labels))
+	}
+
+	weekly := app.FindLabel("weekly")
+	if weekly == nil {
+		t.Fatal("label 'weekly' not found")
+	}
+	if weekly.ShouldInheritToSubtasks() {
+		t.Error("weekly: expected inherit_to_subtasks=false")
+	}
+
+	important := app.FindLabel("important")
+	if important == nil {
+		t.Fatal("label 'important' not found")
+	}
+	if !important.ShouldInheritToSubtasks() {
+		t.Error("important: expected inherit_to_subtasks=true by default")
+	}
+
+	if app.FindLabel("nonexistent") != nil {
+		t.Error("expected nil for nonexistent label")
+	}
+}
+
+func TestParseAppConfig_LabelsEmpty(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.Labels) != 0 {
+		t.Errorf("labels: got %d, want 0", len(app.Labels))
+	}
+}
+
+func TestParseAppConfig_LabelsDuplicateName(t *testing.T) {
+	yaml := `
+labels:
+  - name: "weekly"
+  - name: "weekly"
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for duplicate label name")
+	}
+}
+
+func TestParseAppConfig_LabelsEmptyName(t *testing.T) {
+	yaml := `
+labels:
+  - name: ""
+    inherit_to_subtasks: false
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty label name")
+	}
+}
+
 func TestLoadDotEnv_SetsVars(t *testing.T) {
 	f := filepath.Join(t.TempDir(), ".env")
 	content := `

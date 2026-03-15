@@ -64,11 +64,17 @@ type quickCaptureResponse struct {
 	ParentTaskID string `json:"parent_task_id"`
 }
 
+type labelConfigResponse struct {
+	Name              string `json:"name"`
+	InheritToSubtasks bool   `json:"inherit_to_subtasks"`
+}
+
 type appConfigResponse struct {
 	Settings     settingsResponse      `json:"settings"`
 	Contexts     []contextItem         `json:"contexts"`
 	Projects     []projectWithSections `json:"projects"`
 	Labels       []*todoist.Label      `json:"labels"`
+	LabelConfigs []labelConfigResponse `json:"label_configs"`
 	QuickCapture *quickCaptureResponse `json:"quick_capture"`
 	State        *storage.UserState    `json:"state"`
 }
@@ -157,6 +163,15 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		}
 	}
 
+	// Label configs
+	labelConfigs := make([]labelConfigResponse, 0, len(h.cfg.Labels))
+	for _, lc := range h.cfg.Labels {
+		labelConfigs = append(labelConfigs, labelConfigResponse{
+			Name:              lc.Name,
+			InheritToSubtasks: lc.ShouldInheritToSubtasks(),
+		})
+	}
+
 	// User state
 	state, err := h.store.GetState()
 	if err != nil {
@@ -168,6 +183,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		Contexts:     contexts,
 		Projects:     projectItems,
 		Labels:       labels,
+		LabelConfigs: labelConfigs,
 		QuickCapture: qc,
 		State:        state,
 	})

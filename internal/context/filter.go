@@ -32,12 +32,36 @@ func FilterTasks(
 		"input_tasks", len(tasks),
 	)
 
-	result := make([]*todoist.Task, 0)
+	matchedIDs := make(map[string]struct{})
 	for _, t := range tasks {
-		if !matchesFilters(t, filters, allowedProjects, allowedSections, allowedLabels) {
-			continue
+		if matchesFilters(t, filters, allowedProjects, allowedSections, allowedLabels) {
+			matchedIDs[t.ID] = struct{}{}
 		}
-		result = append(result, t)
+	}
+
+	// Include subtasks of matched parents (handles arbitrary nesting)
+	changed := true
+	for changed {
+		changed = false
+		for _, t := range tasks {
+			if _, ok := matchedIDs[t.ID]; ok {
+				continue
+			}
+			if t.ParentID == nil {
+				continue
+			}
+			if _, ok := matchedIDs[*t.ParentID]; ok {
+				matchedIDs[t.ID] = struct{}{}
+				changed = true
+			}
+		}
+	}
+
+	result := make([]*todoist.Task, 0, len(matchedIDs))
+	for _, t := range tasks {
+		if _, ok := matchedIDs[t.ID]; ok {
+			result = append(result, t)
+		}
 	}
 
 	log.Debug("filter: done", "matched", len(result), "total", len(tasks))

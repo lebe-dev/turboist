@@ -36,12 +36,27 @@ type QuickCaptureConfig struct {
 	Title string `yaml:"title"`
 }
 
+type LabelConfig struct {
+	Name              string `yaml:"name"`
+	InheritToSubtasks *bool  `yaml:"inherit_to_subtasks"`
+}
+
+// ShouldInheritToSubtasks returns whether this label should be inherited by subtasks.
+// Defaults to true when InheritToSubtasks is nil.
+func (l *LabelConfig) ShouldInheritToSubtasks() bool {
+	if l.InheritToSubtasks == nil {
+		return true
+	}
+	return *l.InheritToSubtasks
+}
+
 type AppConfig struct {
 	PollInterval time.Duration
 	Timezone     string
 	TaskSort     TaskSort
 	MaxPinned    int
 	Contexts     []ContextConfig
+	Labels       []LabelConfig
 	Weekly       WeeklyConfig
 	Backlog      BacklogConfig
 	Today        TodayConfig
@@ -56,6 +71,16 @@ func (c *AppConfig) FindContext(id string) *ContextConfig {
 	for i := range c.Contexts {
 		if c.Contexts[i].ID == id {
 			return &c.Contexts[i]
+		}
+	}
+	return nil
+}
+
+// FindLabel returns the label config with the given name, or nil if not configured.
+func (c *AppConfig) FindLabel(name string) *LabelConfig {
+	for i := range c.Labels {
+		if c.Labels[i].Name == name {
+			return &c.Labels[i]
 		}
 	}
 	return nil
@@ -125,6 +150,7 @@ type yamlFile struct {
 	TaskSort     string              `yaml:"task_sort"`
 	MaxPinned    int                 `yaml:"max_pinned"`
 	Contexts     []ContextConfig     `yaml:"contexts"`
+	Labels       []LabelConfig       `yaml:"labels"`
 	Weekly       WeeklyConfig        `yaml:"weekly"`
 	Backlog      BacklogConfig       `yaml:"backlog"`
 	Today        TodayConfig         `yaml:"today"`
@@ -207,6 +233,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		TaskSort:     taskSort,
 		MaxPinned:    maxPinned,
 		Contexts:     yf.Contexts,
+		Labels:       yf.Labels,
 		Weekly:       yf.Weekly,
 		Backlog:      backlog,
 		Today:        yf.Today,
@@ -216,6 +243,10 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {
+		return AppConfig{}, err
+	}
+
+	if err := validateLabels(yf.Labels); err != nil {
 		return AppConfig{}, err
 	}
 
@@ -331,6 +362,20 @@ func validateDayParts(parts []DayPartConfig) error {
 					parts[i].Start, parts[i].End, parts[j].Start, parts[j].End)
 			}
 		}
+	}
+	return nil
+}
+
+func validateLabels(labels []LabelConfig) error {
+	seen := make(map[string]bool, len(labels))
+	for i, l := range labels {
+		if l.Name == "" {
+			return fmt.Errorf("labels[%d]: name is required", i)
+		}
+		if seen[l.Name] {
+			return fmt.Errorf("labels[%d]: duplicate name %q", i, l.Name)
+		}
+		seen[l.Name] = true
 	}
 	return nil
 }

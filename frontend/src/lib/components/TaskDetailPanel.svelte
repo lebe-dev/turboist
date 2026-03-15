@@ -560,7 +560,8 @@
 		if (!task || !subtaskContent.trim() || addingSubtask) return;
 		addingSubtask = true;
 		const content = subtaskContent.trim();
-		const labels = [...new Set([...task.labels, ...contextLabels])];
+		const inheritableParentLabels = task.labels.filter((l) => appStore.shouldInheritToSubtasks(l));
+		const labels = [...new Set([...inheritableParentLabels, ...contextLabels])];
 		const tempId = `temp-${Date.now()}`;
 		const optimistic: Task = {
 			id: tempId,

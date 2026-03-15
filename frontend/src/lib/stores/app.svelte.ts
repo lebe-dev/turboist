@@ -1,5 +1,5 @@
 import { getAppConfig, patchState } from '$lib/api/client';
-import type { Label, QuickCaptureConfig, View } from '$lib/api/types';
+import type { Label, LabelConfig, QuickCaptureConfig, View } from '$lib/api/types';
 import { contextsStore } from './contexts.svelte';
 import { pinnedStore } from './pinned.svelte';
 import { collapsedStore } from './collapsed.svelte';
@@ -70,6 +70,7 @@ async function migrateLocalStorage(): Promise<void> {
 function createAppStore() {
 	let initialized = $state(false);
 	let labels = $state<Label[]>([]);
+	let labelConfigs = $state<LabelConfig[]>([]);
 	let quickCapture = $state<QuickCaptureConfig | null>(null);
 
 	async function init(): Promise<void> {
@@ -80,6 +81,7 @@ function createAppStore() {
 
 		// Store shared data
 		labels = cfg.labels;
+		labelConfigs = cfg.label_configs ?? [];
 		quickCapture = cfg.quick_capture;
 
 		// Init all stores from server state
@@ -99,6 +101,12 @@ function createAppStore() {
 		initialized = true;
 	}
 
+	function shouldInheritToSubtasks(labelName: string): boolean {
+		const cfg = labelConfigs.find((lc) => lc.name === labelName);
+		if (!cfg) return true;
+		return cfg.inherit_to_subtasks;
+	}
+
 	return {
 		get initialized() {
 			return initialized;
@@ -106,9 +114,13 @@ function createAppStore() {
 		get labels() {
 			return labels;
 		},
+		get labelConfigs() {
+			return labelConfigs;
+		},
 		get quickCapture() {
 			return quickCapture;
 		},
+		shouldInheritToSubtasks,
 		init
 	};
 }

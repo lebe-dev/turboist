@@ -8,6 +8,7 @@
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import XIcon from '@lucide/svelte/icons/x';
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import { untrack } from 'svelte';
 	import { t } from 'svelte-intl-precompile';
 
 	let { open = $bindable(false), dueDate = '' }: { open: boolean; dueDate?: string } = $props();
@@ -64,26 +65,28 @@
 
 	$effect(() => {
 		if (open) {
-			const initial = [...contextLabels];
-			const dpLabel = currentDayPartLabel();
-			if (dpLabel && !initial.includes(dpLabel)) {
-				initial.push(dpLabel);
-			}
-			// Auto-add backlog label when creating from backlog view
-			if (contextsStore.activeView === 'backlog') {
-				const bl = tasksStore.config?.backlog_label;
-				if (bl && !initial.includes(bl)) {
-					initial.push(bl);
+			untrack(() => {
+				const initial = [...contextLabels];
+				const dpLabel = currentDayPartLabel();
+				if (dpLabel && !initial.includes(dpLabel)) {
+					initial.push(dpLabel);
 				}
-			}
-			selectedLabels = initial;
-			content = '';
-			description = '';
-			priority = 1;
-			showLabelPicker = false;
-			showPriorityPicker = false;
-			labelSearch = '';
-			requestAnimationFrame(() => contentInput?.focus());
+				// Auto-add backlog label when creating from backlog view
+				if (contextsStore.activeView === 'backlog') {
+					const bl = tasksStore.config?.backlog_label;
+					if (bl && !initial.includes(bl)) {
+						initial.push(bl);
+					}
+				}
+				selectedLabels = initial;
+				content = '';
+				description = '';
+				priority = 1;
+				showLabelPicker = false;
+				showPriorityPicker = false;
+				labelSearch = '';
+				requestAnimationFrame(() => contentInput?.focus());
+			});
 		}
 	});
 

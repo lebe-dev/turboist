@@ -39,6 +39,17 @@ contexts:
     filters:
       labels: ["работа"]
 
+# Label behavior overrides.
+# Only labels that need non-default behavior should be listed here.
+# inherit_to_subtasks: whether this label is inherited when creating subtasks (default: true)
+labels:
+  - name: "проект"
+    inherit_to_subtasks: false
+  - name: "на неделе"
+    inherit_to_subtasks: false
+  - name: "backlog"
+    inherit_to_subtasks: false
+
 # Tasks for the current week
 weekly:
   # Todoist label that marks tasks for the current week

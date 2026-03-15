@@ -120,6 +120,29 @@ func TestFilterTasks_MultipleProjectsOR(t *testing.T) {
 	}
 }
 
+func TestFilterTasks_IncludesSubtasksOfMatchedParents(t *testing.T) {
+	tasks := []*todoist.Task{
+		makeTask("1", "p1", nil, nil),                  // Work parent ✓
+		{ID: "2", ProjectID: "p2", ParentID: ptr("1")}, // child of #1, different project
+		{ID: "3", ProjectID: "p2", ParentID: ptr("2")}, // grandchild via #2
+		makeTask("4", "p2", nil, nil),                  // Personal, no parent ✗
+	}
+	filters := config.ContextFilters{Projects: []string{"Work"}}
+	got := appctx.FilterTasks(tasks, filters, projects, sections)
+	if len(got) != 3 {
+		t.Fatalf("got %d tasks, want 3 (parent + child + grandchild)", len(got))
+	}
+	ids := make(map[string]bool)
+	for _, task := range got {
+		ids[task.ID] = true
+	}
+	for _, id := range []string{"1", "2", "3"} {
+		if !ids[id] {
+			t.Errorf("expected task %q in result", id)
+		}
+	}
+}
+
 func TestFilterTasks_UnknownProjectName_ReturnsNone(t *testing.T) {
 	tasks := []*todoist.Task{
 		makeTask("1", "p1", nil, nil),

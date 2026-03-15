@@ -125,11 +125,17 @@ export interface QuickCaptureConfig {
 	parent_task_id: string;
 }
 
+export interface LabelConfig {
+	name: string;
+	inherit_to_subtasks: boolean;
+}
+
 export interface AppConfig {
 	settings: Settings;
 	contexts: Context[];
 	projects: Project[];
 	labels: Label[];
+	label_configs: LabelConfig[];
 	quick_capture: QuickCaptureConfig | null;
 	state: UserState;
 }

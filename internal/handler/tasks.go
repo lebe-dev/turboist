@@ -43,7 +43,7 @@ func (h *TasksHandler) Tasks(c fiber.Ctx) error {
 	tasks := h.filterByContext(contextKey)
 	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
 	tree := buildTree(tasks)
-	sortTasks(tree, h.cfg.TaskSort)
+	sortTasksByAddedAt(tree)
 
 	return c.JSON(tasksResponse{
 		Tasks: tree,
