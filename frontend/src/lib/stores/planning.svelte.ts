@@ -159,6 +159,9 @@ function createPlanningStore() {
 		const tasksToMove = [...backlogTasks];
 		if (tasksToMove.length === 0) return;
 
+		// Pause poller to prevent stale data overwriting optimistic state
+		poller?.stop();
+
 		// Optimistic: move all backlog tasks to weekly
 		const movedTasks = tasksToMove.map((task) => {
 			const newLabels = task.labels.filter((l) => l !== backlogLabel);
@@ -181,11 +184,14 @@ function createPlanningStore() {
 					return updateTask(task.id, { labels: newLabels });
 				})
 			);
-			await refresh();
 		} catch (err) {
 			console.error('[planning] acceptAll failed', err);
-			await refresh();
 		}
+
+		// Wait for backend cache to settle, then sync and resume polling
+		await new Promise((r) => setTimeout(r, 2000));
+		await refresh();
+		poller?.start();
 	}
 
 	async function updateWeeklyTask(
