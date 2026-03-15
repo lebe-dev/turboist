@@ -99,5 +99,9 @@
   "quickCapture.descriptionPlaceholder": "Описание",
   "quickCapture.saving": "Сохранение...",
   "quickCapture.saveIdea": "Сохранить идею",
-  "quickCapture.notConfigured": "Quick capture не настроен"
+  "quickCapture.notConfigured": "Quick capture не настроен",
+
+  "filters.priority": "Приоритет",
+  "filters.labels": "Метки",
+  "filters.clearAll": "Сбросить фильтры"
 }

@@ -10,19 +10,10 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import PinIcon from '@lucide/svelte/icons/pin';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
-	import TrashIcon from '@lucide/svelte/icons/trash-2';
-	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
-	import CopyIcon from '@lucide/svelte/icons/copy';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
-	import SunIcon from '@lucide/svelte/icons/sun';
-	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
-	import XIcon from '@lucide/svelte/icons/x';
-	import FlagIcon from '@lucide/svelte/icons/flag';
-	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
 	import { portal } from '$lib/utils/portal';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
@@ -191,8 +182,7 @@
 		tasksStore.refresh();
 	}
 
-	function handlePin(e: MouseEvent) {
-		e.stopPropagation();
+	function handlePin() {
 		if (isPinned) {
 			pinnedStore.unpin(task.id);
 		} else {
@@ -201,20 +191,6 @@
 	}
 
 	// --- Date helpers ---
-	function todayStr(): string {
-		const d = new Date();
-		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-	}
-
-	function tomorrowStr(): string {
-		const d = new Date();
-		d.setDate(d.getDate() + 1);
-		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-	}
-
-	const isToday = $derived(task.due?.date === todayStr());
-	const isTomorrow = $derived(task.due?.date === tomorrowStr());
-
 	async function setDate(date: string) {
 		dropdownOpen = false;
 		if (task.due?.date === date) return;
@@ -254,13 +230,6 @@
 	}
 
 	// --- Priority ---
-	const priorityItems = [
-		{ value: 4, label: 'P1', color: 'text-red-500' },
-		{ value: 3, label: 'P2', color: 'text-amber-500' },
-		{ value: 2, label: 'P3', color: 'text-blue-400' },
-		{ value: 1, label: 'P4', color: 'text-muted-foreground' },
-	];
-
 	async function setPriority(value: number) {
 		dropdownOpen = false;
 		if (task.priority === value) return;
@@ -478,132 +447,43 @@
 			{/if}
 
 			{#if !completed}
-				<DropdownMenu.Root bind:open={dropdownOpen}>
-					<DropdownMenu.Trigger
-						class="absolute right-1 top-1/2 -translate-y-1/2 flex h-8 w-8 md:h-6 md:w-6 items-center justify-center rounded text-muted-foreground/40 transition-all duration-150 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground"
-						onclick={(e: MouseEvent) => e.stopPropagation()}
-						ontouchstart={(e: TouchEvent) => e.stopPropagation()}
-						ontouchend={(e: TouchEvent) => e.stopPropagation()}
-					>
-						<EllipsisIcon class="h-5 w-5" />
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" class="w-52">
-						<!-- Edit -->
-						<DropdownMenu.Item onclick={() => goto(`/task/${task.id}`)}>
-							<PencilIcon class="h-4 w-4" />
-							{$t('task.edit')}
-						</DropdownMenu.Item>
-
-						<!-- Duplicate -->
-						<DropdownMenu.Item onclick={handleDuplicate} disabled={duplicating}>
-							<CopyPlusIcon class="h-4 w-4" />
-							{$t('task.duplicate')}
-						</DropdownMenu.Item>
-
-						<!-- Copy -->
-						<DropdownMenu.Item onclick={() => { navigator.clipboard.writeText(task.content); dropdownOpen = false; }}>
-							<CopyIcon class="h-4 w-4" />
-							{$t('task.copy')}
-						</DropdownMenu.Item>
-
-						{#if canPin}
-							<DropdownMenu.Item onclick={(e: MouseEvent) => handlePin(e)}>
-								<PinIcon class="h-4 w-4" />
-								{isPinned ? $t('task.unpin') : $t('task.pin')}
-							</DropdownMenu.Item>
-						{/if}
-
-						{#if backlogLabel}
-							<DropdownMenu.Item onclick={toggleBacklog}>
-								<InboxIcon class="h-4 w-4" />
-								{isInBacklog ? $t('task.removeFromBacklog') : $t('task.addToBacklog')}
-							</DropdownMenu.Item>
-						{/if}
-
-						{#if dropdownExtra}
-							<DropdownMenu.Separator />
-							{@render dropdownExtra()}
-						{/if}
-
-						<DropdownMenu.Separator />
-
-						<!-- Date -->
-						<div class="px-2 py-1.5">
-							<p class="text-xs font-semibold text-muted-foreground">{$t('task.date')}</p>
-							<div class="mt-1.5 flex items-center gap-1">
-								<button
-									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-										{isToday ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
-									onclick={() => setDate(todayStr())}
-									aria-label="Today"
-								>
-									<CalendarIcon class="h-4 w-4" />
-								</button>
-								<button
-									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-										{isTomorrow ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
-									onclick={() => setDate(tomorrowStr())}
-									aria-label="Tomorrow"
-								>
-									<SunIcon class="h-4 w-4" />
-								</button>
-								<div class="relative">
-									<button
-										class="flex h-7 w-7 items-center justify-center rounded-md text-purple-400 transition-colors hover:bg-accent"
-										onclick={openDatePicker}
-										aria-label="Pick date"
-									>
-										<ArrowRightIcon class="h-4 w-4" />
-									</button>
-									<input
-										bind:this={dateInput}
-										type="date"
-										value={task.due?.date ?? ''}
-										class="pointer-events-none absolute left-0 top-0 h-0 w-0 opacity-0"
-										onchange={onDatePicked}
-									/>
-								</div>
-								{#if task.due}
-									<button
-										class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-										onclick={clearDate}
-										aria-label="Clear date"
-									>
-										<XIcon class="h-3.5 w-3.5" />
-									</button>
-								{/if}
-							</div>
-						</div>
-
-						<!-- Priority -->
-						<div class="px-2 py-1.5">
-							<p class="text-xs font-semibold text-muted-foreground">{$t('task.priority')}</p>
-							<div class="mt-1.5 flex items-center gap-1">
-								{#each priorityItems as p (p.value)}
-									<button
-										class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
-											{task.priority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
-										onclick={() => setPriority(p.value)}
-										aria-label={p.label}
-									>
-										<FlagIcon class="h-4 w-4" />
-									</button>
-								{/each}
-							</div>
-						</div>
-
-						<DropdownMenu.Separator />
-
-						<!-- Delete -->
-						<DropdownMenu.Item
-							variant="destructive"
-							onclick={() => { dropdownOpen = false; showDeleteConfirm = true; }}
+				<input
+					bind:this={dateInput}
+					type="date"
+					value={task.due?.date ?? ''}
+					class="pointer-events-none absolute left-0 top-0 h-0 w-0 opacity-0"
+					onchange={onDatePicked}
+				/>
+				<TaskDropdownMenu
+					bind:open={dropdownOpen}
+					{task}
+					onEdit={() => goto(`/task/${task.id}`)}
+					onDuplicate={handleDuplicate}
+					onCopy={() => { navigator.clipboard.writeText(task.content); dropdownOpen = false; }}
+					{canPin}
+					{isPinned}
+					onPin={handlePin}
+					{backlogLabel}
+					{isInBacklog}
+					onToggleBacklog={toggleBacklog}
+					{dropdownExtra}
+					onSetDate={setDate}
+					onClearDate={clearDate}
+					onOpenDatePicker={openDatePicker}
+					onSetPriority={setPriority}
+					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
+				>
+					{#snippet trigger()}
+						<DropdownMenu.Trigger
+							class="absolute right-1 top-1/2 -translate-y-1/2 flex h-8 w-8 md:h-6 md:w-6 items-center justify-center rounded text-muted-foreground/40 transition-all duration-150 md:opacity-0 md:group-hover:opacity-100 hover:text-muted-foreground"
+							onclick={(e: MouseEvent) => e.stopPropagation()}
+							ontouchstart={(e: TouchEvent) => e.stopPropagation()}
+							ontouchend={(e: TouchEvent) => e.stopPropagation()}
 						>
-							<TrashIcon class="h-4 w-4" />
-							{$t('dialog.delete')}
-						</DropdownMenu.Item>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+							<EllipsisIcon class="h-5 w-5" />
+						</DropdownMenu.Trigger>
+					{/snippet}
+				</TaskDropdownMenu>
 			{/if}
 		</div>
 

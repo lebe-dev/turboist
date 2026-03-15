@@ -32,6 +32,7 @@
 	import MarkdownContent from './MarkdownContent.svelte';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
 	import { Calendar } from '$lib/components/ui/calendar';
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { t, locale } from 'svelte-intl-precompile';
@@ -516,6 +517,18 @@
 		tasksStore.refresh();
 	}
 
+	// --- Duplicate subtask ---
+	async function duplicateSubtask(childId: string) {
+		openSubtaskMenuId = null;
+		try {
+			await duplicateTask(childId);
+		} catch (e) {
+			console.error('Failed to duplicate subtask', e);
+		}
+		tasksStore.refresh();
+		getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
+	}
+
 	// --- Add sub-task ---
 	let showSubtaskForm = $state(false);
 	let subtaskContent = $state('');
@@ -842,114 +855,30 @@
 				{/if}
 			</div>
 			<div class="flex items-center gap-1">
-				<DropdownMenu.Root bind:open={dropdownOpen}>
-					<DropdownMenu.Trigger
-						class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-					>
-						<EllipsisVerticalIcon class="h-4 w-4" />
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" class="w-52">
-						<!-- Duplicate -->
-						<DropdownMenu.Item onclick={handleDuplicate} disabled={duplicating}>
-							<CopyPlusIcon class="h-4 w-4" />
-							{$t('task.duplicate')}
-						</DropdownMenu.Item>
-
-						<!-- Copy -->
-						<DropdownMenu.Item onclick={() => { if (task) navigator.clipboard.writeText(task.content); dropdownOpen = false; }}>
-							<CopyIcon class="h-4 w-4" />
-							{$t('task.copy')}
-						</DropdownMenu.Item>
-
-						{#if canPin}
-							<DropdownMenu.Item onclick={handlePin}>
-								<PinIcon class="h-4 w-4" />
-								{isPinned ? $t('task.unpin') : $t('task.pin')}
-							</DropdownMenu.Item>
-						{/if}
-
-						{#if task.children.length > 0}
-							<DropdownMenu.Sub>
-								<DropdownMenu.SubTrigger>
-									<LayersIcon class="h-4 w-4" />
-									{$t('task.bulkOperations')}
-								</DropdownMenu.SubTrigger>
-								<DropdownMenu.SubContent>
-									<DropdownMenu.Item onclick={resetSubtaskPriorities}>
-										<FlagIcon class="h-4 w-4" />
-										{$t('task.resetSubtaskPriorities')}
-									</DropdownMenu.Item>
-									<DropdownMenu.Item onclick={resetSubtaskLabels}>
-										<TagIcon class="h-4 w-4" />
-										{$t('task.resetSubtaskLabels')}
-									</DropdownMenu.Item>
-								</DropdownMenu.SubContent>
-							</DropdownMenu.Sub>
-						{/if}
-
-						<DropdownMenu.Separator />
-
-						<!-- Date -->
-						<div class="px-2 py-1.5">
-							<p class="text-xs font-semibold text-muted-foreground">{$t('task.date')}</p>
-							<div class="mt-1.5 flex items-center gap-1">
-								<button
-									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-										{task.due?.date === todayDateStr() ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
-									onclick={() => setDateQuick(todayDateStr())}
-									aria-label="Today"
-								>
-									<CalendarIcon class="h-4 w-4" />
-								</button>
-								<button
-									class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-										{task.due?.date === tomorrowDateStr() ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
-									onclick={() => setDateQuick(tomorrowDateStr())}
-									aria-label="Tomorrow"
-								>
-									<SunIcon class="h-4 w-4" />
-								</button>
-								{#if task.due}
-									<button
-										class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-										onclick={clearDate}
-										aria-label="Clear date"
-									>
-										<XIcon class="h-3.5 w-3.5" />
-									</button>
-								{/if}
-							</div>
-						</div>
-
-						<!-- Priority -->
-						<div class="px-2 py-1.5">
-							<p class="text-xs font-semibold text-muted-foreground">{$t('task.priority')}</p>
-							<div class="mt-1.5 flex items-center gap-1">
-								{#each priorityItems as p (p.value)}
-									<button
-										class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
-											{localPriority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
-										onclick={() => setPriority(p.value)}
-										aria-label={p.label}
-									>
-										<FlagIcon class="h-4 w-4" />
-									</button>
-								{/each}
-							</div>
-						</div>
-
-						<DropdownMenu.Separator />
-
-						<!-- Delete -->
-						<DropdownMenu.Item
-							variant="destructive"
-							onclick={() => { dropdownOpen = false; showDeleteConfirm = true; }}
+				<TaskDropdownMenu
+					bind:open={dropdownOpen}
+					{task}
+					onDuplicate={handleDuplicate}
+					onCopy={() => { if (task) navigator.clipboard.writeText(task.content); dropdownOpen = false; }}
+					{canPin}
+					{isPinned}
+					onPin={handlePin}
+					subtaskCount={task.children.length}
+					onResetSubtaskPriorities={resetSubtaskPriorities}
+					onResetSubtaskLabels={resetSubtaskLabels}
+					onSetDate={setDateQuick}
+					onClearDate={clearDate}
+					onSetPriority={setPriority}
+					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
+				>
+					{#snippet trigger()}
+						<DropdownMenu.Trigger
+							class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						>
-							<TrashIcon class="h-4 w-4" />
-							{$t('dialog.delete')}
-						</DropdownMenu.Item>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+							<EllipsisVerticalIcon class="h-4 w-4" />
+						</DropdownMenu.Trigger>
+					{/snippet}
+				</TaskDropdownMenu>
 				{#if !fullPage}
 					<button
 						class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -1105,98 +1034,32 @@
 													{/each}
 												</div>
 											</div>
-											<DropdownMenu.Root open={openSubtaskMenuId === child.id} onOpenChange={(v) => { openSubtaskMenuId = v ? child.id : null; }}>
-												<DropdownMenu.Trigger
-													class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
-													onclick={(e: MouseEvent) => e.stopPropagation()}
-												>
-													<EllipsisIcon class="h-4 w-4" />
-												</DropdownMenu.Trigger>
-												<DropdownMenu.Content align="end" class="w-64">
-													<DropdownMenu.Item onclick={() => onselect?.(child.id)}>
-														<PencilIcon class="h-4 w-4" />
-														{$t('task.edit')}
-													</DropdownMenu.Item>
-
-													<DropdownMenu.Separator />
-
-													<!-- Date -->
-													<div class="px-2 py-1.5">
-														<p class="text-xs font-semibold text-muted-foreground">{$t('task.date')}</p>
-														<div class="mt-1.5 flex items-center gap-1">
-															<button
-																class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-																	{child.due?.date === todayDateStr() ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
-																onclick={() => setSubtaskDate(child.id, todayDateStr())}
-																aria-label="Today"
-															>
-																<CalendarIcon class="h-4 w-4" />
-															</button>
-															<button
-																class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-																	{child.due?.date === tomorrowDateStr() ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
-																onclick={() => setSubtaskDate(child.id, tomorrowDateStr())}
-																aria-label="Tomorrow"
-															>
-																<SunIcon class="h-4 w-4" />
-															</button>
-															<button
-															class="flex h-7 w-7 items-center justify-center rounded-md text-purple-400 transition-colors hover:bg-accent"
-															onclick={() => openSubtaskDatePicker(child.id)}
-															aria-label="Pick date"
-														>
-															<ArrowRightIcon class="h-4 w-4" />
-														</button>
-															{#if child.due}
-																<button
-																	class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																	onclick={() => clearSubtaskDate(child.id)}
-																	aria-label="Clear date"
-																>
-																	<XIcon class="h-3.5 w-3.5" />
-																</button>
-															{/if}
-														</div>
-														{#if subtaskCalendarTargetId === child.id}
-															<div class="mt-1">
-																<Calendar
-																	type="single"
-																	value={child.due?.date ? parseDate(child.due.date) : undefined}
-																	onValueChange={onSubtaskCalendarSelect}
-																	class="rounded-md border border-border"
-																/>
-															</div>
-														{/if}
-													</div>
-
-													<!-- Priority -->
-													<div class="px-2 py-1.5">
-														<p class="text-xs font-semibold text-muted-foreground">{$t('task.priority')}</p>
-														<div class="mt-1.5 flex items-center gap-1">
-															{#each priorityItems as p (p.value)}
-																<button
-																	class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
-																		{child.priority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
-																	onclick={() => setSubtaskPriority(child.id, p.value)}
-																	aria-label={p.label}
-																>
-																	<FlagIcon class="h-4 w-4" />
-																</button>
-															{/each}
-														</div>
-													</div>
-
-													<DropdownMenu.Separator />
-
-													<DropdownMenu.Item
-														variant="destructive"
-														onclick={() => deleteSubtask(child.id)}
+											<TaskDropdownMenu
+												open={openSubtaskMenuId === child.id}
+												onOpenChange={(v) => { openSubtaskMenuId = v ? child.id : null; }}
+												task={child}
+												onEdit={() => onselect?.(child.id)}
+												onDuplicate={() => duplicateSubtask(child.id)}
+												onCopy={() => navigator.clipboard.writeText(child.content)}
+												onSetDate={(d) => setSubtaskDate(child.id, d)}
+												onClearDate={() => clearSubtaskDate(child.id)}
+												onOpenDatePicker={() => openSubtaskDatePicker(child.id)}
+												showCalendar={subtaskCalendarTargetId === child.id}
+												calendarValue={child.due?.date ? parseDate(child.due.date) : undefined}
+												onCalendarSelect={onSubtaskCalendarSelect}
+												onSetPriority={(p) => setSubtaskPriority(child.id, p)}
+												onDelete={() => deleteSubtask(child.id)}
+												width="w-64"
+											>
+												{#snippet trigger()}
+													<DropdownMenu.Trigger
+														class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
+														onclick={(e: MouseEvent) => e.stopPropagation()}
 													>
-														<TrashIcon class="h-4 w-4" />
-														{$t('dialog.delete')}
-													</DropdownMenu.Item>
-												</DropdownMenu.Content>
-											</DropdownMenu.Root>
+														<EllipsisIcon class="h-4 w-4" />
+													</DropdownMenu.Trigger>
+												{/snippet}
+											</TaskDropdownMenu>
 										</div>
 									{/each}
 								</div>

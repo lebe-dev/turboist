@@ -21,6 +21,8 @@
 	import ChevronsDownIcon from '@lucide/svelte/icons/chevrons-down';
 	import LinkIcon from '@lucide/svelte/icons/link';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import FlagIcon from '@lucide/svelte/icons/flag';
+	import FilterIcon from '@lucide/svelte/icons/filter';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
 	import { t } from 'svelte-intl-precompile';
@@ -58,6 +60,73 @@
 
 	let searchQuery = $state('');
 	let linksOnly = $state(false);
+	let selectedPriorities = $state<Set<number>>(new Set());
+	let selectedLabels = $state<Set<string>>(new Set());
+	let filtersExpanded = $state(false);
+
+	const hasActiveFilters = $derived(selectedPriorities.size > 0 || selectedLabels.size > 0);
+
+	// Collect all unique labels from current tasks (excluding day-part labels)
+	const dayPartLabels = $derived(new Set(tasksStore.config?.day_parts?.map((dp) => dp.label) ?? []));
+	const backlogLabelName = $derived(tasksStore.config?.backlog_label ?? '');
+
+	function collectLabels(tasks: Task[]): Set<string> {
+		const labels = new Set<string>();
+		function walk(t: Task) {
+			for (const l of t.labels) {
+				if (!dayPartLabels.has(l) && l !== backlogLabelName) labels.add(l);
+			}
+			for (const c of t.children) walk(c);
+		}
+		for (const t of tasks) walk(t);
+		return labels;
+	}
+
+	const allLabels = $derived(Array.from(collectLabels(tasksStore.tasks)).sort());
+
+	function togglePriority(p: number) {
+		const next = new Set(selectedPriorities);
+		if (next.has(p)) next.delete(p);
+		else next.add(p);
+		selectedPriorities = next;
+	}
+
+	function toggleLabel(label: string) {
+		const next = new Set(selectedLabels);
+		if (next.has(label)) next.delete(label);
+		else next.add(label);
+		selectedLabels = next;
+	}
+
+	function clearFilters() {
+		selectedPriorities = new Set();
+		selectedLabels = new Set();
+	}
+
+	function taskMatchesFilters(task: Task): boolean {
+		if (selectedPriorities.size > 0 && !selectedPriorities.has(task.priority)) return false;
+		if (selectedLabels.size > 0 && !task.labels.some((l) => selectedLabels.has(l))) return false;
+		return true;
+	}
+
+	function filterTaskTree(tasks: Task[]): Task[] {
+		return tasks.reduce<Task[]>((acc, task) => {
+			if (task.is_project_task) {
+				const filteredChildren = filterTaskTree(task.children);
+				if (filteredChildren.length > 0) {
+					acc.push({ ...task, children: filteredChildren });
+				}
+				return acc;
+			}
+			const filteredChildren = filterTaskTree(task.children);
+			if (taskMatchesFilters(task)) {
+				acc.push({ ...task, children: filteredChildren });
+			} else if (filteredChildren.length > 0) {
+				acc.push({ ...task, children: filteredChildren });
+			}
+			return acc;
+		}, []);
+	}
 
 	const URL_RE = /https?:\/\/\S+/;
 
@@ -66,9 +135,12 @@
 		return task.children.some(taskHasLink);
 	}
 
-	const filteredTasks = $derived(
-		linksOnly ? tasksStore.tasks.filter(taskHasLink) : tasksStore.tasks
-	);
+	const filteredTasks = $derived.by(() => {
+		let tasks = tasksStore.tasks;
+		if (linksOnly) tasks = tasks.filter(taskHasLink);
+		if (hasActiveFilters) tasks = filterTaskTree(tasks);
+		return tasks;
+	});
 
 	const activeContextName = $derived.by(() => {
 		const id = contextsStore.activeContextId;
@@ -86,6 +158,9 @@
 		contextsStore.activeView;
 		searchQuery = '';
 		linksOnly = false;
+		selectedPriorities = new Set();
+		selectedLabels = new Set();
+		filtersExpanded = false;
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {
@@ -209,6 +284,12 @@
 		{:else}
 			<div class="ml-auto"></div>
 		{/if}
+		{#if !isCompletedView}
+			<Toggle bind:pressed={filtersExpanded} size="sm" class="me-1 h-7 w-7 text-muted-foreground {hasActiveFilters ? 'text-primary' : ''}" title="Filters">
+				<FilterIcon class="h-2.5 w-2.5" />
+				<span class="sr-only">Filters</span>
+			</Toggle>
+		{/if}
 		<Button onclick={handleSync} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground" title="Sync" disabled={syncing}>
 			<RefreshCwIcon class="h-4 w-4 {syncing ? 'animate-spin' : ''}" />
 			<span class="sr-only">Sync</span>
@@ -250,11 +331,73 @@
 				<span class="sr-only">Toggle all subtasks</span>
 			</Button>
 		{/if}
+		{#if !isCompletedView}
+			<Toggle bind:pressed={filtersExpanded} size="sm" class="h-8 w-8 shrink-0 text-muted-foreground {hasActiveFilters ? 'text-primary' : ''}" title="Filters">
+				<FilterIcon class="h-3 w-3" />
+				<span class="sr-only">Filters</span>
+			</Toggle>
+		{/if}
 		<Button onclick={handleSync} variant="ghost" size="icon" class="h-8 w-8 shrink-0 text-muted-foreground" title="Sync" disabled={syncing}>
 			<RefreshCwIcon class="h-4 w-4 {syncing ? 'animate-spin' : ''}" />
 			<span class="sr-only">Sync</span>
 		</Button>
 	</header>
+
+	<!-- Filter bar -->
+	{#if filtersExpanded && !isCompletedView}
+		<div class="shrink-0 border-b border-border/50 px-3 py-2 md:px-6">
+			<div class="flex flex-wrap items-start gap-3">
+				<!-- Priority filter -->
+				<div class="flex items-center gap-1.5">
+					<span class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">{$t('filters.priority')}</span>
+					{#each [
+						{ value: 4, label: 'P1', color: 'text-red-500', bg: 'bg-red-500/15 border-red-500/30', border: 'border-red-500/20' },
+						{ value: 3, label: 'P2', color: 'text-amber-500', bg: 'bg-amber-500/15 border-amber-500/30', border: 'border-amber-500/20' },
+						{ value: 2, label: 'P3', color: 'text-blue-400', bg: 'bg-blue-400/15 border-blue-400/30', border: 'border-blue-400/20' },
+						{ value: 1, label: 'P4', color: 'text-muted-foreground', bg: 'bg-muted border-muted-foreground/30', border: 'border-border' }
+					] as p (p.value)}
+						<button
+							class="flex h-6 items-center gap-1 rounded-md border px-1.5 text-[11px] font-medium transition-colors
+								{selectedPriorities.has(p.value) ? p.bg + ' ' + p.color : 'border-transparent ' + p.color + ' hover:' + p.border + ' opacity-50 hover:opacity-100'}"
+							onclick={() => togglePriority(p.value)}
+						>
+							<FlagIcon class="h-3 w-3" />
+							{p.label}
+						</button>
+					{/each}
+				</div>
+
+				<!-- Labels filter -->
+				{#if allLabels.length > 0}
+					<div class="flex flex-wrap items-center gap-1.5">
+						<span class="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">{$t('filters.labels')}</span>
+						{#each allLabels as label (label)}
+							<button
+								class="flex h-6 items-center rounded-md border px-2 text-[11px] font-medium transition-colors
+									{selectedLabels.has(label)
+										? 'border-primary/30 bg-primary/15 text-primary'
+										: 'border-transparent text-muted-foreground opacity-50 hover:border-border hover:opacity-100'}"
+								onclick={() => toggleLabel(label)}
+							>
+								{label}
+							</button>
+						{/each}
+					</div>
+				{/if}
+
+				<!-- Clear filters -->
+				{#if hasActiveFilters}
+					<button
+						class="flex h-6 items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+						onclick={clearFilters}
+					>
+						<XIcon class="h-3 w-3" />
+						{$t('filters.clearAll')}
+					</button>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	{#if tasksStore.isStale}
 		<div class="flex shrink-0 items-center gap-2 border-b border-yellow-500/10 bg-yellow-500/5 px-3 py-2 md:px-6">

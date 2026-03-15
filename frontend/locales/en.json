@@ -99,5 +99,9 @@
   "quickCapture.descriptionPlaceholder": "Description",
   "quickCapture.saving": "Saving...",
   "quickCapture.saveIdea": "Save idea",
-  "quickCapture.notConfigured": "Quick capture not configured"
+  "quickCapture.notConfigured": "Quick capture not configured",
+
+  "filters.priority": "Priority",
+  "filters.labels": "Labels",
+  "filters.clearAll": "Clear filters"
 }
