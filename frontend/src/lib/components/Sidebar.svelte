@@ -6,6 +6,9 @@
 	import ContextSwitcher from './ContextSwitcher.svelte';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import XIcon from '@lucide/svelte/icons/x';
 	import PanelLeftCloseIcon from '@lucide/svelte/icons/panel-left-close';
 	import PanelLeftOpenIcon from '@lucide/svelte/icons/panel-left-open';
@@ -64,6 +67,20 @@
 	</div>
 
 	<div class="border-t border-sidebar-border {effectiveCollapsed ? 'p-1.5' : 'p-3'}">
+		<button
+			class="flex w-full items-center rounded-lg text-sm transition-colors duration-150
+				{$page.url.pathname === '/settings'
+					? 'bg-sidebar-accent text-sidebar-accent-foreground'
+					: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'}
+				{effectiveCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'}"
+			onclick={() => { goto('/settings'); onClose?.(); }}
+			title={effectiveCollapsed ? 'Настройки' : undefined}
+		>
+			<SettingsIcon class="h-3.5 w-3.5 shrink-0" />
+			{#if !effectiveCollapsed}
+				Настройки
+			{/if}
+		</button>
 		<button
 			class="flex w-full items-center rounded-lg text-sm text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
 				{effectiveCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'}"
