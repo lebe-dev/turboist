@@ -442,6 +442,11 @@
 				<TaskList tasks={filteredTasks} {searchQuery} completed={isCompletedView} contextName={activeContextName} onResetContext={resetContext} />
 			{/if}
 		{/if}
+		{#if !tasksStore.loading && !tasksStore.error}
+			<div class="flex justify-center py-4">
+				<QuickCaptureButton bind:open={quickCaptureOpen} />
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -460,6 +465,5 @@
 {#if !isCompletedView}
 	<NextActionDialog />
 {/if}
-<QuickCaptureButton bind:open={quickCaptureOpen} />
 
 {/if}

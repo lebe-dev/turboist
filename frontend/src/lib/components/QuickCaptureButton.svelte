@@ -73,11 +73,12 @@
 </script>
 
 <button
-	class="fixed bottom-6 right-6 z-30 hidden items-center justify-center rounded-full border border-border/50 bg-background p-1.5 text-muted-foreground shadow-sm transition-colors hover:text-yellow-400 md:flex"
+	class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground/40 transition-colors hover:text-yellow-400"
 	onclick={() => (open = true)}
 	title="Quick capture idea (I)"
 >
 	<LightbulbIcon class="h-3.5 w-3.5" />
+	<span class="text-[12px]">{$t('quickCapture.title')}</span>
 </button>
 
 {#if open}
