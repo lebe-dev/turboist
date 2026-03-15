@@ -94,6 +94,7 @@
   "planning.startConfirm": "Начать новую неделю?",
   "planning.startDescription": "Метка «{label}» будет снята со всех задач.",
   "planning.starting": "Начинаем...",
+  "planning.acceptAll": "Принять все",
 
   "quickCapture.ideaPlaceholder": "Идея...",
   "quickCapture.descriptionPlaceholder": "Описание",

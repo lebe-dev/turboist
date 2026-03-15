@@ -6,10 +6,22 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import ChevronsRightIcon from '@lucide/svelte/icons/chevrons-right';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import { t } from 'svelte-intl-precompile';
 
 	let searchQuery = $state('');
+	let accepting = $state(false);
+
+	async function handleAcceptAll() {
+		if (accepting) return;
+		accepting = true;
+		try {
+			await planningStore.acceptAll();
+		} finally {
+			accepting = false;
+		}
+	}
 
 	const backlogLabel = $derived(planningStore.config?.backlog_label ?? '');
 
@@ -40,9 +52,22 @@
 
 <div class="flex h-full flex-col">
 	<div class="shrink-0 border-b border-border/50 px-4 py-3">
-		<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-			{$t('planning.backlog')}
-		</h2>
+		<div class="flex items-center justify-between">
+			<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+				{$t('planning.backlog')}
+			</h2>
+			{#if filteredTasks.length > 0}
+				<button
+					class="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+					onclick={handleAcceptAll}
+					disabled={accepting || planningStore.isAtLimit}
+					title={$t('planning.acceptAll')}
+				>
+					<ChevronsRightIcon class="h-3.5 w-3.5" />
+					{$t('planning.acceptAll')}
+				</button>
+			{/if}
+		</div>
 		{#if activeContextName}
 			<p class="mt-1 text-[11px] text-muted-foreground/50">
 				{$t('planning.contextFilter', { values: { name: activeContextName } })}

@@ -151,6 +151,43 @@ function createPlanningStore() {
 		}
 	}
 
+	async function acceptAll(): Promise<void> {
+		if (!config) return;
+
+		const weeklyLabel = config.weekly_label;
+		const backlogLabel = config.backlog_label;
+		const tasksToMove = [...backlogTasks];
+		if (tasksToMove.length === 0) return;
+
+		// Optimistic: move all backlog tasks to weekly
+		const movedTasks = tasksToMove.map((task) => {
+			const newLabels = task.labels.filter((l) => l !== backlogLabel);
+			if (!newLabels.includes(weeklyLabel)) {
+				newLabels.push(weeklyLabel);
+			}
+			return { ...task, labels: newLabels };
+		});
+		backlogTasks = [];
+		weeklyTasks = [...weeklyTasks, ...movedTasks];
+		meta = { ...meta, weekly_count: meta.weekly_count + tasksToMove.length };
+
+		try {
+			await Promise.all(
+				tasksToMove.map((task) => {
+					const newLabels = task.labels.filter((l) => l !== backlogLabel);
+					if (!newLabels.includes(weeklyLabel)) {
+						newLabels.push(weeklyLabel);
+					}
+					return updateTask(task.id, { labels: newLabels });
+				})
+			);
+			await refresh();
+		} catch (err) {
+			console.error('[planning] acceptAll failed', err);
+			await refresh();
+		}
+	}
+
 	async function updateWeeklyTask(
 		taskId: string,
 		data: { priority?: number; due_date?: string }
@@ -216,6 +253,7 @@ function createPlanningStore() {
 		moveToWeekly,
 		moveToBacklog,
 		startWeek,
+		acceptAll,
 		updateWeeklyTask
 	};
 }

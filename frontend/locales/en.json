@@ -94,6 +94,7 @@
   "planning.startConfirm": "Start new week?",
   "planning.startDescription": "The \"{label}\" label will be removed from all tasks.",
   "planning.starting": "Starting...",
+  "planning.acceptAll": "Accept all",
 
   "quickCapture.ideaPlaceholder": "Idea...",
   "quickCapture.descriptionPlaceholder": "Description",
