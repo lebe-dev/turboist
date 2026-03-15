@@ -82,6 +82,11 @@ export async function getCompletedTasks(_context?: string): Promise<TasksRespons
 	return request<TasksResponse>('/api/tasks/completed');
 }
 
+export async function getBacklogTasks(context?: string): Promise<TasksResponse> {
+	const params = context ? `?context=${encodeURIComponent(context)}` : '';
+	return request<TasksResponse>(`/api/tasks/backlog${params}`);
+}
+
 export async function getProjects(): Promise<Project[]> {
 	const res = await request<{ projects: Project[] }>('/api/projects');
 	return res.projects;

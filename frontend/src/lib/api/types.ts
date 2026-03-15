@@ -93,6 +93,8 @@ export interface DayPart {
 export interface Config {
 	poll_interval: number; // seconds
 	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
+	weekly_label: string;
+	next_week_label: string;
 	weekly_limit: number;
 	completed_days: number;
 	max_pinned: number;

@@ -72,6 +72,16 @@
   "task.addSubtask": "Add sub-task",
   "task.subtaskName": "Sub-task name",
 
+  "planning.title": "Planning",
+  "planning.backlog": "Backlog",
+  "planning.thisWeek": "This week",
+  "planning.moveToWeek": "Add to week",
+  "planning.moveToBacklog": "Remove from week",
+  "planning.limitReached": "Weekly limit reached",
+  "planning.contextFilter": "Filtered by: {name}",
+  "planning.nextWeekBadge": "next week",
+  "planning.exit": "Exit planning",
+
   "quickCapture.ideaPlaceholder": "Idea...",
   "quickCapture.descriptionPlaceholder": "Description",
   "quickCapture.saving": "Saving...",

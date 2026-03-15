@@ -72,6 +72,16 @@
   "task.addSubtask": "Добавить подзадачу",
   "task.subtaskName": "Название подзадачи",
 
+  "planning.title": "Планирование",
+  "planning.backlog": "Бэклог",
+  "planning.thisWeek": "На неделе",
+  "planning.moveToWeek": "В неделю",
+  "planning.moveToBacklog": "Убрать",
+  "planning.limitReached": "Лимит на неделю достигнут",
+  "planning.contextFilter": "Фильтр: {name}",
+  "planning.nextWeekBadge": "след неделя",
+  "planning.exit": "Выйти",
+
   "quickCapture.ideaPlaceholder": "Идея...",
   "quickCapture.descriptionPlaceholder": "Описание",
   "quickCapture.saving": "Сохранение...",

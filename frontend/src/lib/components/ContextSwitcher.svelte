@@ -3,10 +3,12 @@
 	import { page } from '$app/stores';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
+	import { planningStore } from '$lib/stores/planning.svelte';
 	import LayersIcon from '@lucide/svelte/icons/layers';
 	import ListIcon from '@lucide/svelte/icons/list';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+	import CalendarRangeIcon from '@lucide/svelte/icons/calendar-range';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import SunriseIcon from '@lucide/svelte/icons/sunrise';
 	import CircleCheckBigIcon from '@lucide/svelte/icons/circle-check-big';
@@ -46,10 +48,12 @@
 		<button
 			class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
-				{contextsStore.activeView === view.id
-				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-			onclick={() => { closeTaskDetailIfOpen(); contextsStore.setView(view.id); onItemClick?.(); }}
+				{planningStore.active
+				? 'text-sidebar-foreground/40'
+				: contextsStore.activeView === view.id
+					? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+					: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+			onclick={() => { if (planningStore.active) planningStore.exit(); closeTaskDetailIfOpen(); contextsStore.setView(view.id); onItemClick?.(); }}
 			title={collapsed ? viewLabel : undefined}
 		>
 			<ViewIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
@@ -58,6 +62,24 @@
 			{/if}
 		</button>
 	{/each}
+
+	<!-- Planning mode -->
+	<div class="my-1.5">
+		<button
+			class="group flex w-full items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
+				{planningStore.active
+				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+			onclick={() => { closeTaskDetailIfOpen(); if (planningStore.active) { planningStore.exit(); } else { planningStore.enter(); } onItemClick?.(); }}
+			title={collapsed ? $t('planning.title') : undefined}
+		>
+			<CalendarRangeIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+			{#if !collapsed}
+				{$t('planning.title')}
+			{/if}
+		</button>
+	</div>
 
 	<!-- Pinned Tasks -->
 	{#if pinnedStore.items.length > 0}

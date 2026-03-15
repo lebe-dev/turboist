@@ -168,6 +168,30 @@ func TestSortTasks_Recursive(t *testing.T) {
 	}
 }
 
+func TestExcludeByLabel(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Labels: []string{"weekly", "other"}},
+		{ID: "2", Labels: []string{"other"}},
+		{ID: "3", Labels: []string{"weekly"}},
+		{ID: "4", Labels: []string{}},
+	}
+	got := excludeByLabel(tasks, "weekly")
+	if len(got) != 2 {
+		t.Fatalf("expected 2, got %d", len(got))
+	}
+	if got[0].ID != "2" || got[1].ID != "4" {
+		t.Errorf("expected IDs [2,4], got [%s,%s]", got[0].ID, got[1].ID)
+	}
+}
+
+func TestExcludeByLabel_emptyLabel(t *testing.T) {
+	tasks := []*todoist.Task{{ID: "1"}, {ID: "2"}}
+	got := excludeByLabel(tasks, "")
+	if len(got) != 2 {
+		t.Fatalf("expected all tasks returned for empty label, got %d", len(got))
+	}
+}
+
 func TestCountWithLabel(t *testing.T) {
 	tasks := []*todoist.Task{
 		{ID: "1", Labels: []string{"на неделе"}},

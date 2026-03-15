@@ -3,10 +3,12 @@
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
+	import { planningStore } from '$lib/stores/planning.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskList from '$lib/components/TaskList.svelte';
 	import DayPartTaskList from '$lib/components/DayPartTaskList.svelte';
 	import WeeklyProgress from '$lib/components/WeeklyProgress.svelte';
+	import PlanningView from '$lib/components/PlanningView.svelte';
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
 	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
@@ -138,6 +140,7 @@
 
 <svelte:window
 	onkeydown={(e) => {
+		if (planningStore.active) return;
 		const tag = (e.target as HTMLElement)?.tagName;
 		if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -152,6 +155,10 @@
 		}
 	}}
 />
+
+{#if planningStore.active}
+	<PlanningView />
+{:else}
 
 <div class="flex h-full flex-col">
 	<!-- Desktop header -->
@@ -297,3 +304,5 @@
 	<NextActionDialog />
 {/if}
 <QuickCaptureButton bind:open={quickCaptureOpen} />
+
+{/if}

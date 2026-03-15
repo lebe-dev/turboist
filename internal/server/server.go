@@ -40,6 +40,7 @@ func New(cfg *config.Config, cache *todoist.Cache) *fiber.App {
 	app.Get("/api/tasks/today", tasksHandler.Today)
 	app.Get("/api/tasks/completed", tasksHandler.Completed)
 	app.Get("/api/tasks/tomorrow", tasksHandler.Tomorrow)
+	app.Get("/api/tasks/backlog", tasksHandler.Backlog)
 	app.Post("/api/tasks", tasksHandler.Create)
 	app.Get("/api/tasks/:id", tasksHandler.GetByID)
 	app.Patch("/api/tasks/:id", tasksHandler.Update)

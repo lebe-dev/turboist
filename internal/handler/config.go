@@ -27,6 +27,7 @@ type configResponse struct {
 	PollInterval  int               `json:"poll_interval"`
 	Timezone      string            `json:"timezone"`
 	WeeklyLabel   string            `json:"weekly_label"`
+	NextWeekLabel string            `json:"next_week_label"`
 	WeeklyLimit   int               `json:"weekly_limit"`
 	CompletedDays int               `json:"completed_days"`
 	MaxPinned     int               `json:"max_pinned"`
@@ -49,6 +50,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		PollInterval:  int(h.cfg.PollInterval.Seconds()),
 		Timezone:      h.cfg.Timezone,
 		WeeklyLabel:   h.cfg.Weekly.Label,
+		NextWeekLabel: h.cfg.NextWeek.Label,
 		WeeklyLimit:   h.cfg.Weekly.MaxTasks,
 		CompletedDays: h.cfg.Completed.Days,
 		MaxPinned:     h.cfg.MaxPinned,

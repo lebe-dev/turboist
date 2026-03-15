@@ -28,7 +28,7 @@
 
 	import type { Snippet } from 'svelte';
 
-	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, dropdownExtra }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; dropdownExtra?: Snippet } = $props();
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, dropdownExtra, actionButton }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; dropdownExtra?: Snippet; actionButton?: Snippet } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -449,6 +449,10 @@
 				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer overflow-hidden" style="-webkit-touch-callout: none;">
 					{@render taskContentInner()}
 				</a>
+			{/if}
+
+			{#if actionButton}
+				{@render actionButton()}
 			{/if}
 
 			{#if !completed}

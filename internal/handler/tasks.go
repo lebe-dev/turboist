@@ -602,6 +602,46 @@ func countWithLabel(tasks []*todoist.Task, label string) int {
 	return count
 }
 
+// Backlog handles GET /api/tasks/backlog?context=...
+// Returns tasks without the weekly label. Weekly count is computed from ALL tasks (not context-filtered).
+func (h *TasksHandler) Backlog(c fiber.Ctx) error {
+	contextKey := c.Query("context")
+	tasks := h.filterByContext(contextKey)
+	weeklyCount := countWithLabel(h.cache.Tasks(), h.cfg.Weekly.Label)
+	backlog := excludeByLabel(tasks, h.cfg.Weekly.Label)
+	tree := buildTree(backlog)
+	sortTasks(tree, h.cfg.TaskSort)
+
+	return c.JSON(tasksResponse{
+		Tasks: tree,
+		Meta: tasksMeta{
+			Context:     contextKey,
+			WeeklyLimit: h.cfg.Weekly.MaxTasks,
+			WeeklyCount: weeklyCount,
+		},
+	})
+}
+
+func excludeByLabel(tasks []*todoist.Task, label string) []*todoist.Task {
+	if label == "" {
+		return tasks
+	}
+	result := make([]*todoist.Task, 0)
+	for _, t := range tasks {
+		has := false
+		for _, l := range t.Labels {
+			if l == label {
+				has = true
+				break
+			}
+		}
+		if !has {
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
 // filterByDueDate returns tasks due on the given date.
 // If includeOverdue is true, tasks with due dates before the target date are also included.
 func filterByDueDate(tasks []*todoist.Task, target time.Time, includeOverdue bool) []*todoist.Task {
