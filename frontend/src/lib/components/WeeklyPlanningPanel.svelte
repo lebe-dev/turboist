@@ -81,18 +81,19 @@
 			<div class="space-y-px px-1">
 				{#each planningStore.weeklyTasks as task (task.id)}
 					<div>
-						<TaskItem {task}>
-							{#snippet actionButton()}
-								<button
-									class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
-									onclick={() => planningStore.moveToBacklog(task)}
-									aria-label={$t('planning.moveToBacklog')}
-									title={$t('planning.moveToBacklog')}
-								>
-									<ArrowLeftIcon class="h-4 w-4" />
-								</button>
-							{/snippet}
-						</TaskItem>
+						<div class="flex items-center">
+							<div class="min-w-0 flex-1">
+								<TaskItem {task} />
+							</div>
+							<button
+								class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+								onclick={() => planningStore.moveToBacklog(task)}
+								aria-label={$t('planning.moveToBacklog')}
+								title={$t('planning.moveToBacklog')}
+							>
+								<ArrowLeftIcon class="h-4 w-4" />
+							</button>
+						</div>
 						<!-- Inline priority + date controls -->
 						<div class="flex items-center gap-2 px-8 pb-2">
 							<!-- Priority buttons -->

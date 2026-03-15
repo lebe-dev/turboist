@@ -77,22 +77,20 @@
 		{:else}
 			<div class="space-y-px px-1">
 				{#each filteredTasks as task (task.id)}
-					<TaskItem {task} {searchQuery}>
-						{#snippet actionButton()}
-							<button
-								class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
-								onclick={() => planningStore.moveToWeekly(task)}
-								disabled={planningStore.isAtLimit}
-								aria-label={$t('planning.moveToWeek')}
-								title={planningStore.isAtLimit ? $t('planning.limitReached') : $t('planning.moveToWeek')}
-							>
-								<ArrowRightIcon class="h-4 w-4" />
-							</button>
-						{/snippet}
-					</TaskItem>
-					{#if hasBacklogLabel(task)}
-						<!-- Next week badge is shown via labels in TaskItem -->
-					{/if}
+					<div class="flex items-center">
+						<div class="min-w-0 flex-1">
+							<TaskItem {task} {searchQuery} />
+						</div>
+						<button
+							class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+							onclick={() => planningStore.moveToWeekly(task)}
+							disabled={planningStore.isAtLimit}
+							aria-label={$t('planning.moveToWeek')}
+							title={planningStore.isAtLimit ? $t('planning.limitReached') : $t('planning.moveToWeek')}
+						>
+							<ArrowRightIcon class="h-4 w-4" />
+						</button>
+					</div>
 				{/each}
 			</div>
 		{/if}
