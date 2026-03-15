@@ -361,6 +361,7 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2 select-none"
+			class:pr-20={actionButton}
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
 			ontouchstart={!completed ? handleTouchStart : undefined}

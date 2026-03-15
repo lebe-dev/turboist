@@ -1190,6 +1190,11 @@
 									{task.due?.date === tomorrowDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 								onclick={() => setDateQuick(tomorrowDateStr())}
 							>Tomorrow</button>
+							{#if task.due && task.due.date !== todayDateStr() && task.due.date !== tomorrowDateStr()}
+								<span class="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium {isOverdue(task.due.date) ? 'text-destructive' : 'text-foreground'}">
+									{formatDueDate(task.due.date)}
+								</span>
+							{/if}
 							<button
 								class="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 								onclick={() => (showCalendar = !showCalendar)}
