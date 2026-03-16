@@ -3,12 +3,12 @@ package handler
 import (
 	"cmp"
 	"slices"
-	"strings"
 	"time"
 
 	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/lebe-dev/turboist/internal/config"
 	ctxfilter "github.com/lebe-dev/turboist/internal/context"
+	"github.com/lebe-dev/turboist/internal/taskview"
 	"github.com/lebe-dev/turboist/internal/todoist"
 
 	"github.com/charmbracelet/log"
@@ -24,140 +24,69 @@ func NewTasksHandler(cache *todoist.Cache, cfg *config.AppConfig) *TasksHandler 
 	return &TasksHandler{cache: cache, cfg: cfg}
 }
 
-type tasksMeta struct {
-	Context      string `json:"context"`
-	WeeklyLimit  int    `json:"weekly_limit"`
-	WeeklyCount  int    `json:"weekly_count"`
-	BacklogLimit int    `json:"backlog_limit"`
-	BacklogCount int    `json:"backlog_count"`
-}
+type tasksMeta = taskview.TasksMeta
 
 type tasksResponse struct {
 	Tasks []*todoist.Task `json:"tasks"`
 	Meta  tasksMeta       `json:"meta"`
 }
 
+func resultToResponse(r taskview.TasksResult) tasksResponse {
+	return tasksResponse{Tasks: r.Tasks, Meta: r.Meta}
+}
+
 // Tasks handles GET /api/tasks?context=...
 func (h *TasksHandler) Tasks(c fiber.Ctx) error {
-	contextKey := c.Query("context")
-	tasks := h.filterByContext(contextKey)
-	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
-	tree := buildTree(tasks)
-	sortTasksByAddedAt(tree)
-
-	return c.JSON(tasksResponse{
-		Tasks: tree,
-		Meta: tasksMeta{
-			Context:     contextKey,
-			WeeklyLimit: h.cfg.Weekly.MaxTasks,
-			WeeklyCount: weeklyCount,
-		},
+	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{
+		View: "all", Context: c.Query("context"),
 	})
+	return c.JSON(resultToResponse(r))
 }
 
 // Weekly handles GET /api/tasks/weekly?context=...
 func (h *TasksHandler) Weekly(c fiber.Ctx) error {
-	contextKey := c.Query("context")
-	tasks := h.filterByContext(contextKey)
-	weekly := filterByLabel(tasks, h.cfg.Weekly.Label)
-	tree := buildTree(weekly)
-	sortTasks(tree, h.cfg.TaskSort)
-
-	return c.JSON(tasksResponse{
-		Tasks: tree,
-		Meta: tasksMeta{
-			Context:     contextKey,
-			WeeklyLimit: h.cfg.Weekly.MaxTasks,
-			WeeklyCount: len(weekly),
-		},
+	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{
+		View: "weekly", Context: c.Query("context"),
 	})
+	return c.JSON(resultToResponse(r))
 }
 
 // NextWeek handles GET /api/tasks/next-week?context=...
 // Returns tasks with the backlog label, sorted per backlog config.
 func (h *TasksHandler) NextWeek(c fiber.Ctx) error {
 	contextKey := c.Query("context")
-	tasks := h.filterByContext(contextKey)
-	backlogTasks := filterByLabel(tasks, h.cfg.Backlog.Label)
-	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
-	tree := buildTree(backlogTasks)
-	sortBacklogTasks(tree, h.cfg.Backlog.TaskSort)
-
-	return c.JSON(tasksResponse{
-		Tasks: tree,
-		Meta: tasksMeta{
-			Context:      contextKey,
-			WeeklyLimit:  h.cfg.Weekly.MaxTasks,
-			WeeklyCount:  weeklyCount,
-			BacklogLimit: h.cfg.Backlog.MaxLimit,
-			BacklogCount: len(backlogTasks),
-		},
+	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{
+		View: "backlog", Context: contextKey,
 	})
+	// NextWeek adds backlog limit/count to meta
+	r.Meta.BacklogLimit = h.cfg.Backlog.MaxLimit
+	tasks := h.filterByContext(contextKey)
+	r.Meta.BacklogCount = len(taskview.FilterByLabel(tasks, h.cfg.Backlog.Label))
+	return c.JSON(resultToResponse(r))
 }
 
 // Today handles GET /api/tasks/today?context=...
 func (h *TasksHandler) Today(c fiber.Ctx) error {
-	contextKey := c.Query("context")
-	tasks := h.filterByContext(contextKey)
-	today := filterByDueDate(tasks, time.Now(), h.cfg.Today.IncludeOverdue)
-	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
-	tree := buildTree(today)
-	sortTasks(tree, h.cfg.TaskSort)
-
-	return c.JSON(tasksResponse{
-		Tasks: tree,
-		Meta: tasksMeta{
-			Context:     contextKey,
-			WeeklyLimit: h.cfg.Weekly.MaxTasks,
-			WeeklyCount: weeklyCount,
-		},
+	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{
+		View: "today", Context: c.Query("context"),
 	})
+	return c.JSON(resultToResponse(r))
 }
 
 // Tomorrow handles GET /api/tasks/tomorrow?context=...
 func (h *TasksHandler) Tomorrow(c fiber.Ctx) error {
-	contextKey := c.Query("context")
-	tasks := h.filterByContext(contextKey)
-	tomorrow := filterByDueDate(tasks, time.Now().AddDate(0, 0, 1), false)
-	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
-	tree := buildTree(tomorrow)
-	sortTasks(tree, h.cfg.TaskSort)
-
-	return c.JSON(tasksResponse{
-		Tasks: tree,
-		Meta: tasksMeta{
-			Context:     contextKey,
-			WeeklyLimit: h.cfg.Weekly.MaxTasks,
-			WeeklyCount: weeklyCount,
-		},
+	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{
+		View: "tomorrow", Context: c.Query("context"),
 	})
+	return c.JSON(resultToResponse(r))
 }
 
 // Inbox handles GET /api/tasks/inbox?context=...
 func (h *TasksHandler) Inbox(c fiber.Ctx) error {
-	contextKey := c.Query("context")
-	tasks := h.filterByContext(contextKey)
-
-	inboxProjectID := h.cache.InboxProjectID()
-	inbox := make([]*todoist.Task, 0)
-	for _, t := range tasks {
-		if t.ProjectID == inboxProjectID {
-			inbox = append(inbox, t)
-		}
-	}
-
-	weeklyCount := countWithLabel(tasks, h.cfg.Weekly.Label)
-	tree := buildTree(inbox)
-	sortTasksByAddedAt(tree)
-
-	return c.JSON(tasksResponse{
-		Tasks: tree,
-		Meta: tasksMeta{
-			Context:     contextKey,
-			WeeklyLimit: h.cfg.Weekly.MaxTasks,
-			WeeklyCount: weeklyCount,
-		},
+	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{
+		View: "inbox", Context: c.Query("context"),
 	})
+	return c.JSON(resultToResponse(r))
 }
 
 // Completed handles GET /api/tasks/completed
@@ -305,24 +234,12 @@ func resolveSectionID(name string, sections []*todoist.Section) string {
 func (h *TasksHandler) GetByID(c fiber.Ctx) error {
 	id := c.Params("id")
 	all := h.cache.Tasks()
-	tree := buildTree(all)
-	sortTasks(tree, h.cfg.TaskSort)
-	if t := findInTree(tree, id); t != nil {
+	tree := taskview.BuildTree(all)
+	taskview.SortTasks(tree, h.cfg.TaskSort)
+	if t := taskview.FindInTree(tree, id); t != nil {
 		return c.JSON(t)
 	}
 	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
-}
-
-func findInTree(tasks []*todoist.Task, id string) *todoist.Task {
-	for _, t := range tasks {
-		if t.ID == id {
-			return t
-		}
-		if found := findInTree(t.Children, id); found != nil {
-			return found
-		}
-	}
-	return nil
 }
 
 // Complete handles POST /api/tasks/:id/complete
@@ -368,7 +285,6 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	}
 	if req.DueDate != nil {
 		if *req.DueDate == "" {
-			// Clear the due date
 			noDate := "no date"
 			args.Due = &synctodoist.Due{String: &noDate}
 		} else {
@@ -472,148 +388,6 @@ func (h *TasksHandler) CompletedSubtasks(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"tasks": tasks})
 }
 
-func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {
-	tasks := h.cache.Tasks()
-	if contextKey == "" {
-		return tasks
-	}
-	ctx := h.cfg.FindContext(contextKey)
-	if ctx == nil {
-		return tasks
-	}
-	return ctxfilter.FilterTasks(tasks, ctx.Filters, h.cache.Projects(), h.cache.Sections())
-}
-
-// buildTree builds a parent/child tree from a flat task list.
-// Tasks are cloned to avoid mutating shared cache state.
-// Children whose parent is not in the set are treated as roots.
-func buildTree(tasks []*todoist.Task) []*todoist.Task {
-	byID := make(map[string]*todoist.Task, len(tasks))
-	clones := make([]*todoist.Task, len(tasks))
-	for i, t := range tasks {
-		c := *t
-		c.Children = make([]*todoist.Task, 0)
-		clones[i] = &c
-		byID[t.ID] = &c
-	}
-
-	roots := make([]*todoist.Task, 0)
-	for _, t := range clones {
-		if t.ParentID == nil {
-			roots = append(roots, t)
-			continue
-		}
-		if parent, ok := byID[*t.ParentID]; ok {
-			parent.Children = append(parent.Children, t)
-		} else {
-			roots = append(roots, t)
-		}
-	}
-
-	for _, t := range roots {
-		populateSubtaskCounts(t)
-	}
-
-	return roots
-}
-
-// sortTasks sorts tasks in place according to the configured sort mode.
-// Also recursively sorts children.
-func sortTasks(tasks []*todoist.Task, mode config.TaskSort) {
-	slices.SortStableFunc(tasks, func(a, b *todoist.Task) int {
-		switch mode {
-		case config.TaskSortDueDate:
-			return compareDueDate(a, b)
-		case config.TaskSortContent:
-			return cmp.Compare(strings.ToLower(a.Content), strings.ToLower(b.Content))
-		case config.TaskSortAddedAt:
-			return cmp.Compare(b.AddedAt, a.AddedAt)
-		default: // priority
-			// Todoist priority: 4 = highest, 1 = lowest; sort descending
-			if c := cmp.Compare(b.Priority, a.Priority); c != 0 {
-				return c
-			}
-			return compareDueDate(a, b)
-		}
-	})
-	for _, t := range tasks {
-		if len(t.Children) > 1 {
-			sortTasks(t.Children, mode)
-		}
-	}
-}
-
-// sortBacklogTasks is an alias for sortTasks used by the backlog endpoint.
-func sortBacklogTasks(tasks []*todoist.Task, mode config.TaskSort) {
-	sortTasks(tasks, mode)
-}
-
-// sortTasksByAddedAt sorts tasks by creation date descending (newest first).
-// Also recursively sorts children.
-func sortTasksByAddedAt(tasks []*todoist.Task) {
-	slices.SortStableFunc(tasks, func(a, b *todoist.Task) int {
-		return cmp.Compare(b.AddedAt, a.AddedAt)
-	})
-	for _, t := range tasks {
-		if len(t.Children) > 1 {
-			sortTasksByAddedAt(t.Children)
-		}
-	}
-}
-
-// compareDueDate compares two tasks by due date. Tasks without due date go last.
-func compareDueDate(a, b *todoist.Task) int {
-	switch {
-	case a.Due == nil && b.Due == nil:
-		return 0
-	case a.Due == nil:
-		return 1
-	case b.Due == nil:
-		return -1
-	default:
-		return cmp.Compare(a.Due.Date, b.Due.Date)
-	}
-}
-
-func populateSubtaskCounts(t *todoist.Task) {
-	t.SubTaskCount = len(t.Children)
-	for _, child := range t.Children {
-		populateSubtaskCounts(child)
-	}
-}
-
-func filterByLabel(tasks []*todoist.Task, label string) []*todoist.Task {
-	if label == "" {
-		return tasks
-	}
-	result := make([]*todoist.Task, 0)
-	for _, t := range tasks {
-		for _, l := range t.Labels {
-			if l == label {
-				result = append(result, t)
-				break
-			}
-		}
-	}
-	return result
-}
-
-func countWithLabel(tasks []*todoist.Task, label string) int {
-	if label == "" {
-		return 0
-	}
-	count := 0
-	for _, t := range tasks {
-		for _, l := range t.Labels {
-			if l == label {
-				count++
-				break
-			}
-		}
-	}
-	return count
-}
-
 // ResetWeekly handles POST /api/tasks/reset-weekly
 // Removes the weekly label from all tasks that have it.
 func (h *TasksHandler) ResetWeekly(c fiber.Ctx) error {
@@ -622,13 +396,11 @@ func (h *TasksHandler) ResetWeekly(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "weekly label not configured"})
 	}
 
-	tasks := filterByLabel(h.cache.Tasks(), label)
+	tasks := taskview.FilterByLabel(h.cache.Tasks(), label)
 	if len(tasks) == 0 {
 		return c.JSON(fiber.Map{"ok": true, "updated": 0})
 	}
 
-	// Build label updates for all tasks in one batch.
-	// Uses SetTasksLabels to bypass omitempty on empty label slices.
 	updates := make(map[string][]string, len(tasks))
 	for _, t := range tasks {
 		newLabels := make([]string, 0, len(t.Labels))
@@ -654,61 +426,21 @@ func (h *TasksHandler) ResetWeekly(c fiber.Ctx) error {
 }
 
 // Backlog handles GET /api/tasks/backlog?context=...
-// Returns tasks with the backlog label. Weekly count is computed from ALL tasks (not context-filtered).
 func (h *TasksHandler) Backlog(c fiber.Ctx) error {
-	contextKey := c.Query("context")
-	tasks := h.filterByContext(contextKey)
-	weeklyCount := countWithLabel(h.cache.Tasks(), h.cfg.Weekly.Label)
-	backlog := filterByLabel(tasks, h.cfg.Backlog.Label)
-	tree := buildTree(backlog)
-	sortBacklogTasks(tree, h.cfg.Backlog.TaskSort)
-
-	return c.JSON(tasksResponse{
-		Tasks: tree,
-		Meta: tasksMeta{
-			Context:     contextKey,
-			WeeklyLimit: h.cfg.Weekly.MaxTasks,
-			WeeklyCount: weeklyCount,
-		},
+	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{
+		View: "backlog", Context: c.Query("context"),
 	})
+	return c.JSON(resultToResponse(r))
 }
 
-func excludeByLabel(tasks []*todoist.Task, label string) []*todoist.Task {
-	if label == "" {
+func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {
+	tasks := h.cache.Tasks()
+	if contextKey == "" {
 		return tasks
 	}
-	result := make([]*todoist.Task, 0)
-	for _, t := range tasks {
-		has := false
-		for _, l := range t.Labels {
-			if l == label {
-				has = true
-				break
-			}
-		}
-		if !has {
-			result = append(result, t)
-		}
+	ctx := h.cfg.FindContext(contextKey)
+	if ctx == nil {
+		return tasks
 	}
-	return result
-}
-
-// filterByDueDate returns tasks due on the given date.
-// If includeOverdue is true, tasks with due dates before the target date are also included.
-func filterByDueDate(tasks []*todoist.Task, target time.Time, includeOverdue bool) []*todoist.Task {
-	targetDate := target.Format("2006-01-02")
-	result := make([]*todoist.Task, 0)
-	for _, t := range tasks {
-		if t.Due == nil {
-			continue
-		}
-		if t.Due.Date == targetDate {
-			result = append(result, t)
-			continue
-		}
-		if includeOverdue && t.Due.Date < targetDate {
-			result = append(result, t)
-		}
-	}
-	return result
+	return ctxfilter.FilterTasks(tasks, ctx.Filters, h.cache.Projects(), h.cache.Sections())
 }

@@ -1,41 +1,61 @@
-import { getBacklogTasks, getWeeklyTasks, getAppConfig, updateTask, resetWeeklyLabel, patchState } from '$lib/api/client';
+import { getAppConfig, updateTask, resetWeeklyLabel, patchState } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore } from './contexts.svelte';
-import { createPoller, type Poller } from '$lib/utils/polling';
-
-const DEFAULT_INTERVAL_MS = 30_000;
+import {
+	wsClient,
+	type SnapshotPlanningData,
+	type DeltaPlanningData
+} from '$lib/ws/client.svelte';
+import { mergeUpserted, filterByIds } from '$lib/ws/merge';
 
 function createPlanningStore() {
 	let active = $state(false);
 	let backlogTasks = $state<Task[]>([]);
 	let weeklyTasks = $state<Task[]>([]);
-	let meta = $state<Meta>({ context: '', weekly_limit: 0, weekly_count: 0, backlog_limit: 0, backlog_count: 0 });
+	let meta = $state<Meta>({
+		context: '',
+		weekly_limit: 0,
+		weekly_count: 0,
+		backlog_limit: 0,
+		backlog_count: 0
+	});
 	let config = $state<Config | null>(null);
 	let loading = $state(false);
 	let mobileTab = $state<'backlog' | 'weekly'>('backlog');
 
-	let poller: Poller | null = null;
+	let cleanups: (() => void)[] = [];
 
 	function initActive(isActive: boolean): void {
 		active = isActive;
 	}
 
-	async function fetchBoth(): Promise<void> {
-		const contextId = contextsStore.activeContextId ?? undefined;
-		const [backlogRes, weeklyRes, cfg] = await Promise.all([
-			getBacklogTasks(contextId),
-			getWeeklyTasks(), // no context filter for weekly panel
-			getAppConfig()
-				.then((c) => c.settings)
-				.catch(() => null)
-		]);
+	function handlePlanningSnapshot(data: unknown): void {
+		const d = data as SnapshotPlanningData;
+		backlogTasks = d.backlog;
+		weeklyTasks = d.weekly;
+		meta = d.meta;
+		loading = false;
+	}
 
-		backlogTasks = backlogRes.tasks;
-		meta = backlogRes.meta;
-		weeklyTasks = weeklyRes.tasks;
+	function handlePlanningDelta(data: unknown): void {
+		const d = data as DeltaPlanningData;
 
-		if (cfg) {
-			config = cfg;
+		if (d.backlog_removed?.length) {
+			backlogTasks = filterByIds(backlogTasks, d.backlog_removed);
+		}
+		if (d.backlog_upserted?.length) {
+			backlogTasks = mergeUpserted(backlogTasks, d.backlog_upserted);
+		}
+
+		if (d.weekly_removed?.length) {
+			weeklyTasks = filterByIds(weeklyTasks, d.weekly_removed);
+		}
+		if (d.weekly_upserted?.length) {
+			weeklyTasks = mergeUpserted(weeklyTasks, d.weekly_upserted);
+		}
+
+		if (d.meta) {
+			meta = d.meta;
 		}
 	}
 
@@ -47,45 +67,33 @@ function createPlanningStore() {
 		try {
 			const appCfg = await getAppConfig();
 			config = appCfg.settings;
-
-			let intervalMs = DEFAULT_INTERVAL_MS;
-			const parsed = appCfg.settings.poll_interval * 1000;
-			if (Number.isFinite(parsed) && parsed >= 1000) {
-				intervalMs = parsed;
-			}
-
-			await fetchBoth();
-
-			poller = createPoller({
-				interval: intervalMs,
-				fn: fetchBoth,
-				onError: (err) => {
-					console.error('[planning] poll error', err);
-				}
-			});
-			poller.start();
 		} catch (err) {
-			console.error('[planning] enter failed', err);
-		} finally {
-			loading = false;
+			console.error('[planning] config load failed', err);
 		}
+
+		// Register WS handlers
+		cleanups.push(wsClient.onMessage('snapshot', 'planning', handlePlanningSnapshot));
+		cleanups.push(wsClient.onMessage('delta', 'planning', handlePlanningDelta));
+
+		const contextId = contextsStore.activeContextId ?? undefined;
+		wsClient.subscribe('planning', { context: contextId });
 	}
 
 	function exit(): void {
 		active = false;
 		patchState({ planning_open: false }).catch(console.error);
-		poller?.stop();
-		poller = null;
+
+		for (const cleanup of cleanups) cleanup();
+		cleanups = [];
+		wsClient.unsubscribe('planning');
+
 		backlogTasks = [];
 		weeklyTasks = [];
 	}
 
-	async function refresh(): Promise<void> {
-		try {
-			await fetchBoth();
-		} catch (err) {
-			console.error('[planning] refresh failed', err);
-		}
+	function refresh(): void {
+		const contextId = contextsStore.activeContextId ?? undefined;
+		wsClient.subscribe('planning', { context: contextId });
 	}
 
 	function isAtLimit(): boolean {
@@ -111,10 +119,9 @@ function createPlanningStore() {
 
 		try {
 			await updateTask(task.id, { labels: newLabels });
-			await refresh();
 		} catch (err) {
 			console.error('[planning] moveToWeekly failed', err);
-			await refresh();
+			refresh();
 		}
 	}
 
@@ -131,10 +138,9 @@ function createPlanningStore() {
 
 		try {
 			await updateTask(task.id, { labels: newLabels });
-			await refresh();
 		} catch (err) {
 			console.error('[planning] moveToBacklog failed', err);
-			await refresh();
+			refresh();
 		}
 	}
 
@@ -144,10 +150,9 @@ function createPlanningStore() {
 
 		try {
 			await resetWeeklyLabel();
-			await refresh();
 		} catch (err) {
 			console.error('[planning] startWeek failed', err);
-			await refresh();
+			refresh();
 		}
 	}
 
@@ -158,9 +163,6 @@ function createPlanningStore() {
 		const backlogLabel = config.backlog_label;
 		const tasksToMove = [...backlogTasks];
 		if (tasksToMove.length === 0) return;
-
-		// Pause poller to prevent stale data overwriting optimistic state
-		poller?.stop();
 
 		// Optimistic: move all backlog tasks to weekly
 		const movedTasks = tasksToMove.map((task) => {
@@ -187,11 +189,7 @@ function createPlanningStore() {
 		} catch (err) {
 			console.error('[planning] acceptAll failed', err);
 		}
-
-		// Wait for backend cache to settle, then sync and resume polling
-		await new Promise((r) => setTimeout(r, 2000));
-		await refresh();
-		poller?.start();
+		// Cache refresh → hub broadcast → delta will sync automatically
 	}
 
 	async function updateWeeklyTask(
@@ -217,10 +215,9 @@ function createPlanningStore() {
 
 		try {
 			await updateTask(taskId, data);
-			await refresh();
 		} catch (err) {
 			console.error('[planning] updateWeeklyTask failed', err);
-			await refresh();
+			refresh();
 		}
 	}
 

@@ -11,6 +11,7 @@ const cookieName = "turboist_token"
 var skipPaths = []string{
 	"/api/auth/login",
 	"/api/health",
+	"/api/ws",
 }
 
 func NewMiddleware(store *SessionStore) fiber.Handler {

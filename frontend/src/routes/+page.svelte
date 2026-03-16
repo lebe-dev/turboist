@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
@@ -26,14 +25,6 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
 	import { t } from 'svelte-intl-precompile';
-
-	onMount(() => {
-		tasksStore.start();
-	});
-
-	onDestroy(() => {
-		tasksStore.stop();
-	});
 
 	let mounted = false;
 

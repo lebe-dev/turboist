@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/taskview"
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
 
@@ -14,7 +15,7 @@ func TestBuildTree_flat(t *testing.T) {
 		{ID: "1", Content: "a", Children: []*todoist.Task{}},
 		{ID: "2", Content: "b", Children: []*todoist.Task{}},
 	}
-	roots := buildTree(tasks)
+	roots := taskview.BuildTree(tasks)
 	if len(roots) != 2 {
 		t.Fatalf("expected 2 roots, got %d", len(roots))
 	}
@@ -26,7 +27,7 @@ func TestBuildTree_parentChild(t *testing.T) {
 		{ID: "2", Content: "child", ParentID: ptr("1"), Children: []*todoist.Task{}},
 		{ID: "3", Content: "child2", ParentID: ptr("1"), Children: []*todoist.Task{}},
 	}
-	roots := buildTree(tasks)
+	roots := taskview.BuildTree(tasks)
 	if len(roots) != 1 {
 		t.Fatalf("expected 1 root, got %d", len(roots))
 	}
@@ -43,7 +44,7 @@ func TestBuildTree_orphanBecomesRoot(t *testing.T) {
 		// parent not in set
 		{ID: "2", Content: "child", ParentID: ptr("999"), Children: []*todoist.Task{}},
 	}
-	roots := buildTree(tasks)
+	roots := taskview.BuildTree(tasks)
 	if len(roots) != 1 {
 		t.Fatalf("expected orphan to be root, got %d roots", len(roots))
 	}
@@ -53,7 +54,7 @@ func TestBuildTree_doesNotMutateCached(t *testing.T) {
 	original := &todoist.Task{ID: "1", Content: "p", Children: []*todoist.Task{}}
 	child := &todoist.Task{ID: "2", Content: "c", ParentID: ptr("1"), Children: []*todoist.Task{}}
 
-	buildTree([]*todoist.Task{original, child})
+	taskview.BuildTree([]*todoist.Task{original, child})
 
 	if len(original.Children) != 0 {
 		t.Error("buildTree mutated cached task Children")
@@ -66,7 +67,7 @@ func TestFilterByLabel(t *testing.T) {
 		{ID: "2", Labels: []string{"другой"}},
 		{ID: "3", Labels: []string{"на неделе"}},
 	}
-	got := filterByLabel(tasks, "на неделе")
+	got := taskview.FilterByLabel(tasks, "на неделе")
 	if len(got) != 2 {
 		t.Fatalf("expected 2, got %d", len(got))
 	}
@@ -74,7 +75,7 @@ func TestFilterByLabel(t *testing.T) {
 
 func TestFilterByLabel_emptyLabel(t *testing.T) {
 	tasks := []*todoist.Task{{ID: "1"}, {ID: "2"}}
-	got := filterByLabel(tasks, "")
+	got := taskview.FilterByLabel(tasks, "")
 	if len(got) != 2 {
 		t.Fatalf("expected all tasks returned for empty label, got %d", len(got))
 	}
@@ -87,7 +88,7 @@ func TestFilterByDueDate_exactMatch(t *testing.T) {
 		{ID: "3"},
 	}
 	target, _ := time.Parse("2006-01-02", "2026-03-13")
-	got := filterByDueDate(tasks, target, false)
+	got := taskview.FilterByDueDate(tasks, target, false)
 	if len(got) != 1 || got[0].ID != "1" {
 		t.Fatalf("expected 1 task (id=1), got %d", len(got))
 	}
@@ -101,7 +102,7 @@ func TestFilterByDueDate_includeOverdue(t *testing.T) {
 		{ID: "4"}, // no due
 	}
 	target, _ := time.Parse("2006-01-02", "2026-03-13")
-	got := filterByDueDate(tasks, target, true)
+	got := taskview.FilterByDueDate(tasks, target, true)
 	if len(got) != 2 {
 		t.Fatalf("expected 2 tasks (overdue + today), got %d", len(got))
 	}
@@ -113,7 +114,7 @@ func TestSortTasks_Priority(t *testing.T) {
 		{ID: "2", Content: "high", Priority: 4, Children: []*todoist.Task{}},
 		{ID: "3", Content: "med", Priority: 2, Children: []*todoist.Task{}},
 	}
-	sortTasks(tasks, "priority")
+	taskview.SortTasks(tasks, "priority")
 	if tasks[0].ID != "2" || tasks[1].ID != "3" || tasks[2].ID != "1" {
 		t.Errorf("expected order [2,3,1], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
 	}
@@ -125,7 +126,7 @@ func TestSortTasks_PriorityThenDueDate(t *testing.T) {
 		{ID: "2", Content: "b", Priority: 4, Due: &todoist.Due{Date: "2026-03-10"}, Children: []*todoist.Task{}},
 		{ID: "3", Content: "c", Priority: 4, Children: []*todoist.Task{}}, // no due date
 	}
-	sortTasks(tasks, "priority")
+	taskview.SortTasks(tasks, "priority")
 	if tasks[0].ID != "2" || tasks[1].ID != "1" || tasks[2].ID != "3" {
 		t.Errorf("expected order [2,1,3], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
 	}
@@ -137,7 +138,7 @@ func TestSortTasks_DueDate(t *testing.T) {
 		{ID: "2", Content: "b", Children: []*todoist.Task{}}, // no due
 		{ID: "3", Content: "c", Due: &todoist.Due{Date: "2026-03-10"}, Children: []*todoist.Task{}},
 	}
-	sortTasks(tasks, "due_date")
+	taskview.SortTasks(tasks, "due_date")
 	if tasks[0].ID != "3" || tasks[1].ID != "1" || tasks[2].ID != "2" {
 		t.Errorf("expected order [3,1,2], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
 	}
@@ -149,7 +150,7 @@ func TestSortTasks_Content(t *testing.T) {
 		{ID: "2", Content: "alpha", Children: []*todoist.Task{}},
 		{ID: "3", Content: "Bravo", Children: []*todoist.Task{}},
 	}
-	sortTasks(tasks, "content")
+	taskview.SortTasks(tasks, "content")
 	if tasks[0].ID != "2" || tasks[1].ID != "3" || tasks[2].ID != "1" {
 		t.Errorf("expected order [2,3,1], got [%s,%s,%s]", tasks[0].ID, tasks[1].ID, tasks[2].ID)
 	}
@@ -162,7 +163,7 @@ func TestSortTasks_Recursive(t *testing.T) {
 			{ID: "c2", Content: "child-high", Priority: 4, Children: []*todoist.Task{}},
 		}},
 	}
-	sortTasks(tasks, "priority")
+	taskview.SortTasks(tasks, "priority")
 	if tasks[0].Children[0].ID != "c2" {
 		t.Errorf("expected children sorted, got first child %s", tasks[0].Children[0].ID)
 	}
@@ -175,7 +176,7 @@ func TestExcludeByLabel(t *testing.T) {
 		{ID: "3", Labels: []string{"weekly"}},
 		{ID: "4", Labels: []string{}},
 	}
-	got := excludeByLabel(tasks, "weekly")
+	got := taskview.ExcludeByLabel(tasks, "weekly")
 	if len(got) != 2 {
 		t.Fatalf("expected 2, got %d", len(got))
 	}
@@ -186,7 +187,7 @@ func TestExcludeByLabel(t *testing.T) {
 
 func TestExcludeByLabel_emptyLabel(t *testing.T) {
 	tasks := []*todoist.Task{{ID: "1"}, {ID: "2"}}
-	got := excludeByLabel(tasks, "")
+	got := taskview.ExcludeByLabel(tasks, "")
 	if len(got) != 2 {
 		t.Fatalf("expected all tasks returned for empty label, got %d", len(got))
 	}
@@ -198,10 +199,10 @@ func TestCountWithLabel(t *testing.T) {
 		{ID: "2", Labels: []string{}},
 		{ID: "3", Labels: []string{"на неделе"}},
 	}
-	if n := countWithLabel(tasks, "на неделе"); n != 2 {
+	if n := taskview.CountWithLabel(tasks, "на неделе"); n != 2 {
 		t.Errorf("expected 2, got %d", n)
 	}
-	if n := countWithLabel(tasks, ""); n != 0 {
+	if n := taskview.CountWithLabel(tasks, ""); n != 0 {
 		t.Errorf("expected 0 for empty label, got %d", n)
 	}
 }

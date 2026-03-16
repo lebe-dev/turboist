@@ -11,9 +11,10 @@ import (
 	"github.com/lebe-dev/turboist/internal/server"
 	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/todoist"
+	"github.com/lebe-dev/turboist/internal/ws"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 func main() {
 	log.Info("starting turboist", "version", Version)
@@ -39,6 +40,10 @@ func main() {
 	log.Info("warming cache...")
 	cache := todoist.NewCache(client)
 	log.Info("cache warmed")
+
+	hub := ws.NewHub(cache, &cfg.App)
+	cache.SetOnRefresh(hub.Broadcast)
+	log.Info("websocket hub initialized")
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -67,7 +72,7 @@ func main() {
 	sched.Start(ctx)
 	log.Info("scheduler started", "interval", cfg.App.PollInterval)
 
-	app := server.New(cfg, cache, store)
+	app := server.New(cfg, cache, store, hub)
 
 	go func() {
 		<-ctx.Done()

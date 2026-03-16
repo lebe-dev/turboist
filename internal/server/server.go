@@ -16,9 +16,10 @@ import (
 	"github.com/lebe-dev/turboist/internal/handler"
 	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/todoist"
+	"github.com/lebe-dev/turboist/internal/ws"
 )
 
-func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store) *fiber.App {
+func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws.Hub) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: "turboist",
 	})
@@ -32,6 +33,18 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store) *fiber.
 
 	healthHandler := handler.NewHealthHandler(cache)
 	app.Get("/api/health", healthHandler.Health)
+
+	// WebSocket endpoint
+	app.Get("/api/ws", func(c fiber.Ctx) error {
+		if !ws.IsWebSocketUpgrade(c) {
+			return fiber.ErrUpgradeRequired
+		}
+		token := c.Cookies("turboist_token")
+		if token == "" || !sessionStore.ValidateSession(token) {
+			return c.SendStatus(401)
+		}
+		return hub.HandleWS(c)
+	})
 
 	tasksHandler := handler.NewTasksHandler(cache, &cfg.App)
 	app.Get("/api/tasks", tasksHandler.Tasks)

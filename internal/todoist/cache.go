@@ -25,8 +25,9 @@ type Cache struct {
 	lastSyncedAt time.Time
 	warmed       bool
 
-	client *Client
-	sfg    singleflight.Group
+	client    *Client
+	sfg       singleflight.Group
+	onRefresh func()
 }
 
 // NewCache creates a Cache, performs a synchronous cold-start Refresh, and panics on error.
@@ -53,6 +54,10 @@ func (c *Cache) Refresh(ctx context.Context) error {
 	c.lastSyncedAt = time.Now()
 	c.warmed = true
 	c.mu.Unlock()
+
+	if c.onRefresh != nil {
+		c.onRefresh()
+	}
 
 	return nil
 }
@@ -114,6 +119,11 @@ func (c *Cache) InboxProjectID() string {
 // Client returns the underlying Todoist API client.
 func (c *Cache) Client() *Client {
 	return c.client
+}
+
+// SetOnRefresh sets a callback that is invoked after every successful cache refresh.
+func (c *Cache) SetOnRefresh(fn func()) {
+	c.onRefresh = fn
 }
 
 // RefreshAfterMutation triggers a cache refresh deduplicated via singleflight.

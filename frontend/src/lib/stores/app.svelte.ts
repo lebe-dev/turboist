@@ -6,6 +6,7 @@ import { collapsedStore } from './collapsed.svelte';
 import { sidebarStore } from './sidebar.svelte';
 import { planningStore } from './planning.svelte';
 import { tasksStore } from './tasks.svelte';
+import { wsClient } from '$lib/ws/client.svelte';
 
 const LOCAL_STORAGE_KEYS = [
 	'turboist:context',
@@ -95,10 +96,18 @@ function createAppStore() {
 		sidebarStore.init(cfg.state.sidebar_collapsed);
 		planningStore.initActive(cfg.state.planning_open);
 
-		// Start task polling with the configured interval
-		await tasksStore.start(cfg.settings.poll_interval);
+		// Connect WebSocket
+		wsClient.connect();
+
+		// Start task store (registers WS handlers and subscribes)
+		await tasksStore.start();
 
 		initialized = true;
+	}
+
+	function destroy(): void {
+		tasksStore.stop();
+		wsClient.disconnect();
 	}
 
 	function shouldInheritToSubtasks(labelName: string): boolean {
@@ -121,7 +130,8 @@ function createAppStore() {
 			return quickCapture;
 		},
 		shouldInheritToSubtasks,
-		init
+		init,
+		destroy
 	};
 }
 

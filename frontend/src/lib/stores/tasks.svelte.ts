@@ -1,148 +1,107 @@
-import {
-	getAppConfig,
-	getTasks,
-	getInboxTasks,
-	getWeeklyTasks,
-	getNextWeekTasks,
-	getTodayTasks,
-	getTomorrowTasks,
-	getCompletedTasks
-} from '$lib/api/client';
+import { getAppConfig, getCompletedTasks } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
-import { createPoller, type Poller } from '$lib/utils/polling';
-
-const DEFAULT_INTERVAL_MS = 30_000;
+import {
+	wsClient,
+	type SnapshotTasksData,
+	type DeltaTasksData
+} from '$lib/ws/client.svelte';
+import { mergeUpserted, filterByIds } from '$lib/ws/merge';
 
 const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 function createTasksStore() {
 	let tasks = $state<Task[]>([]);
-	let meta = $state<Meta>({ context: '', weekly_limit: 0, weekly_count: 0, backlog_limit: 0, backlog_count: 0 });
+	let meta = $state<Meta>({
+		context: '',
+		weekly_limit: 0,
+		weekly_count: 0,
+		backlog_limit: 0,
+		backlog_count: 0
+	});
 	let config = $state<Config | null>(null);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let isStale = $state(false);
 
-	let poller: Poller | null = null;
-
 	// IDs of tasks optimistically removed — survives fetches until server catches up
 	const pendingRemovals = new Set<string>();
 
-	// Last seen JSON snapshots — used to skip reactive updates when data is unchanged
-	let lastTasksJson = '';
-	let lastMetaJson = '';
+	let cleanups: (() => void)[] = [];
 
-	/** Only assign to $state if the value actually changed (avoids reactive cascade on poll). */
-	function setTasksIfChanged(newTasks: Task[]): void {
-		const json = JSON.stringify(newTasks);
-		if (json === lastTasksJson) return;
-		lastTasksJson = json;
-		tasks = newTasks;
+	function updateStale(lastSyncedAt?: string): void {
+		isStale = lastSyncedAt
+			? Date.now() - new Date(lastSyncedAt).getTime() > STALE_THRESHOLD_MS
+			: false;
 	}
 
-	async function fetchTasks(): Promise<void> {
+	function applyPendingRemovals(taskList: Task[]): Task[] {
+		if (pendingRemovals.size === 0) return taskList;
+
+		// Auto-clear removals the server has caught up with
+		function hasId(list: Task[], id: string): boolean {
+			return list.some((t) => t.id === id || hasId(t.children, id));
+		}
+		for (const id of [...pendingRemovals]) {
+			if (!hasId(taskList, id)) pendingRemovals.delete(id);
+		}
+
+		if (pendingRemovals.size === 0) return taskList;
+
+		function filterPending(list: Task[]): Task[] {
+			return list.flatMap((t) => {
+				if (pendingRemovals.has(t.id)) return [];
+				return [{ ...t, children: filterPending(t.children) }];
+			});
+		}
+		return filterPending(taskList);
+	}
+
+	function handleTasksSnapshot(data: unknown): void {
+		const d = data as SnapshotTasksData;
+		tasks = applyPendingRemovals(d.tasks);
+		meta = d.meta;
+		loading = false;
+		error = null;
+		updateStale(d.meta.last_synced_at);
+	}
+
+	function handleTasksDelta(data: unknown): void {
+		const d = data as DeltaTasksData;
+		let updated = tasks;
+		if (d.removed?.length > 0) {
+			updated = filterByIds(updated, d.removed);
+		}
+		if (d.upserted?.length > 0) {
+			updated = mergeUpserted(updated, d.upserted);
+		}
+		tasks = applyPendingRemovals(updated);
+		if (d.meta) {
+			meta = d.meta;
+			updateStale(d.meta.last_synced_at);
+		}
+	}
+
+	function subscribeWS(): void {
 		const contextId = contextsStore.activeContextId ?? undefined;
 		const view: View = contextsStore.activeView;
 
-		const fetcherMap: Record<string, typeof getTasks> = {
-			inbox: getInboxTasks,
-			weekly: getWeeklyTasks,
-			backlog: getNextWeekTasks,
-			today: getTodayTasks,
-			tomorrow: getTomorrowTasks,
-			completed: getCompletedTasks
-		};
-		const fetcher = fetcherMap[view] ?? getTasks;
-
-		const [res, cfg] = await Promise.all([
-			fetcher(contextId),
-			getAppConfig()
-				.then((c) => c.settings)
-				.catch(() => null)
-		]);
-
-		if (pendingRemovals.size > 0) {
-			function hasId(list: Task[], id: string): boolean {
-				return list.some((t) => t.id === id || hasId(t.children, id));
-			}
-			// Auto-clear removals the server has caught up with
-			for (const id of [...pendingRemovals]) {
-				if (!hasId(res.tasks, id)) pendingRemovals.delete(id);
-			}
-			if (pendingRemovals.size > 0) {
-				function filterPending(list: Task[]): Task[] {
-					return list.flatMap((t) => {
-						if (pendingRemovals.has(t.id)) return [];
-						return [{ ...t, children: filterPending(t.children) }];
-					});
-				}
-				setTasksIfChanged(filterPending(res.tasks));
-			} else {
-				setTasksIfChanged(res.tasks);
-			}
-		} else {
-			setTasksIfChanged(res.tasks);
+		// Completed view uses HTTP fetch, not WS
+		if (view === 'completed') {
+			fetchCompleted(contextId);
+			return;
 		}
 
-		const newMetaJson = JSON.stringify(res.meta);
-		if (newMetaJson !== lastMetaJson) {
-			lastMetaJson = newMetaJson;
-			meta = res.meta;
-		}
-
-		if (cfg) {
-			config = cfg;
-			isStale = cfg.last_synced_at
-				? Date.now() - new Date(cfg.last_synced_at).getTime() > STALE_THRESHOLD_MS
-				: false;
-		} else {
-			isStale = false;
-		}
+		wsClient.subscribe('tasks', { view, context: contextId });
 	}
 
-	async function start(pollInterval?: number): Promise<void> {
+	async function fetchCompleted(_context?: string): Promise<void> {
 		loading = true;
-		error = null;
-
-		let intervalMs = pollInterval ? pollInterval * 1000 : DEFAULT_INTERVAL_MS;
-		if (!Number.isFinite(intervalMs) || intervalMs < 1000) {
-			intervalMs = DEFAULT_INTERVAL_MS;
-		}
-
-		poller = createPoller({
-			interval: intervalMs,
-			fn: fetchTasks,
-			onError: (err) => {
-				error = err instanceof Error ? err.message : String(err);
-			}
-		});
-
-		poller.start();
-		loading = false;
-	}
-
-	function stop(): void {
-		poller?.stop();
-		poller = null;
-	}
-
-	/** Restart polling (on context/view change) */
-	function refresh(): Promise<void> {
-		return fetchTasks().catch((err) => {
-			error = err instanceof Error ? err.message : String(err);
-		});
-	}
-
-	/** Clear tasks, show loading spinner, and fetch fresh data (for view transitions). */
-	async function refreshWithLoading(): Promise<void> {
-		lastTasksJson = '';
-		lastMetaJson = '';
-		tasks = [];
-		loading = true;
-		error = null;
 		try {
-			await fetchTasks();
+			const res = await getCompletedTasks();
+			tasks = res.tasks;
+			meta = res.meta;
+			error = null;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -150,14 +109,47 @@ function createTasksStore() {
 		}
 	}
 
-	/** Invalidate the JSON cache so the next fetch always applies. */
-	function invalidateCache(): void {
-		lastTasksJson = '';
+	async function start(): Promise<void> {
+		loading = true;
+		error = null;
+
+		// Load config once
+		try {
+			const cfg = await getAppConfig();
+			config = cfg.settings;
+		} catch {
+			// Config fetch is best-effort
+		}
+
+		// Register WS handlers
+		cleanups.push(wsClient.onMessage('snapshot', 'tasks', handleTasksSnapshot));
+		cleanups.push(wsClient.onMessage('delta', 'tasks', handleTasksDelta));
+
+		subscribeWS();
 	}
 
-	/** Optimistically update a task's fields in the local store. */
+	function stop(): void {
+		for (const cleanup of cleanups) cleanup();
+		cleanups = [];
+		wsClient.unsubscribe('tasks');
+	}
+
+	// Refresh: re-subscribe to get a fresh snapshot from the server.
+	function refresh(): Promise<void> {
+		subscribeWS();
+		return Promise.resolve();
+	}
+
+	// Clear tasks, show loading spinner, and re-subscribe (for view transitions).
+	async function refreshWithLoading(): Promise<void> {
+		tasks = [];
+		loading = true;
+		error = null;
+		subscribeWS();
+	}
+
+	// Optimistic local mutations
 	function updateTaskLocal(taskId: string, updater: (task: Task) => Task): void {
-		invalidateCache();
 		function walk(list: Task[]): Task[] {
 			return list.map((t) => {
 				const updated = t.id === taskId ? updater(t) : t;
@@ -170,9 +162,7 @@ function createTasksStore() {
 		tasks = walk(tasks);
 	}
 
-	/** Optimistically remove a task (and its children) from the local store. */
 	function removeTaskLocal(taskId: string): void {
-		invalidateCache();
 		pendingRemovals.add(taskId);
 		function walk(list: Task[]): Task[] {
 			return list.flatMap((t) => {
@@ -183,20 +173,15 @@ function createTasksStore() {
 		tasks = walk(tasks);
 	}
 
-	/** Clear a pending removal (call on API error before refresh). */
 	function clearPendingRemoval(taskId: string): void {
 		pendingRemovals.delete(taskId);
 	}
 
-	/** Optimistically add a task to the top of the local store. */
 	function addTaskLocal(task: Task): void {
-		invalidateCache();
 		tasks = [task, ...tasks];
 	}
 
-	/** Optimistically insert a task right after a sibling (at any depth). */
 	function insertAfterLocal(siblingId: string, newTask: Task): void {
-		invalidateCache();
 		function walk(list: Task[]): Task[] {
 			const result: Task[] = [];
 			for (const t of list) {
