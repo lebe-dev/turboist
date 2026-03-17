@@ -77,7 +77,7 @@
 							{contextsStore.activeView === view.id
 								? 'bg-accent text-foreground'
 								: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => { if (planningStore.active) planningStore.exit(); if ($page.url.pathname.startsWith('/task/')) goto('/'); contextsStore.setView(view.id as View); }}
+						onclick={() => { if (planningStore.active) planningStore.exit(); if ($page.url.pathname !== '/') goto('/'); contextsStore.setView(view.id as View); }}
 					>
 						{$t(view.key)}
 					</button>

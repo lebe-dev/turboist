@@ -19,8 +19,8 @@
 
 	let { collapsed = false, onItemClick }: { collapsed?: boolean; onItemClick?: () => void } = $props();
 
-	function closeTaskDetailIfOpen() {
-		if ($page.url.pathname.startsWith('/task/')) {
+	function navigateToMainIfNeeded() {
+		if ($page.url.pathname !== '/') {
 			goto('/');
 		}
 	}
@@ -52,7 +52,7 @@
 				: contextsStore.activeView === view.id
 					? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 					: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-			onclick={() => { if (planningStore.active) planningStore.exit(); closeTaskDetailIfOpen(); contextsStore.setView(view.id); onItemClick?.(); }}
+			onclick={() => { if (planningStore.active) planningStore.exit(); navigateToMainIfNeeded(); contextsStore.setView(view.id); onItemClick?.(); }}
 			title={collapsed ? viewLabel : undefined}
 		>
 			<ViewIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
@@ -77,7 +77,7 @@
 			{!planningStore.active && contextsStore.activeView === 'backlog'
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => { if (planningStore.active) planningStore.exit(); closeTaskDetailIfOpen(); contextsStore.setView('backlog'); onItemClick?.(); }}
+		onclick={() => { if (planningStore.active) planningStore.exit(); navigateToMainIfNeeded(); contextsStore.setView('backlog'); onItemClick?.(); }}
 		title={collapsed ? $t('views.backlog') : undefined}
 	>
 		<ArchiveIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
@@ -92,7 +92,7 @@
 			{planningStore.active
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => { closeTaskDetailIfOpen(); if (planningStore.active) { planningStore.exit(); } else { planningStore.enter(); } onItemClick?.(); }}
+		onclick={() => { navigateToMainIfNeeded(); if (planningStore.active) { planningStore.exit(); } else { planningStore.enter(); } onItemClick?.(); }}
 		title={collapsed ? $t('planning.title') : undefined}
 	>
 		<CalendarRangeIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
@@ -155,7 +155,7 @@
 				{contextsStore.activeContextId === ctx.id
 				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-			onclick={() => { closeTaskDetailIfOpen(); contextsStore.setContext(ctx.id); onItemClick?.(); }}
+			onclick={() => { navigateToMainIfNeeded(); contextsStore.setContext(ctx.id); onItemClick?.(); }}
 			title={collapsed ? ctx.display_name : undefined}
 		>
 			<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
@@ -183,7 +183,7 @@
 			{contextsStore.activeContextId === null
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => { closeTaskDetailIfOpen(); contextsStore.setContext(null); onItemClick?.(); }}
+		onclick={() => { navigateToMainIfNeeded(); contextsStore.setContext(null); onItemClick?.(); }}
 		title={collapsed ? $t('sidebar.all') : undefined}
 	>
 		<LayersIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
