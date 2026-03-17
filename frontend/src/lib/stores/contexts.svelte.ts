@@ -1,5 +1,6 @@
 import { patchState } from '$lib/api/client';
 import type { Context } from '$lib/api/types';
+import { labelFilterStore } from './label-filter.svelte';
 
 export type View = 'all' | 'inbox' | 'weekly' | 'backlog' | 'today' | 'tomorrow' | 'completed';
 
@@ -21,11 +22,13 @@ function createContextsStore() {
 
 	function setContext(id: string | null): void {
 		activeContextId = id;
+		labelFilterStore.clear();
 		patchState({ active_context_id: id ?? '' }).catch(console.error);
 	}
 
 	function setView(view: View): void {
 		activeView = view;
+		labelFilterStore.clear();
 		patchState({ active_view: view }).catch(console.error);
 	}
 

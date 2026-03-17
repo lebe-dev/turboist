@@ -1,10 +1,12 @@
 <script lang="ts">
+	import TaskItem from './TaskItem.svelte';
 	import type { Task } from '$lib/api/types';
 	import { completeTask, deleteTask, duplicateTask, updateTask, getTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { labelFilterStore } from '$lib/stores/label-filter.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
 	import { toast } from 'svelte-sonner';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -318,6 +320,14 @@
 		}
 	}
 
+	// --- Label filter ---
+	function handleLabelClick(label: string) {
+		contextsStore.setContext(null);
+		contextsStore.setView('all');
+		labelFilterStore.set(label);
+		goto('/');
+	}
+
 	// --- Delete ---
 	let showDeleteConfirm = $state(false);
 	let deleting = $state(false);
@@ -351,7 +361,7 @@
 		{#if task.children.length > 0}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={0} {searchQuery} />
+					<TaskItem task={child} depth={0} {searchQuery} />
 				{/each}
 			</div>
 		{/if}
@@ -414,7 +424,14 @@
 							</span>
 						{/if}
 						{#each visibleLabels as label (label)}
-							<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
+							{#if completed}
+								<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
+							{:else}
+								<button
+									class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleLabelClick(label); }}
+								>{label}</button>
+							{/if}
 						{/each}
 						{#if task.sub_task_count > 0}
 							<button
@@ -490,7 +507,7 @@
 			{#if hasChildren && !collapsed && !completed}
 			<div>
 				{#each task.children as child (child.id)}
-					<svelte:self task={child} depth={depth + 1} {searchQuery} {dimmed} {hideTodayDue} {hideTomorrowDue} />
+					<TaskItem task={child} depth={depth + 1} {searchQuery} {dimmed} {hideTodayDue} {hideTomorrowDue} />
 				{/each}
 			</div>
 		{/if}

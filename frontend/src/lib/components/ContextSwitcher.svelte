@@ -5,6 +5,7 @@
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
 	import LayersIcon from '@lucide/svelte/icons/layers';
+	import TagIcon from '@lucide/svelte/icons/tag';
 	import ListIcon from '@lucide/svelte/icons/list';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
@@ -100,6 +101,23 @@
 			{$t('planning.title')}
 		{/if}
 	</button>
+
+	<!-- Labels -->
+	<a
+		href="/labels"
+		class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
+			{$page.url.pathname === ('/labels' as string)
+			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+		title={collapsed ? $t('sidebar.labels') : undefined}
+		onclick={() => onItemClick?.()}
+	>
+		<TagIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+		{#if !collapsed}
+			{$t('sidebar.labels')}
+		{/if}
+	</a>
 
 	<!-- Pinned Tasks -->
 	{#if pinnedStore.items.length > 0}

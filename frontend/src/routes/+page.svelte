@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { labelFilterStore } from '$lib/stores/label-filter.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
 	import type { Task } from '$lib/api/types';
@@ -87,11 +88,13 @@
 		if (next.has(label)) next.delete(label);
 		else next.add(label);
 		selectedLabels = next;
+		labelFilterStore.clear();
 	}
 
 	function clearFilters() {
 		selectedPriorities = new Set();
 		selectedLabels = new Set();
+		labelFilterStore.clear();
 	}
 
 	function taskMatchesFilters(task: Task): boolean {
@@ -143,15 +146,16 @@
 		contextsStore.setContext(null);
 	}
 
-	// Reset search and link filter when context/view changes
+	// Reset search and link filter when context/view changes; apply label filter from label click
 	$effect(() => {
 		contextsStore.activeContextId;
 		contextsStore.activeView;
+		const label = labelFilterStore.activeLabel;
 		searchQuery = '';
 		linksOnly = false;
 		selectedPriorities = new Set();
-		selectedLabels = new Set();
-		filtersExpanded = false;
+		selectedLabels = label ? new Set([label]) : new Set();
+		filtersExpanded = !!label;
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {

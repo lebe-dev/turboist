@@ -938,6 +938,7 @@
 						{:else}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<h2
 								class="flex-1 cursor-text text-lg font-semibold leading-snug text-foreground"
 								onclick={startEditTitle}
@@ -1331,6 +1332,7 @@
 		</div>
 	{:else}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<div
 			class="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm"
 			onclick={handleBackdropClick}
