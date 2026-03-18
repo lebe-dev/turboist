@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import type {
 	ClientMessage,
 	ServerMessage,
@@ -22,6 +23,7 @@ function createWSClient() {
 	let intentionalClose = false;
 
 	const handlers = new Map<MessageKey, MessageHandler>();
+	const stateListeners = new Set<(connected: boolean) => void>();
 
 	// Track active subscriptions for resubscribe on reconnect
 	let activeSubs: ClientMessage[] = [];
@@ -37,14 +39,21 @@ function createWSClient() {
 		}
 
 		intentionalClose = false;
-		socket = new WebSocket(getWsUrl());
+		const url = getWsUrl();
+		logger.log('ws', `connecting to ${url}`);
+		socket = new WebSocket(url);
 
 		socket.onopen = () => {
 			connected = true;
 			reconnectDelay = RECONNECT_MIN;
+			logger.log('ws', 'connected');
+
+			// Notify listeners
+			for (const fn of stateListeners) fn(true);
 
 			// Resubscribe to active channels
 			for (const msg of activeSubs) {
+				logger.log('ws', `resubscribe ${(msg as { channel?: string }).channel}`);
 				sendRaw(msg);
 			}
 		};
@@ -54,16 +63,22 @@ function createWSClient() {
 			handleMessage(msg);
 		};
 
-		socket.onclose = () => {
+		socket.onclose = (event) => {
+			const wasConnected = connected;
 			connected = false;
 			socket = null;
+			logger.log('ws', `disconnected code=${event.code} reason=${event.reason} wasConnected=${wasConnected}`);
+
+			// Notify listeners
+			for (const fn of stateListeners) fn(false);
+
 			if (!intentionalClose) {
 				scheduleReconnect();
 			}
 		};
 
 		socket.onerror = () => {
-			// onclose will fire after onerror
+			logger.warn('ws', 'connection error');
 		};
 	}
 
@@ -81,6 +96,7 @@ function createWSClient() {
 
 	function scheduleReconnect(): void {
 		if (reconnectTimer !== null) return;
+		logger.log('ws', `reconnecting in ${reconnectDelay}ms`);
 		reconnectTimer = setTimeout(() => {
 			reconnectTimer = null;
 			connect();
@@ -101,15 +117,18 @@ function createWSClient() {
 		}
 
 		if (msg.type === 'error') {
-			console.error('[ws] server error:', msg.message);
+			logger.error('ws', `server error: ${msg.message}`);
 			return;
 		}
 
 		if ((msg.type === 'snapshot' || msg.type === 'delta') && msg.channel) {
+			logger.log('ws', `${msg.type} ${msg.channel}`);
 			const key: MessageKey = `${msg.type}:${msg.channel}`;
 			const handler = handlers.get(key);
 			if (handler) {
 				handler(msg.data);
+			} else {
+				logger.warn('ws', `no handler for ${key}`);
 			}
 		}
 	}
@@ -130,6 +149,8 @@ function createWSClient() {
 		);
 		activeSubs.push(msg);
 
+		const sent = socket?.readyState === WebSocket.OPEN;
+		logger.log('ws', `subscribe ${channel} ${JSON.stringify(params)} sent=${sent} readyState=${socket?.readyState}`);
 		sendRaw(msg);
 	}
 
@@ -161,6 +182,13 @@ function createWSClient() {
 		});
 	}
 
+	function onStateChange(handler: (connected: boolean) => void): () => void {
+		stateListeners.add(handler);
+		return () => {
+			stateListeners.delete(handler);
+		};
+	}
+
 	return {
 		get connected() {
 			return connected;
@@ -169,7 +197,8 @@ function createWSClient() {
 		disconnect,
 		subscribe,
 		unsubscribe,
-		onMessage
+		onMessage,
+		onStateChange
 	};
 }
 

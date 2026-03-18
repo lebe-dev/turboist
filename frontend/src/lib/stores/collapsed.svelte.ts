@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import { patchState } from '$lib/api/client';
 
 function createCollapsedStore() {
@@ -21,23 +22,23 @@ function createCollapsedStore() {
 				ids.add(id);
 			}
 			ids = new Set(ids);
-			console.log('[collapsed] toggle:', id, 'total:', ids.size);
+			logger.log('collapsed', `toggle: ${id} total: ${ids.size}`);
 			patchState({ collapsed_ids: [...ids] }).catch((err) =>
-				console.error('[collapsed] toggle save failed:', err)
+				logger.error('collapsed', `toggle save failed: ${err}`)
 			);
 		},
 		collapseAll(taskIds: string[]): void {
 			ids = new Set(taskIds);
-			console.log('[collapsed] collapseAll:', taskIds.length);
+			logger.log('collapsed', `collapseAll: ${taskIds.length}`);
 			patchState({ collapsed_ids: [...ids] }).catch((err) =>
-				console.error('[collapsed] collapseAll save failed:', err)
+				logger.error('collapsed', `collapseAll save failed: ${err}`)
 			);
 		},
 		expandAll(): void {
 			ids = new Set();
-			console.log('[collapsed] expandAll');
+			logger.log('collapsed', 'expandAll');
 			patchState({ collapsed_ids: [] }).catch((err) =>
-				console.error('[collapsed] expandAll save failed:', err)
+				logger.error('collapsed', `expandAll save failed: ${err}`)
 			);
 		},
 		init

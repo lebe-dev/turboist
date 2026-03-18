@@ -4,6 +4,8 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
 	import { appStore } from '$lib/stores/app.svelte';
+	import { logger } from '$lib/stores/logger';
+	import { toast } from 'svelte-sonner';
 	import type { Label, Task } from '$lib/api/types';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import FlagIcon from '@lucide/svelte/icons/flag';
@@ -200,7 +202,8 @@
 			{ content: trimmedContent, description: trimmedDesc, labels, priority: pri, ...(parentId ? { parent_id: parentId } : {}) },
 			context
 		).catch((e) => {
-			console.error('Failed to create next action', e);
+			logger.error('tasks', `create next action failed: ${e}`);
+			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();
 		});
 	}

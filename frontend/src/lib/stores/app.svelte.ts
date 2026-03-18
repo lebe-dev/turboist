@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import { getAppConfig, patchState } from '$lib/api/client';
 import type { Label, LabelConfig, QuickCaptureConfig, View } from '$lib/api/types';
 import { contextsStore } from './contexts.svelte';
@@ -92,18 +93,23 @@ function createAppStore() {
 	}
 
 	async function init(): Promise<void> {
+		logger.log('app', 'init start');
+
 		// Migrate localStorage first (one-time)
 		await migrateLocalStorage();
 
 		let cfg;
 		try {
 			cfg = await getAppConfig();
+			logger.log('app', 'config loaded from API');
 			// Cache config to IDB for offline use
-			saveAppConfig(cfg).catch(console.error);
+			saveAppConfig(cfg).catch((e) => logger.error('app', String(e)));
 		} catch {
+			logger.warn('app', 'config API failed, trying IDB cache');
 			// Fallback to cached config from IDB
 			cfg = await loadAppConfig();
 			if (!cfg) throw new Error('No network and no cached config');
+			logger.log('app', 'config loaded from IDB cache');
 		}
 
 		hydrateFromConfig(cfg);
@@ -115,6 +121,7 @@ function createAppStore() {
 		await tasksStore.start();
 
 		initialized = true;
+		logger.log('app', 'init complete');
 	}
 
 	function destroy(): void {

@@ -14,6 +14,7 @@
   "sidebar.context": "Контекст",
   "sidebar.all": "Все",
   "sidebar.planning": "Планирование",
+  "sidebar.labels": "Метки",
 
   "settings.title": "Настройки",
   "settings.appearance": "Внешний вид",
@@ -110,5 +111,19 @@
   "pwa.update": "Обновить",
   "pwa.installIOS": "Добавьте Turboist на экран: Поделиться → На экран «Домой»",
   "pwa.dismiss": "Скрыть",
-  "pwa.offline": "Офлайн — показаны кэшированные данные"
+  "pwa.offline": "Офлайн — показаны кэшированные данные",
+
+  "errors.createFailed": "Не удалось создать задачу",
+  "errors.updateFailed": "Не удалось обновить задачу",
+  "errors.deleteFailed": "Не удалось удалить задачу",
+  "errors.completeFailed": "Не удалось завершить задачу",
+  "errors.duplicateFailed": "Не удалось дублировать задачу",
+
+  "connectivity.reconnecting": "Переподключение...",
+  "connectivity.backOnline": "Снова онлайн",
+
+  "settings.general": "Основные",
+  "settings.logs": "Логи",
+  "settings.logs.empty": "Записей пока нет",
+  "settings.logs.clear": "Очистить"
 }

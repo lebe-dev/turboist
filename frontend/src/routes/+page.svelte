@@ -4,6 +4,7 @@
 	import { labelFilterStore } from '$lib/stores/label-filter.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskList from '$lib/components/TaskList.svelte';
 	import DayPartTaskList from '$lib/components/DayPartTaskList.svelte';
@@ -33,7 +34,7 @@
 		// Track context/view changes and refresh tasks
 		contextsStore.activeContextId;
 		contextsStore.activeView;
-		if (mounted) tasksStore.refreshWithLoading();
+		if (mounted && appStore.initialized) tasksStore.refreshWithLoading();
 		mounted = true;
 	});
 

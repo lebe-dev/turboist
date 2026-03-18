@@ -2,6 +2,7 @@
 	import { createTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { appStore } from '$lib/stores/app.svelte';
+	import { logger } from '$lib/stores/logger';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
 	import { toast } from 'svelte-sonner';
 	import { t } from 'svelte-intl-precompile';
@@ -49,7 +50,7 @@
 			priority: 1,
 			parent_id: parentTaskId
 		}).catch((e) => {
-			console.error('Failed to create quick capture task', e);
+			logger.error('tasks', `quick capture failed: ${e}`);
 			toast.error('Failed to save idea');
 		}).finally(() => {
 			submitting = false;

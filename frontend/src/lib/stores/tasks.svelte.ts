@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import { getAppConfig, getCompletedTasks } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
@@ -11,6 +12,7 @@ import { loadTaskSnapshot, loadCompletedTasks, saveCompletedTasks } from '$lib/s
 import { writeSnapshotImmediate, scheduleSnapshotWrite } from '$lib/sync/snapshot-writer';
 
 const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const OFFLINE_GRACE_MS = 5000; // grace period before showing offline banner
 
 function createTasksStore() {
 	let tasks = $state<Task[]>([]);
@@ -31,6 +33,8 @@ function createTasksStore() {
 	const pendingRemovals = new Set<string>();
 
 	let cleanups: (() => void)[] = [];
+	let hasReceivedSnapshot = false;
+	let offlineTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function updateStale(lastSyncedAt?: string): void {
 		isStale = lastSyncedAt
@@ -70,6 +74,9 @@ function createTasksStore() {
 
 	function handleTasksSnapshot(data: unknown): void {
 		const d = data as SnapshotTasksData;
+		logger.log('tasks', `snapshot received: ${d.tasks.length} tasks, synced at: ${d.meta.last_synced_at}`);
+		hasReceivedSnapshot = true;
+		cancelOfflineTimer();
 		tasks = applyPendingRemovals(d.tasks);
 		meta = d.meta;
 		loading = false;
@@ -83,6 +90,7 @@ function createTasksStore() {
 
 	function handleTasksDelta(data: unknown): void {
 		const d = data as DeltaTasksData;
+		logger.log('tasks', `delta: upserted=${d.upserted?.length ?? 0} removed=${d.removed?.length ?? 0}`);
 		let updated = tasks;
 		if (d.removed?.length > 0) {
 			updated = filterByIds(updated, d.removed);
@@ -100,6 +108,25 @@ function createTasksStore() {
 		scheduleSnapshotWrite(currentView(), currentContextId(), tasks, meta);
 	}
 
+	function cancelOfflineTimer(): void {
+		if (offlineTimer) {
+			clearTimeout(offlineTimer);
+			offlineTimer = null;
+		}
+	}
+
+	function scheduleOfflineCheck(): void {
+		cancelOfflineTimer();
+		offlineTimer = setTimeout(() => {
+			offlineTimer = null;
+			if (!hasReceivedSnapshot && !wsClient.connected) {
+				logger.warn('tasks', 'no snapshot received within grace period, marking offline');
+				isOffline = true;
+				isStale = true;
+			}
+		}, OFFLINE_GRACE_MS);
+	}
+
 	async function loadFromIDB(): Promise<boolean> {
 		const view = currentView();
 		const contextId = currentContextId();
@@ -107,24 +134,24 @@ function createTasksStore() {
 		if (view === 'completed') {
 			const cached = await loadCompletedTasks(contextId);
 			if (cached) {
+				logger.log('tasks', `IDB cache hit (completed): ${cached.tasks.length} tasks`);
 				tasks = cached.tasks;
-				isStale = true;
-				isOffline = true;
 				loading = false;
 				return true;
 			}
+			logger.log('tasks', 'IDB cache miss (completed)');
 			return false;
 		}
 
 		const cached = await loadTaskSnapshot(view, contextId);
 		if (cached) {
+			logger.log('tasks', `IDB cache hit: ${cached.tasks.length} tasks for ${view}`);
 			tasks = cached.tasks;
 			meta = cached.meta;
-			isStale = true;
-			isOffline = true;
 			loading = false;
 			return true;
 		}
+		logger.log('tasks', `IDB cache miss for ${view}`);
 		return false;
 	}
 
@@ -134,10 +161,12 @@ function createTasksStore() {
 
 		// Completed view uses HTTP fetch, not WS
 		if (view === 'completed') {
+			logger.log('tasks', 'fetching completed (HTTP)');
 			fetchCompleted(contextId);
 			return;
 		}
 
+		logger.log('tasks', `subscribing WS: view=${view} context=${contextId}`);
 		wsClient.subscribe('tasks', { view, context: contextId });
 	}
 
@@ -151,7 +180,7 @@ function createTasksStore() {
 			isOffline = false;
 
 			// Cache to IDB
-			saveCompletedTasks(currentContextId(), res.tasks).catch(console.error);
+			saveCompletedTasks(currentContextId(), res.tasks).catch((e) => logger.error('tasks', String(e)));
 		} catch (err) {
 			// Fallback to IDB cache on network failure
 			const cached = await loadCompletedTasks(currentContextId());
@@ -169,8 +198,10 @@ function createTasksStore() {
 	}
 
 	async function start(): Promise<void> {
+		logger.log('tasks', 'start');
 		loading = true;
 		error = null;
+		hasReceivedSnapshot = false;
 
 		// Load config once
 		try {
@@ -184,13 +215,32 @@ function createTasksStore() {
 		cleanups.push(wsClient.onMessage('snapshot', 'tasks', handleTasksSnapshot));
 		cleanups.push(wsClient.onMessage('delta', 'tasks', handleTasksDelta));
 
+		// Track WS disconnects to set offline state
+		cleanups.push(
+			wsClient.onStateChange((connected) => {
+				if (!connected && hasReceivedSnapshot) {
+					logger.log('tasks', 'WS disconnected after snapshot, marking offline');
+					isOffline = true;
+				}
+				if (connected && isOffline) {
+					logger.log('tasks', 'WS reconnected, clearing offline');
+				}
+			})
+		);
+
 		// Try loading from IDB first for instant display while WS connects
-		await loadFromIDB();
+		const hadCache = await loadFromIDB();
 
 		subscribeWS();
+
+		// If we showed cached data, give WS a grace period to deliver fresh snapshot
+		if (hadCache) {
+			scheduleOfflineCheck();
+		}
 	}
 
 	function stop(): void {
+		cancelOfflineTimer();
 		for (const cleanup of cleanups) cleanup();
 		cleanups = [];
 		wsClient.unsubscribe('tasks');
@@ -198,25 +248,31 @@ function createTasksStore() {
 
 	// Refresh: re-subscribe to get a fresh snapshot from the server.
 	function refresh(): Promise<void> {
+		logger.log('tasks', 'refresh');
+		hasReceivedSnapshot = false;
 		subscribeWS();
 		return Promise.resolve();
 	}
 
 	// Clear tasks, show loading spinner, and re-subscribe (for view transitions).
 	async function refreshWithLoading(): Promise<void> {
+		logger.log('tasks', `refreshWithLoading: ${currentView()}`);
 		tasks = [];
 		loading = true;
 		error = null;
+		isOffline = false;
+		isStale = false;
+		hasReceivedSnapshot = false;
 
 		// Try IDB for instant view switch
 		const hadCache = await loadFromIDB();
-		if (hadCache) {
-			// Still subscribe to get fresh data
-			subscribeWS();
-			return;
-		}
 
 		subscribeWS();
+
+		// Grace period for offline detection
+		if (hadCache) {
+			scheduleOfflineCheck();
+		}
 	}
 
 	// Optimistic local mutations

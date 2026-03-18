@@ -3,6 +3,8 @@
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { appStore } from '$lib/stores/app.svelte';
+	import { logger } from '$lib/stores/logger';
+	import { toast } from 'svelte-sonner';
 	import type { DayPart, Label, Task } from '$lib/api/types';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import FlagIcon from '@lucide/svelte/icons/flag';
@@ -136,7 +138,8 @@
 		if (dueDate) req.due_date = dueDate;
 
 		createTask(req, context).catch((e) => {
-			console.error('Failed to create task', e);
+			logger.error('tasks', `create failed: ${e}`);
+			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();
 		});
 	}

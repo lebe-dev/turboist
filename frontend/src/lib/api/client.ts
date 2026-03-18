@@ -1,4 +1,5 @@
 import { goto } from '$app/navigation';
+import { logger } from '$lib/stores/logger';
 import type {
 	AppConfig,
 	CreateTaskRequest,
@@ -10,7 +11,7 @@ import type {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const method = options?.method ?? 'GET';
-	console.log(`[api] ${method} ${path}`, options?.body ? JSON.parse(options.body as string) : '');
+	logger.log('api', `${method} ${path}`);
 
 	const res = await fetch(path, {
 		credentials: 'same-origin',
@@ -22,18 +23,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	});
 
 	if (res.status === 401) {
-		console.warn(`[api] ${method} ${path} → 401 Unauthorized`);
+		logger.warn('api', `${method} ${path} → 401 Unauthorized`);
 		goto('/login');
 		throw new Error('Unauthorized');
 	}
 
 	if (!res.ok) {
 		const text = await res.text().catch(() => res.statusText);
-		console.error(`[api] ${method} ${path} → ${res.status}`, text);
+		logger.error('api', `${method} ${path} → ${res.status} ${text}`);
 		throw new Error(`${res.status}: ${text}`);
 	}
 
-	console.log(`[api] ${method} ${path} → ${res.status}`);
+	logger.log('api', `${method} ${path} → ${res.status}`);
 
 	const contentType = res.headers.get('content-type');
 	if (contentType?.includes('application/json')) {
@@ -110,7 +111,7 @@ export async function getAppConfig(): Promise<AppConfig> {
 }
 
 export async function patchState(update: Partial<UserState>): Promise<void> {
-	console.log('[api] patchState payload:', update);
+	logger.log('api', `patchState ${Object.keys(update).join(',')}`);
 	await request('/api/state', {
 		method: 'PATCH',
 		body: JSON.stringify(update)

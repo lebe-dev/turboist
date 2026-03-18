@@ -8,6 +8,7 @@
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
 	import { appStore } from '$lib/stores/app.svelte';
 	import { toast } from 'svelte-sonner';
+	import { logger } from '$lib/stores/logger';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -149,7 +150,8 @@
 		const taskId = task.id;
 		updateLocal((t) => ({ ...t, content: trimmed }));
 		updateTask(taskId, { content: trimmed }).catch((e) => {
-			console.error('Failed to update title', e);
+			logger.error('tasks', `update title failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -184,7 +186,8 @@
 		const taskId = task.id;
 		updateLocal((t) => ({ ...t, description: trimmed }));
 		updateTask(taskId, { description: trimmed }).catch((e) => {
-			console.error('Failed to update description', e);
+			logger.error('tasks', `update description failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -223,7 +226,8 @@
 		prioritySyncing = true;
 		updateTask(taskId, { priority: value }).catch((e) => {
 			if (task) localPriority = task.priority;
-			console.error('Failed to update priority', e);
+			logger.error('tasks', `update priority failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		}).finally(() => {
 			prioritySyncing = false;
@@ -255,7 +259,8 @@
 		const taskId = task.id;
 		updateLocal((t) => ({ ...t, due: { date: dateStr, recurring: t.due?.recurring ?? false } }));
 		updateTask(taskId, { due_date: dateStr }).catch((e) => {
-			console.error('Failed to update due date', e);
+			logger.error('tasks', `update due date failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -266,7 +271,8 @@
 		const taskId = task.id;
 		updateLocal((t) => ({ ...t, due: null }));
 		updateTask(taskId, { due_date: '' }).catch((e) => {
-			console.error('Failed to clear due date', e);
+			logger.error('tasks', `clear due date failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -290,7 +296,8 @@
 		const taskId = task.id;
 		updateLocal((t) => ({ ...t, due: { date, recurring: false } }));
 		updateTask(taskId, { due_date: date }).catch((e) => {
-			console.error('Failed to set due date', e);
+			logger.error('tasks', `set due date failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -341,7 +348,8 @@
 		labelsSyncing = true;
 		updateTask(taskId, { labels: newLabels }).catch((e) => {
 			if (task) localLabels = [...task.labels];
-			console.error('Failed to update labels', e);
+			logger.error('tasks', `update labels failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		}).finally(() => {
 			labelsSyncing = false;
@@ -416,7 +424,8 @@
 		}
 		completing = false;
 		completeTask(targetId).catch((e) => {
-			console.error('Failed to complete task', e);
+			logger.error('tasks', `complete failed: ${e}`);
+			toast.error($t('errors.completeFailed'));
 			tasksStore.clearPendingRemoval(targetId);
 			tasksStore.refresh();
 		});
@@ -436,7 +445,8 @@
 				.sort((a, b) => b.priority - a.priority)
 		}));
 		updateTask(childId, { priority: value }).catch((e) => {
-			console.error('Failed to update subtask priority', e);
+			logger.error('tasks', `update subtask priority failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -452,7 +462,8 @@
 			)
 		}));
 		updateTask(childId, { due_date: date }).catch((e) => {
-			console.error('Failed to set subtask date', e);
+			logger.error('tasks', `set subtask date failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -467,7 +478,8 @@
 			)
 		}));
 		updateTask(childId, { due_date: '' }).catch((e) => {
-			console.error('Failed to clear subtask date', e);
+			logger.error('tasks', `clear subtask date failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -495,7 +507,8 @@
 			sub_task_count: Math.max(0, t.sub_task_count - 1)
 		}));
 		deleteTask(childId).catch((e) => {
-			console.error('Failed to delete subtask', e);
+			logger.error('tasks', `delete subtask failed: ${e}`);
+			toast.error($t('errors.deleteFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -506,7 +519,8 @@
 		duplicateTask(childId).then(() => {
 			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
 		}).catch((e) => {
-			console.error('Failed to duplicate subtask', e);
+			logger.error('tasks', `duplicate subtask failed: ${e}`);
+			toast.error($t('errors.duplicateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -589,7 +603,8 @@
 			// Re-fetch to replace temp child IDs with real ones
 			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
 		}).catch((e) => {
-			console.error('Failed to create subtask', e);
+			logger.error('tasks', `create subtask failed: ${e}`);
+			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -709,9 +724,9 @@
 				}
 			});
 		}).catch((e) => {
-			console.error('Failed to duplicate task', e);
+			logger.error('tasks', `duplicate failed: ${e}`);
 			tasksStore.removeTaskLocal(tempId);
-			toast.error('Failed to duplicate task');
+			toast.error($t('errors.duplicateFailed'));
 		}).finally(() => {
 			duplicating = false;
 		});
@@ -744,7 +759,8 @@
 			children: t.children.map((c) => toReset.some((r) => r.id === c.id) ? { ...c, priority: 1 } : c)
 		}));
 		Promise.all(toReset.map((c) => updateTask(c.id, { priority: 1 }))).catch((e) => {
-			console.error('Failed to reset subtask priorities', e);
+			logger.error('tasks', `reset subtask priorities failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -761,7 +777,8 @@
 			children: t.children.map((c) => toReset.some((r) => r.id === c.id) ? { ...c, labels: [] } : c)
 		}));
 		Promise.all(toReset.map((c) => updateTask(c.id, { labels: [] }))).catch((e) => {
-			console.error('Failed to reset subtask labels', e);
+			logger.error('tasks', `reset subtask labels failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -775,7 +792,8 @@
 		showDeleteConfirm = false;
 		onclose();
 		deleteTask(taskId).catch((e) => {
-			console.error('Failed to delete task', e);
+			logger.error('tasks', `delete failed: ${e}`);
+			toast.error($t('errors.deleteFailed'));
 			tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
 		});

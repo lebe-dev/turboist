@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import { getAppConfig, updateTask, resetWeeklyLabel, patchState } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore } from './contexts.svelte';
@@ -61,9 +62,9 @@ function createPlanningStore() {
 
 	async function enter(): Promise<void> {
 		active = true;
-		console.log('[planning] entering planning mode');
+		logger.log('planning', 'entering planning mode');
 		patchState({ planning_open: true }).catch((err) =>
-			console.error('[planning] enter save failed:', err)
+			logger.error('planning', `enter save failed: ${err}`)
 		);
 		loading = true;
 
@@ -71,7 +72,7 @@ function createPlanningStore() {
 			const appCfg = await getAppConfig();
 			config = appCfg.settings;
 		} catch (err) {
-			console.error('[planning] config load failed', err);
+			logger.error('planning', `config load failed: ${err}`);
 		}
 
 		// Register WS handlers
@@ -84,9 +85,9 @@ function createPlanningStore() {
 
 	function exit(): void {
 		active = false;
-		console.log('[planning] exiting planning mode');
+		logger.log('planning', 'exiting planning mode');
 		patchState({ planning_open: false }).catch((err) =>
-			console.error('[planning] exit save failed:', err)
+			logger.error('planning', `exit save failed: ${err}`)
 		);
 
 		for (const cleanup of cleanups) cleanup();
@@ -126,7 +127,7 @@ function createPlanningStore() {
 		try {
 			await updateTask(task.id, { labels: newLabels });
 		} catch (err) {
-			console.error('[planning] moveToWeekly failed', err);
+			logger.error('planning', `moveToWeekly failed: ${err}`);
 			refresh();
 		}
 	}
@@ -145,7 +146,7 @@ function createPlanningStore() {
 		try {
 			await updateTask(task.id, { labels: newLabels });
 		} catch (err) {
-			console.error('[planning] moveToBacklog failed', err);
+			logger.error('planning', `moveToBacklog failed: ${err}`);
 			refresh();
 		}
 	}
@@ -157,7 +158,7 @@ function createPlanningStore() {
 		try {
 			await resetWeeklyLabel();
 		} catch (err) {
-			console.error('[planning] startWeek failed', err);
+			logger.error('planning', `startWeek failed: ${err}`);
 			refresh();
 		}
 	}
@@ -193,7 +194,7 @@ function createPlanningStore() {
 				})
 			);
 		} catch (err) {
-			console.error('[planning] acceptAll failed', err);
+			logger.error('planning', `acceptAll failed: ${err}`);
 		}
 		// Cache refresh → hub broadcast → delta will sync automatically
 	}
@@ -222,7 +223,7 @@ function createPlanningStore() {
 		try {
 			await updateTask(taskId, data);
 		} catch (err) {
-			console.error('[planning] updateWeeklyTask failed', err);
+			logger.error('planning', `updateWeeklyTask failed: ${err}`);
 			refresh();
 		}
 	}

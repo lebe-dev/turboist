@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import { patchState } from '$lib/api/client';
 import type { PinnedTask } from '$lib/api/types';
 
@@ -17,17 +18,17 @@ function createPinnedStore() {
 		if (items.some((t) => t.id === task.id)) return;
 		if (items.length >= maxPinned) return;
 		items = [...items, task];
-		console.log('[pinned] pin:', task.id, 'total:', items.length);
+		logger.log('pinned', `pin: ${task.id} total: ${items.length}`);
 		patchState({ pinned_tasks: items }).catch((err) =>
-			console.error('[pinned] pin save failed:', err)
+			logger.error('pinned', `pin save failed: ${err}`)
 		);
 	}
 
 	function unpin(taskId: string): void {
 		items = items.filter((t) => t.id !== taskId);
-		console.log('[pinned] unpin:', taskId, 'total:', items.length);
+		logger.log('pinned', `unpin: ${taskId} total: ${items.length}`);
 		patchState({ pinned_tasks: items }).catch((err) =>
-			console.error('[pinned] unpin save failed:', err)
+			logger.error('pinned', `unpin save failed: ${err}`)
 		);
 	}
 

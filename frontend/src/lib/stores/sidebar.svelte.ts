@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import { patchState } from '$lib/api/client';
 
 function createSidebarStore() {
@@ -13,9 +14,9 @@ function createSidebarStore() {
 		},
 		toggle(): void {
 			collapsed = !collapsed;
-			console.log('[sidebar] toggle:', collapsed);
+			logger.log('sidebar', `toggle: ${collapsed}`);
 			patchState({ sidebar_collapsed: collapsed }).catch((err) =>
-				console.error('[sidebar] toggle save failed:', err)
+				logger.error('sidebar', `toggle save failed: ${err}`)
 			);
 		},
 		init

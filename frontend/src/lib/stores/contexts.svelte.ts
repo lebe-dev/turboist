@@ -1,3 +1,4 @@
+import { logger } from '$lib/stores/logger';
 import { patchState } from '$lib/api/client';
 import type { Context } from '$lib/api/types';
 import { labelFilterStore } from './label-filter.svelte';
@@ -16,26 +17,26 @@ function createContextsStore() {
 		// Validate saved context still exists
 		if (activeContextId && !contexts.some((c) => c.id === activeContextId)) {
 			activeContextId = null;
-			console.log('[contexts] invalid saved context, resetting');
-			patchState({ active_context_id: '' }).catch(console.error);
+			logger.log('contexts', 'invalid saved context, resetting');
+			patchState({ active_context_id: '' }).catch((e) => logger.error('contexts', String(e)));
 		}
 	}
 
 	function setContext(id: string | null): void {
-		console.log('[contexts] setContext:', id);
+		logger.log('contexts', `setContext: ${id}`);
 		activeContextId = id;
 		labelFilterStore.clear();
 		patchState({ active_context_id: id ?? '' }).catch((err) =>
-			console.error('[contexts] setContext save failed:', err)
+			logger.error('contexts', `setContext save failed: ${err}`)
 		);
 	}
 
 	function setView(view: View): void {
-		console.log('[contexts] setView:', view);
+		logger.log('contexts', `setView: ${view}`);
 		activeView = view;
 		labelFilterStore.clear();
 		patchState({ active_view: view }).catch((err) =>
-			console.error('[contexts] setView save failed:', err)
+			logger.error('contexts', `setView save failed: ${err}`)
 		);
 	}
 

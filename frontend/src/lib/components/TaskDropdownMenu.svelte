@@ -121,7 +121,7 @@
 
 <DropdownMenu.Root {open} onOpenChange={handleOpenChange}>
 	{@render trigger?.()}
-	<DropdownMenu.Content {align} class={width}>
+	<DropdownMenu.Content {align} class={showCalendar ? 'w-72' : width}>
 		{#if onEdit}
 			<DropdownMenu.Item onclick={onEdit}>
 				<PencilIcon class="h-4 w-4" />

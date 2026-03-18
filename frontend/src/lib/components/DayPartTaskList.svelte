@@ -2,6 +2,8 @@
 	import type { DayPart, Task } from '$lib/api/types';
 	import { updateTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
+	import { logger } from '$lib/stores/logger';
+	import { toast } from 'svelte-sonner';
 	import TaskItem from './TaskItem.svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import SunriseIcon from '@lucide/svelte/icons/sunrise';
@@ -131,7 +133,8 @@
 
 		// Fire API call in background, refresh on error
 		updateTask(task.id, { labels: newLabels }).catch((e) => {
-			console.error('Failed to move task', e);
+			logger.error('tasks', `move task failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}

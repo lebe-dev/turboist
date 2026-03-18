@@ -14,6 +14,7 @@
   "sidebar.context": "Context",
   "sidebar.all": "All",
   "sidebar.planning": "Planning",
+  "sidebar.labels": "Labels",
 
   "settings.title": "Settings",
   "settings.appearance": "Appearance",
@@ -110,5 +111,19 @@
   "pwa.update": "Update",
   "pwa.installIOS": "Add Turboist to Home Screen: tap Share → Add to Home Screen",
   "pwa.dismiss": "Dismiss",
-  "pwa.offline": "Offline — showing cached data"
+  "pwa.offline": "Offline — showing cached data",
+
+  "errors.createFailed": "Failed to create task",
+  "errors.updateFailed": "Failed to update task",
+  "errors.deleteFailed": "Failed to delete task",
+  "errors.completeFailed": "Failed to complete task",
+  "errors.duplicateFailed": "Failed to duplicate task",
+
+  "connectivity.reconnecting": "Reconnecting...",
+  "connectivity.backOnline": "Back online",
+
+  "settings.general": "General",
+  "settings.logs": "Logs",
+  "settings.logs.empty": "No log entries yet",
+  "settings.logs.clear": "Clear"
 }
