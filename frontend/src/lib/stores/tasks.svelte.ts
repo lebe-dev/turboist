@@ -33,6 +33,7 @@ function createTasksStore() {
 	const pendingRemovals = new Set<string>();
 
 	let cleanups: (() => void)[] = [];
+	let running = false;
 	let hasReceivedSnapshot = false;
 	let offlineTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -202,6 +203,8 @@ function createTasksStore() {
 	}
 
 	async function start(): Promise<void> {
+		if (running) return;
+		running = true;
 		logger.log('tasks', 'start');
 		loading = true;
 		error = null;
@@ -240,6 +243,8 @@ function createTasksStore() {
 	}
 
 	function stop(): void {
+		if (!running) return;
+		running = false;
 		cancelOfflineTimer();
 		for (const cleanup of cleanups) cleanup();
 		cleanups = [];

@@ -19,7 +19,7 @@
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
 	import { portal } from '$lib/utils/portal';
 	import { goto } from '$app/navigation';
-	import { tick } from 'svelte';
+	import { tick, onDestroy } from 'svelte';
 	import { t, locale } from 'svelte-intl-precompile';
 	import { parseDate, type DateValue } from '@internationalized/date';
 
@@ -270,6 +270,13 @@
 	// --- Long-press to open dropdown ---
 	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	let longPressTriggered = false;
+
+	onDestroy(() => {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+	});
 
 	function handleTouchStart() {
 		longPressTriggered = false;

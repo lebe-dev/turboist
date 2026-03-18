@@ -33,6 +33,12 @@
 				showBackOnline = false;
 				dismissTimer = null;
 			}, 3000);
+			return () => {
+				if (dismissTimer) {
+					clearTimeout(dismissTimer);
+					dismissTimer = null;
+				}
+			};
 		}
 	});
 </script>

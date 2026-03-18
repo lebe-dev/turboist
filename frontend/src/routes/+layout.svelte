@@ -40,6 +40,13 @@
 			appStore.init();
 		}
 	});
+
+	// Tear down app resources on logout
+	$effect(() => {
+		if (auth.state === 'unauthenticated' && appStore.initialized) {
+			appStore.destroy();
+		}
+	});
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>

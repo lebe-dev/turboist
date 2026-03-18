@@ -127,6 +127,7 @@ function createAppStore() {
 	function destroy(): void {
 		tasksStore.stop();
 		wsClient.disconnect();
+		initialized = false;
 	}
 
 	function shouldInheritToSubtasks(labelName: string): boolean {
