@@ -108,6 +108,10 @@ function createTasksStore() {
 		scheduleSnapshotWrite(currentView(), currentContextId(), tasks, meta);
 	}
 
+	// Register WS handlers once — these are stable for the store's lifetime
+	wsClient.onMessage('snapshot', 'tasks', handleTasksSnapshot);
+	wsClient.onMessage('delta', 'tasks', handleTasksDelta);
+
 	function cancelOfflineTimer(): void {
 		if (offlineTimer) {
 			clearTimeout(offlineTimer);
@@ -210,10 +214,6 @@ function createTasksStore() {
 		} catch {
 			// Config fetch is best-effort
 		}
-
-		// Register WS handlers
-		cleanups.push(wsClient.onMessage('snapshot', 'tasks', handleTasksSnapshot));
-		cleanups.push(wsClient.onMessage('delta', 'tasks', handleTasksDelta));
 
 		// Track WS disconnects to set offline state
 		cleanups.push(
