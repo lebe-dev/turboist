@@ -176,11 +176,6 @@
 			</DropdownMenu.Sub>
 		{/if}
 
-		{#if dropdownExtra}
-			<DropdownMenu.Separator />
-			{@render dropdownExtra()}
-		{/if}
-
 		<DropdownMenu.Separator />
 
 		<!-- Date section -->
@@ -233,6 +228,10 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if dropdownExtra}
+			{@render dropdownExtra()}
+		{/if}
 
 		<!-- Priority section -->
 		<div class="px-2 py-1.5">

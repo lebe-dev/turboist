@@ -186,13 +186,32 @@
 	}
 
 	// --- Date helpers ---
+	function formatDateStr(d: Date): string {
+		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+	}
+
+	function shouldRemoveFromView(newDate: string | null): boolean {
+		const view = contextsStore.activeView;
+		if (view !== 'today' && view !== 'tomorrow') return false;
+		if (!newDate) return true;
+		const now = new Date();
+		if (view === 'today') return newDate > formatDateStr(now);
+		const tmrw = new Date(now);
+		tmrw.setDate(tmrw.getDate() + 1);
+		return newDate !== formatDateStr(tmrw);
+	}
+
 	function setDate(date: string) {
 		dropdownOpen = false;
 		if (task.due?.date === date) return;
+		const taskId = task.id;
+		const shouldRemove = shouldRemoveFromView(date);
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: { date, recurring: false } }));
+		if (shouldRemove) tasksStore.removeTaskLocal(taskId);
 		updateTask(task.id, { due_date: date }).catch((e) => {
 			logger.error('tasks', `set due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
+			if (shouldRemove) tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
 		});
 	}
@@ -200,10 +219,14 @@
 	function clearDate() {
 		dropdownOpen = false;
 		if (!task.due) return;
+		const taskId = task.id;
+		const shouldRemove = shouldRemoveFromView(null);
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: null }));
+		if (shouldRemove) tasksStore.removeTaskLocal(taskId);
 		updateTask(task.id, { due_date: '' }).catch((e) => {
 			logger.error('tasks', `clear due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
+			if (shouldRemove) tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
 		});
 	}
