@@ -225,6 +225,10 @@
 			handleSkip();
 		}
 	}
+
+	function focusOnMount(node: HTMLElement) {
+		requestAnimationFrame(() => node.focus());
+	}
 </script>
 
 {#if open && pending}
@@ -317,6 +321,7 @@
 							<div class="p-2">
 								<input
 									bind:value={labelSearch}
+									use:focusOnMount
 									type="text"
 									placeholder={$t('task.searchLabels')}
 									class="w-full rounded-md border border-border/50 bg-transparent px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground/40 focus:border-border focus:outline-none"

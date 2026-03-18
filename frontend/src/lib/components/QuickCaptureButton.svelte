@@ -76,7 +76,7 @@
 	title="Quick capture idea (I)"
 >
 	<LightbulbIcon class="h-3.5 w-3.5" />
-	<span class="text-[12px]">{$t('quickCapture.title')}</span>
+	<span class="text-[12px] underline">{$t('quickCapture.title')}</span>
 </button>
 
 {#if open}
