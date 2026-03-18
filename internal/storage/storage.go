@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	_ "modernc.org/sqlite"
 )
 
@@ -100,6 +101,7 @@ func (s *Store) migrate() error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration %s: %w", entry.Name(), err)
 		}
+		log.Info("applied migration", "file", entry.Name())
 	}
 
 	return nil

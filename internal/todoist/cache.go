@@ -41,6 +41,7 @@ func NewCache(client *Client) *Cache {
 
 // Refresh fetches all data from Todoist and atomically replaces the cached snapshot.
 func (c *Cache) Refresh(ctx context.Context) error {
+	start := time.Now()
 	result, err := c.client.FetchAll(ctx)
 	if err != nil {
 		return err
@@ -54,6 +55,12 @@ func (c *Cache) Refresh(ctx context.Context) error {
 	c.lastSyncedAt = time.Now()
 	c.warmed = true
 	c.mu.Unlock()
+
+	log.Debug("cache refreshed",
+		"tasks", len(result.Tasks),
+		"projects", len(result.Projects),
+		"elapsed", time.Since(start),
+	)
 
 	if c.onRefresh != nil {
 		c.onRefresh()

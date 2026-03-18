@@ -9,6 +9,7 @@ import (
 	"github.com/CnTeng/todoist-api-go/rest"
 	"github.com/CnTeng/todoist-api-go/sync"
 	extclient "github.com/CnTeng/todoist-api-go/todoist"
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 )
 
@@ -59,8 +60,10 @@ func (c *Client) fullSync(ctx context.Context) (*sync.SyncResponse, error) {
 
 // FetchAll fetches tasks, projects, sections and labels in a single API call.
 func (c *Client) FetchAll(ctx context.Context) (*SyncResult, error) {
+	start := time.Now()
 	resp, err := c.fullSync(ctx)
 	if err != nil {
+		log.Debug("todoist FetchAll failed", "err", err, "elapsed", time.Since(start))
 		return nil, &APIError{Op: "FetchAll", Err: err}
 	}
 
@@ -96,6 +99,13 @@ func (c *Client) FetchAll(ctx context.Context) (*SyncResult, error) {
 		result.Labels = append(result.Labels, LabelFromSync(l))
 	}
 
+	log.Debug("todoist FetchAll done",
+		"tasks", len(result.Tasks),
+		"projects", len(result.Projects),
+		"sections", len(result.Sections),
+		"labels", len(result.Labels),
+		"elapsed", time.Since(start),
+	)
 	return result, nil
 }
 
@@ -137,11 +147,15 @@ func (c *Client) GetLabels(ctx context.Context) ([]*Label, error) {
 
 // AddTask creates a new task via the Todoist API and returns the new task ID.
 func (c *Client) AddTask(ctx context.Context, args *sync.TaskAddArgs) (string, error) {
+	log.Debug("todoist AddTask", "content", args.Content)
+	start := time.Now()
 	resp, err := c.taskSvc.AddTask(ctx, args)
 	if err != nil {
+		log.Debug("todoist AddTask failed", "err", err, "elapsed", time.Since(start))
 		return "", &APIError{Op: "AddTask", Err: err}
 	}
 	for _, id := range resp.TempIDMapping {
+		log.Debug("todoist AddTask done", "id", id, "elapsed", time.Since(start))
 		return id, nil
 	}
 	return "", nil
@@ -149,10 +163,14 @@ func (c *Client) AddTask(ctx context.Context, args *sync.TaskAddArgs) (string, e
 
 // UpdateTask updates an existing task via the Todoist API.
 func (c *Client) UpdateTask(ctx context.Context, args *sync.TaskUpdateArgs) error {
+	log.Debug("todoist UpdateTask", "id", args.ID)
+	start := time.Now()
 	_, err := c.taskSvc.UpdateTask(ctx, args)
 	if err != nil {
+		log.Debug("todoist UpdateTask failed", "id", args.ID, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "UpdateTask", Err: err}
 	}
+	log.Debug("todoist UpdateTask done", "id", args.ID, "elapsed", time.Since(start))
 	return nil
 }
 
@@ -216,18 +234,26 @@ func (c *Client) FetchCompletedSubtasks(ctx context.Context, parentID string) ([
 
 // CompleteTask closes a task via the Todoist API.
 func (c *Client) CompleteTask(ctx context.Context, id string) error {
+	log.Debug("todoist CompleteTask", "id", id)
+	start := time.Now()
 	_, err := c.taskSvc.CloseTask(ctx, &sync.TaskCloseArgs{ID: id})
 	if err != nil {
+		log.Debug("todoist CompleteTask failed", "id", id, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "CompleteTask", Err: err}
 	}
+	log.Debug("todoist CompleteTask done", "id", id, "elapsed", time.Since(start))
 	return nil
 }
 
 // DeleteTask deletes a task and all its sub-tasks via the Todoist API.
 func (c *Client) DeleteTask(ctx context.Context, id string) error {
+	log.Debug("todoist DeleteTask", "id", id)
+	start := time.Now()
 	_, err := c.taskSvc.DeleteTask(ctx, &sync.TaskDeleteArgs{ID: id})
 	if err != nil {
+		log.Debug("todoist DeleteTask failed", "id", id, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "DeleteTask", Err: err}
 	}
+	log.Debug("todoist DeleteTask done", "id", id, "elapsed", time.Since(start))
 	return nil
 }

@@ -2,8 +2,8 @@ package handler
 
 import (
 	"encoding/json"
-	"log/slog"
 
+	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/storage"
@@ -67,21 +67,21 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 	if req.PinnedTasks != nil {
 		data, _ := json.Marshal(*req.PinnedTasks)
 		if err := h.store.SetValue("pinned_tasks", string(data)); err != nil {
-			slog.Error("state save failed", "field", "pinned_tasks", "error", err)
+			log.Error("state save failed", "field", "pinned_tasks", "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: pinned_tasks", "detail": err.Error()})
 		}
 	}
 
 	if req.ActiveContextID != nil {
 		if err := h.store.SetValue("active_context_id", *req.ActiveContextID); err != nil {
-			slog.Error("state save failed", "field", "active_context_id", "value", *req.ActiveContextID, "error", err)
+			log.Error("state save failed", "field", "active_context_id", "value", *req.ActiveContextID, "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: active_context_id", "detail": err.Error()})
 		}
 	}
 
 	if req.ActiveView != nil {
 		if err := h.store.SetValue("active_view", *req.ActiveView); err != nil {
-			slog.Error("state save failed", "field", "active_view", "value", *req.ActiveView, "error", err)
+			log.Error("state save failed", "field", "active_view", "value", *req.ActiveView, "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: active_view", "detail": err.Error()})
 		}
 	}
@@ -89,7 +89,7 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 	if req.CollapsedIDs != nil {
 		data, _ := json.Marshal(*req.CollapsedIDs)
 		if err := h.store.SetValue("collapsed_ids", string(data)); err != nil {
-			slog.Error("state save failed", "field", "collapsed_ids", "error", err)
+			log.Error("state save failed", "field", "collapsed_ids", "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: collapsed_ids", "detail": err.Error()})
 		}
 	}
@@ -100,7 +100,7 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 			v = "true"
 		}
 		if err := h.store.SetValue("sidebar_collapsed", v); err != nil {
-			slog.Error("state save failed", "field", "sidebar_collapsed", "value", v, "error", err)
+			log.Error("state save failed", "field", "sidebar_collapsed", "value", v, "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: sidebar_collapsed", "detail": err.Error()})
 		}
 	}
@@ -111,7 +111,7 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 			v = "true"
 		}
 		if err := h.store.SetValue("planning_open", v); err != nil {
-			slog.Error("state save failed", "field", "planning_open", "value", v, "error", err)
+			log.Error("state save failed", "field", "planning_open", "value", v, "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: planning_open", "detail": err.Error()})
 		}
 	}

@@ -3,6 +3,7 @@ package auth
 import (
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -31,6 +32,7 @@ func NewMiddleware(store *SessionStore) fiber.Handler {
 
 		token := c.Cookies(cookieName)
 		if token == "" || !store.ValidateSession(token) {
+			log.Debug("unauthorized request", "path", path, "ip", c.IP())
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
 
