@@ -183,6 +183,42 @@ func TestSortTasks_Recursive(t *testing.T) {
 	}
 }
 
+func TestSortTasksByAddedAt(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "oldest", AddedAt: "2026-03-01T00:00:00Z", Children: []*todoist.Task{}},
+		{ID: "2", Content: "newest", AddedAt: "2026-03-15T00:00:00Z", Children: []*todoist.Task{}},
+		{ID: "3", Content: "middle", AddedAt: "2026-03-10T00:00:00Z", Children: []*todoist.Task{}},
+	}
+	SortTasksByAddedAt(tasks)
+	if tasks[0].ID != "2" || tasks[1].ID != "3" || tasks[2].ID != "1" {
+		t.Errorf("got order [%s,%s,%s], want [2,3,1] (newest first)", tasks[0].ID, tasks[1].ID, tasks[2].ID)
+	}
+}
+
+func TestSortTasksByAddedAt_Recursive(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "parent", AddedAt: "2026-03-15T00:00:00Z", Children: []*todoist.Task{
+			{ID: "c1", Content: "old child", AddedAt: "2026-03-01T00:00:00Z", Children: []*todoist.Task{}},
+			{ID: "c2", Content: "new child", AddedAt: "2026-03-10T00:00:00Z", Children: []*todoist.Task{}},
+		}},
+	}
+	SortTasksByAddedAt(tasks)
+	if tasks[0].Children[0].ID != "c2" {
+		t.Errorf("got first child %s, want c2 (newest first)", tasks[0].Children[0].ID)
+	}
+}
+
+func TestSortBacklogTasks(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "1", Content: "oldest", AddedAt: "2026-03-01T00:00:00Z", Children: []*todoist.Task{}},
+		{ID: "2", Content: "newest", AddedAt: "2026-03-15T00:00:00Z", Children: []*todoist.Task{}},
+	}
+	SortBacklogTasks(tasks, "added_at")
+	if tasks[0].ID != "2" || tasks[1].ID != "1" {
+		t.Errorf("got order [%s,%s], want [2,1]", tasks[0].ID, tasks[1].ID)
+	}
+}
+
 func TestFindInTree(t *testing.T) {
 	tasks := []*todoist.Task{
 		{ID: "1", Content: "parent", Children: []*todoist.Task{
