@@ -61,7 +61,10 @@ function createPlanningStore() {
 
 	async function enter(): Promise<void> {
 		active = true;
-		patchState({ planning_open: true }).catch(console.error);
+		console.log('[planning] entering planning mode');
+		patchState({ planning_open: true }).catch((err) =>
+			console.error('[planning] enter save failed:', err)
+		);
 		loading = true;
 
 		try {
@@ -81,7 +84,10 @@ function createPlanningStore() {
 
 	function exit(): void {
 		active = false;
-		patchState({ planning_open: false }).catch(console.error);
+		console.log('[planning] exiting planning mode');
+		patchState({ planning_open: false }).catch((err) =>
+			console.error('[planning] exit save failed:', err)
+		);
 
 		for (const cleanup of cleanups) cleanup();
 		cleanups = [];

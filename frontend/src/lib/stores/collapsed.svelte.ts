@@ -21,15 +21,24 @@ function createCollapsedStore() {
 				ids.add(id);
 			}
 			ids = new Set(ids);
-			patchState({ collapsed_ids: [...ids] }).catch(console.error);
+			console.log('[collapsed] toggle:', id, 'total:', ids.size);
+			patchState({ collapsed_ids: [...ids] }).catch((err) =>
+				console.error('[collapsed] toggle save failed:', err)
+			);
 		},
 		collapseAll(taskIds: string[]): void {
 			ids = new Set(taskIds);
-			patchState({ collapsed_ids: [...ids] }).catch(console.error);
+			console.log('[collapsed] collapseAll:', taskIds.length);
+			patchState({ collapsed_ids: [...ids] }).catch((err) =>
+				console.error('[collapsed] collapseAll save failed:', err)
+			);
 		},
 		expandAll(): void {
 			ids = new Set();
-			patchState({ collapsed_ids: [] }).catch(console.error);
+			console.log('[collapsed] expandAll');
+			patchState({ collapsed_ids: [] }).catch((err) =>
+				console.error('[collapsed] expandAll save failed:', err)
+			);
 		},
 		init
 	};

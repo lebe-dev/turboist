@@ -168,7 +168,7 @@
 	const backlogLabel = $derived(tasksStore.config?.backlog_label ?? '');
 	const isInBacklog = $derived(backlogLabel !== '' && task.labels.includes(backlogLabel));
 
-	async function toggleBacklog() {
+	function toggleBacklog() {
 		if (!backlogLabel) return;
 		dropdownOpen = false;
 
@@ -177,12 +177,10 @@
 			: [...task.labels, backlogLabel];
 
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, labels: newLabels }));
-		try {
-			await updateTask(task.id, { labels: newLabels });
-		} catch (e) {
+		updateTask(task.id, { labels: newLabels }).catch((e) => {
 			console.error('Failed to toggle backlog label', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	function handlePin() {
@@ -194,28 +192,24 @@
 	}
 
 	// --- Date helpers ---
-	async function setDate(date: string) {
+	function setDate(date: string) {
 		dropdownOpen = false;
 		if (task.due?.date === date) return;
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: { date, recurring: false } }));
-		try {
-			await updateTask(task.id, { due_date: date });
-		} catch (e) {
+		updateTask(task.id, { due_date: date }).catch((e) => {
 			console.error('Failed to set due date', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
-	async function clearDate() {
+	function clearDate() {
 		dropdownOpen = false;
 		if (!task.due) return;
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: null }));
-		try {
-			await updateTask(task.id, { due_date: '' });
-		} catch (e) {
+		updateTask(task.id, { due_date: '' }).catch((e) => {
 			console.error('Failed to clear due date', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	let showCalendar = $state(false);
@@ -229,11 +223,11 @@
 		showCalendar = !showCalendar;
 	}
 
-	async function onCalendarSelect(value: DateValue | undefined) {
+	function onCalendarSelect(value: DateValue | undefined) {
 		if (!value) return;
 		const dateStr = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
 		showCalendar = false;
-		await setDate(dateStr);
+		setDate(dateStr);
 	}
 
 	// --- Priority ---

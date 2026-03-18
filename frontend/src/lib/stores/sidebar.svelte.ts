@@ -13,7 +13,10 @@ function createSidebarStore() {
 		},
 		toggle(): void {
 			collapsed = !collapsed;
-			patchState({ sidebar_collapsed: collapsed }).catch(console.error);
+			console.log('[sidebar] toggle:', collapsed);
+			patchState({ sidebar_collapsed: collapsed }).catch((err) =>
+				console.error('[sidebar] toggle save failed:', err)
+			);
 		},
 		init
 	};

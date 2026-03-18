@@ -16,20 +16,27 @@ function createContextsStore() {
 		// Validate saved context still exists
 		if (activeContextId && !contexts.some((c) => c.id === activeContextId)) {
 			activeContextId = null;
+			console.log('[contexts] invalid saved context, resetting');
 			patchState({ active_context_id: '' }).catch(console.error);
 		}
 	}
 
 	function setContext(id: string | null): void {
+		console.log('[contexts] setContext:', id);
 		activeContextId = id;
 		labelFilterStore.clear();
-		patchState({ active_context_id: id ?? '' }).catch(console.error);
+		patchState({ active_context_id: id ?? '' }).catch((err) =>
+			console.error('[contexts] setContext save failed:', err)
+		);
 	}
 
 	function setView(view: View): void {
+		console.log('[contexts] setView:', view);
 		activeView = view;
 		labelFilterStore.clear();
-		patchState({ active_view: view }).catch(console.error);
+		patchState({ active_view: view }).catch((err) =>
+			console.error('[contexts] setView save failed:', err)
+		);
 	}
 
 	return {

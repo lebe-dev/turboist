@@ -9,6 +9,9 @@ import type {
 } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+	const method = options?.method ?? 'GET';
+	console.log(`[api] ${method} ${path}`, options?.body ? JSON.parse(options.body as string) : '');
+
 	const res = await fetch(path, {
 		credentials: 'same-origin',
 		...options,
@@ -19,14 +22,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	});
 
 	if (res.status === 401) {
+		console.warn(`[api] ${method} ${path} → 401 Unauthorized`);
 		goto('/login');
 		throw new Error('Unauthorized');
 	}
 
 	if (!res.ok) {
 		const text = await res.text().catch(() => res.statusText);
+		console.error(`[api] ${method} ${path} → ${res.status}`, text);
 		throw new Error(`${res.status}: ${text}`);
 	}
+
+	console.log(`[api] ${method} ${path} → ${res.status}`);
 
 	const contentType = res.headers.get('content-type');
 	if (contentType?.includes('application/json')) {
@@ -103,6 +110,7 @@ export async function getAppConfig(): Promise<AppConfig> {
 }
 
 export async function patchState(update: Partial<UserState>): Promise<void> {
+	console.log('[api] patchState payload:', update);
 	await request('/api/state', {
 		method: 'PATCH',
 		body: JSON.stringify(update)
