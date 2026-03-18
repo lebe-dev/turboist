@@ -7,7 +7,11 @@ export const pwaUpdate = useRegisterSW({
 		setInterval(async () => {
 			if (registration.installing || !navigator) return;
 			if ('connection' in navigator && !navigator.onLine) return;
-			await registration.update();
+			try {
+				await registration.update();
+			} catch {
+				// SW may be in an invalid state after redeploy — ignore
+			}
 		}, 60_000);
 	}
 });

@@ -35,6 +35,11 @@ lint: format
 test name="":
     go test -run "{{ name }}" ./...
 
+test-frontend name="":
+    cd frontend && yarn vitest run {{ if name != "" { name } else { "" } }}
+
+test-all: test && test-frontend
+
 # --- Coverage ---
 coverage:
     go test ./... -coverprofile=coverage.out
@@ -65,7 +70,7 @@ stop-env:
     docker compose down
 
 # --- Image ---
-build-image: test && lint
+build-image: test-all && lint
     docker build --progress=plain --platform linux/amd64 -t {{ imageName }}:{{ version }} .
 
 push-image:

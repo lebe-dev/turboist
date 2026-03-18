@@ -105,8 +105,8 @@ function createTasksStore() {
 			updateStale(d.meta.last_synced_at);
 		}
 
-		// Debounced write-behind to IDB for deltas
-		scheduleSnapshotWrite(currentView(), currentContextId(), tasks, meta);
+		// Debounced write-behind to IDB for deltas (unwrap $state proxies for structured clone)
+		scheduleSnapshotWrite(currentView(), currentContextId(), $state.snapshot(tasks), $state.snapshot(meta));
 	}
 
 	// Register WS handlers once — these are stable for the store's lifetime
