@@ -104,5 +104,11 @@
 
   "filters.priority": "Приоритет",
   "filters.labels": "Метки",
-  "filters.clearAll": "Сбросить фильтры"
+  "filters.clearAll": "Сбросить фильтры",
+
+  "pwa.updateAvailable": "Доступна новая версия",
+  "pwa.update": "Обновить",
+  "pwa.installIOS": "Добавьте Turboist на экран: Поделиться → На экран «Домой»",
+  "pwa.dismiss": "Скрыть",
+  "pwa.offline": "Офлайн — показаны кэшированные данные"
 }

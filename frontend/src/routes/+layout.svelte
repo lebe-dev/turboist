@@ -11,6 +11,9 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { initLocale } from '$lib/i18n';
+	import UpdateBanner from '$lib/components/UpdateBanner.svelte';
+	import InstallBanner from '$lib/components/InstallBanner.svelte';
+	import OfflineBanner from '$lib/components/OfflineBanner.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 
@@ -38,6 +41,8 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <ModeWatcher />
 <Toaster />
+<UpdateBanner />
+<InstallBanner />
 
 {#if showSidebar}
 	<div class="flex h-screen overflow-hidden bg-background">
@@ -58,6 +63,7 @@
 		</div>
 
 		<main class="flex min-w-0 flex-1 flex-col overflow-hidden">
+			<OfflineBanner />
 			<div class="flex h-12 shrink-0 items-center border-b border-border/50 px-4 md:hidden">
 				<button
 					class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"

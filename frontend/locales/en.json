@@ -104,5 +104,11 @@
 
   "filters.priority": "Priority",
   "filters.labels": "Labels",
-  "filters.clearAll": "Clear filters"
+  "filters.clearAll": "Clear filters",
+
+  "pwa.updateAvailable": "New version available",
+  "pwa.update": "Update",
+  "pwa.installIOS": "Add Turboist to Home Screen: tap Share → Add to Home Screen",
+  "pwa.dismiss": "Dismiss",
+  "pwa.offline": "Offline — showing cached data"
 }

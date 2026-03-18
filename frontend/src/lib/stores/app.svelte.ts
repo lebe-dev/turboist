@@ -7,6 +7,7 @@ import { sidebarStore } from './sidebar.svelte';
 import { planningStore } from './planning.svelte';
 import { tasksStore } from './tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
+import { saveAppConfig, loadAppConfig } from '$lib/sync/db';
 
 const LOCAL_STORAGE_KEYS = [
 	'turboist:context',
@@ -74,18 +75,11 @@ function createAppStore() {
 	let labelConfigs = $state<LabelConfig[]>([]);
 	let quickCapture = $state<QuickCaptureConfig | null>(null);
 
-	async function init(): Promise<void> {
-		// Migrate localStorage first (one-time)
-		await migrateLocalStorage();
-
-		const cfg = await getAppConfig();
-
-		// Store shared data
+	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
 		labelConfigs = cfg.label_configs ?? [];
 		quickCapture = cfg.quick_capture;
 
-		// Init all stores from server state
 		contextsStore.init(
 			cfg.contexts,
 			cfg.state.active_context_id,
@@ -95,6 +89,24 @@ function createAppStore() {
 		collapsedStore.init(cfg.state.collapsed_ids);
 		sidebarStore.init(cfg.state.sidebar_collapsed);
 		planningStore.initActive(cfg.state.planning_open);
+	}
+
+	async function init(): Promise<void> {
+		// Migrate localStorage first (one-time)
+		await migrateLocalStorage();
+
+		let cfg;
+		try {
+			cfg = await getAppConfig();
+			// Cache config to IDB for offline use
+			saveAppConfig(cfg).catch(console.error);
+		} catch {
+			// Fallback to cached config from IDB
+			cfg = await loadAppConfig();
+			if (!cfg) throw new Error('No network and no cached config');
+		}
+
+		hydrateFromConfig(cfg);
 
 		// Connect WebSocket
 		wsClient.connect();

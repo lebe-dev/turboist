@@ -11,3 +11,4 @@
 *.zip
 coverage.*
 turboist
+/plans/

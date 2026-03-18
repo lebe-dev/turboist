@@ -7,6 +7,8 @@ import {
 	type DeltaTasksData
 } from '$lib/ws/client.svelte';
 import { mergeUpserted, filterByIds } from '$lib/ws/merge';
+import { loadTaskSnapshot, loadCompletedTasks, saveCompletedTasks } from '$lib/sync/db';
+import { writeSnapshotImmediate, scheduleSnapshotWrite } from '$lib/sync/snapshot-writer';
 
 const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -23,6 +25,7 @@ function createTasksStore() {
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let isStale = $state(false);
+	let isOffline = $state(false);
 
 	// IDs of tasks optimistically removed — survives fetches until server catches up
 	const pendingRemovals = new Set<string>();
@@ -57,13 +60,25 @@ function createTasksStore() {
 		return filterPending(taskList);
 	}
 
+	function currentView(): View {
+		return contextsStore.activeView;
+	}
+
+	function currentContextId(): string | undefined {
+		return contextsStore.activeContextId ?? undefined;
+	}
+
 	function handleTasksSnapshot(data: unknown): void {
 		const d = data as SnapshotTasksData;
 		tasks = applyPendingRemovals(d.tasks);
 		meta = d.meta;
 		loading = false;
 		error = null;
+		isOffline = false;
 		updateStale(d.meta.last_synced_at);
+
+		// Write-behind to IDB (immediate for snapshots)
+		writeSnapshotImmediate(currentView(), currentContextId(), d.tasks, d.meta);
 	}
 
 	function handleTasksDelta(data: unknown): void {
@@ -80,11 +95,42 @@ function createTasksStore() {
 			meta = d.meta;
 			updateStale(d.meta.last_synced_at);
 		}
+
+		// Debounced write-behind to IDB for deltas
+		scheduleSnapshotWrite(currentView(), currentContextId(), tasks, meta);
+	}
+
+	async function loadFromIDB(): Promise<boolean> {
+		const view = currentView();
+		const contextId = currentContextId();
+
+		if (view === 'completed') {
+			const cached = await loadCompletedTasks(contextId);
+			if (cached) {
+				tasks = cached.tasks;
+				isStale = true;
+				isOffline = true;
+				loading = false;
+				return true;
+			}
+			return false;
+		}
+
+		const cached = await loadTaskSnapshot(view, contextId);
+		if (cached) {
+			tasks = cached.tasks;
+			meta = cached.meta;
+			isStale = true;
+			isOffline = true;
+			loading = false;
+			return true;
+		}
+		return false;
 	}
 
 	function subscribeWS(): void {
-		const contextId = contextsStore.activeContextId ?? undefined;
-		const view: View = contextsStore.activeView;
+		const contextId = currentContextId();
+		const view = currentView();
 
 		// Completed view uses HTTP fetch, not WS
 		if (view === 'completed') {
@@ -102,8 +148,21 @@ function createTasksStore() {
 			tasks = res.tasks;
 			meta = res.meta;
 			error = null;
+			isOffline = false;
+
+			// Cache to IDB
+			saveCompletedTasks(currentContextId(), res.tasks).catch(console.error);
 		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
+			// Fallback to IDB cache on network failure
+			const cached = await loadCompletedTasks(currentContextId());
+			if (cached) {
+				tasks = cached.tasks;
+				isStale = true;
+				isOffline = true;
+				error = null;
+			} else {
+				error = err instanceof Error ? err.message : String(err);
+			}
 		} finally {
 			loading = false;
 		}
@@ -125,6 +184,9 @@ function createTasksStore() {
 		cleanups.push(wsClient.onMessage('snapshot', 'tasks', handleTasksSnapshot));
 		cleanups.push(wsClient.onMessage('delta', 'tasks', handleTasksDelta));
 
+		// Try loading from IDB first for instant display while WS connects
+		await loadFromIDB();
+
 		subscribeWS();
 	}
 
@@ -145,6 +207,15 @@ function createTasksStore() {
 		tasks = [];
 		loading = true;
 		error = null;
+
+		// Try IDB for instant view switch
+		const hadCache = await loadFromIDB();
+		if (hadCache) {
+			// Still subscribe to get fresh data
+			subscribeWS();
+			return;
+		}
+
 		subscribeWS();
 	}
 
@@ -212,6 +283,9 @@ function createTasksStore() {
 		},
 		get isStale() {
 			return isStale;
+		},
+		get isOffline() {
+			return isOffline;
 		},
 		start,
 		stop,
