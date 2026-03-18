@@ -1,7 +1,7 @@
 <script lang="ts">
 	import TaskItem from './TaskItem.svelte';
 	import type { Task } from '$lib/api/types';
-	import { completeTask, deleteTask, duplicateTask, updateTask, getTask } from '$lib/api/client';
+	import { completeTask, deleteTask, duplicateTask, updateTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
@@ -78,25 +78,18 @@
 		if (completing) return;
 		completing = true;
 
-		// Capture parent info before removing from store
+		// Capture parent info from store synchronously
 		const parentId = task.parent_id;
 		let parentContent: string | null = null;
 		if (parentId && !isCompletedView) {
 			const parent = findTaskInStore(tasksStore.tasks, parentId);
 			parentContent = parent?.content ?? null;
-			if (!parentContent) {
-				try {
-					const fetched = await getTask(parentId);
-					parentContent = fetched.content;
-				} catch {
-					// fallback — skip next-action prompt
-				}
-			}
 		}
 		const completedTask = task;
+		const taskId = task.id;
 
 		await new Promise((r) => setTimeout(r, 200));
-		tasksStore.removeTaskLocal(task.id);
+		tasksStore.removeTaskLocal(taskId);
 		completing = false;
 
 		// Show next-action toast
@@ -122,13 +115,11 @@
 			}
 		}
 
-		try {
-			await completeTask(task.id);
-		} catch (e) {
+		completeTask(taskId).catch((e) => {
 			console.error('Failed to complete task', e);
-			tasksStore.clearPendingRemoval(task.id);
+			tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
-		}
+		});
 	}
 
 	const dueLabel = $derived.by(() => {
@@ -231,16 +222,14 @@
 	}
 
 	// --- Priority ---
-	async function setPriority(value: number) {
+	function setPriority(value: number) {
 		dropdownOpen = false;
 		if (task.priority === value) return;
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, priority: value }));
-		try {
-			await updateTask(task.id, { priority: value });
-		} catch (e) {
+		updateTask(task.id, { priority: value }).catch((e) => {
 			console.error('Failed to update priority', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	let dropdownOpen = $state(false);
@@ -333,22 +322,16 @@
 
 	// --- Delete ---
 	let showDeleteConfirm = $state(false);
-	let deleting = $state(false);
 
-	async function handleDelete() {
-		if (deleting) return;
-		deleting = true;
-		tasksStore.removeTaskLocal(task.id);
+	function handleDelete() {
+		const taskId = task.id;
+		tasksStore.removeTaskLocal(taskId);
 		showDeleteConfirm = false;
-		try {
-			await deleteTask(task.id);
-		} catch (e) {
+		deleteTask(taskId).catch((e) => {
 			console.error('Failed to delete task', e);
-			tasksStore.clearPendingRemoval(task.id);
+			tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
-		} finally {
-			deleting = false;
-		}
+		});
 	}
 </script>
 
@@ -542,7 +525,6 @@
 				<button
 					class="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-destructive/90"
 					onclick={handleDelete}
-					disabled={deleting}
 				>
 					{$t('dialog.delete')}
 				</button>

@@ -32,7 +32,7 @@
 		}
 	});
 
-	async function handleSubmit() {
+	function handleSubmit() {
 		if (!content.trim() || submitting || !parentTaskId) return;
 		submitting = true;
 		const taskContent = content.trim();
@@ -42,21 +42,18 @@
 		open = false;
 		toast.success('Idea saved');
 
-		try {
-			await createTask({
-				content: taskContent,
-				description: taskDescription,
-				labels: [],
-				priority: 1,
-				parent_id: parentTaskId
-			});
-			tasksStore.refresh();
-		} catch (e) {
+		createTask({
+			content: taskContent,
+			description: taskDescription,
+			labels: [],
+			priority: 1,
+			parent_id: parentTaskId
+		}).catch((e) => {
 			console.error('Failed to create quick capture task', e);
 			toast.error('Failed to save idea');
-		} finally {
+		}).finally(() => {
 			submitting = false;
-		}
+		});
 	}
 
 	function handleKeydown(e: KeyboardEvent) {

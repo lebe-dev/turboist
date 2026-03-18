@@ -102,7 +102,7 @@
 		return contextLabels.includes(name);
 	}
 
-	async function handleSubmit() {
+	function handleSubmit() {
 		if (!content.trim() || submitting) return;
 		const trimmedContent = content.trim();
 		const trimmedDesc = description.trim();
@@ -135,12 +135,10 @@
 		const req: Parameters<typeof createTask>[0] = { content: trimmedContent, description: trimmedDesc, labels, priority: pri };
 		if (dueDate) req.due_date = dueDate;
 
-		try {
-			await createTask(req, context);
-		} catch (e) {
+		createTask(req, context).catch((e) => {
 			console.error('Failed to create task', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	function handleKeydown(e: KeyboardEvent) {

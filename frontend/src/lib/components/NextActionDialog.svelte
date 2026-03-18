@@ -154,7 +154,7 @@
 		nextActionStore.dismiss();
 	}
 
-	async function handleSubmit() {
+	function handleSubmit() {
 		if (!content.trim() || submitting || !pending) return;
 		const trimmedContent = content.trim();
 		const trimmedDesc = description.trim();
@@ -196,15 +196,13 @@
 			tasksStore.addTaskLocal(optimistic);
 		}
 
-		try {
-			await createTask(
-				{ content: trimmedContent, description: trimmedDesc, labels, priority: pri, ...(parentId ? { parent_id: parentId } : {}) },
-				context
-			);
-		} catch (e) {
+		createTask(
+			{ content: trimmedContent, description: trimmedDesc, labels, priority: pri, ...(parentId ? { parent_id: parentId } : {}) },
+			context
+		).catch((e) => {
 			console.error('Failed to create next action', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	function handleKeydown(e: KeyboardEvent) {

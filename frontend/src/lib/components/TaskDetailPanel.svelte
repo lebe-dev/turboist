@@ -141,18 +141,17 @@
 		});
 	}
 
-	async function saveTitle() {
+	function saveTitle() {
 		if (!task || !editingTitle) return;
 		editingTitle = false;
 		const trimmed = titleValue.trim();
 		if (!trimmed || trimmed === task.content) return;
+		const taskId = task.id;
 		updateLocal((t) => ({ ...t, content: trimmed }));
-		try {
-			await updateTask(task.id, { content: trimmed });
-		} catch (e) {
+		updateTask(taskId, { content: trimmed }).catch((e) => {
 			console.error('Failed to update title', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	function cancelTitle() {
@@ -177,18 +176,17 @@
 		});
 	}
 
-	async function saveDesc() {
+	function saveDesc() {
 		if (!task || !editingDesc) return;
 		editingDesc = false;
 		const trimmed = descValue.trim();
 		if (trimmed === task.description) return;
+		const taskId = task.id;
 		updateLocal((t) => ({ ...t, description: trimmed }));
-		try {
-			await updateTask(task.id, { description: trimmed });
-		} catch (e) {
+		updateTask(taskId, { description: trimmed }).catch((e) => {
 			console.error('Failed to update description', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	function cancelDesc() {
@@ -215,22 +213,21 @@
 
 	const activePriority = $derived(priorityItems.find((p) => p.value === localPriority));
 
-	async function setPriority(value: number) {
+	function setPriority(value: number) {
 		if (!task) return;
 		dropdownOpen = false;
 		showPriorityPicker = false;
 		if (value === localPriority) return;
+		const taskId = task.id;
 		localPriority = value;
 		prioritySyncing = true;
-		try {
-			await updateTask(task.id, { priority: value });
-			tasksStore.refresh();
-		} catch (e) {
+		updateTask(taskId, { priority: value }).catch((e) => {
 			if (task) localPriority = task.priority;
 			console.error('Failed to update priority', e);
-		} finally {
+			tasksStore.refresh();
+		}).finally(() => {
 			prioritySyncing = false;
-		}
+		});
 	}
 
 	// --- Due date ---
@@ -246,7 +243,7 @@
 		}
 	});
 
-	async function onCalendarSelect(value: DateValue | undefined) {
+	function onCalendarSelect(value: DateValue | undefined) {
 		if (!task || !value) return;
 		const dateStr = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
 		const currentDate = task.due?.date ?? '';
@@ -255,25 +252,23 @@
 			return;
 		}
 		showCalendar = false;
+		const taskId = task.id;
 		updateLocal((t) => ({ ...t, due: { date: dateStr, recurring: t.due?.recurring ?? false } }));
-		try {
-			await updateTask(task.id, { due_date: dateStr });
-		} catch (e) {
+		updateTask(taskId, { due_date: dateStr }).catch((e) => {
 			console.error('Failed to update due date', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
-	async function clearDate() {
+	function clearDate() {
 		if (!task || !task.due) return;
 		dropdownOpen = false;
+		const taskId = task.id;
 		updateLocal((t) => ({ ...t, due: null }));
-		try {
-			await updateTask(task.id, { due_date: '' });
-		} catch (e) {
+		updateTask(taskId, { due_date: '' }).catch((e) => {
 			console.error('Failed to clear due date', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	function todayDateStr(): string {
@@ -287,18 +282,17 @@
 		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 	}
 
-	async function setDateQuick(date: string) {
+	function setDateQuick(date: string) {
 		if (!task) return;
 		dropdownOpen = false;
 		const currentDate = task.due?.date ?? '';
 		if (date === currentDate) return;
+		const taskId = task.id;
 		updateLocal((t) => ({ ...t, due: { date, recurring: false } }));
-		try {
-			await updateTask(task.id, { due_date: date });
-		} catch (e) {
+		updateTask(taskId, { due_date: date }).catch((e) => {
 			console.error('Failed to set due date', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	// --- Labels (optimistic) ---
@@ -337,22 +331,21 @@
 		return ctx?.filters.labels ?? [];
 	});
 
-	async function toggleLabel(name: string) {
+	function toggleLabel(name: string) {
 		if (!task) return;
 		const newLabels = localLabels.includes(name)
 			? localLabels.filter((l) => l !== name)
 			: [...localLabels, name];
+		const taskId = task.id;
 		localLabels = newLabels;
 		labelsSyncing = true;
-		try {
-			await updateTask(task.id, { labels: newLabels });
-			tasksStore.refresh();
-		} catch (e) {
+		updateTask(taskId, { labels: newLabels }).catch((e) => {
 			if (task) localLabels = [...task.labels];
 			console.error('Failed to update labels', e);
-		} finally {
+			tasksStore.refresh();
+		}).finally(() => {
 			labelsSyncing = false;
-		}
+		});
 	}
 
 	// --- Complete task ---
@@ -422,20 +415,18 @@
 			}));
 		}
 		completing = false;
-		try {
-			await completeTask(targetId);
-		} catch (e) {
+		completeTask(targetId).catch((e) => {
 			console.error('Failed to complete task', e);
 			tasksStore.clearPendingRemoval(targetId);
 			tasksStore.refresh();
-		}
+		});
 	}
 
 	// --- Subtask menu ---
 	let openSubtaskMenuId = $state<string | null>(null);
 
 	// --- Subtask priority (optimistic) ---
-	async function setSubtaskPriority(childId: string, value: number) {
+	function setSubtaskPriority(childId: string, value: number) {
 		if (!task) return;
 		openSubtaskMenuId = null;
 		updateLocal((t) => ({
@@ -444,16 +435,14 @@
 				.map((c) => (c.id === childId ? { ...c, priority: value } : c))
 				.sort((a, b) => b.priority - a.priority)
 		}));
-		try {
-			await updateTask(childId, { priority: value });
-		} catch (e) {
+		updateTask(childId, { priority: value }).catch((e) => {
 			console.error('Failed to update subtask priority', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	// --- Subtask date ---
-	async function setSubtaskDate(childId: string, date: string) {
+	function setSubtaskDate(childId: string, date: string) {
 		openSubtaskMenuId = null;
 		if (!task) return;
 		updateLocal((t) => ({
@@ -462,15 +451,13 @@
 				c.id === childId ? { ...c, due: { date, recurring: false } } : c
 			)
 		}));
-		try {
-			await updateTask(childId, { due_date: date });
-		} catch (e) {
+		updateTask(childId, { due_date: date }).catch((e) => {
 			console.error('Failed to set subtask date', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
-	async function clearSubtaskDate(childId: string) {
+	function clearSubtaskDate(childId: string) {
 		openSubtaskMenuId = null;
 		if (!task) return;
 		updateLocal((t) => ({
@@ -479,12 +466,10 @@
 				c.id === childId ? { ...c, due: null } : c
 			)
 		}));
-		try {
-			await updateTask(childId, { due_date: '' });
-		} catch (e) {
+		updateTask(childId, { due_date: '' }).catch((e) => {
 			console.error('Failed to clear subtask date', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	let subtaskCalendarTargetId = $state<string | null>(null);
@@ -493,40 +478,37 @@
 		subtaskCalendarTargetId = subtaskCalendarTargetId === childId ? null : childId;
 	}
 
-	async function onSubtaskCalendarSelect(value: DateValue | undefined) {
+	function onSubtaskCalendarSelect(value: DateValue | undefined) {
 		if (!value || !subtaskCalendarTargetId) return;
 		const dateStr = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
 		const targetId = subtaskCalendarTargetId;
 		subtaskCalendarTargetId = null;
-		await setSubtaskDate(targetId, dateStr);
+		setSubtaskDate(targetId, dateStr);
 	}
 
 	// --- Delete subtask ---
-	async function deleteSubtask(childId: string) {
+	function deleteSubtask(childId: string) {
 		if (!task) return;
 		updateLocal((t) => ({
 			...t,
 			children: t.children.filter((c) => c.id !== childId),
 			sub_task_count: Math.max(0, t.sub_task_count - 1)
 		}));
-		try {
-			await deleteTask(childId);
-		} catch (e) {
+		deleteTask(childId).catch((e) => {
 			console.error('Failed to delete subtask', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	// --- Duplicate subtask ---
-	async function duplicateSubtask(childId: string) {
+	function duplicateSubtask(childId: string) {
 		openSubtaskMenuId = null;
-		try {
-			await duplicateTask(childId);
-		} catch (e) {
+		duplicateTask(childId).then(() => {
+			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
+		}).catch((e) => {
 			console.error('Failed to duplicate subtask', e);
-		}
-		tasksStore.refresh();
-		getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
+			tasksStore.refresh();
+		});
 	}
 
 	// --- Add sub-task ---
@@ -569,12 +551,12 @@
 		});
 	}
 
-	async function saveSubtask() {
+	function saveSubtask() {
 		if (!task || !subtaskContent.trim() || addingSubtask) return;
-		addingSubtask = true;
 		const content = subtaskContent.trim();
 		const inheritableParentLabels = task.labels.filter((l) => appStore.shouldInheritToSubtasks(l));
 		const labels = [...new Set([...inheritableParentLabels, ...contextLabels])];
+		const parentId = task.id;
 		const tempId = `temp-${Date.now()}`;
 		const optimistic: Task = {
 			id: tempId,
@@ -582,7 +564,7 @@
 			description: '',
 			project_id: task.project_id,
 			section_id: task.section_id,
-			parent_id: task.id,
+			parent_id: parentId,
 			labels,
 			priority: 1,
 			due: null,
@@ -600,18 +582,16 @@
 		}));
 		subtaskContent = '';
 		showSubtaskForm = false;
-		addingSubtask = false;
-		try {
-			await createTask(
-				{ content, description: '', labels, priority: 1, parent_id: task.id },
-				contextsStore.activeContextId ?? undefined
-			);
-		} catch (e) {
+		createTask(
+			{ content, description: '', labels, priority: 1, parent_id: parentId },
+			contextsStore.activeContextId ?? undefined
+		).then(() => {
+			// Re-fetch to replace temp child IDs with real ones
+			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
+		}).catch((e) => {
 			console.error('Failed to create subtask', e);
-		}
-		tasksStore.refresh();
-		// Re-fetch to replace temp child IDs with real ones
-		getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
+			tasksStore.refresh();
+		});
 	}
 
 	// --- Due date display ---
@@ -704,11 +684,12 @@
 	// --- Duplicate task ---
 	let duplicating = $state(false);
 
-	async function handleDuplicate() {
+	function handleDuplicate() {
 		if (!task || duplicating) return;
 		duplicating = true;
 		dropdownOpen = false;
 		const taskContent = task.content;
+		const sourceId = task.id;
 		const tempId = `temp-dup-${Date.now()}`;
 		const clone: Task = {
 			...task,
@@ -717,9 +698,8 @@
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
 		};
-		tasksStore.insertAfterLocal(task.id, clone);
-		try {
-			const newId = await duplicateTask(task.id);
+		tasksStore.insertAfterLocal(sourceId, clone);
+		duplicateTask(sourceId).then((newId) => {
 			toast.dismiss();
 			toast(`Duplicated: ${taskContent}`, {
 				duration: 5000,
@@ -728,13 +708,13 @@
 					onClick: () => goto(`/task/${newId}`)
 				}
 			});
-		} catch (e) {
+		}).catch((e) => {
 			console.error('Failed to duplicate task', e);
 			tasksStore.removeTaskLocal(tempId);
 			toast.error('Failed to duplicate task');
-		}
-		tasksStore.refresh();
-		duplicating = false;
+		}).finally(() => {
+			duplicating = false;
+		});
 	}
 
 	// --- Pin ---
@@ -752,71 +732,53 @@
 	}
 
 	// --- Bulk operations (subtasks only) ---
-	async function resetSubtaskPriorities() {
+	function resetSubtaskPriorities() {
 		if (!task) return;
 		dropdownOpen = false;
 		const children = task.children;
 		if (children.length === 0) return;
-		for (const child of children) {
-			if (child.priority !== 1) {
-				updateLocal((t) => ({
-					...t,
-					children: t.children.map((c) => c.id === child.id ? { ...c, priority: 1 } : c)
-				}));
-			}
-		}
-		try {
-			await Promise.all(
-				children.filter((c) => c.priority !== 1).map((c) => updateTask(c.id, { priority: 1 }))
-			);
-		} catch (e) {
+		const toReset = children.filter((c) => c.priority !== 1);
+		if (toReset.length === 0) return;
+		updateLocal((t) => ({
+			...t,
+			children: t.children.map((c) => toReset.some((r) => r.id === c.id) ? { ...c, priority: 1 } : c)
+		}));
+		Promise.all(toReset.map((c) => updateTask(c.id, { priority: 1 }))).catch((e) => {
 			console.error('Failed to reset subtask priorities', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
-	async function resetSubtaskLabels() {
+	function resetSubtaskLabels() {
 		if (!task) return;
 		dropdownOpen = false;
 		const children = task.children;
 		if (children.length === 0) return;
-		for (const child of children) {
-			if (child.labels.length > 0) {
-				updateLocal((t) => ({
-					...t,
-					children: t.children.map((c) => c.id === child.id ? { ...c, labels: [] } : c)
-				}));
-			}
-		}
-		try {
-			await Promise.all(
-				children.filter((c) => c.labels.length > 0).map((c) => updateTask(c.id, { labels: [] }))
-			);
-		} catch (e) {
+		const toReset = children.filter((c) => c.labels.length > 0);
+		if (toReset.length === 0) return;
+		updateLocal((t) => ({
+			...t,
+			children: t.children.map((c) => toReset.some((r) => r.id === c.id) ? { ...c, labels: [] } : c)
+		}));
+		Promise.all(toReset.map((c) => updateTask(c.id, { labels: [] }))).catch((e) => {
 			console.error('Failed to reset subtask labels', e);
-		}
-		tasksStore.refresh();
+			tasksStore.refresh();
+		});
 	}
 
 	// --- Delete task ---
 	let showDeleteConfirm = $state(false);
-	let deleting = $state(false);
-
-	async function handleDelete() {
-		if (!task || deleting) return;
-		deleting = true;
-		tasksStore.removeTaskLocal(task.id);
+	function handleDelete() {
+		if (!task) return;
+		const taskId = task.id;
+		tasksStore.removeTaskLocal(taskId);
 		showDeleteConfirm = false;
 		onclose();
-		try {
-			await deleteTask(task.id);
-		} catch (e) {
+		deleteTask(taskId).catch((e) => {
 			console.error('Failed to delete task', e);
-			tasksStore.clearPendingRemoval(task.id);
+			tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
-		} finally {
-			deleting = false;
-		}
+		});
 	}
 </script>
 
@@ -1375,7 +1337,6 @@
 					<button
 						class="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-destructive/90"
 						onclick={handleDelete}
-						disabled={deleting}
 					>
 						{$t('dialog.delete')}
 					</button>
