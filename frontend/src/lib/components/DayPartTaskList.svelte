@@ -113,7 +113,8 @@
 
 	function isDimmed(section: Section): boolean {
 		if (view === 'tomorrow') return false;
-		if (section.dayPart === null) return hoveredSection !== section.key;
+		if (hoveredSection === section.key) return false;
+		if (section.dayPart === null) return true;
 		return section.dayPart.label !== currentDayPartLabel;
 	}
 

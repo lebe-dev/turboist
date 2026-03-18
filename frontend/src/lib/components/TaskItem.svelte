@@ -20,6 +20,7 @@
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import { t, locale } from 'svelte-intl-precompile';
+	import { parseDate, type DateValue } from '@internationalized/date';
 
 	import type { Snippet } from 'svelte';
 
@@ -217,18 +218,22 @@
 		tasksStore.refresh();
 	}
 
-	let dateInput: HTMLInputElement | undefined = $state();
+	let showCalendar = $state(false);
 
-	function openDatePicker() {
-		requestAnimationFrame(() => {
-			dateInput?.showPicker?.();
-			dateInput?.focus();
-		});
+	const calendarValue = $derived.by(() => {
+		if (!task.due?.date) return undefined;
+		try { return parseDate(task.due.date); } catch { return undefined; }
+	});
+
+	function toggleCalendar() {
+		showCalendar = !showCalendar;
 	}
 
-	async function onDatePicked(e: Event) {
-		const value = (e.target as HTMLInputElement).value;
-		if (value) await setDate(value);
+	async function onCalendarSelect(value: DateValue | undefined) {
+		if (!value) return;
+		const dateStr = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
+		showCalendar = false;
+		await setDate(dateStr);
 	}
 
 	// --- Priority ---
@@ -245,6 +250,10 @@
 	}
 
 	let dropdownOpen = $state(false);
+
+	$effect(() => {
+		if (!dropdownOpen) showCalendar = false;
+	});
 
 	// --- Long-press to open dropdown ---
 	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -464,13 +473,6 @@
 			{/if}
 
 			{#if !completed}
-				<input
-					bind:this={dateInput}
-					type="date"
-					value={task.due?.date ?? ''}
-					class="pointer-events-none absolute left-0 top-0 h-0 w-0 opacity-0"
-					onchange={onDatePicked}
-				/>
 				<TaskDropdownMenu
 					bind:open={dropdownOpen}
 					{task}
@@ -486,7 +488,10 @@
 					{dropdownExtra}
 					onSetDate={setDate}
 					onClearDate={clearDate}
-					onOpenDatePicker={openDatePicker}
+					onOpenDatePicker={toggleCalendar}
+					{showCalendar}
+					{calendarValue}
+					{onCalendarSelect}
 					onSetPriority={setPriority}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 				>
