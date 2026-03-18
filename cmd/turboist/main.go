@@ -24,6 +24,12 @@ func main() {
 		log.Fatal("failed to load config", "err", err)
 	}
 
+	if level, err := log.ParseLevel(cfg.Env.LogLevel); err != nil {
+		log.Warn("invalid LOG_LEVEL, defaulting to info", "value", cfg.Env.LogLevel)
+	} else {
+		log.SetLevel(level)
+	}
+
 	log.Info("config loaded",
 		"bind", cfg.Env.Bind,
 		"base_url", cfg.Env.BaseURL,
