@@ -1,4 +1,5 @@
 export interface LogEntry {
+	id: number;
 	timestamp: number;
 	level: 'info' | 'warn' | 'error';
 	tag: string;
@@ -9,10 +10,11 @@ const MAX_ENTRIES = 500;
 
 const _entries: LogEntry[] = [];
 let _version = 0;
+let _nextId = 0;
 const _listeners = new Set<() => void>();
 
 function push(level: LogEntry['level'], tag: string, message: string): void {
-	_entries.unshift({ timestamp: Date.now(), level, tag, message });
+	_entries.unshift({ id: _nextId++, timestamp: Date.now(), level, tag, message });
 	if (_entries.length > MAX_ENTRIES) _entries.length = MAX_ENTRIES;
 	_version++;
 	for (const fn of _listeners) fn();

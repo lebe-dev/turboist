@@ -13,7 +13,7 @@
 	import { initLocale } from '$lib/i18n';
 	import UpdateBanner from '$lib/components/UpdateBanner.svelte';
 	import InstallBanner from '$lib/components/InstallBanner.svelte';
-	import OfflineBanner from '$lib/components/OfflineBanner.svelte';
+	import ConnectionIndicator from '$lib/components/ConnectionIndicator.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 
@@ -74,7 +74,6 @@
         </div>
 
         <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <OfflineBanner />
             <div
                 class="flex h-12 shrink-0 items-center border-b border-border/50 px-4 md:hidden"
             >
@@ -115,6 +114,9 @@
                             {$t(view.key)}
                         </button>
                     {/each}
+                </div>
+                <div class="ml-auto">
+                    <ConnectionIndicator compact />
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto">

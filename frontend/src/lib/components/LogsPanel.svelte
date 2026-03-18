@@ -77,7 +77,7 @@
 		</div>
 	{:else}
 		<div class="max-h-[60vh] overflow-y-auto rounded-lg border border-border/50 bg-muted/30">
-			{#each filtered as entry (entry.timestamp + entry.tag + entry.message)}
+			{#each filtered as entry (entry.id)}
 				<div class="flex items-baseline gap-2 border-b border-border/30 px-3 py-1.5 font-mono text-[11px] last:border-b-0">
 					<span class="shrink-0 tabular-nums text-muted-foreground/60">{formatTime(entry.timestamp)}</span>
 					<span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase {levelColor[entry.level]}">{entry.level}</span>
