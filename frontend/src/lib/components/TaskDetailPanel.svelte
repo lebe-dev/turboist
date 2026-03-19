@@ -10,7 +10,7 @@
 	import { toast } from 'svelte-sonner';
 	import { logger } from '$lib/stores/logger';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -578,9 +578,20 @@
 		const siblingPrefix = detectPrefixFromSiblings(task.children);
 		const prefix = siblingPrefix || extractPrefix(task.content);
 		subtaskContent = prefix;
+
+		// On mobile, pre-focus a temporary input within user gesture to keep keyboard open
+		let tmpInput: HTMLInputElement | null = null;
+		if (isMobile) {
+			tmpInput = document.createElement('input');
+			tmpInput.style.cssText = 'position:fixed;opacity:0;top:0;left:0;width:0;height:0;pointer-events:none';
+			document.body.appendChild(tmpInput);
+			tmpInput.focus();
+		}
+
 		showSubtaskForm = true;
-		requestAnimationFrame(() => {
+		tick().then(() => {
 			subtaskTextarea?.focus();
+			tmpInput?.remove();
 		});
 	}
 
@@ -831,20 +842,18 @@
 		<div class="flex shrink-0 items-center justify-between border-b border-border/50 px-5 py-3">
 			<div class="flex items-center gap-2 text-[12px] text-muted-foreground">
 				{#if fullPage}
+					<button
+						class="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						onclick={onclose}
+					>
+						<ArrowLeftIcon class="h-3.5 w-3.5" />
+					</button>
 					{#if task.parent_id && parentTask}
 						<button
-							class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground min-w-0"
 							onclick={() => onselect?.(parentTask!.id)}
 						>
-							<ArrowLeftIcon class="h-3.5 w-3.5" />
 							<span class="truncate">{parentTask.content}</span>
-						</button>
-					{:else}
-						<button
-							class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-							onclick={onclose}
-						>
-							<ArrowLeftIcon class="h-3.5 w-3.5" />
 						</button>
 					{/if}
 				{:else if task.parent_id && parentTask}

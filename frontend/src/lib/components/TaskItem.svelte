@@ -153,7 +153,9 @@
 	});
 
 	const dayPartLabels = $derived(new Set(tasksStore.config?.day_parts?.map((dp) => dp.label) ?? []));
-	const visibleLabels = $derived(task.labels.filter((l) => !dayPartLabels.has(l)));
+	const weeklyLabel = $derived(tasksStore.config?.weekly_label ?? '');
+	const isWeeklyView = $derived(contextsStore.activeView === 'weekly');
+	const visibleLabels = $derived(task.labels.filter((l) => !dayPartLabels.has(l) && !(isWeeklyView && l === weeklyLabel)));
 
 	const isPinned = $derived(pinnedStore.isPinned(task.id));
 	const canPin = $derived(isPinned || !pinnedStore.isFull);

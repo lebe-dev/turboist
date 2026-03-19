@@ -62,12 +62,14 @@
 	// Collect all unique labels from current tasks (excluding day-part labels)
 	const dayPartLabels = $derived(new Set(tasksStore.config?.day_parts?.map((dp) => dp.label) ?? []));
 	const backlogLabelName = $derived(tasksStore.config?.backlog_label ?? '');
+	const weeklyLabelName = $derived(tasksStore.config?.weekly_label ?? '');
 
 	function collectLabels(tasks: Task[]): Set<string> {
 		const labels = new Set<string>();
+		const isWeekly = contextsStore.activeView === 'weekly';
 		function walk(t: Task) {
 			for (const l of t.labels) {
-				if (!dayPartLabels.has(l) && l !== backlogLabelName) labels.add(l);
+				if (!dayPartLabels.has(l) && l !== backlogLabelName && !(isWeekly && l === weeklyLabelName)) labels.add(l);
 			}
 			for (const c of t.children) walk(c);
 		}

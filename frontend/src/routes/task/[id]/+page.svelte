@@ -7,10 +7,12 @@
 	const taskId = $derived($page.params.id as string);
 </script>
 
+{#key taskId}
 <TaskDetailPanel
 	{taskId}
 	fullPage={true}
 	onclose={() => history.back()}
 	onselect={(id) => goto(`/task/${id}`)}
 />
+{/key}
 <NextActionDialog />
