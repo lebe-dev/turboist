@@ -960,15 +960,6 @@
 						{/if}
 					</div>
 
-					<!-- Mobile labels (under title) -->
-					{#if localLabels.length > 0}
-						<div class="mt-2 flex flex-wrap gap-1 pl-8 md:hidden">
-							{#each localLabels as label (label)}
-								<span class="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
-							{/each}
-						</div>
-					{/if}
-
 					<!-- Description -->
 					<div class="mt-4 pl-8">
 						{#if editingDesc}
