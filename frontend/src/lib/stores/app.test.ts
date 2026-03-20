@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
+vi.mock('$app/navigation', () => ({
+	goto: vi.fn()
+}));
+
 vi.mock('$lib/stores/logger', () => ({
 	logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }));

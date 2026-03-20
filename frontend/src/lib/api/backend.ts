@@ -6,6 +6,7 @@ import type {
 	UpdateTaskRequest,
 	UserState
 } from './types';
+import { DefaultBackendConnector } from './default-backend';
 
 // Interface that all backend connectors must implement.
 // Mirrors the public API surface of client.ts.
@@ -40,7 +41,8 @@ export interface BackendConnector {
 	resetWeeklyLabel(): Promise<{ updated: number }>;
 }
 
-let _backend: BackendConnector;
+// Start with DefaultBackendConnector so auth works before appStore.init()
+let _backend: BackendConnector = new DefaultBackendConnector();
 
 export function getBackend(): BackendConnector {
 	return _backend;
