@@ -8,6 +8,7 @@
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { t } from 'svelte-intl-precompile';
+	import { toast } from 'svelte-sonner';
 
 	let showStartConfirm = $state(false);
 	let starting = $state(false);
@@ -17,6 +18,10 @@
 		try {
 			await planningStore.startWeek();
 			showStartConfirm = false;
+		} catch (e) {
+			if (e instanceof Error && e.message === 'offline:not-queueable') {
+				toast.error($t('pwa.requiresNetwork'));
+			}
 		} finally {
 			starting = false;
 		}

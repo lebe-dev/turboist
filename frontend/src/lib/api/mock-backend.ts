@@ -1,0 +1,183 @@
+// In-memory mock backend for tests.
+
+import type { BackendConnector } from './backend';
+import type {
+	AppConfig,
+	CreateTaskRequest,
+	Meta,
+	Task,
+	TasksResponse,
+	UpdateTaskRequest,
+	UserState
+} from './types';
+
+interface Call {
+	method: string;
+	args: unknown[];
+}
+
+const defaultMeta: Meta = {
+	context: '',
+	weekly_limit: 0,
+	weekly_count: 0,
+	backlog_limit: 0,
+	backlog_count: 0
+};
+
+function emptyTasksResponse(tasks: Task[]): TasksResponse {
+	return { tasks, meta: { ...defaultMeta } };
+}
+
+export class MockBackendConnector implements BackendConnector {
+	// Recorded calls for assertions.
+	calls: Call[] = [];
+
+	// Configurable return values.
+	tasks: Task[] = [];
+	config: AppConfig | null = null;
+
+	// Clear all recorded calls and return values.
+	reset(): void {
+		this.calls = [];
+		this.tasks = [];
+		this.config = null;
+	}
+
+	private record(method: string, args: unknown[]): void {
+		this.calls.push({ method, args });
+	}
+
+	// Auth
+
+	async login(password: string): Promise<void> {
+		this.record('login', [password]);
+	}
+
+	async logout(): Promise<void> {
+		this.record('logout', []);
+	}
+
+	async me(): Promise<void> {
+		this.record('me', []);
+	}
+
+	// Task queries
+
+	async getTasks(context?: string): Promise<TasksResponse> {
+		this.record('getTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getTask(id: string): Promise<Task> {
+		this.record('getTask', [id]);
+		const found = this.tasks.find((t) => t.id === id);
+		if (found) return found;
+		throw new Error(`task not found: ${id}`);
+	}
+
+	async getInboxTasks(context?: string): Promise<TasksResponse> {
+		this.record('getInboxTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getWeeklyTasks(context?: string): Promise<TasksResponse> {
+		this.record('getWeeklyTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getNextWeekTasks(context?: string): Promise<TasksResponse> {
+		this.record('getNextWeekTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getTodayTasks(context?: string): Promise<TasksResponse> {
+		this.record('getTodayTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getTomorrowTasks(context?: string): Promise<TasksResponse> {
+		this.record('getTomorrowTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getCompletedTasks(context?: string): Promise<TasksResponse> {
+		this.record('getCompletedTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getBacklogTasks(context?: string): Promise<TasksResponse> {
+		this.record('getBacklogTasks', [context]);
+		return emptyTasksResponse(this.tasks);
+	}
+
+	async getCompletedSubtasks(id: string): Promise<Task[]> {
+		this.record('getCompletedSubtasks', [id]);
+		return [];
+	}
+
+	// Task mutations
+
+	async createTask(data: CreateTaskRequest, context?: string): Promise<void> {
+		this.record('createTask', [data, context]);
+	}
+
+	async updateTask(id: string, data: UpdateTaskRequest): Promise<void> {
+		this.record('updateTask', [id, data]);
+	}
+
+	async completeTask(id: string): Promise<void> {
+		this.record('completeTask', [id]);
+	}
+
+	async duplicateTask(id: string): Promise<string> {
+		this.record('duplicateTask', [id]);
+		return `dup-${id}`;
+	}
+
+	async deleteTask(id: string): Promise<void> {
+		this.record('deleteTask', [id]);
+	}
+
+	// Config & state
+
+	async getAppConfig(): Promise<AppConfig> {
+		this.record('getAppConfig', []);
+		if (this.config) return this.config;
+		return {
+			settings: {
+				poll_interval: 30,
+				timezone: 'UTC',
+				weekly_label: '',
+				backlog_label: '',
+				weekly_limit: 0,
+				backlog_limit: 0,
+				completed_days: 7,
+				max_pinned: 5,
+				last_synced_at: null,
+				day_parts: []
+			},
+			contexts: [],
+			projects: [],
+			labels: [],
+			label_configs: [],
+			quick_capture: null,
+			state: {
+				pinned_tasks: [],
+				active_context_id: '',
+				active_view: 'all',
+				collapsed_ids: [],
+				sidebar_collapsed: false,
+				planning_open: false
+			}
+		};
+	}
+
+	async patchState(update: Partial<UserState>): Promise<void> {
+		this.record('patchState', [update]);
+	}
+
+	async resetWeeklyLabel(): Promise<{ updated: number }> {
+		this.record('resetWeeklyLabel', []);
+		return { updated: 0 };
+	}
+}

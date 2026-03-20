@@ -12,6 +12,15 @@ export interface CompletedCache {
 	updatedAt: number;
 }
 
+export interface QueuedAction {
+	id?: number;
+	type: 'createTask' | 'updateTask' | 'completeTask' | 'deleteTask' | 'patchState';
+	payload: unknown;
+	createdAt: number;
+	status: 'pending' | 'processing' | 'failed';
+	error?: string;
+}
+
 interface TurboistDB extends DBSchema {
 	taskSnapshots: {
 		key: string;
@@ -25,21 +34,59 @@ interface TurboistDB extends DBSchema {
 		key: string;
 		value: AppConfig;
 	};
+	actionQueue: {
+		key: number;
+		value: QueuedAction;
+	};
 }
 
 let dbPromise: Promise<IDBPDatabase<TurboistDB>> | null = null;
 
 function getDB(): Promise<IDBPDatabase<TurboistDB>> {
 	if (!dbPromise) {
-		dbPromise = openDB<TurboistDB>('turboist', 1, {
-			upgrade(db) {
-				db.createObjectStore('taskSnapshots');
-				db.createObjectStore('completedTasksCache');
-				db.createObjectStore('appConfig');
+		dbPromise = openDB<TurboistDB>('turboist', 2, {
+			upgrade(db, oldVersion) {
+				if (oldVersion < 1) {
+					// Fresh install: create all stores
+					db.createObjectStore('taskSnapshots');
+					db.createObjectStore('completedTasksCache');
+					db.createObjectStore('appConfig');
+				}
+				if (oldVersion < 2) {
+					// Upgrade from v1 or fresh install: add actionQueue store
+					db.createObjectStore('actionQueue', { keyPath: 'id', autoIncrement: true });
+				}
 			}
 		});
 	}
 	return dbPromise;
+}
+
+// Action queue CRUD
+export async function saveQueuedAction(action: Omit<QueuedAction, 'id'>): Promise<number> {
+	const db = await getDB();
+	return db.add('actionQueue', action as QueuedAction) as Promise<number>;
+}
+
+export async function loadPendingActions(): Promise<QueuedAction[]> {
+	const db = await getDB();
+	const all = await db.getAll('actionQueue');
+	return all.filter((a) => a.status === 'pending' || a.status === 'failed');
+}
+
+export async function removeQueuedAction(id: number): Promise<void> {
+	const db = await getDB();
+	await db.delete('actionQueue', id);
+}
+
+export async function updateQueuedAction(action: QueuedAction): Promise<void> {
+	const db = await getDB();
+	await db.put('actionQueue', action);
+}
+
+export async function clearActionQueue(): Promise<void> {
+	const db = await getDB();
+	await db.clear('actionQueue');
 }
 
 function snapshotKey(view: string, contextId?: string): string {

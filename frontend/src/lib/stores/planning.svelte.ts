@@ -160,6 +160,7 @@ function createPlanningStore() {
 		} catch (err) {
 			logger.error('planning', `startWeek failed: ${err}`);
 			refresh();
+			throw err;
 		}
 	}
 

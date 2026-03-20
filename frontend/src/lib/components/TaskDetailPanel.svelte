@@ -10,7 +10,7 @@
 	import { toast } from 'svelte-sonner';
 	import { logger } from '$lib/stores/logger';
 	import { goto } from '$app/navigation';
-	import { onMount, tick } from 'svelte';
+	import { tick } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -198,6 +198,31 @@
 
 	// --- Priority (optimistic) ---
 	let showPriorityPicker = $state(false);
+	let labelPickerRef: HTMLDivElement | undefined = $state();
+	let priorityPickerRef: HTMLDivElement | undefined = $state();
+
+	// Close pickers on click outside
+	$effect(() => {
+		if (!showLabelPicker && !showPriorityPicker) return;
+
+		function handlePointerDown(e: PointerEvent) {
+			const target = e.target as Node;
+			if (showLabelPicker && labelPickerRef && !labelPickerRef.contains(target)) {
+				showLabelPicker = false;
+			}
+			if (showPriorityPicker && priorityPickerRef && !priorityPickerRef.contains(target)) {
+				showPriorityPicker = false;
+			}
+		}
+
+		const frame = requestAnimationFrame(() => {
+			document.addEventListener('pointerdown', handlePointerDown);
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			document.removeEventListener('pointerdown', handlePointerDown);
+		};
+	});
 	let localPriority = $state(1);
 	let prioritySyncing = $state(false);
 
@@ -333,14 +358,6 @@
 		if (key !== null && !labelsSyncing) {
 			localLabels = key ? key.split(',') : [];
 		}
-	});
-
-	onMount(() => {
-		const mq = window.matchMedia('(max-width: 767px)');
-		isMobile = mq.matches;
-		const handleMq = (e: MediaQueryListEvent) => { isMobile = e.matches; };
-		mq.addEventListener('change', handleMq);
-		return () => mq.removeEventListener('change', handleMq);
 	});
 
 	const filteredLabels = $derived.by(() => {
@@ -539,7 +556,11 @@
 			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
 		}).catch((e) => {
 			logger.error('tasks', `duplicate subtask failed: ${e}`);
-			toast.error($t('errors.duplicateFailed'));
+			if (e instanceof Error && e.message === 'offline:not-queueable') {
+				toast.error($t('pwa.requiresNetwork'));
+			} else {
+				toast.error($t('errors.duplicateFailed'));
+			}
 			tasksStore.refresh();
 		});
 	}
@@ -549,7 +570,6 @@
 	let subtaskContent = $state('');
 	let subtaskTextarea: HTMLTextAreaElement | undefined = $state();
 	let addingSubtask = $state(false);
-	let isMobile = $state(false);
 
 	function extractPrefix(content: string): string {
 		const match = content.match(/^(.+?(?::\s|\s-\s))/);
@@ -579,19 +599,10 @@
 		const prefix = siblingPrefix || extractPrefix(task.content);
 		subtaskContent = prefix;
 
-		// On mobile, pre-focus a temporary input within user gesture to keep keyboard open
-		let tmpInput: HTMLInputElement | null = null;
-		if (isMobile) {
-			tmpInput = document.createElement('input');
-			tmpInput.style.cssText = 'position:fixed;opacity:0;top:0;left:0;width:0;height:0;pointer-events:none';
-			document.body.appendChild(tmpInput);
-			tmpInput.focus();
-		}
-
 		showSubtaskForm = true;
 		tick().then(() => {
 			subtaskTextarea?.focus();
-			tmpInput?.remove();
+			subtaskTextarea?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 		});
 	}
 
@@ -624,8 +635,13 @@
 			children: [...t.children, optimistic],
 			sub_task_count: t.sub_task_count + 1
 		}));
-		subtaskContent = '';
-		showSubtaskForm = false;
+		// Keep form open for adding more subtasks; reset to detected prefix
+		const nextPrefix = detectPrefixFromSiblings([...(task?.children ?? []), optimistic]);
+		subtaskContent = nextPrefix || extractPrefix(task?.content ?? '');
+		tick().then(() => {
+			subtaskTextarea?.focus();
+			subtaskTextarea?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		});
 		createTask(
 			{ content, description: '', labels, priority: 1, parent_id: parentId },
 			contextsStore.activeContextId ?? undefined
@@ -756,7 +772,11 @@
 		}).catch((e) => {
 			logger.error('tasks', `duplicate failed: ${e}`);
 			tasksStore.removeTaskLocal(tempId);
-			toast.error($t('errors.duplicateFailed'));
+			if (e instanceof Error && e.message === 'offline:not-queueable') {
+				toast.error($t('pwa.requiresNetwork'));
+			} else {
+				toast.error($t('errors.duplicateFailed'));
+			}
 		}).finally(() => {
 			duplicating = false;
 		});
@@ -1055,7 +1075,7 @@
 						<!-- Priority -->
 						<div>
 							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
-							<div class="relative">
+							<div bind:this={priorityPickerRef} class="relative">
 								<button
 									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
 									onclick={() => (showPriorityPicker = !showPriorityPicker)}
@@ -1105,7 +1125,7 @@
 								</div>
 							{/if}
 
-							<div class="relative">
+							<div bind:this={labelPickerRef} class="relative">
 								<button
 									class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 									onclick={() => { showLabelPicker = !showLabelPicker; labelSearch = ''; }}
@@ -1231,63 +1251,40 @@
 
 					<!-- Add sub-task -->
 					<div class="mt-4">
-						<button
-							class="flex items-center gap-2 text-[13px] text-muted-foreground transition-colors hover:text-primary"
-							onclick={startAddSubtask}
-						>
-							<PlusIcon class="h-4 w-4" />
-							{$t('task.addSubtask')}
-						</button>
-					</div>
-
-					<!-- Subtask dialog -->
-					{#if showSubtaskForm}
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-							onclick={(e) => {
-								if (e.target === e.currentTarget) {
-									showSubtaskForm = false;
-									subtaskContent = '';
-								}
-							}}
-							onkeydown={(e) => {
-								if (e.key === 'Escape') {
-									showSubtaskForm = false;
-									subtaskContent = '';
-								}
-							}}
-						>
-							<div class="w-full max-w-sm mx-4 rounded-xl border border-border bg-popover shadow-2xl">
-								<div class="px-4 pt-4 pb-2">
-									<textarea
-										bind:this={subtaskTextarea}
-										bind:value={subtaskContent}
-										placeholder={$t('task.subtaskName')}
-										rows="2"
-										class="w-full resize-none bg-transparent text-base leading-snug text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-										disabled={addingSubtask}
-										onkeydown={(e) => {
-											if (e.key === 'Enter' && !e.shiftKey) {
-												e.preventDefault();
-												saveSubtask();
-											}
-											if (e.key === 'Escape') {
-												showSubtaskForm = false;
-												subtaskContent = '';
-											}
-										}}
-									></textarea>
-								</div>
-								<div class="flex items-center justify-end gap-2 border-t border-border/50 px-4 py-3">
+						{#if showSubtaskForm}
+							<div class="rounded-lg border border-border/50 bg-accent/20 px-3 py-2">
+								<textarea
+									bind:this={subtaskTextarea}
+									bind:value={subtaskContent}
+									placeholder={$t('task.subtaskName')}
+									rows="1"
+									class="w-full resize-none bg-transparent text-[13px] leading-snug text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+									disabled={addingSubtask}
+									oninput={(e) => {
+										const target = e.currentTarget;
+										target.style.height = 'auto';
+										target.style.height = target.scrollHeight + 'px';
+									}}
+									onkeydown={(e) => {
+										if (e.key === 'Enter' && !e.shiftKey) {
+											e.preventDefault();
+											saveSubtask();
+										}
+										if (e.key === 'Escape') {
+											showSubtaskForm = false;
+											subtaskContent = '';
+										}
+									}}
+								></textarea>
+								<div class="mt-1.5 flex items-center justify-end gap-2">
 									<button
-										class="rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										class="rounded-md px-3 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 										onclick={() => { showSubtaskForm = false; subtaskContent = ''; }}
 									>
 										{$t('dialog.cancel')}
 									</button>
 									<button
-										class="rounded-lg px-4 py-1.5 text-[13px] font-medium transition-colors
+										class="rounded-md px-3 py-1 text-[12px] font-medium transition-colors
 											{subtaskContent.trim()
 												? 'bg-primary text-primary-foreground hover:bg-primary/90'
 												: 'bg-muted text-muted-foreground cursor-not-allowed'}"
@@ -1298,8 +1295,16 @@
 									</button>
 								</div>
 							</div>
-						</div>
-					{/if}
+						{:else}
+							<button
+								class="flex items-center gap-2 text-[13px] text-muted-foreground transition-colors hover:text-primary"
+								onclick={startAddSubtask}
+							>
+								<PlusIcon class="h-4 w-4" />
+								{$t('task.addSubtask')}
+							</button>
+						{/if}
+					</div>
 
 					<!-- Completed subtasks -->
 					{#if completedSubtasks.length > 0}
@@ -1389,7 +1394,7 @@
 					<!-- Priority -->
 					<div>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
-						<div class="relative">
+						<div bind:this={priorityPickerRef} class="relative">
 							<button
 								class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
 								onclick={() => (showPriorityPicker = !showPriorityPicker)}
@@ -1439,7 +1444,7 @@
 							</div>
 						{/if}
 
-						<div class="relative">
+						<div bind:this={labelPickerRef} class="relative">
 							<button
 								class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 								onclick={() => { showLabelPicker = !showLabelPicker; labelSearch = ''; }}

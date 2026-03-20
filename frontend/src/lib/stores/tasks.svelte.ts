@@ -1,5 +1,7 @@
 import { logger } from '$lib/stores/logger';
 import { getAppConfig, getCompletedTasks } from '$lib/api/client';
+import { getBackend } from '$lib/api/backend';
+import { actionQueue } from '$lib/sync/action-queue.svelte';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
 import {
@@ -226,7 +228,14 @@ function createTasksStore() {
 					isOffline = true;
 				}
 				if (connected && isOffline) {
-					logger.log('tasks', 'WS reconnected, clearing offline');
+					logger.log('tasks', 'WS reconnected, flushing offline queue');
+					// Flush queued mutations through the real backend, then re-subscribe
+					// to get a fresh snapshot that includes the replayed changes.
+					const backend = getBackend();
+					actionQueue.flush(backend).then(() => {
+						logger.log('tasks', 'Queue flush complete, re-subscribing');
+						subscribeWS();
+					});
 				}
 			})
 		);

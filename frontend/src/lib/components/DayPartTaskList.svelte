@@ -10,6 +10,7 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import ClockIcon from '@lucide/svelte/icons/clock';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { t } from 'svelte-intl-precompile';
@@ -21,7 +22,8 @@
 		view = 'today',
 		searchQuery = '',
 		contextName = '',
-		onResetContext
+		onResetContext,
+		oncreate
 	}: {
 		tasks: Task[];
 		dayParts: DayPart[];
@@ -30,6 +32,7 @@
 		searchQuery?: string;
 		contextName?: string;
 		onResetContext?: () => void;
+		oncreate?: (dayPartLabel: string) => void;
 	} = $props();
 
 	interface Section {
@@ -162,7 +165,7 @@
 				{@const isActive = view !== 'tomorrow' && currentDayPartLabel !== null && section.dayPart?.label === currentDayPartLabel}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="rounded-xl transition-all duration-300 {isActive ? 'border border-border/60 bg-muted/30 py-2.5' : 'py-0'}"
+					class="group/section rounded-xl transition-all duration-300 {isActive ? 'border border-border/60 bg-muted/30 py-2.5' : 'py-0'}"
 					onmouseenter={() => hoveredSection = section.key}
 					onmouseleave={() => hoveredSection = null}
 				>
@@ -175,6 +178,15 @@
 							<span class="{isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.timeRange}</span>
 						{/if}
 						<span class="tabular-nums {isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.tasks.length}</span>
+						{#if section.dayPart && oncreate}
+							<button
+								class="ml-auto flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all group-hover/section:opacity-100 hover:text-foreground"
+								title={$t('task.addTask')}
+								onclick={() => oncreate(section.dayPart!.label)}
+							>
+								<PlusIcon class="h-3.5 w-3.5" />
+							</button>
+						{/if}
 					</div>
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}

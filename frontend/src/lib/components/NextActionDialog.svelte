@@ -26,6 +26,31 @@
 
 	let contentInput: HTMLInputElement | undefined = $state();
 	let dialogEl: HTMLDivElement | undefined = $state();
+	let labelPickerRef: HTMLDivElement | undefined = $state();
+	let priorityPickerRef: HTMLDivElement | undefined = $state();
+
+	// Close pickers on click outside
+	$effect(() => {
+		if (!showLabelPicker && !showPriorityPicker) return;
+
+		function handlePointerDown(e: PointerEvent) {
+			const target = e.target as Node;
+			if (showLabelPicker && labelPickerRef && !labelPickerRef.contains(target)) {
+				showLabelPicker = false;
+			}
+			if (showPriorityPicker && priorityPickerRef && !priorityPickerRef.contains(target)) {
+				showPriorityPicker = false;
+			}
+		}
+
+		const frame = requestAnimationFrame(() => {
+			document.addEventListener('pointerdown', handlePointerDown);
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			document.removeEventListener('pointerdown', handlePointerDown);
+		};
+	});
 
 	let parentChildren = $state<Task[]>([]);
 
@@ -307,7 +332,7 @@
 
 			<!-- Toolbar -->
 			<div class="flex items-center gap-1 px-3 pb-3">
-				<div class="relative">
+				<div bind:this={labelPickerRef} class="relative">
 					<button
 						class="flex items-center gap-1.5 rounded-md border border-border/50 px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						onclick={() => { showLabelPicker = !showLabelPicker; showPriorityPicker = false; }}
@@ -350,7 +375,7 @@
 					{/if}
 				</div>
 
-				<div class="relative">
+				<div bind:this={priorityPickerRef} class="relative">
 					<button
 						class="flex items-center gap-1.5 rounded-md border border-border/50 px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
 							{priority > 1 ? activePriority?.color ?? 'text-muted-foreground' : 'text-muted-foreground hover:text-foreground'}"

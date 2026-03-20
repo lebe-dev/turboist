@@ -344,7 +344,11 @@
 		} catch (e) {
 			logger.error('tasks', `duplicate failed: ${e}`);
 			tasksStore.removeTaskLocal(tempId);
-			toast.error($t('errors.duplicateFailed'));
+			if (e instanceof Error && e.message === 'offline:not-queueable') {
+				toast.error($t('pwa.requiresNetwork'));
+			} else {
+				toast.error($t('errors.duplicateFailed'));
+			}
 		} finally {
 			duplicating = false;
 		}

@@ -1,5 +1,9 @@
 import { logger } from '$lib/stores/logger';
 import { getAppConfig, patchState } from '$lib/api/client';
+import { setBackend, getBackend } from '$lib/api/backend';
+import { DefaultBackendConnector } from '$lib/api/default-backend';
+import { OfflineAwareBackend } from '$lib/api/offline-aware-backend';
+import { actionQueue } from '$lib/sync/action-queue.svelte';
 import type { Label, LabelConfig, QuickCaptureConfig, View } from '$lib/api/types';
 import { contextsStore } from './contexts.svelte';
 import { pinnedStore } from './pinned.svelte';
@@ -95,6 +99,13 @@ function createAppStore() {
 	async function init(): Promise<void> {
 		logger.log('app', 'init start');
 
+		// Set up the backend connector chain: Default → OfflineAware
+		const defaultBackend = new DefaultBackendConnector();
+		setBackend(new OfflineAwareBackend(defaultBackend, actionQueue));
+
+		// Load any pending offline actions from previous session
+		await actionQueue.init();
+
 		// Migrate localStorage first (one-time)
 		await migrateLocalStorage();
 
@@ -119,6 +130,12 @@ function createAppStore() {
 
 		// Start task store (registers WS handlers and subscribes)
 		await tasksStore.start();
+
+		// Flush any queued offline actions from previous session
+		if (actionQueue.pendingCount > 0 && wsClient.connected) {
+			const backend = getBackend();
+			actionQueue.flush(backend).catch((e) => logger.error('app', `Queue flush failed: ${e}`));
+		}
 
 		initialized = true;
 		logger.log('app', 'init complete');

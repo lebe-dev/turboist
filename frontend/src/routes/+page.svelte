@@ -193,6 +193,7 @@
 
 	let createDialogOpen = $state(false);
 	let quickCaptureOpen = $state(false);
+	let createDayPartLabel = $state('');
 
 	function todayStr(): string {
 		const d = new Date();
@@ -228,6 +229,7 @@
 
 		if (e.key === 'q' && !isBacklogAtLimit) {
 			e.preventDefault();
+			createDayPartLabel = '';
 			createDialogOpen = true;
 		} else if (e.key === 'i') {
 			e.preventDefault();
@@ -245,7 +247,7 @@
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 		{#if !isCompletedView}
-			<Button onclick={() => (createDialogOpen = true)} variant="ghost" size="icon" class="ml-auto me-1 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)" disabled={isBacklogAtLimit}>
+			<Button onclick={() => { createDayPartLabel = ''; createDialogOpen = true; }} variant="ghost" size="icon" class="ml-auto me-1 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)" disabled={isBacklogAtLimit}>
 				<PlusIcon class="h-4 w-4" />
 				<span class="sr-only">Add task</span>
 			</Button>
@@ -435,6 +437,7 @@
 					{searchQuery}
 					contextName={activeContextName}
 					onResetContext={resetContext}
+					oncreate={(label) => { createDayPartLabel = label; createDialogOpen = true; }}
 				/>
 			{:else}
 				<TaskList tasks={filteredTasks} {searchQuery} completed={isCompletedView} contextName={activeContextName} onResetContext={resetContext} />
@@ -452,14 +455,14 @@
 	<!-- Mobile FAB -->
 	<button
 		class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden"
-		onclick={() => (createDialogOpen = true)}
+		onclick={() => { createDayPartLabel = ''; createDialogOpen = true; }}
 		aria-label="Add task"
 	>
 		<PlusIcon class="h-5 w-5" />
 	</button>
 {/if}
 
-<CreateTaskDialog bind:open={createDialogOpen} dueDate={createDueDate} />
+<CreateTaskDialog bind:open={createDialogOpen} dueDate={createDueDate} dayPartLabel={createDayPartLabel} />
 {#if !isCompletedView}
 	<NextActionDialog />
 {/if}
