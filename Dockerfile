@@ -32,6 +32,8 @@ COPY --from=app-build /build/turboist /turboist
 
 FROM alpine:3.23.3
 
+ENV TZ=Europe/Moscow
+
 WORKDIR /app
 
 RUN apk --no-cache add tzdata && \
