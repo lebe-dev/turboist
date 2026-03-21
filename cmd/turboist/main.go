@@ -14,7 +14,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/ws"
 )
 
-const Version = "0.5.1"
+const Version = "0.5.2"
 
 func main() {
 	log.Info("starting turboist", "version", Version)

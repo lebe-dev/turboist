@@ -10,6 +10,16 @@ import {
 } from '$lib/sync/db';
 import { logger } from '$lib/stores/logger';
 
+// Unwrap $state proxies before writing to IndexedDB — the structured clone
+// algorithm used by IDB cannot serialise Svelte reactive proxies.
+function idbSave(action: Omit<QueuedAction, 'id'>): Promise<number> {
+	return saveQueuedAction($state.snapshot(action) as typeof action);
+}
+
+function idbUpdate(action: QueuedAction): Promise<void> {
+	return updateQueuedAction($state.snapshot(action) as QueuedAction);
+}
+
 const TAG = 'action-queue';
 const MAX_RETRIES = 3;
 
@@ -63,7 +73,7 @@ function createActionQueue() {
 				};
 				existing.payload = merged;
 				existing.createdAt = Date.now();
-				await updateQueuedAction(existing);
+				await idbUpdate(existing);
 				logger.log(TAG, `Coalesced updateTask for task ${taskId}`);
 				return;
 			}
@@ -79,7 +89,7 @@ function createActionQueue() {
 				};
 				existing.payload = merged;
 				existing.createdAt = Date.now();
-				await updateQueuedAction(existing);
+				await idbUpdate(existing);
 				logger.log(TAG, 'Coalesced patchState action');
 				return;
 			}
@@ -92,7 +102,7 @@ function createActionQueue() {
 		};
 
 		try {
-			const id = await saveQueuedAction(full);
+			const id = await idbSave(full);
 			const queued: QueuedAction = { ...full, id };
 			items = [...items, queued];
 			pendingCount++;
@@ -159,7 +169,7 @@ function createActionQueue() {
 			for (const action of pending) {
 				// Mark as processing
 				action.status = 'processing';
-				await updateQueuedAction(action);
+				await idbUpdate(action);
 				items = [...items];
 
 				let succeeded = false;
@@ -175,7 +185,7 @@ function createActionQueue() {
 						// 401: abandon flush entirely, caller handles redirect
 						if (status === 401) {
 							action.status = 'pending';
-							await updateQueuedAction(action);
+							await idbUpdate(action);
 							items = [...items];
 							logger.warn(TAG, `Got 401 during flush, abandoning`);
 							return;
@@ -214,7 +224,7 @@ function createActionQueue() {
 							err instanceof Error ? err.message : String(err);
 						action.status = 'failed';
 						action.error = message;
-						await updateQueuedAction(action);
+						await idbUpdate(action);
 						items = [...items];
 						pendingCount--;
 						failedCount++;
@@ -252,7 +262,7 @@ function createActionQueue() {
 
 		action.status = 'pending';
 		action.error = undefined;
-		await updateQueuedAction(action);
+		await idbUpdate(action);
 		items = [...items];
 		failedCount--;
 		pendingCount++;

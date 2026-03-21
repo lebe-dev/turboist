@@ -134,6 +134,61 @@ describe('action-queue', () => {
 		});
 	});
 
+	// ─── enqueue — $state proxy snapshot ───
+
+	describe('enqueue — IDB receives plain snapshots, not proxy references', () => {
+		it('saveQueuedAction receives a deep copy of the payload', async () => {
+			const queue = await freshQueue();
+
+			const labels = ['weekly', 'work'];
+			const data = { labels };
+
+			await queue.enqueue({ type: 'updateTask', payload: { id: 'task-1', data } });
+
+			const savedArg = (mockDb.saveQueuedAction as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as QueuedAction | undefined;
+			expect(savedArg).toBeDefined();
+			const savedPayload = savedArg!.payload as { id: string; data: { labels: string[] } };
+
+			// Must be a separate array, not the same reference
+			expect(savedPayload.data.labels).toEqual(['weekly', 'work']);
+			expect(savedPayload.data.labels).not.toBe(labels);
+		});
+
+		it('updateQueuedAction receives a deep copy when coalescing updateTask', async () => {
+			const queue = await freshQueue();
+
+			const labels1 = ['weekly'];
+			await queue.enqueue({ type: 'updateTask', payload: { id: 'task-1', data: { labels: labels1 } } });
+
+			const labels2 = ['monthly'];
+			await queue.enqueue({ type: 'updateTask', payload: { id: 'task-1', data: { labels: labels2 } } });
+
+			const updatedArg = (mockDb.updateQueuedAction as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as QueuedAction | undefined;
+			expect(updatedArg).toBeDefined();
+			const updatedPayload = updatedArg!.payload as { id: string; data: { labels: string[] } };
+
+			// Coalesced value: last write wins for labels
+			expect(updatedPayload.data.labels).toEqual(['monthly']);
+			// Must not be the same reference as the input array
+			expect(updatedPayload.data.labels).not.toBe(labels2);
+		});
+
+		it('updateQueuedAction receives a deep copy when coalescing patchState', async () => {
+			const queue = await freshQueue();
+
+			const ids = ['task-1'];
+			await queue.enqueue({ type: 'patchState', payload: { update: { collapsed_ids: ids } } });
+			await queue.enqueue({ type: 'patchState', payload: { update: { sidebar_collapsed: true } } });
+
+			const updatedArg = (mockDb.updateQueuedAction as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as QueuedAction | undefined;
+			expect(updatedArg).toBeDefined();
+			const updatedPayload = updatedArg!.payload as { update: Record<string, unknown> };
+
+			expect(updatedPayload.update.collapsed_ids).toEqual(['task-1']);
+			expect(updatedPayload.update.collapsed_ids).not.toBe(ids);
+		});
+	});
+
 	// ─── enqueue — coalescing updateTask ───
 
 	describe('enqueue — coalescing updateTask', () => {
