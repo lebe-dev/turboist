@@ -725,6 +725,71 @@ describe('action-queue', () => {
 		});
 	});
 
+	// ─── eager flush after enqueue ───
+
+	describe('eager flush after enqueue', () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('flushes shortly after enqueue when backend is set', async () => {
+			const queue = await freshQueue();
+			const backend = createMockBackend();
+			queue.startAutoFlush(backend, 60000);
+
+			await queue.enqueue({ type: 'completeTask', payload: { id: 'task-1' } });
+
+			// Eager flush fires after 50ms debounce
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(backend.completeTask).toHaveBeenCalledWith('task-1');
+			queue.stopAutoFlush();
+		});
+
+		it('does not flush if no backend is set', async () => {
+			const queue = await freshQueue();
+			await queue.enqueue({ type: 'completeTask', payload: { id: 'task-1' } });
+
+			await vi.advanceTimersByTimeAsync(100);
+
+			// No backend → no flush, action stays pending
+			expect(queue.pendingCount).toBe(1);
+		});
+
+		it('coalesces rapid enqueues within debounce window', async () => {
+			const queue = await freshQueue();
+			const backend = createMockBackend();
+			queue.startAutoFlush(backend, 60000);
+
+			// Two rapid enqueues for same task — should coalesce before flush
+			await queue.enqueue({ type: 'updateTask', payload: { id: 'task-1', data: { content: 'a' } } });
+			await queue.enqueue({ type: 'updateTask', payload: { id: 'task-1', data: { priority: 4 } } });
+
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(backend.updateTask).toHaveBeenCalledTimes(1);
+			expect(backend.updateTask).toHaveBeenCalledWith('task-1', { content: 'a', priority: 4 });
+			queue.stopAutoFlush();
+		});
+
+		it('stopAutoFlush cancels pending eager flush', async () => {
+			const queue = await freshQueue();
+			const backend = createMockBackend();
+			queue.startAutoFlush(backend, 60000);
+
+			await queue.enqueue({ type: 'completeTask', payload: { id: 'task-1' } });
+			queue.stopAutoFlush();
+
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(backend.completeTask).not.toHaveBeenCalled();
+		});
+	});
+
 	// ─── visibility flush ───
 
 	describe('visibilitychange flush', () => {

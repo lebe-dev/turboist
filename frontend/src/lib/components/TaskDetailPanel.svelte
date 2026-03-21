@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
 	import { updateTask, createTask, completeTask, deleteTask, duplicateTask, getTask, getCompletedSubtasks } from '$lib/api/client';
+	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
@@ -68,7 +69,7 @@
 		taskFetching = true;
 		taskFromApi = null;
 		getTask(taskId)
-			.then((t) => { taskFromApi = t; })
+			.then((t) => { taskFromApi = tasksStore.applyPendingTaskUpdate(t); })
 			.catch(() => { if (!taskFromStore) onclose(); })
 			.finally(() => { taskFetching = false; });
 	});
@@ -550,7 +551,10 @@ function setDateQuick(date: string) {
 	function duplicateSubtask(childId: string) {
 		openSubtaskMenuId = null;
 		duplicateTask(childId).then(() => {
-			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
+			actionQueue.flushNow()
+				.then(() => getTask(taskId))
+				.then((t) => { taskFromApi = t; })
+				.catch(() => {});
 		}).catch((e) => {
 			logger.error('tasks', `duplicate subtask failed: ${e}`);
 			toast.error($t('errors.duplicateFailed'));
@@ -639,8 +643,12 @@ function setDateQuick(date: string) {
 			{ content, description: '', labels, priority: 1, parent_id: parentId },
 			contextsStore.activeContextId ?? undefined
 		).then(() => {
-			// Re-fetch to replace temp child IDs with real ones
-			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
+			// Flush the queue so the backend actually creates the subtask,
+			// then re-fetch to replace temp child IDs with real ones
+			actionQueue.flushNow()
+				.then(() => getTask(taskId))
+				.then((t) => { taskFromApi = t; })
+				.catch(() => {});
 		}).catch((e) => {
 			logger.error('tasks', `create subtask failed: ${e}`);
 			toast.error($t('errors.createFailed'));

@@ -22,6 +22,7 @@ function idbUpdate(action: QueuedAction): Promise<void> {
 
 const TAG = 'action-queue';
 const MAX_RETRIES = 3;
+const EAGER_FLUSH_DELAY_MS = 50;
 
 function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -75,6 +76,7 @@ function createActionQueue() {
 				existing.createdAt = Date.now();
 				await idbUpdate(existing);
 				logger.log(TAG, `Coalesced updateTask for task ${taskId}`);
+				scheduleEagerFlush();
 				return;
 			}
 		}
@@ -91,6 +93,7 @@ function createActionQueue() {
 				existing.createdAt = Date.now();
 				await idbUpdate(existing);
 				logger.log(TAG, 'Coalesced patchState action');
+				scheduleEagerFlush();
 				return;
 			}
 		}
@@ -107,6 +110,7 @@ function createActionQueue() {
 			items = [...items, queued];
 			pendingCount++;
 			logger.log(TAG, `Enqueued ${action.type} (id=${id})`);
+			scheduleEagerFlush();
 		} catch (err) {
 			logger.error(TAG, `Failed to enqueue ${action.type}: ${err}`);
 		}
@@ -283,6 +287,24 @@ function createActionQueue() {
 		logger.log(TAG, `Discarded action ${id} (${action.type})`);
 	}
 
+	// --- Eager flush after enqueue ---
+	// Debounced: allows coalescing within a burst of mutations,
+	// then flushes to keep the server in sync without waiting for the periodic timer.
+
+	let eagerFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function scheduleEagerFlush(): void {
+		if (eagerFlushTimer || !flushBackend) return;
+		eagerFlushTimer = setTimeout(() => {
+			eagerFlushTimer = null;
+			if (flushBackend && (pendingCount > 0 || failedCount > 0)) {
+				flush(flushBackend).catch((e) =>
+					logger.error(TAG, `Eager flush failed: ${e}`)
+				);
+			}
+		}, EAGER_FLUSH_DELAY_MS);
+	}
+
 	// --- Auto-flush timer ---
 
 	let flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -304,6 +326,10 @@ function createActionQueue() {
 		if (flushTimer) {
 			clearInterval(flushTimer);
 			flushTimer = null;
+		}
+		if (eagerFlushTimer) {
+			clearTimeout(eagerFlushTimer);
+			eagerFlushTimer = null;
 		}
 		flushBackend = null;
 	}

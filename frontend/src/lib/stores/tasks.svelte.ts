@@ -1,7 +1,7 @@
 import { logger } from '$lib/stores/logger';
 import { getAppConfig, getCompletedTasks } from '$lib/api/client';
 import { actionQueue } from '$lib/sync/action-queue.svelte';
-import type { Config, Meta, Task } from '$lib/api/types';
+import type { Config, Meta, Task, UpdateTaskRequest } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
 import {
 	wsClient,
@@ -66,6 +66,60 @@ function createTasksStore() {
 		return filterPending(taskList);
 	}
 
+	// Collect pending updateTask payloads from the action queue into a lookup map.
+	function pendingUpdateMap(): Map<string, UpdateTaskRequest> | null {
+		const pending = actionQueue.items.filter(
+			(a) => a.type === 'updateTask' && (a.status === 'pending' || a.status === 'processing')
+		);
+		if (pending.length === 0) return null;
+
+		const map = new Map<string, UpdateTaskRequest>();
+		for (const action of pending) {
+			const { id, data } = action.payload as { id: string; data: UpdateTaskRequest };
+			const existing = map.get(id);
+			map.set(id, existing ? { ...existing, ...data } : data);
+		}
+		return map;
+	}
+
+	function overlayUpdate(task: Task, update: UpdateTaskRequest): Task {
+		const result = { ...task };
+		if (update.content !== undefined) result.content = update.content;
+		if (update.description !== undefined) result.description = update.description;
+		if (update.labels !== undefined) result.labels = update.labels;
+		if (update.priority !== undefined) result.priority = update.priority;
+		if (update.due_date !== undefined) {
+			result.due = update.due_date === '' ? null : { date: update.due_date, recurring: false };
+		}
+		return result;
+	}
+
+	// Re-apply pending updateTask mutations on top of server data so
+	// optimistic edits survive WS snapshots / deltas / IDB loads.
+	function walkWithUpdates(list: Task[], updates: Map<string, UpdateTaskRequest>): Task[] {
+		return list.map((t) => {
+			const update = updates.get(t.id);
+			const result = update ? overlayUpdate(t, update) : t;
+			if (t.children.length > 0) {
+				return { ...result, children: walkWithUpdates(t.children, updates) };
+			}
+			return result;
+		});
+	}
+
+	function applyPendingUpdates(taskList: Task[]): Task[] {
+		const map = pendingUpdateMap();
+		if (!map) return taskList;
+		return walkWithUpdates(taskList, map);
+	}
+
+	// Apply pending queue mutations to a single task tree (for TaskDetailPanel).
+	function applyPendingTaskUpdate(task: Task): Task {
+		const map = pendingUpdateMap();
+		if (!map) return task;
+		return walkWithUpdates([task], map)[0];
+	}
+
 	function currentView(): View {
 		return contextsStore.activeView;
 	}
@@ -79,7 +133,7 @@ function createTasksStore() {
 		logger.log('tasks', `snapshot received: ${d.tasks.length} tasks, synced at: ${d.meta.last_synced_at}`);
 		hasReceivedSnapshot = true;
 		cancelOfflineTimer();
-		tasks = applyPendingRemovals(d.tasks);
+		tasks = applyPendingUpdates(applyPendingRemovals(d.tasks));
 		meta = d.meta;
 		loading = false;
 		error = null;
@@ -100,7 +154,7 @@ function createTasksStore() {
 		if (d.upserted?.length > 0) {
 			updated = mergeUpserted(updated, d.upserted);
 		}
-		tasks = applyPendingRemovals(updated);
+		tasks = applyPendingUpdates(applyPendingRemovals(updated));
 		if (d.meta) {
 			meta = d.meta;
 			updateStale(d.meta.last_synced_at);
@@ -141,7 +195,7 @@ function createTasksStore() {
 			const cached = await loadCompletedTasks(contextId);
 			if (cached) {
 				logger.log('tasks', `IDB cache hit (completed): ${cached.tasks.length} tasks`);
-				tasks = cached.tasks;
+				tasks = applyPendingUpdates(cached.tasks);
 				loading = false;
 				return true;
 			}
@@ -152,7 +206,7 @@ function createTasksStore() {
 		const cached = await loadTaskSnapshot(view, contextId);
 		if (cached) {
 			logger.log('tasks', `IDB cache hit: ${cached.tasks.length} tasks for ${view}`);
-			tasks = cached.tasks;
+			tasks = applyPendingUpdates(cached.tasks);
 			meta = cached.meta;
 			loading = false;
 			return true;
@@ -363,7 +417,8 @@ function createTasksStore() {
 		removeTaskLocal,
 		clearPendingRemoval,
 		addTaskLocal,
-		insertAfterLocal
+		insertAfterLocal,
+		applyPendingTaskUpdate
 	};
 }
 

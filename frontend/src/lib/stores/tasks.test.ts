@@ -40,6 +40,26 @@ vi.mock('$lib/sync/snapshot-writer', () => ({
 	scheduleSnapshotWrite: vi.fn()
 }));
 
+const mockActionQueue = {
+	items: [] as { type: string; payload: unknown; status: string }[],
+	pendingCount: 0,
+	failedCount: 0,
+	flushing: false,
+	init: vi.fn(),
+	enqueue: vi.fn(),
+	flush: vi.fn(),
+	flushNow: vi.fn(() => Promise.resolve()),
+	startAutoFlush: vi.fn(),
+	stopAutoFlush: vi.fn(),
+	clear: vi.fn(),
+	retryFailed: vi.fn(),
+	discard: vi.fn()
+};
+
+vi.mock('$lib/sync/action-queue.svelte', () => ({
+	actionQueue: mockActionQueue
+}));
+
 vi.mock('./contexts.svelte', () => ({
 	contextsStore: {
 		activeView: 'today',
@@ -229,5 +249,139 @@ describe('tasksStore local mutations', () => {
 
 		handleSnapshot({ tasks: [makeTask('1'), makeTask('2')], meta });
 		expect(tasksStore.tasks).toHaveLength(2);
+	});
+});
+
+describe('tasksStore pending queue updates overlay', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockActionQueue.items = [];
+		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
+	});
+
+	afterEach(() => {
+		mockActionQueue.items = [];
+		vi.resetModules();
+	});
+
+	async function setupWithTasks(tasks: Task[]) {
+		const { tasksStore } = await import('./tasks.svelte');
+		const calls = mockWsClient.onMessage.mock.calls as unknown[][];
+		const snapshotCall = calls.findLast(
+			(c) => c[0] === 'snapshot' && c[1] === 'tasks'
+		);
+		if (!snapshotCall) throw new Error('snapshot handler not registered');
+		const handleSnapshot = snapshotCall[2] as (data: unknown) => void;
+		const deltaCall = calls.findLast(
+			(c) => c[0] === 'delta' && c[1] === 'tasks'
+		);
+		if (!deltaCall) throw new Error('delta handler not registered');
+		const handleDelta = deltaCall[2] as (data: unknown) => void;
+
+		const meta: Meta = {
+			context: '',
+			weekly_limit: 0,
+			weekly_count: 0,
+			backlog_limit: 0,
+			backlog_count: 0,
+			last_synced_at: new Date().toISOString()
+		};
+		handleSnapshot({ tasks, meta });
+		return { tasksStore, handleSnapshot, handleDelta, meta };
+	}
+
+	it('pending label update survives WS snapshot', async () => {
+		const task = { ...makeTask('1'), labels: ['weekly', 'work'] };
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([task]);
+
+		// Simulate: user removed labels, action queued but not flushed
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { labels: ['work'] } }, status: 'pending' }
+		];
+
+		// Server snapshot still has old labels
+		handleSnapshot({ tasks: [{ ...makeTask('1'), labels: ['weekly', 'work'] }], meta });
+
+		// Pending update should overlay: 'weekly' removed
+		expect(tasksStore.tasks[0].labels).toEqual(['work']);
+	});
+
+	it('pending priority update survives WS snapshot', async () => {
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([makeTask('1')]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { priority: 4 } }, status: 'pending' }
+		];
+
+		handleSnapshot({ tasks: [makeTask('1')], meta });
+		expect(tasksStore.tasks[0].priority).toBe(4);
+	});
+
+	it('pending update applies to nested children', async () => {
+		const child = { ...makeTask('child-1'), labels: ['old'] };
+		const parent = makeTask('parent-1', [child]);
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([parent]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: 'child-1', data: { labels: ['new'] } }, status: 'pending' }
+		];
+
+		handleSnapshot({ tasks: [makeTask('parent-1', [{ ...makeTask('child-1'), labels: ['old'] }])], meta });
+		expect(tasksStore.tasks[0].children[0].labels).toEqual(['new']);
+	});
+
+	it('pending update survives WS delta', async () => {
+		const task = { ...makeTask('1'), labels: ['weekly'] };
+		const { tasksStore, handleDelta } = await setupWithTasks([task]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { labels: [] } }, status: 'pending' }
+		];
+
+		// Delta upserts the same task with old server labels
+		handleDelta({ upserted: [{ ...makeTask('1'), labels: ['weekly'] }], removed: [] });
+		expect(tasksStore.tasks[0].labels).toEqual([]);
+	});
+
+	it('no overlay when queue is empty', async () => {
+		const task = { ...makeTask('1'), labels: ['weekly'] };
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([task]);
+
+		mockActionQueue.items = [];
+
+		handleSnapshot({ tasks: [{ ...makeTask('1'), labels: ['weekly'] }], meta });
+		expect(tasksStore.tasks[0].labels).toEqual(['weekly']);
+	});
+
+	it('processing actions are also overlaid', async () => {
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([makeTask('1')]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { content: 'New content' } }, status: 'processing' }
+		];
+
+		handleSnapshot({ tasks: [makeTask('1')], meta });
+		expect(tasksStore.tasks[0].content).toBe('New content');
+	});
+
+	it('applyPendingTaskUpdate works for single task', async () => {
+		const { tasksStore } = await setupWithTasks([makeTask('1')]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { labels: ['updated'] } }, status: 'pending' }
+		];
+
+		const result = tasksStore.applyPendingTaskUpdate(makeTask('1'));
+		expect(result.labels).toEqual(['updated']);
+	});
+
+	it('applyPendingTaskUpdate is identity when queue is empty', async () => {
+		const { tasksStore } = await setupWithTasks([]);
+
+		mockActionQueue.items = [];
+
+		const task = makeTask('1');
+		const result = tasksStore.applyPendingTaskUpdate(task);
+		expect(result).toBe(task);
 	});
 });
