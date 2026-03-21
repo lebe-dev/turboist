@@ -32,13 +32,13 @@ export interface BackendConnector {
 	createTask(data: CreateTaskRequest, context?: string): Promise<void>;
 	updateTask(id: string, data: UpdateTaskRequest): Promise<void>;
 	completeTask(id: string): Promise<void>;
-	duplicateTask(id: string): Promise<string>;
+	duplicateTask(id: string): Promise<void>;
 	deleteTask(id: string): Promise<void>;
 
 	// Config & state
 	getAppConfig(): Promise<AppConfig>;
 	patchState(update: Partial<UserState>): Promise<void>;
-	resetWeeklyLabel(): Promise<{ updated: number }>;
+	resetWeeklyLabel(): Promise<void>;
 }
 
 // Start with DefaultBackendConnector so auth works before appStore.init()

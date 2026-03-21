@@ -111,6 +111,7 @@ export interface UserState {
 
 export interface Settings {
 	poll_interval: number; // seconds
+	sync_interval: number; // seconds — how often the frontend flushes queued mutations
 	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
 	weekly_label: string;
 	backlog_label: string;

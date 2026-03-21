@@ -473,3 +473,69 @@ func TestLoadDotEnv_MissingFile(t *testing.T) {
 		t.Errorf("expected no error for missing file, got %v", err)
 	}
 }
+
+// setupLoadTest creates a temporary directory with a minimal config.yml and .env,
+// sets required env vars, and chdir's into it. Cleanup restores the original CWD.
+func setupLoadTest(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yml"), []byte(`weekly: {label: "x"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte(""), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TODOIST_API_KEY", "test-key")
+	t.Setenv("TURBOIST_ADMIN_PASSWORD", "test-pass")
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(orig); err != nil {
+			t.Logf("failed to restore CWD: %v", err)
+		}
+	})
+}
+
+func TestLoad_SyncIntervalDefault(t *testing.T) {
+	setupLoadTest(t)
+	t.Setenv("TODOIST_API_SYNC_INTERVAL", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.App.SyncInterval != 60*time.Second {
+		t.Errorf("sync_interval default: got %v, want 60s", cfg.App.SyncInterval)
+	}
+}
+
+func TestLoad_SyncIntervalCustom(t *testing.T) {
+	setupLoadTest(t)
+	t.Setenv("TODOIST_API_SYNC_INTERVAL", "30s")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.App.SyncInterval != 30*time.Second {
+		t.Errorf("sync_interval: got %v, want 30s", cfg.App.SyncInterval)
+	}
+}
+
+func TestLoad_SyncIntervalMinimum(t *testing.T) {
+	setupLoadTest(t)
+	t.Setenv("TODOIST_API_SYNC_INTERVAL", "1s")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.App.SyncInterval != 5*time.Second {
+		t.Errorf("sync_interval minimum: got %v, want 5s", cfg.App.SyncInterval)
+	}
+}

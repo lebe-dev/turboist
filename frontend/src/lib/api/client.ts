@@ -52,7 +52,7 @@ export async function getBacklogTasks(context?: string): Promise<TasksResponse> 
 	return getBackend().getBacklogTasks(context);
 }
 
-export async function resetWeeklyLabel(): Promise<{ updated: number }> {
+export async function resetWeeklyLabel(): Promise<void> {
 	return getBackend().resetWeeklyLabel();
 }
 
@@ -76,7 +76,7 @@ export async function completeTask(id: string): Promise<void> {
 	return getBackend().completeTask(id);
 }
 
-export async function duplicateTask(id: string): Promise<string> {
+export async function duplicateTask(id: string): Promise<void> {
 	return getBackend().duplicateTask(id);
 }
 

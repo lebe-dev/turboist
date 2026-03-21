@@ -333,23 +333,13 @@
 		tasksStore.insertAfterLocal(sourceId, clone);
 
 		try {
-			const newId = await duplicateTask(sourceId);
+			await duplicateTask(sourceId);
 			toast.dismiss();
-			toast(`Duplicated: ${taskContent}`, {
-				duration: 5000,
-				action: {
-					label: 'Open',
-					onClick: () => goto(`/task/${newId}`)
-				}
-			});
+			toast(`Duplicated: ${taskContent}`, { duration: 5000 });
 		} catch (e) {
 			logger.error('tasks', `duplicate failed: ${e}`);
 			tasksStore.removeTaskLocal(tempId);
-			if (e instanceof Error && e.message === 'offline:not-queueable') {
-				toast.error($t('pwa.requiresNetwork'));
-			} else {
-				toast.error($t('errors.duplicateFailed'));
-			}
+			toast.error($t('errors.duplicateFailed'));
 		} finally {
 			duplicating = false;
 		}

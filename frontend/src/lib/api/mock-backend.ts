@@ -129,9 +129,8 @@ export class MockBackendConnector implements BackendConnector {
 		this.record('completeTask', [id]);
 	}
 
-	async duplicateTask(id: string): Promise<string> {
+	async duplicateTask(id: string): Promise<void> {
 		this.record('duplicateTask', [id]);
-		return `dup-${id}`;
 	}
 
 	async deleteTask(id: string): Promise<void> {
@@ -146,6 +145,7 @@ export class MockBackendConnector implements BackendConnector {
 		return {
 			settings: {
 				poll_interval: 30,
+				sync_interval: 60,
 				timezone: 'UTC',
 				weekly_label: '',
 				backlog_label: '',
@@ -176,8 +176,7 @@ export class MockBackendConnector implements BackendConnector {
 		this.record('patchState', [update]);
 	}
 
-	async resetWeeklyLabel(): Promise<{ updated: number }> {
+	async resetWeeklyLabel(): Promise<void> {
 		this.record('resetWeeklyLabel', []);
-		return { updated: 0 };
 	}
 }

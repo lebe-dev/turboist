@@ -137,12 +137,11 @@ export class DefaultBackendConnector implements BackendConnector {
 		await this.request(`/api/tasks/${encodeURIComponent(id)}/complete`, { method: 'POST' });
 	}
 
-	async duplicateTask(id: string): Promise<string> {
-		const res = await this.request<{ task_id: string }>(
+	async duplicateTask(id: string): Promise<void> {
+		await this.request(
 			`/api/tasks/${encodeURIComponent(id)}/duplicate`,
 			{ method: 'POST' }
 		);
-		return res.task_id;
 	}
 
 	async deleteTask(id: string): Promise<void> {
@@ -163,7 +162,7 @@ export class DefaultBackendConnector implements BackendConnector {
 		});
 	}
 
-	async resetWeeklyLabel(): Promise<{ updated: number }> {
-		return this.request<{ updated: number }>('/api/tasks/reset-weekly', { method: 'POST' });
+	async resetWeeklyLabel(): Promise<void> {
+		await this.request('/api/tasks/reset-weekly', { method: 'POST' });
 	}
 }

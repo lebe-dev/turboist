@@ -8,14 +8,13 @@ import type {
 	UserState
 } from './types';
 import type { actionQueue as ActionQueueType } from '$lib/sync/action-queue.svelte';
-import { wsClient } from '$lib/ws/client.svelte';
 import { logger } from '$lib/stores/logger';
 
 type ActionQueue = typeof ActionQueueType;
 
-// Decorator that queues mutations when offline and passes reads through.
-// Uses WS connection state as the connectivity indicator.
-export class OfflineAwareBackend implements BackendConnector {
+// Decorator that always queues mutations and passes reads through.
+// Mutations are flushed to the backend on a timer or on reconnect.
+export class QueuedBackend implements BackendConnector {
 	constructor(
 		private inner: BackendConnector,
 		private queue: ActionQueue
@@ -81,66 +80,40 @@ export class OfflineAwareBackend implements BackendConnector {
 		return this.inner.getAppConfig();
 	}
 
-	// --- Queueable mutations: enqueue when offline ---
+	// --- Mutations: always enqueue, flushed by timer ---
 
 	async createTask(data: CreateTaskRequest, context?: string): Promise<void> {
-		if (!wsClient.connected) {
-			logger.log('offline', 'Queuing createTask (offline)');
-			await this.queue.enqueue({ type: 'createTask', payload: { data, context } });
-			return;
-		}
-		return this.inner.createTask(data, context);
+		logger.log('sync', 'Queuing createTask');
+		await this.queue.enqueue({ type: 'createTask', payload: { data, context } });
 	}
 
 	async updateTask(id: string, data: UpdateTaskRequest): Promise<void> {
-		if (!wsClient.connected) {
-			logger.log('offline', 'Queuing updateTask (offline)');
-			await this.queue.enqueue({ type: 'updateTask', payload: { id, data } });
-			return;
-		}
-		return this.inner.updateTask(id, data);
+		logger.log('sync', 'Queuing updateTask');
+		await this.queue.enqueue({ type: 'updateTask', payload: { id, data } });
 	}
 
 	async completeTask(id: string): Promise<void> {
-		if (!wsClient.connected) {
-			logger.log('offline', 'Queuing completeTask (offline)');
-			await this.queue.enqueue({ type: 'completeTask', payload: { id } });
-			return;
-		}
-		return this.inner.completeTask(id);
+		logger.log('sync', 'Queuing completeTask');
+		await this.queue.enqueue({ type: 'completeTask', payload: { id } });
 	}
 
 	async deleteTask(id: string): Promise<void> {
-		if (!wsClient.connected) {
-			logger.log('offline', 'Queuing deleteTask (offline)');
-			await this.queue.enqueue({ type: 'deleteTask', payload: { id } });
-			return;
-		}
-		return this.inner.deleteTask(id);
+		logger.log('sync', 'Queuing deleteTask');
+		await this.queue.enqueue({ type: 'deleteTask', payload: { id } });
+	}
+
+	async duplicateTask(id: string): Promise<void> {
+		logger.log('sync', 'Queuing duplicateTask');
+		await this.queue.enqueue({ type: 'duplicateTask', payload: { id } });
+	}
+
+	async resetWeeklyLabel(): Promise<void> {
+		logger.log('sync', 'Queuing resetWeeklyLabel');
+		await this.queue.enqueue({ type: 'resetWeeklyLabel', payload: {} });
 	}
 
 	async patchState(update: Partial<UserState>): Promise<void> {
-		if (!wsClient.connected) {
-			logger.log('offline', 'Queuing patchState (offline)');
-			await this.queue.enqueue({ type: 'patchState', payload: { update } });
-			return;
-		}
-		return this.inner.patchState(update);
-	}
-
-	// --- Non-queueable: throw when offline ---
-
-	async duplicateTask(id: string): Promise<string> {
-		if (!wsClient.connected) {
-			throw new Error('offline:not-queueable');
-		}
-		return this.inner.duplicateTask(id);
-	}
-
-	async resetWeeklyLabel(): Promise<{ updated: number }> {
-		if (!wsClient.connected) {
-			throw new Error('offline:not-queueable');
-		}
-		return this.inner.resetWeeklyLabel();
+		logger.log('sync', 'Queuing patchState');
+		await this.queue.enqueue({ type: 'patchState', payload: { update } });
 	}
 }

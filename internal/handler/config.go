@@ -29,6 +29,7 @@ type dayPartResponse struct {
 
 type settingsResponse struct {
 	PollInterval  int               `json:"poll_interval"`
+	SyncInterval  int               `json:"sync_interval"`
 	Timezone      string            `json:"timezone"`
 	WeeklyLabel   string            `json:"weekly_label"`
 	BacklogLabel  string            `json:"backlog_label"`
@@ -92,6 +93,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 	}
 	settings := settingsResponse{
 		PollInterval:  int(h.cfg.PollInterval.Seconds()),
+		SyncInterval:  int(h.cfg.SyncInterval.Seconds()),
 		Timezone:      h.cfg.Timezone,
 		WeeklyLabel:   h.cfg.Weekly.Label,
 		BacklogLabel:  h.cfg.Backlog.Label,

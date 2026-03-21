@@ -9,7 +9,6 @@
 	import { appStore } from '$lib/stores/app.svelte';
 	import { toast } from 'svelte-sonner';
 	import { logger } from '$lib/stores/logger';
-	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -554,11 +553,7 @@ function setDateQuick(date: string) {
 			getTask(taskId).then((t) => { taskFromApi = t; }).catch(() => {});
 		}).catch((e) => {
 			logger.error('tasks', `duplicate subtask failed: ${e}`);
-			if (e instanceof Error && e.message === 'offline:not-queueable') {
-				toast.error($t('pwa.requiresNetwork'));
-			} else {
-				toast.error($t('errors.duplicateFailed'));
-			}
+			toast.error($t('errors.duplicateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -758,23 +753,13 @@ function setDateQuick(date: string) {
 			completed_sub_task_count: 0,
 		};
 		tasksStore.insertAfterLocal(sourceId, clone);
-		duplicateTask(sourceId).then((newId) => {
+		duplicateTask(sourceId).then(() => {
 			toast.dismiss();
-			toast(`Duplicated: ${taskContent}`, {
-				duration: 5000,
-				action: {
-					label: 'Open',
-					onClick: () => goto(`/task/${newId}`)
-				}
-			});
+			toast(`Duplicated: ${taskContent}`, { duration: 5000 });
 		}).catch((e) => {
 			logger.error('tasks', `duplicate failed: ${e}`);
 			tasksStore.removeTaskLocal(tempId);
-			if (e instanceof Error && e.message === 'offline:not-queueable') {
-				toast.error($t('pwa.requiresNetwork'));
-			} else {
-				toast.error($t('errors.duplicateFailed'));
-			}
+			toast.error($t('errors.duplicateFailed'));
 		}).finally(() => {
 			duplicating = false;
 		});

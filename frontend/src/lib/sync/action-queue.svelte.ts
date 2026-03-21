@@ -128,6 +128,15 @@ function createActionQueue() {
 				await backend.deleteTask(id);
 				break;
 			}
+			case 'duplicateTask': {
+				const { id } = action.payload as { id: string };
+				await backend.duplicateTask(id);
+				break;
+			}
+			case 'resetWeeklyLabel': {
+				await backend.resetWeeklyLabel();
+				break;
+			}
 			case 'patchState': {
 				const { update } = action.payload as { update: Partial<UserState> };
 				await backend.patchState(update);
@@ -177,7 +186,8 @@ function createActionQueue() {
 							status === 404 &&
 							(action.type === 'completeTask' ||
 								action.type === 'deleteTask' ||
-								action.type === 'updateTask')
+								action.type === 'updateTask' ||
+								action.type === 'duplicateTask')
 						) {
 							logger.warn(
 								TAG,
@@ -263,6 +273,51 @@ function createActionQueue() {
 		logger.log(TAG, `Discarded action ${id} (${action.type})`);
 	}
 
+	// --- Auto-flush timer ---
+
+	let flushTimer: ReturnType<typeof setInterval> | null = null;
+	let flushBackend: BackendConnector | null = null;
+
+	function startAutoFlush(backend: BackendConnector, intervalMs: number): void {
+		stopAutoFlush();
+		flushBackend = backend;
+		flushTimer = setInterval(() => {
+			if (pendingCount === 0 && failedCount === 0) return;
+			flush(backend).catch((e) =>
+				logger.error(TAG, `Auto-flush failed: ${e}`)
+			);
+		}, intervalMs);
+		logger.log(TAG, `Auto-flush started: every ${intervalMs}ms`);
+	}
+
+	function stopAutoFlush(): void {
+		if (flushTimer) {
+			clearInterval(flushTimer);
+			flushTimer = null;
+		}
+		flushBackend = null;
+	}
+
+	// Flush immediately using the stored backend reference
+	async function flushNow(): Promise<void> {
+		if (!flushBackend) {
+			logger.warn(TAG, 'flushNow called but no backend set');
+			return;
+		}
+		return flush(flushBackend);
+	}
+
+	// Flush when tab is hidden to avoid losing mutations
+	if (typeof document !== 'undefined') {
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'hidden' && pendingCount > 0 && flushBackend) {
+				flush(flushBackend).catch((e) =>
+					logger.error(TAG, `Visibility flush failed: ${e}`)
+				);
+			}
+		});
+	}
+
 	return {
 		get pendingCount() {
 			return pendingCount;
@@ -278,6 +333,9 @@ function createActionQueue() {
 		},
 		enqueue,
 		flush,
+		flushNow,
+		startAutoFlush,
+		stopAutoFlush,
 		clear,
 		retryFailed,
 		discard,

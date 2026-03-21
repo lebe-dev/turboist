@@ -52,6 +52,7 @@ func (l *LabelConfig) ShouldInheritToSubtasks() bool {
 
 type AppConfig struct {
 	PollInterval time.Duration
+	SyncInterval time.Duration
 	Timezone     string
 	TaskSort     TaskSort
 	MaxPinned    int
@@ -328,6 +329,17 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config.yml: %w", err)
 	}
+
+	// SyncInterval comes from env var, not YAML
+	syncStr := getEnv("TODOIST_API_SYNC_INTERVAL", "60s")
+	syncInterval, err := time.ParseDuration(syncStr)
+	if err != nil {
+		return nil, fmt.Errorf("TODOIST_API_SYNC_INTERVAL: %w", err)
+	}
+	if syncInterval < 5*time.Second {
+		syncInterval = 5 * time.Second
+	}
+	app.SyncInterval = syncInterval
 
 	return &Config{Env: env, App: app}, nil
 }

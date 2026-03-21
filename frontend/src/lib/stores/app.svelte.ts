@@ -2,7 +2,7 @@ import { logger } from '$lib/stores/logger';
 import { getAppConfig, patchState } from '$lib/api/client';
 import { setBackend, getBackend } from '$lib/api/backend';
 import { DefaultBackendConnector } from '$lib/api/default-backend';
-import { OfflineAwareBackend } from '$lib/api/offline-aware-backend';
+import { QueuedBackend } from '$lib/api/queued-backend';
 import { actionQueue } from '$lib/sync/action-queue.svelte';
 import type { Label, LabelConfig, QuickCaptureConfig, View } from '$lib/api/types';
 import { contextsStore } from './contexts.svelte';
@@ -99,9 +99,9 @@ function createAppStore() {
 	async function init(): Promise<void> {
 		logger.log('app', 'init start');
 
-		// Set up the backend connector chain: Default → OfflineAware
+		// Set up the backend connector chain: Default → Queued
 		const defaultBackend = new DefaultBackendConnector();
-		setBackend(new OfflineAwareBackend(defaultBackend, actionQueue));
+		setBackend(new QueuedBackend(defaultBackend, actionQueue));
 
 		// Load any pending offline actions from previous session
 		await actionQueue.init();
@@ -131,17 +131,19 @@ function createAppStore() {
 		// Start task store (registers WS handlers and subscribes)
 		await tasksStore.start();
 
-		// Flush any queued offline actions from previous session
-		if (actionQueue.pendingCount > 0 && wsClient.connected) {
-			const backend = getBackend();
-			actionQueue.flush(backend).catch((e) => logger.error('app', `Queue flush failed: ${e}`));
-		}
+		// Start auto-flush timer using sync_interval from config (default 60s)
+		const syncMs = (cfg.settings.sync_interval || 60) * 1000;
+		actionQueue.startAutoFlush(defaultBackend, syncMs);
+
+		// Flush any queued actions from previous session immediately
+		actionQueue.flushNow().catch((e) => logger.error('app', `Initial queue flush failed: ${e}`));
 
 		initialized = true;
 		logger.log('app', 'init complete');
 	}
 
 	function destroy(): void {
+		actionQueue.stopAutoFlush();
 		tasksStore.stop();
 		wsClient.disconnect();
 		initialized = false;
