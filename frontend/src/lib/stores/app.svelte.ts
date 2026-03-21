@@ -13,6 +13,7 @@ import { planningStore } from './planning.svelte';
 import { tasksStore } from './tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
 import { saveAppConfig, loadAppConfig } from '$lib/sync/db';
+import { initState, destroyState } from '$lib/state/index.svelte';
 
 const LOCAL_STORAGE_KEYS = [
 	'turboist:context',
@@ -109,6 +110,10 @@ function createAppStore() {
 		// Migrate localStorage first (one-time)
 		await migrateLocalStorage();
 
+		// Initialize SyncroState + y-indexeddb (loads cached data from IDB)
+		await initState();
+		logger.log('app', 'SyncroState initialized, y-indexeddb synced');
+
 		let cfg;
 		try {
 			cfg = await getAppConfig();
@@ -146,6 +151,7 @@ function createAppStore() {
 		actionQueue.stopAutoFlush();
 		tasksStore.stop();
 		wsClient.disconnect();
+		destroyState();
 		initialized = false;
 	}
 

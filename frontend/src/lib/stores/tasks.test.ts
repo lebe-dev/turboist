@@ -30,14 +30,8 @@ vi.mock('$lib/ws/client.svelte', () => ({
 }));
 
 vi.mock('$lib/sync/db', () => ({
-	loadTaskSnapshot: vi.fn(() => Promise.resolve(null)),
 	loadCompletedTasks: vi.fn(() => Promise.resolve(null)),
 	saveCompletedTasks: vi.fn(() => Promise.resolve())
-}));
-
-vi.mock('$lib/sync/snapshot-writer', () => ({
-	writeSnapshotImmediate: vi.fn(),
-	scheduleSnapshotWrite: vi.fn()
 }));
 
 const mockActionQueue = {
@@ -67,6 +61,16 @@ vi.mock('./contexts.svelte', () => ({
 	}
 }));
 
+vi.mock('$lib/state/index.svelte', () => ({
+	isStateReady: () => true,
+	persistTasks: vi.fn(),
+	persistMeta: vi.fn(),
+	loadPersistedTasks: vi.fn(() => []),
+	loadPersistedMeta: vi.fn(() => null),
+	initState: vi.fn(() => Promise.resolve()),
+	destroyState: vi.fn()
+}));
+
 function makeTask(id: string, children: Task[] = []): Task {
 	return {
 		id,
@@ -90,7 +94,6 @@ function makeTask(id: string, children: Task[] = []): Task {
 describe('tasksStore lifecycle', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		// Reset onStateChange to return a fresh cleanup fn each call
 		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
 	});
 
@@ -318,7 +321,7 @@ describe('tasksStore pending queue updates overlay', () => {
 	});
 
 	it('pending update applies to nested children', async () => {
-		const child = { ...makeTask('child-1'), labels: ['old'] };
+		const child = { ...makeTask('child-1'), labels: ['old'], parent_id: 'parent-1' };
 		const parent = makeTask('parent-1', [child]);
 		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([parent]);
 
@@ -326,7 +329,10 @@ describe('tasksStore pending queue updates overlay', () => {
 			{ type: 'updateTask', payload: { id: 'child-1', data: { labels: ['new'] } }, status: 'pending' }
 		];
 
-		handleSnapshot({ tasks: [makeTask('parent-1', [{ ...makeTask('child-1'), labels: ['old'] }])], meta });
+		handleSnapshot({
+			tasks: [makeTask('parent-1', [{ ...makeTask('child-1'), labels: ['old'], parent_id: 'parent-1' }])],
+			meta
+		});
 		expect(tasksStore.tasks[0].children[0].labels).toEqual(['new']);
 	});
 

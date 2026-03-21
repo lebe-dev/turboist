@@ -8,11 +8,13 @@ import {
 	type DeltaPlanningData
 } from '$lib/ws/client.svelte';
 import { mergeUpserted, filterByIds } from '$lib/ws/merge';
+import { isStateReady, persistTasks, persistMeta, loadPersistedTasks, loadPersistedMeta } from '$lib/state/index.svelte';
+import { flattenTasks, buildTree, taskToFlat, type FlatTask } from '$lib/state/types';
 
 function createPlanningStore() {
 	let active = $state(false);
-	let backlogTasks = $state<Task[]>([]);
-	let weeklyTasks = $state<Task[]>([]);
+	let backlogFlat = $state<FlatTask[]>([]);
+	let weeklyFlat = $state<FlatTask[]>([]);
 	let meta = $state<Meta>({
 		context: '',
 		weekly_limit: 0,
@@ -32,32 +34,46 @@ function createPlanningStore() {
 
 	function handlePlanningSnapshot(data: unknown): void {
 		const d = data as SnapshotPlanningData;
-		backlogTasks = d.backlog;
-		weeklyTasks = d.weekly;
+		backlogFlat = flattenTasks(d.backlog);
+		weeklyFlat = flattenTasks(d.weekly);
 		meta = d.meta;
 		loading = false;
+
+		persistTasks('backlogTasks', backlogFlat);
+		persistTasks('weeklyTasks', weeklyFlat);
+		persistMeta('planningMeta', d.meta);
 	}
 
 	function handlePlanningDelta(data: unknown): void {
 		const d = data as DeltaPlanningData;
 
+		// Backlog updates
+		let backlogTree = buildTree(backlogFlat);
 		if (d.backlog_removed?.length) {
-			backlogTasks = filterByIds(backlogTasks, d.backlog_removed);
+			backlogTree = filterByIds(backlogTree, d.backlog_removed);
 		}
 		if (d.backlog_upserted?.length) {
-			backlogTasks = mergeUpserted(backlogTasks, d.backlog_upserted);
+			backlogTree = mergeUpserted(backlogTree, d.backlog_upserted);
 		}
+		backlogFlat = flattenTasks(backlogTree);
 
+		// Weekly updates
+		let weeklyTree = buildTree(weeklyFlat);
 		if (d.weekly_removed?.length) {
-			weeklyTasks = filterByIds(weeklyTasks, d.weekly_removed);
+			weeklyTree = filterByIds(weeklyTree, d.weekly_removed);
 		}
 		if (d.weekly_upserted?.length) {
-			weeklyTasks = mergeUpserted(weeklyTasks, d.weekly_upserted);
+			weeklyTree = mergeUpserted(weeklyTree, d.weekly_upserted);
 		}
+		weeklyFlat = flattenTasks(weeklyTree);
 
 		if (d.meta) {
 			meta = d.meta;
 		}
+
+		persistTasks('backlogTasks', backlogFlat);
+		persistTasks('weeklyTasks', weeklyFlat);
+		if (d.meta) persistMeta('planningMeta', d.meta);
 	}
 
 	async function enter(): Promise<void> {
@@ -75,7 +91,6 @@ function createPlanningStore() {
 			logger.error('planning', `config load failed: ${err}`);
 		}
 
-		// Register WS handlers
 		cleanups.push(wsClient.onMessage('snapshot', 'planning', handlePlanningSnapshot));
 		cleanups.push(wsClient.onMessage('delta', 'planning', handlePlanningDelta));
 
@@ -94,8 +109,8 @@ function createPlanningStore() {
 		cleanups = [];
 		wsClient.unsubscribe('planning');
 
-		backlogTasks = [];
-		weeklyTasks = [];
+		backlogFlat = [];
+		weeklyFlat = [];
 	}
 
 	function refresh(): void {
@@ -114,14 +129,12 @@ function createPlanningStore() {
 		const weeklyLabel = config.weekly_label;
 		const backlogLabel = config.backlog_label;
 
-		// Optimistic: remove from backlog, add to weekly
-		backlogTasks = backlogTasks.filter((t) => t.id !== task.id);
+		// Optimistic
+		backlogFlat = backlogFlat.filter((t) => t.id !== task.id);
 		const newLabels = task.labels.filter((l) => l !== backlogLabel);
-		if (!newLabels.includes(weeklyLabel)) {
-			newLabels.push(weeklyLabel);
-		}
+		if (!newLabels.includes(weeklyLabel)) newLabels.push(weeklyLabel);
 		const movedTask = { ...task, labels: newLabels };
-		weeklyTasks = [...weeklyTasks, movedTask];
+		weeklyFlat = [...weeklyFlat, taskToFlat(movedTask)];
 		meta = { ...meta, weekly_count: meta.weekly_count + 1 };
 
 		try {
@@ -137,8 +150,7 @@ function createPlanningStore() {
 
 		const weeklyLabel = config.weekly_label;
 
-		// Optimistic: remove from weekly, decrement count
-		weeklyTasks = weeklyTasks.filter((t) => t.id !== task.id);
+		weeklyFlat = weeklyFlat.filter((t) => t.id !== task.id);
 		meta = { ...meta, weekly_count: Math.max(0, meta.weekly_count - 1) };
 
 		const newLabels = task.labels.filter((l) => l !== weeklyLabel);
@@ -152,7 +164,7 @@ function createPlanningStore() {
 	}
 
 	async function startWeek(): Promise<void> {
-		weeklyTasks = [];
+		weeklyFlat = [];
 		meta = { ...meta, weekly_count: 0 };
 
 		try {
@@ -169,54 +181,42 @@ function createPlanningStore() {
 
 		const weeklyLabel = config.weekly_label;
 		const backlogLabel = config.backlog_label;
-		const tasksToMove = [...backlogTasks];
+		const tasksToMove = buildTree(backlogFlat);
 		if (tasksToMove.length === 0) return;
 
-		// Optimistic: move all backlog tasks to weekly
 		const movedTasks = tasksToMove.map((task) => {
 			const newLabels = task.labels.filter((l) => l !== backlogLabel);
-			if (!newLabels.includes(weeklyLabel)) {
-				newLabels.push(weeklyLabel);
-			}
+			if (!newLabels.includes(weeklyLabel)) newLabels.push(weeklyLabel);
 			return { ...task, labels: newLabels };
 		});
-		backlogTasks = [];
-		weeklyTasks = [...weeklyTasks, ...movedTasks];
+		backlogFlat = [];
+		weeklyFlat = [...weeklyFlat, ...flattenTasks(movedTasks)];
 		meta = { ...meta, weekly_count: meta.weekly_count + tasksToMove.length };
 
 		try {
 			await Promise.all(
 				tasksToMove.map((task) => {
 					const newLabels = task.labels.filter((l) => l !== backlogLabel);
-					if (!newLabels.includes(weeklyLabel)) {
-						newLabels.push(weeklyLabel);
-					}
+					if (!newLabels.includes(weeklyLabel)) newLabels.push(weeklyLabel);
 					return updateTask(task.id, { labels: newLabels });
 				})
 			);
 		} catch (err) {
 			logger.error('planning', `acceptAll failed: ${err}`);
 		}
-		// Cache refresh → hub broadcast → delta will sync automatically
 	}
 
 	async function updateWeeklyTask(
 		taskId: string,
 		data: { priority?: number; due_date?: string }
 	): Promise<void> {
-		// Optimistic update
-		weeklyTasks = weeklyTasks.map((t) => {
+		weeklyFlat = weeklyFlat.map((t) => {
 			if (t.id !== taskId) return t;
 			const updated = { ...t };
-			if (data.priority !== undefined) {
-				updated.priority = data.priority;
-			}
+			if (data.priority !== undefined) updated.priority = data.priority;
 			if (data.due_date !== undefined) {
-				if (data.due_date === '') {
-					updated.due = null;
-				} else {
-					updated.due = { date: data.due_date, recurring: false };
-				}
+				updated.due_date = data.due_date === '' ? null : data.due_date;
+				updated.due_recurring = false;
 			}
 			return updated;
 		});
@@ -233,11 +233,11 @@ function createPlanningStore() {
 		get active() {
 			return active;
 		},
-		get backlogTasks() {
-			return backlogTasks;
+		get backlogTasks(): Task[] {
+			return buildTree(backlogFlat);
 		},
-		get weeklyTasks() {
-			return weeklyTasks;
+		get weeklyTasks(): Task[] {
+			return buildTree(weeklyFlat);
 		},
 		get meta() {
 			return meta;

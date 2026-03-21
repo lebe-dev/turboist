@@ -1,6 +1,7 @@
 import { logger } from '$lib/stores/logger';
 import { patchState } from '$lib/api/client';
 import type { PinnedTask } from '$lib/api/types';
+import { isStateReady, persistUI } from '$lib/state/index.svelte';
 
 export type { PinnedTask };
 
@@ -9,15 +10,22 @@ function createPinnedStore() {
 	let maxPinned = $state(5);
 	let _selectedTaskId = $state<string | null>(null);
 
+	function syncToState(tasks: PinnedTask[]): void {
+		if (!isStateReady()) return;
+		persistUI({ pinned_tasks: tasks.map((t) => ({ id: t.id, content: t.content })) });
+	}
+
 	function init(tasks: PinnedTask[], max: number): void {
 		items = tasks;
 		maxPinned = max;
+		syncToState(tasks);
 	}
 
 	function pin(task: PinnedTask): void {
 		if (items.some((t) => t.id === task.id)) return;
 		if (items.length >= maxPinned) return;
 		items = [...items, task];
+		syncToState(items);
 		logger.log('pinned', `pin: ${task.id} total: ${items.length}`);
 		patchState({ pinned_tasks: items }).catch((err) =>
 			logger.error('pinned', `pin save failed: ${err}`)
@@ -26,6 +34,7 @@ function createPinnedStore() {
 
 	function unpin(taskId: string): void {
 		items = items.filter((t) => t.id !== taskId);
+		syncToState(items);
 		logger.log('pinned', `unpin: ${taskId} total: ${items.length}`);
 		patchState({ pinned_tasks: items }).catch((err) =>
 			logger.error('pinned', `unpin save failed: ${err}`)

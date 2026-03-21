@@ -1,11 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Task, Meta, AppConfig } from '$lib/api/types';
-
-export interface TaskSnapshot {
-	tasks: Task[];
-	meta: Meta;
-	updatedAt: number;
-}
+import type { Task, AppConfig } from '$lib/api/types';
 
 export interface CompletedCache {
 	tasks: Task[];
@@ -22,10 +16,6 @@ export interface QueuedAction {
 }
 
 interface TurboistDB extends DBSchema {
-	taskSnapshots: {
-		key: string;
-		value: TaskSnapshot;
-	};
 	completedTasksCache: {
 		key: string;
 		value: CompletedCache;
@@ -44,17 +34,20 @@ let dbPromise: Promise<IDBPDatabase<TurboistDB>> | null = null;
 
 function getDB(): Promise<IDBPDatabase<TurboistDB>> {
 	if (!dbPromise) {
-		dbPromise = openDB<TurboistDB>('turboist', 2, {
+		dbPromise = openDB<TurboistDB>('turboist', 3, {
 			upgrade(db, oldVersion) {
 				if (oldVersion < 1) {
-					// Fresh install: create all stores
-					db.createObjectStore('taskSnapshots');
 					db.createObjectStore('completedTasksCache');
 					db.createObjectStore('appConfig');
 				}
 				if (oldVersion < 2) {
-					// Upgrade from v1 or fresh install: add actionQueue store
 					db.createObjectStore('actionQueue', { keyPath: 'id', autoIncrement: true });
+				}
+				if (oldVersion < 3) {
+					// Drop taskSnapshots store — replaced by y-indexeddb (SyncroState)
+					if (db.objectStoreNames.contains('taskSnapshots' as never)) {
+						db.deleteObjectStore('taskSnapshots' as never);
+					}
 				}
 			}
 		});
@@ -87,29 +80,6 @@ export async function updateQueuedAction(action: QueuedAction): Promise<void> {
 export async function clearActionQueue(): Promise<void> {
 	const db = await getDB();
 	await db.clear('actionQueue');
-}
-
-function snapshotKey(view: string, contextId?: string): string {
-	return `${view}|${contextId ?? ''}`;
-}
-
-// Task snapshots
-export async function saveTaskSnapshot(
-	view: string,
-	contextId: string | undefined,
-	tasks: Task[],
-	meta: Meta
-): Promise<void> {
-	const db = await getDB();
-	await db.put('taskSnapshots', { tasks, meta, updatedAt: Date.now() }, snapshotKey(view, contextId));
-}
-
-export async function loadTaskSnapshot(
-	view: string,
-	contextId?: string
-): Promise<TaskSnapshot | undefined> {
-	const db = await getDB();
-	return db.get('taskSnapshots', snapshotKey(view, contextId));
 }
 
 // Completed tasks cache

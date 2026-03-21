@@ -4,6 +4,9 @@ Multiple augementations for Todoist.
 
 **Status:** work in progress
 
+**Contents:**
+- [Frontend architecture](docs/architecture/frontend.md)
+
 ## Nginx Configuration
 
 When running behind nginx, add WebSocket proxy support:

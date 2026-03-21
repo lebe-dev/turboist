@@ -1,4 +1,5 @@
 *.md
+!/docs/**/*.md
 !README.md
 !DEV.md
 /tasks

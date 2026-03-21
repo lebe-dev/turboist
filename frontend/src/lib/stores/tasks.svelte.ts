@@ -8,15 +8,16 @@ import {
 	type SnapshotTasksData,
 	type DeltaTasksData
 } from '$lib/ws/client.svelte';
-import { mergeUpserted, filterByIds } from '$lib/ws/merge';
-import { loadTaskSnapshot, loadCompletedTasks, saveCompletedTasks } from '$lib/sync/db';
-import { writeSnapshotImmediate, scheduleSnapshotWrite } from '$lib/sync/snapshot-writer';
+import { loadCompletedTasks, saveCompletedTasks } from '$lib/sync/db';
+import { isStateReady, persistTasks, persistMeta, loadPersistedTasks, loadPersistedMeta } from '$lib/state/index.svelte';
+import { flattenTasks, buildTree, taskToFlat, type FlatTask } from '$lib/state/types';
 
 const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 const OFFLINE_GRACE_MS = 5000; // grace period before showing offline banner
 
 function createTasksStore() {
-	let tasks = $state<Task[]>([]);
+	// Flat task array — reactive source for UI, persisted to Y.Doc via y-indexeddb
+	let flatTasks = $state<FlatTask[]>([]);
 	let meta = $state<Meta>({
 		context: '',
 		weekly_limit: 0,
@@ -29,6 +30,16 @@ function createTasksStore() {
 	let error = $state<string | null>(null);
 	let isStale = $state(false);
 	let isOffline = $state(false);
+
+	// Completed tasks are fetched via HTTP, not WS — kept separate
+	let completedTasks = $state<Task[]>([]);
+	let completedMeta = $state<Meta>({
+		context: '',
+		weekly_limit: 0,
+		weekly_count: 0,
+		backlog_limit: 0,
+		backlog_count: 0
+	});
 
 	// IDs of tasks optimistically removed — survives fetches until server catches up
 	const pendingRemovals = new Set<string>();
@@ -47,14 +58,12 @@ function createTasksStore() {
 	function applyPendingRemovals(taskList: Task[]): Task[] {
 		if (pendingRemovals.size === 0) return taskList;
 
-		// Auto-clear removals the server has caught up with
 		function hasId(list: Task[], id: string): boolean {
 			return list.some((t) => t.id === id || hasId(t.children, id));
 		}
 		for (const id of [...pendingRemovals]) {
 			if (!hasId(taskList, id)) pendingRemovals.delete(id);
 		}
-
 		if (pendingRemovals.size === 0) return taskList;
 
 		function filterPending(list: Task[]): Task[] {
@@ -66,7 +75,6 @@ function createTasksStore() {
 		return filterPending(taskList);
 	}
 
-	// Collect pending updateTask payloads from the action queue into a lookup map.
 	function pendingUpdateMap(): Map<string, UpdateTaskRequest> | null {
 		const pending = actionQueue.items.filter(
 			(a) => a.type === 'updateTask' && (a.status === 'pending' || a.status === 'processing')
@@ -94,8 +102,6 @@ function createTasksStore() {
 		return result;
 	}
 
-	// Re-apply pending updateTask mutations on top of server data so
-	// optimistic edits survive WS snapshots / deltas / IDB loads.
 	function walkWithUpdates(list: Task[], updates: Map<string, UpdateTaskRequest>): Task[] {
 		return list.map((t) => {
 			const update = updates.get(t.id);
@@ -113,7 +119,6 @@ function createTasksStore() {
 		return walkWithUpdates(taskList, map);
 	}
 
-	// Apply pending queue mutations to a single task tree (for TaskDetailPanel).
 	function applyPendingTaskUpdate(task: Task): Task {
 		const map = pendingUpdateMap();
 		if (!map) return task;
@@ -133,38 +138,57 @@ function createTasksStore() {
 		logger.log('tasks', `snapshot received: ${d.tasks.length} tasks, synced at: ${d.meta.last_synced_at}`);
 		hasReceivedSnapshot = true;
 		cancelOfflineTimer();
-		tasks = applyPendingUpdates(applyPendingRemovals(d.tasks));
+
+		const flat = flattenTasks(d.tasks);
+		flatTasks = flat;
 		meta = d.meta;
+
+		// Persist to Y.Doc (y-indexeddb saves automatically)
+		persistTasks('tasks', flat);
+		persistMeta('meta', d.meta);
+
 		loading = false;
 		error = null;
 		isOffline = false;
 		updateStale(d.meta.last_synced_at);
-
-		// Write-behind to IDB (immediate for snapshots)
-		writeSnapshotImmediate(currentView(), currentContextId(), d.tasks, d.meta);
 	}
 
 	function handleTasksDelta(data: unknown): void {
 		const d = data as DeltaTasksData;
 		logger.log('tasks', `delta: upserted=${d.upserted?.length ?? 0} removed=${d.removed?.length ?? 0}`);
-		let updated = tasks;
+
+		let updated = [...flatTasks];
+
 		if (d.removed?.length > 0) {
-			updated = filterByIds(updated, d.removed);
+			const removeSet = new Set(d.removed);
+			updated = updated.filter((t) => !removeSet.has(t.id));
 		}
+
 		if (d.upserted?.length > 0) {
-			updated = mergeUpserted(updated, d.upserted);
+			const upsertedFlat = flattenTasks(d.upserted);
+			for (const flat of upsertedFlat) {
+				const idx = updated.findIndex((t) => t.id === flat.id);
+				if (idx >= 0) {
+					updated[idx] = flat;
+				} else {
+					updated.push(flat);
+				}
+			}
 		}
-		tasks = applyPendingUpdates(applyPendingRemovals(updated));
+
+		flatTasks = updated;
+
 		if (d.meta) {
 			meta = d.meta;
 			updateStale(d.meta.last_synced_at);
 		}
 
-		// Debounced write-behind to IDB for deltas (unwrap $state proxies for structured clone)
-		scheduleSnapshotWrite(currentView(), currentContextId(), $state.snapshot(tasks), $state.snapshot(meta));
+		// Persist updated state
+		persistTasks('tasks', updated);
+		if (d.meta) persistMeta('meta', d.meta);
 	}
 
-	// Register WS handlers once — these are stable for the store's lifetime
+	// Register WS handlers once
 	wsClient.onMessage('snapshot', 'tasks', handleTasksSnapshot);
 	wsClient.onMessage('delta', 'tasks', handleTasksDelta);
 
@@ -187,39 +211,10 @@ function createTasksStore() {
 		}, OFFLINE_GRACE_MS);
 	}
 
-	async function loadFromIDB(): Promise<boolean> {
-		const view = currentView();
-		const contextId = currentContextId();
-
-		if (view === 'completed') {
-			const cached = await loadCompletedTasks(contextId);
-			if (cached) {
-				logger.log('tasks', `IDB cache hit (completed): ${cached.tasks.length} tasks`);
-				tasks = applyPendingUpdates(cached.tasks);
-				loading = false;
-				return true;
-			}
-			logger.log('tasks', 'IDB cache miss (completed)');
-			return false;
-		}
-
-		const cached = await loadTaskSnapshot(view, contextId);
-		if (cached) {
-			logger.log('tasks', `IDB cache hit: ${cached.tasks.length} tasks for ${view}`);
-			tasks = applyPendingUpdates(cached.tasks);
-			meta = cached.meta;
-			loading = false;
-			return true;
-		}
-		logger.log('tasks', `IDB cache miss for ${view}`);
-		return false;
-	}
-
 	function subscribeWS(): void {
 		const contextId = currentContextId();
 		const view = currentView();
 
-		// Completed view uses HTTP fetch, not WS
 		if (view === 'completed') {
 			logger.log('tasks', 'fetching completed (HTTP)');
 			fetchCompleted(contextId);
@@ -234,18 +229,15 @@ function createTasksStore() {
 		loading = true;
 		try {
 			const res = await getCompletedTasks();
-			tasks = res.tasks;
-			meta = res.meta;
+			completedTasks = res.tasks;
+			completedMeta = res.meta;
 			error = null;
 			isOffline = false;
-
-			// Cache to IDB
 			saveCompletedTasks(currentContextId(), res.tasks).catch((e) => logger.error('tasks', String(e)));
 		} catch (err) {
-			// Fallback to IDB cache on network failure
 			const cached = await loadCompletedTasks(currentContextId());
 			if (cached) {
-				tasks = cached.tasks;
+				completedTasks = cached.tasks;
 				isStale = true;
 				isOffline = true;
 				error = null;
@@ -265,7 +257,6 @@ function createTasksStore() {
 		error = null;
 		hasReceivedSnapshot = false;
 
-		// Load config once
 		try {
 			const cfg = await getAppConfig();
 			config = cfg.settings;
@@ -273,7 +264,6 @@ function createTasksStore() {
 			// Config fetch is best-effort
 		}
 
-		// Track WS disconnects to set offline state
 		cleanups.push(
 			wsClient.onStateChange((connected) => {
 				if (!connected && hasReceivedSnapshot) {
@@ -282,8 +272,6 @@ function createTasksStore() {
 				}
 				if (connected && isOffline) {
 					logger.log('tasks', 'WS reconnected, flushing queued mutations');
-					// Flush queued mutations, then re-subscribe
-					// to get a fresh snapshot that includes the replayed changes.
 					actionQueue.flushNow().then(() => {
 						logger.log('tasks', 'Queue flush complete, re-subscribing');
 						subscribeWS();
@@ -292,13 +280,19 @@ function createTasksStore() {
 			})
 		);
 
-		// Try loading from IDB first for instant display while WS connects
-		const hadCache = await loadFromIDB();
+		// Try loading from y-indexeddb (via Y.Doc) for instant display
+		const cached = loadPersistedTasks('tasks');
+		if (cached.length > 0) {
+			logger.log('tasks', `y-indexeddb cache hit: ${cached.length} tasks`);
+			flatTasks = cached;
+			const cachedMeta = loadPersistedMeta('meta');
+			if (cachedMeta) meta = cachedMeta;
+			loading = false;
+		}
 
 		subscribeWS();
 
-		// If we showed cached data, give WS a grace period to deliver fresh snapshot
-		if (hadCache) {
+		if (cached.length > 0) {
 			scheduleOfflineCheck();
 		}
 	}
@@ -312,7 +306,6 @@ function createTasksStore() {
 		wsClient.unsubscribe('tasks');
 	}
 
-	// Refresh: re-subscribe to get a fresh snapshot from the server.
 	function refresh(): Promise<void> {
 		logger.log('tasks', 'refresh');
 		hasReceivedSnapshot = false;
@@ -320,50 +313,34 @@ function createTasksStore() {
 		return Promise.resolve();
 	}
 
-	// Clear tasks, show loading spinner, and re-subscribe (for view transitions).
 	async function refreshWithLoading(): Promise<void> {
 		logger.log('tasks', `refreshWithLoading: ${currentView()}`);
-		tasks = [];
+		flatTasks = [];
+		completedTasks = [];
 		loading = true;
 		error = null;
 		isOffline = false;
 		isStale = false;
 		hasReceivedSnapshot = false;
 
-		// Try IDB for instant view switch
-		const hadCache = await loadFromIDB();
-
 		subscribeWS();
-
-		// Grace period for offline detection
-		if (hadCache) {
-			scheduleOfflineCheck();
-		}
 	}
 
 	// Optimistic local mutations
 	function updateTaskLocal(taskId: string, updater: (task: Task) => Task): void {
-		function walk(list: Task[]): Task[] {
-			return list.map((t) => {
-				const updated = t.id === taskId ? updater(t) : t;
-				if (updated.children.length > 0) {
-					return { ...updated, children: walk(updated.children) };
-				}
-				return updated;
-			});
-		}
-		tasks = walk(tasks);
+		flatTasks = flatTasks.map((f) => {
+			if (f.id !== taskId) return f;
+			const task = flatToTaskSingle(f);
+			const updated = updater(task);
+			return taskToFlat(updated);
+		});
+		persistTasks('tasks', flatTasks);
 	}
 
 	function removeTaskLocal(taskId: string): void {
+		// Only add to pendingRemovals overlay — don't modify $state.
+		// The tasks getter applies pendingRemovals filter on read.
 		pendingRemovals.add(taskId);
-		function walk(list: Task[]): Task[] {
-			return list.flatMap((t) => {
-				if (t.id === taskId) return [];
-				return [{ ...t, children: walk(t.children) }];
-			});
-		}
-		tasks = walk(tasks);
 	}
 
 	function clearPendingRemoval(taskId: string): void {
@@ -371,27 +348,55 @@ function createTasksStore() {
 	}
 
 	function addTaskLocal(task: Task): void {
-		tasks = [task, ...tasks];
+		flatTasks = [taskToFlat(task), ...flatTasks];
+		persistTasks('tasks', flatTasks);
 	}
 
 	function insertAfterLocal(siblingId: string, newTask: Task): void {
-		function walk(list: Task[]): Task[] {
-			const result: Task[] = [];
-			for (const t of list) {
-				const updated = { ...t, children: walk(t.children) };
-				result.push(updated);
-				if (t.id === siblingId) result.push(newTask);
-			}
-			return result;
+		const idx = flatTasks.findIndex((t) => t.id === siblingId);
+		const flat = taskToFlat(newTask);
+		const updated = [...flatTasks];
+		if (idx >= 0) {
+			updated.splice(idx + 1, 0, flat);
+		} else {
+			updated.push(flat);
 		}
-		tasks = walk(tasks);
+		flatTasks = updated;
+		persistTasks('tasks', flatTasks);
+	}
+
+	function flatToTaskSingle(flat: FlatTask): Task {
+		return {
+			id: flat.id,
+			content: flat.content,
+			description: flat.description,
+			project_id: flat.project_id,
+			section_id: flat.section_id,
+			parent_id: flat.parent_id,
+			labels: [...flat.labels],
+			priority: flat.priority,
+			due: flat.due_date ? { date: flat.due_date, recurring: flat.due_recurring } : null,
+			sub_task_count: flat.sub_task_count,
+			completed_sub_task_count: flat.completed_sub_task_count,
+			completed_at: flat.completed_at,
+			added_at: flat.added_at,
+			is_project_task: flat.is_project_task,
+			children: []
+		};
 	}
 
 	return {
-		get tasks() {
-			return tasks;
+		get tasks(): Task[] {
+			if (currentView() === 'completed') {
+				return completedTasks;
+			}
+			const tree = buildTree(flatTasks);
+			return applyPendingUpdates(applyPendingRemovals(tree));
 		},
-		get meta() {
+		get meta(): Meta {
+			if (currentView() === 'completed') {
+				return completedMeta;
+			}
 			return meta;
 		},
 		get config() {
