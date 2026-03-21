@@ -59,6 +59,7 @@
 	);
 
 	const hasChildren = $derived(task.children && task.children.length > 0);
+	const isParent = $derived(task.sub_task_count > 0);
 	const collapsed = $derived(collapsedStore.isCollapsed(task.id));
 
 	// Find task by ID recursively in the tree
@@ -399,7 +400,7 @@
 	<div style="padding-left: {depth * 16}px">
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2 select-none"
+			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2 select-none {isParent && !completed ? 'border-l-2 border-l-primary/30' : ''}"
 			class:opacity-40={completing}
 			class:scale-[0.99]={completing}
 			ontouchstart={!completed ? handleTouchStart : undefined}
@@ -464,7 +465,7 @@
 						{/each}
 						{#if task.sub_task_count > 0}
 							<button
-								class="flex items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors"
+								class="flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors"
 								onclick={(e) => { e.preventDefault(); collapsedStore.toggle(task.id); }}
 								aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
 							>
@@ -472,6 +473,12 @@
 									class="h-3 w-3 transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
 								/>
 								{task.completed_sub_task_count}/{task.sub_task_count}
+								<span class="inline-flex h-1 w-6 overflow-hidden rounded-full bg-muted-foreground/15">
+									<span
+										class="h-full rounded-full {task.completed_sub_task_count === task.sub_task_count ? 'bg-green-500/60' : 'bg-primary/50'} transition-all duration-300"
+										style="width: {(task.completed_sub_task_count / task.sub_task_count) * 100}%"
+									></span>
+								</span>
 							</button>
 						{/if}
 					</div>

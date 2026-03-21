@@ -180,7 +180,7 @@
 						<span class="tabular-nums {isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.tasks.length}</span>
 						{#if section.dayPart && oncreate}
 							<button
-								class="ml-auto flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all group-hover/section:opacity-100 hover:text-foreground"
+								class="ml-auto flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-all md:opacity-0 md:group-hover/section:opacity-100 hover:text-foreground"
 								title={$t('task.addTask')}
 								onclick={() => oncreate(section.dayPart!.label)}
 							>

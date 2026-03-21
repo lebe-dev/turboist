@@ -283,13 +283,11 @@
 		}
 		showCalendar = false;
 		const taskId = task.id;
-		const shouldRemove = shouldRemoveFromView(dateStr);
 		updateLocal((t) => ({ ...t, due: { date: dateStr, recurring: t.due?.recurring ?? false } }));
-		if (shouldRemove) tasksStore.removeTaskLocal(taskId);
+		// Don't removeTaskLocal here — let WS handle list removal so the panel stays open
 		updateTask(taskId, { due_date: dateStr }).catch((e) => {
 			logger.error('tasks', `update due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
-			if (shouldRemove) tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
 		});
 	}
@@ -298,13 +296,11 @@
 		if (!task || !task.due) return;
 		dropdownOpen = false;
 		const taskId = task.id;
-		const shouldRemove = shouldRemoveFromView(null);
 		updateLocal((t) => ({ ...t, due: null }));
-		if (shouldRemove) tasksStore.removeTaskLocal(taskId);
+		// Don't removeTaskLocal here — let WS handle list removal so the panel stays open
 		updateTask(taskId, { due_date: '' }).catch((e) => {
 			logger.error('tasks', `clear due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
-			if (shouldRemove) tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
 		});
 	}
@@ -320,27 +316,17 @@
 		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 	}
 
-	function shouldRemoveFromView(newDate: string | null): boolean {
-		const view = contextsStore.activeView;
-		if (view !== 'today' && view !== 'tomorrow') return false;
-		if (!newDate) return true;
-		if (view === 'today') return newDate > todayDateStr();
-		return newDate !== tomorrowDateStr();
-	}
-
-	function setDateQuick(date: string) {
+function setDateQuick(date: string) {
 		if (!task) return;
 		dropdownOpen = false;
 		const currentDate = task.due?.date ?? '';
 		if (date === currentDate) return;
 		const taskId = task.id;
-		const shouldRemove = shouldRemoveFromView(date);
 		updateLocal((t) => ({ ...t, due: { date, recurring: false } }));
-		if (shouldRemove) tasksStore.removeTaskLocal(taskId);
+		// Don't removeTaskLocal here — let WS handle list removal so the panel stays open
 		updateTask(taskId, { due_date: date }).catch((e) => {
 			logger.error('tasks', `set due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
-			if (shouldRemove) tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
 		});
 	}
@@ -857,6 +843,50 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if task}
+	{#snippet subtaskFormContent()}
+		<textarea
+			bind:this={subtaskTextarea}
+			bind:value={subtaskContent}
+			placeholder={$t('task.subtaskName')}
+			rows="1"
+			class="w-full resize-none bg-transparent text-[13px] leading-snug text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+			disabled={addingSubtask}
+			oninput={(e) => {
+				const target = e.currentTarget;
+				target.style.height = 'auto';
+				target.style.height = target.scrollHeight + 'px';
+			}}
+			onkeydown={(e) => {
+				if (e.key === 'Enter' && !e.shiftKey) {
+					e.preventDefault();
+					saveSubtask();
+				}
+				if (e.key === 'Escape') {
+					showSubtaskForm = false;
+					subtaskContent = '';
+				}
+			}}
+		></textarea>
+		<div class="mt-1.5 flex items-center justify-end gap-2">
+			<button
+				class="rounded-md px-3 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+				onclick={() => { showSubtaskForm = false; subtaskContent = ''; }}
+			>
+				{$t('dialog.cancel')}
+			</button>
+			<button
+				class="rounded-md px-3 py-1 text-[12px] font-medium transition-colors
+					{subtaskContent.trim()
+						? 'bg-primary text-primary-foreground hover:bg-primary/90'
+						: 'bg-muted text-muted-foreground cursor-not-allowed'}"
+				disabled={!subtaskContent.trim() || addingSubtask}
+				onclick={saveSubtask}
+			>
+				{addingSubtask ? '...' : $t('task.add')}
+			</button>
+		</div>
+	{/snippet}
+
 	{#snippet panelContent()}
 		<!-- Header -->
 		<div class="flex shrink-0 items-center justify-between border-b border-border/50 px-5 py-3">
@@ -1251,51 +1281,11 @@
 
 					<!-- Add sub-task -->
 					<div class="mt-4">
-						{#if showSubtaskForm}
+						{#if showSubtaskForm && !fullPage}
 							<div class="rounded-lg border border-border/50 bg-accent/20 px-3 py-2">
-								<textarea
-									bind:this={subtaskTextarea}
-									bind:value={subtaskContent}
-									placeholder={$t('task.subtaskName')}
-									rows="1"
-									class="w-full resize-none bg-transparent text-[13px] leading-snug text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-									disabled={addingSubtask}
-									oninput={(e) => {
-										const target = e.currentTarget;
-										target.style.height = 'auto';
-										target.style.height = target.scrollHeight + 'px';
-									}}
-									onkeydown={(e) => {
-										if (e.key === 'Enter' && !e.shiftKey) {
-											e.preventDefault();
-											saveSubtask();
-										}
-										if (e.key === 'Escape') {
-											showSubtaskForm = false;
-											subtaskContent = '';
-										}
-									}}
-								></textarea>
-								<div class="mt-1.5 flex items-center justify-end gap-2">
-									<button
-										class="rounded-md px-3 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-										onclick={() => { showSubtaskForm = false; subtaskContent = ''; }}
-									>
-										{$t('dialog.cancel')}
-									</button>
-									<button
-										class="rounded-md px-3 py-1 text-[12px] font-medium transition-colors
-											{subtaskContent.trim()
-												? 'bg-primary text-primary-foreground hover:bg-primary/90'
-												: 'bg-muted text-muted-foreground cursor-not-allowed'}"
-										disabled={!subtaskContent.trim() || addingSubtask}
-										onclick={saveSubtask}
-									>
-										{addingSubtask ? '...' : $t('task.add')}
-									</button>
-								</div>
+								{@render subtaskFormContent()}
 							</div>
-						{:else}
+						{:else if !showSubtaskForm}
 							<button
 								class="flex items-center gap-2 text-[13px] text-muted-foreground transition-colors hover:text-primary"
 								onclick={startAddSubtask}
@@ -1510,6 +1500,26 @@
 				style="animation: slideInRight 200ms ease-out"
 			>
 				{@render panelContent()}
+			</div>
+		</div>
+	{/if}
+
+	{#if showSubtaskForm && fullPage}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div
+			class="fixed inset-0 z-[60] flex items-start justify-center pt-[20vh] bg-black/60 backdrop-blur-sm"
+			onclick={(e) => { if (e.target === e.currentTarget) { showSubtaskForm = false; subtaskContent = ''; } }}
+			onkeydown={(e) => { if (e.key === 'Escape') { showSubtaskForm = false; subtaskContent = ''; } }}
+		>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-lg mx-4 rounded-xl border border-border bg-popover px-4 py-3 shadow-2xl animate-fade-in-up"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<p class="mb-2 text-[12px] font-medium text-muted-foreground">{$t('task.addSubtask')}</p>
+				{@render subtaskFormContent()}
 			</div>
 		</div>
 	{/if}
