@@ -280,8 +280,15 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	if req.Priority != nil {
 		args.Priority = req.Priority
 	}
+	// Use SetTasksLabels for label updates to work around omitempty on
+	// TaskUpdateArgs.Labels which silently drops empty slices.
+	var labelsViaSync bool
 	if req.Labels != nil {
-		args.Labels = req.Labels
+		if len(req.Labels) == 0 {
+			labelsViaSync = true
+		} else {
+			args.Labels = req.Labels
+		}
 	}
 	if req.DueDate != nil {
 		if *req.DueDate == "" {
@@ -297,9 +304,28 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	}
 
 	log.Debug("update task", "id", id)
-	if err := h.cache.UpdateTask(c.Context(), args); err != nil {
-		log.Error("update task failed", "id", id, "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+
+	// When clearing labels, send via raw sync command (SetTasksLabels)
+	// because the library's omitempty tag drops empty slices.
+	if labelsViaSync {
+		if err := h.cache.Client().SetTasksLabels(c.Context(), map[string][]string{id: req.Labels}); err != nil {
+			log.Error("update task labels failed", "id", id, "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+	}
+
+	// Send remaining field updates (if any) via the standard UpdateTask path.
+	hasOtherFields := req.Content != nil || req.Description != nil || req.Priority != nil || req.DueDate != nil || (!labelsViaSync && req.Labels != nil)
+	if hasOtherFields {
+		if err := h.cache.UpdateTask(c.Context(), args); err != nil {
+			log.Error("update task failed", "id", id, "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+	} else if labelsViaSync {
+		// Only labels were updated via sync — still refresh the cache.
+		if err := h.cache.RefreshAfterMutation(c.Context()); err != nil {
+			log.Error("cache refresh after label clear failed", "id", id, "err", err)
+		}
 	}
 
 	return c.JSON(fiber.Map{"ok": true})
