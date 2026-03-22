@@ -166,6 +166,19 @@ function createTasksStore() {
 
 		if (d.upserted?.length > 0) {
 			const upsertedFlat = flattenTasks(d.upserted);
+
+			// Reconcile: remove optimistic temp tasks whose real counterparts arrived
+			const newContents = new Set(
+				upsertedFlat
+					.filter((f) => !updated.some((t) => t.id === f.id))
+					.map((f) => f.content)
+			);
+			if (newContents.size > 0) {
+				updated = updated.filter(
+					(t) => !t.id.startsWith('temp-') || !newContents.has(t.content)
+				);
+			}
+
 			for (const flat of upsertedFlat) {
 				const idx = updated.findIndex((t) => t.id === flat.id);
 				if (idx >= 0) {

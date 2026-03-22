@@ -17,7 +17,6 @@
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import LayersIcon from '@lucide/svelte/icons/layers';
 	import TagIcon from '@lucide/svelte/icons/tag';
-	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { t } from 'svelte-intl-precompile';
 
 	let {
@@ -52,9 +51,6 @@
 		onCalendarSelect,
 
 		onSetPriority,
-
-		onSetRecurrence,
-		onRemoveRecurrence,
 
 		onDelete,
 
@@ -92,9 +88,6 @@
 		onCalendarSelect?: (v: DateValue | undefined) => void;
 
 		onSetPriority: (p: number) => void;
-
-		onSetRecurrence?: (dueString: string) => void;
-		onRemoveRecurrence?: () => void;
 
 		onDelete: () => void;
 
@@ -235,14 +228,6 @@
 				</div>
 			{/if}
 		</div>
-
-		{#if onSetRecurrence}
-			<RecurrencePicker
-				onSelect={onSetRecurrence}
-				onRemove={onRemoveRecurrence}
-				isRecurring={task.due?.recurring ?? false}
-			/>
-		{/if}
 
 		{#if dropdownExtra}
 			{@render dropdownExtra()}

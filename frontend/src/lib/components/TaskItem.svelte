@@ -1,7 +1,7 @@
 <script lang="ts">
 	import TaskItem from './TaskItem.svelte';
 	import type { Task } from '$lib/api/types';
-	import { completeTask, deleteTask, duplicateTask, updateTask } from '$lib/api/client';
+	import { completeTask, deleteTask, createTask, updateTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
@@ -320,11 +320,12 @@
 		// Snapshot task data and ID before dropdown closes
 		const sourceId = task.id;
 		const taskContent = task.content;
+		const newContent = incrementDuplicateTitle(task.content);
 		const tempId = `temp-dup-${Date.now()}`;
 		const clone: import('$lib/api/types').Task = {
 			...$state.snapshot(task),
 			id: tempId,
-			content: incrementDuplicateTitle(task.content),
+			content: newContent,
 			children: [],
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
@@ -336,7 +337,17 @@
 		tasksStore.insertAfterLocal(sourceId, clone);
 
 		try {
-			await duplicateTask(sourceId);
+			await createTask(
+				{
+					content: newContent,
+					description: task.description,
+					labels: [...task.labels],
+					priority: task.priority,
+					...(task.parent_id ? { parent_id: task.parent_id } : {}),
+					...(task.due ? { due_date: task.due.date } : {}),
+				},
+				contextsStore.activeContextId ?? undefined
+			);
 			toast.dismiss();
 			toast(`Duplicated: ${taskContent}`, { duration: 5000 });
 		} catch (e) {
@@ -547,8 +558,6 @@
 					{calendarValue}
 					{onCalendarSelect}
 					onSetPriority={setPriority}
-					onSetRecurrence={setRecurrence}
-					onRemoveRecurrence={removeRecurrence}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 				>
 					{#snippet trigger()}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
-	import { updateTask, createTask, completeTask, deleteTask, duplicateTask, getTask, getCompletedSubtasks } from '$lib/api/client';
+	import { updateTask, createTask, completeTask, deleteTask, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { incrementDuplicateTitle } from '$lib/utils';
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
@@ -20,7 +20,7 @@
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import RepeatIcon from '@lucide/svelte/icons/repeat';
+	import RecurrencePicker from './RecurrencePicker.svelte';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
 	import CopyIcon from '@lucide/svelte/icons/copy';
@@ -582,9 +582,20 @@ function setDateQuick(date: string) {
 	}
 
 	// --- Duplicate subtask ---
-	function duplicateSubtask(childId: string) {
+	function duplicateSubtask(child: Task) {
 		openSubtaskMenuId = null;
-		duplicateTask(childId).then(() => {
+		const newContent = incrementDuplicateTitle(child.content);
+		createTask(
+			{
+				content: newContent,
+				description: child.description,
+				labels: [...child.labels],
+				priority: child.priority,
+				parent_id: child.parent_id ?? undefined,
+				...(child.due ? { due_date: child.due.date } : {}),
+			},
+			contextsStore.activeContextId ?? undefined
+		).then(() => {
 			actionQueue.flushNow()
 				.then(() => getTask(taskId))
 				.then((t) => { taskFromApi = t; })
@@ -592,6 +603,28 @@ function setDateQuick(date: string) {
 		}).catch((e) => {
 			logger.error('tasks', `duplicate subtask failed: ${e}`);
 			toast.error($t('errors.duplicateFailed'));
+			tasksStore.refresh();
+		});
+	}
+
+	// --- Backlog ---
+	const backlogLabel = $derived(tasksStore.config?.backlog_label ?? '');
+
+	// --- Subtask backlog toggle ---
+	function toggleSubtaskBacklog(child: Task) {
+		if (!backlogLabel) return;
+		openSubtaskMenuId = null;
+		const isIn = child.labels.includes(backlogLabel);
+		const newLabels = isIn
+			? child.labels.filter((l) => l !== backlogLabel)
+			: [...child.labels, backlogLabel];
+		updateLocal((t) => ({
+			...t,
+			children: t.children.map((c) => c.id === child.id ? { ...c, labels: newLabels } : c)
+		}));
+		updateTask(child.id, { labels: newLabels }).catch((e) => {
+			logger.error('tasks', `toggle subtask backlog failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
 		});
 	}
@@ -786,17 +819,28 @@ function setDateQuick(date: string) {
 		dropdownOpen = false;
 		const taskContent = task.content;
 		const sourceId = task.id;
+		const newContent = incrementDuplicateTitle(task.content);
 		const tempId = `temp-dup-${Date.now()}`;
 		const clone: Task = {
 			...task,
 			id: tempId,
-			content: incrementDuplicateTitle(task.content),
+			content: newContent,
 			children: [],
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
 		};
 		tasksStore.insertAfterLocal(sourceId, clone);
-		duplicateTask(sourceId).then(() => {
+		createTask(
+			{
+				content: newContent,
+				description: task.description,
+				labels: [...task.labels],
+				priority: task.priority,
+				...(task.parent_id ? { parent_id: task.parent_id } : {}),
+				...(task.due ? { due_date: task.due.date } : {}),
+			},
+			contextsStore.activeContextId ?? undefined
+		).then(() => {
 			toast.dismiss();
 			toast(`Duplicated: ${taskContent}`, { duration: 5000 });
 		}).catch((e) => {
@@ -805,6 +849,23 @@ function setDateQuick(date: string) {
 			toast.error($t('errors.duplicateFailed'));
 		}).finally(() => {
 			duplicating = false;
+		});
+	}
+
+	// --- Backlog toggle ---
+	const isInBacklog = $derived(backlogLabel !== '' && (task?.labels.includes(backlogLabel) ?? false));
+
+	function toggleBacklog() {
+		if (!task || !backlogLabel) return;
+		dropdownOpen = false;
+		const newLabels = isInBacklog
+			? task.labels.filter((l) => l !== backlogLabel)
+			: [...task.labels, backlogLabel];
+		updateLocal((t) => ({ ...t, labels: newLabels }));
+		updateTask(task.id, { labels: newLabels }).catch((e) => {
+			logger.error('tasks', `toggle backlog failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
+			tasksStore.refresh();
 		});
 	}
 
@@ -965,14 +1026,15 @@ function setDateQuick(date: string) {
 					{canPin}
 					{isPinned}
 					onPin={handlePin}
+					{backlogLabel}
+					{isInBacklog}
+					onToggleBacklog={toggleBacklog}
 					subtaskCount={task.children.length}
 					onResetSubtaskPriorities={resetSubtaskPriorities}
 					onResetSubtaskLabels={resetSubtaskLabels}
 					onSetDate={setDateQuick}
 					onClearDate={clearDate}
 					onSetPriority={setPriority}
-					onSetRecurrence={setRecurrence}
-					onRemoveRecurrence={removeRecurrence}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 				>
 					{#snippet trigger()}
@@ -1098,13 +1160,12 @@ function setDateQuick(date: string) {
 
 					<!-- Mobile metadata (date, priority, labels) -->
 					<div class="mt-5 space-y-4 pl-8 md:hidden">
-						<!-- Recurring indicator -->
-						{#if task.due?.recurring}
-							<div class="flex items-center gap-1.5 text-[12px] text-green-500">
-								<RepeatIcon class="h-3.5 w-3.5" />
-								<span class="font-medium">{$t('task.recurrence')}</span>
-							</div>
-						{/if}
+						<!-- Recurrence -->
+						<RecurrencePicker
+							onSelect={setRecurrence}
+							onRemove={removeRecurrence}
+							isRecurring={task.due?.recurring ?? false}
+						/>
 						<!-- Date -->
 						<div bind:this={calendarRef}>
 							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
@@ -1302,8 +1363,11 @@ function setDateQuick(date: string) {
 												onOpenChange={(v) => { openSubtaskMenuId = v ? child.id : null; }}
 												task={child}
 												onEdit={() => onselect?.(child.id)}
-												onDuplicate={() => duplicateSubtask(child.id)}
+												onDuplicate={() => duplicateSubtask(child)}
 												onCopy={() => navigator.clipboard.writeText(child.content)}
+												backlogLabel={backlogLabel}
+												isInBacklog={backlogLabel !== '' && child.labels.includes(backlogLabel)}
+												onToggleBacklog={() => toggleSubtaskBacklog(child)}
 												onSetDate={(d) => setSubtaskDate(child.id, d)}
 												onClearDate={() => clearSubtaskDate(child.id)}
 												onOpenDatePicker={() => openSubtaskDatePicker(child.id)}
@@ -1384,13 +1448,12 @@ function setDateQuick(date: string) {
 
 				<!-- Right: sidebar -->
 				<div class="hidden w-72 shrink-0 space-y-5 overflow-y-auto border-l border-border/50 p-5 md:block">
-					<!-- Recurring indicator -->
-					{#if task.due?.recurring}
-						<div class="flex items-center gap-1.5 text-[12px] text-green-500">
-							<RepeatIcon class="h-3.5 w-3.5" />
-							<span class="font-medium">{$t('task.recurrence')}</span>
-						</div>
-					{/if}
+					<!-- Recurrence -->
+					<RecurrencePicker
+						onSelect={setRecurrence}
+						onRemove={removeRecurrence}
+						isRecurring={task.due?.recurring ?? false}
+					/>
 					<!-- Date -->
 					<div bind:this={calendarRef}>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
