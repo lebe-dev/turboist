@@ -53,9 +53,16 @@
 <div class="flex h-full flex-col">
 	<div class="shrink-0 border-b border-border/50 px-4 py-3">
 		<div class="flex items-center justify-between">
-			<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-				{$t('planning.backlog')}
-			</h2>
+			<div class="flex items-center gap-2">
+				<h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+					{$t('planning.backlog')}
+				</h2>
+				{#if planningStore.meta.backlog_count > 0}
+					<span class="rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
+						{planningStore.meta.backlog_count}
+					</span>
+				{/if}
+			</div>
 			{#if filteredTasks.length > 0}
 				<button
 					class="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"

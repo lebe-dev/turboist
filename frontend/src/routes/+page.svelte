@@ -51,6 +51,36 @@
 	const title = $derived($t(viewTitleKeys[contextsStore.activeView] ?? 'views.tasks'));
 	const isCompletedView = $derived(contextsStore.activeView === 'completed');
 
+	const ALL_FILTERS_KEY = 'turboist:all-filters';
+
+	interface SavedFilters {
+		selectedPriorities: number[];
+		selectedLabels: string[];
+		linksOnly: boolean;
+		filtersExpanded: boolean;
+	}
+
+	function loadAllFilters(): SavedFilters | null {
+		try {
+			const raw = localStorage.getItem(ALL_FILTERS_KEY);
+			return raw ? (JSON.parse(raw) as SavedFilters) : null;
+		} catch {
+			return null;
+		}
+	}
+
+	function saveAllFilters() {
+		try {
+			const data: SavedFilters = {
+				selectedPriorities: Array.from(selectedPriorities),
+				selectedLabels: Array.from(selectedLabels),
+				linksOnly,
+				filtersExpanded
+			};
+			localStorage.setItem(ALL_FILTERS_KEY, JSON.stringify(data));
+		} catch { /* ignore */ }
+	}
+
 	let searchQuery = $state('');
 	let linksOnly = $state(false);
 	let selectedPriorities = $state<Set<number>>(new Set());
@@ -149,16 +179,41 @@
 		contextsStore.setContext(null);
 	}
 
-	// Reset search and link filter when context/view changes; apply label filter from label click
+	// Reset search and filters when context/view changes; restore persisted filters for 'all' view
 	$effect(() => {
 		contextsStore.activeContextId;
-		contextsStore.activeView;
+		const view = contextsStore.activeView;
 		const label = labelFilterStore.activeLabel;
 		searchQuery = '';
-		linksOnly = false;
-		selectedPriorities = new Set();
-		selectedLabels = label ? new Set([label]) : new Set();
-		filtersExpanded = !!label;
+		if (view === 'all' && !label) {
+			const saved = loadAllFilters();
+			if (saved) {
+				linksOnly = saved.linksOnly;
+				selectedPriorities = new Set(saved.selectedPriorities);
+				selectedLabels = new Set(saved.selectedLabels);
+				filtersExpanded = saved.filtersExpanded;
+			} else {
+				linksOnly = false;
+				selectedPriorities = new Set();
+				selectedLabels = new Set();
+				filtersExpanded = false;
+			}
+		} else {
+			linksOnly = false;
+			selectedPriorities = new Set();
+			selectedLabels = label ? new Set([label]) : new Set();
+			filtersExpanded = !!label;
+		}
+	});
+
+	// Persist filters when they change while in 'all' view
+	$effect(() => {
+		if (contextsStore.activeView !== 'all') return;
+		selectedPriorities;
+		selectedLabels;
+		linksOnly;
+		filtersExpanded;
+		saveAllFilters();
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {

@@ -105,6 +105,11 @@
 				onclick={() => (planningStore.mobileTab = 'backlog')}
 			>
 				{$t('planning.backlog')}
+				{#if planningStore.meta.backlog_count > 0}
+					<span class="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums">
+						{planningStore.meta.backlog_count}
+					</span>
+				{/if}
 			</button>
 			<button
 				class="flex-1 px-4 py-2.5 text-center text-sm font-medium transition-colors
