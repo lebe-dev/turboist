@@ -442,6 +442,17 @@
 			ontouchcancel={!completed ? handleTouchEnd : undefined}
 			oncontextmenu={!completed ? (e) => e.preventDefault() : undefined}
 		>
+			{#if isParent && !completed}
+				<button
+					class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+					onclick={(e) => { e.preventDefault(); e.stopPropagation(); collapsedStore.toggle(task.id); }}
+					aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
+					style="-webkit-tap-highlight-color: transparent;"
+				>
+					<ChevronRightIcon class="h-3.5 w-3.5 transition-transform duration-150 {collapsed ? '' : 'rotate-90'}" />
+				</button>
+			{/if}
+
 			{#if completed}
 				<span class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground/30 bg-muted-foreground/10">
 					<CheckIcon class="h-2.5 w-2.5 text-muted-foreground/60" strokeWidth={3} />
