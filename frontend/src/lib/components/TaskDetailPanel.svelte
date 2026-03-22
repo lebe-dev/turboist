@@ -27,6 +27,7 @@
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
+	import ListPlusIcon from '@lucide/svelte/icons/list-plus';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
@@ -1559,6 +1560,17 @@ function setDateQuick(date: string) {
 				{@render panelContent()}
 			</div>
 		</div>
+	{/if}
+
+	{#if fullPage && !showSubtaskForm}
+		<!-- Mobile FAB for adding subtask -->
+		<button
+			class="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 md:hidden ring-2 ring-primary/30 ring-offset-2 ring-offset-background"
+			onclick={startAddSubtask}
+			aria-label="Add subtask"
+		>
+			<ListPlusIcon class="h-5 w-5" />
+		</button>
 	{/if}
 
 	{#if showSubtaskForm && fullPage}
