@@ -18,6 +18,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
 	import { portal } from '$lib/utils/portal';
+	import { incrementDuplicateTitle } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { tick, onDestroy } from 'svelte';
 	import { t, locale } from 'svelte-intl-precompile';
@@ -322,6 +323,7 @@
 		const clone: import('$lib/api/types').Task = {
 			...$state.snapshot(task),
 			id: tempId,
+			content: incrementDuplicateTitle(task.content),
 			children: [],
 			sub_task_count: 0,
 			completed_sub_task_count: 0,

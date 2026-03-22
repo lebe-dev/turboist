@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
 	import { updateTask, createTask, completeTask, deleteTask, duplicateTask, getTask, getCompletedSubtasks } from '$lib/api/client';
+	import { incrementDuplicateTitle } from '$lib/utils';
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
@@ -756,6 +757,7 @@ function setDateQuick(date: string) {
 		const clone: Task = {
 			...task,
 			id: tempId,
+			content: incrementDuplicateTitle(task.content),
 			children: [],
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
