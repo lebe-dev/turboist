@@ -344,6 +344,38 @@ function setDateQuick(date: string) {
 		});
 	}
 
+	// --- Recurrence ---
+	function setRecurrence(dueString: string) {
+		if (!task) return;
+		dropdownOpen = false;
+		const taskId = task.id;
+		updateLocal((t) => ({
+			...t,
+			due: { date: t.due?.date ?? todayDateStr(), recurring: true }
+		}));
+		updateTask(taskId, { due_string: dueString }).catch((e) => {
+			logger.error('tasks', `set recurrence failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
+			tasksStore.refresh();
+		});
+	}
+
+	function removeRecurrence() {
+		if (!task || !task.due) return;
+		dropdownOpen = false;
+		const taskId = task.id;
+		const date = task.due.date;
+		updateLocal((t) => ({
+			...t,
+			due: t.due ? { ...t.due, recurring: false } : null
+		}));
+		updateTask(taskId, { due_date: date }).catch((e) => {
+			logger.error('tasks', `remove recurrence failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
+			tasksStore.refresh();
+		});
+	}
+
 	// --- Labels (optimistic) ---
 	const allLabels = $derived(appStore.labels);
 	let showLabelPicker = $state(false);
@@ -938,6 +970,8 @@ function setDateQuick(date: string) {
 					onSetDate={setDateQuick}
 					onClearDate={clearDate}
 					onSetPriority={setPriority}
+					onSetRecurrence={setRecurrence}
+					onRemoveRecurrence={removeRecurrence}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 				>
 					{#snippet trigger()}
@@ -1063,6 +1097,13 @@ function setDateQuick(date: string) {
 
 					<!-- Mobile metadata (date, priority, labels) -->
 					<div class="mt-5 space-y-4 pl-8 md:hidden">
+						<!-- Recurring indicator -->
+						{#if task.due?.recurring}
+							<div class="flex items-center gap-1.5 text-[12px] text-green-500">
+								<RepeatIcon class="h-3.5 w-3.5" />
+								<span class="font-medium">{$t('task.recurrence')}</span>
+							</div>
+						{/if}
 						<!-- Date -->
 						<div bind:this={calendarRef}>
 							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
@@ -1342,6 +1383,13 @@ function setDateQuick(date: string) {
 
 				<!-- Right: sidebar -->
 				<div class="hidden w-72 shrink-0 space-y-5 overflow-y-auto border-l border-border/50 p-5 md:block">
+					<!-- Recurring indicator -->
+					{#if task.due?.recurring}
+						<div class="flex items-center gap-1.5 text-[12px] text-green-500">
+							<RepeatIcon class="h-3.5 w-3.5" />
+							<span class="font-medium">{$t('task.recurrence')}</span>
+						</div>
+					{/if}
 					<!-- Date -->
 					<div bind:this={calendarRef}>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>

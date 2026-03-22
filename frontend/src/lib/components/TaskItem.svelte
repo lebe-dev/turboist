@@ -12,6 +12,7 @@
 	import { logger } from '$lib/stores/logger';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import RepeatIcon from '@lucide/svelte/icons/repeat';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import MarkdownContent from './MarkdownContent.svelte';
@@ -355,6 +356,35 @@
 		goto('/');
 	}
 
+	// --- Recurrence ---
+	function setRecurrence(dueString: string) {
+		dropdownOpen = false;
+		tasksStore.updateTaskLocal(task.id, (t) => ({
+			...t,
+			due: { date: t.due?.date ?? formatDateStr(new Date()), recurring: true }
+		}));
+		updateTask(task.id, { due_string: dueString }).catch((e) => {
+			logger.error('tasks', `set recurrence failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
+			tasksStore.refresh();
+		});
+	}
+
+	function removeRecurrence() {
+		dropdownOpen = false;
+		if (!task.due) return;
+		const date = task.due.date;
+		tasksStore.updateTaskLocal(task.id, (t) => ({
+			...t,
+			due: t.due ? { ...t.due, recurring: false } : null
+		}));
+		updateTask(task.id, { due_date: date }).catch((e) => {
+			logger.error('tasks', `remove recurrence failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
+			tasksStore.refresh();
+		});
+	}
+
 	// --- Delete ---
 	let showDeleteConfirm = $state(false);
 
@@ -435,6 +465,11 @@
 					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
 				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0}
 					<div class="mt-0.5 flex flex-wrap items-center gap-1 md:mt-1 md:gap-1.5">
+						{#if task.due?.recurring}
+							<span class="flex items-center text-[11px] text-green-500">
+								<RepeatIcon class="h-3 w-3" />
+							</span>
+						{/if}
 						{#if dueLabel}
 							<span
 								class="flex items-center gap-1 text-[11px] {isOverdue
@@ -512,6 +547,8 @@
 					{calendarValue}
 					{onCalendarSelect}
 					onSetPriority={setPriority}
+					onSetRecurrence={setRecurrence}
+					onRemoveRecurrence={removeRecurrence}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 				>
 					{#snippet trigger()}

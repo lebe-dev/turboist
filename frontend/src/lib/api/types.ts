@@ -85,6 +85,7 @@ export interface UpdateTaskRequest {
 	labels?: string[];
 	priority?: number;
 	due_date?: string;
+	due_string?: string;
 }
 
 export interface DayPart {

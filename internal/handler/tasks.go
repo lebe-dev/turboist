@@ -259,6 +259,7 @@ type updateTaskRequest struct {
 	Labels      []string `json:"labels"`
 	Priority    *int     `json:"priority"`
 	DueDate     *string  `json:"due_date"`
+	DueString   *string  `json:"due_string"`
 }
 
 // Update handles PATCH /api/tasks/:id
@@ -290,7 +291,12 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 			args.Labels = req.Labels
 		}
 	}
-	if req.DueDate != nil {
+	if req.DueString != nil {
+		// due_string takes precedence — pass the human-readable string (e.g. "every day")
+		// directly to the Todoist sync API which will parse it.
+		lang := "en"
+		args.Due = &synctodoist.Due{String: req.DueString, Lang: &lang}
+	} else if req.DueDate != nil {
 		if *req.DueDate == "" {
 			noDate := "no date"
 			args.Due = &synctodoist.Due{String: &noDate}
@@ -315,7 +321,7 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	}
 
 	// Send remaining field updates (if any) via the standard UpdateTask path.
-	hasOtherFields := req.Content != nil || req.Description != nil || req.Priority != nil || req.DueDate != nil || (!labelsViaSync && req.Labels != nil)
+	hasOtherFields := req.Content != nil || req.Description != nil || req.Priority != nil || req.DueDate != nil || req.DueString != nil || (!labelsViaSync && req.Labels != nil)
 	if hasOtherFields {
 		if err := h.cache.UpdateTask(c.Context(), args); err != nil {
 			log.Error("update task failed", "id", id, "err", err)
