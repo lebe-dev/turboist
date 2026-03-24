@@ -89,7 +89,6 @@
 
 	// Stable primitives derived from task — prevents effects from re-running on every store update
 	const taskParentId = $derived(task?.parent_id ?? null);
-	const taskCompletedSubCount = $derived(task?.completed_sub_task_count ?? 0);
 	const taskLabelsKey = $derived(task ? task.labels.join(',') : null);
 
 	$effect(() => {
@@ -127,8 +126,7 @@
 
 	$effect(() => {
 		const id = taskId;
-		const count = taskCompletedSubCount;
-		if (!id || count === 0) {
+		if (!id) {
 			completedSubtasks = [];
 			return;
 		}
@@ -1122,7 +1120,7 @@ function setDateQuick(date: string) {
 			<div class="flex flex-col min-h-0 flex-1 overflow-y-auto">
 				<div class="flex min-h-0">
 				<!-- Left: main content -->
-				<div class="flex-1 p-6 min-w-0">
+				<div class="flex-1 p-6 pb-16 min-w-0">
 					<!-- Title with complete button -->
 					<div class="flex items-start gap-3">
 						<button
@@ -1379,7 +1377,7 @@ function setDateQuick(date: string) {
 					<!-- Subtasks -->
 					{#if task.children.length > 0}
 						<div class="mt-6">
-							<div class="mb-2 flex items-center gap-2">
+							<div class="mb-2 flex items-center justify-between gap-2">
 								<button
 									class="flex items-center gap-1 text-[12px] tabular-nums text-muted-foreground transition-colors hover:text-foreground"
 									onclick={() => collapsedStore.toggle(task.id)}
@@ -1389,6 +1387,15 @@ function setDateQuick(date: string) {
 									/>
 									Subtasks {task.completed_sub_task_count}/{task.sub_task_count}
 								</button>
+								{#if !showSubtaskForm}
+									<button
+										class="flex items-center gap-1 text-[12px] text-muted-foreground transition-colors hover:text-primary"
+										onclick={startAddSubtask}
+									>
+										<PlusIcon class="h-3.5 w-3.5" />
+										{$t('task.addSubtask')}
+									</button>
+								{/if}
 							</div>
 							{#if !collapsed}
 								<div class="space-y-0.5">
@@ -1457,13 +1464,13 @@ function setDateQuick(date: string) {
 						</div>
 					{/if}
 
-					<!-- Add sub-task -->
-					<div class="mt-4">
-						{#if showSubtaskForm && !fullPage}
-							<div class="rounded-lg border border-border/50 bg-accent/20 px-3 py-2">
-								{@render subtaskFormContent()}
-							</div>
-						{:else if !showSubtaskForm}
+					<!-- Add sub-task (inline form or button when no children yet) -->
+					{#if showSubtaskForm && !fullPage}
+						<div class="mt-4 rounded-lg border border-border/50 bg-accent/20 px-3 py-2">
+							{@render subtaskFormContent()}
+						</div>
+					{:else if !showSubtaskForm && task.children.length === 0}
+						<div class="mt-4">
 							<button
 								class="flex items-center gap-2 text-[13px] text-muted-foreground transition-colors hover:text-primary"
 								onclick={startAddSubtask}
@@ -1471,8 +1478,8 @@ function setDateQuick(date: string) {
 								<PlusIcon class="h-4 w-4" />
 								{$t('task.addSubtask')}
 							</button>
-						{/if}
-					</div>
+						</div>
+					{/if}
 
 				</div>
 
