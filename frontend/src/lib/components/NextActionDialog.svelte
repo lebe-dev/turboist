@@ -245,6 +245,25 @@
 		}
 	}
 
+	function escapeHtml(s: string): string {
+		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
+
+	function renderMarkdownLinks(text: string): string {
+		const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+		let result = '';
+		let lastIndex = 0;
+		let match;
+		while ((match = re.exec(text)) !== null) {
+			result += escapeHtml(text.slice(lastIndex, match.index));
+			const [, linkText, url] = match;
+			result += `<a href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2">${escapeHtml(linkText)}</a>`;
+			lastIndex = match.index + match[0].length;
+		}
+		result += escapeHtml(text.slice(lastIndex));
+		return result;
+	}
+
 	function handleBackdropClick(e: MouseEvent) {
 		if (e.target === dialogEl) {
 			handleSkip();
@@ -269,9 +288,9 @@
 			<div class="px-4 pt-3 pb-1">
 				<p class="text-[12px] font-medium text-muted-foreground">
 					{#if pending.parentId}
-						{$t('task.nextAction')} <span class="text-foreground">{pending.parentContent}</span>
+						{$t('task.nextAction')} <span class="text-foreground">{@html renderMarkdownLinks(pending.parentContent)}</span>
 					{:else}
-						{$t('task.followUp')} <span class="text-foreground">{pending.completedTaskContent}</span>
+						{$t('task.followUp')} <span class="text-foreground">{@html renderMarkdownLinks(pending.completedTaskContent)}</span>
 					{/if}
 				</p>
 			</div>

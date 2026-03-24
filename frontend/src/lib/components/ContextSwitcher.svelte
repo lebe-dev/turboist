@@ -4,7 +4,6 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
-	import LayersIcon from '@lucide/svelte/icons/layers';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import ListIcon from '@lucide/svelte/icons/list';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
@@ -155,58 +154,4 @@
 		{/each}
 	{/if}
 
-	<!-- Contexts -->
-	<div class="my-3 border-t border-sidebar-border"></div>
-
-	{#if !collapsed}
-		<p
-			class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60"
-		>
-			{$t('sidebar.context')}
-		</p>
-	{/if}
-
-	{#each contextsStore.contexts as ctx (ctx.id)}
-		<button
-			class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
-				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
-				{contextsStore.activeContextId === ctx.id
-				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-			onclick={() => { navigateToMainIfNeeded(); contextsStore.setContext(ctx.id); onItemClick?.(); }}
-			title={collapsed ? ctx.display_name : undefined}
-		>
-			<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-				{#if ctx.color}
-					<span
-						class="h-1.5 w-1.5 rounded-full transition-opacity duration-150"
-						style="background-color: {ctx.color}; opacity: {contextsStore.activeContextId === ctx.id ? 1 : 0.4}"
-					></span>
-				{:else}
-					<span
-						class="h-1.5 w-1.5 rounded-full transition-colors duration-150
-							{contextsStore.activeContextId === ctx.id ? 'bg-primary' : 'bg-muted-foreground/40'}"
-					></span>
-				{/if}
-			</span>
-			{#if !collapsed}
-				{ctx.display_name}
-			{/if}
-		</button>
-	{/each}
-
-	<button
-		class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
-			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
-			{contextsStore.activeContextId === null
-			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => { navigateToMainIfNeeded(); contextsStore.setContext(null); onItemClick?.(); }}
-		title={collapsed ? $t('sidebar.all') : undefined}
-	>
-		<LayersIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
-		{#if !collapsed}
-			{$t('sidebar.all')}
-		{/if}
-	</button>
 </nav>

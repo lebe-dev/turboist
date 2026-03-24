@@ -19,7 +19,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
 	import { portal } from '$lib/utils/portal';
-	import { incrementDuplicateTitle } from '$lib/utils';
+	import { incrementDuplicateTitle, stripTaskPrefix } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { tick, onDestroy } from 'svelte';
 	import { t, locale } from 'svelte-intl-precompile';
@@ -101,7 +101,7 @@
 			const isSubtask = parentId && parentContent;
 			const isLeafTask = !parentId && completedTask.sub_task_count === 0 && completedTask.completed_sub_task_count === 0;
 
-			if (isSubtask || isLeafTask) {
+			if ((isSubtask || isLeafTask) && !completedTask.due?.recurring) {
 				toast.dismiss();
 				toast(`Completed: ${completedTask.content}`, {
 					duration: 8000,
@@ -172,7 +172,7 @@
 
 		const newLabels = isInBacklog
 			? task.labels.filter((l) => l !== backlogLabel)
-			: [...task.labels, backlogLabel];
+			: [...task.labels.filter((l) => l !== weeklyLabel), backlogLabel];
 
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, labels: newLabels }));
 		updateTask(task.id, { labels: newLabels }).catch((e) => {
@@ -539,7 +539,7 @@
 					{@render taskContentInner()}
 				</div>
 			{:else}
-				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer overflow-hidden" style="-webkit-touch-callout: none;">
+				<a href="/task/{task.id}" class="min-w-0 flex-1 cursor-pointer overflow-hidden pr-9 md:pr-7" style="-webkit-touch-callout: none;">
 					{@render taskContentInner()}
 				</a>
 			{/if}
@@ -554,7 +554,7 @@
 					{task}
 					onEdit={() => goto(`/task/${task.id}`)}
 					onDuplicate={handleDuplicate}
-					onCopy={() => { navigator.clipboard.writeText(task.content); dropdownOpen = false; }}
+					onCopy={() => { navigator.clipboard.writeText(stripTaskPrefix(task.content)); dropdownOpen = false; }}
 					{canPin}
 					{isPinned}
 					onPin={handlePin}

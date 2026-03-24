@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
 	import { updateTask, createTask, completeTask, deleteTask, getTask, getCompletedSubtasks } from '$lib/api/client';
-	import { incrementDuplicateTitle } from '$lib/utils';
+	import { incrementDuplicateTitle, stripTaskPrefix } from '$lib/utils';
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
@@ -920,6 +920,33 @@ function setDateQuick(date: string) {
 		});
 	}
 
+	// --- Bulk: set today-created subtasks date ---
+	const hasTodaySubtasks = $derived.by(() => {
+		if (!task) return false;
+		const today = todayDateStr();
+		return task.children.some((c) => c.added_at.slice(0, 10) === today);
+	});
+
+	function setTodaySubtasksDate(date: string) {
+		if (!task) return;
+		dropdownOpen = false;
+		const today = todayDateStr();
+		const toUpdate = task.children.filter((c) => c.added_at.slice(0, 10) === today);
+		if (toUpdate.length === 0) return;
+		updateLocal((t) => ({
+			...t,
+			children: t.children.map((c) =>
+				toUpdate.some((u) => u.id === c.id) ? { ...c, due: { date, recurring: false } } : c
+			)
+		}));
+		Promise.all(toUpdate.map((c) => updateTask(c.id, { due_date: date }))).catch((e) => {
+			logger.error('tasks', `set today subtasks date failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
+			tasksStore.refresh();
+		});
+	}
+
+
 	// --- Delete task ---
 	let showDeleteConfirm = $state(false);
 	function handleDelete() {
@@ -1022,7 +1049,7 @@ function setDateQuick(date: string) {
 					bind:open={dropdownOpen}
 					{task}
 					onDuplicate={handleDuplicate}
-					onCopy={() => { if (task) navigator.clipboard.writeText(task.content); dropdownOpen = false; }}
+					onCopy={() => { if (task) navigator.clipboard.writeText(stripTaskPrefix(task.content)); dropdownOpen = false; }}
 					{canPin}
 					{isPinned}
 					onPin={handlePin}
@@ -1032,6 +1059,8 @@ function setDateQuick(date: string) {
 					subtaskCount={task.children.length}
 					onResetSubtaskPriorities={resetSubtaskPriorities}
 					onResetSubtaskLabels={resetSubtaskLabels}
+					onBulkTodayToday={hasTodaySubtasks ? () => setTodaySubtasksDate(todayDateStr()) : undefined}
+					onBulkTodayTomorrow={hasTodaySubtasks ? () => setTodaySubtasksDate(tomorrowDateStr()) : undefined}
 					onSetDate={setDateQuick}
 					onClearDate={clearDate}
 					onSetPriority={setPriority}
@@ -1058,9 +1087,10 @@ function setDateQuick(date: string) {
 		</div>
 
 			<!-- Content -->
-			<div class="flex min-h-0 flex-1 overflow-hidden">
+			<div class="flex flex-col min-h-0 flex-1 overflow-y-auto">
+				<div class="flex min-h-0">
 				<!-- Left: main content -->
-				<div class="flex-1 overflow-y-auto p-6">
+				<div class="flex-1 p-6 min-w-0">
 					<!-- Title with complete button -->
 					<div class="flex items-start gap-3">
 						<button
@@ -1364,7 +1394,7 @@ function setDateQuick(date: string) {
 												task={child}
 												onEdit={() => onselect?.(child.id)}
 												onDuplicate={() => duplicateSubtask(child)}
-												onCopy={() => navigator.clipboard.writeText(child.content)}
+												onCopy={() => navigator.clipboard.writeText(stripTaskPrefix(child.content))}
 												backlogLabel={backlogLabel}
 												isInBacklog={backlogLabel !== '' && child.labels.includes(backlogLabel)}
 												onToggleBacklog={() => toggleSubtaskBacklog(child)}
@@ -1411,43 +1441,10 @@ function setDateQuick(date: string) {
 						{/if}
 					</div>
 
-					<!-- Completed subtasks -->
-					{#if completedSubtasks.length > 0}
-						<div class="mt-4">
-							<button
-								class="flex items-center gap-1 text-[12px] tabular-nums text-muted-foreground transition-colors hover:text-foreground"
-								onclick={() => (completedCollapsed = !completedCollapsed)}
-							>
-								<ChevronRightIcon
-									class="h-3.5 w-3.5 transition-transform duration-150 {completedCollapsed ? '' : 'rotate-90'}"
-								/>
-								Completed {completedSubtasks.length}
-							</button>
-							{#if !completedCollapsed}
-								<div class="mt-2 space-y-0.5">
-									{#each completedSubtasks as child (child.id)}
-										<div class="flex items-start gap-2.5 rounded-lg px-2 py-1.5">
-											<div class="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary">
-												<CheckIcon class="h-2 w-2 text-primary-foreground" strokeWidth={3} />
-											</div>
-											<div class="min-w-0 flex-1">
-												<span class="text-[13px] text-muted-foreground line-through">{child.content}</span>
-												{#if child.completed_at}
-													<p class="mt-0.5 text-[11px] text-muted-foreground/60">
-														{new Date(child.completed_at).toLocaleDateString($locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short' })}
-													</p>
-												{/if}
-											</div>
-										</div>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/if}
 				</div>
 
 				<!-- Right: sidebar -->
-				<div class="hidden w-72 shrink-0 space-y-5 overflow-y-auto border-l border-border/50 p-5 md:block">
+				<div class="hidden w-72 shrink-0 space-y-5 border-l border-border/50 p-5 md:block">
 					<!-- Recurrence -->
 					<RecurrencePicker
 						onSelect={setRecurrence}
@@ -1601,6 +1598,40 @@ function setDateQuick(date: string) {
 						</div>
 					</div>
 				</div>
+			</div>
+			<!-- Completed subtasks: full-width at bottom -->
+			{#if completedSubtasks.length > 0}
+				<div class="border-t border-border/50 px-6 pb-6">
+					<button
+						class="flex items-center gap-1 py-4 text-[12px] tabular-nums text-muted-foreground transition-colors hover:text-foreground"
+						onclick={() => (completedCollapsed = !completedCollapsed)}
+					>
+						<ChevronRightIcon
+							class="h-3.5 w-3.5 transition-transform duration-150 {completedCollapsed ? '' : 'rotate-90'}"
+						/>
+						Completed {completedSubtasks.length}
+					</button>
+					{#if !completedCollapsed}
+						<div class="space-y-0.5">
+							{#each completedSubtasks as child (child.id)}
+								<div class="flex items-start gap-2.5 rounded-lg px-2 py-1.5">
+									<div class="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary">
+										<CheckIcon class="h-2 w-2 text-primary-foreground" strokeWidth={3} />
+									</div>
+									<div class="min-w-0 flex-1">
+										<span class="text-[13px] text-muted-foreground line-through">{child.content}</span>
+										{#if child.completed_at}
+											<p class="mt-0.5 text-[11px] text-muted-foreground/60">
+												{new Date(child.completed_at).toLocaleDateString($locale === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short' })}
+											</p>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
 			</div>
 	{/snippet}
 

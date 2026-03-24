@@ -40,6 +40,8 @@
 		subtaskCount = 0,
 		onResetSubtaskPriorities,
 		onResetSubtaskLabels,
+		onBulkTodayToday,
+		onBulkTodayTomorrow,
 
 		dropdownExtra,
 
@@ -77,6 +79,8 @@
 		subtaskCount?: number;
 		onResetSubtaskPriorities?: () => void;
 		onResetSubtaskLabels?: () => void;
+		onBulkTodayToday?: () => void;
+		onBulkTodayTomorrow?: () => void;
 
 		dropdownExtra?: Snippet;
 
@@ -157,21 +161,40 @@
 			</DropdownMenu.Item>
 		{/if}
 
-		{#if subtaskCount > 0 && onResetSubtaskPriorities && onResetSubtaskLabels}
+		{#if subtaskCount > 0 && (onResetSubtaskPriorities || onResetSubtaskLabels || onBulkTodayToday || onBulkTodayTomorrow)}
 			<DropdownMenu.Sub>
 				<DropdownMenu.SubTrigger>
 					<LayersIcon class="h-4 w-4" />
 					{$t('task.bulkOperations')}
 				</DropdownMenu.SubTrigger>
 				<DropdownMenu.SubContent>
-					<DropdownMenu.Item onclick={onResetSubtaskPriorities}>
-						<FlagIcon class="h-4 w-4" />
-						{$t('task.resetSubtaskPriorities')}
-					</DropdownMenu.Item>
-					<DropdownMenu.Item onclick={onResetSubtaskLabels}>
-						<TagIcon class="h-4 w-4" />
-						{$t('task.resetSubtaskLabels')}
-					</DropdownMenu.Item>
+					{#if onResetSubtaskPriorities}
+						<DropdownMenu.Item onclick={onResetSubtaskPriorities}>
+							<FlagIcon class="h-4 w-4" />
+							{$t('task.resetSubtaskPriorities')}
+						</DropdownMenu.Item>
+					{/if}
+					{#if onResetSubtaskLabels}
+						<DropdownMenu.Item onclick={onResetSubtaskLabels}>
+							<TagIcon class="h-4 w-4" />
+							{$t('task.resetSubtaskLabels')}
+						</DropdownMenu.Item>
+					{/if}
+					{#if onBulkTodayToday || onBulkTodayTomorrow}
+						<DropdownMenu.Separator />
+					{/if}
+					{#if onBulkTodayToday}
+						<DropdownMenu.Item onclick={onBulkTodayToday}>
+							<CalendarIcon class="h-4 w-4 text-green-500" />
+							{$t('task.bulkTodayToday')}
+						</DropdownMenu.Item>
+					{/if}
+					{#if onBulkTodayTomorrow}
+						<DropdownMenu.Item onclick={onBulkTodayTomorrow}>
+							<SunIcon class="h-4 w-4 text-amber-500" />
+							{$t('task.bulkTodayTomorrow')}
+						</DropdownMenu.Item>
+					{/if}
 				</DropdownMenu.SubContent>
 			</DropdownMenu.Sub>
 		{/if}

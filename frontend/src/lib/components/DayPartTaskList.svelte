@@ -125,6 +125,12 @@
 
 	const dayPartLabels = $derived(new Set(dayParts.map((dp) => dp.label)));
 
+	function moveAllTasks(tasks: Task[], targetLabel: string) {
+		for (const task of tasks) {
+			moveTask(task, targetLabel);
+		}
+	}
+
 	function moveTask(task: Task, targetLabel: string | null) {
 		const newLabels = task.labels.filter((l) => !dayPartLabels.has(l));
 		if (targetLabel) {
@@ -186,6 +192,19 @@
 							>
 								<PlusIcon class="h-3.5 w-3.5" />
 							</button>
+						{:else if section.key === '__unassigned__' && section.tasks.length > 0}
+							<div class="ml-auto flex items-center gap-0.5 md:opacity-0 md:group-hover/section:opacity-100 transition-opacity">
+								{#each dayParts as dp, dpIdx (dp.label)}
+									{@const DPIcon = sectionIcon(dpIdx, dayParts.length)}
+									<button
+										class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground"
+										title={$t('tasks.moveAllTo', { values: { label: dp.label } })}
+										onclick={() => moveAllTasks(section.tasks, dp.label)}
+									>
+										<DPIcon class="h-3.5 w-3.5" />
+									</button>
+								{/each}
+							</div>
 						{/if}
 					</div>
 					<div class="space-y-px px-1">

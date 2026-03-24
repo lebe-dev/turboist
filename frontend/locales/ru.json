@@ -32,6 +32,8 @@
   "tasks.backlogLabel": "Бэклог",
   "tasks.backlogLimitExceeded": "Лимит бэклога превышен",
   "tasks.noTime": "Без времени",
+  "tasks.moveAllTo": "Переместить все в {label}",
+  "tasks.completedToday": "Выполнено сегодня",
   "tasks.search": "Поиск...",
 
   "due.today": "Сегодня",
@@ -81,6 +83,8 @@
   "task.bulkOperations": "Массовые операции",
   "task.resetSubtaskPriorities": "Сбросить приоритеты",
   "task.resetSubtaskLabels": "Сбросить метки",
+  "task.bulkTodayToday": "Созданные сегодня → Сегодня",
+  "task.bulkTodayTomorrow": "Созданные сегодня → Завтра",
   "task.recurrence": "Повторение",
   "task.recurrence.everyDay": "Каждый день",
   "task.recurrence.everyWeek": "Каждую неделю в {day}",
@@ -106,6 +110,8 @@
   "planning.starting": "Начинаем...",
   "planning.acceptAll": "Принять все",
 
+  "quickCapture.ideaSaved": "Идея сохранена",
+  "quickCapture.ideaSaveFailed": "Не удалось сохранить идею",
   "quickCapture.ideaPlaceholder": "Идея...",
   "quickCapture.descriptionPlaceholder": "Описание",
   "quickCapture.saving": "Сохранение...",

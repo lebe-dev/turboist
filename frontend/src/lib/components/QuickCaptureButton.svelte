@@ -4,6 +4,8 @@
 	import { appStore } from '$lib/stores/app.svelte';
 	import { logger } from '$lib/stores/logger';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
+	import FlagIcon from '@lucide/svelte/icons/flag';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import { toast } from 'svelte-sonner';
 	import { t } from 'svelte-intl-precompile';
 
@@ -12,17 +14,28 @@
 	let content = $state('');
 	let description = $state('');
 	let submitting = $state(false);
+	let priority = $state(1);
+	let today = $state(false);
 	const parentTaskId = $derived(appStore.quickCapture?.parent_task_id ?? null);
 	let loadError = $state<string | null>(null);
 
 	let contentInput: HTMLInputElement | undefined = $state();
 	let dialogEl: HTMLDivElement | undefined = $state();
 
+	const priorityItems = [
+		{ value: 4, label: 'P1', color: 'text-red-500', bg: 'bg-red-500/15 border-red-500/30' },
+		{ value: 3, label: 'P2', color: 'text-amber-500', bg: 'bg-amber-500/15 border-amber-500/30' },
+		{ value: 2, label: 'P3', color: 'text-blue-400', bg: 'bg-blue-400/15 border-blue-400/30' },
+		{ value: 1, label: 'P4', color: 'text-muted-foreground', bg: 'bg-muted border-muted-foreground/30' }
+	];
+
 	$effect(() => {
 		if (open) {
 			content = 'turboist: ';
 			description = '';
 			submitting = false;
+			priority = 1;
+			today = false;
 			loadError = parentTaskId ? null : $t('quickCapture.notConfigured');
 			requestAnimationFrame(() => {
 				if (contentInput) {
@@ -38,20 +51,23 @@
 		submitting = true;
 		const taskContent = content.trim();
 		const taskDescription = description.trim();
+		const pri = priority;
+		const dueDate = today ? new Date().toISOString().slice(0, 10) : undefined;
 
 		// Optimistic: close immediately, send in background
 		open = false;
-		toast.success('Idea saved');
+		toast.success($t('quickCapture.ideaSaved'));
 
 		createTask({
 			content: taskContent,
 			description: taskDescription,
 			labels: [],
-			priority: 1,
-			parent_id: parentTaskId
+			priority: pri,
+			parent_id: parentTaskId,
+			...(dueDate ? { due_date: dueDate } : {})
 		}).catch((e) => {
 			logger.error('tasks', `quick capture failed: ${e}`);
-			toast.error('Failed to save idea');
+			toast.error($t('quickCapture.ideaSaveFailed'));
 		}).finally(() => {
 			submitting = false;
 		});
@@ -128,7 +144,36 @@
 					></textarea>
 				</div>
 
-				<!-- Footer -->
+				<!-- Toolbar -->
+				<div class="flex items-center gap-1.5 px-3 pb-3">
+					{#each priorityItems as p (p.value)}
+						<button
+							class="flex h-7 items-center gap-1 rounded-md border px-2 text-[12px] font-medium transition-colors
+								{priority === p.value
+									? p.bg + ' ' + p.color
+									: 'border-transparent ' + p.color + ' opacity-40 hover:opacity-80 hover:border-border/50'}"
+							onclick={() => { priority = p.value; }}
+						>
+							<FlagIcon class="h-3 w-3" />
+							{p.label}
+						</button>
+					{/each}
+
+					<div class="mx-1 h-4 w-px bg-border/50"></div>
+
+					<button
+						class="flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[12px] transition-colors
+							{today
+								? 'border-primary/50 bg-primary/10 text-primary'
+								: 'border-border/50 text-muted-foreground opacity-60 hover:opacity-100 hover:bg-accent hover:text-foreground'}"
+						onclick={() => { today = !today; }}
+					>
+						<CalendarIcon class="h-3.5 w-3.5" />
+						{$t('due.today')}
+					</button>
+				</div>
+
+			<!-- Footer -->
 				<div class="flex items-center justify-end gap-2 border-t border-border/50 px-4 py-3">
 					<button
 						class="rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

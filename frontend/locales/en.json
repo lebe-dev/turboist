@@ -32,6 +32,8 @@
   "tasks.backlogLabel": "Backlog",
   "tasks.backlogLimitExceeded": "Backlog limit exceeded",
   "tasks.noTime": "No time",
+  "tasks.moveAllTo": "Move all to {label}",
+  "tasks.completedToday": "Completed today",
   "tasks.search": "Search...",
 
   "due.today": "Today",
@@ -81,6 +83,8 @@
   "task.bulkOperations": "Bulk operations",
   "task.resetSubtaskPriorities": "Reset priorities",
   "task.resetSubtaskLabels": "Reset labels",
+  "task.bulkTodayToday": "Today's subtasks → Today",
+  "task.bulkTodayTomorrow": "Today's subtasks → Tomorrow",
   "task.recurrence": "Repeat",
   "task.recurrence.everyDay": "Every day",
   "task.recurrence.everyWeek": "Every week on {day}",
@@ -106,6 +110,8 @@
   "planning.starting": "Starting...",
   "planning.acceptAll": "Accept all",
 
+  "quickCapture.ideaSaved": "Idea saved",
+  "quickCapture.ideaSaveFailed": "Failed to save idea",
   "quickCapture.ideaPlaceholder": "Idea...",
   "quickCapture.descriptionPlaceholder": "Description",
   "quickCapture.saving": "Saving...",

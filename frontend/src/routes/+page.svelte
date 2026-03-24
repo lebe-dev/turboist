@@ -14,6 +14,8 @@
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
 	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
+	import { getCompletedTasks } from '$lib/api/client';
+	import TaskItem from '$lib/components/TaskItem.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -191,13 +193,12 @@
 				linksOnly = saved.linksOnly;
 				selectedPriorities = new Set(saved.selectedPriorities);
 				selectedLabels = new Set(saved.selectedLabels);
-				filtersExpanded = saved.filtersExpanded;
 			} else {
 				linksOnly = false;
 				selectedPriorities = new Set();
 				selectedLabels = new Set();
-				filtersExpanded = false;
 			}
+			filtersExpanded = true; // Always expanded on All tasks view
 		} else {
 			linksOnly = false;
 			selectedPriorities = new Set();
@@ -250,6 +251,28 @@
 	let quickCaptureOpen = $state(false);
 	let createDayPartLabel = $state('');
 
+	// Completed-today tasks for the Today view
+	let completedTodayTasks = $state<import('$lib/api/types').Task[]>([]);
+	let completedTodayLoading = $state(false);
+	let completedTodayExpanded = $state(false);
+
+	$effect(() => {
+		if (contextsStore.activeView !== 'today') {
+			completedTodayTasks = [];
+			return;
+		}
+		completedTodayLoading = true;
+		const todayDate = todayStr();
+		getCompletedTasks(contextsStore.activeContextId ?? undefined)
+			.then((res) => {
+				completedTodayTasks = res.tasks.filter(
+					(t) => t.completed_at && t.completed_at.slice(0, 10) === todayDate
+				);
+			})
+			.catch(() => { completedTodayTasks = []; })
+			.finally(() => { completedTodayLoading = false; });
+	});
+
 	function todayStr(): string {
 		const d = new Date();
 		return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -300,7 +323,30 @@
 <div class="flex h-full flex-col">
 	<!-- Desktop header -->
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
-		<h1 class="text-sm font-semibold tracking-wide text-foreground">{title}</h1>
+		<h1 class="shrink-0 text-sm font-semibold tracking-wide text-foreground">{title}</h1>
+		{#if contextsStore.contexts.length > 0}
+			<div class="ml-4 flex items-center gap-0.5">
+				{#each contextsStore.contexts as ctx (ctx.id)}
+					<button
+						class="flex h-6 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors
+							{contextsStore.activeContextId === ctx.id ? 'bg-accent text-foreground' : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'}"
+						onclick={() => contextsStore.setContext(ctx.id)}
+					>
+						{#if ctx.color}
+							<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {ctx.color}; opacity: {contextsStore.activeContextId === ctx.id ? 1 : 0.5}"></span>
+						{/if}
+						{ctx.display_name}
+					</button>
+				{/each}
+				<button
+					class="flex h-6 items-center rounded-md px-2 text-[11px] font-medium transition-colors
+						{contextsStore.activeContextId === null ? 'bg-accent text-foreground' : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'}"
+					onclick={() => contextsStore.setContext(null)}
+				>
+					{$t('sidebar.all')}
+				</button>
+			</div>
+		{/if}
 		{#if !isCompletedView}
 			<Button onclick={() => { createDayPartLabel = ''; createDialogOpen = true; }} variant="ghost" size="icon" class="ml-auto me-1 h-8 w-8 text-muted-foreground hover:text-foreground" title="Add task (Q)" disabled={isBacklogAtLimit}>
 				<PlusIcon class="h-4 w-4" />
@@ -339,7 +385,7 @@
 		{:else}
 			<div class="ml-auto"></div>
 		{/if}
-		{#if !isCompletedView}
+		{#if !isCompletedView && contextsStore.activeView !== 'all'}
 			<Toggle bind:pressed={filtersExpanded} size="sm" class="me-1 h-7 w-7 text-muted-foreground {hasActiveFilters ? 'text-primary' : ''}" title="Filters">
 				<FilterIcon class="h-2.5 w-2.5" />
 				<span class="sr-only">Filters</span>
@@ -353,7 +399,6 @@
 
 	<!-- Mobile header -->
 	<header class="flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-2 md:hidden">
-		<h1 class="shrink-0 text-sm font-semibold tracking-wide text-foreground">{title}</h1>
 		{#if !isCompletedView}
 			<div class="relative flex min-w-0 flex-1 items-center">
 				<SearchIcon class="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
@@ -386,7 +431,7 @@
 				<span class="sr-only">Toggle all subtasks</span>
 			</Button>
 		{/if}
-		{#if !isCompletedView}
+		{#if !isCompletedView && contextsStore.activeView !== 'all'}
 			<Toggle bind:pressed={filtersExpanded} size="sm" class="h-8 w-8 shrink-0 text-muted-foreground {hasActiveFilters ? 'text-primary' : ''}" title="Filters">
 				<FilterIcon class="h-3 w-3" />
 				<span class="sr-only">Filters</span>
@@ -397,6 +442,31 @@
 			<span class="sr-only">Sync</span>
 		</Button>
 	</header>
+
+	<!-- Mobile context strip -->
+	{#if contextsStore.contexts.length > 0}
+		<div class="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border/50 px-3 py-1.5 md:hidden">
+			{#each contextsStore.contexts as ctx (ctx.id)}
+				<button
+					class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors
+						{contextsStore.activeContextId === ctx.id ? 'bg-accent text-foreground' : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'}"
+					onclick={() => contextsStore.setContext(ctx.id)}
+				>
+					{#if ctx.color}
+						<span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {ctx.color}; opacity: {contextsStore.activeContextId === ctx.id ? 1 : 0.5}"></span>
+					{/if}
+					{ctx.display_name}
+				</button>
+			{/each}
+			<button
+				class="flex shrink-0 items-center rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors
+					{contextsStore.activeContextId === null ? 'bg-accent text-foreground' : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'}"
+				onclick={() => contextsStore.setContext(null)}
+			>
+				{$t('sidebar.all')}
+			</button>
+		</div>
+	{/if}
 
 	<!-- Filter bar -->
 	{#if filtersExpanded && !isCompletedView}
@@ -502,6 +572,37 @@
 			<div class="flex justify-center py-4">
 				<QuickCaptureButton bind:open={quickCaptureOpen} />
 			</div>
+		{/if}
+
+		<!-- Completed today section -->
+		{#if contextsStore.activeView === 'today' && !tasksStore.loading}
+			{#if completedTodayLoading}
+				<div class="flex justify-center py-4">
+					<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-transparent"></div>
+				</div>
+			{:else if completedTodayTasks.length > 0}
+				<div class="mt-2 px-1 pb-4 md:px-3">
+					<button
+						class="mb-2 flex w-full items-center gap-2 px-2 md:px-3"
+						onclick={() => { completedTodayExpanded = !completedTodayExpanded; }}
+					>
+						<div class="h-px flex-1 bg-border/40"></div>
+						<span class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
+							{$t('tasks.completedToday')}
+							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-muted-foreground/60">{completedTodayTasks.length}</span>
+							<svg class="h-3 w-3 transition-transform {completedTodayExpanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+						</span>
+						<div class="h-px flex-1 bg-border/40"></div>
+					</button>
+					{#if completedTodayExpanded}
+						<div class="opacity-60">
+							{#each completedTodayTasks as task (task.id)}
+								<TaskItem {task} completed={true} />
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
 		{/if}
 	</div>
 </div>
