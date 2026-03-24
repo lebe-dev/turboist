@@ -667,10 +667,29 @@ function setDateQuick(date: string) {
 		return best;
 	}
 
+	function extractProjectSubtaskPrefix(content: string, projectLabel: string): string {
+		if (!projectLabel) return '';
+		const escaped = projectLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const dashMatch = content.match(new RegExp(`^${escaped}\\s+-\\s+(.+)$`, 'i'));
+		if (dashMatch) return `${dashMatch[1].trim()} - `;
+		const colonMatch = content.match(new RegExp(`^${escaped}\\s*:\\s+(.+)$`, 'i'));
+		if (colonMatch) return `${colonMatch[1].trim()}: `;
+		return '';
+	}
+
 	function startAddSubtask() {
 		if (!task) return;
 		const siblingPrefix = detectPrefixFromSiblings(task.children);
-		const prefix = siblingPrefix || extractPrefix(task.content);
+		let prefix = siblingPrefix;
+		if (!prefix) {
+			const projectLabel = tasksStore.config?.project_label ?? '';
+			const isProject = projectLabel && task.labels.includes(projectLabel);
+			if (isProject) {
+				prefix = extractProjectSubtaskPrefix(task.content, projectLabel);
+			} else {
+				prefix = extractPrefix(task.content);
+			}
+		}
 		subtaskContent = prefix;
 
 		showSubtaskForm = true;
@@ -683,7 +702,10 @@ function setDateQuick(date: string) {
 	function saveSubtask() {
 		if (!task || !subtaskContent.trim() || addingSubtask) return;
 		const content = subtaskContent.trim();
-		const inheritableParentLabels = task.labels.filter((l) => appStore.shouldInheritToSubtasks(l));
+		const weeklyLabel = tasksStore.config?.weekly_label ?? '';
+		const inheritableParentLabels = task.labels.filter(
+			(l) => appStore.shouldInheritToSubtasks(l) && (weeklyLabel === '' || l !== weeklyLabel)
+		);
 		const labels = [...new Set([...inheritableParentLabels, ...contextLabels])];
 		const parentId = task.id;
 		const tempId = `temp-${Date.now()}`;
@@ -1192,7 +1214,7 @@ function setDateQuick(date: string) {
 								{#if task.description}
 									<p class="whitespace-pre-wrap"><MarkdownContent text={task.description} /></p>
 								{:else}
-									Add description...
+									{$t('task.addDescription')}
 								{/if}
 							</div>
 						{/if}

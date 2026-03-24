@@ -149,6 +149,7 @@ export class MockBackendConnector implements BackendConnector {
 				timezone: 'UTC',
 				weekly_label: '',
 				backlog_label: '',
+				project_label: '',
 				weekly_limit: 0,
 				backlog_limit: 0,
 				completed_days: 7,

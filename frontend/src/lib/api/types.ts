@@ -116,6 +116,7 @@ export interface Settings {
 	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
 	weekly_label: string;
 	backlog_label: string;
+	project_label: string;
 	weekly_limit: number;
 	backlog_limit: number;
 	completed_days: number;

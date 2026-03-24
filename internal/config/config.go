@@ -36,6 +36,10 @@ type QuickCaptureConfig struct {
 	Title string `yaml:"title"`
 }
 
+type ProjectConfig struct {
+	Label string `yaml:"label"`
+}
+
 type LabelConfig struct {
 	Name              string `yaml:"name"`
 	InheritToSubtasks *bool  `yaml:"inherit_to_subtasks"`
@@ -60,6 +64,7 @@ type AppConfig struct {
 	Labels       []LabelConfig
 	Weekly       WeeklyConfig
 	Backlog      BacklogConfig
+	Project      ProjectConfig
 	Today        TodayConfig
 	Tomorrow     TomorrowConfig
 	Completed    CompletedConfig
@@ -154,6 +159,7 @@ type yamlFile struct {
 	Labels       []LabelConfig       `yaml:"labels"`
 	Weekly       WeeklyConfig        `yaml:"weekly"`
 	Backlog      BacklogConfig       `yaml:"backlog"`
+	Project      ProjectConfig       `yaml:"project"`
 	Today        TodayConfig         `yaml:"today"`
 	Tomorrow     TomorrowConfig      `yaml:"tomorrow"`
 	Completed    CompletedConfig     `yaml:"completed"`
@@ -237,6 +243,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		Labels:       yf.Labels,
 		Weekly:       yf.Weekly,
 		Backlog:      backlog,
+		Project:      yf.Project,
 		Today:        yf.Today,
 		Tomorrow:     yf.Tomorrow,
 		Completed:    completed,

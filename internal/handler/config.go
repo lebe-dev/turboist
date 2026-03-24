@@ -33,6 +33,7 @@ type settingsResponse struct {
 	Timezone      string            `json:"timezone"`
 	WeeklyLabel   string            `json:"weekly_label"`
 	BacklogLabel  string            `json:"backlog_label"`
+	ProjectLabel  string            `json:"project_label"`
 	WeeklyLimit   int               `json:"weekly_limit"`
 	BacklogLimit  int               `json:"backlog_limit"`
 	CompletedDays int               `json:"completed_days"`
@@ -97,6 +98,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		Timezone:      h.cfg.Timezone,
 		WeeklyLabel:   h.cfg.Weekly.Label,
 		BacklogLabel:  h.cfg.Backlog.Label,
+		ProjectLabel:  h.cfg.Project.Label,
 		WeeklyLimit:   h.cfg.Weekly.MaxTasks,
 		BacklogLimit:  h.cfg.Backlog.MaxLimit,
 		CompletedDays: h.cfg.Completed.Days,
