@@ -44,6 +44,9 @@ function createTasksStore() {
 	// IDs of tasks optimistically removed — survives fetches until server catches up
 	const pendingRemovals = new Set<string>();
 
+	// Map temp task IDs to their reconciled real IDs (for navigation redirect)
+	let reconciledIds = $state<Record<string, string>>({});
+
 	let cleanups: (() => void)[] = [];
 	let running = false;
 	let hasReceivedSnapshot = false;
@@ -174,6 +177,21 @@ function createTasksStore() {
 					.map((f) => f.content)
 			);
 			if (newContents.size > 0) {
+				// Record temp→real ID mappings before removing (for navigation redirect)
+				const newMappings: Record<string, string> = {};
+				for (const tempTask of updated) {
+					if (!tempTask.id.startsWith('temp-') || !newContents.has(tempTask.content)) continue;
+					const realTask = upsertedFlat.find(
+						(f) => f.content === tempTask.content && !f.id.startsWith('temp-')
+					);
+					if (realTask) {
+						newMappings[tempTask.id] = realTask.id;
+					}
+				}
+				if (Object.keys(newMappings).length > 0) {
+					reconciledIds = { ...reconciledIds, ...newMappings };
+				}
+
 				updated = updated.filter(
 					(t) => !t.id.startsWith('temp-') || !newContents.has(t.content)
 				);
@@ -436,7 +454,10 @@ function createTasksStore() {
 		clearPendingRemoval,
 		addTaskLocal,
 		insertAfterLocal,
-		applyPendingTaskUpdate
+		applyPendingTaskUpdate,
+		resolveTaskId(id: string): string | null {
+			return reconciledIds[id] ?? null;
+		}
 	};
 }
 

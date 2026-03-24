@@ -11,7 +11,7 @@
 	import { appStore } from '$lib/stores/app.svelte';
 	import { toast } from 'svelte-sonner';
 	import { logger } from '$lib/stores/logger';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -98,7 +98,7 @@
 			parentTask = null;
 			return;
 		}
-		const found = findTask(tasksStore.tasks, pid);
+		const found = untrack(() => findTask(tasksStore.tasks, pid));
 		if (found) {
 			parentTask = found;
 			return;
@@ -108,7 +108,17 @@
 
 	// Close panel if task disappears (e.g. completed) — skip during API fetch
 	$effect(() => {
-		if (!task && !taskFetching) onclose();
+		if (!task && !taskFetching) {
+			// If viewing a temp task that was reconciled, redirect to real task
+			if (taskId.startsWith('temp-')) {
+				const resolvedId = tasksStore.resolveTaskId(taskId);
+				if (resolvedId && onselect) {
+					onselect(resolvedId);
+					return;
+				}
+			}
+			onclose();
+		}
 	});
 
 	// --- Completed subtasks ---

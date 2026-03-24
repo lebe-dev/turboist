@@ -6,6 +6,7 @@
 	import { appStore } from '$lib/stores/app.svelte';
 	import { logger } from '$lib/stores/logger';
 	import { toast } from 'svelte-sonner';
+	import { untrack } from 'svelte';
 	import type { Label, Task } from '$lib/api/types';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import FlagIcon from '@lucide/svelte/icons/flag';
@@ -116,53 +117,56 @@
 		return detectPrefixFromSiblings(children) || extractPrefix(parentContent);
 	}
 
-	// Reset form when dialog opens
+	// Reset form when dialog opens — only track `pending`, not store/context reads
 	$effect(() => {
-		if (!pending) return;
+		const p = pending;
+		if (!p) return;
 
-		// Set labels from completed task + context labels (respecting inherit_labels)
-		const shouldInherit = (() => {
-			const ctxId = contextsStore.activeContextId;
-			if (!ctxId) return true;
-			const ctx = contextsStore.contexts.find((c) => c.id === ctxId);
-			return ctx?.inherit_labels ?? true;
-		})();
-		const labels = shouldInherit
-			? [...new Set([...pending.completedTaskLabels, ...contextLabels])]
-			: [];
-		selectedLabels = labels;
-		description = '';
-		priority = 1;
-		showLabelPicker = false;
-		showPriorityPicker = false;
-		labelSearch = '';
+		untrack(() => {
+			// Set labels from completed task + context labels (respecting inherit_labels)
+			const shouldInherit = (() => {
+				const ctxId = contextsStore.activeContextId;
+				if (!ctxId) return true;
+				const ctx = contextsStore.contexts.find((c) => c.id === ctxId);
+				return ctx?.inherit_labels ?? true;
+			})();
+			const labels = shouldInherit
+				? [...new Set([...p.completedTaskLabels, ...contextLabels])]
+				: [];
+			selectedLabels = labels;
+			description = '';
+			priority = 1;
+			showLabelPicker = false;
+			showPriorityPicker = false;
+			labelSearch = '';
 
-		// Load parent children for prefix detection (only for subtask next-actions)
-		if (pending.parentId) {
-			const parentInStore = findTask(tasksStore.tasks, pending.parentId);
-			if (parentInStore) {
-				parentChildren = parentInStore.children;
-				content = computePrefix(parentInStore.children, pending.parentContent);
+			// Load parent children for prefix detection (only for subtask next-actions)
+			if (p.parentId) {
+				const parentInStore = findTask(tasksStore.tasks, p.parentId);
+				if (parentInStore) {
+					parentChildren = parentInStore.children;
+					content = computePrefix(parentInStore.children, p.parentContent);
+				} else {
+					parentChildren = [];
+					content = extractPrefix(p.parentContent);
+					getTask(p.parentId)
+						.then((t) => {
+							parentChildren = t.children;
+							const currentPrefix = extractPrefix(p.parentContent);
+							if (content === currentPrefix || content === '') {
+								content = computePrefix(t.children, p.parentContent);
+							}
+						})
+						.catch(() => {});
+				}
 			} else {
+				// Standalone follow-up — no prefix detection
 				parentChildren = [];
-				content = extractPrefix(pending.parentContent);
-				getTask(pending.parentId)
-					.then((t) => {
-						parentChildren = t.children;
-						const currentPrefix = extractPrefix(pending!.parentContent);
-						if (content === currentPrefix || content === '') {
-							content = computePrefix(t.children, pending!.parentContent);
-						}
-					})
-					.catch(() => {});
+				content = '';
 			}
-		} else {
-			// Standalone follow-up — no prefix detection
-			parentChildren = [];
-			content = '';
-		}
 
-		requestAnimationFrame(() => contentInput?.focus());
+			requestAnimationFrame(() => contentInput?.focus());
+		});
 	});
 
 	function toggleLabel(name: string) {
