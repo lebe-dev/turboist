@@ -1224,18 +1224,18 @@ function setDateQuick(date: string) {
 					<div class="mt-5 space-y-4 pl-8 md:hidden">
 						<!-- Date -->
 						<div bind:this={calendarRef}>
-							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
+							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.date')}</h3>
 							<div class="flex items-center gap-1.5">
 								<button
 									class="rounded-md px-2.5 py-1 text-[12px] transition-colors
 										{task.due?.date === todayDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 									onclick={() => setDateQuick(todayDateStr())}
-								>Today</button>
+								>{$t('date.today')}</button>
 								<button
 									class="rounded-md px-2.5 py-1 text-[12px] transition-colors
 										{task.due?.date === tomorrowDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 									onclick={() => setDateQuick(tomorrowDateStr())}
-								>Tomorrow</button>
+								>{$t('date.tomorrow')}</button>
 								<button
 									class="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 									onclick={() => (showCalendar = !showCalendar)}
@@ -1480,18 +1480,18 @@ function setDateQuick(date: string) {
 				<div class="hidden w-72 shrink-0 space-y-5 border-l border-border/50 p-5 md:block">
 					<!-- Date -->
 					<div bind:this={calendarRef}>
-						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
+						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.date')}</h3>
 						<div class="flex items-center gap-1.5">
 							<button
 								class="rounded-md px-2.5 py-1 text-[12px] transition-colors
 									{task.due?.date === todayDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 								onclick={() => setDateQuick(todayDateStr())}
-							>Today</button>
+							>{$t('date.today')}</button>
 							<button
 								class="rounded-md px-2.5 py-1 text-[12px] transition-colors
 									{task.due?.date === tomorrowDateStr() ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:bg-accent'}"
 								onclick={() => setDateQuick(tomorrowDateStr())}
-							>Tomorrow</button>
+							>{$t('date.tomorrow')}</button>
 							<button
 								class="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 								onclick={() => (showCalendar = !showCalendar)}

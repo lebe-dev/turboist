@@ -145,6 +145,8 @@
 
   "date.pickDate": "Выбрать дату",
   "date.clearDate": "Убрать дату",
+  "date.today": "Сегодня",
+  "date.tomorrow": "Завтра",
 
   "quickCapture.tooltip": "Записать идею (I)",
 

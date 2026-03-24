@@ -145,6 +145,8 @@
 
   "date.pickDate": "Pick date",
   "date.clearDate": "Clear date",
+  "date.today": "Today",
+  "date.tomorrow": "Tomorrow",
 
   "quickCapture.tooltip": "Quick capture idea (I)",
 
