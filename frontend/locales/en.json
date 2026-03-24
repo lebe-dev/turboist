@@ -138,6 +138,16 @@
   "pwa.discardAction": "Discard",
   "pwa.clearQueue": "Clear all",
 
+  "task.completedToast": "Completed: {name}",
+  "task.duplicatedToast": "Duplicated: {name}",
+  "task.nextActionButton": "Next action",
+  "task.followUpButton": "Follow-up",
+
+  "date.pickDate": "Pick date",
+  "date.clearDate": "Clear date",
+
+  "quickCapture.tooltip": "Quick capture idea (I)",
+
   "errors.createFailed": "Failed to create task",
   "errors.updateFailed": "Failed to update task",
   "errors.deleteFailed": "Failed to delete task",

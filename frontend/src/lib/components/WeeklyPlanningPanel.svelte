@@ -9,7 +9,7 @@
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import XIcon from '@lucide/svelte/icons/x';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
-	import { t } from 'svelte-intl-precompile';
+	import { t, locale } from 'svelte-intl-precompile';
 
 	const priorityItems = [
 		{ value: 4, label: 'P1', color: 'text-red-500' },
@@ -33,12 +33,12 @@
 	function weekDays(): { label: string; date: string }[] {
 		const days: { label: string; date: string }[] = [];
 		const d = new Date();
-		const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+		const fmt = new Intl.DateTimeFormat($locale === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
 		for (let i = 2; i <= 7; i++) {
 			const next = new Date(d);
 			next.setDate(next.getDate() + i);
 			const dateStr = next.getFullYear() + '-' + String(next.getMonth() + 1).padStart(2, '0') + '-' + String(next.getDate()).padStart(2, '0');
-			days.push({ label: dayNames[next.getDay()], date: dateStr });
+			days.push({ label: fmt.format(next), date: dateStr });
 		}
 		return days;
 	}
@@ -119,8 +119,8 @@
 									class="flex h-6 w-6 items-center justify-center rounded text-green-500 transition-colors
 										{task.due?.date === todayStr() ? 'bg-accent' : 'hover:bg-accent/50'}"
 									onclick={() => planningStore.updateWeeklyTask(task.id, { due_date: todayStr() })}
-									aria-label="Today"
-									title="Today"
+									aria-label={$t('due.today')}
+									title={$t('due.today')}
 								>
 									<CalendarIcon class="h-3 w-3" />
 								</button>
@@ -128,8 +128,8 @@
 									class="flex h-6 w-6 items-center justify-center rounded text-amber-500 transition-colors
 										{task.due?.date === tomorrowStr() ? 'bg-accent' : 'hover:bg-accent/50'}"
 									onclick={() => planningStore.updateWeeklyTask(task.id, { due_date: tomorrowStr() })}
-									aria-label="Tomorrow"
-									title="Tomorrow"
+									aria-label={$t('due.tomorrow')}
+									title={$t('due.tomorrow')}
 								>
 									<SunIcon class="h-3 w-3" />
 								</button>
@@ -137,8 +137,8 @@
 									<button
 										class="flex h-6 w-6 items-center justify-center rounded text-purple-400 transition-colors hover:bg-accent/50"
 										onclick={() => openDatePicker(task.id)}
-										aria-label="Pick date"
-										title="Pick date"
+										aria-label={$t('date.pickDate')}
+										title={$t('date.pickDate')}
 									>
 										<ArrowRightIcon class="h-3 w-3" />
 									</button>
@@ -154,8 +154,8 @@
 									<button
 										class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
 										onclick={() => planningStore.updateWeeklyTask(task.id, { due_date: '' })}
-										aria-label="Clear date"
-										title="Clear date"
+										aria-label={$t('date.clearDate')}
+										title={$t('date.clearDate')}
 									>
 										<XIcon class="h-3 w-3" />
 									</button>

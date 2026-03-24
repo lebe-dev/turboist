@@ -103,10 +103,10 @@
 
 			if ((isSubtask || isLeafTask) && !completedTask.due?.recurring) {
 				toast.dismiss();
-				toast(`Completed: ${completedTask.content}`, {
+				toast($t('task.completedToast', { values: { name: completedTask.content } }), {
 					duration: 8000,
 					action: {
-						label: isSubtask ? 'Next action' : 'Follow-up',
+						label: isSubtask ? $t('task.nextActionButton') : $t('task.followUpButton'),
 						onClick: () => {
 							if (isSubtask) {
 								nextActionStore.trigger(completedTask, parentContent!);
@@ -350,7 +350,7 @@
 				contextsStore.activeContextId ?? undefined
 			);
 			toast.dismiss();
-			toast(`Duplicated: ${taskContent}`, { duration: 5000 });
+			toast($t('task.duplicatedToast', { values: { name: taskContent } }), { duration: 5000 });
 		} catch (e) {
 			logger.error('tasks', `duplicate failed: ${e}`);
 			tasksStore.removeTaskLocal(tempId);

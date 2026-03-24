@@ -138,6 +138,16 @@
   "pwa.discardAction": "Отменить",
   "pwa.clearQueue": "Очистить все",
 
+  "task.completedToast": "Выполнено: {name}",
+  "task.duplicatedToast": "Дублировано: {name}",
+  "task.nextActionButton": "Следующее действие",
+  "task.followUpButton": "Продолжение",
+
+  "date.pickDate": "Выбрать дату",
+  "date.clearDate": "Убрать дату",
+
+  "quickCapture.tooltip": "Записать идею (I)",
+
   "errors.createFailed": "Не удалось создать задачу",
   "errors.updateFailed": "Не удалось обновить задачу",
   "errors.deleteFailed": "Не удалось удалить задачу",

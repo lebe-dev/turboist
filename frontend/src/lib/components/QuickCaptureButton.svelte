@@ -89,7 +89,7 @@
 <button
 	class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground/40 transition-colors hover:text-yellow-400"
 	onclick={() => (open = true)}
-	title="Quick capture idea (I)"
+	title={$t('quickCapture.tooltip')}
 >
 	<LightbulbIcon class="h-3.5 w-3.5" />
 	<span class="text-[12px] underline">{$t('quickCapture.title')}</span>
