@@ -1655,9 +1655,9 @@ function setDateQuick(date: string) {
 					{#if !completedCollapsed}
 						<div class="space-y-0.5">
 							{#each completedSubtasks as child (child.id)}
-								<div class="flex items-start gap-2.5 rounded-lg px-2 py-1.5">
-									<div class="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary">
-										<CheckIcon class="h-2 w-2 text-primary-foreground" strokeWidth={3} />
+								<div class="flex items-start gap-2.5 rounded-lg px-2 py-1.5 opacity-50">
+									<div class="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-muted-foreground bg-muted-foreground">
+										<CheckIcon class="h-2 w-2 text-background" strokeWidth={3} />
 									</div>
 									<div class="min-w-0 flex-1">
 										<span class="text-[13px] text-muted-foreground line-through">{child.content}</span>
