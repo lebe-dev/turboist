@@ -98,10 +98,11 @@
 
 	function collectLabels(tasks: Task[]): Set<string> {
 		const labels = new Set<string>();
-		const isWeekly = contextsStore.activeView === 'weekly';
+		const view = contextsStore.activeView;
+		const hideWeekly = view === 'weekly' || view === 'today' || view === 'tomorrow';
 		function walk(t: Task) {
 			for (const l of t.labels) {
-				if (!dayPartLabels.has(l) && l !== backlogLabelName && !(isWeekly && l === weeklyLabelName)) labels.add(l);
+				if (!dayPartLabels.has(l) && l !== backlogLabelName && !(hideWeekly && l === weeklyLabelName)) labels.add(l);
 			}
 			for (const c of t.children) walk(c);
 		}
