@@ -94,6 +94,8 @@
   "task.recurrence.custom": "Custom...",
   "task.recurrence.remove": "Remove recurrence",
   "task.recurrence.customPlaceholder": "e.g. every 2 weeks",
+  "task.recurrence.none": "None",
+  "task.recurrence.active": "Recurring",
 
   "planning.title": "Planning",
   "planning.backlog": "Backlog",

@@ -1190,12 +1190,6 @@ function setDateQuick(date: string) {
 
 					<!-- Mobile metadata (date, priority, labels) -->
 					<div class="mt-5 space-y-4 pl-8 md:hidden">
-						<!-- Recurrence -->
-						<RecurrencePicker
-							onSelect={setRecurrence}
-							onRemove={removeRecurrence}
-							isRecurring={task.due?.recurring ?? false}
-						/>
 						<!-- Date -->
 						<div bind:this={calendarRef}>
 							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
@@ -1274,6 +1268,13 @@ function setDateQuick(date: string) {
 								{/if}
 							</div>
 						</div>
+
+						<!-- Recurrence -->
+						<RecurrencePicker
+							onSelect={setRecurrence}
+							onRemove={removeRecurrence}
+							isRecurring={task.due?.recurring ?? false}
+						/>
 
 						<!-- Labels -->
 						<div>
@@ -1445,12 +1446,6 @@ function setDateQuick(date: string) {
 
 				<!-- Right: sidebar -->
 				<div class="hidden w-72 shrink-0 space-y-5 border-l border-border/50 p-5 md:block">
-					<!-- Recurrence -->
-					<RecurrencePicker
-						onSelect={setRecurrence}
-						onRemove={removeRecurrence}
-						isRecurring={task.due?.recurring ?? false}
-					/>
 					<!-- Date -->
 					<div bind:this={calendarRef}>
 						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Date</h3>
@@ -1529,6 +1524,13 @@ function setDateQuick(date: string) {
 							{/if}
 						</div>
 					</div>
+
+					<!-- Recurrence -->
+					<RecurrencePicker
+						onSelect={setRecurrence}
+						onRemove={removeRecurrence}
+						isRecurring={task.due?.recurring ?? false}
+					/>
 
 					<!-- Labels -->
 					<div>

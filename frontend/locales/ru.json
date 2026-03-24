@@ -94,6 +94,8 @@
   "task.recurrence.custom": "Свой вариант...",
   "task.recurrence.remove": "Убрать повторение",
   "task.recurrence.customPlaceholder": "напр. every 2 weeks",
+  "task.recurrence.none": "Нет",
+  "task.recurrence.active": "Повторяется",
 
   "planning.title": "Планирование",
   "planning.backlog": "Бэклог",
