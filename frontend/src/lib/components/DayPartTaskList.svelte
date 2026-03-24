@@ -69,9 +69,7 @@
 			}
 		}
 
-		const sortTasks = view === 'tomorrow'
-			? (list: Task[]) => [...list].sort((a, b) => b.priority - a.priority)
-			: (list: Task[]) => list;
+		const sortTasks = (list: Task[]) => [...list].sort((a, b) => b.priority - a.priority);
 
 		const result: Section[] = [];
 		for (const dp of dayParts) {
