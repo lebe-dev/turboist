@@ -188,8 +188,8 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 		}
 	}
 
-	// Apply auto-tags based on task title
-	labels = applyAutoTags(req.Content, labels, h.cfg.CompiledAutoTags)
+	// Apply auto-labels based on task title
+	labels = applyAutoLabels(req.Content, labels, h.cfg.CompiledAutoLabels)
 
 	if len(labels) > 0 {
 		args.Labels = labels
@@ -469,14 +469,14 @@ func (h *TasksHandler) Backlog(c fiber.Ctx) error {
 	return c.JSON(resultToResponse(r))
 }
 
-// applyAutoTags checks whether content contains each mask and appends matching
+// applyAutoLabels checks whether content contains each mask and appends matching
 // labels (deduplicating against already-present labels).
-func applyAutoTags(content string, labels []string, autoTags []config.CompiledAutoTag) []string {
+func applyAutoLabels(content string, labels []string, autoLabels []config.CompiledAutoLabel) []string {
 	existing := make(map[string]struct{}, len(labels))
 	for _, l := range labels {
 		existing[l] = struct{}{}
 	}
-	for _, at := range autoTags {
+	for _, at := range autoLabels {
 		haystack := content
 		if at.IgnoreCase {
 			haystack = strings.ToLower(content)

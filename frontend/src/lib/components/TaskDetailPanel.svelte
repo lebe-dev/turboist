@@ -453,12 +453,12 @@ function setDateQuick(date: string) {
 				const isSubtask = parentId && parentTask?.content;
 				const isLeafTask = !parentId && completedTask.sub_task_count === 0 && completedTask.completed_sub_task_count === 0;
 
-				if (isSubtask || isLeafTask) {
+				if ((isSubtask || isLeafTask) && !completedTask.due?.recurring) {
 					toast.dismiss();
-					toast(`Completed: ${completedTask.content}`, {
+					toast($t('task.completedToast', { values: { name: completedTask.content } }), {
 						duration: 8000,
 						action: {
-							label: isSubtask ? 'Next action' : 'Follow-up',
+							label: isSubtask ? $t('task.nextActionButton') : $t('task.followUpButton'),
 							onClick: () => {
 								if (isSubtask) {
 									nextActionStore.trigger(completedTask, parentTask!.content);
@@ -480,10 +480,10 @@ function setDateQuick(date: string) {
 				const completedChild = { ...child, parent_id: child.parent_id ?? task.id };
 				const parentName = task.content;
 				toast.dismiss();
-				toast(`Completed: ${completedChild.content}`, {
+				toast($t('task.completedToast', { values: { name: completedChild.content } }), {
 					duration: 8000,
 					action: {
-						label: 'Next action',
+						label: $t('task.nextActionButton'),
 						onClick: () => {
 							nextActionStore.trigger(completedChild, parentName);
 						}
@@ -1118,7 +1118,7 @@ function setDateQuick(date: string) {
 
 			<!-- Content -->
 			<div class="flex flex-col min-h-0 flex-1 overflow-y-auto">
-				<div class="flex min-h-0">
+				<div class="flex">
 				<!-- Left: main content -->
 				<div class="flex-1 p-6 pb-16 min-w-0">
 					<!-- Title with complete button -->
@@ -1650,7 +1650,7 @@ function setDateQuick(date: string) {
 						<ChevronRightIcon
 							class="h-3.5 w-3.5 transition-transform duration-150 {completedCollapsed ? '' : 'rotate-90'}"
 						/>
-						Completed {completedSubtasks.length}
+						{$t('task.completedSubtasks', { values: { count: completedSubtasks.length } })}
 					</button>
 					{#if !completedCollapsed}
 						<div class="space-y-0.5">

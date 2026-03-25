@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compileAutoLabels, matchAutoLabels } from './auto-tags';
+import { compileAutoLabels, matchAutoLabels } from './auto-labels';
 
 describe('compileAutoLabels', () => {
 	it('normalizes mask to lowercase when ignore_case=true', () => {

@@ -425,9 +425,9 @@ labels:
 	}
 }
 
-func TestParseAppConfig_AutoTags(t *testing.T) {
+func TestParseAppConfig_AutoLabels(t *testing.T) {
 	yaml := `
-auto_tags:
+auto_labels:
   - mask: "купить"
     label: "покупки"
   - mask: "встреча|созвон"
@@ -440,20 +440,20 @@ auto_tags:
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(app.AutoTags) != 3 {
-		t.Fatalf("auto_tags: got %d, want 3", len(app.AutoTags))
+	if len(app.AutoLabels) != 3 {
+		t.Fatalf("auto_labels: got %d, want 3", len(app.AutoLabels))
 	}
-	if app.AutoTags[0].Mask != "купить" || app.AutoTags[0].Label != "покупки" {
-		t.Errorf("auto_tags[0]: got %+v", app.AutoTags[0])
+	if app.AutoLabels[0].Mask != "купить" || app.AutoLabels[0].Label != "покупки" {
+		t.Errorf("auto_labels[0]: got %+v", app.AutoLabels[0])
 	}
-	if len(app.CompiledAutoTags) != 3 {
-		t.Fatalf("compiled auto_tags: got %d, want 3", len(app.CompiledAutoTags))
+	if len(app.CompiledAutoLabels) != 3 {
+		t.Fatalf("compiled auto_labels: got %d, want 3", len(app.CompiledAutoLabels))
 	}
 }
 
-func TestParseAppConfig_AutoTagsDefaultIgnoreCase(t *testing.T) {
+func TestParseAppConfig_AutoLabelsDefaultIgnoreCase(t *testing.T) {
 	yaml := `
-auto_tags:
+auto_labels:
   - mask: "купить"
     label: "покупки"
 `
@@ -461,12 +461,12 @@ auto_tags:
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	at := app.AutoTags[0]
+	at := app.AutoLabels[0]
 	if !at.ShouldIgnoreCase() {
 		t.Error("expected ignore_case=true by default")
 	}
 	// Compiled mask should be lowercased for case-insensitive matching
-	compiled := app.CompiledAutoTags[0]
+	compiled := app.CompiledAutoLabels[0]
 	if !compiled.IgnoreCase {
 		t.Error("expected IgnoreCase=true")
 	}
@@ -475,9 +475,9 @@ auto_tags:
 	}
 }
 
-func TestParseAppConfig_AutoTagsIgnoreCaseFalse(t *testing.T) {
+func TestParseAppConfig_AutoLabelsIgnoreCaseFalse(t *testing.T) {
 	yaml := `
-auto_tags:
+auto_labels:
   - mask: "Купить"
     label: "покупки"
     ignore_case: false
@@ -486,7 +486,7 @@ auto_tags:
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	compiled := app.CompiledAutoTags[0]
+	compiled := app.CompiledAutoLabels[0]
 	if compiled.IgnoreCase {
 		t.Error("expected IgnoreCase=false")
 	}
@@ -496,9 +496,9 @@ auto_tags:
 	}
 }
 
-func TestParseAppConfig_AutoTagsEmptyMask(t *testing.T) {
+func TestParseAppConfig_AutoLabelsEmptyMask(t *testing.T) {
 	yaml := `
-auto_tags:
+auto_labels:
   - mask: ""
     label: "test"
 `
@@ -508,9 +508,9 @@ auto_tags:
 	}
 }
 
-func TestParseAppConfig_AutoTagsEmptyLabel(t *testing.T) {
+func TestParseAppConfig_AutoLabelsEmptyLabel(t *testing.T) {
 	yaml := `
-auto_tags:
+auto_labels:
   - mask: "купить"
     label: ""
 `
@@ -520,16 +520,16 @@ auto_tags:
 	}
 }
 
-func TestParseAppConfig_AutoTagsEmpty(t *testing.T) {
+func TestParseAppConfig_AutoLabelsEmpty(t *testing.T) {
 	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(app.AutoTags) != 0 {
-		t.Errorf("expected 0 auto_tags, got %d", len(app.AutoTags))
+	if len(app.AutoLabels) != 0 {
+		t.Errorf("expected 0 auto_labels, got %d", len(app.AutoLabels))
 	}
-	if len(app.CompiledAutoTags) != 0 {
-		t.Errorf("expected 0 compiled auto_tags, got %d", len(app.CompiledAutoTags))
+	if len(app.CompiledAutoLabels) != 0 {
+		t.Errorf("expected 0 compiled auto_labels, got %d", len(app.CompiledAutoLabels))
 	}
 }
 

@@ -11,7 +11,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ZapIcon from '@lucide/svelte/icons/zap';
-	import { matchAutoTags } from '$lib/utils/auto-tags';
+	import { matchAutoLabels } from '$lib/utils/auto-labels';
 	import { untrack } from 'svelte';
 	import { t } from 'svelte-intl-precompile';
 
@@ -26,14 +26,14 @@
 
 	const allLabels = $derived(appStore.labels);
 
-	const autoTagLabels = $derived.by(() => {
+	const autoLabels = $derived.by(() => {
 		if (!content.trim()) return [];
-		return matchAutoTags(content, appStore.compiledAutoTags);
+		return matchAutoLabels(content, appStore.compiledAutoLabels);
 	});
 
 	// When a mask no longer matches, clear it from removedAutoLabels so the tag reappears if the mask matches again later
 	$effect(() => {
-		const current = new Set(autoTagLabels);
+		const current = new Set(autoLabels);
 		const filtered = removedAutoLabels.filter((l) => current.has(l));
 		if (filtered.length !== removedAutoLabels.length) {
 			removedAutoLabels = filtered;
@@ -42,7 +42,7 @@
 
 	const displayLabels = $derived.by(() => {
 		const all = new Set(selectedLabels);
-		for (const l of autoTagLabels) {
+		for (const l of autoLabels) {
 			if (!removedAutoLabels.includes(l)) {
 				all.add(l);
 			}
@@ -50,8 +50,8 @@
 		return [...all];
 	});
 
-	function isAutoTag(label: string): boolean {
-		return autoTagLabels.includes(label) && !selectedLabels.includes(label);
+	function isAutoLabel(label: string): boolean {
+		return autoLabels.includes(label) && !selectedLabels.includes(label);
 	}
 
 	let showLabelPicker = $state(false);
@@ -154,7 +154,7 @@
 	function toggleLabel(name: string) {
 		if (displayLabels.includes(name)) {
 			selectedLabels = selectedLabels.filter((l) => l !== name);
-			if (autoTagLabels.includes(name)) {
+			if (autoLabels.includes(name)) {
 				removedAutoLabels = [...removedAutoLabels, name];
 			}
 		} else {
@@ -166,7 +166,7 @@
 	// Used by chip close buttons
 	function removeLabel(name: string) {
 		if (isContextLabel(name)) return;
-		if (isAutoTag(name)) {
+		if (isAutoLabel(name)) {
 			removedAutoLabels = [...removedAutoLabels, name];
 		} else {
 			selectedLabels = selectedLabels.filter((l) => l !== name);
@@ -291,12 +291,12 @@
 							class="flex items-center gap-1 rounded-md px-2 py-0.5 text-[12px] font-medium transition-colors
 								{isContextLabel(label)
 									? 'bg-primary/10 text-primary'
-									: isAutoTag(label)
+									: isAutoLabel(label)
 										? 'border border-dashed border-primary/50 bg-primary/5 text-primary/70 hover:bg-primary/10'
 										: 'bg-muted text-muted-foreground hover:bg-muted/80'}"
 							onclick={() => removeLabel(label)}
 						>
-							{#if isAutoTag(label)}
+							{#if isAutoLabel(label)}
 								<ZapIcon class="h-3 w-3 text-primary/60" />
 							{/if}
 							{label}

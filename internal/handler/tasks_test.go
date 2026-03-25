@@ -195,70 +195,70 @@ func TestExcludeByLabel_emptyLabel(t *testing.T) {
 	}
 }
 
-func autoTag(mask, label string, ignoreCase bool) config.CompiledAutoTag {
+func autoLabel(mask, label string, ignoreCase bool) config.CompiledAutoLabel {
 	m := mask
 	if ignoreCase {
 		m = strings.ToLower(m)
 	}
-	return config.CompiledAutoTag{Label: label, Mask: m, IgnoreCase: ignoreCase}
+	return config.CompiledAutoLabel{Label: label, Mask: m, IgnoreCase: ignoreCase}
 }
 
-func TestApplyAutoTags_Match(t *testing.T) {
-	tags := []config.CompiledAutoTag{autoTag("купить", "покупки", true)}
-	got := applyAutoTags("Купить молоко", []string{}, tags)
+func TestApplyAutoLabels_Match(t *testing.T) {
+	tags := []config.CompiledAutoLabel{autoLabel("купить", "покупки", true)}
+	got := applyAutoLabels("Купить молоко", []string{}, tags)
 	if len(got) != 1 || got[0] != "покупки" {
 		t.Errorf("expected [покупки], got %v", got)
 	}
 }
 
-func TestApplyAutoTags_NoMatch(t *testing.T) {
-	tags := []config.CompiledAutoTag{autoTag("купить", "покупки", true)}
-	got := applyAutoTags("Позвонить другу", []string{}, tags)
+func TestApplyAutoLabels_NoMatch(t *testing.T) {
+	tags := []config.CompiledAutoLabel{autoLabel("купить", "покупки", true)}
+	got := applyAutoLabels("Позвонить другу", []string{}, tags)
 	if len(got) != 0 {
 		t.Errorf("expected no labels, got %v", got)
 	}
 }
 
-func TestApplyAutoTags_NoDuplicate(t *testing.T) {
-	tags := []config.CompiledAutoTag{autoTag("купить", "покупки", true)}
-	got := applyAutoTags("Купить молоко", []string{"покупки"}, tags)
+func TestApplyAutoLabels_NoDuplicate(t *testing.T) {
+	tags := []config.CompiledAutoLabel{autoLabel("купить", "покупки", true)}
+	got := applyAutoLabels("Купить молоко", []string{"покупки"}, tags)
 	if len(got) != 1 {
 		t.Errorf("expected 1 label (no duplicate), got %v", got)
 	}
 }
 
-func TestApplyAutoTags_CaseInsensitive(t *testing.T) {
-	tags := []config.CompiledAutoTag{autoTag("купить", "покупки", true)}
-	got := applyAutoTags("КУПИТЬ ХЛЕБ", []string{}, tags)
+func TestApplyAutoLabels_CaseInsensitive(t *testing.T) {
+	tags := []config.CompiledAutoLabel{autoLabel("купить", "покупки", true)}
+	got := applyAutoLabels("КУПИТЬ ХЛЕБ", []string{}, tags)
 	if len(got) != 1 || got[0] != "покупки" {
 		t.Errorf("expected [покупки], got %v", got)
 	}
 }
 
-func TestApplyAutoTags_CaseSensitive(t *testing.T) {
-	tags := []config.CompiledAutoTag{autoTag("купить", "покупки", false)}
-	if got := applyAutoTags("купить молоко", []string{}, tags); len(got) != 1 {
+func TestApplyAutoLabels_CaseSensitive(t *testing.T) {
+	tags := []config.CompiledAutoLabel{autoLabel("купить", "покупки", false)}
+	if got := applyAutoLabels("купить молоко", []string{}, tags); len(got) != 1 {
 		t.Errorf("expected match for exact case, got %v", got)
 	}
-	if got := applyAutoTags("КУПИТЬ молоко", []string{}, tags); len(got) != 0 {
+	if got := applyAutoLabels("КУПИТЬ молоко", []string{}, tags); len(got) != 0 {
 		t.Errorf("expected no match for wrong case, got %v", got)
 	}
 }
 
-func TestApplyAutoTags_MultipleMatches(t *testing.T) {
-	tags := []config.CompiledAutoTag{
-		autoTag("купить", "покупки", true),
-		autoTag("встреча", "работа", true),
+func TestApplyAutoLabels_MultipleMatches(t *testing.T) {
+	tags := []config.CompiledAutoLabel{
+		autoLabel("купить", "покупки", true),
+		autoLabel("встреча", "работа", true),
 	}
-	got := applyAutoTags("Встреча и купить кофе", []string{}, tags)
+	got := applyAutoLabels("Встреча и купить кофе", []string{}, tags)
 	if len(got) != 2 {
 		t.Errorf("expected 2 labels, got %v", got)
 	}
 }
 
-func TestApplyAutoTags_PreservesExisting(t *testing.T) {
-	tags := []config.CompiledAutoTag{autoTag("купить", "покупки", true)}
-	got := applyAutoTags("Купить молоко", []string{"важное"}, tags)
+func TestApplyAutoLabels_PreservesExisting(t *testing.T) {
+	tags := []config.CompiledAutoLabel{autoLabel("купить", "покупки", true)}
+	got := applyAutoLabels("Купить молоко", []string{"важное"}, tags)
 	if len(got) != 2 {
 		t.Errorf("expected 2 labels, got %v", got)
 	}

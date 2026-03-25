@@ -134,7 +134,7 @@ export interface LabelConfig {
 	inherit_to_subtasks: boolean;
 }
 
-export interface AutoTagMapping {
+export interface AutoLabelMapping {
 	mask: string;
 	label: string;
 	ignore_case: boolean;
@@ -146,7 +146,7 @@ export interface AppConfig {
 	projects: Project[];
 	labels: Label[];
 	label_configs: LabelConfig[];
-	auto_tags: AutoTagMapping[];
+	auto_labels: AutoLabelMapping[];
 	quick_capture: QuickCaptureConfig | null;
 	state: UserState;
 }

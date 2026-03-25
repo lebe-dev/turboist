@@ -139,6 +139,7 @@
   "pwa.clearQueue": "Clear all",
 
   "task.completedToast": "Completed: {name}",
+  "task.completedSubtasks": "Completed {count}",
   "task.duplicatedToast": "Duplicated: {name}",
   "task.nextActionButton": "Next action",
   "task.followUpButton": "Follow-up",

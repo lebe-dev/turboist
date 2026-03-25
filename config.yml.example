@@ -107,13 +107,13 @@ completed:
 quick_capture:
   title: "Inbox"
 
-# Auto-tags: automatically add labels when the task title contains the mask substring.
+# Auto-labels: automatically add labels when the task title contains the mask substring.
 # Tags appear in real time while typing and are visually distinct from manually chosen labels.
-# The user can remove an auto-tag before submitting; it will not reappear for that entry.
+# The user can remove an auto-label before submitting; it will not reappear for that entry.
 # mask        — substring to look for in the task title.
 # label       — Todoist label name to attach when the mask is found.
 # ignore_case — case-insensitive matching (default: true).
-auto_tags:
+auto_labels:
   - mask: "купить"
     label: "покупки"
   - mask: "встреча"

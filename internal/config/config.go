@@ -71,8 +71,8 @@ type AppConfig struct {
 	Completed        CompletedConfig
 	AutoExpire       []AutoExpireConfig
 	QuickCapture     *QuickCaptureConfig
-	AutoTags         []AutoTagConfig
-	CompiledAutoTags []CompiledAutoTag
+	AutoLabels         []AutoLabelConfig
+	CompiledAutoLabels []CompiledAutoLabel
 }
 
 // FindContext returns the context with the given ID, or nil if not found.
@@ -153,20 +153,20 @@ type AutoExpireConfig struct {
 	TTL   time.Duration
 }
 
-type AutoTagConfig struct {
+type AutoLabelConfig struct {
 	Mask       string `yaml:"mask"`
 	Label      string `yaml:"label"`
 	IgnoreCase *bool  `yaml:"ignore_case"`
 }
 
-func (a *AutoTagConfig) ShouldIgnoreCase() bool {
+func (a *AutoLabelConfig) ShouldIgnoreCase() bool {
 	if a.IgnoreCase == nil {
 		return true
 	}
 	return *a.IgnoreCase
 }
 
-type CompiledAutoTag struct {
+type CompiledAutoLabel struct {
 	Label      string
 	Mask       string // normalized: lowercased when IgnoreCase=true
 	IgnoreCase bool
@@ -187,7 +187,7 @@ type yamlFile struct {
 	Completed    CompletedConfig     `yaml:"completed"`
 	AutoExpire   []yamlAutoExpire    `yaml:"auto_expire"`
 	QuickCapture *QuickCaptureConfig `yaml:"quick_capture"`
-	AutoTags     []AutoTagConfig     `yaml:"auto_tags"`
+	AutoLabels   []AutoLabelConfig   `yaml:"auto_labels"`
 }
 
 type yamlAutoExpire struct {
@@ -271,7 +271,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		Tomorrow:     yf.Tomorrow,
 		Completed:    completed,
 		QuickCapture: yf.QuickCapture,
-		AutoTags:     yf.AutoTags,
+		AutoLabels:   yf.AutoLabels,
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {
@@ -293,18 +293,18 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		})
 	}
 
-	compiled, err := compileAutoTags(yf.AutoTags)
+	compiled, err := compileAutoLabels(yf.AutoLabels)
 	if err != nil {
 		return AppConfig{}, err
 	}
-	app.CompiledAutoTags = compiled
+	app.CompiledAutoLabels = compiled
 
 	return app, nil
 }
 
-func compileAutoTags(tags []AutoTagConfig) ([]CompiledAutoTag, error) {
+func compileAutoLabels(tags []AutoLabelConfig) ([]CompiledAutoLabel, error) {
 	seen := make(map[string]struct{}, len(tags))
-	result := make([]CompiledAutoTag, 0, len(tags))
+	result := make([]CompiledAutoLabel, 0, len(tags))
 	for i, at := range tags {
 		if at.Mask == "" {
 			return nil, fmt.Errorf("auto_tags[%d]: mask is required", i)
@@ -323,7 +323,7 @@ func compileAutoTags(tags []AutoTagConfig) ([]CompiledAutoTag, error) {
 		if ignoreCase {
 			mask = strings.ToLower(mask)
 		}
-		result = append(result, CompiledAutoTag{Label: at.Label, Mask: mask, IgnoreCase: ignoreCase})
+		result = append(result, CompiledAutoLabel{Label: at.Label, Mask: mask, IgnoreCase: ignoreCase})
 	}
 	return result, nil
 }
