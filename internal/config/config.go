@@ -56,21 +56,21 @@ func (l *LabelConfig) ShouldInheritToSubtasks() bool {
 }
 
 type AppConfig struct {
-	PollInterval     time.Duration
-	SyncInterval     time.Duration
-	Timezone         string
-	TaskSort         TaskSort
-	MaxPinned        int
-	Contexts         []ContextConfig
-	Labels           []LabelConfig
-	Weekly           WeeklyConfig
-	Backlog          BacklogConfig
-	Project          ProjectConfig
-	Today            TodayConfig
-	Tomorrow         TomorrowConfig
-	Completed        CompletedConfig
-	AutoExpire       []AutoExpireConfig
-	QuickCapture     *QuickCaptureConfig
+	PollInterval       time.Duration
+	SyncInterval       time.Duration
+	Timezone           string
+	TaskSort           TaskSort
+	MaxPinned          int
+	Contexts           []ContextConfig
+	Labels             []LabelConfig
+	Weekly             WeeklyConfig
+	Backlog            BacklogConfig
+	Project            ProjectConfig
+	Today              TodayConfig
+	Tomorrow           TomorrowConfig
+	Completed          CompletedConfig
+	AutoExpire         []AutoExpireConfig
+	QuickCapture       *QuickCaptureConfig
 	AutoLabels         []AutoLabelConfig
 	CompiledAutoLabels []CompiledAutoLabel
 }
