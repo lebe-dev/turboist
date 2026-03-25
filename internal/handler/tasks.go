@@ -3,6 +3,7 @@ package handler
 import (
 	"cmp"
 	"slices"
+	"strings"
 	"time"
 
 	synctodoist "github.com/CnTeng/todoist-api-go/sync"
@@ -186,6 +187,9 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 			}
 		}
 	}
+
+	// Apply auto-tags based on task title
+	labels = applyAutoTags(req.Content, labels, h.cfg.CompiledAutoTags)
 
 	if len(labels) > 0 {
 		args.Labels = labels
@@ -463,6 +467,28 @@ func (h *TasksHandler) Backlog(c fiber.Ctx) error {
 		View: "backlog", Context: c.Query("context"),
 	})
 	return c.JSON(resultToResponse(r))
+}
+
+// applyAutoTags checks whether content contains each mask and appends matching
+// labels (deduplicating against already-present labels).
+func applyAutoTags(content string, labels []string, autoTags []config.CompiledAutoTag) []string {
+	existing := make(map[string]struct{}, len(labels))
+	for _, l := range labels {
+		existing[l] = struct{}{}
+	}
+	for _, at := range autoTags {
+		haystack := content
+		if at.IgnoreCase {
+			haystack = strings.ToLower(content)
+		}
+		if strings.Contains(haystack, at.Mask) {
+			if _, ok := existing[at.Label]; !ok {
+				labels = append(labels, at.Label)
+				existing[at.Label] = struct{}{}
+			}
+		}
+	}
+	return labels
 }
 
 func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {

@@ -10,6 +10,8 @@
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import XIcon from '@lucide/svelte/icons/x';
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import ZapIcon from '@lucide/svelte/icons/zap';
+	import { matchAutoTags } from '$lib/utils/auto-tags';
 	import { untrack } from 'svelte';
 	import { t } from 'svelte-intl-precompile';
 
@@ -18,10 +20,40 @@
 	let content = $state('');
 	let description = $state('');
 	let selectedLabels = $state<string[]>([]);
+	let removedAutoLabels = $state<string[]>([]);
 	let priority = $state(1);
 	let submitting = $state(false);
 
 	const allLabels = $derived(appStore.labels);
+
+	const autoTagLabels = $derived.by(() => {
+		if (!content.trim()) return [];
+		return matchAutoTags(content, appStore.compiledAutoTags);
+	});
+
+	// When a mask no longer matches, clear it from removedAutoLabels so the tag reappears if the mask matches again later
+	$effect(() => {
+		const current = new Set(autoTagLabels);
+		const filtered = removedAutoLabels.filter((l) => current.has(l));
+		if (filtered.length !== removedAutoLabels.length) {
+			removedAutoLabels = filtered;
+		}
+	});
+
+	const displayLabels = $derived.by(() => {
+		const all = new Set(selectedLabels);
+		for (const l of autoTagLabels) {
+			if (!removedAutoLabels.includes(l)) {
+				all.add(l);
+			}
+		}
+		return [...all];
+	});
+
+	function isAutoTag(label: string): boolean {
+		return autoTagLabels.includes(label) && !selectedLabels.includes(label);
+	}
+
 	let showLabelPicker = $state(false);
 	let showPriorityPicker = $state(false);
 	let labelSearch = $state('');
@@ -106,6 +138,7 @@
 					}
 				}
 				selectedLabels = initial;
+				removedAutoLabels = [];
 				content = '';
 				description = '';
 				priority = 1;
@@ -117,11 +150,26 @@
 		}
 	});
 
+	// Used by the label picker: toggle manual selection
 	function toggleLabel(name: string) {
-		if (selectedLabels.includes(name)) {
+		if (displayLabels.includes(name)) {
 			selectedLabels = selectedLabels.filter((l) => l !== name);
+			if (autoTagLabels.includes(name)) {
+				removedAutoLabels = [...removedAutoLabels, name];
+			}
 		} else {
 			selectedLabels = [...selectedLabels, name];
+			removedAutoLabels = removedAutoLabels.filter((l) => l !== name);
+		}
+	}
+
+	// Used by chip close buttons
+	function removeLabel(name: string) {
+		if (isContextLabel(name)) return;
+		if (isAutoTag(name)) {
+			removedAutoLabels = [...removedAutoLabels, name];
+		} else {
+			selectedLabels = selectedLabels.filter((l) => l !== name);
 		}
 	}
 
@@ -133,7 +181,7 @@
 		if (!content.trim() || submitting) return;
 		const trimmedContent = content.trim();
 		const trimmedDesc = description.trim();
-		const labels = [...selectedLabels];
+		const labels = [...displayLabels];
 		const pri = priority;
 		const context = contextsStore.activeContextId ?? undefined;
 
@@ -236,16 +284,21 @@
 			</div>
 
 			<!-- Selected labels -->
-			{#if selectedLabels.length > 0}
+			{#if displayLabels.length > 0}
 				<div class="flex flex-wrap gap-1.5 px-4 pb-2">
-					{#each selectedLabels as label (label)}
+					{#each displayLabels as label (label)}
 						<button
 							class="flex items-center gap-1 rounded-md px-2 py-0.5 text-[12px] font-medium transition-colors
 								{isContextLabel(label)
 									? 'bg-primary/10 text-primary'
-									: 'bg-muted text-muted-foreground hover:bg-muted/80'}"
-							onclick={() => toggleLabel(label)}
+									: isAutoTag(label)
+										? 'border border-dashed border-primary/50 bg-primary/5 text-primary/70 hover:bg-primary/10'
+										: 'bg-muted text-muted-foreground hover:bg-muted/80'}"
+							onclick={() => removeLabel(label)}
 						>
+							{#if isAutoTag(label)}
+								<ZapIcon class="h-3 w-3 text-primary/60" />
+							{/if}
 							{label}
 							{#if !isContextLabel(label)}
 								<XIcon class="h-3 w-3" />
@@ -284,8 +337,8 @@
 										onclick={() => toggleLabel(label.name)}
 									>
 										<div class="flex h-4 w-4 items-center justify-center rounded border border-border/50
-											{selectedLabels.includes(label.name) ? 'bg-primary border-primary' : ''}">
-											{#if selectedLabels.includes(label.name)}
+											{displayLabels.includes(label.name) ? 'bg-primary border-primary' : ''}">
+											{#if displayLabels.includes(label.name)}
 												<CheckIcon class="h-3 w-3 text-primary-foreground" strokeWidth={3} />
 											{/if}
 										</div>

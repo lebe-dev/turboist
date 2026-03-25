@@ -425,6 +425,114 @@ labels:
 	}
 }
 
+func TestParseAppConfig_AutoTags(t *testing.T) {
+	yaml := `
+auto_tags:
+  - mask: "купить"
+    label: "покупки"
+  - mask: "встреча|созвон"
+    label: "работа"
+    ignore_case: false
+  - mask: "^Проект -"
+    label: "проект"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.AutoTags) != 3 {
+		t.Fatalf("auto_tags: got %d, want 3", len(app.AutoTags))
+	}
+	if app.AutoTags[0].Mask != "купить" || app.AutoTags[0].Label != "покупки" {
+		t.Errorf("auto_tags[0]: got %+v", app.AutoTags[0])
+	}
+	if len(app.CompiledAutoTags) != 3 {
+		t.Fatalf("compiled auto_tags: got %d, want 3", len(app.CompiledAutoTags))
+	}
+}
+
+func TestParseAppConfig_AutoTagsDefaultIgnoreCase(t *testing.T) {
+	yaml := `
+auto_tags:
+  - mask: "купить"
+    label: "покупки"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	at := app.AutoTags[0]
+	if !at.ShouldIgnoreCase() {
+		t.Error("expected ignore_case=true by default")
+	}
+	// Compiled mask should be lowercased for case-insensitive matching
+	compiled := app.CompiledAutoTags[0]
+	if !compiled.IgnoreCase {
+		t.Error("expected IgnoreCase=true")
+	}
+	if compiled.Mask != "купить" {
+		t.Errorf("mask: got %q, want %q", compiled.Mask, "купить")
+	}
+}
+
+func TestParseAppConfig_AutoTagsIgnoreCaseFalse(t *testing.T) {
+	yaml := `
+auto_tags:
+  - mask: "Купить"
+    label: "покупки"
+    ignore_case: false
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	compiled := app.CompiledAutoTags[0]
+	if compiled.IgnoreCase {
+		t.Error("expected IgnoreCase=false")
+	}
+	// Mask should be preserved as-is when ignore_case=false
+	if compiled.Mask != "Купить" {
+		t.Errorf("mask: got %q, want %q", compiled.Mask, "Купить")
+	}
+}
+
+func TestParseAppConfig_AutoTagsEmptyMask(t *testing.T) {
+	yaml := `
+auto_tags:
+  - mask: ""
+    label: "test"
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty mask")
+	}
+}
+
+func TestParseAppConfig_AutoTagsEmptyLabel(t *testing.T) {
+	yaml := `
+auto_tags:
+  - mask: "купить"
+    label: ""
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty label")
+	}
+}
+
+func TestParseAppConfig_AutoTagsEmpty(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.AutoTags) != 0 {
+		t.Errorf("expected 0 auto_tags, got %d", len(app.AutoTags))
+	}
+	if len(app.CompiledAutoTags) != 0 {
+		t.Errorf("expected 0 compiled auto_tags, got %d", len(app.CompiledAutoTags))
+	}
+}
+
 func TestLoadDotEnv_SetsVars(t *testing.T) {
 	f := filepath.Join(t.TempDir(), ".env")
 	content := `

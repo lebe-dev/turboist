@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -55,21 +56,23 @@ func (l *LabelConfig) ShouldInheritToSubtasks() bool {
 }
 
 type AppConfig struct {
-	PollInterval time.Duration
-	SyncInterval time.Duration
-	Timezone     string
-	TaskSort     TaskSort
-	MaxPinned    int
-	Contexts     []ContextConfig
-	Labels       []LabelConfig
-	Weekly       WeeklyConfig
-	Backlog      BacklogConfig
-	Project      ProjectConfig
-	Today        TodayConfig
-	Tomorrow     TomorrowConfig
-	Completed    CompletedConfig
-	AutoExpire   []AutoExpireConfig
-	QuickCapture *QuickCaptureConfig
+	PollInterval     time.Duration
+	SyncInterval     time.Duration
+	Timezone         string
+	TaskSort         TaskSort
+	MaxPinned        int
+	Contexts         []ContextConfig
+	Labels           []LabelConfig
+	Weekly           WeeklyConfig
+	Backlog          BacklogConfig
+	Project          ProjectConfig
+	Today            TodayConfig
+	Tomorrow         TomorrowConfig
+	Completed        CompletedConfig
+	AutoExpire       []AutoExpireConfig
+	QuickCapture     *QuickCaptureConfig
+	AutoTags         []AutoTagConfig
+	CompiledAutoTags []CompiledAutoTag
 }
 
 // FindContext returns the context with the given ID, or nil if not found.
@@ -150,6 +153,25 @@ type AutoExpireConfig struct {
 	TTL   time.Duration
 }
 
+type AutoTagConfig struct {
+	Mask       string `yaml:"mask"`
+	Label      string `yaml:"label"`
+	IgnoreCase *bool  `yaml:"ignore_case"`
+}
+
+func (a *AutoTagConfig) ShouldIgnoreCase() bool {
+	if a.IgnoreCase == nil {
+		return true
+	}
+	return *a.IgnoreCase
+}
+
+type CompiledAutoTag struct {
+	Label      string
+	Mask       string // normalized: lowercased when IgnoreCase=true
+	IgnoreCase bool
+}
+
 type yamlFile struct {
 	Timezone     string              `yaml:"timezone"`
 	PollInterval string              `yaml:"poll_interval"`
@@ -165,6 +187,7 @@ type yamlFile struct {
 	Completed    CompletedConfig     `yaml:"completed"`
 	AutoExpire   []yamlAutoExpire    `yaml:"auto_expire"`
 	QuickCapture *QuickCaptureConfig `yaml:"quick_capture"`
+	AutoTags     []AutoTagConfig     `yaml:"auto_tags"`
 }
 
 type yamlAutoExpire struct {
@@ -248,6 +271,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		Tomorrow:     yf.Tomorrow,
 		Completed:    completed,
 		QuickCapture: yf.QuickCapture,
+		AutoTags:     yf.AutoTags,
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {
@@ -269,7 +293,39 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		})
 	}
 
+	compiled, err := compileAutoTags(yf.AutoTags)
+	if err != nil {
+		return AppConfig{}, err
+	}
+	app.CompiledAutoTags = compiled
+
 	return app, nil
+}
+
+func compileAutoTags(tags []AutoTagConfig) ([]CompiledAutoTag, error) {
+	seen := make(map[string]struct{}, len(tags))
+	result := make([]CompiledAutoTag, 0, len(tags))
+	for i, at := range tags {
+		if at.Mask == "" {
+			return nil, fmt.Errorf("auto_tags[%d]: mask is required", i)
+		}
+		if at.Label == "" {
+			return nil, fmt.Errorf("auto_tags[%d]: label is required", i)
+		}
+		key := at.Mask + "\x00" + at.Label
+		if _, ok := seen[key]; ok {
+			log.Printf("warning: auto_tags[%d]: duplicate mask+label %q+%q", i, at.Mask, at.Label)
+			continue
+		}
+		seen[key] = struct{}{}
+		mask := at.Mask
+		ignoreCase := at.ShouldIgnoreCase()
+		if ignoreCase {
+			mask = strings.ToLower(mask)
+		}
+		result = append(result, CompiledAutoTag{Label: at.Label, Mask: mask, IgnoreCase: ignoreCase})
+	}
+	return result, nil
 }
 
 func loadEnv() (EnvConfig, error) {

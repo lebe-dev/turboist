@@ -71,12 +71,19 @@ type labelConfigResponse struct {
 	InheritToSubtasks bool   `json:"inherit_to_subtasks"`
 }
 
+type autoTagResponse struct {
+	Mask       string `json:"mask"`
+	Label      string `json:"label"`
+	IgnoreCase bool   `json:"ignore_case"`
+}
+
 type appConfigResponse struct {
 	Settings     settingsResponse      `json:"settings"`
 	Contexts     []contextItem         `json:"contexts"`
 	Projects     []projectWithSections `json:"projects"`
 	Labels       []*todoist.Label      `json:"labels"`
 	LabelConfigs []labelConfigResponse `json:"label_configs"`
+	AutoTags     []autoTagResponse     `json:"auto_tags"`
 	QuickCapture *quickCaptureResponse `json:"quick_capture"`
 	State        *storage.UserState    `json:"state"`
 }
@@ -176,6 +183,16 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		})
 	}
 
+	// Auto-tags
+	autoTags := make([]autoTagResponse, 0, len(h.cfg.AutoTags))
+	for _, at := range h.cfg.AutoTags {
+		autoTags = append(autoTags, autoTagResponse{
+			Mask:       at.Mask,
+			Label:      at.Label,
+			IgnoreCase: at.ShouldIgnoreCase(),
+		})
+	}
+
 	// User state
 	state, err := h.store.GetState()
 	if err != nil {
@@ -188,6 +205,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		Projects:     projectItems,
 		Labels:       labels,
 		LabelConfigs: labelConfigs,
+		AutoTags:     autoTags,
 		QuickCapture: qc,
 		State:        state,
 	})

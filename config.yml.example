@@ -50,6 +50,10 @@ labels:
   - name: "backlog"
     inherit_to_subtasks: false
 
+# Project tasks — tasks tagged with this label are treated as projects.
+project:
+  label: "проект"
+
 # Tasks for the current week
 weekly:
   # Todoist label that marks tasks for the current week
@@ -57,16 +61,21 @@ weekly:
   # Maximum number of tasks per week (used for the progress bar and warnings)
   max_tasks: 15
 
-# Tasks for the next week
+# Backlog tasks
 backlog:
-  # Todoist label for next week's tasks
-  label: "на след неделе"
+  # Todoist label for backlog tasks
+  label: "backlog"
+  # Sort order within backlog. Options: priority, due_date, content, added_at (default: added_at)
+  task_sort: "added_at"
+  # Maximum tasks shown in the backlog view (default: 20)
+  max_limit: 20
 
-  #task_sort: ""
-
-# Task sorting. Options: priority, due_date, content
+# Task sorting. Options: priority, due_date, content, added_at
 # Default: priority (highest first, then by due date)
 task_sort: "priority"
+
+# Maximum number of pinned tasks in the sidebar (default: 5)
+max_pinned: 5
 
 # Tasks for today (filtered by due date)
 today:
@@ -89,16 +98,38 @@ today:
 # Tasks for tomorrow (filtered by due date)
 tomorrow: {}
 
-# Auto-expire: tasks with the given label are closed (completed) after the TTL elapses.
-# TTL is counted from the moment the label is first seen in the cache (first_seen).
+# Completed tasks view
+completed:
+  # How many days back to show completed tasks (default: 3)
+  days: 3
+
+# Quick capture — save ideas as subtasks under a parent task
+quick_capture:
+  title: "Inbox"
+
+# Auto-tags: automatically add labels when the task title contains the mask substring.
+# Tags appear in real time while typing and are visually distinct from manually chosen labels.
+# The user can remove an auto-tag before submitting; it will not reappear for that entry.
+# mask        — substring to look for in the task title.
+# label       — Todoist label name to attach when the mask is found.
+# ignore_case — case-insensitive matching (default: true).
+auto_tags:
+  - mask: "купить"
+    label: "покупки"
+  - mask: "встреча"
+    label: "работа"
+  - mask: "созвон"
+    label: "работа"
+  - mask: "Проект -"
+    label: "проект"
+    ignore_case: false
+
+# Auto-expire: tasks with the given label are completed after the TTL elapses.
+# TTL is counted from the moment the label is first seen in the cache.
 # The timer resets on application restart.
-# Tasks are closed (not deleted): they remain in the completed history and can be restored.
+# Tasks are completed (not deleted): they remain in the completed history.
 auto_expire:
   - label: "срочное"
     ttl: "24h"
   - label: "горит"
     ttl: "4h"
-
-# Quick capture — save ideas as subtasks under a parent task
-quick_capture:
-  title: "Проект - turboist"

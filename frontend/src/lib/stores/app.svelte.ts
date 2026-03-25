@@ -4,7 +4,8 @@ import { setBackend, getBackend } from '$lib/api/backend';
 import { DefaultBackendConnector } from '$lib/api/default-backend';
 import { QueuedBackend } from '$lib/api/queued-backend';
 import { actionQueue } from '$lib/sync/action-queue.svelte';
-import type { Label, LabelConfig, QuickCaptureConfig, View } from '$lib/api/types';
+import type { AutoTagMapping, Label, LabelConfig, QuickCaptureConfig, View } from '$lib/api/types';
+import { compileAutoTags, matchAutoTags } from '$lib/utils/auto-tags';
 import { contextsStore } from './contexts.svelte';
 import { pinnedStore } from './pinned.svelte';
 import { collapsedStore } from './collapsed.svelte';
@@ -80,11 +81,14 @@ function createAppStore() {
 	let labels = $state<Label[]>([]);
 	let labelConfigs = $state<LabelConfig[]>([]);
 	let quickCapture = $state<QuickCaptureConfig | null>(null);
+	let autoTagMappings = $state<AutoTagMapping[]>([]);
+	let _compiledAutoTags = $derived(compileAutoTags(autoTagMappings));
 
 	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
 		labelConfigs = cfg.label_configs ?? [];
 		quickCapture = cfg.quick_capture;
+		autoTagMappings = cfg.auto_tags ?? [];
 
 		contextsStore.init(
 			cfg.contexts,
@@ -161,6 +165,10 @@ function createAppStore() {
 		return cfg.inherit_to_subtasks;
 	}
 
+	function getMatchingAutoTags(title: string): string[] {
+		return matchAutoTags(title, _compiledAutoTags);
+	}
+
 	return {
 		get initialized() {
 			return initialized;
@@ -174,7 +182,11 @@ function createAppStore() {
 		get quickCapture() {
 			return quickCapture;
 		},
+		get compiledAutoTags() {
+			return _compiledAutoTags;
+		},
 		shouldInheritToSubtasks,
+		getMatchingAutoTags,
 		init,
 		destroy
 	};
