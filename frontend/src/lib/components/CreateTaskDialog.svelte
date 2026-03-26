@@ -11,8 +11,11 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ZapIcon from '@lucide/svelte/icons/zap';
+	import SunriseIcon from '@lucide/svelte/icons/sunrise';
+	import SunIcon from '@lucide/svelte/icons/sun';
+	import MoonIcon from '@lucide/svelte/icons/moon';
 	import { matchAutoLabels } from '$lib/utils/auto-labels';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { t } from 'svelte-intl-precompile';
 
 	let { open = $bindable(false), dueDate = '', dayPartLabel = '' }: { open: boolean; dueDate?: string; dayPartLabel?: string } = $props();
@@ -145,8 +148,8 @@
 				showLabelPicker = false;
 				showPriorityPicker = false;
 				labelSearch = '';
-				requestAnimationFrame(() => contentInput?.focus());
 			});
+			tick().then(() => contentInput?.focus());
 		}
 	});
 
@@ -232,6 +235,32 @@
 	function handleBackdropClick(e: MouseEvent) {
 		if (e.target === dialogEl) {
 			open = false;
+		}
+	}
+
+	const dayPartsConfig = $derived(tasksStore.config?.day_parts ?? []);
+	const dayPartLabelSet = $derived(new Set(dayPartsConfig.map((dp: DayPart) => dp.label)));
+	const showDayPartButtons = $derived(
+		(contextsStore.activeView === 'today' || contextsStore.activeView === 'tomorrow') && dayPartsConfig.length > 0
+	);
+
+	function dayPartIcon(index: number, total: number) {
+		if (index === 0) return SunriseIcon;
+		if (index === total - 1) return MoonIcon;
+		return SunIcon;
+	}
+
+	function toggleDayPartLabel(label: string) {
+		if (displayLabels.includes(label)) {
+			selectedLabels = selectedLabels.filter((l) => l !== label);
+			if (autoLabels.includes(label)) {
+				removedAutoLabels = [...removedAutoLabels, label];
+			}
+		} else {
+			selectedLabels = selectedLabels.filter((l) => !dayPartLabelSet.has(l));
+			removedAutoLabels = [...removedAutoLabels, ...autoLabels.filter((l) => dayPartLabelSet.has(l) && l !== label)];
+			selectedLabels = [...selectedLabels, label];
+			removedAutoLabels = removedAutoLabels.filter((l) => l !== label);
 		}
 	}
 
@@ -380,6 +409,22 @@
 						</div>
 					{/if}
 				</div>
+
+				{#if showDayPartButtons}
+					<div class="flex items-center gap-0.5 border-l border-border/30 pl-1.5 ml-0.5">
+						{#each dayPartsConfig as dp, dpIdx (dp.label)}
+							{@const DPIcon = dayPartIcon(dpIdx, dayPartsConfig.length)}
+							<button
+								class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+									{displayLabels.includes(dp.label) ? 'bg-accent text-foreground' : 'text-muted-foreground/40 hover:bg-accent hover:text-foreground'}"
+								title={dp.label}
+								onclick={() => toggleDayPartLabel(dp.label)}
+							>
+								<DPIcon class="h-3.5 w-3.5" />
+							</button>
+						{/each}
+					</div>
+				{/if}
 			</div>
 
 			<!-- Footer -->

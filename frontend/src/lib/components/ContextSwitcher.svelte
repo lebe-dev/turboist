@@ -62,6 +62,42 @@
 		</button>
 	{/each}
 
+	<!-- Pinned Tasks -->
+	{#if pinnedStore.items.length > 0}
+		<div class="my-3 border-t border-sidebar-border"></div>
+
+		{#if !collapsed}
+			<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+				{$t('sidebar.pinned')}
+			</p>
+		{/if}
+
+		{#each pinnedStore.items as pinned (pinned.id)}
+			<a
+				href="/task/{pinned.id}"
+				class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+					{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
+					text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+				title={collapsed ? pinned.content : undefined}
+			onclick={() => onItemClick?.()}
+			>
+				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+				{#if !collapsed}
+					<span class="flex-1 truncate text-left">{pinned.content}</span>
+					<span
+						class="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
+						role="button"
+						tabindex="-1"
+						onclick={(e: MouseEvent) => unpinTask(e, pinned.id)}
+						onkeydown={() => {}}
+					>
+						<XIcon class="h-3 w-3" />
+					</span>
+				{/if}
+			</a>
+		{/each}
+	{/if}
+
 	<!-- Planning section -->
 	<div class="my-3 border-t border-sidebar-border"></div>
 
@@ -117,41 +153,5 @@
 			{$t('sidebar.labels')}
 		{/if}
 	</a>
-
-	<!-- Pinned Tasks -->
-	{#if pinnedStore.items.length > 0}
-		<div class="my-3 border-t border-sidebar-border"></div>
-
-		{#if !collapsed}
-			<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-				{$t('sidebar.pinned')}
-			</p>
-		{/if}
-
-		{#each pinnedStore.items as pinned (pinned.id)}
-			<a
-				href="/task/{pinned.id}"
-				class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
-					{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
-					text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-				title={collapsed ? pinned.content : undefined}
-			onclick={() => onItemClick?.()}
-			>
-				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
-				{#if !collapsed}
-					<span class="flex-1 truncate text-left">{pinned.content}</span>
-					<span
-						class="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
-						role="button"
-						tabindex="-1"
-						onclick={(e: MouseEvent) => unpinTask(e, pinned.id)}
-						onkeydown={() => {}}
-					>
-						<XIcon class="h-3 w-3" />
-					</span>
-				{/if}
-			</a>
-		{/each}
-	{/if}
 
 </nav>
