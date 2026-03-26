@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
-	import { updateTask, createTask, completeTask, deleteTask, getTask, getCompletedSubtasks } from '$lib/api/client';
+	import { updateTask, createTask, completeTask, deleteTask, moveTask, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { incrementDuplicateTitle, stripTaskPrefix } from '$lib/utils';
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
@@ -913,6 +913,28 @@ function setDateQuick(date: string) {
 		}
 	}
 
+	// --- Move to project ---
+	const availableProjectTasks = $derived(
+		task ? appStore.projectTasks.filter((p) => p.id !== task.id && p.id !== task.parent_id) : []
+	);
+
+	function handleMoveToProject(projectId: string) {
+		if (!task) return;
+		dropdownOpen = false;
+		const taskId = task.id;
+		const project = appStore.projectTasks.find((p) => p.id === projectId);
+		tasksStore.removeTaskLocal(taskId);
+		moveTask(taskId, projectId).catch((e) => {
+			logger.error('tasks', `move to project failed: ${e}`);
+			toast.error($t('errors.moveFailed'));
+			tasksStore.clearPendingRemoval(taskId);
+			tasksStore.refresh();
+		});
+		if (project) {
+			toast($t('task.movedToProject', { values: { name: project.content } }), { duration: 3000 });
+		}
+	}
+
 	// --- Bulk operations (subtasks only) ---
 	function resetSubtaskPriorities() {
 		if (!task) return;
@@ -1086,6 +1108,8 @@ function setDateQuick(date: string) {
 					{backlogLabel}
 					{isInBacklog}
 					onToggleBacklog={toggleBacklog}
+					projectTasks={availableProjectTasks}
+					onMoveToProject={handleMoveToProject}
 					subtaskCount={task.children.length}
 					onResetSubtaskPriorities={resetSubtaskPriorities}
 					onResetSubtaskLabels={resetSubtaskLabels}

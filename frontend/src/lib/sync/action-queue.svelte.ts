@@ -132,6 +132,11 @@ function createActionQueue() {
 				await backend.updateTask(id, data);
 				break;
 			}
+			case 'moveTask': {
+				const { id, parentId } = action.payload as { id: string; parentId: string };
+				await backend.moveTask(id, parentId);
+				break;
+			}
 			case 'completeTask': {
 				const { id } = action.payload as { id: string };
 				await backend.completeTask(id);
@@ -201,6 +206,7 @@ function createActionQueue() {
 							(action.type === 'completeTask' ||
 								action.type === 'deleteTask' ||
 								action.type === 'updateTask' ||
+								action.type === 'moveTask' ||
 								action.type === 'duplicateTask')
 						) {
 							logger.warn(

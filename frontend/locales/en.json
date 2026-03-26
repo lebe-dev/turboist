@@ -85,6 +85,8 @@
   "task.resetSubtaskLabels": "Reset labels",
   "task.bulkTodayToday": "Today's subtasks → Today",
   "task.bulkTodayTomorrow": "Today's subtasks → Tomorrow",
+  "task.makeSubtaskOfProject": "Make subtask of project",
+  "task.movedToProject": "Moved to: {name}",
   "task.recurrence": "Repeat",
   "task.recurrence.everyDay": "Every day",
   "task.recurrence.everyWeek": "Every week on {day}",
@@ -156,6 +158,7 @@
   "errors.deleteFailed": "Failed to delete task",
   "errors.completeFailed": "Failed to complete task",
   "errors.duplicateFailed": "Failed to duplicate task",
+  "errors.moveFailed": "Failed to move task",
 
   "connectivity.reconnecting": "Reconnecting...",
   "connectivity.backOnline": "Back online",

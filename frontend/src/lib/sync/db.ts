@@ -8,7 +8,7 @@ export interface CompletedCache {
 
 export interface QueuedAction {
 	id?: number;
-	type: 'createTask' | 'updateTask' | 'completeTask' | 'deleteTask' | 'duplicateTask' | 'resetWeeklyLabel' | 'patchState';
+	type: 'createTask' | 'updateTask' | 'moveTask' | 'completeTask' | 'deleteTask' | 'duplicateTask' | 'resetWeeklyLabel' | 'patchState';
 	payload: unknown;
 	createdAt: number;
 	status: 'pending' | 'processing' | 'failed';

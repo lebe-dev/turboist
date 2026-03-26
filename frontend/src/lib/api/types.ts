@@ -117,12 +117,18 @@ export interface Settings {
 	weekly_label: string;
 	backlog_label: string;
 	project_label: string;
+	projects_label: string;
 	weekly_limit: number;
 	backlog_limit: number;
 	completed_days: number;
 	max_pinned: number;
 	last_synced_at: string | null; // ISO 8601
 	day_parts: DayPart[];
+}
+
+export interface ProjectTask {
+	id: string;
+	content: string;
 }
 
 export interface QuickCaptureConfig {
@@ -148,6 +154,7 @@ export interface AppConfig {
 	label_configs: LabelConfig[];
 	auto_labels: AutoLabelMapping[];
 	quick_capture: QuickCaptureConfig | null;
+	project_tasks: ProjectTask[];
 	state: UserState;
 }
 

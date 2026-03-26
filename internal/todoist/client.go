@@ -232,6 +232,22 @@ func (c *Client) FetchCompletedSubtasks(ctx context.Context, parentID string) ([
 	return tasks, nil
 }
 
+// MoveTask moves a task to be a subtask of the given parent via the Todoist API.
+func (c *Client) MoveTask(ctx context.Context, id string, parentID string) error {
+	log.Debug("todoist MoveTask", "id", id, "parent_id", parentID)
+	start := time.Now()
+	_, err := c.taskSvc.MoveTask(ctx, &sync.TaskMoveArgs{
+		ID:       id,
+		ParentID: &parentID,
+	})
+	if err != nil {
+		log.Debug("todoist MoveTask failed", "id", id, "err", err, "elapsed", time.Since(start))
+		return &APIError{Op: "MoveTask", Err: err}
+	}
+	log.Debug("todoist MoveTask done", "id", id, "elapsed", time.Since(start))
+	return nil
+}
+
 // CompleteTask closes a task via the Todoist API.
 func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	log.Debug("todoist CompleteTask", "id", id)

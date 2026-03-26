@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"slices"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -34,6 +35,7 @@ type settingsResponse struct {
 	WeeklyLabel   string            `json:"weekly_label"`
 	BacklogLabel  string            `json:"backlog_label"`
 	ProjectLabel  string            `json:"project_label"`
+	ProjectsLabel string            `json:"projects_label"`
 	WeeklyLimit   int               `json:"weekly_limit"`
 	BacklogLimit  int               `json:"backlog_limit"`
 	CompletedDays int               `json:"completed_days"`
@@ -77,6 +79,11 @@ type autoLabelResponse struct {
 	IgnoreCase bool   `json:"ignore_case"`
 }
 
+type projectTaskItem struct {
+	ID      string `json:"id"`
+	Content string `json:"content"`
+}
+
 type appConfigResponse struct {
 	Settings     settingsResponse      `json:"settings"`
 	Contexts     []contextItem         `json:"contexts"`
@@ -85,6 +92,7 @@ type appConfigResponse struct {
 	LabelConfigs []labelConfigResponse `json:"label_configs"`
 	AutoLabels   []autoLabelResponse   `json:"auto_labels"`
 	QuickCapture *quickCaptureResponse `json:"quick_capture"`
+	ProjectTasks []projectTaskItem     `json:"project_tasks"`
 	State        *storage.UserState    `json:"state"`
 }
 
@@ -106,6 +114,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		WeeklyLabel:   h.cfg.Weekly.Label,
 		BacklogLabel:  h.cfg.Backlog.Label,
 		ProjectLabel:  h.cfg.Project.Label,
+		ProjectsLabel: h.cfg.ProjectsLabel,
 		WeeklyLimit:   h.cfg.Weekly.MaxTasks,
 		BacklogLimit:  h.cfg.Backlog.MaxLimit,
 		CompletedDays: h.cfg.Completed.Days,
@@ -193,6 +202,22 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		})
 	}
 
+	// Project tasks (tasks with projects_label)
+	projectTasks := make([]projectTaskItem, 0)
+	if h.cfg.ProjectsLabel != "" {
+		for _, t := range h.cache.Tasks() {
+			if t.ParentID != nil {
+				continue
+			}
+			if slices.Contains(t.Labels, h.cfg.ProjectsLabel) {
+				projectTasks = append(projectTasks, projectTaskItem{
+					ID:      t.ID,
+					Content: t.Content,
+				})
+			}
+		}
+	}
+
 	// User state
 	state, err := h.store.GetState()
 	if err != nil {
@@ -207,6 +232,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		LabelConfigs: labelConfigs,
 		AutoLabels:   autoLabels,
 		QuickCapture: qc,
+		ProjectTasks: projectTasks,
 		State:        state,
 	})
 }

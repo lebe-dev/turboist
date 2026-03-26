@@ -61,6 +61,7 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 	app.Patch("/api/tasks/:id", tasksHandler.Update)
 	app.Post("/api/tasks/:id/complete", tasksHandler.Complete)
 	app.Post("/api/tasks/:id/duplicate", tasksHandler.Duplicate)
+	app.Post("/api/tasks/:id/move", tasksHandler.Move)
 	app.Delete("/api/tasks/:id", tasksHandler.Delete)
 	app.Get("/api/tasks/:id/completed-subtasks", tasksHandler.CompletedSubtasks)
 

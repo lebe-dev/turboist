@@ -133,6 +133,13 @@ export class DefaultBackendConnector implements BackendConnector {
 		});
 	}
 
+	async moveTask(id: string, parentId: string): Promise<void> {
+		await this.request(`/api/tasks/${encodeURIComponent(id)}/move`, {
+			method: 'POST',
+			body: JSON.stringify({ parent_id: parentId })
+		});
+	}
+
 	async completeTask(id: string): Promise<void> {
 		await this.request(`/api/tasks/${encodeURIComponent(id)}/complete`, { method: 'POST' });
 	}

@@ -341,6 +341,30 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
+type moveTaskRequest struct {
+	ParentID string `json:"parent_id"`
+}
+
+// Move handles POST /api/tasks/:id/move — moves a task to be a subtask of another task.
+func (h *TasksHandler) Move(c fiber.Ctx) error {
+	id := c.Params("id")
+	var req moveTaskRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if req.ParentID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "parent_id is required"})
+	}
+
+	log.Debug("move task", "id", id, "parent_id", req.ParentID)
+	if err := h.cache.MoveTask(c.Context(), id, req.ParentID); err != nil {
+		log.Error("move task failed", "id", id, "parent_id", req.ParentID, "err", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"ok": true})
+}
+
 // Delete handles DELETE /api/tasks/:id
 func (h *TasksHandler) Delete(c fiber.Ctx) error {
 	id := c.Params("id")

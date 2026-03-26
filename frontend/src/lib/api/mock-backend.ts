@@ -129,6 +129,10 @@ export class MockBackendConnector implements BackendConnector {
 		this.record('completeTask', [id]);
 	}
 
+	async moveTask(id: string, parentId: string): Promise<void> {
+		this.record('moveTask', [id, parentId]);
+	}
+
 	async duplicateTask(id: string): Promise<void> {
 		this.record('duplicateTask', [id]);
 	}
@@ -150,6 +154,7 @@ export class MockBackendConnector implements BackendConnector {
 				weekly_label: '',
 				backlog_label: '',
 				project_label: '',
+				projects_label: '',
 				weekly_limit: 0,
 				backlog_limit: 0,
 				completed_days: 7,
@@ -163,6 +168,7 @@ export class MockBackendConnector implements BackendConnector {
 			label_configs: [],
 			auto_labels: [],
 			quick_capture: null,
+			project_tasks: [],
 			state: {
 				pinned_tasks: [],
 				active_context_id: '',

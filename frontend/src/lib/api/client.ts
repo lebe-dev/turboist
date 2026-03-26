@@ -72,6 +72,10 @@ export async function updateTask(id: string, data: UpdateTaskRequest): Promise<v
 	return getBackend().updateTask(id, data);
 }
 
+export async function moveTask(id: string, parentId: string): Promise<void> {
+	return getBackend().moveTask(id, parentId);
+}
+
 export async function completeTask(id: string): Promise<void> {
 	return getBackend().completeTask(id);
 }

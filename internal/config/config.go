@@ -66,6 +66,7 @@ type AppConfig struct {
 	Weekly             WeeklyConfig
 	Backlog            BacklogConfig
 	Project            ProjectConfig
+	ProjectsLabel      string
 	Today              TodayConfig
 	Tomorrow           TomorrowConfig
 	Completed          CompletedConfig
@@ -173,21 +174,22 @@ type CompiledAutoLabel struct {
 }
 
 type yamlFile struct {
-	Timezone     string              `yaml:"timezone"`
-	PollInterval string              `yaml:"poll_interval"`
-	TaskSort     string              `yaml:"task_sort"`
-	MaxPinned    int                 `yaml:"max_pinned"`
-	Contexts     []ContextConfig     `yaml:"contexts"`
-	Labels       []LabelConfig       `yaml:"labels"`
-	Weekly       WeeklyConfig        `yaml:"weekly"`
-	Backlog      BacklogConfig       `yaml:"backlog"`
-	Project      ProjectConfig       `yaml:"project"`
-	Today        TodayConfig         `yaml:"today"`
-	Tomorrow     TomorrowConfig      `yaml:"tomorrow"`
-	Completed    CompletedConfig     `yaml:"completed"`
-	AutoExpire   []yamlAutoExpire    `yaml:"auto_expire"`
-	QuickCapture *QuickCaptureConfig `yaml:"quick_capture"`
-	AutoLabels   []AutoLabelConfig   `yaml:"auto_labels"`
+	Timezone      string              `yaml:"timezone"`
+	PollInterval  string              `yaml:"poll_interval"`
+	TaskSort      string              `yaml:"task_sort"`
+	MaxPinned     int                 `yaml:"max_pinned"`
+	Contexts      []ContextConfig     `yaml:"contexts"`
+	Labels        []LabelConfig       `yaml:"labels"`
+	Weekly        WeeklyConfig        `yaml:"weekly"`
+	Backlog       BacklogConfig       `yaml:"backlog"`
+	Project       ProjectConfig       `yaml:"project"`
+	ProjectsLabel string              `yaml:"projects_label"`
+	Today         TodayConfig         `yaml:"today"`
+	Tomorrow      TomorrowConfig      `yaml:"tomorrow"`
+	Completed     CompletedConfig     `yaml:"completed"`
+	AutoExpire    []yamlAutoExpire    `yaml:"auto_expire"`
+	QuickCapture  *QuickCaptureConfig `yaml:"quick_capture"`
+	AutoLabels    []AutoLabelConfig   `yaml:"auto_labels"`
 }
 
 type yamlAutoExpire struct {
@@ -258,20 +260,21 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	}
 
 	app := AppConfig{
-		PollInterval: pollInterval,
-		Timezone:     tz,
-		TaskSort:     taskSort,
-		MaxPinned:    maxPinned,
-		Contexts:     yf.Contexts,
-		Labels:       yf.Labels,
-		Weekly:       yf.Weekly,
-		Backlog:      backlog,
-		Project:      yf.Project,
-		Today:        yf.Today,
-		Tomorrow:     yf.Tomorrow,
-		Completed:    completed,
-		QuickCapture: yf.QuickCapture,
-		AutoLabels:   yf.AutoLabels,
+		PollInterval:  pollInterval,
+		Timezone:      tz,
+		TaskSort:      taskSort,
+		MaxPinned:     maxPinned,
+		Contexts:      yf.Contexts,
+		Labels:        yf.Labels,
+		Weekly:        yf.Weekly,
+		Backlog:       backlog,
+		Project:       yf.Project,
+		ProjectsLabel: yf.ProjectsLabel,
+		Today:         yf.Today,
+		Tomorrow:      yf.Tomorrow,
+		Completed:     completed,
+		QuickCapture:  yf.QuickCapture,
+		AutoLabels:    yf.AutoLabels,
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {

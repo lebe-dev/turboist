@@ -85,6 +85,8 @@
   "task.resetSubtaskLabels": "Сбросить метки",
   "task.bulkTodayToday": "Созданные сегодня → Сегодня",
   "task.bulkTodayTomorrow": "Созданные сегодня → Завтра",
+  "task.makeSubtaskOfProject": "Сделать подзадачей проекта",
+  "task.movedToProject": "Перемещено в: {name}",
   "task.recurrence": "Повторение",
   "task.recurrence.everyDay": "Каждый день",
   "task.recurrence.everyWeek": "Каждую неделю в {day}",
@@ -156,6 +158,7 @@
   "errors.deleteFailed": "Не удалось удалить задачу",
   "errors.completeFailed": "Не удалось завершить задачу",
   "errors.duplicateFailed": "Не удалось дублировать задачу",
+  "errors.moveFailed": "Не удалось переместить задачу",
 
   "connectivity.reconnecting": "Переподключение...",
   "connectivity.backOnline": "Снова онлайн",

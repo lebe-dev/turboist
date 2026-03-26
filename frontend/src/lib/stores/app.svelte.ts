@@ -4,7 +4,7 @@ import { setBackend, getBackend } from '$lib/api/backend';
 import { DefaultBackendConnector } from '$lib/api/default-backend';
 import { QueuedBackend } from '$lib/api/queued-backend';
 import { actionQueue } from '$lib/sync/action-queue.svelte';
-import type { AutoLabelMapping, Label, LabelConfig, QuickCaptureConfig, View } from '$lib/api/types';
+import type { AutoLabelMapping, Label, LabelConfig, ProjectTask, QuickCaptureConfig, View } from '$lib/api/types';
 import { compileAutoLabels, matchAutoLabels } from '$lib/utils/auto-labels';
 import { contextsStore } from './contexts.svelte';
 import { pinnedStore } from './pinned.svelte';
@@ -81,6 +81,7 @@ function createAppStore() {
 	let labels = $state<Label[]>([]);
 	let labelConfigs = $state<LabelConfig[]>([]);
 	let quickCapture = $state<QuickCaptureConfig | null>(null);
+	let projectTasks = $state<ProjectTask[]>([]);
 	let autoLabelMappings = $state<AutoLabelMapping[]>([]);
 	let _compiledAutoLabels = $derived(compileAutoLabels(autoLabelMappings));
 
@@ -88,6 +89,7 @@ function createAppStore() {
 		labels = cfg.labels;
 		labelConfigs = cfg.label_configs ?? [];
 		quickCapture = cfg.quick_capture;
+		projectTasks = cfg.project_tasks ?? [];
 		autoLabelMappings = cfg.auto_labels ?? [];
 
 		contextsStore.init(
@@ -181,6 +183,9 @@ function createAppStore() {
 		},
 		get quickCapture() {
 			return quickCapture;
+		},
+		get projectTasks() {
+			return projectTasks;
 		},
 		get compiledAutoLabels() {
 			return _compiledAutoLabels;

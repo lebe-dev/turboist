@@ -160,6 +160,14 @@ func (c *Cache) UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs
 	return c.RefreshAfterMutation(ctx)
 }
 
+// MoveTask moves a task to be a subtask of the given parent and refreshes the cache.
+func (c *Cache) MoveTask(ctx context.Context, id string, parentID string) error {
+	if err := c.client.MoveTask(ctx, id, parentID); err != nil {
+		return err
+	}
+	return c.RefreshAfterMutation(ctx)
+}
+
 // CompleteTask closes a task via the Todoist API and refreshes the cache.
 func (c *Cache) CompleteTask(ctx context.Context, id string) error {
 	if err := c.client.CompleteTask(ctx, id); err != nil {
