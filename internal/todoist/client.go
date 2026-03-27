@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/CnTeng/todoist-api-go/rest"
@@ -288,4 +289,35 @@ func (c *Client) DeleteTask(ctx context.Context, id string) error {
 	}
 	log.Debug("todoist DeleteTask done", "id", id, "elapsed", time.Since(start))
 	return nil
+}
+
+// BatchMoveTasksToProject moves multiple tasks to their target projects in a single sync call.
+// The moves map is taskID → projectID.
+func (c *Client) BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error {
+	if len(moves) == 0 {
+		return nil
+	}
+	cmds := make(sync.Commands, 0, len(moves))
+	for id, projectID := range moves {
+		cmds = append(cmds, &sync.Command{
+			Type: "item_move",
+			UUID: uuid.New(),
+			Args: map[string]any{"id": id, "project_id": projectID},
+		})
+	}
+	log.Debug("todoist BatchMoveTasksToProject", "count", len(moves))
+	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	if err != nil {
+		return &APIError{Op: "BatchMoveTasksToProject", Err: err}
+	}
+	return nil
+}
+
+// IsRateLimited reports whether the error indicates a Todoist API rate limit (HTTP 429).
+// The external library returns errors.New(http.StatusText(429)) for non-200 responses.
+func IsRateLimited(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "Too Many Requests")
 }

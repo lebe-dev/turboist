@@ -217,6 +217,18 @@ function createActionQueue() {
 							break;
 						}
 
+						// 429: rate limited — retry with longer backoff
+						if (status === 429 && retries < MAX_RETRIES) {
+							const backoffMs = 2000 * Math.pow(2, retries);
+							logger.warn(
+								TAG,
+								`Got 429 (rate limited) for ${action.type}, retrying in ${backoffMs}ms (attempt ${retries + 1}/${MAX_RETRIES})`
+							);
+							await delay(backoffMs);
+							retries++;
+							continue;
+						}
+
 						// 5xx: retry with exponential backoff
 						if (status !== undefined && status >= 500 && retries < MAX_RETRIES) {
 							const backoffMs = 1000 * Math.pow(2, retries);

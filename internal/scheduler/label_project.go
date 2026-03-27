@@ -14,7 +14,7 @@ type ProjectMover interface {
 	Tasks() []*todoist.Task
 	Projects() []*todoist.Project
 	InboxProjectID() string
-	MoveTaskToProject(ctx context.Context, id string, projectID string) error
+	BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error
 }
 
 // LabelProjectSync moves root tasks to projects based on label-to-project mappings.
@@ -41,16 +41,14 @@ func (lp *LabelProjectSync) Job(ctx context.Context) {
 		projectByName[p.Name] = p.ID
 	}
 
+	moves := make(map[string]string)
 	for _, task := range tasks {
 		if task.ParentID != nil {
 			continue
 		}
 
 		targetProjectID := lp.resolveProject(task.Labels, projectByName, inboxID)
-		if targetProjectID == "" {
-			continue
-		}
-		if task.ProjectID == targetProjectID {
+		if targetProjectID == "" || task.ProjectID == targetProjectID {
 			continue
 		}
 
@@ -60,10 +58,15 @@ func (lp *LabelProjectSync) Job(ctx context.Context) {
 			"from", task.ProjectID,
 			"to", targetProjectID,
 		)
+		moves[task.ID] = targetProjectID
+	}
 
-		if err := lp.mover.MoveTaskToProject(ctx, task.ID, targetProjectID); err != nil {
-			log.Error("label_project: failed to move task", "task", task.ID, "err", err)
-		}
+	if len(moves) == 0 {
+		return
+	}
+
+	if err := lp.mover.BatchMoveTasksToProject(ctx, moves); err != nil {
+		log.Error("label_project: batch move failed", "count", len(moves), "err", err)
 	}
 }
 

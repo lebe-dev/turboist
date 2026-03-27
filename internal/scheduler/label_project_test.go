@@ -13,18 +13,18 @@ type mockProjectMover struct {
 	tasks    []*todoist.Task
 	projects []*todoist.Project
 	inboxID  string
-	moved    []struct{ id, projectID string }
+	moves    map[string]string // taskID → projectID from last batch call
 	err      error
 }
 
 func (m *mockProjectMover) Tasks() []*todoist.Task       { return m.tasks }
 func (m *mockProjectMover) Projects() []*todoist.Project { return m.projects }
 func (m *mockProjectMover) InboxProjectID() string       { return m.inboxID }
-func (m *mockProjectMover) MoveTaskToProject(_ context.Context, id, projectID string) error {
+func (m *mockProjectMover) BatchMoveTasksToProject(_ context.Context, moves map[string]string) error {
 	if m.err != nil {
 		return m.err
 	}
-	m.moved = append(m.moved, struct{ id, projectID string }{id, projectID})
+	m.moves = moves
 	return nil
 }
 
@@ -53,11 +53,11 @@ func TestLabelProjectSync_MovesToMappedProject(t *testing.T) {
 	lp := NewLabelProjectSync(m, lpMappings("health", "Personal"))
 	lp.Job(context.Background())
 
-	if len(m.moved) != 1 {
-		t.Fatalf("got %d moves, want 1", len(m.moved))
+	if len(m.moves) != 1 {
+		t.Fatalf("got %d moves, want 1", len(m.moves))
 	}
-	if m.moved[0].id != "1" || m.moved[0].projectID != "p1" {
-		t.Errorf("got move %v, want {1 p1}", m.moved[0])
+	if m.moves["1"] != "p1" {
+		t.Errorf("got move %v, want {1: p1}", m.moves)
 	}
 }
 
@@ -70,11 +70,11 @@ func TestLabelProjectSync_NoMatchGoesToInbox(t *testing.T) {
 	lp := NewLabelProjectSync(m, lpMappings("work", "Work"))
 	lp.Job(context.Background())
 
-	if len(m.moved) != 1 {
-		t.Fatalf("got %d moves, want 1", len(m.moved))
+	if len(m.moves) != 1 {
+		t.Fatalf("got %d moves, want 1", len(m.moves))
 	}
-	if m.moved[0].projectID != "inbox" {
-		t.Errorf("got project %q, want inbox", m.moved[0].projectID)
+	if m.moves["2"] != "inbox" {
+		t.Errorf("got project %q, want inbox", m.moves["2"])
 	}
 }
 
@@ -87,8 +87,8 @@ func TestLabelProjectSync_AlreadyInCorrectProject_NoMove(t *testing.T) {
 	lp := NewLabelProjectSync(m, lpMappings("work", "Work"))
 	lp.Job(context.Background())
 
-	if len(m.moved) != 0 {
-		t.Fatalf("got %d moves, want 0", len(m.moved))
+	if m.moves != nil {
+		t.Fatalf("got %d moves, want 0", len(m.moves))
 	}
 }
 
@@ -101,8 +101,8 @@ func TestLabelProjectSync_SubtasksSkipped(t *testing.T) {
 	lp := NewLabelProjectSync(m, lpMappings("work", "Work"))
 	lp.Job(context.Background())
 
-	if len(m.moved) != 0 {
-		t.Fatalf("subtask should not be moved, got %d moves", len(m.moved))
+	if m.moves != nil {
+		t.Fatalf("subtask should not be moved, got %d moves", len(m.moves))
 	}
 }
 
@@ -116,11 +116,11 @@ func TestLabelProjectSync_FirstLabelWins(t *testing.T) {
 	lp := NewLabelProjectSync(m, lpMappings("health", "Personal", "work", "Work"))
 	lp.Job(context.Background())
 
-	if len(m.moved) != 1 {
-		t.Fatalf("got %d moves, want 1", len(m.moved))
+	if len(m.moves) != 1 {
+		t.Fatalf("got %d moves, want 1", len(m.moves))
 	}
-	if m.moved[0].projectID != "p1" {
-		t.Errorf("got project %q, want p1 (Personal)", m.moved[0].projectID)
+	if m.moves["5"] != "p1" {
+		t.Errorf("got project %q, want p1 (Personal)", m.moves["5"])
 	}
 }
 
@@ -134,11 +134,11 @@ func TestLabelProjectSync_UnknownProjectInMapping_FallsToInbox(t *testing.T) {
 	lp.Job(context.Background())
 
 	// Unknown project → falls through to inbox
-	if len(m.moved) != 1 {
-		t.Fatalf("got %d moves, want 1", len(m.moved))
+	if len(m.moves) != 1 {
+		t.Fatalf("got %d moves, want 1", len(m.moves))
 	}
-	if m.moved[0].projectID != "inbox" {
-		t.Errorf("got project %q, want inbox", m.moved[0].projectID)
+	if m.moves["6"] != "inbox" {
+		t.Errorf("got project %q, want inbox", m.moves["6"])
 	}
 }
 
@@ -151,12 +151,12 @@ func TestLabelProjectSync_EmptyInboxID_SkipsTask(t *testing.T) {
 	lp := NewLabelProjectSync(m, lpMappings("work", "Work"))
 	lp.Job(context.Background())
 
-	if len(m.moved) != 0 {
-		t.Fatalf("task should be skipped when inbox ID is empty, got %d moves", len(m.moved))
+	if m.moves != nil {
+		t.Fatalf("task should be skipped when inbox ID is empty, got %d moves", len(m.moves))
 	}
 }
 
-func TestLabelProjectSync_MoveError_Continues(t *testing.T) {
+func TestLabelProjectSync_BatchMoveError_LogsAndContinues(t *testing.T) {
 	m := &mockProjectMover{
 		tasks: []*todoist.Task{
 			lpTask("8", "inbox", "health"),
@@ -170,6 +170,6 @@ func TestLabelProjectSync_MoveError_Continues(t *testing.T) {
 		err:     errors.New("api error"),
 	}
 	lp := NewLabelProjectSync(m, lpMappings("health", "Personal", "work", "Work"))
-	// Should not panic; error is logged and processing continues
+	// Should not panic; error is logged
 	lp.Job(context.Background())
 }

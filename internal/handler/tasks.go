@@ -25,6 +25,16 @@ func NewTasksHandler(cache *todoist.Cache, cfg *config.AppConfig) *TasksHandler 
 	return &TasksHandler{cache: cache, cfg: cfg}
 }
 
+// todoistErrorResponse maps Todoist API errors to appropriate HTTP status codes.
+// Returns 429 for rate-limited responses, 500 otherwise.
+func todoistErrorResponse(c fiber.Ctx, err error) error {
+	status := fiber.StatusInternalServerError
+	if todoist.IsRateLimited(err) {
+		status = fiber.StatusTooManyRequests
+	}
+	return c.Status(status).JSON(fiber.Map{"error": err.Error()})
+}
+
 type tasksMeta = taskview.TasksMeta
 
 type tasksResponse struct {
@@ -98,7 +108,7 @@ func (h *TasksHandler) Completed(c fiber.Ctx) error {
 	tasks, err := h.cache.Client().FetchCompletedTasks(c.Context(), since, now)
 	if err != nil {
 		log.Error("fetch completed tasks failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 
 	// Sort by completed_at descending (newest first)
@@ -210,7 +220,7 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 	log.Debug("create task", "content", req.Content, "context", contextKey, "labels", labels)
 	if _, err := h.cache.AddTask(c.Context(), args); err != nil {
 		log.Error("create task failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true})
@@ -252,7 +262,7 @@ func (h *TasksHandler) Complete(c fiber.Ctx) error {
 	log.Debug("complete task", "id", id)
 	if err := h.cache.CompleteTask(c.Context(), id); err != nil {
 		log.Error("complete task failed", "id", id, "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 	return c.SendStatus(fiber.StatusOK)
 }
@@ -320,7 +330,7 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	if labelsViaSync {
 		if err := h.cache.Client().SetTasksLabels(c.Context(), map[string][]string{id: req.Labels}); err != nil {
 			log.Error("update task labels failed", "id", id, "err", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+			return todoistErrorResponse(c, err)
 		}
 	}
 
@@ -329,7 +339,7 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	if hasOtherFields {
 		if err := h.cache.UpdateTask(c.Context(), args); err != nil {
 			log.Error("update task failed", "id", id, "err", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+			return todoistErrorResponse(c, err)
 		}
 	} else if labelsViaSync {
 		// Only labels were updated via sync — still refresh the cache.
@@ -359,7 +369,7 @@ func (h *TasksHandler) Move(c fiber.Ctx) error {
 	log.Debug("move task", "id", id, "parent_id", req.ParentID)
 	if err := h.cache.MoveTask(c.Context(), id, req.ParentID); err != nil {
 		log.Error("move task failed", "id", id, "parent_id", req.ParentID, "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 
 	return c.JSON(fiber.Map{"ok": true})
@@ -371,7 +381,7 @@ func (h *TasksHandler) Delete(c fiber.Ctx) error {
 	log.Debug("delete task", "id", id)
 	if err := h.cache.DeleteTask(c.Context(), id); err != nil {
 		log.Error("delete task failed", "id", id, "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 	return c.SendStatus(fiber.StatusOK)
 }
@@ -418,7 +428,7 @@ func (h *TasksHandler) Duplicate(c fiber.Ctx) error {
 	newID, err := h.cache.AddTask(c.Context(), args)
 	if err != nil {
 		log.Error("duplicate task failed", "id", id, "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true, "task_id": newID})
@@ -430,7 +440,7 @@ func (h *TasksHandler) CompletedSubtasks(c fiber.Ctx) error {
 	tasks, err := h.cache.Client().FetchCompletedSubtasks(c.Context(), id)
 	if err != nil {
 		log.Error("fetch completed subtasks failed", "id", id, "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 
 	// Sort by completed_at descending (newest first)
@@ -474,7 +484,7 @@ func (h *TasksHandler) ResetWeekly(c fiber.Ctx) error {
 
 	if err := h.cache.Client().SetTasksLabels(c.Context(), updates); err != nil {
 		log.Error("reset weekly: batch update failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return todoistErrorResponse(c, err)
 	}
 
 	if err := h.cache.RefreshAfterMutation(c.Context()); err != nil {

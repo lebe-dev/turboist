@@ -192,6 +192,15 @@ func (c *Cache) DeleteTask(ctx context.Context, id string) error {
 	return c.RefreshAfterMutation(ctx)
 }
 
+// BatchMoveTasksToProject moves multiple tasks to their target projects in a single API call
+// and refreshes the cache once.
+func (c *Cache) BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error {
+	if err := c.client.BatchMoveTasksToProject(ctx, moves); err != nil {
+		return err
+	}
+	return c.RefreshAfterMutation(ctx)
+}
+
 // StartPolling launches a background goroutine that refreshes the cache every interval.
 // On error it retries with exponential backoff (5s → 10s → 20s → … → 5min).
 // On recovery it resets the delay back to interval.
