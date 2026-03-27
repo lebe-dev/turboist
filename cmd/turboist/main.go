@@ -14,7 +14,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/ws"
 )
 
-const Version = "0.9.0"
+const Version = "0.10.0"
 
 func main() {
 	log.Info("starting turboist", "version", Version)
@@ -74,6 +74,11 @@ func main() {
 		wl := scheduler.NewWeeklyLimit(cache, cfg.App.Weekly)
 		sched.Register("weekly-limit", wl.Job)
 		log.Info("weekly-limit check registered", "max_tasks", cfg.App.Weekly.MaxTasks)
+	}
+	if len(cfg.App.LabelProjectMap) > 0 {
+		lp := scheduler.NewLabelProjectSync(cache, cfg.App.LabelProjectMap)
+		sched.Register("label-project", lp.Job)
+		log.Info("label-project sync registered", "mappings", len(cfg.App.LabelProjectMap))
 	}
 	sched.Start(ctx)
 	log.Info("scheduler started", "interval", cfg.App.PollInterval)

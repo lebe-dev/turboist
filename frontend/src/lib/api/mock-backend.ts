@@ -160,7 +160,8 @@ export class MockBackendConnector implements BackendConnector {
 				completed_days: 7,
 				max_pinned: 5,
 				last_synced_at: null,
-				day_parts: []
+				day_parts: [],
+				inbox_project_id: ''
 			},
 			contexts: [],
 			projects: [],
@@ -169,6 +170,7 @@ export class MockBackendConnector implements BackendConnector {
 			auto_labels: [],
 			quick_capture: null,
 			project_tasks: [],
+			label_project_map: [],
 			state: {
 				pinned_tasks: [],
 				active_context_id: '',

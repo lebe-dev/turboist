@@ -74,6 +74,7 @@ type AppConfig struct {
 	QuickCapture       *QuickCaptureConfig
 	AutoLabels         []AutoLabelConfig
 	CompiledAutoLabels []CompiledAutoLabel
+	LabelProjectMap    []LabelProjectMapping
 }
 
 // FindContext returns the context with the given ID, or nil if not found.
@@ -160,6 +161,11 @@ type AutoLabelConfig struct {
 	IgnoreCase *bool  `yaml:"ignore_case"`
 }
 
+type LabelProjectMapping struct {
+	Label   string `yaml:"label"`
+	Project string `yaml:"project"`
+}
+
 func (a *AutoLabelConfig) ShouldIgnoreCase() bool {
 	if a.IgnoreCase == nil {
 		return true
@@ -174,22 +180,23 @@ type CompiledAutoLabel struct {
 }
 
 type yamlFile struct {
-	Timezone      string              `yaml:"timezone"`
-	PollInterval  string              `yaml:"poll_interval"`
-	TaskSort      string              `yaml:"task_sort"`
-	MaxPinned     int                 `yaml:"max_pinned"`
-	Contexts      []ContextConfig     `yaml:"contexts"`
-	Labels        []LabelConfig       `yaml:"labels"`
-	Weekly        WeeklyConfig        `yaml:"weekly"`
-	Backlog       BacklogConfig       `yaml:"backlog"`
-	Project       ProjectConfig       `yaml:"project"`
-	ProjectsLabel string              `yaml:"projects_label"`
-	Today         TodayConfig         `yaml:"today"`
-	Tomorrow      TomorrowConfig      `yaml:"tomorrow"`
-	Completed     CompletedConfig     `yaml:"completed"`
-	AutoExpire    []yamlAutoExpire    `yaml:"auto_expire"`
-	QuickCapture  *QuickCaptureConfig `yaml:"quick_capture"`
-	AutoLabels    []AutoLabelConfig   `yaml:"auto_labels"`
+	Timezone        string                `yaml:"timezone"`
+	PollInterval    string                `yaml:"poll_interval"`
+	TaskSort        string                `yaml:"task_sort"`
+	MaxPinned       int                   `yaml:"max_pinned"`
+	Contexts        []ContextConfig       `yaml:"contexts"`
+	Labels          []LabelConfig         `yaml:"labels"`
+	Weekly          WeeklyConfig          `yaml:"weekly"`
+	Backlog         BacklogConfig         `yaml:"backlog"`
+	Project         ProjectConfig         `yaml:"project"`
+	ProjectsLabel   string                `yaml:"projects_label"`
+	Today           TodayConfig           `yaml:"today"`
+	Tomorrow        TomorrowConfig        `yaml:"tomorrow"`
+	Completed       CompletedConfig       `yaml:"completed"`
+	AutoExpire      []yamlAutoExpire      `yaml:"auto_expire"`
+	QuickCapture    *QuickCaptureConfig   `yaml:"quick_capture"`
+	AutoLabels      []AutoLabelConfig     `yaml:"auto_labels"`
+	LabelProjectMap []LabelProjectMapping `yaml:"label_project_map"`
 }
 
 type yamlAutoExpire struct {
@@ -260,21 +267,22 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	}
 
 	app := AppConfig{
-		PollInterval:  pollInterval,
-		Timezone:      tz,
-		TaskSort:      taskSort,
-		MaxPinned:     maxPinned,
-		Contexts:      yf.Contexts,
-		Labels:        yf.Labels,
-		Weekly:        yf.Weekly,
-		Backlog:       backlog,
-		Project:       yf.Project,
-		ProjectsLabel: yf.ProjectsLabel,
-		Today:         yf.Today,
-		Tomorrow:      yf.Tomorrow,
-		Completed:     completed,
-		QuickCapture:  yf.QuickCapture,
-		AutoLabels:    yf.AutoLabels,
+		PollInterval:    pollInterval,
+		Timezone:        tz,
+		TaskSort:        taskSort,
+		MaxPinned:       maxPinned,
+		Contexts:        yf.Contexts,
+		Labels:          yf.Labels,
+		Weekly:          yf.Weekly,
+		Backlog:         backlog,
+		Project:         yf.Project,
+		ProjectsLabel:   yf.ProjectsLabel,
+		Today:           yf.Today,
+		Tomorrow:        yf.Tomorrow,
+		Completed:       completed,
+		QuickCapture:    yf.QuickCapture,
+		AutoLabels:      yf.AutoLabels,
+		LabelProjectMap: yf.LabelProjectMap,
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {
@@ -282,6 +290,10 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	}
 
 	if err := validateLabels(yf.Labels); err != nil {
+		return AppConfig{}, err
+	}
+
+	if err := validateLabelProjectMap(yf.LabelProjectMap); err != nil {
 		return AppConfig{}, err
 	}
 
@@ -454,6 +466,18 @@ func validateLabels(labels []LabelConfig) error {
 			return fmt.Errorf("labels[%d]: duplicate name %q", i, l.Name)
 		}
 		seen[l.Name] = true
+	}
+	return nil
+}
+
+func validateLabelProjectMap(mappings []LabelProjectMapping) error {
+	for i, m := range mappings {
+		if m.Label == "" {
+			return fmt.Errorf("label_project_map[%d]: label is required", i)
+		}
+		if m.Project == "" {
+			return fmt.Errorf("label_project_map[%d]: project is required", i)
+		}
 	}
 	return nil
 }

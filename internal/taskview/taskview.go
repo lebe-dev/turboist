@@ -91,7 +91,7 @@ func ComputePlanning(cache *todoist.Cache, cfg *config.AppConfig, context string
 
 func computeAll(tasks []*todoist.Task, cfg *config.AppConfig, context string, weeklyCount int) TasksResult {
 	tree := BuildTree(tasks)
-	SortTasksByAddedAt(tree)
+	SortTasks(tree, config.TaskSortPriority)
 	return TasksResult{
 		Tasks: tree,
 		Meta: TasksMeta{

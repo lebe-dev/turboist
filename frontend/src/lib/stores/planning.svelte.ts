@@ -156,7 +156,7 @@ function createPlanningStore() {
 		const newLabels = task.labels.filter((l) => l !== weeklyLabel);
 
 		try {
-			await updateTask(task.id, { labels: newLabels });
+			await updateTask(task.id, { labels: newLabels, due_date: '' });
 		} catch (err) {
 			logger.error('planning', `moveToBacklog failed: ${err}`);
 			refresh();

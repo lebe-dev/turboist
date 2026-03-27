@@ -124,6 +124,17 @@ auto_labels:
     label: "проект"
     ignore_case: false
 
+# Label-to-project mapping: automatically assign root tasks to Todoist projects
+# based on their labels. First matching label wins.
+# Tasks with no matching label are moved to Inbox.
+# Subtasks (tasks with a parent) are never affected.
+# Omit or leave empty to disable.
+label_project_map:
+  - label: "здоровье"
+    project: "Личное"
+  - label: "работа"
+    project: "Работа"
+
 # Auto-expire: tasks with the given label are completed after the TTL elapses.
 # TTL is counted from the moment the label is first seen in the cache.
 # The timer resets on application restart.

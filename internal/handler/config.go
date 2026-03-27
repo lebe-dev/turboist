@@ -29,19 +29,20 @@ type dayPartResponse struct {
 }
 
 type settingsResponse struct {
-	PollInterval  int               `json:"poll_interval"`
-	SyncInterval  int               `json:"sync_interval"`
-	Timezone      string            `json:"timezone"`
-	WeeklyLabel   string            `json:"weekly_label"`
-	BacklogLabel  string            `json:"backlog_label"`
-	ProjectLabel  string            `json:"project_label"`
-	ProjectsLabel string            `json:"projects_label"`
-	WeeklyLimit   int               `json:"weekly_limit"`
-	BacklogLimit  int               `json:"backlog_limit"`
-	CompletedDays int               `json:"completed_days"`
-	MaxPinned     int               `json:"max_pinned"`
-	LastSyncedAt  time.Time         `json:"last_synced_at"`
-	DayParts      []dayPartResponse `json:"day_parts"`
+	PollInterval   int               `json:"poll_interval"`
+	SyncInterval   int               `json:"sync_interval"`
+	Timezone       string            `json:"timezone"`
+	WeeklyLabel    string            `json:"weekly_label"`
+	BacklogLabel   string            `json:"backlog_label"`
+	ProjectLabel   string            `json:"project_label"`
+	ProjectsLabel  string            `json:"projects_label"`
+	WeeklyLimit    int               `json:"weekly_limit"`
+	BacklogLimit   int               `json:"backlog_limit"`
+	CompletedDays  int               `json:"completed_days"`
+	MaxPinned      int               `json:"max_pinned"`
+	LastSyncedAt   time.Time         `json:"last_synced_at"`
+	DayParts       []dayPartResponse `json:"day_parts"`
+	InboxProjectID string            `json:"inbox_project_id"`
 }
 
 type contextFiltersResponse struct {
@@ -84,16 +85,22 @@ type projectTaskItem struct {
 	Content string `json:"content"`
 }
 
+type labelProjectMappingResponse struct {
+	Label   string `json:"label"`
+	Project string `json:"project"`
+}
+
 type appConfigResponse struct {
-	Settings     settingsResponse      `json:"settings"`
-	Contexts     []contextItem         `json:"contexts"`
-	Projects     []projectWithSections `json:"projects"`
-	Labels       []*todoist.Label      `json:"labels"`
-	LabelConfigs []labelConfigResponse `json:"label_configs"`
-	AutoLabels   []autoLabelResponse   `json:"auto_labels"`
-	QuickCapture *quickCaptureResponse `json:"quick_capture"`
-	ProjectTasks []projectTaskItem     `json:"project_tasks"`
-	State        *storage.UserState    `json:"state"`
+	Settings        settingsResponse              `json:"settings"`
+	Contexts        []contextItem                 `json:"contexts"`
+	Projects        []projectWithSections         `json:"projects"`
+	Labels          []*todoist.Label              `json:"labels"`
+	LabelConfigs    []labelConfigResponse         `json:"label_configs"`
+	AutoLabels      []autoLabelResponse           `json:"auto_labels"`
+	QuickCapture    *quickCaptureResponse         `json:"quick_capture"`
+	ProjectTasks    []projectTaskItem             `json:"project_tasks"`
+	LabelProjectMap []labelProjectMappingResponse `json:"label_project_map"`
+	State           *storage.UserState            `json:"state"`
 }
 
 // Config handles GET /api/config — consolidated response with settings, contexts, projects, labels, quick_capture, and state.
@@ -108,19 +115,20 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		})
 	}
 	settings := settingsResponse{
-		PollInterval:  int(h.cfg.PollInterval.Seconds()),
-		SyncInterval:  int(h.cfg.SyncInterval.Seconds()),
-		Timezone:      h.cfg.Timezone,
-		WeeklyLabel:   h.cfg.Weekly.Label,
-		BacklogLabel:  h.cfg.Backlog.Label,
-		ProjectLabel:  h.cfg.Project.Label,
-		ProjectsLabel: h.cfg.ProjectsLabel,
-		WeeklyLimit:   h.cfg.Weekly.MaxTasks,
-		BacklogLimit:  h.cfg.Backlog.MaxLimit,
-		CompletedDays: h.cfg.Completed.Days,
-		MaxPinned:     h.cfg.MaxPinned,
-		LastSyncedAt:  h.cache.LastSyncedAt(),
-		DayParts:      dayParts,
+		PollInterval:   int(h.cfg.PollInterval.Seconds()),
+		SyncInterval:   int(h.cfg.SyncInterval.Seconds()),
+		Timezone:       h.cfg.Timezone,
+		WeeklyLabel:    h.cfg.Weekly.Label,
+		BacklogLabel:   h.cfg.Backlog.Label,
+		ProjectLabel:   h.cfg.Project.Label,
+		ProjectsLabel:  h.cfg.ProjectsLabel,
+		WeeklyLimit:    h.cfg.Weekly.MaxTasks,
+		BacklogLimit:   h.cfg.Backlog.MaxLimit,
+		CompletedDays:  h.cfg.Completed.Days,
+		MaxPinned:      h.cfg.MaxPinned,
+		LastSyncedAt:   h.cache.LastSyncedAt(),
+		DayParts:       dayParts,
+		InboxProjectID: h.cache.InboxProjectID(),
 	}
 
 	// Contexts
@@ -218,6 +226,15 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		}
 	}
 
+	// Label-project map
+	labelProjectMap := make([]labelProjectMappingResponse, 0, len(h.cfg.LabelProjectMap))
+	for _, m := range h.cfg.LabelProjectMap {
+		labelProjectMap = append(labelProjectMap, labelProjectMappingResponse{
+			Label:   m.Label,
+			Project: m.Project,
+		})
+	}
+
 	// User state
 	state, err := h.store.GetState()
 	if err != nil {
@@ -225,14 +242,15 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 	}
 
 	return c.JSON(appConfigResponse{
-		Settings:     settings,
-		Contexts:     contexts,
-		Projects:     projectItems,
-		Labels:       labels,
-		LabelConfigs: labelConfigs,
-		AutoLabels:   autoLabels,
-		QuickCapture: qc,
-		ProjectTasks: projectTasks,
-		State:        state,
+		Settings:        settings,
+		Contexts:        contexts,
+		Projects:        projectItems,
+		Labels:          labels,
+		LabelConfigs:    labelConfigs,
+		AutoLabels:      autoLabels,
+		QuickCapture:    qc,
+		ProjectTasks:    projectTasks,
+		LabelProjectMap: labelProjectMap,
+		State:           state,
 	})
 }

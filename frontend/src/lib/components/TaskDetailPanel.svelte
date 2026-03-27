@@ -421,7 +421,16 @@ function setDateQuick(date: string) {
 		const taskId = task.id;
 		localLabels = newLabels;
 		labelsSyncing = true;
-		updateLocal((t) => ({ ...t, labels: newLabels }));
+
+		const resolvedProjectId = task.parent_id === null
+			? appStore.resolveProjectIdForLabels(newLabels)
+			: null;
+
+		updateLocal((t) => ({
+			...t,
+			labels: newLabels,
+			...(resolvedProjectId !== null ? { project_id: resolvedProjectId } : {})
+		}));
 		updateTask(taskId, { labels: newLabels }).catch((e) => {
 			if (task) localLabels = [...task.labels];
 			logger.error('tasks', `update labels failed: ${e}`);

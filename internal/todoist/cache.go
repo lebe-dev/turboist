@@ -168,6 +168,14 @@ func (c *Cache) MoveTask(ctx context.Context, id string, parentID string) error 
 	return c.RefreshAfterMutation(ctx)
 }
 
+// MoveTaskToProject moves a task to the given project and refreshes the cache.
+func (c *Cache) MoveTaskToProject(ctx context.Context, id string, projectID string) error {
+	if err := c.client.MoveTaskToProject(ctx, id, projectID); err != nil {
+		return err
+	}
+	return c.RefreshAfterMutation(ctx)
+}
+
 // CompleteTask closes a task via the Todoist API and refreshes the cache.
 func (c *Cache) CompleteTask(ctx context.Context, id string) error {
 	if err := c.client.CompleteTask(ctx, id); err != nil {

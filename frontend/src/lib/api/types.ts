@@ -124,6 +124,7 @@ export interface Settings {
 	max_pinned: number;
 	last_synced_at: string | null; // ISO 8601
 	day_parts: DayPart[];
+	inbox_project_id: string;
 }
 
 export interface ProjectTask {
@@ -146,6 +147,11 @@ export interface AutoLabelMapping {
 	ignore_case: boolean;
 }
 
+export interface LabelProjectMapping {
+	label: string;
+	project: string;
+}
+
 export interface AppConfig {
 	settings: Settings;
 	contexts: Context[];
@@ -155,6 +161,7 @@ export interface AppConfig {
 	auto_labels: AutoLabelMapping[];
 	quick_capture: QuickCaptureConfig | null;
 	project_tasks: ProjectTask[];
+	label_project_map: LabelProjectMapping[];
 	state: UserState;
 }
 

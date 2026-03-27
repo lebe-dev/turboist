@@ -4,7 +4,7 @@ import { setBackend, getBackend } from '$lib/api/backend';
 import { DefaultBackendConnector } from '$lib/api/default-backend';
 import { QueuedBackend } from '$lib/api/queued-backend';
 import { actionQueue } from '$lib/sync/action-queue.svelte';
-import type { AutoLabelMapping, Label, LabelConfig, ProjectTask, QuickCaptureConfig, View } from '$lib/api/types';
+import type { AutoLabelMapping, Label, LabelConfig, LabelProjectMapping, Project, ProjectTask, QuickCaptureConfig, View } from '$lib/api/types';
 import { compileAutoLabels, matchAutoLabels } from '$lib/utils/auto-labels';
 import { contextsStore } from './contexts.svelte';
 import { pinnedStore } from './pinned.svelte';
@@ -84,6 +84,9 @@ function createAppStore() {
 	let projectTasks = $state<ProjectTask[]>([]);
 	let autoLabelMappings = $state<AutoLabelMapping[]>([]);
 	let _compiledAutoLabels = $derived(compileAutoLabels(autoLabelMappings));
+	let labelProjectMap = $state<LabelProjectMapping[]>([]);
+	let _projects = $state<Project[]>([]);
+	let inboxProjectId = $state<string>('');
 
 	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
@@ -91,6 +94,9 @@ function createAppStore() {
 		quickCapture = cfg.quick_capture;
 		projectTasks = cfg.project_tasks ?? [];
 		autoLabelMappings = cfg.auto_labels ?? [];
+		labelProjectMap = cfg.label_project_map ?? [];
+		_projects = cfg.projects.map((p) => ({ id: p.id, name: p.name, color: p.color, sections: p.sections }));
+		inboxProjectId = cfg.settings.inbox_project_id ?? '';
 
 		contextsStore.init(
 			cfg.contexts,
@@ -171,6 +177,17 @@ function createAppStore() {
 		return matchAutoLabels(title, _compiledAutoLabels);
 	}
 
+	function resolveProjectIdForLabels(labels: string[]): string | null {
+		if (labelProjectMap.length === 0) return null;
+		for (const mapping of labelProjectMap) {
+			if (labels.includes(mapping.label)) {
+				const proj = _projects.find((p) => p.name === mapping.project);
+				if (proj) return proj.id;
+			}
+		}
+		return inboxProjectId || null;
+	}
+
 	return {
 		get initialized() {
 			return initialized;
@@ -190,8 +207,15 @@ function createAppStore() {
 		get compiledAutoLabels() {
 			return _compiledAutoLabels;
 		},
+		get labelProjectMap() {
+			return labelProjectMap;
+		},
+		get inboxProjectId() {
+			return inboxProjectId;
+		},
 		shouldInheritToSubtasks,
 		getMatchingAutoLabels,
+		resolveProjectIdForLabels,
 		init,
 		destroy
 	};

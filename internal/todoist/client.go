@@ -248,6 +248,22 @@ func (c *Client) MoveTask(ctx context.Context, id string, parentID string) error
 	return nil
 }
 
+// MoveTaskToProject moves a task to the given project via the Todoist API.
+func (c *Client) MoveTaskToProject(ctx context.Context, id string, projectID string) error {
+	log.Debug("todoist MoveTaskToProject", "id", id, "project_id", projectID)
+	start := time.Now()
+	_, err := c.taskSvc.MoveTask(ctx, &sync.TaskMoveArgs{
+		ID:        id,
+		ProjectID: &projectID,
+	})
+	if err != nil {
+		log.Debug("todoist MoveTaskToProject failed", "id", id, "err", err, "elapsed", time.Since(start))
+		return &APIError{Op: "MoveTaskToProject", Err: err}
+	}
+	log.Debug("todoist MoveTaskToProject done", "id", id, "elapsed", time.Since(start))
+	return nil
+}
+
 // CompleteTask closes a task via the Todoist API.
 func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	log.Debug("todoist CompleteTask", "id", id)
