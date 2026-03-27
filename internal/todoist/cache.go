@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	backoffInitial = 5 * time.Second
-	backoffMax     = 5 * time.Minute
+	backoffInitial    = 5 * time.Second
+	backoffMax        = 5 * time.Minute
+	coldStartRetries  = 10
+	coldStartInterval = 10 * time.Second
 )
 
 // Cache holds an in-memory snapshot of Todoist data and keeps it fresh via Refresh.
@@ -30,13 +32,26 @@ type Cache struct {
 	onRefresh func()
 }
 
-// NewCache creates a Cache, performs a synchronous cold-start Refresh, and panics on error.
+// NewCache creates a Cache, performs a synchronous cold-start Refresh with retries, and panics
+// if all attempts fail. Rate-limited responses are retried with a fixed interval.
 func NewCache(client *Client) *Cache {
 	c := &Cache{client: client}
-	if err := c.Refresh(context.Background()); err != nil {
-		panic("todoist cache cold start failed: " + err.Error())
+	var lastErr error
+	for attempt := range coldStartRetries {
+		if err := c.Refresh(context.Background()); err != nil {
+			lastErr = err
+			log.Warn("cache cold start attempt failed, retrying",
+				"attempt", attempt+1,
+				"max", coldStartRetries,
+				"err", err,
+				"retry_in", coldStartInterval,
+			)
+			time.Sleep(coldStartInterval)
+			continue
+		}
+		return c
 	}
-	return c
+	panic("todoist cache cold start failed after retries: " + lastErr.Error())
 }
 
 // Refresh fetches all data from Todoist and atomically replaces the cached snapshot.
