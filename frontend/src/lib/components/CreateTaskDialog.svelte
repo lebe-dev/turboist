@@ -15,6 +15,7 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import { matchAutoLabels } from '$lib/utils/auto-labels';
+	import { cleanPaste } from '$lib/utils/clean-paste';
 	import { tick, untrack } from 'svelte';
 	import { t } from 'svelte-intl-precompile';
 
@@ -283,6 +284,7 @@
 				<input
 					bind:this={contentInput}
 					bind:value={content}
+					use:cleanPaste
 					type="text"
 					placeholder={$t('task.taskName')}
 					class="w-full bg-transparent text-lg font-medium text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
@@ -295,6 +297,7 @@
 				/>
 				<textarea
 					bind:value={description}
+					use:cleanPaste
 					placeholder={$t('task.description')}
 					rows="1"
 					class="mt-1 w-full resize-none bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground/30 focus:outline-none"

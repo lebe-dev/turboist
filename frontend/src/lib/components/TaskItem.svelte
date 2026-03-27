@@ -176,10 +176,19 @@
 			? task.labels.filter((l) => l !== backlogLabel)
 			: [...task.labels.filter((l) => l !== weeklyLabel), backlogLabel];
 
-		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, labels: newLabels }));
-		updateTask(task.id, { labels: newLabels }).catch((e) => {
+		const movingToBacklog = !isInBacklog;
+		tasksStore.updateTaskLocal(task.id, (t) => ({
+			...t,
+			labels: newLabels,
+			...(movingToBacklog ? { due: null } : {})
+		}));
+		const taskId = task.id;
+		const shouldRemove = movingToBacklog && shouldRemoveFromView(null);
+		if (shouldRemove) tasksStore.removeTaskLocal(taskId);
+		updateTask(task.id, { labels: newLabels, ...(movingToBacklog ? { due_date: '' } : {}) }).catch((e) => {
 			logger.error('tasks', `toggle backlog failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
+			if (shouldRemove) tasksStore.clearPendingRemoval(taskId);
 			tasksStore.refresh();
 		});
 	}

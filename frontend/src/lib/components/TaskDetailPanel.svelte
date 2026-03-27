@@ -2,6 +2,7 @@
 	import type { Task, Label } from '$lib/api/types';
 	import { updateTask, createTask, completeTask, deleteTask, moveTask, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { incrementDuplicateTitle, stripTaskPrefix, stripMarkdownLinks } from '$lib/utils';
+	import { cleanPaste } from '$lib/utils/clean-paste';
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
@@ -170,6 +171,14 @@
 	function cancelTitle() {
 		editingTitle = false;
 	}
+
+	// Attach clean-paste to the title Textarea ref
+	$effect(() => {
+		const el = titleInput;
+		if (!el) return;
+		const { destroy } = cleanPaste(el);
+		return destroy;
+	});
 
 	// --- Description editing ---
 	let editingDesc = $state(false);
@@ -633,14 +642,20 @@ function setDateQuick(date: string) {
 		if (!backlogLabel) return;
 		openSubtaskMenuId = null;
 		const isIn = child.labels.includes(backlogLabel);
-		const newLabels = isIn
-			? child.labels.filter((l) => l !== backlogLabel)
-			: [...child.labels, backlogLabel];
+		const weeklyLbl = tasksStore.config?.weekly_label ?? '';
+		const movingToBacklog = !isIn;
+		const newLabels = movingToBacklog
+			? [...child.labels.filter((l) => l !== weeklyLbl), backlogLabel]
+			: child.labels.filter((l) => l !== backlogLabel);
 		updateLocal((t) => ({
 			...t,
-			children: t.children.map((c) => c.id === child.id ? { ...c, labels: newLabels } : c)
+			children: t.children.map((c) => c.id === child.id ? {
+				...c,
+				labels: newLabels,
+				...(movingToBacklog ? { due: null } : {})
+			} : c)
 		}));
-		updateTask(child.id, { labels: newLabels }).catch((e) => {
+		updateTask(child.id, { labels: newLabels, ...(movingToBacklog ? { due_date: '' } : {}) }).catch((e) => {
 			logger.error('tasks', `toggle subtask backlog failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
@@ -898,11 +913,17 @@ function setDateQuick(date: string) {
 	function toggleBacklog() {
 		if (!task || !backlogLabel) return;
 		dropdownOpen = false;
-		const newLabels = isInBacklog
-			? task.labels.filter((l) => l !== backlogLabel)
-			: [...task.labels, backlogLabel];
-		updateLocal((t) => ({ ...t, labels: newLabels }));
-		updateTask(task.id, { labels: newLabels }).catch((e) => {
+		const weeklyLbl = tasksStore.config?.weekly_label ?? '';
+		const movingToBacklog = !isInBacklog;
+		const newLabels = movingToBacklog
+			? [...task.labels.filter((l) => l !== weeklyLbl), backlogLabel]
+			: task.labels.filter((l) => l !== backlogLabel);
+		updateLocal((t) => ({
+			...t,
+			labels: newLabels,
+			...(movingToBacklog ? { due: null } : {})
+		}));
+		updateTask(task.id, { labels: newLabels, ...(movingToBacklog ? { due_date: '' } : {}) }).catch((e) => {
 			logger.error('tasks', `toggle backlog failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
@@ -1045,6 +1066,7 @@ function setDateQuick(date: string) {
 		<textarea
 			bind:this={subtaskTextarea}
 			bind:value={subtaskContent}
+			use:cleanPaste
 			placeholder={$t('task.subtaskName')}
 			rows="1"
 			class="w-full resize-none bg-transparent text-[13px] leading-snug text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
@@ -1221,6 +1243,7 @@ function setDateQuick(date: string) {
 							<textarea
 								bind:this={descInput}
 								bind:value={descValue}
+								use:cleanPaste
 								class="w-full resize-none rounded-md border border-border/50 bg-transparent p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-border focus:outline-none"
 								placeholder={$t('task.addDescription')}
 								rows="3"
