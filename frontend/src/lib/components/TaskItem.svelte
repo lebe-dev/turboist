@@ -20,7 +20,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
 	import { portal } from '$lib/utils/portal';
-	import { incrementDuplicateTitle, stripTaskPrefix } from '$lib/utils';
+	import { incrementDuplicateTitle, stripTaskPrefix, stripMarkdownLinks } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { tick, onDestroy } from 'svelte';
 	import { t, locale } from 'svelte-intl-precompile';
@@ -104,7 +104,7 @@
 
 			if ((isSubtask || isLeafTask) && !completedTask.due?.recurring) {
 				toast.dismiss();
-				toast($t('task.completedToast', { values: { name: completedTask.content } }), {
+				toast($t('task.completedToast', { values: { name: stripMarkdownLinks(completedTask.content) } }), {
 					duration: 8000,
 					action: {
 						label: isSubtask ? $t('task.nextActionButton') : $t('task.followUpButton'),

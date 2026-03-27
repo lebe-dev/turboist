@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Task, Label } from '$lib/api/types';
 	import { updateTask, createTask, completeTask, deleteTask, moveTask, getTask, getCompletedSubtasks } from '$lib/api/client';
-	import { incrementDuplicateTitle, stripTaskPrefix } from '$lib/utils';
+	import { incrementDuplicateTitle, stripTaskPrefix, stripMarkdownLinks } from '$lib/utils';
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
@@ -464,7 +464,7 @@ function setDateQuick(date: string) {
 
 				if ((isSubtask || isLeafTask) && !completedTask.due?.recurring) {
 					toast.dismiss();
-					toast($t('task.completedToast', { values: { name: completedTask.content } }), {
+					toast($t('task.completedToast', { values: { name: stripMarkdownLinks(completedTask.content) } }), {
 						duration: 8000,
 						action: {
 							label: isSubtask ? $t('task.nextActionButton') : $t('task.followUpButton'),
@@ -489,7 +489,7 @@ function setDateQuick(date: string) {
 				const completedChild = { ...child, parent_id: child.parent_id ?? task.id };
 				const parentName = task.content;
 				toast.dismiss();
-				toast($t('task.completedToast', { values: { name: completedChild.content } }), {
+				toast($t('task.completedToast', { values: { name: stripMarkdownLinks(completedChild.content) } }), {
 					duration: 8000,
 					action: {
 						label: $t('task.nextActionButton'),

@@ -22,6 +22,14 @@ export function stripTaskPrefix(content: string): string {
 	return stripped.trim() || content;
 }
 
+/**
+ * Strip markdown link syntax, keeping only the link text.
+ * "[Magic Link Pitfalls](https://example.com)" → "Magic Link Pitfalls"
+ */
+export function stripMarkdownLinks(text: string): string {
+	return text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type WithoutChild<T> = T extends { child?: any } ? Omit<T, "child"> : T;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
