@@ -28,6 +28,7 @@
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import ListPlusIcon from '@lucide/svelte/icons/list-plus';
+	import FolderInputIcon from '@lucide/svelte/icons/folder-input';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
@@ -929,7 +930,7 @@ function setDateQuick(date: string) {
 
 	function handleMoveToProject(projectId: string) {
 		if (!task) return;
-		dropdownOpen = false;
+		showProjectPicker = false;
 		const taskId = task.id;
 		const project = appStore.projectTasks.find((p) => p.id === projectId);
 		tasksStore.removeTaskLocal(taskId);
@@ -1010,6 +1011,14 @@ function setDateQuick(date: string) {
 
 	// --- Delete task ---
 	let showDeleteConfirm = $state(false);
+	let showProjectPicker = $state(false);
+	let projectSearch = $state('');
+
+	const filteredProjects = $derived.by(() => {
+		if (!projectSearch) return availableProjectTasks;
+		const q = projectSearch.toLowerCase();
+		return availableProjectTasks.filter((p) => p.content.toLowerCase().includes(q));
+	});
 	function handleDelete() {
 		if (!task) return;
 		const taskId = task.id;
@@ -1117,8 +1126,6 @@ function setDateQuick(date: string) {
 					{backlogLabel}
 					{isInBacklog}
 					onToggleBacklog={toggleBacklog}
-					projectTasks={availableProjectTasks}
-					onMoveToProject={handleMoveToProject}
 					subtaskCount={task.children.length}
 					onResetSubtaskPriorities={resetSubtaskPriorities}
 					onResetSubtaskLabels={resetSubtaskLabels}
@@ -1405,6 +1412,20 @@ function setDateQuick(date: string) {
 								{/if}
 							</div>
 						</div>
+
+						<!-- Project -->
+						{#if availableProjectTasks.length > 0}
+							<div>
+								<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.project')}</h3>
+								<button
+									class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onclick={() => { showProjectPicker = true; projectSearch = ''; }}
+								>
+									<FolderInputIcon class="h-3.5 w-3.5" />
+									{$t('task.moveToProject')}
+								</button>
+							</div>
+						{/if}
 					</div>
 
 					<!-- Subtasks -->
@@ -1671,6 +1692,20 @@ function setDateQuick(date: string) {
 							{/if}
 						</div>
 					</div>
+
+					<!-- Project -->
+					{#if availableProjectTasks.length > 0}
+						<div>
+							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.project')}</h3>
+							<button
+								class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+								onclick={() => { showProjectPicker = true; projectSearch = ''; }}
+							>
+								<FolderInputIcon class="h-3.5 w-3.5" />
+								{$t('task.moveToProject')}
+							</button>
+						</div>
+					{/if}
 				</div>
 			</div>
 			<!-- Completed subtasks: full-width at bottom -->
@@ -1792,6 +1827,50 @@ function setDateQuick(date: string) {
 					>
 						{$t('dialog.delete')}
 					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	{#if showProjectPicker}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div
+			class="fixed inset-0 z-[60] flex items-start justify-center pt-[20vh] bg-black/60 backdrop-blur-sm"
+			onclick={() => { showProjectPicker = false; }}
+			onkeydown={(e) => { if (e.key === 'Escape') showProjectPicker = false; }}
+		>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-sm mx-4 rounded-xl border border-border bg-popover shadow-2xl animate-fade-in-up"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<div class="px-4 pt-3 pb-2">
+					<p class="text-[13px] font-medium text-foreground">{$t('task.selectProject')}</p>
+				</div>
+				<div class="px-4 pb-2">
+					<input
+						bind:value={projectSearch}
+						use:focusOnMount
+						type="text"
+						placeholder={$t('task.searchProjects')}
+						class="w-full rounded-md border border-border/50 bg-transparent px-2.5 py-1.5 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:border-border focus:outline-none"
+					/>
+				</div>
+				<div class="max-h-60 overflow-y-auto px-2 pb-2">
+					{#each filteredProjects as project (project.id)}
+						<button
+							class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent"
+							onclick={() => handleMoveToProject(project.id)}
+						>
+							<FolderInputIcon class="h-4 w-4 shrink-0 text-muted-foreground" />
+							{project.content}
+						</button>
+					{/each}
+					{#if filteredProjects.length === 0}
+						<p class="px-3 py-2 text-[13px] text-muted-foreground">{$t('task.noProjectsFound')}</p>
+					{/if}
 				</div>
 			</div>
 		</div>

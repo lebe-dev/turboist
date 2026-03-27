@@ -17,9 +17,7 @@
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import LayersIcon from '@lucide/svelte/icons/layers';
 	import TagIcon from '@lucide/svelte/icons/tag';
-	import FolderInputIcon from '@lucide/svelte/icons/folder-input';
 	import { t } from 'svelte-intl-precompile';
-	import type { ProjectTask } from '$lib/api/types';
 
 	let {
 		open = $bindable(false),
@@ -44,9 +42,6 @@
 		onResetSubtaskLabels,
 		onBulkTodayToday,
 		onBulkTodayTomorrow,
-
-		projectTasks = [],
-		onMoveToProject,
 
 		dropdownExtra,
 
@@ -86,9 +81,6 @@
 		onResetSubtaskLabels?: () => void;
 		onBulkTodayToday?: () => void;
 		onBulkTodayTomorrow?: () => void;
-
-		projectTasks?: ProjectTask[];
-		onMoveToProject?: (projectId: string) => void;
 
 		dropdownExtra?: Snippet;
 
@@ -167,22 +159,6 @@
 				<InboxIcon class="h-4 w-4" />
 				{isInBacklog ? $t('task.removeFromBacklog') : $t('task.addToBacklog')}
 			</DropdownMenu.Item>
-		{/if}
-
-		{#if onMoveToProject && projectTasks.length > 0}
-			<DropdownMenu.Sub>
-				<DropdownMenu.SubTrigger>
-					<FolderInputIcon class="h-4 w-4" />
-					{$t('task.makeSubtaskOfProject')}
-				</DropdownMenu.SubTrigger>
-				<DropdownMenu.SubContent>
-					{#each projectTasks as project (project.id)}
-						<DropdownMenu.Item onclick={() => onMoveToProject(project.id)}>
-							{project.content}
-						</DropdownMenu.Item>
-					{/each}
-				</DropdownMenu.SubContent>
-			</DropdownMenu.Sub>
 		{/if}
 
 		{#if subtaskCount > 0 && (onResetSubtaskPriorities || onResetSubtaskLabels || onBulkTodayToday || onBulkTodayTomorrow)}

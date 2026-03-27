@@ -1,9 +1,9 @@
 <script lang="ts">
 	import TaskItem from './TaskItem.svelte';
 	import type { Task } from '$lib/api/types';
-	import { completeTask, deleteTask, createTask, updateTask, moveTask } from '$lib/api/client';
+	import { completeTask, deleteTask, createTask, updateTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
-	import { appStore } from '$lib/stores/app.svelte';
+
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
@@ -167,10 +167,6 @@
 
 	const backlogLabel = $derived(tasksStore.config?.backlog_label ?? '');
 	const isInBacklog = $derived(backlogLabel !== '' && task.labels.includes(backlogLabel));
-
-	const availableProjectTasks = $derived(
-		appStore.projectTasks.filter((p) => p.id !== task.id && p.id !== task.parent_id)
-	);
 
 	function toggleBacklog() {
 		if (!backlogLabel) return;
@@ -402,23 +398,6 @@
 		});
 	}
 
-	// --- Move to project ---
-	function handleMoveToProject(projectId: string) {
-		dropdownOpen = false;
-		const taskId = task.id;
-		const project = appStore.projectTasks.find((p) => p.id === projectId);
-		tasksStore.removeTaskLocal(taskId);
-		moveTask(taskId, projectId).catch((e) => {
-			logger.error('tasks', `move to project failed: ${e}`);
-			toast.error($t('errors.moveFailed'));
-			tasksStore.clearPendingRemoval(taskId);
-			tasksStore.refresh();
-		});
-		if (project) {
-			toast($t('task.movedToProject', { values: { name: project.content } }), { duration: 3000 });
-		}
-	}
-
 	// --- Delete ---
 	let showDeleteConfirm = $state(false);
 
@@ -584,8 +563,6 @@
 					{backlogLabel}
 					{isInBacklog}
 					onToggleBacklog={toggleBacklog}
-					projectTasks={availableProjectTasks}
-					onMoveToProject={handleMoveToProject}
 					{dropdownExtra}
 					onSetDate={setDate}
 					onClearDate={clearDate}
