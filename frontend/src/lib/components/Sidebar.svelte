@@ -38,8 +38,14 @@
 >
 	<div class="flex h-12 items-center border-b border-sidebar-border {effectiveCollapsed ? 'justify-center px-0' : 'gap-2.5 px-4'}">
 		{#if !effectiveCollapsed}
-			<ZapIcon class="h-4 w-4 shrink-0 text-primary" fill="currentColor" />
-			<span class="text-sm font-bold tracking-widest uppercase text-foreground">Turboist</span>
+			<button
+				class="flex items-center gap-2.5 cursor-pointer"
+				onclick={() => { contextsStore.setView('today'); goto('/'); onClose?.(); }}
+				aria-label="Go to Today"
+			>
+				<ZapIcon class="h-4 w-4 shrink-0 text-primary" fill="currentColor" />
+				<span class="text-sm font-bold tracking-widest uppercase text-foreground">Turboist</span>
+			</button>
 			<ConnectionIndicator />
 		{/if}
 		{#if onClose}
