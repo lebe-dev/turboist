@@ -234,10 +234,23 @@ function createTasksStore() {
 		cancelOfflineTimer();
 		offlineTimer = setTimeout(() => {
 			offlineTimer = null;
-			if (!hasReceivedSnapshot && !wsClient.connected) {
-				logger.warn('tasks', 'no snapshot received within grace period, marking offline');
+			if (hasReceivedSnapshot) return;
+
+			logger.warn('tasks', 'no snapshot received within grace period');
+			if (!wsClient.connected) {
 				isOffline = true;
-				isStale = true;
+			}
+			isStale = true;
+
+			// Stop spinner: try loading stale cache so the user isn't stuck
+			if (loading) {
+				const cached = loadPersistedTasks('tasks');
+				if (cached.length > 0) {
+					flatTasks = cached;
+					const cachedMeta = loadPersistedMeta('meta');
+					if (cachedMeta) meta = cachedMeta;
+				}
+				loading = false;
 			}
 		}, OFFLINE_GRACE_MS);
 	}
@@ -355,6 +368,7 @@ function createTasksStore() {
 		hasReceivedSnapshot = false;
 
 		subscribeWS();
+		scheduleOfflineCheck();
 	}
 
 	// Optimistic local mutations
