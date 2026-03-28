@@ -16,6 +16,7 @@
 	import RepeatIcon from '@lucide/svelte/icons/repeat';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
+	import WeightIcon from '@lucide/svelte/icons/weight';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
@@ -164,6 +165,8 @@
 
 	const isPinned = $derived(pinnedStore.isPinned(task.id));
 	const canPin = $derived(isPinned || !pinnedStore.isFull);
+
+	const notInWeeklyPlan = $derived(isTodayOrTomorrow && weeklyLabel !== '' && !task.labels.includes(weeklyLabel) && !task.due?.recurring);
 
 	const backlogLabel = $derived(tasksStore.config?.backlog_label ?? '');
 	const isInBacklog = $derived(backlogLabel !== '' && task.labels.includes(backlogLabel));
@@ -498,6 +501,11 @@
 					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
 				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0}
 					<div class="mt-0.5 flex flex-wrap items-center gap-1 md:mt-1 md:gap-1.5">
+						{#if notInWeeklyPlan}
+							<span class="flex items-center text-[11px] text-red-500" title={$t('tasks.notInWeeklyPlan')}>
+								<WeightIcon class="h-3 w-3" />
+							</span>
+						{/if}
 						{#if task.due?.recurring}
 							<span class="flex items-center text-[11px] text-green-500">
 								<RepeatIcon class="h-3 w-3" />

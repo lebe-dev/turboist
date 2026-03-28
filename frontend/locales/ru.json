@@ -35,6 +35,7 @@
   "tasks.moveAllTo": "Переместить все в {label}",
   "tasks.completedToday": "Выполнено сегодня",
   "tasks.search": "Поиск...",
+  "tasks.notInWeeklyPlan": "Задача добавлена вне недельного планирования",
 
   "due.today": "Сегодня",
   "due.tomorrow": "Завтра",

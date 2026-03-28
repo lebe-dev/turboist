@@ -35,6 +35,7 @@
   "tasks.moveAllTo": "Move all to {label}",
   "tasks.completedToday": "Completed today",
   "tasks.search": "Search...",
+  "tasks.notInWeeklyPlan": "Task added outside weekly planning",
 
   "due.today": "Today",
   "due.tomorrow": "Tomorrow",
