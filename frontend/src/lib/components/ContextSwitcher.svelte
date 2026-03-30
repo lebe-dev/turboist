@@ -5,6 +5,7 @@
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
 	import { appStore } from '$lib/stores/app.svelte';
+	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
 	import ListIcon from '@lucide/svelte/icons/list';
@@ -18,6 +19,8 @@
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { t } from 'svelte-intl-precompile';
+
+	const INBOX_ALERT_THRESHOLD = 5;
 
 	let { collapsed = false, onItemClick }: { collapsed?: boolean; onItemClick?: () => void } = $props();
 
@@ -46,6 +49,7 @@
 	{#each viewDefs as view (view.id)}
 		{@const ViewIcon = view.icon}
 		{@const viewLabel = $t(view.key)}
+		{@const isInboxAlert = view.id === 'inbox' && tasksStore.inboxCount > INBOX_ALERT_THRESHOLD}
 		<button
 			class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
@@ -53,13 +57,18 @@
 				? 'text-sidebar-foreground/40'
 				: contextsStore.activeView === view.id
 					? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-					: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+					: isInboxAlert
+						? 'text-red-500 hover:bg-sidebar-accent/50 hover:text-red-400'
+						: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 			onclick={() => { if (planningStore.active) planningStore.exit(); navigateToMainIfNeeded(); contextsStore.setView(view.id); onItemClick?.(); }}
 			title={collapsed ? viewLabel : undefined}
 		>
-			<ViewIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+			<ViewIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 {isInboxAlert ? 'opacity-80' : 'opacity-60'}" />
 			{#if !collapsed}
 				{viewLabel}
+				{#if isInboxAlert}
+					<span class="ml-auto text-[11px] font-semibold tabular-nums">{tasksStore.inboxCount}</span>
+				{/if}
 			{/if}
 		</button>
 	{/each}

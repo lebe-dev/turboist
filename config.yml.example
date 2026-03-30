@@ -54,6 +54,10 @@ labels:
 project:
   label: "проект"
 
+# Label used to identify "projects" in the project list view.
+# Default: empty (feature disabled)
+projects_label: "проект"
+
 # Tasks for the current week
 weekly:
   # Todoist label that marks tasks for the current week
