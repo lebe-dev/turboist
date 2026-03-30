@@ -42,6 +42,14 @@ type Section struct {
 	ProjectID string `json:"project_id"`
 }
 
+// MoveTarget describes where a task should be moved.
+// When SectionID is non-empty, the task moves to that section (project is implicit).
+// When SectionID is empty, the task moves to ProjectID only.
+type MoveTarget struct {
+	ProjectID string
+	SectionID string
+}
+
 // Label is an internal representation of a Todoist label.
 type Label struct {
 	ID   string `json:"id"`

@@ -72,6 +72,10 @@ export async function updateTask(id: string, data: UpdateTaskRequest): Promise<v
 	return getBackend().updateTask(id, data);
 }
 
+export async function batchUpdateLabels(updates: Record<string, string[]>): Promise<void> {
+	return getBackend().batchUpdateLabels(updates);
+}
+
 export async function moveTask(id: string, parentId: string): Promise<void> {
 	return getBackend().moveTask(id, parentId);
 }

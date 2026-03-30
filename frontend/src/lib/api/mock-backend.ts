@@ -125,6 +125,10 @@ export class MockBackendConnector implements BackendConnector {
 		this.record('updateTask', [id, data]);
 	}
 
+	async batchUpdateLabels(updates: Record<string, string[]>): Promise<void> {
+		this.record('batchUpdateLabels', [updates]);
+	}
+
 	async completeTask(id: string): Promise<void> {
 		this.record('completeTask', [id]);
 	}

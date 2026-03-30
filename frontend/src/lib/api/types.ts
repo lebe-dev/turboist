@@ -150,6 +150,7 @@ export interface AutoLabelMapping {
 export interface LabelProjectMapping {
 	label: string;
 	project: string;
+	section?: string;
 }
 
 export interface AppConfig {

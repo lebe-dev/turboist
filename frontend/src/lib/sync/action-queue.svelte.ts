@@ -132,6 +132,11 @@ function createActionQueue() {
 				await backend.updateTask(id, data);
 				break;
 			}
+			case 'batchUpdateLabels': {
+				const { updates } = action.payload as { updates: Record<string, string[]> };
+				await backend.batchUpdateLabels(updates);
+				break;
+			}
 			case 'moveTask': {
 				const { id, parentId } = action.payload as { id: string; parentId: string };
 				await backend.moveTask(id, parentId);

@@ -495,6 +495,34 @@ func (h *TasksHandler) ResetWeekly(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true, "updated": len(tasks)})
 }
 
+type batchUpdateLabelsRequest struct {
+	Updates map[string][]string `json:"updates"` // taskID → new labels
+}
+
+// BatchUpdateLabels handles POST /api/tasks/batch-update-labels
+// Updates labels for multiple tasks in a single Todoist sync call.
+func (h *TasksHandler) BatchUpdateLabels(c fiber.Ctx) error {
+	var req batchUpdateLabelsRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if len(req.Updates) == 0 {
+		return c.JSON(fiber.Map{"ok": true, "updated": 0})
+	}
+
+	if err := h.cache.Client().SetTasksLabels(c.Context(), req.Updates); err != nil {
+		log.Error("batch update labels failed", "err", err)
+		return todoistErrorResponse(c, err)
+	}
+
+	if err := h.cache.RefreshAfterMutation(c.Context()); err != nil {
+		log.Error("batch update labels: cache refresh failed", "err", err)
+	}
+
+	log.Info("batch update labels", "updated", len(req.Updates))
+	return c.JSON(fiber.Map{"ok": true, "updated": len(req.Updates)})
+}
+
 // Backlog handles GET /api/tasks/backlog?context=...
 func (h *TasksHandler) Backlog(c fiber.Ctx) error {
 	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{

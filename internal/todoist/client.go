@@ -313,6 +313,35 @@ func (c *Client) BatchMoveTasksToProject(ctx context.Context, moves map[string]s
 	return nil
 }
 
+// BatchMoveTasks moves multiple tasks to their targets in a single sync call.
+// When target has SectionID, the command uses section_id (project is implicit in Todoist API).
+// When target has no SectionID, the command uses project_id.
+func (c *Client) BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget) error {
+	if len(moves) == 0 {
+		return nil
+	}
+	cmds := make(sync.Commands, 0, len(moves))
+	for id, target := range moves {
+		args := map[string]any{"id": id}
+		if target.SectionID != "" {
+			args["section_id"] = target.SectionID
+		} else {
+			args["project_id"] = target.ProjectID
+		}
+		cmds = append(cmds, &sync.Command{
+			Type: "item_move",
+			UUID: uuid.New(),
+			Args: args,
+		})
+	}
+	log.Debug("todoist BatchMoveTasks", "count", len(moves))
+	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	if err != nil {
+		return &APIError{Op: "BatchMoveTasks", Err: err}
+	}
+	return nil
+}
+
 // IsRateLimited reports whether the error indicates a Todoist API rate limit (HTTP 429).
 // The external library returns errors.New(http.StatusText(429)) for non-200 responses.
 func IsRateLimited(err error) bool {

@@ -133,6 +133,13 @@ export class DefaultBackendConnector implements BackendConnector {
 		});
 	}
 
+	async batchUpdateLabels(updates: Record<string, string[]>): Promise<void> {
+		await this.request('/api/tasks/batch-update-labels', {
+			method: 'POST',
+			body: JSON.stringify({ updates })
+		});
+	}
+
 	async moveTask(id: string, parentId: string): Promise<void> {
 		await this.request(`/api/tasks/${encodeURIComponent(id)}/move`, {
 			method: 'POST',

@@ -84,6 +84,7 @@ describe('flush-before-read pattern', () => {
 			getCompletedSubtasks: vi.fn(),
 			createTask: vi.fn().mockResolvedValue(undefined),
 			updateTask: vi.fn(),
+			batchUpdateLabels: vi.fn(),
 			moveTask: vi.fn(),
 			completeTask: vi.fn(),
 			duplicateTask: vi.fn(),

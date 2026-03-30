@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DayPart, Task } from '$lib/api/types';
-	import { updateTask } from '$lib/api/client';
+	import { updateTask, batchUpdateLabels } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { logger } from '$lib/stores/logger';
 	import { toast } from 'svelte-sonner';
@@ -124,9 +124,23 @@
 	const dayPartLabels = $derived(new Set(dayParts.map((dp) => dp.label)));
 
 	function moveAllTasks(tasks: Task[], targetLabel: string) {
+		if (tasks.length === 0) return;
+
+		const updates: Record<string, string[]> = {};
 		for (const task of tasks) {
-			moveTask(task, targetLabel);
+			const newLabels = task.labels.filter((l) => !dayPartLabels.has(l));
+			newLabels.push(targetLabel);
+			updates[task.id] = newLabels;
+
+			// Optimistic update
+			tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, labels: newLabels }));
 		}
+
+		batchUpdateLabels(updates).catch((e) => {
+			logger.error('tasks', `moveAllTasks failed: ${e}`);
+			toast.error($t('errors.updateFailed'));
+			tasksStore.refresh();
+		});
 	}
 
 	function moveTask(task: Task, targetLabel: string | null) {

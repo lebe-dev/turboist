@@ -88,6 +88,7 @@ type projectTaskItem struct {
 type labelProjectMappingResponse struct {
 	Label   string `json:"label"`
 	Project string `json:"project"`
+	Section string `json:"section,omitempty"`
 }
 
 type appConfigResponse struct {
@@ -232,6 +233,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		labelProjectMap = append(labelProjectMap, labelProjectMappingResponse{
 			Label:   m.Label,
 			Project: m.Project,
+			Section: m.Section,
 		})
 	}
 

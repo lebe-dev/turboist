@@ -164,6 +164,7 @@ type AutoLabelConfig struct {
 type LabelProjectMapping struct {
 	Label   string `yaml:"label"`
 	Project string `yaml:"project"`
+	Section string `yaml:"section"`
 }
 
 func (a *AutoLabelConfig) ShouldIgnoreCase() bool {

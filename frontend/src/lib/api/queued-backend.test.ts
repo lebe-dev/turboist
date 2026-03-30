@@ -26,6 +26,7 @@ function createMockBackend(): BackendConnector {
 		getCompletedSubtasks: vi.fn(),
 		createTask: vi.fn(),
 		updateTask: vi.fn(),
+		batchUpdateLabels: vi.fn(),
 		moveTask: vi.fn(),
 		completeTask: vi.fn(),
 		duplicateTask: vi.fn(),

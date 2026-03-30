@@ -1,5 +1,5 @@
 import { logger } from '$lib/stores/logger';
-import { getAppConfig, updateTask, resetWeeklyLabel, patchState } from '$lib/api/client';
+import { getAppConfig, updateTask, batchUpdateLabels, resetWeeklyLabel, patchState } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore } from './contexts.svelte';
 import {
@@ -194,13 +194,13 @@ function createPlanningStore() {
 		meta = { ...meta, weekly_count: meta.weekly_count + tasksToMove.length };
 
 		try {
-			await Promise.all(
-				tasksToMove.map((task) => {
-					const newLabels = task.labels.filter((l) => l !== backlogLabel);
-					if (!newLabels.includes(weeklyLabel)) newLabels.push(weeklyLabel);
-					return updateTask(task.id, { labels: newLabels });
-				})
-			);
+			const updates: Record<string, string[]> = {};
+			for (const task of tasksToMove) {
+				const newLabels = task.labels.filter((l) => l !== backlogLabel);
+				if (!newLabels.includes(weeklyLabel)) newLabels.push(weeklyLabel);
+				updates[task.id] = newLabels;
+			}
+			await batchUpdateLabels(updates);
 		} catch (err) {
 			logger.error('planning', `acceptAll failed: ${err}`);
 		}

@@ -128,10 +128,12 @@ auto_labels:
 # based on their labels. First matching label wins.
 # Tasks with no matching label are moved to Inbox.
 # Subtasks (tasks with a parent) are never affected.
+# Optionally specify a section within the project.
 # Omit or leave empty to disable.
 label_project_map:
   - label: "здоровье"
     project: "Личное"
+    section: "Здоровье"  # optional: move to specific section within project
   - label: "работа"
     project: "Работа"
 

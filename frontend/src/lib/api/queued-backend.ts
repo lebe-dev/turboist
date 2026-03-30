@@ -92,6 +92,11 @@ export class QueuedBackend implements BackendConnector {
 		await this.queue.enqueue({ type: 'updateTask', payload: { id, data } });
 	}
 
+	async batchUpdateLabels(updates: Record<string, string[]>): Promise<void> {
+		logger.log('sync', 'Queuing batchUpdateLabels');
+		await this.queue.enqueue({ type: 'batchUpdateLabels', payload: { updates } });
+	}
+
 	async moveTask(id: string, parentId: string): Promise<void> {
 		logger.log('sync', 'Queuing moveTask');
 		await this.queue.enqueue({ type: 'moveTask', payload: { id, parentId } });

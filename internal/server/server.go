@@ -56,6 +56,7 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 	app.Get("/api/tasks/tomorrow", tasksHandler.Tomorrow)
 	app.Get("/api/tasks/backlog", tasksHandler.Backlog)
 	app.Post("/api/tasks/reset-weekly", tasksHandler.ResetWeekly)
+	app.Post("/api/tasks/batch-update-labels", tasksHandler.BatchUpdateLabels)
 	app.Post("/api/tasks", tasksHandler.Create)
 	app.Get("/api/tasks/:id", tasksHandler.GetByID)
 	app.Patch("/api/tasks/:id", tasksHandler.Update)
