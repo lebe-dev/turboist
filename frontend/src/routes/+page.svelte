@@ -13,7 +13,7 @@
 	import PlanningView from '$lib/components/PlanningView.svelte';
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
-	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
+
 	import { getCompletedTasks } from '$lib/api/client';
 	import TaskItem from '$lib/components/TaskItem.svelte';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
@@ -249,7 +249,7 @@
 	}
 
 	let createDialogOpen = $state(false);
-	let quickCaptureOpen = $state(false);
+	const quickCaptureOpen = $derived(appStore.quickCaptureOpen);
 	let createDayPartLabel = $state('');
 
 	// Completed-today tasks for the Today view
@@ -312,7 +312,7 @@
 			createDialogOpen = true;
 		} else if (e.key === 'i') {
 			e.preventDefault();
-			quickCaptureOpen = true;
+			appStore.quickCaptureOpen = true;
 		}
 	}}
 />
@@ -569,9 +569,7 @@
 				<TaskList tasks={filteredTasks} {searchQuery} completed={isCompletedView} contextName={activeContextName} onResetContext={resetContext} />
 			{/if}
 		{/if}
-		<div class="flex justify-center py-4">
-			<QuickCaptureButton bind:open={quickCaptureOpen} />
-		</div>
+		<div class="h-4"></div>
 
 		<!-- Completed today section -->
 		{#if contextsStore.activeView === 'today' && !tasksStore.loading}

@@ -14,7 +14,7 @@ import { planningStore } from './planning.svelte';
 import { tasksStore } from './tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
 import { saveAppConfig, loadAppConfig } from '$lib/sync/db';
-import { initState, destroyState } from '$lib/state/index.svelte';
+import { initState, destroyState, loadPersistedUI } from '$lib/state/index.svelte';
 
 const LOCAL_STORAGE_KEYS = [
 	'turboist:context',
@@ -87,6 +87,7 @@ function createAppStore() {
 	let labelProjectMap = $state<LabelProjectMapping[]>([]);
 	let _projects = $state<Project[]>([]);
 	let inboxProjectId = $state<string>('');
+	let quickCaptureOpen = $state(false);
 
 	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
@@ -104,7 +105,8 @@ function createAppStore() {
 			cfg.state.active_view as View
 		);
 		pinnedStore.init(cfg.state.pinned_tasks, cfg.settings.max_pinned);
-		collapsedStore.init(cfg.state.collapsed_ids);
+		const hasCachedUI = loadPersistedUI() !== null;
+		collapsedStore.init(hasCachedUI ? cfg.state.collapsed_ids : []);
 		sidebarStore.init(cfg.state.sidebar_collapsed);
 		planningStore.initActive(cfg.state.planning_open);
 	}
@@ -212,6 +214,12 @@ function createAppStore() {
 		},
 		get inboxProjectId() {
 			return inboxProjectId;
+		},
+		get quickCaptureOpen() {
+			return quickCaptureOpen;
+		},
+		set quickCaptureOpen(v: boolean) {
+			quickCaptureOpen = v;
 		},
 		shouldInheritToSubtasks,
 		getMatchingAutoLabels,

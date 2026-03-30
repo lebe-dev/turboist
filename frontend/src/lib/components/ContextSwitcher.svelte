@@ -4,7 +4,9 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import TagIcon from '@lucide/svelte/icons/tag';
+	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
 	import ListIcon from '@lucide/svelte/icons/list';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
@@ -153,5 +155,21 @@
 			{$t('sidebar.labels')}
 		{/if}
 	</a>
+
+	<!-- Ideas -->
+	<div class="my-3 border-t border-sidebar-border"></div>
+
+	<button
+		class="group flex w-full items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
+			text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-yellow-400"
+		onclick={() => { appStore.quickCaptureOpen = true; onItemClick?.(); }}
+		title={collapsed ? $t('quickCapture.title') : undefined}
+	>
+		<LightbulbIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+		{#if !collapsed}
+			{$t('quickCapture.title')}
+		{/if}
+	</button>
 
 </nav>

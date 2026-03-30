@@ -340,22 +340,19 @@ describe('TaskDropdownMenu', () => {
 		expect(onClearDate).toHaveBeenCalledOnce();
 	});
 
-	it('calls onSetPriority with correct value when priority button clicked', async () => {
+	it.each([
+		{ label: 'P1', value: 4 },
+		{ label: 'P2', value: 3 },
+		{ label: 'P3', value: 2 },
+		{ label: 'P4', value: 1 }
+	])('calls onSetPriority($value) when $label clicked', async ({ label, value }) => {
 		const user = userEvent.setup();
 		const onSetPriority = vi.fn();
 		render(TaskDropdownMenu, { props: { ...baseProps, onSetPriority } });
 
-		await user.click(screen.getByLabelText('P1'));
-		expect(onSetPriority).toHaveBeenCalledWith(4);
-
-		await user.click(screen.getByLabelText('P2'));
-		expect(onSetPriority).toHaveBeenCalledWith(3);
-
-		await user.click(screen.getByLabelText('P3'));
-		expect(onSetPriority).toHaveBeenCalledWith(2);
-
-		await user.click(screen.getByLabelText('P4'));
-		expect(onSetPriority).toHaveBeenCalledWith(1);
+		await user.click(screen.getByLabelText(label));
+		expect(onSetPriority).toHaveBeenCalledWith(value);
+		cleanup();
 	});
 
 	it('calls onDelete when delete item clicked', async () => {

@@ -13,6 +13,7 @@
 	import { initLocale } from '$lib/i18n';
 	import UpdateBanner from '$lib/components/UpdateBanner.svelte';
 	import InstallBanner from '$lib/components/InstallBanner.svelte';
+	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
 	import ConnectionIndicator from '$lib/components/ConnectionIndicator.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
@@ -54,6 +55,8 @@
 <Toaster />
 <UpdateBanner />
 <InstallBanner />
+
+<QuickCaptureButton showButton={false} />
 
 {#if showSidebar}
     <div class="flex h-screen overflow-hidden bg-background">

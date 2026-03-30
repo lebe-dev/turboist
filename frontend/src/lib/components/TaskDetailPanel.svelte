@@ -537,8 +537,8 @@ function setDateQuick(date: string) {
 			...t,
 			children: t.children
 				.map((c) => (c.id === childId ? { ...c, priority: value } : c))
-				.sort((a, b) => b.priority - a.priority)
 		}));
+		tasksStore.updateTaskLocal(childId, (t) => ({ ...t, priority: value }));
 		updateTask(childId, { priority: value }).catch((e) => {
 			logger.error('tasks', `update subtask priority failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
@@ -556,6 +556,7 @@ function setDateQuick(date: string) {
 				c.id === childId ? { ...c, due: { date, recurring: false } } : c
 			)
 		}));
+		tasksStore.updateTaskLocal(childId, (t) => ({ ...t, due: { date, recurring: false } }));
 		updateTask(childId, { due_date: date }).catch((e) => {
 			logger.error('tasks', `set subtask date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
@@ -572,6 +573,7 @@ function setDateQuick(date: string) {
 				c.id === childId ? { ...c, due: null } : c
 			)
 		}));
+		tasksStore.updateTaskLocal(childId, (t) => ({ ...t, due: null }));
 		updateTask(childId, { due_date: '' }).catch((e) => {
 			logger.error('tasks', `clear subtask date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
@@ -654,6 +656,11 @@ function setDateQuick(date: string) {
 				labels: newLabels,
 				...(movingToBacklog ? { due: null } : {})
 			} : c)
+		}));
+		tasksStore.updateTaskLocal(child.id, (t) => ({
+			...t,
+			labels: newLabels,
+			...(movingToBacklog ? { due: null } : {})
 		}));
 		updateTask(child.id, { labels: newLabels, ...(movingToBacklog ? { due_date: '' } : {}) }).catch((e) => {
 			logger.error('tasks', `toggle subtask backlog failed: ${e}`);

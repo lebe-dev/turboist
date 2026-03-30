@@ -9,7 +9,7 @@
 	import { toast } from 'svelte-sonner';
 	import { t } from 'svelte-intl-precompile';
 
-	let { open = $bindable(false) }: { open: boolean } = $props();
+	let { showButton = true }: { showButton?: boolean } = $props();
 
 	let content = $state('');
 	let description = $state('');
@@ -30,7 +30,7 @@
 	];
 
 	$effect(() => {
-		if (open) {
+		if (appStore.quickCaptureOpen) {
 			content = 'turboist: ';
 			description = '';
 			submitting = false;
@@ -46,6 +46,10 @@
 		}
 	});
 
+	function close() {
+		appStore.quickCaptureOpen = false;
+	}
+
 	function handleSubmit() {
 		if (!content.trim() || submitting || !parentTaskId) return;
 		submitting = true;
@@ -55,7 +59,7 @@
 		const dueDate = today ? new Date().toISOString().slice(0, 10) : undefined;
 
 		// Optimistic: close immediately, send in background
-		open = false;
+		close();
 		toast.success($t('quickCapture.ideaSaved'));
 
 		createTask({
@@ -75,27 +79,29 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
-			open = false;
+			close();
 		}
 	}
 
 	function handleBackdropClick(e: MouseEvent) {
 		if (e.target === dialogEl) {
-			open = false;
+			close();
 		}
 	}
 </script>
 
+{#if showButton}
 <button
 	class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground/40 transition-colors hover:text-yellow-400"
-	onclick={() => (open = true)}
+	onclick={() => (appStore.quickCaptureOpen = true)}
 	title={$t('quickCapture.tooltip')}
 >
 	<LightbulbIcon class="h-3.5 w-3.5" />
 	<span class="text-[12px] underline">{$t('quickCapture.title')}</span>
 </button>
+{/if}
 
-{#if open}
+{#if appStore.quickCaptureOpen}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		bind:this={dialogEl}
@@ -177,7 +183,7 @@
 				<div class="flex items-center justify-end gap-2 border-t border-border/50 px-4 py-3">
 					<button
 						class="rounded-lg px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						onclick={() => (open = false)}
+						onclick={close}
 					>
 						{$t('dialog.cancel')}
 					</button>

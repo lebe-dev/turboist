@@ -208,7 +208,7 @@
 				<button
 					class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
 						{task.due?.date === todayStr() ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
-					onclick={() => onSetDate(todayStr())}
+					onclick={() => { onSetDate(todayStr()); handleOpenChange(false); }}
 					aria-label="Today"
 				>
 					<CalendarIcon class="h-4 w-4" />
@@ -216,7 +216,7 @@
 				<button
 					class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
 						{task.due?.date === tomorrowStr() ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
-					onclick={() => onSetDate(tomorrowStr())}
+					onclick={() => { onSetDate(tomorrowStr()); handleOpenChange(false); }}
 					aria-label="Tomorrow"
 				>
 					<SunIcon class="h-4 w-4" />
@@ -233,7 +233,7 @@
 				{#if task.due && onClearDate}
 					<button
 						class="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						onclick={onClearDate}
+						onclick={() => { onClearDate?.(); handleOpenChange(false); }}
 						aria-label="Clear date"
 					>
 						<XIcon class="h-3.5 w-3.5" />
@@ -264,7 +264,7 @@
 					<button
 						class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
 							{task.priority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
-						onclick={() => onSetPriority(p.value)}
+						onclick={() => { onSetPriority(p.value); handleOpenChange(false); }}
 						aria-label={p.label}
 					>
 						<FlagIcon class="h-4 w-4" />
