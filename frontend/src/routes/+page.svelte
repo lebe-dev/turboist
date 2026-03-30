@@ -148,11 +148,13 @@
 				}
 				return acc;
 			}
-			const filteredChildren = filterTaskTree(task.children);
 			if (taskMatchesFilters(task)) {
-				acc.push({ ...task, children: filteredChildren });
-			} else if (filteredChildren.length > 0) {
-				acc.push({ ...task, children: filteredChildren });
+				acc.push(task);
+			} else {
+				const filteredChildren = filterTaskTree(task.children);
+				if (filteredChildren.length > 0) {
+					acc.push({ ...task, children: filteredChildren });
+				}
 			}
 			return acc;
 		}, []);

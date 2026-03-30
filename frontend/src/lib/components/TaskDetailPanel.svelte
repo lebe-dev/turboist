@@ -1481,67 +1481,80 @@ function setDateQuick(date: string) {
 									</button>
 								{/if}
 							</div>
+							{#snippet subtaskNode(child: Task, depth: number)}
+								<div
+									class="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50"
+									style={depth > 0 ? `padding-left: ${8 + depth * 20}px` : undefined}
+								>
+									{#if depth === 0}
+										<button
+											class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
+												{priorityBorder(child.priority)} {priorityHover(child.priority)}"
+											onclick={() => handleComplete(child.id)}
+											aria-label="Complete subtask"
+										>
+											<CheckIcon class="h-2 w-2 text-primary opacity-0 transition-opacity group-hover:opacity-50" strokeWidth={3} />
+										</button>
+									{/if}
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<div
+										class="min-w-0 flex-1 {onselect ? 'cursor-pointer' : ''}"
+										onclick={() => onselect?.(child.id)}
+									>
+										<MarkdownContent text={child.content} class="text-[13px] text-foreground/90" />
+										<div class="mt-1 flex items-center gap-2">
+											{#if child.due}
+												<span class="flex items-center gap-0.5 text-[11px] {isOverdue(child.due.date) ? 'text-destructive' : 'text-muted-foreground'}">
+													<CalendarIcon class="h-3 w-3" />
+													{formatDueDate(child.due.date)}
+												</span>
+											{/if}
+											{#each child.labels as label (label)}
+												<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
+											{/each}
+										</div>
+									</div>
+									{#if depth === 0}
+										<TaskDropdownMenu
+											open={openSubtaskMenuId === child.id}
+											onOpenChange={(v) => { openSubtaskMenuId = v ? child.id : null; }}
+											task={child}
+											onEdit={() => onselect?.(child.id)}
+											onDuplicate={() => duplicateSubtask(child)}
+											onCopy={() => navigator.clipboard.writeText(stripTaskPrefix(child.content))}
+											backlogLabel={backlogLabel}
+											isInBacklog={backlogLabel !== '' && child.labels.includes(backlogLabel)}
+											onToggleBacklog={() => toggleSubtaskBacklog(child)}
+											onSetDate={(d) => setSubtaskDate(child.id, d)}
+											onClearDate={() => clearSubtaskDate(child.id)}
+											onOpenDatePicker={() => openSubtaskDatePicker(child.id)}
+											showCalendar={subtaskCalendarTargetId === child.id}
+											calendarValue={child.due?.date ? parseDate(child.due.date) : undefined}
+											onCalendarSelect={onSubtaskCalendarSelect}
+											onSetPriority={(p) => setSubtaskPriority(child.id, p)}
+											onDelete={() => deleteSubtask(child.id)}
+											width="w-64"
+										>
+											{#snippet trigger()}
+												<DropdownMenu.Trigger
+													class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
+													onclick={(e: MouseEvent) => e.stopPropagation()}
+												>
+													<EllipsisIcon class="h-4 w-4" />
+												</DropdownMenu.Trigger>
+											{/snippet}
+										</TaskDropdownMenu>
+									{/if}
+								</div>
+								{#each child.children as grandchild (grandchild.id)}
+									{@render subtaskNode(grandchild, depth + 1)}
+								{/each}
+							{/snippet}
 							{#if !collapsed}
 								<div class="space-y-0.5">
 									{#each task.children as child (child.id)}
-										<div class="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50">
-											<button
-												class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
-													{priorityBorder(child.priority)} {priorityHover(child.priority)}"
-												onclick={() => handleComplete(child.id)}
-												aria-label="Complete subtask"
-											>
-												<CheckIcon class="h-2 w-2 text-primary opacity-0 transition-opacity group-hover:opacity-50" strokeWidth={3} />
-											</button>
-											<!-- svelte-ignore a11y_click_events_have_key_events -->
-											<!-- svelte-ignore a11y_no_static_element_interactions -->
-											<div
-												class="min-w-0 flex-1 {onselect ? 'cursor-pointer' : ''}"
-												onclick={() => onselect?.(child.id)}
-											>
-												<MarkdownContent text={child.content} class="text-[13px] text-foreground/90" />
-												<div class="mt-1 flex items-center gap-2">
-													{#if child.due}
-														<span class="flex items-center gap-0.5 text-[11px] {isOverdue(child.due.date) ? 'text-destructive' : 'text-muted-foreground'}">
-															<CalendarIcon class="h-3 w-3" />
-															{formatDueDate(child.due.date)}
-														</span>
-													{/if}
-													{#each child.labels as label (label)}
-														<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
-													{/each}
-												</div>
-											</div>
-											<TaskDropdownMenu
-												open={openSubtaskMenuId === child.id}
-												onOpenChange={(v) => { openSubtaskMenuId = v ? child.id : null; }}
-												task={child}
-												onEdit={() => onselect?.(child.id)}
-												onDuplicate={() => duplicateSubtask(child)}
-												onCopy={() => navigator.clipboard.writeText(stripTaskPrefix(child.content))}
-												backlogLabel={backlogLabel}
-												isInBacklog={backlogLabel !== '' && child.labels.includes(backlogLabel)}
-												onToggleBacklog={() => toggleSubtaskBacklog(child)}
-												onSetDate={(d) => setSubtaskDate(child.id, d)}
-												onClearDate={() => clearSubtaskDate(child.id)}
-												onOpenDatePicker={() => openSubtaskDatePicker(child.id)}
-												showCalendar={subtaskCalendarTargetId === child.id}
-												calendarValue={child.due?.date ? parseDate(child.due.date) : undefined}
-												onCalendarSelect={onSubtaskCalendarSelect}
-												onSetPriority={(p) => setSubtaskPriority(child.id, p)}
-												onDelete={() => deleteSubtask(child.id)}
-												width="w-64"
-											>
-												{#snippet trigger()}
-													<DropdownMenu.Trigger
-														class="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:text-muted-foreground"
-														onclick={(e: MouseEvent) => e.stopPropagation()}
-													>
-														<EllipsisIcon class="h-4 w-4" />
-													</DropdownMenu.Trigger>
-												{/snippet}
-											</TaskDropdownMenu>
-										</div>
+										{@render subtaskNode(child, 0)}
 									{/each}
 								</div>
 								{/if}
