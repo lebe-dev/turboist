@@ -37,6 +37,7 @@
   "tasks.completedToday": "Completed today",
   "tasks.search": "Search...",
   "tasks.notInWeeklyPlan": "Task added outside weekly planning",
+  "tasks.postponed": "Postponed {count, plural, one {# time} other {# times}}",
 
   "due.today": "Today",
   "due.tomorrow": "Tomorrow",

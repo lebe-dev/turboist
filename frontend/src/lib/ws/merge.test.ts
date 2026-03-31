@@ -18,6 +18,7 @@ function makeTask(id: string, content = `Task ${id}`, children: Task[] = []): Ta
 		completed_at: null,
 		added_at: '2024-01-01T00:00:00Z',
 		is_project_task: false,
+		postpone_count: 0,
 		children
 	};
 }

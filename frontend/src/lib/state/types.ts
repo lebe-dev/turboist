@@ -21,6 +21,7 @@ export interface FlatTask {
 	completed_at: string | null;
 	added_at: string;
 	is_project_task: boolean;
+	postpone_count: number;
 }
 
 export function taskToFlat(task: Task): FlatTask {
@@ -39,7 +40,8 @@ export function taskToFlat(task: Task): FlatTask {
 		completed_sub_task_count: task.completed_sub_task_count,
 		completed_at: task.completed_at,
 		added_at: task.added_at,
-		is_project_task: task.is_project_task
+		is_project_task: task.is_project_task,
+		postpone_count: task.postpone_count ?? 0
 	};
 }
 
@@ -60,6 +62,7 @@ export function flatToTask(flat: FlatTask, children: Task[] = []): Task {
 		completed_at: flat.completed_at,
 		added_at: flat.added_at,
 		is_project_task: flat.is_project_task,
+		postpone_count: flat.postpone_count,
 		children
 	};
 }

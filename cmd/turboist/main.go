@@ -64,6 +64,22 @@ func main() {
 	defer func() { _ = store.Close() }()
 	log.Info("storage initialized")
 
+	cache.SetTaskEnricher(func(tasks []*todoist.Task) {
+		counts, err := store.GetPostponeCounts()
+		if err != nil {
+			log.Error("load postpone counts failed", "err", err)
+			return
+		}
+		for _, t := range tasks {
+			if c, ok := counts[t.ID]; ok {
+				t.PostponeCount = c
+			}
+		}
+	})
+	if err := cache.RefreshAfterMutation(ctx); err != nil {
+		log.Warn("initial enrichment refresh failed", "err", err)
+	}
+
 	sched := scheduler.New(cfg.App.PollInterval)
 	if len(cfg.App.AutoExpire) > 0 {
 		ae := scheduler.NewAutoExpire(cache, cfg.App.AutoExpire)

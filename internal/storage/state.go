@@ -63,6 +63,16 @@ func (s *Store) GetState() (*UserState, error) {
 		state.DayPartNotes = map[string]string{}
 	}
 
+	state.Locale = kv["locale"]
+
+	if raw, ok := kv["all_filters"]; ok {
+		var af AllFiltersState
+		if err := json.Unmarshal([]byte(raw), &af); err != nil {
+			return nil, fmt.Errorf("unmarshal all_filters: %w", err)
+		}
+		state.AllFilters = &af
+	}
+
 	return state, nil
 }
 

@@ -3,6 +3,7 @@
 	import { setMode, userPrefersMode } from 'mode-watcher';
 	import { t, locale } from 'svelte-intl-precompile';
 	import { availableLocales } from '$lib/i18n';
+	import { patchState } from '$lib/api/client';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
@@ -72,7 +73,7 @@
 									{$locale === loc
 										? 'border-primary/50 bg-primary/5 text-foreground'
 										: 'border-border/50 text-muted-foreground hover:bg-accent/30'}"
-								onclick={() => locale.set(loc)}
+								onclick={() => { locale.set(loc); patchState({ locale: loc }).catch(console.error); }}
 							>
 								{localeLabels[loc] ?? loc}
 							</button>

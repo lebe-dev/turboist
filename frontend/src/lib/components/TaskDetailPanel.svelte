@@ -754,6 +754,7 @@ function setDateQuick(date: string) {
 			completed_at: null,
 			added_at: new Date().toISOString(),
 			is_project_task: false,
+			postpone_count: 0,
 			children: []
 		};
 		updateLocal((t) => ({

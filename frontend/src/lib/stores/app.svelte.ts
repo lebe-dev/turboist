@@ -4,7 +4,8 @@ import { setBackend, getBackend } from '$lib/api/backend';
 import { DefaultBackendConnector } from '$lib/api/default-backend';
 import { QueuedBackend } from '$lib/api/queued-backend';
 import { actionQueue } from '$lib/sync/action-queue.svelte';
-import type { AutoLabelMapping, Label, LabelConfig, LabelProjectMapping, Project, ProjectTask, QuickCaptureConfig, View } from '$lib/api/types';
+import type { AllFiltersState, AutoLabelMapping, Label, LabelConfig, LabelProjectMapping, Project, ProjectTask, QuickCaptureConfig, View } from '$lib/api/types';
+import { applyLocaleFromConfig } from '$lib/i18n';
 import { compileAutoLabels, matchAutoLabels } from '$lib/utils/auto-labels';
 import { contextsStore } from './contexts.svelte';
 import { pinnedStore } from './pinned.svelte';
@@ -23,7 +24,9 @@ const LOCAL_STORAGE_KEYS = [
 	'turboist:pinned-tasks',
 	'turboist:collapsed',
 	'turboist:sidebar-collapsed',
-	'turboist:planning'
+	'turboist:planning',
+	'turboist:locale',
+	'turboist:all-filters'
 ] as const;
 
 // One-time migration: push any localStorage state to the server and clear it.
@@ -64,6 +67,24 @@ async function migrateLocalStorage(): Promise<void> {
 		const planning = localStorage.getItem('turboist:planning');
 		if (planning) update.planning_open = planning === 'true';
 
+		const loc = localStorage.getItem('turboist:locale');
+		if (loc) update.locale = loc;
+
+		const allFiltersRaw = localStorage.getItem('turboist:all-filters');
+		if (allFiltersRaw) {
+			try {
+				const parsed = JSON.parse(allFiltersRaw);
+				update.all_filters = {
+					selected_priorities: parsed.selectedPriorities ?? [],
+					selected_labels: parsed.selectedLabels ?? [],
+					links_only: parsed.linksOnly ?? false,
+					filters_expanded: parsed.filtersExpanded ?? false
+				};
+			} catch {
+				// ignore
+			}
+		}
+
 		if (Object.keys(update).length > 0) {
 			await patchState(update as Parameters<typeof patchState>[0]);
 		}
@@ -89,6 +110,7 @@ function createAppStore() {
 	let _projects = $state<Project[]>([]);
 	let inboxProjectId = $state<string>('');
 	let quickCaptureOpen = $state(false);
+	let allFilters = $state<AllFiltersState | null>(null);
 
 	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
@@ -114,6 +136,9 @@ function createAppStore() {
 			cfg.state.day_part_notes ?? {},
 			cfg.settings.max_day_part_note_length ?? 200
 		);
+
+		applyLocaleFromConfig(cfg.state.locale);
+		allFilters = cfg.state.all_filters ?? null;
 	}
 
 	async function init(): Promise<void> {
@@ -228,6 +253,13 @@ function createAppStore() {
 		},
 		set quickCaptureOpen(v: boolean) {
 			quickCaptureOpen = v;
+		},
+		get allFilters() {
+			return allFilters;
+		},
+		saveAllFilters(f: AllFiltersState) {
+			allFilters = f;
+			patchState({ all_filters: f }).catch(console.error);
 		},
 		shouldInheritToSubtasks,
 		getMatchingAutoLabels,

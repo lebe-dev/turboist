@@ -188,7 +188,9 @@ export class MockBackendConnector implements BackendConnector {
 				collapsed_ids: [],
 				sidebar_collapsed: false,
 				planning_open: false,
-				day_part_notes: {}
+				day_part_notes: {},
+				locale: '',
+				all_filters: null
 			}
 		};
 	}

@@ -10,6 +10,11 @@ import (
 	"github.com/lebe-dev/turboist/internal/storage"
 )
 
+var validLocales = map[string]bool{
+	"en": true,
+	"ru": true,
+}
+
 var validViews = map[string]bool{
 	"all":       true,
 	"inbox":     true,
@@ -32,13 +37,15 @@ func NewStateHandler(store *storage.Store, cfg *config.AppConfig) *StateHandler 
 }
 
 type stateUpdateRequest struct {
-	PinnedTasks      *[]storage.PinnedTask `json:"pinned_tasks"`
-	ActiveContextID  *string               `json:"active_context_id"`
-	ActiveView       *string               `json:"active_view"`
-	CollapsedIDs     *[]string             `json:"collapsed_ids"`
-	SidebarCollapsed *bool                 `json:"sidebar_collapsed"`
-	PlanningOpen     *bool                 `json:"planning_open"`
-	DayPartNotes     *map[string]string    `json:"day_part_notes"`
+	PinnedTasks      *[]storage.PinnedTask    `json:"pinned_tasks"`
+	ActiveContextID  *string                  `json:"active_context_id"`
+	ActiveView       *string                  `json:"active_view"`
+	CollapsedIDs     *[]string                `json:"collapsed_ids"`
+	SidebarCollapsed *bool                    `json:"sidebar_collapsed"`
+	PlanningOpen     *bool                    `json:"planning_open"`
+	DayPartNotes     *map[string]string       `json:"day_part_notes"`
+	Locale           *string                  `json:"locale"`
+	AllFilters       *storage.AllFiltersState `json:"all_filters"`
 }
 
 // Update handles PATCH /api/state.
@@ -115,6 +122,24 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 		if err := h.store.SetValue("planning_open", v); err != nil {
 			log.Error("state save failed", "field", "planning_open", "value", v, "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: planning_open", "detail": err.Error()})
+		}
+	}
+
+	if req.Locale != nil {
+		if *req.Locale != "" && !validLocales[*req.Locale] {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid locale"})
+		}
+		if err := h.store.SetValue("locale", *req.Locale); err != nil {
+			log.Error("state save failed", "field", "locale", "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: locale", "detail": err.Error()})
+		}
+	}
+
+	if req.AllFilters != nil {
+		data, _ := json.Marshal(*req.AllFilters)
+		if err := h.store.SetValue("all_filters", string(data)); err != nil {
+			log.Error("state save failed", "field", "all_filters", "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: all_filters", "detail": err.Error()})
 		}
 	}
 

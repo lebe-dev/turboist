@@ -37,6 +37,7 @@
   "tasks.completedToday": "Выполнено сегодня",
   "tasks.search": "Поиск...",
   "tasks.notInWeeklyPlan": "Задача добавлена вне недельного планирования",
+  "tasks.postponed": "Перенесено {count, plural, one {# раз} few {# раза} other {# раз}}",
 
   "due.today": "Сегодня",
   "due.tomorrow": "Завтра",

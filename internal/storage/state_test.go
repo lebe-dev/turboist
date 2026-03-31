@@ -119,6 +119,69 @@ func TestSetValueOverwrite(t *testing.T) {
 	}
 }
 
+func TestGetStateDefaults_NewFields(t *testing.T) {
+	s := newTestStore(t)
+
+	state, err := s.GetState()
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if state.Locale != "" {
+		t.Errorf("expected empty locale, got %q", state.Locale)
+	}
+	if state.AllFilters != nil {
+		t.Errorf("expected nil all_filters, got %+v", state.AllFilters)
+	}
+}
+
+func TestSetValueAndGetState_Locale(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.SetValue("locale", "ru"); err != nil {
+		t.Fatalf("set locale: %v", err)
+	}
+
+	state, err := s.GetState()
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if state.Locale != "ru" {
+		t.Errorf("expected locale 'ru', got %q", state.Locale)
+	}
+}
+
+func TestSetValueAndGetState_AllFilters(t *testing.T) {
+	s := newTestStore(t)
+
+	af := AllFiltersState{
+		SelectedPriorities: []int{4, 3},
+		SelectedLabels:     []string{"work", "urgent"},
+		LinksOnly:          true,
+		FiltersExpanded:    true,
+	}
+	data, _ := json.Marshal(af)
+	if err := s.SetValue("all_filters", string(data)); err != nil {
+		t.Fatalf("set all_filters: %v", err)
+	}
+
+	state, err := s.GetState()
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if state.AllFilters == nil {
+		t.Fatal("expected non-nil all_filters")
+	}
+	if len(state.AllFilters.SelectedPriorities) != 2 || state.AllFilters.SelectedPriorities[0] != 4 {
+		t.Errorf("unexpected selected_priorities: %v", state.AllFilters.SelectedPriorities)
+	}
+	if len(state.AllFilters.SelectedLabels) != 2 || state.AllFilters.SelectedLabels[0] != "work" {
+		t.Errorf("unexpected selected_labels: %v", state.AllFilters.SelectedLabels)
+	}
+	if !state.AllFilters.LinksOnly {
+		t.Error("expected links_only true")
+	}
+}
+
 func TestMigrationsIdempotent(t *testing.T) {
 	s := newTestStore(t)
 

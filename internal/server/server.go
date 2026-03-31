@@ -46,7 +46,7 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 		return hub.HandleWS(c)
 	})
 
-	tasksHandler := handler.NewTasksHandler(cache, &cfg.App)
+	tasksHandler := handler.NewTasksHandler(cache, &cfg.App, store)
 	app.Get("/api/tasks", tasksHandler.Tasks)
 	app.Get("/api/tasks/inbox", tasksHandler.Inbox)
 	app.Get("/api/tasks/weekly", tasksHandler.Weekly)

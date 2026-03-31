@@ -453,6 +453,7 @@ function createTasksStore() {
 			completed_at: flat.completed_at,
 			added_at: flat.added_at,
 			is_project_task: flat.is_project_task,
+			postpone_count: flat.postpone_count,
 			children: []
 		};
 	}

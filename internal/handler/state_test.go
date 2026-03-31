@@ -241,6 +241,133 @@ func TestStateUpdate_DayPartNotes_TooLong(t *testing.T) {
 	}
 }
 
+func TestStateUpdate_ValidLocale(t *testing.T) {
+	app := newTestStateApp(t, defaultTestCfg())
+	resp := patchState(t, app, map[string]any{"locale": "en"})
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+}
+
+func TestStateUpdate_ValidLocaleRu(t *testing.T) {
+	app := newTestStateApp(t, defaultTestCfg())
+	resp := patchState(t, app, map[string]any{"locale": "ru"})
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+}
+
+func TestStateUpdate_InvalidLocale(t *testing.T) {
+	app := newTestStateApp(t, defaultTestCfg())
+	resp := patchState(t, app, map[string]any{"locale": "zz"})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestStateUpdate_EmptyLocale(t *testing.T) {
+	app := newTestStateApp(t, defaultTestCfg())
+	resp := patchState(t, app, map[string]any{"locale": ""})
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+}
+
+func TestStateUpdate_AllFilters_PersistAndRead(t *testing.T) {
+	store, err := storage.New(":memory:")
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	cfg := defaultTestCfg()
+	sessStore := auth.NewSessionStore()
+	token, _ := sessStore.CreateSession()
+	mw := auth.NewMiddleware(sessStore)
+	h := NewStateHandler(store, cfg)
+
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.Request().Header.SetCookie(cookieName, token)
+		return c.Next()
+	})
+	app.Use(mw)
+	app.Patch("/api/state", h.Update)
+
+	body, _ := json.Marshal(map[string]any{
+		"all_filters": map[string]any{
+			"selected_priorities": []int{4},
+			"selected_labels":     []string{"work"},
+			"links_only":          true,
+			"filters_expanded":    false,
+		},
+	})
+	req := httptest.NewRequest(http.MethodPatch, "/api/state", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+
+	state, err := store.GetState()
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if state.AllFilters == nil {
+		t.Fatal("expected non-nil all_filters")
+	}
+	if len(state.AllFilters.SelectedPriorities) != 1 || state.AllFilters.SelectedPriorities[0] != 4 {
+		t.Errorf("unexpected selected_priorities: %v", state.AllFilters.SelectedPriorities)
+	}
+	if !state.AllFilters.LinksOnly {
+		t.Error("expected links_only true")
+	}
+}
+
+func TestStateUpdate_Locale_PersistAndRead(t *testing.T) {
+	store, err := storage.New(":memory:")
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	cfg := defaultTestCfg()
+	sessStore := auth.NewSessionStore()
+	token, _ := sessStore.CreateSession()
+	mw := auth.NewMiddleware(sessStore)
+	h := NewStateHandler(store, cfg)
+
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.Request().Header.SetCookie(cookieName, token)
+		return c.Next()
+	})
+	app.Use(mw)
+	app.Patch("/api/state", h.Update)
+
+	body, _ := json.Marshal(map[string]any{"locale": "ru"})
+	req := httptest.NewRequest(http.MethodPatch, "/api/state", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+
+	state, err := store.GetState()
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if state.Locale != "ru" {
+		t.Errorf("got locale %q, want %q", state.Locale, "ru")
+	}
+}
+
 func TestStateUpdate_DayPartNotes_PersistAndRead(t *testing.T) {
 	store, err := storage.New(":memory:")
 	if err != nil {

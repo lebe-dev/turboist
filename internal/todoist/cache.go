@@ -27,9 +27,10 @@ type Cache struct {
 	lastSyncedAt time.Time
 	warmed       bool
 
-	client    *Client
-	sfg       singleflight.Group
-	onRefresh func()
+	client       *Client
+	sfg          singleflight.Group
+	onRefresh    func()
+	taskEnricher func(tasks []*Task)
 }
 
 // NewCache creates a Cache, performs a synchronous cold-start Refresh with retries, and panics
@@ -69,6 +70,9 @@ func (c *Cache) Refresh(ctx context.Context) error {
 	c.labels = result.Labels
 	c.lastSyncedAt = time.Now()
 	c.warmed = true
+	if c.taskEnricher != nil {
+		c.taskEnricher(c.tasks)
+	}
 	c.mu.Unlock()
 
 	log.Debug("cache refreshed",
@@ -146,6 +150,12 @@ func (c *Cache) Client() *Client {
 // SetOnRefresh sets a callback that is invoked after every successful cache refresh.
 func (c *Cache) SetOnRefresh(fn func()) {
 	c.onRefresh = fn
+}
+
+// SetTaskEnricher sets a callback that enriches tasks with additional data (e.g. postpone counts)
+// after each cache refresh, while still holding the write lock.
+func (c *Cache) SetTaskEnricher(fn func(tasks []*Task)) {
+	c.taskEnricher = fn
 }
 
 // RefreshAfterMutation triggers a cache refresh deduplicated via singleflight.

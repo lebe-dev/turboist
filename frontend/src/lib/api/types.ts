@@ -18,6 +18,7 @@ export interface Task {
 	completed_at: string | null;
 	added_at: string;
 	is_project_task: boolean;
+	postpone_count: number;
 	children: Task[];
 }
 
@@ -106,6 +107,13 @@ export interface PinnedTask {
 
 export type View = 'all' | 'inbox' | 'today' | 'tomorrow' | 'weekly' | 'backlog' | 'completed';
 
+export interface AllFiltersState {
+	selected_priorities: number[];
+	selected_labels: string[];
+	links_only: boolean;
+	filters_expanded: boolean;
+}
+
 export interface UserState {
 	pinned_tasks: PinnedTask[];
 	active_context_id: string;
@@ -114,6 +122,8 @@ export interface UserState {
 	sidebar_collapsed: boolean;
 	planning_open: boolean;
 	day_part_notes: Record<string, string>;
+	locale: string;
+	all_filters: AllFiltersState | null;
 }
 
 export interface Settings {

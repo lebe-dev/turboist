@@ -53,36 +53,6 @@
 	const title = $derived($t(viewTitleKeys[contextsStore.activeView] ?? 'views.tasks'));
 	const isCompletedView = $derived(contextsStore.activeView === 'completed');
 
-	const ALL_FILTERS_KEY = 'turboist:all-filters';
-
-	interface SavedFilters {
-		selectedPriorities: number[];
-		selectedLabels: string[];
-		linksOnly: boolean;
-		filtersExpanded: boolean;
-	}
-
-	function loadAllFilters(): SavedFilters | null {
-		try {
-			const raw = localStorage.getItem(ALL_FILTERS_KEY);
-			return raw ? (JSON.parse(raw) as SavedFilters) : null;
-		} catch {
-			return null;
-		}
-	}
-
-	function saveAllFilters() {
-		try {
-			const data: SavedFilters = {
-				selectedPriorities: Array.from(selectedPriorities),
-				selectedLabels: Array.from(selectedLabels),
-				linksOnly,
-				filtersExpanded
-			};
-			localStorage.setItem(ALL_FILTERS_KEY, JSON.stringify(data));
-		} catch { /* ignore */ }
-	}
-
 	let searchQuery = $state('');
 	let linksOnly = $state(false);
 	let selectedPriorities = $state<Set<number>>(new Set());
@@ -191,11 +161,11 @@
 		const label = labelFilterStore.activeLabel;
 		searchQuery = '';
 		if (view === 'all' && !label) {
-			const saved = loadAllFilters();
+			const saved = appStore.allFilters;
 			if (saved) {
-				linksOnly = saved.linksOnly;
-				selectedPriorities = new Set(saved.selectedPriorities);
-				selectedLabels = new Set(saved.selectedLabels);
+				linksOnly = saved.links_only;
+				selectedPriorities = new Set(saved.selected_priorities);
+				selectedLabels = new Set(saved.selected_labels);
 			} else {
 				linksOnly = false;
 				selectedPriorities = new Set();
@@ -217,7 +187,12 @@
 		selectedLabels;
 		linksOnly;
 		filtersExpanded;
-		saveAllFilters();
+		appStore.saveAllFilters({
+			selected_priorities: Array.from(selectedPriorities),
+			selected_labels: Array.from(selectedLabels),
+			links_only: linksOnly,
+			filters_expanded: filtersExpanded
+		});
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {

@@ -9,6 +9,7 @@ import (
 	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/lebe-dev/turboist/internal/config"
 	ctxfilter "github.com/lebe-dev/turboist/internal/context"
+	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/taskview"
 	"github.com/lebe-dev/turboist/internal/todoist"
 
@@ -19,10 +20,11 @@ import (
 type TasksHandler struct {
 	cache *todoist.Cache
 	cfg   *config.AppConfig
+	store *storage.Store
 }
 
-func NewTasksHandler(cache *todoist.Cache, cfg *config.AppConfig) *TasksHandler {
-	return &TasksHandler{cache: cache, cfg: cfg}
+func NewTasksHandler(cache *todoist.Cache, cfg *config.AppConfig, store *storage.Store) *TasksHandler {
+	return &TasksHandler{cache: cache, cfg: cfg, store: store}
 }
 
 // todoistErrorResponse maps Todoist API errors to appropriate HTTP status codes.
@@ -323,6 +325,15 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 		}
 	}
 
+	// Detect postpone: task had a due date and it's being changed to a different date.
+	if req.DueDate != nil && *req.DueDate != "" {
+		if existing := h.findTask(id); existing != nil && existing.Due != nil && existing.Due.Date != *req.DueDate {
+			if err := h.store.IncrementPostponeCount(id); err != nil {
+				log.Error("increment postpone count failed", "id", id, "err", err)
+			}
+		}
+	}
+
 	log.Debug("update task", "id", id)
 
 	// When clearing labels, send via raw sync command (SetTasksLabels)
@@ -591,6 +602,15 @@ func applyAutoLabels(content string, labels []string, autoLabels []config.Compil
 		}
 	}
 	return labels
+}
+
+func (h *TasksHandler) findTask(id string) *todoist.Task {
+	for _, t := range h.cache.Tasks() {
+		if t.ID == id {
+			return t
+		}
+	}
+	return nil
 }
 
 func (h *TasksHandler) filterByContext(contextKey string) []*todoist.Task {

@@ -6,6 +6,14 @@ type PinnedTask struct {
 	Content string `json:"content"`
 }
 
+// AllFiltersState stores the filter state for the "all tasks" view.
+type AllFiltersState struct {
+	SelectedPriorities []int    `json:"selected_priorities"`
+	SelectedLabels     []string `json:"selected_labels"`
+	LinksOnly          bool     `json:"links_only"`
+	FiltersExpanded    bool     `json:"filters_expanded"`
+}
+
 // UserState represents the full user state stored in the database.
 type UserState struct {
 	PinnedTasks      []PinnedTask      `json:"pinned_tasks"`
@@ -15,4 +23,6 @@ type UserState struct {
 	SidebarCollapsed bool              `json:"sidebar_collapsed"`
 	PlanningOpen     bool              `json:"planning_open"`
 	DayPartNotes     map[string]string `json:"day_part_notes"`
+	Locale           string            `json:"locale"`
+	AllFilters       *AllFiltersState  `json:"all_filters"`
 }

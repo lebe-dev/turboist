@@ -17,6 +17,7 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import WeightIcon from '@lucide/svelte/icons/weight';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
@@ -516,7 +517,7 @@
 				{/if}
 				{#if completed && completedAtLabel}
 					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
-				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0}
+				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0 || task.postpone_count > 0}
 					<div class="mt-0.5 flex flex-wrap items-center gap-1 md:mt-1 md:gap-1.5">
 						{#if notInWeeklyPlan}
 							<span class="flex items-center text-[11px] text-red-500" title={$t('tasks.notInWeeklyPlan')}>
@@ -548,6 +549,15 @@
 								>{label}</button>
 							{/if}
 						{/each}
+						{#if task.postpone_count > 0}
+							<span
+								class="flex items-center gap-0.5 text-[11px] tabular-nums {task.postpone_count >= 3 ? 'text-red-500' : task.postpone_count >= 2 ? 'text-yellow-500' : 'text-muted-foreground'}"
+								title="{$t('tasks.postponed', { values: { count: task.postpone_count } })}"
+							>
+								<CalendarClockIcon class="h-3 w-3" />
+								{#if task.postpone_count >= 2}{task.postpone_count}{/if}
+							</span>
+						{/if}
 						{#if task.sub_task_count > 0}
 							<button
 								class="flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors"
