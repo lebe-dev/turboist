@@ -51,7 +51,7 @@
 		{@const viewLabel = $t(view.key)}
 		{@const isInboxAlert = view.id === 'inbox' && tasksStore.inboxCount > INBOX_ALERT_THRESHOLD}
 		<button
-			class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+			class="group flex cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
 				{planningStore.active
 				? 'text-sidebar-foreground/40'
@@ -86,7 +86,7 @@
 		{#each pinnedStore.items as pinned (pinned.id)}
 			<a
 				href="/task/{pinned.id}"
-				class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+				class="group flex cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 					{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
 					text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
 				title={collapsed ? pinned.content : undefined}
@@ -119,7 +119,7 @@
 	{/if}
 
 	<button
-		class="group flex w-full items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+		class="group flex w-full cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
 			{!planningStore.active && contextsStore.activeView === 'backlog'
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
@@ -134,7 +134,7 @@
 	</button>
 
 	<button
-		class="group flex w-full items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+		class="group flex w-full cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
 			{planningStore.active
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
@@ -151,7 +151,7 @@
 	<!-- Labels -->
 	<a
 		href="/labels"
-		class="group flex items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+		class="group flex cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
 			{$page.url.pathname === ('/labels' as string)
 			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
@@ -169,7 +169,7 @@
 	<div class="my-3 border-t border-sidebar-border"></div>
 
 	<button
-		class="group flex w-full items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+		class="group flex w-full cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
 			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
 			text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-yellow-400"
 		onclick={() => { appStore.quickCaptureOpen = true; onItemClick?.(); }}

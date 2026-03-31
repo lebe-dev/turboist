@@ -50,7 +50,7 @@
 		{/if}
 		{#if onClose}
 			<button
-				class="ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:hidden"
+				class="ml-auto flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:hidden"
 				onclick={onClose}
 				aria-label="Close menu"
 			>
@@ -58,7 +58,7 @@
 			</button>
 		{/if}
 		<button
-			class="{effectiveCollapsed ? '' : 'ml-auto'} hidden h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:flex"
+			class="{effectiveCollapsed ? '' : 'ml-auto'} hidden h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:flex"
 			onclick={() => sidebarStore.toggle()}
 			aria-label={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 		>
@@ -76,7 +76,7 @@
 
 	<div class="border-t border-sidebar-border {effectiveCollapsed ? 'p-1.5' : 'p-3'}">
 		<button
-			class="flex w-full items-center rounded-lg text-sm transition-colors duration-150
+			class="flex w-full cursor-pointer items-center rounded-lg text-sm transition-colors duration-150
 				{$page.url.pathname === '/settings'
 					? 'bg-sidebar-accent text-sidebar-accent-foreground'
 					: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'}
@@ -90,7 +90,7 @@
 			{/if}
 		</button>
 		<button
-			class="flex w-full items-center rounded-lg text-sm text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
+			class="flex w-full cursor-pointer items-center rounded-lg text-sm text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
 				{effectiveCollapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2'}"
 			onclick={() => auth.logout()}
 			title={effectiveCollapsed ? $t('sidebar.logout') : undefined}
