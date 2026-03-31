@@ -956,6 +956,10 @@ function setDateQuick(date: string) {
 		task ? appStore.projectTasks.filter((p) => p.id !== task.id && p.id !== task.parent_id) : []
 	);
 
+	const currentProject = $derived(
+		task ? appStore.projects.find((p) => p.id === task.project_id) ?? null : null
+	);
+
 	function handleMoveToProject(projectId: string) {
 		if (!task) return;
 		showProjectPicker = false;
@@ -1444,16 +1448,21 @@ function setDateQuick(date: string) {
 						</div>
 
 						<!-- Project -->
-						{#if availableProjectTasks.length > 0}
+						{#if currentProject || availableProjectTasks.length > 0}
 							<div>
 								<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.project')}</h3>
-								<button
-									class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-									onclick={() => { showProjectPicker = true; projectSearch = ''; }}
-								>
-									<FolderInputIcon class="h-3.5 w-3.5" />
-									{$t('task.moveToProject')}
-								</button>
+								{#if currentProject}
+									<p class="mb-1 px-2.5 py-1 text-[12px] font-medium text-foreground">{currentProject.name}</p>
+								{/if}
+								{#if availableProjectTasks.length > 0}
+									<button
+										class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										onclick={() => { showProjectPicker = true; projectSearch = ''; }}
+									>
+										<FolderInputIcon class="h-3.5 w-3.5" />
+										{$t('task.moveToProject')}
+									</button>
+								{/if}
 							</div>
 						{/if}
 					</div>
@@ -1737,16 +1746,21 @@ function setDateQuick(date: string) {
 					</div>
 
 					<!-- Project -->
-					{#if availableProjectTasks.length > 0}
+					{#if currentProject || availableProjectTasks.length > 0}
 						<div>
 							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.project')}</h3>
-							<button
-								class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-								onclick={() => { showProjectPicker = true; projectSearch = ''; }}
-							>
-								<FolderInputIcon class="h-3.5 w-3.5" />
-								{$t('task.moveToProject')}
-							</button>
+							{#if currentProject}
+								<p class="mb-1 px-2.5 py-1 text-[12px] font-medium text-foreground">{currentProject.name}</p>
+							{/if}
+							{#if availableProjectTasks.length > 0}
+								<button
+									class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+									onclick={() => { showProjectPicker = true; projectSearch = ''; }}
+								>
+									<FolderInputIcon class="h-3.5 w-3.5" />
+									{$t('task.moveToProject')}
+								</button>
+							{/if}
 						</div>
 					{/if}
 				</div>

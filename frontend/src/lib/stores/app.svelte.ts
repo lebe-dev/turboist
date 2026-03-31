@@ -211,6 +211,9 @@ function createAppStore() {
 		get projectTasks() {
 			return projectTasks;
 		},
+		get projects() {
+			return _projects;
+		},
 		get compiledAutoLabels() {
 			return _compiledAutoLabels;
 		},
