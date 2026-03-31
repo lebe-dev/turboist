@@ -184,16 +184,13 @@
 	// Persist filters when they change while in 'all' view
 	$effect(() => {
 		if (contextsStore.activeView !== 'all') return;
-		selectedPriorities;
-		selectedLabels;
-		linksOnly;
-		filtersExpanded;
-		appStore.saveAllFilters({
+		const filters = {
 			selected_priorities: Array.from(selectedPriorities),
 			selected_labels: Array.from(selectedLabels),
 			links_only: linksOnly,
 			filters_expanded: filtersExpanded
-		});
+		};
+		untrack(() => appStore.saveAllFilters(filters));
 	});
 
 	function collectParentIds(tasks: Task[]): string[] {
