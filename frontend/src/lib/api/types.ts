@@ -27,6 +27,7 @@ export interface Meta {
 	weekly_count: number;
 	backlog_limit: number;
 	backlog_count: number;
+	inbox_count?: number;
 	last_synced_at?: string;
 }
 

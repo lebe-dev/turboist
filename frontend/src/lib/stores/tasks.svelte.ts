@@ -41,9 +41,6 @@ function createTasksStore() {
 		backlog_count: 0
 	});
 
-	// Last known count of inbox tasks (updated whenever inbox view is active)
-	let cachedInboxCount = $state(0);
-
 	// IDs of tasks optimistically removed — survives fetches until server catches up
 	const pendingRemovals = new Set<string>();
 
@@ -156,10 +153,6 @@ function createTasksStore() {
 		flatTasks = flat;
 		meta = d.meta;
 
-		if (currentView() === 'inbox') {
-			cachedInboxCount = d.tasks.length;
-		}
-
 		// Persist to Y.Doc (y-indexeddb saves automatically)
 		persistTasks('tasks', flat);
 		persistMeta('meta', d.meta);
@@ -226,10 +219,6 @@ function createTasksStore() {
 		}
 
 		flatTasks = updated;
-
-		if (currentView() === 'inbox') {
-			cachedInboxCount = updated.filter((t) => !t.parent_id).length;
-		}
 
 		if (d.meta) {
 			meta = d.meta;
@@ -498,7 +487,7 @@ function createTasksStore() {
 			return isOffline;
 		},
 		get inboxCount(): number {
-			return cachedInboxCount;
+			return meta.inbox_count ?? 0;
 		},
 		start,
 		stop,

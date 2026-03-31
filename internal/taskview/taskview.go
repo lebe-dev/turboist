@@ -24,6 +24,7 @@ type TasksMeta struct {
 	WeeklyCount  int    `json:"weekly_count"`
 	BacklogLimit int    `json:"backlog_limit"`
 	BacklogCount int    `json:"backlog_count"`
+	InboxCount   int    `json:"inbox_count"`
 	LastSyncedAt string `json:"last_synced_at,omitempty"`
 }
 
@@ -45,20 +46,24 @@ func ComputeTasks(cache *todoist.Cache, cfg *config.AppConfig, params ViewParams
 	tasks := filterByContext(cache, cfg, params.Context)
 	weeklyCount := CountWithLabel(tasks, cfg.Weekly.Label)
 
+	var result TasksResult
 	switch params.View {
 	case "inbox":
-		return computeInbox(cache, tasks, cfg, params.Context, weeklyCount)
+		result = computeInbox(cache, tasks, cfg, params.Context, weeklyCount)
 	case "today":
-		return computeToday(tasks, cfg, params.Context, weeklyCount)
+		result = computeToday(tasks, cfg, params.Context, weeklyCount)
 	case "tomorrow":
-		return computeTomorrow(tasks, cfg, params.Context, weeklyCount)
+		result = computeTomorrow(tasks, cfg, params.Context, weeklyCount)
 	case "weekly":
-		return computeWeekly(tasks, cfg, params.Context)
+		result = computeWeekly(tasks, cfg, params.Context)
 	case "backlog":
-		return computeBacklog(cache, tasks, cfg, params.Context)
+		result = computeBacklog(cache, tasks, cfg, params.Context)
 	default: // "all"
-		return computeAll(tasks, cfg, params.Context, weeklyCount)
+		result = computeAll(tasks, cfg, params.Context, weeklyCount)
 	}
+
+	result.Meta.InboxCount = countInbox(cache, tasks)
+	return result
 }
 
 // ComputePlanning computes backlog + weekly lists for the planning view.
@@ -100,6 +105,20 @@ func computeAll(tasks []*todoist.Task, cfg *config.AppConfig, context string, we
 			WeeklyCount: weeklyCount,
 		},
 	}
+}
+
+func countInbox(cache *todoist.Cache, tasks []*todoist.Task) int {
+	inboxProjectID := cache.InboxProjectID()
+	if inboxProjectID == "" {
+		return 0
+	}
+	count := 0
+	for _, t := range tasks {
+		if t.ProjectID == inboxProjectID && t.ParentID == nil {
+			count++
+		}
+	}
+	return count
 }
 
 func computeInbox(cache *todoist.Cache, tasks []*todoist.Task, cfg *config.AppConfig, context string, weeklyCount int) TasksResult {
