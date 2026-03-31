@@ -54,6 +54,15 @@ func (s *Store) GetState() (*UserState, error) {
 	state.SidebarCollapsed = kv["sidebar_collapsed"] == "true"
 	state.PlanningOpen = kv["planning_open"] == "true"
 
+	if raw, ok := kv["day_part_notes"]; ok {
+		if err := json.Unmarshal([]byte(raw), &state.DayPartNotes); err != nil {
+			return nil, fmt.Errorf("unmarshal day_part_notes: %w", err)
+		}
+	}
+	if state.DayPartNotes == nil {
+		state.DayPartNotes = map[string]string{}
+	}
+
 	return state, nil
 }
 

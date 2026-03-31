@@ -32,6 +32,7 @@
   "tasks.backlogLabel": "Бэклог",
   "tasks.backlogLimitExceeded": "Лимит бэклога превышен",
   "tasks.noTime": "Без времени",
+  "dayPartNote.placeholder": "Добавить заметку...",
   "tasks.moveAllTo": "Переместить все в {label}",
   "tasks.completedToday": "Выполнено сегодня",
   "tasks.search": "Поиск...",

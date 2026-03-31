@@ -143,8 +143,9 @@ type DayPartConfig struct {
 }
 
 type TodayConfig struct {
-	IncludeOverdue bool            `yaml:"include_overdue"`
-	DayParts       []DayPartConfig `yaml:"day_parts"`
+	IncludeOverdue       bool            `yaml:"include_overdue"`
+	DayParts             []DayPartConfig `yaml:"day_parts"`
+	MaxDayPartNoteLength int             `yaml:"max_day_part_note_length"`
 }
 
 type TomorrowConfig struct {
@@ -267,18 +268,27 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		backlog.MaxLimit = 20
 	}
 
+	maxDayPartNoteLength := yf.Today.MaxDayPartNoteLength
+	if maxDayPartNoteLength <= 0 {
+		maxDayPartNoteLength = 200
+	}
+
 	app := AppConfig{
-		PollInterval:    pollInterval,
-		Timezone:        tz,
-		TaskSort:        taskSort,
-		MaxPinned:       maxPinned,
-		Contexts:        yf.Contexts,
-		Labels:          yf.Labels,
-		Weekly:          yf.Weekly,
-		Backlog:         backlog,
-		Project:         yf.Project,
-		ProjectsLabel:   yf.ProjectsLabel,
-		Today:           yf.Today,
+		PollInterval:  pollInterval,
+		Timezone:      tz,
+		TaskSort:      taskSort,
+		MaxPinned:     maxPinned,
+		Contexts:      yf.Contexts,
+		Labels:        yf.Labels,
+		Weekly:        yf.Weekly,
+		Backlog:       backlog,
+		Project:       yf.Project,
+		ProjectsLabel: yf.ProjectsLabel,
+		Today: TodayConfig{
+			IncludeOverdue:       yf.Today.IncludeOverdue,
+			DayParts:             yf.Today.DayParts,
+			MaxDayPartNoteLength: maxDayPartNoteLength,
+		},
 		Tomorrow:        yf.Tomorrow,
 		Completed:       completed,
 		QuickCapture:    yf.QuickCapture,

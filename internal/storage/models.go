@@ -8,10 +8,11 @@ type PinnedTask struct {
 
 // UserState represents the full user state stored in the database.
 type UserState struct {
-	PinnedTasks      []PinnedTask `json:"pinned_tasks"`
-	ActiveContextID  string       `json:"active_context_id"`
-	ActiveView       string       `json:"active_view"`
-	CollapsedIDs     []string     `json:"collapsed_ids"`
-	SidebarCollapsed bool         `json:"sidebar_collapsed"`
-	PlanningOpen     bool         `json:"planning_open"`
+	PinnedTasks      []PinnedTask      `json:"pinned_tasks"`
+	ActiveContextID  string            `json:"active_context_id"`
+	ActiveView       string            `json:"active_view"`
+	CollapsedIDs     []string          `json:"collapsed_ids"`
+	SidebarCollapsed bool              `json:"sidebar_collapsed"`
+	PlanningOpen     bool              `json:"planning_open"`
+	DayPartNotes     map[string]string `json:"day_part_notes"`
 }

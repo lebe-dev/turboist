@@ -165,6 +165,7 @@ export class MockBackendConnector implements BackendConnector {
 				max_pinned: 5,
 				last_synced_at: null,
 				day_parts: [],
+				max_day_part_note_length: 200,
 				inbox_project_id: ''
 			},
 			contexts: [],
@@ -181,7 +182,8 @@ export class MockBackendConnector implements BackendConnector {
 				active_view: 'all',
 				collapsed_ids: [],
 				sidebar_collapsed: false,
-				planning_open: false
+				planning_open: false,
+				day_part_notes: {}
 			}
 		};
 	}

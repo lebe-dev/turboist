@@ -11,6 +11,7 @@ import { pinnedStore } from './pinned.svelte';
 import { collapsedStore } from './collapsed.svelte';
 import { sidebarStore } from './sidebar.svelte';
 import { planningStore } from './planning.svelte';
+import { dayPartNotesStore } from './day-part-notes.svelte';
 import { tasksStore } from './tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
 import { saveAppConfig, loadAppConfig } from '$lib/sync/db';
@@ -109,6 +110,10 @@ function createAppStore() {
 		collapsedStore.init(hasCachedUI ? cfg.state.collapsed_ids : []);
 		sidebarStore.init(cfg.state.sidebar_collapsed);
 		planningStore.initActive(cfg.state.planning_open);
+		dayPartNotesStore.init(
+			cfg.state.day_part_notes ?? {},
+			cfg.settings.max_day_part_note_length ?? 200
+		);
 	}
 
 	async function init(): Promise<void> {

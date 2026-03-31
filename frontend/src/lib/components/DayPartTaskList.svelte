@@ -2,6 +2,7 @@
 	import type { DayPart, Task } from '$lib/api/types';
 	import { updateTask, batchUpdateLabels } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
+	import { dayPartNotesStore } from '$lib/stores/day-part-notes.svelte';
 	import { logger } from '$lib/stores/logger';
 	import { toast } from 'svelte-sonner';
 	import TaskItem from './TaskItem.svelte';
@@ -219,6 +220,33 @@
 							</div>
 						{/if}
 					</div>
+					{#if section.dayPart}
+						{@const noteText = dayPartNotesStore.notes[section.dayPart.label] ?? ''}
+						<div class="px-2 md:px-3 {noteText ? '' : 'md:opacity-0 md:group-hover/section:opacity-100'} transition-opacity">
+							<input
+								type="text"
+								class="w-full bg-transparent text-xs text-muted-foreground/60 placeholder:text-muted-foreground/30 focus:text-muted-foreground focus:outline-none border-none p-0"
+								placeholder={$t('dayPartNote.placeholder')}
+								value={noteText}
+								maxlength={dayPartNotesStore.maxLength}
+								onblur={(e) => {
+									const val = e.currentTarget.value.trim();
+									if (val) {
+										dayPartNotesStore.setNote(section.dayPart!.label, val);
+									} else {
+										dayPartNotesStore.clearNote(section.dayPart!.label);
+									}
+								}}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') e.currentTarget.blur();
+									if (e.key === 'Escape') {
+										e.currentTarget.value = noteText;
+										e.currentTarget.blur();
+									}
+								}}
+							/>
+						</div>
+					{/if}
 					<div class="space-y-px px-1">
 						{#each section.tasks as task, i (task.id)}
 							<div class="animate-fade-in-up" style="animation-delay: {Math.min(i * 30, 300)}ms">

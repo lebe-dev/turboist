@@ -32,6 +32,7 @@
   "tasks.backlogLabel": "Backlog",
   "tasks.backlogLimitExceeded": "Backlog limit exceeded",
   "tasks.noTime": "No time",
+  "dayPartNote.placeholder": "Add a note...",
   "tasks.moveAllTo": "Move all to {label}",
   "tasks.completedToday": "Completed today",
   "tasks.search": "Search...",

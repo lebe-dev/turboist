@@ -108,6 +108,7 @@ export interface UserState {
 	collapsed_ids: string[];
 	sidebar_collapsed: boolean;
 	planning_open: boolean;
+	day_part_notes: Record<string, string>;
 }
 
 export interface Settings {
@@ -124,6 +125,7 @@ export interface Settings {
 	max_pinned: number;
 	last_synced_at: string | null; // ISO 8601
 	day_parts: DayPart[];
+	max_day_part_note_length: number;
 	inbox_project_id: string;
 }
 

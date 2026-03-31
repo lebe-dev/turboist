@@ -85,6 +85,8 @@ max_pinned: 5
 today:
   # Include overdue tasks (due date before today) in the "Today" view
   include_overdue: true
+  # Maximum length (in characters) for day part notes (default: 200)
+  max_day_part_note_length: 200
   # Day parts: split today's tasks into time-based sections.
   # Tasks are assigned to sections via Todoist labels.
   # Omit or leave empty to disable sectioning.

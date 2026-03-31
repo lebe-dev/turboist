@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v3"
@@ -37,6 +38,7 @@ type stateUpdateRequest struct {
 	CollapsedIDs     *[]string             `json:"collapsed_ids"`
 	SidebarCollapsed *bool                 `json:"sidebar_collapsed"`
 	PlanningOpen     *bool                 `json:"planning_open"`
+	DayPartNotes     *map[string]string    `json:"day_part_notes"`
 }
 
 // Update handles PATCH /api/state.
@@ -113,6 +115,26 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 		if err := h.store.SetValue("planning_open", v); err != nil {
 			log.Error("state save failed", "field", "planning_open", "value", v, "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: planning_open", "detail": err.Error()})
+		}
+	}
+
+	if req.DayPartNotes != nil {
+		validLabels := make(map[string]bool, len(h.cfg.Today.DayParts))
+		for _, dp := range h.cfg.Today.DayParts {
+			validLabels[dp.Label] = true
+		}
+		for label, note := range *req.DayPartNotes {
+			if !validLabels[label] {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "unknown day_part label: " + label})
+			}
+			if utf8.RuneCountInString(note) > h.cfg.Today.MaxDayPartNoteLength {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "note too long for " + label})
+			}
+		}
+		data, _ := json.Marshal(*req.DayPartNotes)
+		if err := h.store.SetValue("day_part_notes", string(data)); err != nil {
+			log.Error("state save failed", "field", "day_part_notes", "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: day_part_notes", "detail": err.Error()})
 		}
 	}
 

@@ -56,6 +56,13 @@ func defaultTestCfg() *config.AppConfig {
 			{ID: "work", DisplayName: "Work"},
 			{ID: "personal", DisplayName: "Personal"},
 		},
+		Today: config.TodayConfig{
+			DayParts: []config.DayPartConfig{
+				{Label: "morning", Start: 8, End: 13},
+				{Label: "afternoon", Start: 13, End: 17},
+			},
+			MaxDayPartNoteLength: 200,
+		},
 	}
 }
 
@@ -202,5 +209,76 @@ func TestStateUpdate_PersistAndRead(t *testing.T) {
 	}
 	if state.ActiveContextID != "work" {
 		t.Errorf("got active_context_id %q, want %q", state.ActiveContextID, "work")
+	}
+}
+
+func TestStateUpdate_DayPartNotes_Valid(t *testing.T) {
+	app := newTestStateApp(t, defaultTestCfg())
+	notes := map[string]string{"morning": "focus block", "afternoon": "meetings"}
+	resp := patchState(t, app, map[string]any{"day_part_notes": notes})
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+}
+
+func TestStateUpdate_DayPartNotes_UnknownLabel(t *testing.T) {
+	app := newTestStateApp(t, defaultTestCfg())
+	notes := map[string]string{"night": "sleep"}
+	resp := patchState(t, app, map[string]any{"day_part_notes": notes})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestStateUpdate_DayPartNotes_TooLong(t *testing.T) {
+	cfg := defaultTestCfg()
+	cfg.Today.MaxDayPartNoteLength = 10
+	app := newTestStateApp(t, cfg)
+	notes := map[string]string{"morning": "this note is way too long"}
+	resp := patchState(t, app, map[string]any{"day_part_notes": notes})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestStateUpdate_DayPartNotes_PersistAndRead(t *testing.T) {
+	store, err := storage.New(":memory:")
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	cfg := defaultTestCfg()
+	sessStore := auth.NewSessionStore()
+	token, _ := sessStore.CreateSession()
+	mw := auth.NewMiddleware(sessStore)
+	h := NewStateHandler(store, cfg)
+
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.Request().Header.SetCookie(cookieName, token)
+		return c.Next()
+	})
+	app.Use(mw)
+	app.Patch("/api/state", h.Update)
+
+	notes := map[string]string{"morning": "emails first"}
+	body, _ := json.Marshal(map[string]any{"day_part_notes": notes})
+	req := httptest.NewRequest(http.MethodPatch, "/api/state", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+
+	state, err := store.GetState()
+	if err != nil {
+		t.Fatalf("get state: %v", err)
+	}
+	if state.DayPartNotes["morning"] != "emails first" {
+		t.Errorf("got day_part_notes[morning] %q, want %q", state.DayPartNotes["morning"], "emails first")
 	}
 }

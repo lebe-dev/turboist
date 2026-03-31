@@ -609,6 +609,30 @@ func setupLoadTest(t *testing.T) {
 	})
 }
 
+func TestParseAppConfig_MaxDayPartNoteLengthDefault(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Today.MaxDayPartNoteLength != 200 {
+		t.Errorf("max_day_part_note_length default: got %d, want 200", app.Today.MaxDayPartNoteLength)
+	}
+}
+
+func TestParseAppConfig_MaxDayPartNoteLengthCustom(t *testing.T) {
+	yaml := `
+today:
+  max_day_part_note_length: 100
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Today.MaxDayPartNoteLength != 100 {
+		t.Errorf("max_day_part_note_length: got %d, want 100", app.Today.MaxDayPartNoteLength)
+	}
+}
+
 func TestLoad_SyncIntervalDefault(t *testing.T) {
 	setupLoadTest(t)
 	t.Setenv("TODOIST_API_SYNC_INTERVAL", "")
