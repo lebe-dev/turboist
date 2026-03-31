@@ -386,6 +386,46 @@ func (h *TasksHandler) Delete(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusOK)
 }
 
+type decomposeTaskRequest struct {
+	Tasks []string `json:"tasks"`
+}
+
+// Decompose handles POST /api/tasks/:id/decompose
+// Creates new tasks inheriting properties from the source task, then deletes the original.
+func (h *TasksHandler) Decompose(c fiber.Ctx) error {
+	id := c.Params("id")
+	var req decomposeTaskRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if len(req.Tasks) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "tasks list is required"})
+	}
+	if slices.Contains(req.Tasks, "") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "task content must not be empty"})
+	}
+
+	all := h.cache.Tasks()
+	var src *todoist.Task
+	for _, t := range all {
+		if t.ID == id {
+			src = t
+			break
+		}
+	}
+	if src == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
+	}
+
+	log.Debug("decompose task", "id", id, "content", src.Content, "new_tasks", len(req.Tasks))
+	if err := h.cache.DecomposeTask(c.Context(), src, req.Tasks); err != nil {
+		log.Error("decompose task failed", "id", id, "err", err)
+		return todoistErrorResponse(c, err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true})
+}
+
 // Duplicate handles POST /api/tasks/:id/duplicate
 func (h *TasksHandler) Duplicate(c fiber.Ctx) error {
 	id := c.Params("id")

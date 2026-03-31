@@ -1,6 +1,7 @@
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
 	UpdateTaskRequest,
@@ -36,6 +37,7 @@ export interface BackendConnector {
 	completeTask(id: string): Promise<void>;
 	duplicateTask(id: string): Promise<void>;
 	deleteTask(id: string): Promise<void>;
+	decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void>;
 
 	// Config & state
 	getAppConfig(): Promise<AppConfig>;

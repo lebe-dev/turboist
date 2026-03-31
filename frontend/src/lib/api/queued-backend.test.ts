@@ -31,6 +31,7 @@ function createMockBackend(): BackendConnector {
 		completeTask: vi.fn(),
 		duplicateTask: vi.fn(),
 		deleteTask: vi.fn(),
+		decomposeTask: vi.fn(),
 		getAppConfig: vi.fn(),
 		patchState: vi.fn(),
 		resetWeeklyLabel: vi.fn()

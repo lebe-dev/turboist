@@ -291,6 +291,51 @@ func (c *Client) DeleteTask(ctx context.Context, id string) error {
 	return nil
 }
 
+// DecomposeTask creates N new tasks (inheriting properties from src) and deletes the source
+// task in a single Todoist Sync API batch call.
+func (c *Client) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
+	cmds := make(sync.Commands, 0, len(newContents)+1)
+
+	for _, content := range newContents {
+		args := map[string]any{
+			"content":    content,
+			"project_id": src.ProjectID,
+			"priority":   src.Priority,
+		}
+		if src.SectionID != nil {
+			args["section_id"] = *src.SectionID
+		}
+		if src.ParentID != nil {
+			args["parent_id"] = *src.ParentID
+		}
+		if len(src.Labels) > 0 {
+			args["labels"] = src.Labels
+		}
+		if src.Due != nil {
+			args["due"] = map[string]any{"date": src.Due.Date}
+		}
+		cmds = append(cmds, &sync.Command{
+			Type:   "item_add",
+			UUID:   uuid.New(),
+			TempID: uuid.New(),
+			Args:   args,
+		})
+	}
+
+	cmds = append(cmds, &sync.Command{
+		Type: "item_delete",
+		UUID: uuid.New(),
+		Args: map[string]any{"id": src.ID},
+	})
+
+	log.Debug("todoist DecomposeTask", "src", src.ID, "new_tasks", len(newContents))
+	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	if err != nil {
+		return &APIError{Op: "DecomposeTask", Err: err}
+	}
+	return nil
+}
+
 // BatchMoveTasksToProject moves multiple tasks to their target projects in a single sync call.
 // The moves map is taskID → projectID.
 func (c *Client) BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error {

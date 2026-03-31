@@ -2,6 +2,7 @@ import type { BackendConnector } from './backend';
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
 	UpdateTaskRequest,
@@ -115,6 +116,11 @@ export class QueuedBackend implements BackendConnector {
 	async duplicateTask(id: string): Promise<void> {
 		logger.log('sync', 'Queuing duplicateTask');
 		await this.queue.enqueue({ type: 'duplicateTask', payload: { id } });
+	}
+
+	async decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void> {
+		logger.log('sync', 'Queuing decomposeTask');
+		await this.queue.enqueue({ type: 'decomposeTask', payload: { id, data } });
 	}
 
 	async resetWeeklyLabel(): Promise<void> {

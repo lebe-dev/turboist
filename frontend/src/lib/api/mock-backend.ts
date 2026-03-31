@@ -4,6 +4,7 @@ import type { BackendConnector } from './backend';
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	DecomposeTaskRequest,
 	Meta,
 	Task,
 	TasksResponse,
@@ -143,6 +144,10 @@ export class MockBackendConnector implements BackendConnector {
 
 	async deleteTask(id: string): Promise<void> {
 		this.record('deleteTask', [id]);
+	}
+
+	async decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void> {
+		this.record('decomposeTask', [id, data]);
 	}
 
 	// Config & state

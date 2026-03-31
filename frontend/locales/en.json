@@ -150,6 +150,11 @@
   "task.completedToast": "Completed: {name}",
   "task.completedSubtasks": "Completed {count}",
   "task.duplicatedToast": "Duplicated: {name}",
+  "task.decompose": "Decompose",
+  "task.decomposeTitle": "Decompose task",
+  "task.decomposeDescription": "Enter new task names, one per line",
+  "task.decomposeButton": "Decompose",
+  "task.decomposeSuccess": "Task decomposed into {count} tasks",
   "task.nextActionButton": "Next action",
   "task.followUpButton": "Follow-up",
 
@@ -165,6 +170,7 @@
   "errors.deleteFailed": "Failed to delete task",
   "errors.completeFailed": "Failed to complete task",
   "errors.duplicateFailed": "Failed to duplicate task",
+  "errors.decomposeFailed": "Failed to decompose task",
   "errors.moveFailed": "Failed to move task",
 
   "connectivity.reconnecting": "Reconnecting...",

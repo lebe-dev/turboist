@@ -4,6 +4,7 @@ import type { BackendConnector } from './backend';
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
 	UpdateTaskRequest,
@@ -160,6 +161,13 @@ export class DefaultBackendConnector implements BackendConnector {
 
 	async deleteTask(id: string): Promise<void> {
 		await this.request(`/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+	}
+
+	async decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void> {
+		await this.request(`/api/tasks/${encodeURIComponent(id)}/decompose`, {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
 	}
 
 	// Config & state

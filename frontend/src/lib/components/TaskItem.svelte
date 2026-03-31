@@ -1,7 +1,7 @@
 <script lang="ts">
 	import TaskItem from './TaskItem.svelte';
 	import type { Task } from '$lib/api/types';
-	import { completeTask, deleteTask, createTask, updateTask } from '$lib/api/client';
+	import { completeTask, deleteTask, createTask, updateTask, decomposeTask } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
@@ -20,6 +20,7 @@
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
+	import DecomposeDialog from './DecomposeDialog.svelte';
 	import { portal } from '$lib/utils/portal';
 	import { incrementDuplicateTitle, stripTaskPrefix, stripMarkdownLinks } from '$lib/utils';
 	import { goto } from '$app/navigation';
@@ -412,6 +413,22 @@
 
 	// --- Delete ---
 	let showDeleteConfirm = $state(false);
+	let showDecomposeDialog = $state(false);
+
+	function handleDecompose(taskNames: string[]) {
+		const taskId = task.id;
+		const count = taskNames.length;
+		showDecomposeDialog = false;
+		tasksStore.removeTaskLocal(taskId);
+		decomposeTask(taskId, { tasks: taskNames }).then(() => {
+			toast($t('task.decomposeSuccess', { values: { count } }), { duration: 5000 });
+		}).catch((e) => {
+			logger.error('tasks', `decompose failed: ${e}`);
+			toast.error($t('errors.decomposeFailed'));
+			tasksStore.clearPendingRemoval(taskId);
+			tasksStore.refresh();
+		});
+	}
 
 	function handleDelete() {
 		const taskId = task.id;
@@ -574,6 +591,7 @@
 					onEdit={() => goto(`/task/${task.id}`)}
 					onDuplicate={handleDuplicate}
 					onCopy={() => { navigator.clipboard.writeText(stripTaskPrefix(task.content)); dropdownOpen = false; }}
+					onDecompose={() => { dropdownOpen = false; showDecomposeDialog = true; }}
 					{canPin}
 					{isPinned}
 					onPin={handlePin}
@@ -612,6 +630,14 @@
 			</div>
 		{/if}
 	</div>
+{/if}
+
+{#if showDecomposeDialog}
+	<DecomposeDialog
+		bind:open={showDecomposeDialog}
+		{task}
+		onConfirm={handleDecompose}
+	/>
 {/if}
 
 {#if showDeleteConfirm}

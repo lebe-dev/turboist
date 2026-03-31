@@ -89,6 +89,7 @@ describe('flush-before-read pattern', () => {
 			completeTask: vi.fn(),
 			duplicateTask: vi.fn(),
 			deleteTask: vi.fn(),
+			decomposeTask: vi.fn(),
 			getAppConfig: vi.fn(),
 			patchState: vi.fn(),
 			resetWeeklyLabel: vi.fn()

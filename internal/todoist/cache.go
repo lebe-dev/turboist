@@ -207,6 +207,15 @@ func (c *Cache) DeleteTask(ctx context.Context, id string) error {
 	return c.RefreshAfterMutation(ctx)
 }
 
+// DecomposeTask creates new tasks from the source task and deletes the original,
+// then refreshes the cache.
+func (c *Cache) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
+	if err := c.client.DecomposeTask(ctx, src, newContents); err != nil {
+		return err
+	}
+	return c.RefreshAfterMutation(ctx)
+}
+
 // BatchMoveTasksToProject moves multiple tasks to their target projects in a single API call
 // and refreshes the cache once.
 func (c *Cache) BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error {

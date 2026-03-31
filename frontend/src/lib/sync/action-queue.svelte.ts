@@ -1,5 +1,5 @@
 import type { BackendConnector } from '$lib/api/backend';
-import type { CreateTaskRequest, UpdateTaskRequest, UserState } from '$lib/api/types';
+import type { CreateTaskRequest, DecomposeTaskRequest, UpdateTaskRequest, UserState } from '$lib/api/types';
 import {
 	type QueuedAction,
 	saveQueuedAction,
@@ -155,6 +155,11 @@ function createActionQueue() {
 			case 'duplicateTask': {
 				const { id } = action.payload as { id: string };
 				await backend.duplicateTask(id);
+				break;
+			}
+			case 'decomposeTask': {
+				const { id, data } = action.payload as { id: string; data: DecomposeTaskRequest };
+				await backend.decomposeTask(id, data);
 				break;
 			}
 			case 'resetWeeklyLabel': {

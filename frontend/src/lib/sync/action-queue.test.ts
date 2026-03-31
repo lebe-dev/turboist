@@ -40,6 +40,7 @@ function createMockBackend(): BackendConnector {
 		completeTask: vi.fn(() => Promise.resolve()),
 		duplicateTask: vi.fn(() => Promise.resolve()),
 		deleteTask: vi.fn(() => Promise.resolve()),
+		decomposeTask: vi.fn(() => Promise.resolve()),
 		getAppConfig: vi.fn(),
 		patchState: vi.fn(() => Promise.resolve()),
 		resetWeeklyLabel: vi.fn(() => Promise.resolve())

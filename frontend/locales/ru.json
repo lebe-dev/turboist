@@ -150,6 +150,11 @@
   "task.completedToast": "Выполнено: {name}",
   "task.completedSubtasks": "Выполнено {count}",
   "task.duplicatedToast": "Дублировано: {name}",
+  "task.decompose": "Декомпозировать",
+  "task.decomposeTitle": "Декомпозиция задачи",
+  "task.decomposeDescription": "Введите названия новых задач, по одной на строку",
+  "task.decomposeButton": "Декомпозировать",
+  "task.decomposeSuccess": "Задача разбита на {count} задач",
   "task.nextActionButton": "Следующее действие",
   "task.followUpButton": "Продолжение",
 
@@ -165,6 +170,7 @@
   "errors.deleteFailed": "Не удалось удалить задачу",
   "errors.completeFailed": "Не удалось завершить задачу",
   "errors.duplicateFailed": "Не удалось дублировать задачу",
+  "errors.decomposeFailed": "Не удалось декомпозировать задачу",
   "errors.moveFailed": "Не удалось переместить задачу",
 
   "connectivity.reconnecting": "Переподключение...",

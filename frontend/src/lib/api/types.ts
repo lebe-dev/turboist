@@ -88,6 +88,10 @@ export interface UpdateTaskRequest {
 	due_string?: string;
 }
 
+export interface DecomposeTaskRequest {
+	tasks: string[];
+}
+
 export interface DayPart {
 	label: string;
 	start: number; // hour 0-23

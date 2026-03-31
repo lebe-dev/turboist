@@ -1,5 +1,5 @@
 import { getBackend } from './backend';
-import type { AppConfig, CreateTaskRequest, Task, TasksResponse, UpdateTaskRequest, UserState } from './types';
+import type { AppConfig, CreateTaskRequest, DecomposeTaskRequest, Task, TasksResponse, UpdateTaskRequest, UserState } from './types';
 
 // Thin wrapper layer: each function delegates to the active BackendConnector.
 // All existing imports from '$lib/api/client' continue to work unchanged.
@@ -90,6 +90,10 @@ export async function duplicateTask(id: string): Promise<void> {
 
 export async function deleteTask(id: string): Promise<void> {
 	return getBackend().deleteTask(id);
+}
+
+export async function decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void> {
+	return getBackend().decomposeTask(id, data);
 }
 
 export async function getCompletedSubtasks(id: string): Promise<Task[]> {

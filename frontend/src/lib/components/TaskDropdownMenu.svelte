@@ -12,6 +12,7 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
+	import ListTreeIcon from '@lucide/svelte/icons/list-tree';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
@@ -28,6 +29,7 @@
 		onEdit,
 		onDuplicate,
 		onCopy,
+		onDecompose,
 
 		canPin = false,
 		isPinned = false,
@@ -67,6 +69,7 @@
 		onEdit?: () => void;
 		onDuplicate?: () => void;
 		onCopy?: () => void;
+		onDecompose?: () => void;
 
 		canPin?: boolean;
 		isPinned?: boolean;
@@ -144,6 +147,13 @@
 			<DropdownMenu.Item onclick={onCopy}>
 				<CopyIcon class="h-4 w-4" />
 				{$t('task.copy')}
+			</DropdownMenu.Item>
+		{/if}
+
+		{#if onDecompose}
+			<DropdownMenu.Item onclick={() => { handleOpenChange(false); onDecompose(); }}>
+				<ListTreeIcon class="h-4 w-4" />
+				{$t('task.decompose')}
 			</DropdownMenu.Item>
 		{/if}
 
