@@ -8,6 +8,11 @@ vi.mock('$lib/stores/logger', () => ({
 	logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }));
 
+vi.mock('$lib/i18n', () => ({
+	applyLocaleFromConfig: vi.fn(),
+	availableLocales: ['en', 'ru']
+}));
+
 const mockConfig = {
 	settings: { poll_interval: 30, max_pinned: 5 },
 	contexts: [],

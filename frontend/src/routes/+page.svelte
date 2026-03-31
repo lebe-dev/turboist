@@ -29,6 +29,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
 	import { t } from 'svelte-intl-precompile';
+	import { untrack } from 'svelte';
 
 	let mounted = false;
 
@@ -161,7 +162,7 @@
 		const label = labelFilterStore.activeLabel;
 		searchQuery = '';
 		if (view === 'all' && !label) {
-			const saved = appStore.allFilters;
+			const saved = untrack(() => appStore.allFilters);
 			if (saved) {
 				linksOnly = saved.links_only;
 				selectedPriorities = new Set(saved.selected_priorities);
