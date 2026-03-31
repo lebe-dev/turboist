@@ -20,11 +20,13 @@ const (
 type TasksSubscription struct {
 	View    string
 	Context string
+	Seq     int
 }
 
 // PlanningSubscription holds parameters for the planning channel.
 type PlanningSubscription struct {
 	Context string
+	Seq     int
 }
 
 // Client represents a single WebSocket connection.
@@ -54,22 +56,24 @@ func newClient(conn *websocket.Conn, hub *Hub) *Client {
 }
 
 // send queues a message for writing. Non-blocking; drops if buffer full.
-func (c *Client) send(data []byte) {
+func (c *Client) send(data []byte) bool {
 	select {
 	case c.writeCh <- data:
+		return true
 	default:
 		log.Warn("ws: client write buffer full, dropping message")
+		return false
 	}
 }
 
-// sendJSON marshals and sends a message.
-func (c *Client) sendJSON(msg OutgoingMessage) {
+// sendJSON marshals and sends a message. Returns false if the message was dropped.
+func (c *Client) sendJSON(msg OutgoingMessage) bool {
 	data, err := marshalMsg(msg)
 	if err != nil {
 		log.Error("ws: marshal failed", "err", err)
-		return
+		return false
 	}
-	c.send(data)
+	return c.send(data)
 }
 
 // sendError sends an error message to the client.
@@ -160,12 +164,12 @@ func (c *Client) handleSubscribe(msg IncomingMessage) {
 		if view == "" {
 			view = "all"
 		}
-		c.tasksSub = &TasksSubscription{View: view, Context: msg.Context}
+		c.tasksSub = &TasksSubscription{View: view, Context: msg.Context, Seq: msg.Seq}
 		c.lastTasksSnap = nil
 		c.hub.sendTasksSnapshot(c)
 
 	case ChannelPlanning:
-		c.planningSub = &PlanningSubscription{Context: msg.Context}
+		c.planningSub = &PlanningSubscription{Context: msg.Context, Seq: msg.Seq}
 		c.lastPlanningSnap = nil
 		c.hub.sendPlanningSnapshot(c)
 

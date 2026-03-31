@@ -32,7 +32,7 @@ function createPlanningStore() {
 		active = isActive;
 	}
 
-	function handlePlanningSnapshot(data: unknown): void {
+	function handlePlanningSnapshot(data: unknown, _seq?: number): void {
 		const d = data as SnapshotPlanningData;
 		backlogFlat = flattenTasks(d.backlog);
 		weeklyFlat = flattenTasks(d.weekly);
@@ -44,7 +44,7 @@ function createPlanningStore() {
 		persistMeta('planningMeta', d.meta);
 	}
 
-	function handlePlanningDelta(data: unknown): void {
+	function handlePlanningDelta(data: unknown, _seq?: number): void {
 		const d = data as DeltaPlanningData;
 
 		// Backlog updates

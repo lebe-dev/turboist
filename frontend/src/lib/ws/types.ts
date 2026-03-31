@@ -6,6 +6,7 @@ export interface SubscribeMessage {
 	channel: 'tasks' | 'planning';
 	view?: string;
 	context?: string;
+	seq?: number;
 }
 
 export interface UnsubscribeMessage {
@@ -50,4 +51,5 @@ export interface ServerMessage {
 	channel?: 'tasks' | 'planning';
 	data?: unknown;
 	message?: string;
+	seq?: number;
 }

@@ -1,6 +1,7 @@
 import { logger } from '$lib/stores/logger';
 import type {
 	ClientMessage,
+	SubscribeMessage,
 	ServerMessage,
 	SnapshotTasksData,
 	DeltaTasksData,
@@ -12,7 +13,7 @@ const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 30000;
 
 type MessageKey = `${'snapshot' | 'delta'}:${'tasks' | 'planning'}`;
-type MessageHandler = (data: unknown) => void;
+type MessageHandler = (data: unknown, seq?: number) => void;
 
 function createWSClient() {
 	let connected = $state(false);
@@ -26,7 +27,10 @@ function createWSClient() {
 	const stateListeners = new Set<(connected: boolean) => void>();
 
 	// Track active subscriptions for resubscribe on reconnect
-	let activeSubs: ClientMessage[] = [];
+	let activeSubs: SubscribeMessage[] = [];
+
+	// Monotonically increasing subscription sequence number
+	let subSeq = 0;
 
 	function getWsUrl(): string {
 		const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -51,10 +55,13 @@ function createWSClient() {
 			// Notify listeners
 			for (const fn of stateListeners) fn(true);
 
-			// Resubscribe to active channels
-			for (const msg of activeSubs) {
-				logger.log('ws', `resubscribe ${(msg as { channel?: string }).channel}`);
-				sendRaw(msg);
+			// Resubscribe to active channels with fresh seq
+			if (activeSubs.length > 0) {
+				subSeq++;
+				for (const msg of activeSubs) {
+					logger.log('ws', `resubscribe ${(msg as { channel?: string }).channel}`);
+					sendRaw({ ...msg, seq: subSeq });
+				}
 			}
 		};
 
@@ -122,11 +129,11 @@ function createWSClient() {
 		}
 
 		if ((msg.type === 'snapshot' || msg.type === 'delta') && msg.channel) {
-			logger.log('ws', `${msg.type} ${msg.channel}`);
+			logger.log('ws', `${msg.type} ${msg.channel} seq=${msg.seq}`);
 			const key: MessageKey = `${msg.type}:${msg.channel}`;
 			const handler = handlers.get(key);
 			if (handler) {
-				handler(msg.data);
+				handler(msg.data, msg.seq);
 			} else {
 				logger.warn('ws', `no handler for ${key}`);
 			}
@@ -137,27 +144,24 @@ function createWSClient() {
 		channel: 'tasks' | 'planning',
 		params: { view?: string; context?: string }
 	): void {
-		const msg: ClientMessage = {
+		subSeq++;
+		const msg: SubscribeMessage = {
 			type: 'subscribe',
 			channel,
 			...params
 		};
 
-		// Replace existing sub for this channel
-		activeSubs = activeSubs.filter(
-			(s) => s.type !== 'subscribe' || (s as { channel: string }).channel !== channel
-		);
+		// Replace existing sub for this channel (stored without seq — seq is assigned at send time)
+		activeSubs = activeSubs.filter((s) => s.channel !== channel);
 		activeSubs.push(msg);
 
 		const sent = socket?.readyState === WebSocket.OPEN;
-		logger.log('ws', `subscribe ${channel} ${JSON.stringify(params)} sent=${sent} readyState=${socket?.readyState}`);
-		sendRaw(msg);
+		logger.log('ws', `subscribe ${channel} ${JSON.stringify(params)} seq=${subSeq} sent=${sent} readyState=${socket?.readyState}`);
+		sendRaw({ ...msg, seq: subSeq });
 	}
 
 	function unsubscribe(channel: 'tasks' | 'planning'): void {
-		activeSubs = activeSubs.filter(
-			(s) => s.type !== 'subscribe' || (s as { channel: string }).channel !== channel
-		);
+		activeSubs = activeSubs.filter((s) => s.channel !== channel);
 		sendRaw({ type: 'unsubscribe', channel });
 	}
 
@@ -192,6 +196,9 @@ function createWSClient() {
 	return {
 		get connected() {
 			return connected;
+		},
+		get currentSeq() {
+			return subSeq;
 		},
 		connect,
 		disconnect,

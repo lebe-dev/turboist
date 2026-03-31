@@ -123,7 +123,7 @@ describe('wsClient', () => {
 			data
 		});
 
-		expect(handler).toHaveBeenCalledWith(data);
+		expect(handler).toHaveBeenCalledWith(data, undefined);
 	});
 
 	it('routes delta messages to handlers', async () => {
@@ -140,7 +140,7 @@ describe('wsClient', () => {
 			data
 		});
 
-		expect(handler).toHaveBeenCalledWith(data);
+		expect(handler).toHaveBeenCalledWith(data, undefined);
 	});
 
 	it('responds to ping with pong', async () => {
@@ -180,12 +180,12 @@ describe('wsClient', () => {
 		client.subscribe('tasks', { view: 'today', context: 'work' });
 
 		const sent = MockWebSocket.instances[0].sent;
-		expect(JSON.parse(sent[0])).toEqual({
-			type: 'subscribe',
-			channel: 'tasks',
-			view: 'today',
-			context: 'work'
-		});
+		const msg = JSON.parse(sent[0]);
+		expect(msg.type).toBe('subscribe');
+		expect(msg.channel).toBe('tasks');
+		expect(msg.view).toBe('today');
+		expect(msg.context).toBe('work');
+		expect(msg.seq).toBeGreaterThan(0);
 	});
 
 	it('resubscribes on reconnect', async () => {
@@ -202,14 +202,14 @@ describe('wsClient', () => {
 		expect(MockWebSocket.instances).toHaveLength(2);
 		MockWebSocket.instances[1].simulateOpen();
 
-		// Should have resubscribed
+		// Should have resubscribed with a new (higher) seq
 		const sent = MockWebSocket.instances[1].sent;
 		expect(sent.length).toBeGreaterThanOrEqual(1);
-		expect(JSON.parse(sent[0])).toEqual({
-			type: 'subscribe',
-			channel: 'tasks',
-			view: 'today'
-		});
+		const msg = JSON.parse(sent[0]);
+		expect(msg.type).toBe('subscribe');
+		expect(msg.channel).toBe('tasks');
+		expect(msg.view).toBe('today');
+		expect(msg.seq).toBeGreaterThan(0);
 	});
 
 	it('notifies state change listeners', async () => {

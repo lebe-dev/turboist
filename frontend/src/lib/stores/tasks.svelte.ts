@@ -55,6 +55,9 @@ function createTasksStore() {
 	let hasReceivedSnapshot = false;
 	let offlineTimer: ReturnType<typeof setTimeout> | null = null;
 
+	const MAX_SUBSCRIBE_RETRIES = 2;
+	let subscribeRetryCount = 0;
+
 	function updateStale(lastSyncedAt?: string): void {
 		isStale = lastSyncedAt
 			? Date.now() - new Date(lastSyncedAt).getTime() > STALE_THRESHOLD_MS
@@ -139,7 +142,11 @@ function createTasksStore() {
 		return contextsStore.activeContextId ?? undefined;
 	}
 
-	function handleTasksSnapshot(data: unknown): void {
+	function handleTasksSnapshot(data: unknown, seq?: number): void {
+		if (seq !== undefined && seq !== wsClient.currentSeq) {
+			logger.log('tasks', `ignoring stale snapshot (seq=${seq}, current=${wsClient.currentSeq})`);
+			return;
+		}
 		const d = data as SnapshotTasksData;
 		logger.log('tasks', `snapshot received: ${d.tasks.length} tasks, synced at: ${d.meta.last_synced_at}`);
 		hasReceivedSnapshot = true;
@@ -163,7 +170,11 @@ function createTasksStore() {
 		updateStale(d.meta.last_synced_at);
 	}
 
-	function handleTasksDelta(data: unknown): void {
+	function handleTasksDelta(data: unknown, seq?: number): void {
+		if (seq !== undefined && seq !== wsClient.currentSeq) {
+			logger.log('tasks', `ignoring stale delta (seq=${seq}, current=${wsClient.currentSeq})`);
+			return;
+		}
 		const d = data as DeltaTasksData;
 		logger.log('tasks', `delta: upserted=${d.upserted?.length ?? 0} removed=${d.removed?.length ?? 0}`);
 
@@ -247,6 +258,15 @@ function createTasksStore() {
 			offlineTimer = null;
 			if (hasReceivedSnapshot) return;
 
+			// Retry if WS is connected and we have retries left
+			if (wsClient.connected && subscribeRetryCount < MAX_SUBSCRIBE_RETRIES) {
+				subscribeRetryCount++;
+				logger.warn('tasks', `no snapshot within grace period, retrying (${subscribeRetryCount}/${MAX_SUBSCRIBE_RETRIES})`);
+				subscribeWS();
+				scheduleOfflineCheck();
+				return;
+			}
+
 			logger.warn('tasks', 'no snapshot received within grace period');
 			if (!wsClient.connected) {
 				isOffline = true;
@@ -311,6 +331,7 @@ function createTasksStore() {
 		loading = true;
 		error = null;
 		hasReceivedSnapshot = false;
+		subscribeRetryCount = 0;
 
 		try {
 			const cfg = await getAppConfig();
@@ -325,11 +346,16 @@ function createTasksStore() {
 					logger.log('tasks', 'WS disconnected after snapshot, marking offline');
 					isOffline = true;
 				}
-				if (connected && isOffline) {
-					logger.log('tasks', 'WS reconnected, flushing queued mutations');
+				if (connected && (isOffline || (isStale && !hasReceivedSnapshot))) {
+					logger.log('tasks', 'WS reconnected/recovered, flushing queued mutations');
+					isOffline = false;
+					isStale = false;
+					subscribeRetryCount = 0;
 					actionQueue.flushNow().then(() => {
 						logger.log('tasks', 'Queue flush complete, re-subscribing');
+						hasReceivedSnapshot = false;
 						subscribeWS();
+						scheduleOfflineCheck();
 					});
 				}
 			})
@@ -377,6 +403,7 @@ function createTasksStore() {
 		isOffline = false;
 		isStale = false;
 		hasReceivedSnapshot = false;
+		subscribeRetryCount = 0;
 
 		subscribeWS();
 		scheduleOfflineCheck();

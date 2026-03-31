@@ -29,6 +29,7 @@ type IncomingMessage struct {
 	Channel string `json:"channel,omitempty"`
 	View    string `json:"view,omitempty"`
 	Context string `json:"context,omitempty"`
+	Seq     int    `json:"seq,omitempty"`
 }
 
 // OutgoingMessage is the envelope for server-to-client messages.
@@ -37,6 +38,7 @@ type OutgoingMessage struct {
 	Channel string `json:"channel,omitempty"`
 	Data    any    `json:"data,omitempty"`
 	Message string `json:"message,omitempty"`
+	Seq     int    `json:"seq,omitempty"`
 }
 
 func marshalMsg(msg OutgoingMessage) ([]byte, error) {

@@ -80,14 +80,18 @@ func (h *Hub) broadcastTasks(c *Client) {
 	if c.lastTasksSnap == nil {
 		// First time or re-subscribe: send full snapshot
 		c.lastTasksSnap = buildSnapshot(result.Tasks)
-		c.sendJSON(OutgoingMessage{
+		ok := c.sendJSON(OutgoingMessage{
 			Type:    MsgSnapshot,
 			Channel: ChannelTasks,
+			Seq:     c.tasksSub.Seq,
 			Data: map[string]any{
 				"tasks": result.Tasks,
 				"meta":  result.Meta,
 			},
 		})
+		if !ok {
+			c.lastTasksSnap = nil // rollback so next broadcast sends full snapshot
+		}
 		return
 	}
 
@@ -100,6 +104,7 @@ func (h *Hub) broadcastTasks(c *Client) {
 	c.sendJSON(OutgoingMessage{
 		Type:    MsgDelta,
 		Channel: ChannelTasks,
+		Seq:     c.tasksSub.Seq,
 		Data:    delta,
 	})
 }
@@ -113,15 +118,19 @@ func (h *Hub) broadcastPlanning(c *Client) {
 			Backlog: buildSnapshot(result.Backlog),
 			Weekly:  buildSnapshot(result.Weekly),
 		}
-		c.sendJSON(OutgoingMessage{
+		ok := c.sendJSON(OutgoingMessage{
 			Type:    MsgSnapshot,
 			Channel: ChannelPlanning,
+			Seq:     c.planningSub.Seq,
 			Data: map[string]any{
 				"backlog": result.Backlog,
 				"weekly":  result.Weekly,
 				"meta":    result.Meta,
 			},
 		})
+		if !ok {
+			c.lastPlanningSnap = nil // rollback so next broadcast sends full snapshot
+		}
 		return
 	}
 
@@ -147,6 +156,7 @@ func (h *Hub) broadcastPlanning(c *Client) {
 	c.sendJSON(OutgoingMessage{
 		Type:    MsgDelta,
 		Channel: ChannelPlanning,
+		Seq:     c.planningSub.Seq,
 		Data:    pd,
 	})
 }
@@ -165,14 +175,18 @@ func (h *Hub) sendTasksSnapshot(c *Client) {
 	result.Meta.LastSyncedAt = h.cache.LastSyncedAt().Format("2006-01-02T15:04:05Z")
 
 	c.lastTasksSnap = buildSnapshot(result.Tasks)
-	c.sendJSON(OutgoingMessage{
+	ok := c.sendJSON(OutgoingMessage{
 		Type:    MsgSnapshot,
 		Channel: ChannelTasks,
+		Seq:     c.tasksSub.Seq,
 		Data: map[string]any{
 			"tasks": result.Tasks,
 			"meta":  result.Meta,
 		},
 	})
+	if !ok {
+		c.lastTasksSnap = nil
+	}
 }
 
 // sendPlanningSnapshot computes and sends a full planning snapshot to a client.
@@ -189,13 +203,17 @@ func (h *Hub) sendPlanningSnapshot(c *Client) {
 		Backlog: buildSnapshot(result.Backlog),
 		Weekly:  buildSnapshot(result.Weekly),
 	}
-	c.sendJSON(OutgoingMessage{
+	ok := c.sendJSON(OutgoingMessage{
 		Type:    MsgSnapshot,
 		Channel: ChannelPlanning,
+		Seq:     c.planningSub.Seq,
 		Data: map[string]any{
 			"backlog": result.Backlog,
 			"weekly":  result.Weekly,
 			"meta":    result.Meta,
 		},
 	})
+	if !ok {
+		c.lastPlanningSnap = nil
+	}
 }
