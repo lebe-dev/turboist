@@ -392,3 +392,195 @@ describe('tasksStore pending queue updates overlay', () => {
 		expect(result).toBe(task);
 	});
 });
+
+describe('tasksStore delta temp→real reconciliation', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockActionQueue.items = [];
+		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
+	});
+
+	afterEach(() => {
+		mockActionQueue.items = [];
+		vi.resetModules();
+	});
+
+	async function setupWithTasks(tasks: Task[]) {
+		const { tasksStore } = await import('./tasks.svelte');
+		const calls = mockWsClient.onMessage.mock.calls as unknown[][];
+		const snapshotCall = calls.findLast(
+			(c) => c[0] === 'snapshot' && c[1] === 'tasks'
+		);
+		if (!snapshotCall) throw new Error('snapshot handler not registered');
+		const handleSnapshot = snapshotCall[2] as (data: unknown) => void;
+		const deltaCall = calls.findLast(
+			(c) => c[0] === 'delta' && c[1] === 'tasks'
+		);
+		if (!deltaCall) throw new Error('delta handler not registered');
+		const handleDelta = deltaCall[2] as (data: unknown) => void;
+
+		const meta: Meta = {
+			context: '',
+			weekly_limit: 0,
+			weekly_count: 0,
+			backlog_limit: 0,
+			backlog_count: 0,
+			last_synced_at: new Date().toISOString()
+		};
+		handleSnapshot({ tasks, meta });
+		return { tasksStore, handleSnapshot, handleDelta, meta };
+	}
+
+	it('delta: reconciled temp task preserves position', async () => {
+		const { tasksStore, handleDelta } = await setupWithTasks([makeTask('A'), makeTask('B')]);
+
+		// User duplicated task A — temp task inserted after A
+		const tempTask: Task = { ...makeTask('A'), id: 'temp-dup-1', content: 'Task A copy' };
+		tasksStore.insertAfterLocal('A', tempTask);
+		expect(tasksStore.tasks.map((t) => t.id)).toEqual(['A', 'temp-dup-1', 'B']);
+
+		// Server sends delta with real task (same content, real ID)
+		const realTask = { ...makeTask('real-1'), content: 'Task A copy' };
+		handleDelta({ upserted: [realTask], removed: [] });
+
+		// Real task should replace temp task AT THE SAME POSITION
+		expect(tasksStore.tasks.map((t) => t.id)).toEqual(['A', 'real-1', 'B']);
+	});
+
+	it('delta: multiple temp tasks preserve their positions', async () => {
+		const { tasksStore, handleDelta } = await setupWithTasks([
+			makeTask('A'),
+			makeTask('B'),
+			makeTask('C')
+		]);
+
+		// Two duplicates at different positions
+		const temp1: Task = { ...makeTask('A'), id: 'temp-dup-1', content: 'Copy of A' };
+		const temp2: Task = { ...makeTask('B'), id: 'temp-dup-2', content: 'Copy of B' };
+		tasksStore.insertAfterLocal('A', temp1);
+		tasksStore.insertAfterLocal('B', temp2);
+		expect(tasksStore.tasks.map((t) => t.id)).toEqual(['A', 'temp-dup-1', 'B', 'temp-dup-2', 'C']);
+
+		// Server returns both real tasks in a single delta
+		handleDelta({
+			upserted: [
+				{ ...makeTask('real-1'), content: 'Copy of A' },
+				{ ...makeTask('real-2'), content: 'Copy of B' }
+			],
+			removed: []
+		});
+
+		expect(tasksStore.tasks.map((t) => t.id)).toEqual(['A', 'real-1', 'B', 'real-2', 'C']);
+	});
+
+	it('delta: genuinely new task (no temp) appends to end', async () => {
+		const { tasksStore, handleDelta } = await setupWithTasks([makeTask('A'), makeTask('B')]);
+
+		// Server sends a completely new task (no temp predecessor)
+		const newTask = { ...makeTask('new-1'), content: 'Brand new task' };
+		handleDelta({ upserted: [newTask], removed: [] });
+
+		expect(tasksStore.tasks.map((t) => t.id)).toEqual(['A', 'B', 'new-1']);
+	});
+});
+
+describe('tasksStore snapshot temp task protection', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockActionQueue.items = [];
+		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
+	});
+
+	afterEach(() => {
+		mockActionQueue.items = [];
+		vi.resetModules();
+	});
+
+	async function setupWithTasks(tasks: Task[]) {
+		const { tasksStore } = await import('./tasks.svelte');
+		const calls = mockWsClient.onMessage.mock.calls as unknown[][];
+		const snapshotCall = calls.findLast(
+			(c) => c[0] === 'snapshot' && c[1] === 'tasks'
+		);
+		if (!snapshotCall) throw new Error('snapshot handler not registered');
+		const handleSnapshot = snapshotCall[2] as (data: unknown) => void;
+		const deltaCall = calls.findLast(
+			(c) => c[0] === 'delta' && c[1] === 'tasks'
+		);
+		if (!deltaCall) throw new Error('delta handler not registered');
+		const handleDelta = deltaCall[2] as (data: unknown) => void;
+
+		const meta: Meta = {
+			context: '',
+			weekly_limit: 0,
+			weekly_count: 0,
+			backlog_limit: 0,
+			backlog_count: 0,
+			last_synced_at: new Date().toISOString()
+		};
+		handleSnapshot({ tasks, meta });
+		return { tasksStore, handleSnapshot, handleDelta, meta };
+	}
+
+	it('snapshot: pending temp tasks survive snapshot replacement', async () => {
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([makeTask('A'), makeTask('B')]);
+
+		// User created a temp task (duplicate after A)
+		const tempTask: Task = { ...makeTask('A'), id: 'temp-dup-1', content: 'Task A copy' };
+		tasksStore.insertAfterLocal('A', tempTask);
+
+		// Simulate pending createTask action in queue
+		mockActionQueue.items = [
+			{ type: 'createTask', payload: { data: { content: 'Task A copy' } }, status: 'pending' }
+		];
+
+		// Server sends snapshot WITHOUT the new task (hasn't processed it yet)
+		handleSnapshot({ tasks: [makeTask('A'), makeTask('B')], meta });
+
+		// Temp task should survive the snapshot
+		const ids = tasksStore.tasks.map((t) => t.id);
+		expect(ids).toContain('temp-dup-1');
+		expect(ids).toEqual(['A', 'temp-dup-1', 'B']);
+	});
+
+	it('snapshot: temp task not reinjected if server has real version', async () => {
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([makeTask('A'), makeTask('B')]);
+
+		// User created a temp task
+		const tempTask: Task = { ...makeTask('A'), id: 'temp-dup-1', content: 'Task A copy' };
+		tasksStore.insertAfterLocal('A', tempTask);
+
+		mockActionQueue.items = [
+			{ type: 'createTask', payload: { data: { content: 'Task A copy' } }, status: 'pending' }
+		];
+
+		// Server snapshot already includes the real version
+		const realTask = { ...makeTask('real-1'), content: 'Task A copy' };
+		handleSnapshot({ tasks: [makeTask('A'), realTask, makeTask('B')], meta });
+
+		// Should NOT have both temp and real — only real
+		const ids = tasksStore.tasks.map((t) => t.id);
+		expect(ids).not.toContain('temp-dup-1');
+		expect(ids).toContain('real-1');
+	});
+
+	it('snapshot: temp task not reinjected if in pendingRemovals', async () => {
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([makeTask('A'), makeTask('B')]);
+
+		// User created a temp task, then removed it (e.g. duplicate failed)
+		const tempTask: Task = { ...makeTask('A'), id: 'temp-dup-1', content: 'Task A copy' };
+		tasksStore.insertAfterLocal('A', tempTask);
+		tasksStore.removeTaskLocal('temp-dup-1');
+
+		mockActionQueue.items = [
+			{ type: 'createTask', payload: { data: { content: 'Task A copy' } }, status: 'pending' }
+		];
+
+		// Snapshot arrives
+		handleSnapshot({ tasks: [makeTask('A'), makeTask('B')], meta });
+
+		// Temp task should stay removed
+		const ids = tasksStore.tasks.map((t) => t.id);
+		expect(ids).not.toContain('temp-dup-1');
+	});
+});

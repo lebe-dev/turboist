@@ -139,6 +139,61 @@ function createTasksStore() {
 		return contextsStore.activeContextId ?? undefined;
 	}
 
+	// Capture temp tasks that have pending createTask actions — called before snapshot replaces flatTasks
+	function captureTempTasks(): { task: FlatTask; afterId: string | null }[] {
+		const result: { task: FlatTask; afterId: string | null }[] = [];
+
+		const pendingCreateContents = new Set<string>();
+		for (const action of actionQueue.items) {
+			if ((action.status === 'pending' || action.status === 'processing') && action.type === 'createTask') {
+				const { data } = action.payload as { data: { content: string } };
+				pendingCreateContents.add(data.content);
+			}
+		}
+
+		for (let i = 0; i < flatTasks.length; i++) {
+			const t = flatTasks[i];
+			if (!t.id.startsWith('temp-')) continue;
+			if (!pendingCreateContents.has(t.content)) continue;
+
+			// Find nearest non-temp predecessor for position anchoring
+			let afterId: string | null = null;
+			for (let j = i - 1; j >= 0; j--) {
+				if (!flatTasks[j].id.startsWith('temp-')) {
+					afterId = flatTasks[j].id;
+					break;
+				}
+			}
+			result.push({ task: t, afterId });
+			pendingCreateContents.delete(t.content);
+		}
+		return result;
+	}
+
+	// Reinject captured temp tasks into flatTasks after snapshot replacement
+	function reinjectTempTasks(captured: { task: FlatTask; afterId: string | null }[]): void {
+		if (captured.length === 0) return;
+
+		const updated = [...flatTasks];
+		for (const { task, afterId } of captured) {
+			// Skip if in pendingRemovals (was removed locally)
+			if (pendingRemovals.has(task.id)) continue;
+			// Skip if server already has a task with this content (reconciled)
+			if (updated.some((t) => t.content === task.content && !t.id.startsWith('temp-'))) continue;
+
+			if (afterId) {
+				const idx = updated.findIndex((t) => t.id === afterId);
+				if (idx >= 0) {
+					updated.splice(idx + 1, 0, task);
+					continue;
+				}
+			}
+			// Fallback: prepend (matches addTaskLocal behavior)
+			updated.unshift(task);
+		}
+		flatTasks = updated;
+	}
+
 	function handleTasksSnapshot(data: unknown, seq?: number): void {
 		if (seq !== undefined && seq !== wsClient.currentSeq) {
 			logger.log('tasks', `ignoring stale snapshot (seq=${seq}, current=${wsClient.currentSeq})`);
@@ -149,12 +204,16 @@ function createTasksStore() {
 		hasReceivedSnapshot = true;
 		cancelOfflineTimer();
 
+		const captured = captureTempTasks();
+
 		const flat = flattenTasks(d.tasks);
 		flatTasks = flat;
 		meta = d.meta;
 
+		reinjectTempTasks(captured);
+
 		// Persist to Y.Doc (y-indexeddb saves automatically)
-		persistTasks('tasks', flat);
+		persistTasks('tasks', flatTasks);
 		persistMeta('meta', d.meta);
 
 		loading = false;
@@ -187,10 +246,15 @@ function createTasksStore() {
 					.filter((f) => !updated.some((t) => t.id === f.id))
 					.map((f) => f.content)
 			);
+
+			// Map content → array of original indices for position-preserving replacement
+			const tempPositions = new Map<string, number[]>();
+
 			if (newContents.size > 0) {
 				// Record temp→real ID mappings before removing (for navigation redirect)
 				const newMappings: Record<string, string> = {};
-				for (const tempTask of updated) {
+				for (let i = 0; i < updated.length; i++) {
+					const tempTask = updated[i];
 					if (!tempTask.id.startsWith('temp-') || !newContents.has(tempTask.content)) continue;
 					const realTask = upsertedFlat.find(
 						(f) => f.content === tempTask.content && !f.id.startsWith('temp-')
@@ -198,6 +262,10 @@ function createTasksStore() {
 					if (realTask) {
 						newMappings[tempTask.id] = realTask.id;
 					}
+					// Record position before removal
+					const positions = tempPositions.get(tempTask.content) ?? [];
+					positions.push(i);
+					tempPositions.set(tempTask.content, positions);
 				}
 				if (Object.keys(newMappings).length > 0) {
 					reconciledIds = { ...reconciledIds, ...newMappings };
@@ -206,15 +274,40 @@ function createTasksStore() {
 				updated = updated.filter(
 					(t) => !t.id.startsWith('temp-') || !newContents.has(t.content)
 				);
+
+				// Adjust positions: after removal, earlier removals shift later indices
+				for (const [content, positions] of tempPositions) {
+					// Sort ascending so we can compute shifts correctly
+					positions.sort((a, b) => a - b);
+					const allRemovedIndices = [...tempPositions.values()].flat().sort((a, b) => a - b);
+					for (let j = 0; j < positions.length; j++) {
+						const origIdx = positions[j];
+						const removedBefore = allRemovedIndices.filter((ri) => ri < origIdx).length;
+						positions[j] = origIdx - removedBefore;
+					}
+				}
 			}
 
+			// Upsert: in-place replacements first, collect position-aware insertions
+			const toInsert: { flat: FlatTask; idx: number }[] = [];
 			for (const flat of upsertedFlat) {
 				const idx = updated.findIndex((t) => t.id === flat.id);
 				if (idx >= 0) {
 					updated[idx] = flat;
 				} else {
-					updated.push(flat);
+					const positions = tempPositions.get(flat.content);
+					if (positions && positions.length > 0) {
+						toInsert.push({ flat, idx: positions.shift()! });
+					} else {
+						updated.push(flat);
+					}
 				}
+			}
+
+			// Insert in descending order so splice doesn't shift subsequent indices
+			toInsert.sort((a, b) => b.idx - a.idx);
+			for (const { flat, idx } of toInsert) {
+				updated.splice(idx, 0, flat);
 			}
 		}
 
