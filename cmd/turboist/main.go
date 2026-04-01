@@ -76,7 +76,7 @@ func main() {
 			}
 		}
 	})
-	if err := cache.RefreshAfterMutation(ctx); err != nil {
+	if err := cache.Refresh(ctx); err != nil {
 		log.Warn("initial enrichment refresh failed", "err", err)
 	}
 

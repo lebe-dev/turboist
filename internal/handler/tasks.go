@@ -365,9 +365,7 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 		}
 	} else if labelsViaSync {
 		// Only labels were updated via sync — still refresh the cache.
-		if err := h.cache.RefreshAfterMutation(c.Context()); err != nil {
-			log.Error("cache refresh after label clear failed", "id", id, "err", err)
-		}
+		h.cache.RefreshAfterMutation()
 	}
 
 	return c.JSON(fiber.Map{"ok": true})
@@ -549,9 +547,7 @@ func (h *TasksHandler) ResetWeekly(c fiber.Ctx) error {
 		return todoistErrorResponse(c, err)
 	}
 
-	if err := h.cache.RefreshAfterMutation(c.Context()); err != nil {
-		log.Error("reset weekly: cache refresh failed", "err", err)
-	}
+	h.cache.RefreshAfterMutation()
 
 	log.Info("reset weekly labels", "updated", len(tasks))
 	return c.JSON(fiber.Map{"ok": true, "updated": len(tasks)})
@@ -577,9 +573,7 @@ func (h *TasksHandler) BatchUpdateLabels(c fiber.Ctx) error {
 		return todoistErrorResponse(c, err)
 	}
 
-	if err := h.cache.RefreshAfterMutation(c.Context()); err != nil {
-		log.Error("batch update labels: cache refresh failed", "err", err)
-	}
+	h.cache.RefreshAfterMutation()
 
 	log.Info("batch update labels", "updated", len(req.Updates))
 	return c.JSON(fiber.Map{"ok": true, "updated": len(req.Updates)})

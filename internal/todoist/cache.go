@@ -15,7 +15,22 @@ const (
 	backoffMax        = 5 * time.Minute
 	coldStartRetries  = 10
 	coldStartInterval = 10 * time.Second
+	refreshDebounce   = 1 * time.Second
 )
+
+// cacheClient abstracts the Todoist client methods used by Cache, enabling testing.
+type cacheClient interface {
+	FetchAll(ctx context.Context) (*SyncResult, error)
+	AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error)
+	UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs) error
+	MoveTask(ctx context.Context, id string, parentID string) error
+	MoveTaskToProject(ctx context.Context, id string, projectID string) error
+	CompleteTask(ctx context.Context, id string) error
+	DeleteTask(ctx context.Context, id string) error
+	DecomposeTask(ctx context.Context, src *Task, newContents []string) error
+	BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error
+	BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget) error
+}
 
 // Cache holds an in-memory snapshot of Todoist data and keeps it fresh via Refresh.
 type Cache struct {
@@ -27,10 +42,12 @@ type Cache struct {
 	lastSyncedAt time.Time
 	warmed       bool
 
-	client       *Client
-	sfg          singleflight.Group
-	onRefresh    func()
-	taskEnricher func(tasks []*Task)
+	client         cacheClient
+	sfg            singleflight.Group
+	onRefresh      func()
+	taskEnricher   func(tasks []*Task)
+	refreshTimer   *time.Timer
+	refreshTimerMu sync.Mutex
 }
 
 // NewCache creates a Cache, performs a synchronous cold-start Refresh with retries, and panics
@@ -144,7 +161,7 @@ func (c *Cache) InboxProjectID() string {
 
 // Client returns the underlying Todoist API client.
 func (c *Cache) Client() *Client {
-	return c.client
+	return c.client.(*Client)
 }
 
 // SetOnRefresh sets a callback that is invoked after every successful cache refresh.
@@ -158,90 +175,116 @@ func (c *Cache) SetTaskEnricher(fn func(tasks []*Task)) {
 	c.taskEnricher = fn
 }
 
-// RefreshAfterMutation triggers a cache refresh deduplicated via singleflight.
-// Concurrent calls while a refresh is in flight share the same result.
-func (c *Cache) RefreshAfterMutation(ctx context.Context) error {
-	_, err, _ := c.sfg.Do("refresh", func() (any, error) {
-		return nil, c.Refresh(ctx)
+// ScheduleRefresh schedules a debounced cache refresh after a mutation.
+// Multiple calls within the debounce window are coalesced into a single refresh.
+func (c *Cache) ScheduleRefresh() {
+	c.refreshTimerMu.Lock()
+	defer c.refreshTimerMu.Unlock()
+
+	if c.refreshTimer != nil {
+		c.refreshTimer.Stop()
+	}
+	c.refreshTimer = time.AfterFunc(refreshDebounce, func() {
+		_, err, _ := c.sfg.Do("refresh", func() (any, error) {
+			return nil, c.Refresh(context.Background())
+		})
+		if err != nil {
+			log.Warn("debounced cache refresh failed", "err", err)
+		}
 	})
-	return err
 }
 
-// AddTask creates a task via the Todoist API and refreshes the cache.
+// RefreshAfterMutation schedules a debounced cache refresh.
+// Fire-and-forget: errors are logged, not returned, since the mutation
+// has already succeeded at Todoist.
+func (c *Cache) RefreshAfterMutation() {
+	c.ScheduleRefresh()
+}
+
+// AddTask creates a task via the Todoist API and schedules a cache refresh.
 // Returns the new task ID.
 func (c *Cache) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error) {
 	newID, err := c.client.AddTask(ctx, args)
 	if err != nil {
 		return "", err
 	}
-	return newID, c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return newID, nil
 }
 
-// UpdateTask updates a task via the Todoist API and refreshes the cache.
+// UpdateTask updates a task via the Todoist API and schedules a cache refresh.
 func (c *Cache) UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs) error {
 	if err := c.client.UpdateTask(ctx, args); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
-// MoveTask moves a task to be a subtask of the given parent and refreshes the cache.
+// MoveTask moves a task to be a subtask of the given parent and schedules a cache refresh.
 func (c *Cache) MoveTask(ctx context.Context, id string, parentID string) error {
 	if err := c.client.MoveTask(ctx, id, parentID); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
-// MoveTaskToProject moves a task to the given project and refreshes the cache.
+// MoveTaskToProject moves a task to the given project and schedules a cache refresh.
 func (c *Cache) MoveTaskToProject(ctx context.Context, id string, projectID string) error {
 	if err := c.client.MoveTaskToProject(ctx, id, projectID); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
-// CompleteTask closes a task via the Todoist API and refreshes the cache.
+// CompleteTask closes a task via the Todoist API and schedules a cache refresh.
 func (c *Cache) CompleteTask(ctx context.Context, id string) error {
 	if err := c.client.CompleteTask(ctx, id); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
-// DeleteTask deletes a task via the Todoist API and refreshes the cache.
+// DeleteTask deletes a task via the Todoist API and schedules a cache refresh.
 func (c *Cache) DeleteTask(ctx context.Context, id string) error {
 	if err := c.client.DeleteTask(ctx, id); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
 // DecomposeTask creates new tasks from the source task and deletes the original,
-// then refreshes the cache.
+// then schedules a cache refresh.
 func (c *Cache) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
 	if err := c.client.DecomposeTask(ctx, src, newContents); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
 // BatchMoveTasksToProject moves multiple tasks to their target projects in a single API call
-// and refreshes the cache once.
+// and schedules a cache refresh.
 func (c *Cache) BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error {
 	if err := c.client.BatchMoveTasksToProject(ctx, moves); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
 // BatchMoveTasks moves multiple tasks to their targets (project or section) in a single API call
-// and refreshes the cache once.
+// and schedules a cache refresh.
 func (c *Cache) BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget) error {
 	if err := c.client.BatchMoveTasks(ctx, moves); err != nil {
 		return err
 	}
-	return c.RefreshAfterMutation(ctx)
+	c.ScheduleRefresh()
+	return nil
 }
 
 // StartPolling launches a background goroutine that refreshes the cache every interval.

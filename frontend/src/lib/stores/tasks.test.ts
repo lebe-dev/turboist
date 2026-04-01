@@ -391,6 +391,41 @@ describe('tasksStore pending queue updates overlay', () => {
 		const result = tasksStore.applyPendingTaskUpdate(task);
 		expect(result).toBe(task);
 	});
+
+	it('pending due_date update survives WS snapshot', async () => {
+		const task = { ...makeTask('1'), due: { date: '2026-03-01', recurring: false } };
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([task]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { due_date: '2026-05-01' } }, status: 'pending' }
+		];
+
+		// Server snapshot still has old date
+		handleSnapshot({
+			tasks: [{ ...makeTask('1'), due: { date: '2026-03-01', recurring: false } }],
+			meta
+		});
+
+		expect(tasksStore.tasks[0].due?.date).toBe('2026-05-01');
+		expect(tasksStore.tasks[0].due?.recurring).toBe(false);
+	});
+
+	it('pending due_date clear survives WS snapshot', async () => {
+		const task = { ...makeTask('1'), due: { date: '2026-03-01', recurring: false } };
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([task]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { due_date: '' } }, status: 'pending' }
+		];
+
+		// Server snapshot still has the date
+		handleSnapshot({
+			tasks: [{ ...makeTask('1'), due: { date: '2026-03-01', recurring: false } }],
+			meta
+		});
+
+		expect(tasksStore.tasks[0].due).toBeNull();
+	});
 });
 
 describe('tasksStore pending overlay — due_string recurrence', () => {
@@ -667,5 +702,89 @@ describe('tasksStore snapshot temp task protection', () => {
 		// Temp task should stay removed
 		const ids = tasksStore.tasks.map((t) => t.id);
 		expect(ids).not.toContain('temp-dup-1');
+	});
+
+	it('snapshot: temp task not reinjected if createTask already flushed', async () => {
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([makeTask('A'), makeTask('B')]);
+
+		// User created a temp task
+		const tempTask: Task = { ...makeTask('A'), id: 'temp-dup-1', content: 'Task A copy' };
+		tasksStore.insertAfterLocal('A', tempTask);
+
+		// Action already flushed — queue is empty
+		mockActionQueue.items = [];
+
+		// Snapshot arrives WITHOUT the task (server hasn't processed yet, but queue is empty)
+		handleSnapshot({ tasks: [makeTask('A'), makeTask('B')], meta });
+
+		// Temp task should NOT be reinjected — no pending createTask action for it
+		const ids = tasksStore.tasks.map((t) => t.id);
+		expect(ids).not.toContain('temp-dup-1');
+		expect(ids).toEqual(['A', 'B']);
+	});
+});
+
+describe('tasksStore WS reconnect flush-then-resubscribe', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockActionQueue.items = [];
+		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
+	});
+
+	afterEach(() => {
+		mockActionQueue.items = [];
+		vi.resetModules();
+	});
+
+	it('WS reconnect triggers flushNow then resubscribes', async () => {
+		const { tasksStore } = await import('./tasks.svelte');
+
+		// Capture the onStateChange callback
+		const calls = mockWsClient.onStateChange.mock.calls as unknown[][];
+		// start() registers the listener — we need to call start()
+		await tasksStore.start();
+
+		// Find the onStateChange registration (called during start)
+		const stateChangeCalls = mockWsClient.onStateChange.mock.calls as unknown as [
+			[(connected: boolean) => void]
+		];
+		expect(stateChangeCalls.length).toBeGreaterThan(0);
+		const stateChangeHandler = stateChangeCalls[stateChangeCalls.length - 1][0];
+
+		// First: deliver a snapshot so hasReceivedSnapshot = true
+		const snapshotCalls = mockWsClient.onMessage.mock.calls as unknown[][];
+		const snapshotCall = snapshotCalls.findLast(
+			(c) => c[0] === 'snapshot' && c[1] === 'tasks'
+		);
+		if (!snapshotCall) throw new Error('snapshot handler not registered');
+		const handleSnapshot = snapshotCall[2] as (data: unknown) => void;
+
+		handleSnapshot({
+			tasks: [],
+			meta: { context: '', weekly_limit: 0, weekly_count: 0, backlog_limit: 0, backlog_count: 0, last_synced_at: new Date().toISOString() }
+		});
+
+		// Simulate disconnect
+		stateChangeHandler(false);
+		expect(tasksStore.isOffline).toBe(true);
+
+		// Reset mocks to track new calls
+		mockWsClient.subscribe.mockClear();
+		mockActionQueue.flushNow.mockClear();
+		mockActionQueue.flushNow.mockResolvedValue(undefined);
+
+		// Simulate reconnect
+		stateChangeHandler(true);
+
+		// flushNow should be called
+		expect(mockActionQueue.flushNow).toHaveBeenCalledTimes(1);
+
+		// Wait for flushNow().then() chain
+		await mockActionQueue.flushNow();
+
+		// After flush, should resubscribe to WS
+		expect(mockWsClient.subscribe).toHaveBeenCalledWith('tasks', expect.objectContaining({ view: 'today' }));
+
+		tasksStore.stop();
 	});
 });

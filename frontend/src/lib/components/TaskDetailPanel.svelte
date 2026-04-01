@@ -254,6 +254,11 @@
 			document.removeEventListener('pointerdown', handlePointerDown);
 		};
 	});
+	// CONVENTION: Editable fields synced from `task` must be guarded.
+	// Use `xxxSyncing` flag (true during API call, false in .finally()).
+	// For pickers, also guard on their "open" state.
+	// See: prioritySyncing, labelsSyncing, dateSyncing + showCalendar
+
 	let localPriority = $state(1);
 	let prioritySyncing = $state(false);
 
@@ -293,10 +298,12 @@
 
 	// --- Due date ---
 	let showCalendar = $state(false);
+	let dateSyncing = $state(false);
 
 	let calendarValue = $state<DateValue | undefined>(undefined);
 
 	$effect(() => {
+		if (dateSyncing || showCalendar) return;
 		if (task?.due?.date) {
 			calendarValue = parseDate(task.due.date);
 		} else {
@@ -314,12 +321,15 @@
 		}
 		showCalendar = false;
 		const taskId = task.id;
+		dateSyncing = true;
 		updateLocal((t) => ({ ...t, due: { date: dateStr, recurring: t.due?.recurring ?? false } }));
 		// Don't removeTaskLocal here — let WS handle list removal so the panel stays open
 		updateTask(taskId, { due_date: dateStr }).catch((e) => {
 			logger.error('tasks', `update due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
+		}).finally(() => {
+			dateSyncing = false;
 		});
 	}
 
@@ -327,12 +337,15 @@
 		if (!task || !task.due) return;
 		dropdownOpen = false;
 		const taskId = task.id;
+		dateSyncing = true;
 		updateLocal((t) => ({ ...t, due: null }));
 		// Don't removeTaskLocal here — let WS handle list removal so the panel stays open
 		updateTask(taskId, { due_date: '' }).catch((e) => {
 			logger.error('tasks', `clear due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
+		}).finally(() => {
+			dateSyncing = false;
 		});
 	}
 
@@ -353,12 +366,15 @@ function setDateQuick(date: string) {
 		const currentDate = task.due?.date ?? '';
 		if (date === currentDate) return;
 		const taskId = task.id;
+		dateSyncing = true;
 		updateLocal((t) => ({ ...t, due: { date, recurring: false } }));
 		// Don't removeTaskLocal here — let WS handle list removal so the panel stays open
 		updateTask(taskId, { due_date: date }).catch((e) => {
 			logger.error('tasks', `set due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
+		}).finally(() => {
+			dateSyncing = false;
 		});
 	}
 
@@ -367,6 +383,7 @@ function setDateQuick(date: string) {
 		if (!task) return;
 		dropdownOpen = false;
 		const taskId = task.id;
+		dateSyncing = true;
 		updateLocal((t) => ({
 			...t,
 			due: { date: t.due?.date ?? todayDateStr(), recurring: true }
@@ -375,6 +392,8 @@ function setDateQuick(date: string) {
 			logger.error('tasks', `set recurrence failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
+		}).finally(() => {
+			dateSyncing = false;
 		});
 	}
 
@@ -383,6 +402,7 @@ function setDateQuick(date: string) {
 		dropdownOpen = false;
 		const taskId = task.id;
 		const date = task.due.date;
+		dateSyncing = true;
 		updateLocal((t) => ({
 			...t,
 			due: t.due ? { ...t.due, recurring: false } : null
@@ -391,6 +411,8 @@ function setDateQuick(date: string) {
 			logger.error('tasks', `remove recurrence failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
 			tasksStore.refresh();
+		}).finally(() => {
+			dateSyncing = false;
 		});
 	}
 
