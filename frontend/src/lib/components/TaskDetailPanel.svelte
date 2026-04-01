@@ -6,7 +6,6 @@
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
-	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
 	import { appStore } from '$lib/stores/app.svelte';
@@ -868,7 +867,6 @@ function setDateQuick(date: string) {
 		}
 	}
 
-	const collapsed = $derived(task ? collapsedStore.isCollapsed(task.id) : false);
 
 	// --- Dropdown state ---
 	let dropdownOpen = $state(false);
@@ -1472,15 +1470,11 @@ function setDateQuick(date: string) {
 					{#if task.children.length > 0}
 						<div class="mt-6">
 							<div class="mb-2 flex items-center justify-between gap-2">
-								<button
-									class="flex items-center gap-1 text-[12px] tabular-nums text-muted-foreground transition-colors hover:text-foreground"
-									onclick={() => collapsedStore.toggle(task.id)}
+								<span
+									class="flex items-center gap-1 text-[12px] tabular-nums text-muted-foreground"
 								>
-									<ChevronRightIcon
-										class="h-3.5 w-3.5 transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
-									/>
 									Subtasks {task.completed_sub_task_count}/{task.sub_task_count}
-								</button>
+								</span>
 								{#if !showSubtaskForm}
 									<button
 										class="flex items-center gap-1 text-[12px] text-muted-foreground transition-colors hover:text-primary"
@@ -1561,13 +1555,11 @@ function setDateQuick(date: string) {
 									{@render subtaskNode(grandchild, depth + 1)}
 								{/each}
 							{/snippet}
-							{#if !collapsed}
-								<div class="space-y-0.5">
-									{#each task.children as child (child.id)}
-										{@render subtaskNode(child, 0)}
-									{/each}
-								</div>
-								{/if}
+							<div class="space-y-0.5">
+								{#each task.children as child (child.id)}
+									{@render subtaskNode(child, 0)}
+								{/each}
+							</div>
 						</div>
 					{/if}
 

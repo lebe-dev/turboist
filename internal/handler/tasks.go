@@ -310,8 +310,18 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	if req.DueString != nil {
 		// due_string takes precedence — pass the human-readable string (e.g. "every day")
 		// directly to the Todoist sync API which will parse it.
+		// Also preserve the existing due date so Todoist doesn't skip to the next
+		// occurrence (e.g. setting "every month on the 1st" on April 1st should
+		// keep April 1st, not jump to May 1st).
 		lang := "en"
-		args.Due = &synctodoist.Due{String: req.DueString, Lang: &lang}
+		due := &synctodoist.Due{String: req.DueString, Lang: &lang}
+		if existing := h.findTask(id); existing != nil && existing.Due != nil {
+			date, err := time.Parse("2006-01-02", existing.Due.Date)
+			if err == nil {
+				due.Date = &date
+			}
+		}
+		args.Due = due
 	} else if req.DueDate != nil {
 		if *req.DueDate == "" {
 			noDate := "no date"
