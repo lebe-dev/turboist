@@ -770,7 +770,8 @@ function setDateQuick(date: string) {
 		});
 		createTask(
 			{ content, description: '', labels, priority: 1, parent_id: parentId },
-			contextsStore.activeContextId ?? undefined
+			contextsStore.activeContextId ?? undefined,
+			tempId
 		).then(() => {
 			// Flush the queue so the backend actually creates the subtask,
 			// then re-fetch to replace temp child IDs with real ones
@@ -900,7 +901,8 @@ function setDateQuick(date: string) {
 				...(task.parent_id ? { parent_id: task.parent_id } : {}),
 				...(task.due ? { due_date: task.due.date } : {}),
 			},
-			contextsStore.activeContextId ?? undefined
+			contextsStore.activeContextId ?? undefined,
+			tempId
 		).then(() => {
 			toast.dismiss();
 			toast(`Duplicated: ${taskContent}`, { duration: 5000 });

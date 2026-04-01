@@ -64,8 +64,8 @@ export async function patchState(update: Partial<UserState>): Promise<void> {
 	return getBackend().patchState(update);
 }
 
-export async function createTask(data: CreateTaskRequest, context?: string): Promise<void> {
-	return getBackend().createTask(data, context);
+export async function createTask(data: CreateTaskRequest, context?: string, tempId?: string): Promise<string> {
+	return getBackend().createTask(data, context, tempId);
 }
 
 export async function updateTask(id: string, data: UpdateTaskRequest): Promise<void> {

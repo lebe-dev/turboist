@@ -83,9 +83,10 @@ export class QueuedBackend implements BackendConnector {
 
 	// --- Mutations: always enqueue, flushed by timer ---
 
-	async createTask(data: CreateTaskRequest, context?: string): Promise<void> {
+	async createTask(data: CreateTaskRequest, context?: string, tempId?: string): Promise<string> {
 		logger.log('sync', 'Queuing createTask');
-		await this.queue.enqueue({ type: 'createTask', payload: { data, context } });
+		await this.queue.enqueue({ type: 'createTask', payload: { data, context, tempId } });
+		return tempId ?? '';
 	}
 
 	async updateTask(id: string, data: UpdateTaskRequest): Promise<void> {

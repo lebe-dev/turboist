@@ -33,7 +33,7 @@ function createMockBackend(): BackendConnector {
 		getCompletedTasks: vi.fn(),
 		getBacklogTasks: vi.fn(),
 		getCompletedSubtasks: vi.fn(),
-		createTask: vi.fn(() => Promise.resolve()),
+		createTask: vi.fn(() => Promise.resolve('')),
 		updateTask: vi.fn(() => Promise.resolve()),
 		batchUpdateLabels: vi.fn(() => Promise.resolve()),
 		moveTask: vi.fn(() => Promise.resolve()),
@@ -790,6 +790,269 @@ describe('action-queue', () => {
 			await vi.advanceTimersByTimeAsync(100);
 
 			expect(backend.completeTask).not.toHaveBeenCalled();
+		});
+	});
+
+	// ─── flush — temp ID remapping after createTask ───
+
+	describe('flush — temp ID remapping after createTask', () => {
+		it('remaps updateTask temp ID to real ID after createTask succeeds', async () => {
+			const queue = await freshQueue();
+
+			// User creates task with temp ID, then edits it before flush
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'Buy groceries', description: '', labels: [], priority: 1 },
+					tempId: 'temp-100'
+				}
+			});
+			await queue.enqueue({
+				type: 'updateTask',
+				payload: { id: 'temp-100', data: { labels: ['errands'], priority: 3 } }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-abc');
+
+			await queue.flush(backend);
+
+			expect(backend.createTask).toHaveBeenCalled();
+			// updateTask must receive the REAL ID, not the temp ID
+			expect(backend.updateTask).toHaveBeenCalledWith('real-abc', {
+				labels: ['errands'],
+				priority: 3
+			});
+		});
+
+		it('remaps completeTask temp ID to real ID after createTask succeeds', async () => {
+			const queue = await freshQueue();
+
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'Daily standup', description: '', labels: [], priority: 1 },
+					tempId: 'temp-200'
+				}
+			});
+			await queue.enqueue({
+				type: 'completeTask',
+				payload: { id: 'temp-200' }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-xyz');
+
+			await queue.flush(backend);
+
+			expect(backend.completeTask).toHaveBeenCalledWith('real-xyz');
+		});
+
+		it('remaps moveTask temp ID to real ID after createTask succeeds', async () => {
+			const queue = await freshQueue();
+
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'Subtask', description: '', labels: [], priority: 1 },
+					tempId: 'temp-300'
+				}
+			});
+			await queue.enqueue({
+				type: 'moveTask',
+				payload: { id: 'temp-300', parentId: 'parent-1' }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-move');
+
+			await queue.flush(backend);
+
+			expect(backend.moveTask).toHaveBeenCalledWith('real-move', 'parent-1');
+		});
+
+		it('remaps deleteTask temp ID to real ID after createTask succeeds', async () => {
+			const queue = await freshQueue();
+
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'To delete', description: '', labels: [], priority: 1 },
+					tempId: 'temp-400'
+				}
+			});
+			await queue.enqueue({
+				type: 'deleteTask',
+				payload: { id: 'temp-400' }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-del');
+
+			await queue.flush(backend);
+
+			expect(backend.deleteTask).toHaveBeenCalledWith('real-del');
+		});
+
+		it('full scenario: create → set labels + priority + recurrence → complete', async () => {
+			const queue = await freshQueue();
+
+			// Step 1: user creates a task
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'Recurring standup', description: '', labels: [], priority: 1 },
+					tempId: 'temp-500'
+				}
+			});
+
+			// Step 2: user sets labels, priority, recurrence (coalesced into one updateTask)
+			await queue.enqueue({
+				type: 'updateTask',
+				payload: { id: 'temp-500', data: { labels: ['work'] } }
+			});
+			await queue.enqueue({
+				type: 'updateTask',
+				payload: { id: 'temp-500', data: { priority: 2 } }
+			});
+			await queue.enqueue({
+				type: 'updateTask',
+				payload: { id: 'temp-500', data: { due_string: 'every weekday' } }
+			});
+
+			// Step 3: user completes the task
+			await queue.enqueue({
+				type: 'completeTask',
+				payload: { id: 'temp-500' }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-999');
+
+			await queue.flush(backend);
+
+			// createTask should be called with original data
+			expect(backend.createTask).toHaveBeenCalledWith(
+				{ content: 'Recurring standup', description: '', labels: [], priority: 1 },
+				undefined
+			);
+
+			// updateTask should receive the REAL ID with all coalesced fields
+			expect(backend.updateTask).toHaveBeenCalledWith('real-999', {
+				labels: ['work'],
+				priority: 2,
+				due_string: 'every weekday'
+			});
+
+			// completeTask should receive the REAL ID
+			expect(backend.completeTask).toHaveBeenCalledWith('real-999');
+
+			// Queue should be empty
+			expect(queue.pendingCount).toBe(0);
+			expect(queue.items).toHaveLength(0);
+		});
+
+		it('does not remap IDs for a different temp ID', async () => {
+			const queue = await freshQueue();
+
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'Task A', description: '', labels: [], priority: 1 },
+					tempId: 'temp-a'
+				}
+			});
+			// This updateTask references a DIFFERENT temp ID — should not be remapped
+			await queue.enqueue({
+				type: 'updateTask',
+				payload: { id: 'temp-b', data: { content: 'edited' } }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-a');
+			// temp-b has no createTask → backend will 404, treated as success
+			(backend.updateTask as ReturnType<typeof vi.fn>).mockRejectedValue(httpError(404));
+
+			await queue.flush(backend);
+
+			// updateTask still called with temp-b, not real-a
+			expect(backend.updateTask).toHaveBeenCalledWith('temp-b', { content: 'edited' });
+		});
+
+		it('remaps only pending items, not already-succeeded ones', async () => {
+			const queue = await freshQueue();
+
+			// A real-ID update already in the queue (from a different task)
+			await queue.enqueue({
+				type: 'updateTask',
+				payload: { id: 'existing-task', data: { priority: 4 } }
+			});
+
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'New', description: '', labels: [], priority: 1 },
+					tempId: 'temp-600'
+				}
+			});
+			await queue.enqueue({
+				type: 'completeTask',
+				payload: { id: 'temp-600' }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-600');
+
+			await queue.flush(backend);
+
+			// existing-task should NOT be remapped
+			expect(backend.updateTask).toHaveBeenCalledWith('existing-task', { priority: 4 });
+			// temp-600 should be remapped
+			expect(backend.completeTask).toHaveBeenCalledWith('real-600');
+		});
+
+		it('handles createTask without tempId gracefully (no remapping)', async () => {
+			const queue = await freshQueue();
+
+			// Legacy createTask without tempId in payload
+			await queue.enqueue({
+				type: 'createTask',
+				payload: { data: { content: 'Legacy', description: '', labels: [], priority: 1 } }
+			});
+			await queue.enqueue({
+				type: 'updateTask',
+				payload: { id: 'some-id', data: { content: 'edited' } }
+			});
+
+			const backend = createMockBackend();
+
+			await queue.flush(backend);
+
+			// updateTask should be called with original id (no remapping)
+			expect(backend.updateTask).toHaveBeenCalledWith('some-id', { content: 'edited' });
+		});
+
+		it('remaps decomposeTask temp ID to real ID', async () => {
+			const queue = await freshQueue();
+
+			await queue.enqueue({
+				type: 'createTask',
+				payload: {
+					data: { content: 'Big task', description: '', labels: [], priority: 1 },
+					tempId: 'temp-700'
+				}
+			});
+			await queue.enqueue({
+				type: 'decomposeTask',
+				payload: { id: 'temp-700', data: { tasks: ['sub1', 'sub2'] } }
+			});
+
+			const backend = createMockBackend();
+			(backend.createTask as ReturnType<typeof vi.fn>).mockResolvedValue('real-700');
+
+			await queue.flush(backend);
+
+			expect(backend.decomposeTask).toHaveBeenCalledWith('real-700', { tasks: ['sub1', 'sub2'] });
 		});
 	});
 

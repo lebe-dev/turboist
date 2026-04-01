@@ -102,7 +102,9 @@ function createTasksStore() {
 		if (update.description !== undefined) result.description = update.description;
 		if (update.labels !== undefined) result.labels = update.labels;
 		if (update.priority !== undefined) result.priority = update.priority;
-		if (update.due_date !== undefined) {
+		if (update.due_string !== undefined) {
+			result.due = { date: result.due?.date ?? '', recurring: true };
+		} else if (update.due_date !== undefined) {
 			result.due = update.due_date === '' ? null : { date: update.due_date, recurring: false };
 		}
 		return result;

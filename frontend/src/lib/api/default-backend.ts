@@ -119,12 +119,13 @@ export class DefaultBackendConnector implements BackendConnector {
 
 	// Task mutations
 
-	async createTask(data: CreateTaskRequest, context?: string): Promise<void> {
+	async createTask(data: CreateTaskRequest, context?: string): Promise<string> {
 		const params = context ? `?context=${encodeURIComponent(context)}` : '';
-		await this.request(`/api/tasks${params}`, {
+		const res = await this.request<{ ok: boolean; id?: string }>(`/api/tasks${params}`, {
 			method: 'POST',
 			body: JSON.stringify(data)
 		});
+		return res?.id ?? '';
 	}
 
 	async updateTask(id: string, data: UpdateTaskRequest): Promise<void> {

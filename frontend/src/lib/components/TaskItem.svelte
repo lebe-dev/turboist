@@ -362,7 +362,8 @@
 					...(task.parent_id ? { parent_id: task.parent_id } : {}),
 					...(task.due ? { due_date: task.due.date } : {}),
 				},
-				contextsStore.activeContextId ?? undefined
+				contextsStore.activeContextId ?? undefined,
+				tempId
 			);
 			toast.dismiss();
 			toast($t('task.duplicatedToast', { values: { name: taskContent } }), { duration: 5000 });

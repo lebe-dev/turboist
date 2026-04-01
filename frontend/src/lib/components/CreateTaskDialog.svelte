@@ -215,7 +215,7 @@
 		const req: Parameters<typeof createTask>[0] = { content: trimmedContent, description: trimmedDesc, labels, priority: pri };
 		if (dueDate) req.due_date = dueDate;
 
-		createTask(req, context).catch((e) => {
+		createTask(req, context, tempId).catch((e) => {
 			logger.error('tasks', `create failed: ${e}`);
 			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();

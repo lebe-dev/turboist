@@ -118,8 +118,9 @@ export class MockBackendConnector implements BackendConnector {
 
 	// Task mutations
 
-	async createTask(data: CreateTaskRequest, context?: string): Promise<void> {
+	async createTask(data: CreateTaskRequest, context?: string): Promise<string> {
 		this.record('createTask', [data, context]);
+		return `mock-${Date.now()}`;
 	}
 
 	async updateTask(id: string, data: UpdateTaskRequest): Promise<void> {

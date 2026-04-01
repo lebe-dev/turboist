@@ -393,6 +393,91 @@ describe('tasksStore pending queue updates overlay', () => {
 	});
 });
 
+describe('tasksStore pending overlay — due_string recurrence', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockActionQueue.items = [];
+		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
+	});
+
+	afterEach(() => {
+		mockActionQueue.items = [];
+		vi.resetModules();
+	});
+
+	async function setupWithTasks(tasks: Task[]) {
+		const { tasksStore } = await import('./tasks.svelte');
+		const calls = mockWsClient.onMessage.mock.calls as unknown[][];
+		const snapshotCall = calls.findLast(
+			(c) => c[0] === 'snapshot' && c[1] === 'tasks'
+		);
+		if (!snapshotCall) throw new Error('snapshot handler not registered');
+		const handleSnapshot = snapshotCall[2] as (data: unknown) => void;
+
+		const meta: Meta = {
+			context: '',
+			weekly_limit: 0,
+			weekly_count: 0,
+			backlog_limit: 0,
+			backlog_count: 0,
+			last_synced_at: new Date().toISOString()
+		};
+		handleSnapshot({ tasks, meta });
+		return { tasksStore, handleSnapshot, meta };
+	}
+
+	it('pending due_string update sets recurring to true in overlay', async () => {
+		const task = { ...makeTask('1'), due: { date: '2026-04-01', recurring: false } };
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([task]);
+
+		// User sets recurrence — queued as due_string update
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { due_string: 'every weekday' } }, status: 'pending' }
+		];
+
+		// Server snapshot still shows non-recurring
+		handleSnapshot({
+			tasks: [{ ...makeTask('1'), due: { date: '2026-04-01', recurring: false } }],
+			meta
+		});
+
+		// Overlay should reflect that the task is now recurring
+		expect(tasksStore.tasks[0].due?.recurring).toBe(true);
+		// Date should be preserved
+		expect(tasksStore.tasks[0].due?.date).toBe('2026-04-01');
+	});
+
+	it('pending due_string preserves existing date when task has no prior due', async () => {
+		const task = makeTask('1'); // due: null
+		const { tasksStore, handleSnapshot, meta } = await setupWithTasks([task]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { due_string: 'every day' } }, status: 'pending' }
+		];
+
+		handleSnapshot({ tasks: [makeTask('1')], meta });
+
+		// Task should show as recurring even if it had no prior due date
+		expect(tasksStore.tasks[0].due?.recurring).toBe(true);
+	});
+
+	it('applyPendingTaskUpdate reflects due_string on single task', async () => {
+		const { tasksStore } = await setupWithTasks([
+			{ ...makeTask('1'), due: { date: '2026-04-02', recurring: false } }
+		]);
+
+		mockActionQueue.items = [
+			{ type: 'updateTask', payload: { id: '1', data: { due_string: 'every month on the 2nd' } }, status: 'pending' }
+		];
+
+		const result = tasksStore.applyPendingTaskUpdate(
+			{ ...makeTask('1'), due: { date: '2026-04-02', recurring: false } }
+		);
+		expect(result.due?.recurring).toBe(true);
+		expect(result.due?.date).toBe('2026-04-02');
+	});
+});
+
 describe('tasksStore delta temp→real reconciliation', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();

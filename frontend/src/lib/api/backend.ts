@@ -30,7 +30,7 @@ export interface BackendConnector {
 	getCompletedSubtasks(id: string): Promise<Task[]>;
 
 	// Task mutations
-	createTask(data: CreateTaskRequest, context?: string): Promise<void>;
+	createTask(data: CreateTaskRequest, context?: string, tempId?: string): Promise<string>;
 	updateTask(id: string, data: UpdateTaskRequest): Promise<void>;
 	batchUpdateLabels(updates: Record<string, string[]>): Promise<void>;
 	moveTask(id: string, parentId: string): Promise<void>;

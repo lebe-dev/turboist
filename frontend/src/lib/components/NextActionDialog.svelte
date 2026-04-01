@@ -230,7 +230,8 @@
 
 		createTask(
 			{ content: trimmedContent, description: trimmedDesc, labels, priority: pri, ...(parentId ? { parent_id: parentId } : {}) },
-			context
+			context,
+			tempId
 		).catch((e) => {
 			logger.error('tasks', `create next action failed: ${e}`);
 			toast.error($t('errors.createFailed'));

@@ -220,12 +220,13 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 	}
 
 	log.Debug("create task", "content", req.Content, "context", contextKey, "labels", labels)
-	if _, err := h.cache.AddTask(c.Context(), args); err != nil {
+	newID, err := h.cache.AddTask(c.Context(), args)
+	if err != nil {
 		log.Error("create task failed", "err", err)
 		return todoistErrorResponse(c, err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true, "id": newID})
 }
 
 func resolveProjectID(name string, projects []*todoist.Project) string {

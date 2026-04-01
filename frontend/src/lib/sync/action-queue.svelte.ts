@@ -116,15 +116,36 @@ function createActionQueue() {
 		}
 	}
 
+	// After a createTask succeeds, remap all pending/failed items that reference the temp ID
+	function remapTempId(tempId: string, realId: string): void {
+		if (!tempId || !realId) return;
+
+		for (const item of items) {
+			if (item.status !== 'pending' && item.status !== 'failed') continue;
+			const payload = item.payload as Record<string, unknown>;
+			if (payload.id === tempId) {
+				payload.id = realId;
+				idbUpdate(item).catch((e) =>
+					logger.error(TAG, `Failed to persist temp→real remap for action ${item.id}: ${e}`)
+				);
+				logger.log(TAG, `Remapped ${item.type} id ${tempId} → ${realId}`);
+			}
+		}
+	}
+
 	// Execute a single action against the backend
 	async function executeAction(action: QueuedAction, backend: BackendConnector): Promise<void> {
 		switch (action.type) {
 			case 'createTask': {
-				const { data, context } = action.payload as {
+				const { data, context, tempId } = action.payload as {
 					data: CreateTaskRequest;
 					context?: string;
+					tempId?: string;
 				};
-				await backend.createTask(data, context);
+				const realId = await backend.createTask(data, context);
+				if (tempId && realId) {
+					remapTempId(tempId, realId);
+				}
 				break;
 			}
 			case 'updateTask': {
