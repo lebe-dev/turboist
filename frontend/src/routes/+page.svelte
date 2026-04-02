@@ -23,7 +23,6 @@
 	import ChevronsDownUpIcon from '@lucide/svelte/icons/chevrons-down-up';
 	import ChevronsDownIcon from '@lucide/svelte/icons/chevrons-down';
 	import LinkIcon from '@lucide/svelte/icons/link';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import FlagIcon from '@lucide/svelte/icons/flag';
 	import FilterIcon from '@lucide/svelte/icons/filter';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -211,18 +210,6 @@
 		}
 	}
 
-	let syncing = $state(false);
-
-	async function handleSync() {
-		if (syncing) return;
-		syncing = true;
-		try {
-			await tasksStore.refresh();
-		} finally {
-			syncing = false;
-		}
-	}
-
 	let createDialogOpen = $state(false);
 	const quickCaptureOpen = $derived(appStore.quickCaptureOpen);
 	let createDayPartLabel = $state('');
@@ -367,10 +354,6 @@
 				<span class="sr-only">Filters</span>
 			</Toggle>
 		{/if}
-		<Button onclick={handleSync} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground" title="Sync" disabled={syncing}>
-			<RefreshCwIcon class="h-4 w-4 {syncing ? 'animate-spin' : ''}" />
-			<span class="sr-only">Sync</span>
-		</Button>
 	</header>
 
 	<!-- Mobile header -->
@@ -413,10 +396,6 @@
 				<span class="sr-only">Filters</span>
 			</Toggle>
 		{/if}
-		<Button onclick={handleSync} variant="ghost" size="icon" class="h-8 w-8 shrink-0 text-muted-foreground" title="Sync" disabled={syncing}>
-			<RefreshCwIcon class="h-4 w-4 {syncing ? 'animate-spin' : ''}" />
-			<span class="sr-only">Sync</span>
-		</Button>
 	</header>
 
 	<!-- Mobile context strip -->

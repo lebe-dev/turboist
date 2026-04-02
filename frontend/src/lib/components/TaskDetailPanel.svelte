@@ -66,13 +66,15 @@
 	const taskFromStore = $derived(findTask(tasksStore.tasks, taskId));
 	let taskFromApi = $state<Task | null>(null);
 	let taskFetching = $state(false);
+	let fetchSeq = 0; // incremented on every fetch; guards against stale responses
 
 	// Always fetch full task from API (store version may have filtered children)
 	$effect(() => {
+		const seq = ++fetchSeq;
 		taskFetching = true;
 		taskFromApi = null;
 		getTask(taskId)
-			.then((t) => { taskFromApi = tasksStore.applyPendingTaskUpdate(t); })
+			.then((t) => { if (fetchSeq === seq) taskFromApi = tasksStore.applyPendingTaskUpdate(t); })
 			.catch(() => { if (!taskFromStore) onclose(); })
 			.finally(() => { taskFetching = false; });
 	});
@@ -796,10 +798,12 @@ function setDateQuick(date: string) {
 			tempId
 		).then(() => {
 			// Flush the queue so the backend actually creates the subtask,
-			// then re-fetch to replace temp child IDs with real ones
+			// then re-fetch to replace temp child IDs with real ones.
+			// Bump fetchSeq so the initial page-load fetch (if still in flight) cannot overwrite this result.
+			const seq = ++fetchSeq;
 			actionQueue.flushNow()
 				.then(() => getTask(taskId))
-				.then((t) => { taskFromApi = t; })
+				.then((t) => { if (fetchSeq === seq) taskFromApi = t; })
 				.catch(() => {});
 		}).catch((e) => {
 			logger.error('tasks', `create subtask failed: ${e}`);
