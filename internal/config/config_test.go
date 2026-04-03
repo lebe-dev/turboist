@@ -28,11 +28,15 @@ weekly:
 backlog:
   label: "на след неделе"
 
-auto_expire:
-  - label: "срочное"
-    ttl: "24h"
-  - label: "горит"
-    ttl: "4h"
+auto_remove:
+  min_ttl: "1h"
+  max_per_tick: 1
+  max_percent: 10
+  rules:
+    - label: "срочное"
+      ttl: "24h"
+    - label: "горит"
+      ttl: "4h"
 `
 
 func TestParseAppConfig(t *testing.T) {
@@ -74,14 +78,23 @@ func TestParseAppConfig(t *testing.T) {
 		t.Errorf("backlog.label: got %q", app.Backlog.Label)
 	}
 
-	if len(app.AutoExpire) != 2 {
-		t.Fatalf("auto_expire: got %d, want 2", len(app.AutoExpire))
+	if len(app.AutoRemove.Rules) != 2 {
+		t.Fatalf("auto_remove.rules: got %d, want 2", len(app.AutoRemove.Rules))
 	}
-	if app.AutoExpire[0].Label != "срочное" || app.AutoExpire[0].TTL != 24*time.Hour {
-		t.Errorf("auto_expire[0]: got %+v", app.AutoExpire[0])
+	if app.AutoRemove.Rules[0].Label != "срочное" || app.AutoRemove.Rules[0].TTL != 24*time.Hour {
+		t.Errorf("auto_remove.rules[0]: got %+v", app.AutoRemove.Rules[0])
 	}
-	if app.AutoExpire[1].Label != "горит" || app.AutoExpire[1].TTL != 4*time.Hour {
-		t.Errorf("auto_expire[1]: got %+v", app.AutoExpire[1])
+	if app.AutoRemove.Rules[1].Label != "горит" || app.AutoRemove.Rules[1].TTL != 4*time.Hour {
+		t.Errorf("auto_remove.rules[1]: got %+v", app.AutoRemove.Rules[1])
+	}
+	if app.AutoRemove.MinTTL != time.Hour {
+		t.Errorf("auto_remove.min_ttl: got %v, want 1h", app.AutoRemove.MinTTL)
+	}
+	if app.AutoRemove.MaxPerTick != 1 {
+		t.Errorf("auto_remove.max_per_tick: got %d, want 1", app.AutoRemove.MaxPerTick)
+	}
+	if app.AutoRemove.MaxPercent != 10 {
+		t.Errorf("auto_remove.max_percent: got %d, want 10", app.AutoRemove.MaxPercent)
 	}
 }
 
@@ -669,5 +682,77 @@ func TestLoad_SyncIntervalMinimum(t *testing.T) {
 	}
 	if cfg.App.SyncInterval != 5*time.Second {
 		t.Errorf("sync_interval minimum: got %v, want 5s", cfg.App.SyncInterval)
+	}
+}
+
+func TestParseAppConfig_AutoRemoveDefaults(t *testing.T) {
+	yaml := `
+auto_remove:
+  rules:
+    - label: "urgent"
+      ttl: "2h"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.AutoRemove.MinTTL != time.Hour {
+		t.Errorf("min_ttl default: got %v, want 1h", app.AutoRemove.MinTTL)
+	}
+	if app.AutoRemove.MaxPerTick != 1 {
+		t.Errorf("max_per_tick default: got %d, want 1", app.AutoRemove.MaxPerTick)
+	}
+	if app.AutoRemove.MaxPercent != 10 {
+		t.Errorf("max_percent default: got %d, want 10", app.AutoRemove.MaxPercent)
+	}
+}
+
+func TestParseAppConfig_AutoRemoveTTLBelowMin(t *testing.T) {
+	yaml := `
+auto_remove:
+  min_ttl: "1h"
+  rules:
+    - label: "fast"
+      ttl: "30m"
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for TTL below min_ttl")
+	}
+}
+
+func TestParseAppConfig_AutoRemoveEmptyLabel(t *testing.T) {
+	yaml := `
+auto_remove:
+  rules:
+    - label: ""
+      ttl: "2h"
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty label")
+	}
+}
+
+func TestParseAppConfig_AutoRemoveEmptyTTL(t *testing.T) {
+	yaml := `
+auto_remove:
+  rules:
+    - label: "urgent"
+      ttl: ""
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty ttl")
+	}
+}
+
+func TestParseAppConfig_AutoRemoveEmpty(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(app.AutoRemove.Rules) != 0 {
+		t.Errorf("expected 0 auto_remove rules, got %d", len(app.AutoRemove.Rules))
 	}
 }

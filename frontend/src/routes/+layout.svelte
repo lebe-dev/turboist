@@ -13,6 +13,7 @@
 	import { initLocale } from '$lib/i18n';
 	import UpdateBanner from '$lib/components/UpdateBanner.svelte';
 	import InstallBanner from '$lib/components/InstallBanner.svelte';
+	import AutoRemovePausedBanner from '$lib/components/AutoRemovePausedBanner.svelte';
 	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
 	import ConnectionIndicator from '$lib/components/ConnectionIndicator.svelte';
 	import './layout.css';
@@ -55,6 +56,7 @@
 <Toaster />
 <UpdateBanner />
 <InstallBanner />
+<AutoRemovePausedBanner />
 
 <QuickCaptureButton showButton={false} />
 

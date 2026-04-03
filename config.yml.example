@@ -74,6 +74,14 @@ backlog:
   # Maximum tasks shown in the backlog view (default: 20)
   max_limit: 20
 
+# Inbox overflow — when inbox task count exceeds max_limit, the UI shows
+# a quick-add button that creates a task with overflow_task_content for today.
+inbox:
+  # Maximum number of inbox tasks before the overflow button appears (default: 10)
+  max_limit: 10
+  # Content of the auto-created task (default: "Разобрать Входящие")
+  overflow_task_content: "Разобрать Входящие"
+
 # Task sorting. Options: priority, due_date, content, added_at
 # Default: priority (highest first, then by due date)
 task_sort: "priority"

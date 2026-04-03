@@ -27,6 +27,7 @@ type Task struct {
 	AddedAt               string   `json:"added_at"`
 	Children              []*Task  `json:"children"`
 	PostponeCount         int      `json:"postpone_count"`
+	ExpiresAt             *string  `json:"expires_at,omitempty"`
 }
 
 // Project is an internal representation of a Todoist project.

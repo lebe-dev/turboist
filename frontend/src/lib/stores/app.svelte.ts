@@ -111,6 +111,7 @@ function createAppStore() {
 	let inboxProjectId = $state<string>('');
 	let quickCaptureOpen = $state(false);
 	let allFilters = $state<AllFiltersState | null>(null);
+	let autoRemovePaused = $state(false);
 
 	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
@@ -139,6 +140,7 @@ function createAppStore() {
 
 		applyLocaleFromConfig(cfg.state.locale);
 		allFilters = cfg.state.all_filters ?? null;
+		autoRemovePaused = cfg.auto_remove?.paused ?? false;
 	}
 
 	async function init(): Promise<void> {
@@ -256,6 +258,9 @@ function createAppStore() {
 		},
 		get allFilters() {
 			return allFilters;
+		},
+		get autoRemovePaused() {
+			return autoRemovePaused;
 		},
 		saveAllFilters(f: AllFiltersState) {
 			allFilters = f;

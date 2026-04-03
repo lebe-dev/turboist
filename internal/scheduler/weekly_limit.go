@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"slices"
 
 	"github.com/charmbracelet/log"
 	"github.com/lebe-dev/turboist/internal/config"
@@ -33,7 +34,7 @@ func (wl *WeeklyLimit) Job(_ context.Context) {
 
 	count := 0
 	for _, task := range wl.reader.Tasks() {
-		if taskHasLabel(task, wl.cfg.Label) {
+		if slices.Contains(task.Labels, wl.cfg.Label) {
 			count++
 		}
 	}

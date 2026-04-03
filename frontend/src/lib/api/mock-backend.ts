@@ -172,7 +172,9 @@ export class MockBackendConnector implements BackendConnector {
 				last_synced_at: null,
 				day_parts: [],
 				max_day_part_note_length: 200,
-				inbox_project_id: ''
+				inbox_project_id: '',
+				inbox_limit: 10,
+				inbox_overflow_task_content: 'Разобрать Входящие'
 			},
 			contexts: [],
 			projects: [],
@@ -182,6 +184,7 @@ export class MockBackendConnector implements BackendConnector {
 			quick_capture: null,
 			project_tasks: [],
 			label_project_map: [],
+			auto_remove: { rules: [], paused: false },
 			state: {
 				pinned_tasks: [],
 				active_context_id: '',

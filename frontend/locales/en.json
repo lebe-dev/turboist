@@ -38,6 +38,11 @@
   "tasks.search": "Search...",
   "tasks.notInWeeklyPlan": "Task added outside weekly planning",
   "tasks.postponed": "Postponed {count, plural, one {# time} other {# times}}",
+  "tasks.expiresNow": "Expiring now",
+  "tasks.expiresInHours": "Auto-removes in {hours}h {minutes}m",
+  "tasks.expiresInMinutes": "Auto-removes in {minutes}m",
+  "tasks.autoRemovePaused": "Auto-remove paused: too many tasks matched for deletion. Check config.",
+  "tasks.inboxOverflow": "Add \"{content}\" for today",
 
   "due.today": "Today",
   "due.tomorrow": "Tomorrow",

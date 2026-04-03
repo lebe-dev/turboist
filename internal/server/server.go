@@ -19,7 +19,13 @@ import (
 	"github.com/lebe-dev/turboist/internal/ws"
 )
 
-func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws.Hub) *fiber.App {
+// AutoRemovePauser exposes the circuit breaker state from the auto-remove scheduler.
+// Pass nil when auto-remove is not configured.
+type AutoRemovePauser interface {
+	Paused() bool
+}
+
+func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws.Hub, autoRemove AutoRemovePauser) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: "turboist",
 	})
@@ -67,7 +73,7 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 	app.Delete("/api/tasks/:id", tasksHandler.Delete)
 	app.Get("/api/tasks/:id/completed-subtasks", tasksHandler.CompletedSubtasks)
 
-	configHandler := handler.NewConfigHandler(cache, &cfg.App, store)
+	configHandler := handler.NewConfigHandler(cache, &cfg.App, store, autoRemove)
 	app.Get("/api/config", configHandler.Config)
 
 	stateHandler := handler.NewStateHandler(store, &cfg.App)

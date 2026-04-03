@@ -19,6 +19,7 @@ export interface Task {
 	added_at: string;
 	is_project_task: boolean;
 	postpone_count: number;
+	expires_at?: string;
 	children: Task[];
 }
 
@@ -142,6 +143,8 @@ export interface Settings {
 	day_parts: DayPart[];
 	max_day_part_note_length: number;
 	inbox_project_id: string;
+	inbox_limit: number;
+	inbox_overflow_task_content: string;
 }
 
 export interface ProjectTask {
@@ -170,6 +173,16 @@ export interface LabelProjectMapping {
 	section?: string;
 }
 
+export interface AutoRemoveRule {
+	label: string;
+	ttl: number; // seconds
+}
+
+export interface AutoRemoveStatus {
+	rules: AutoRemoveRule[];
+	paused: boolean;
+}
+
 export interface AppConfig {
 	settings: Settings;
 	contexts: Context[];
@@ -180,6 +193,7 @@ export interface AppConfig {
 	quick_capture: QuickCaptureConfig | null;
 	project_tasks: ProjectTask[];
 	label_project_map: LabelProjectMapping[];
+	auto_remove: AutoRemoveStatus;
 	state: UserState;
 }
 

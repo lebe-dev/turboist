@@ -38,6 +38,11 @@
   "tasks.search": "Поиск...",
   "tasks.notInWeeklyPlan": "Задача добавлена вне недельного планирования",
   "tasks.postponed": "Перенесено {count, plural, one {# раз} few {# раза} other {# раз}}",
+  "tasks.expiresNow": "Истекает сейчас",
+  "tasks.expiresInHours": "Автоудаление через {hours}ч {minutes}м",
+  "tasks.expiresInMinutes": "Автоудаление через {minutes}м",
+  "tasks.autoRemovePaused": "Автоудаление приостановлено: слишком много задач на удаление. Проверьте конфигурацию.",
+  "tasks.inboxOverflow": "Добавить «{content}» на сегодня",
 
   "due.today": "Сегодня",
   "due.tomorrow": "Завтра",

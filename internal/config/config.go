@@ -55,6 +55,11 @@ func (l *LabelConfig) ShouldInheritToSubtasks() bool {
 	return *l.InheritToSubtasks
 }
 
+type InboxConfig struct {
+	MaxLimit            int    `yaml:"max_limit"`
+	OverflowTaskContent string `yaml:"overflow_task_content"`
+}
+
 type AppConfig struct {
 	PollInterval       time.Duration
 	SyncInterval       time.Duration
@@ -65,12 +70,13 @@ type AppConfig struct {
 	Labels             []LabelConfig
 	Weekly             WeeklyConfig
 	Backlog            BacklogConfig
+	Inbox              InboxConfig
 	Project            ProjectConfig
 	ProjectsLabel      string
 	Today              TodayConfig
 	Tomorrow           TomorrowConfig
 	Completed          CompletedConfig
-	AutoExpire         []AutoExpireConfig
+	AutoRemove         AutoRemoveConfig
 	QuickCapture       *QuickCaptureConfig
 	AutoLabels         []AutoLabelConfig
 	CompiledAutoLabels []CompiledAutoLabel
@@ -151,7 +157,15 @@ type TodayConfig struct {
 type TomorrowConfig struct {
 }
 
-type AutoExpireConfig struct {
+// AutoRemoveConfig holds safety-guarded settings for automatic task deletion.
+type AutoRemoveConfig struct {
+	MinTTL     time.Duration
+	MaxPerTick int
+	MaxPercent int
+	Rules      []AutoRemoveRuleConfig
+}
+
+type AutoRemoveRuleConfig struct {
 	Label string
 	TTL   time.Duration
 }
@@ -190,18 +204,26 @@ type yamlFile struct {
 	Labels          []LabelConfig         `yaml:"labels"`
 	Weekly          WeeklyConfig          `yaml:"weekly"`
 	Backlog         BacklogConfig         `yaml:"backlog"`
+	Inbox           InboxConfig           `yaml:"inbox"`
 	Project         ProjectConfig         `yaml:"project"`
 	ProjectsLabel   string                `yaml:"projects_label"`
 	Today           TodayConfig           `yaml:"today"`
 	Tomorrow        TomorrowConfig        `yaml:"tomorrow"`
 	Completed       CompletedConfig       `yaml:"completed"`
-	AutoExpire      []yamlAutoExpire      `yaml:"auto_expire"`
+	AutoRemove      *yamlAutoRemove       `yaml:"auto_remove"`
 	QuickCapture    *QuickCaptureConfig   `yaml:"quick_capture"`
 	AutoLabels      []AutoLabelConfig     `yaml:"auto_labels"`
 	LabelProjectMap []LabelProjectMapping `yaml:"label_project_map"`
 }
 
-type yamlAutoExpire struct {
+type yamlAutoRemove struct {
+	MinTTL     string               `yaml:"min_ttl"`
+	MaxPerTick int                  `yaml:"max_per_tick"`
+	MaxPercent int                  `yaml:"max_percent"`
+	Rules      []yamlAutoRemoveRule `yaml:"rules"`
+}
+
+type yamlAutoRemoveRule struct {
 	Label string `yaml:"label"`
 	TTL   string `yaml:"ttl"`
 }
@@ -273,6 +295,14 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		maxDayPartNoteLength = 200
 	}
 
+	inbox := yf.Inbox
+	if inbox.MaxLimit <= 0 {
+		inbox.MaxLimit = 10
+	}
+	if inbox.OverflowTaskContent == "" {
+		inbox.OverflowTaskContent = "Разобрать Входящие"
+	}
+
 	app := AppConfig{
 		PollInterval:  pollInterval,
 		Timezone:      tz,
@@ -282,6 +312,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		Labels:        yf.Labels,
 		Weekly:        yf.Weekly,
 		Backlog:       backlog,
+		Inbox:         inbox,
 		Project:       yf.Project,
 		ProjectsLabel: yf.ProjectsLabel,
 		Today: TodayConfig{
@@ -308,15 +339,12 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		return AppConfig{}, err
 	}
 
-	for _, ae := range yf.AutoExpire {
-		ttl, err := time.ParseDuration(ae.TTL)
+	if yf.AutoRemove != nil {
+		ar, err := parseAutoRemove(yf.AutoRemove)
 		if err != nil {
-			return AppConfig{}, fmt.Errorf("auto_expire ttl for %q: %w", ae.Label, err)
+			return AppConfig{}, err
 		}
-		app.AutoExpire = append(app.AutoExpire, AutoExpireConfig{
-			Label: ae.Label,
-			TTL:   ttl,
-		})
+		app.AutoRemove = ar
 	}
 
 	compiled, err := compileAutoLabels(yf.AutoLabels)
@@ -326,6 +354,51 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	app.CompiledAutoLabels = compiled
 
 	return app, nil
+}
+
+func parseAutoRemove(yar *yamlAutoRemove) (AutoRemoveConfig, error) {
+	minTTL := time.Hour // default
+	if yar.MinTTL != "" {
+		d, err := time.ParseDuration(yar.MinTTL)
+		if err != nil {
+			return AutoRemoveConfig{}, fmt.Errorf("auto_remove.min_ttl: %w", err)
+		}
+		minTTL = d
+	}
+
+	maxPerTick := yar.MaxPerTick
+	if maxPerTick <= 0 {
+		maxPerTick = 1
+	}
+	maxPercent := yar.MaxPercent
+	if maxPercent <= 0 {
+		maxPercent = 10
+	}
+
+	var rules []AutoRemoveRuleConfig
+	for i, r := range yar.Rules {
+		if r.Label == "" {
+			return AutoRemoveConfig{}, fmt.Errorf("auto_remove.rules[%d]: label is required", i)
+		}
+		if r.TTL == "" {
+			return AutoRemoveConfig{}, fmt.Errorf("auto_remove.rules[%d]: ttl is required", i)
+		}
+		ttl, err := time.ParseDuration(r.TTL)
+		if err != nil {
+			return AutoRemoveConfig{}, fmt.Errorf("auto_remove.rules[%d] ttl: %w", i, err)
+		}
+		if ttl < minTTL {
+			return AutoRemoveConfig{}, fmt.Errorf("auto_remove.rules[%d]: ttl %v is below minimum %v", i, ttl, minTTL)
+		}
+		rules = append(rules, AutoRemoveRuleConfig{Label: r.Label, TTL: ttl})
+	}
+
+	return AutoRemoveConfig{
+		MinTTL:     minTTL,
+		MaxPerTick: maxPerTick,
+		MaxPercent: maxPercent,
+		Rules:      rules,
+	}, nil
 }
 
 func compileAutoLabels(tags []AutoLabelConfig) ([]CompiledAutoLabel, error) {

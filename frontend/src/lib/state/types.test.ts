@@ -42,6 +42,7 @@ function makeFlat(overrides: Partial<FlatTask> = {}): FlatTask {
 		added_at: '2026-01-01T00:00:00Z',
 		is_project_task: false,
 		postpone_count: 0,
+		expires_at: null,
 		...overrides
 	};
 }

@@ -10,16 +10,22 @@ import (
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
 
+// AutoRemovePauser exposes the circuit breaker state from the auto-remove scheduler.
+type AutoRemovePauser interface {
+	Paused() bool
+}
+
 // ConfigHandler handles GET /api/config — returns consolidated app config, metadata, and user state.
 type ConfigHandler struct {
-	cache *todoist.Cache
-	cfg   *config.AppConfig
-	store *storage.Store
+	cache      *todoist.Cache
+	cfg        *config.AppConfig
+	store      *storage.Store
+	autoRemove AutoRemovePauser
 }
 
 // NewConfigHandler creates a new ConfigHandler.
-func NewConfigHandler(cache *todoist.Cache, cfg *config.AppConfig, store *storage.Store) *ConfigHandler {
-	return &ConfigHandler{cache: cache, cfg: cfg, store: store}
+func NewConfigHandler(cache *todoist.Cache, cfg *config.AppConfig, store *storage.Store, autoRemove AutoRemovePauser) *ConfigHandler {
+	return &ConfigHandler{cache: cache, cfg: cfg, store: store, autoRemove: autoRemove}
 }
 
 type dayPartResponse struct {
@@ -29,21 +35,23 @@ type dayPartResponse struct {
 }
 
 type settingsResponse struct {
-	PollInterval         int               `json:"poll_interval"`
-	SyncInterval         int               `json:"sync_interval"`
-	Timezone             string            `json:"timezone"`
-	WeeklyLabel          string            `json:"weekly_label"`
-	BacklogLabel         string            `json:"backlog_label"`
-	ProjectLabel         string            `json:"project_label"`
-	ProjectsLabel        string            `json:"projects_label"`
-	WeeklyLimit          int               `json:"weekly_limit"`
-	BacklogLimit         int               `json:"backlog_limit"`
-	CompletedDays        int               `json:"completed_days"`
-	MaxPinned            int               `json:"max_pinned"`
-	LastSyncedAt         time.Time         `json:"last_synced_at"`
-	DayParts             []dayPartResponse `json:"day_parts"`
-	MaxDayPartNoteLength int               `json:"max_day_part_note_length"`
-	InboxProjectID       string            `json:"inbox_project_id"`
+	PollInterval             int               `json:"poll_interval"`
+	SyncInterval             int               `json:"sync_interval"`
+	Timezone                 string            `json:"timezone"`
+	WeeklyLabel              string            `json:"weekly_label"`
+	BacklogLabel             string            `json:"backlog_label"`
+	ProjectLabel             string            `json:"project_label"`
+	ProjectsLabel            string            `json:"projects_label"`
+	WeeklyLimit              int               `json:"weekly_limit"`
+	BacklogLimit             int               `json:"backlog_limit"`
+	CompletedDays            int               `json:"completed_days"`
+	MaxPinned                int               `json:"max_pinned"`
+	LastSyncedAt             time.Time         `json:"last_synced_at"`
+	DayParts                 []dayPartResponse `json:"day_parts"`
+	MaxDayPartNoteLength     int               `json:"max_day_part_note_length"`
+	InboxProjectID           string            `json:"inbox_project_id"`
+	InboxLimit               int               `json:"inbox_limit"`
+	InboxOverflowTaskContent string            `json:"inbox_overflow_task_content"`
 }
 
 type contextFiltersResponse struct {
@@ -92,6 +100,16 @@ type labelProjectMappingResponse struct {
 	Section string `json:"section,omitempty"`
 }
 
+type autoRemoveRuleResponse struct {
+	Label string `json:"label"`
+	TTL   int    `json:"ttl"` // seconds
+}
+
+type autoRemoveStatusResponse struct {
+	Rules  []autoRemoveRuleResponse `json:"rules"`
+	Paused bool                     `json:"paused"`
+}
+
 type appConfigResponse struct {
 	Settings        settingsResponse              `json:"settings"`
 	Contexts        []contextItem                 `json:"contexts"`
@@ -102,6 +120,7 @@ type appConfigResponse struct {
 	QuickCapture    *quickCaptureResponse         `json:"quick_capture"`
 	ProjectTasks    []projectTaskItem             `json:"project_tasks"`
 	LabelProjectMap []labelProjectMappingResponse `json:"label_project_map"`
+	AutoRemove      autoRemoveStatusResponse      `json:"auto_remove"`
 	State           *storage.UserState            `json:"state"`
 }
 
@@ -117,21 +136,23 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		})
 	}
 	settings := settingsResponse{
-		PollInterval:         int(h.cfg.PollInterval.Seconds()),
-		SyncInterval:         int(h.cfg.SyncInterval.Seconds()),
-		Timezone:             h.cfg.Timezone,
-		WeeklyLabel:          h.cfg.Weekly.Label,
-		BacklogLabel:         h.cfg.Backlog.Label,
-		ProjectLabel:         h.cfg.Project.Label,
-		ProjectsLabel:        h.cfg.ProjectsLabel,
-		WeeklyLimit:          h.cfg.Weekly.MaxTasks,
-		BacklogLimit:         h.cfg.Backlog.MaxLimit,
-		CompletedDays:        h.cfg.Completed.Days,
-		MaxPinned:            h.cfg.MaxPinned,
-		LastSyncedAt:         h.cache.LastSyncedAt(),
-		DayParts:             dayParts,
-		MaxDayPartNoteLength: h.cfg.Today.MaxDayPartNoteLength,
-		InboxProjectID:       h.cache.InboxProjectID(),
+		PollInterval:             int(h.cfg.PollInterval.Seconds()),
+		SyncInterval:             int(h.cfg.SyncInterval.Seconds()),
+		Timezone:                 h.cfg.Timezone,
+		WeeklyLabel:              h.cfg.Weekly.Label,
+		BacklogLabel:             h.cfg.Backlog.Label,
+		ProjectLabel:             h.cfg.Project.Label,
+		ProjectsLabel:            h.cfg.ProjectsLabel,
+		WeeklyLimit:              h.cfg.Weekly.MaxTasks,
+		BacklogLimit:             h.cfg.Backlog.MaxLimit,
+		CompletedDays:            h.cfg.Completed.Days,
+		MaxPinned:                h.cfg.MaxPinned,
+		LastSyncedAt:             h.cache.LastSyncedAt(),
+		DayParts:                 dayParts,
+		MaxDayPartNoteLength:     h.cfg.Today.MaxDayPartNoteLength,
+		InboxProjectID:           h.cache.InboxProjectID(),
+		InboxLimit:               h.cfg.Inbox.MaxLimit,
+		InboxOverflowTaskContent: h.cfg.Inbox.OverflowTaskContent,
 	}
 
 	// Contexts
@@ -239,6 +260,19 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		})
 	}
 
+	// Auto-remove status
+	arRules := make([]autoRemoveRuleResponse, 0, len(h.cfg.AutoRemove.Rules))
+	for _, r := range h.cfg.AutoRemove.Rules {
+		arRules = append(arRules, autoRemoveRuleResponse{
+			Label: r.Label,
+			TTL:   int(r.TTL.Seconds()),
+		})
+	}
+	arStatus := autoRemoveStatusResponse{Rules: arRules}
+	if h.autoRemove != nil {
+		arStatus.Paused = h.autoRemove.Paused()
+	}
+
 	// User state
 	state, err := h.store.GetState()
 	if err != nil {
@@ -255,6 +289,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		QuickCapture:    qc,
 		ProjectTasks:    projectTasks,
 		LabelProjectMap: labelProjectMap,
+		AutoRemove:      arStatus,
 		State:           state,
 	})
 }

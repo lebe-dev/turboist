@@ -14,8 +14,11 @@
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
 
-	import { getCompletedTasks } from '$lib/api/client';
+	import { getCompletedTasks, createTask } from '$lib/api/client';
+	import { toast } from 'svelte-sonner';
+	import { logger } from '$lib/stores/logger';
 	import TaskItem from '$lib/components/TaskItem.svelte';
+	import InboxPlusIcon from '@lucide/svelte/icons/inbox';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -258,6 +261,45 @@
 		tasksStore.meta.backlog_limit > 0 &&
 		tasksStore.meta.backlog_count >= tasksStore.meta.backlog_limit
 	);
+
+	const inboxLimit = $derived(tasksStore.config?.inbox_limit ?? 10);
+	const inboxOverflowContent = $derived(tasksStore.config?.inbox_overflow_task_content ?? '');
+	const showInboxOverflow = $derived(
+		contextsStore.activeView === 'inbox' &&
+		inboxOverflowContent !== '' &&
+		tasksStore.inboxCount > inboxLimit
+	);
+
+	function addInboxOverflowTask() {
+		if (!inboxOverflowContent) return;
+		const content = inboxOverflowContent;
+		const due_date = todayStr();
+		const tempId = `temp-${Date.now()}`;
+		const optimistic: Task = {
+			id: tempId,
+			content,
+			description: '',
+			project_id: appStore.inboxProjectId,
+			section_id: null,
+			parent_id: null,
+			labels: [],
+			priority: 1,
+			due: { date: due_date, recurring: false },
+			sub_task_count: 0,
+			completed_sub_task_count: 0,
+			completed_at: null,
+			added_at: new Date().toISOString(),
+			is_project_task: false,
+			postpone_count: 0,
+			children: []
+		};
+		tasksStore.addTaskLocal(optimistic);
+		createTask({ content, description: '', labels: [], priority: 1, due_date }, contextsStore.activeContextId ?? undefined, tempId).catch((e) => {
+			logger.error('tasks', `create inbox overflow task failed: ${e}`);
+			toast.error($t('errors.createFailed'));
+			tasksStore.refresh();
+		});
+	}
 </script>
 
 <svelte:window
@@ -287,6 +329,18 @@
 	<!-- Desktop header -->
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="shrink-0 text-sm font-semibold tracking-wide text-foreground">{title}</h1>
+		{#if showInboxOverflow}
+			<Button
+				onclick={addInboxOverflowTask}
+				variant="ghost"
+				size="icon"
+				class="ml-1 h-6 w-6 text-amber-500 hover:text-amber-400"
+				title={$t('tasks.inboxOverflow', { values: { content: inboxOverflowContent } })}
+			>
+				<PlusIcon class="h-3.5 w-3.5" />
+				<span class="sr-only">{$t('tasks.inboxOverflow', { values: { content: inboxOverflowContent } })}</span>
+			</Button>
+		{/if}
 		{#if contextsStore.contexts.length > 0}
 			<div class="ml-4 flex items-center gap-0.5">
 				{#each contextsStore.contexts as ctx (ctx.id)}
@@ -477,6 +531,16 @@
 				{/if}
 			</div>
 		</div>
+	{/if}
+
+	{#if showInboxOverflow}
+		<button
+			class="flex shrink-0 items-center gap-2 border-b border-amber-500/10 bg-amber-500/5 px-3 py-1.5 md:px-6 w-full cursor-pointer hover:bg-amber-500/10 transition-colors md:hidden"
+			onclick={addInboxOverflowTask}
+		>
+			<PlusIcon class="h-3 w-3 text-amber-500/70" />
+			<span class="text-[12px] text-amber-500/70">{$t('tasks.inboxOverflow', { values: { content: inboxOverflowContent } })}</span>
+		</button>
 	{/if}
 
 	{#if tasksStore.isStale}

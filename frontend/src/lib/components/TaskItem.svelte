@@ -18,6 +18,7 @@
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import WeightIcon from '@lucide/svelte/icons/weight';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+	import FlameIcon from '@lucide/svelte/icons/flame';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
@@ -172,6 +173,16 @@
 
 	const backlogLabel = $derived(tasksStore.config?.backlog_label ?? '');
 	const isInBacklog = $derived(backlogLabel !== '' && task.labels.includes(backlogLabel));
+
+	const expiresIn = $derived.by(() => {
+		if (!task.expires_at) return null;
+		const ms = new Date(task.expires_at).getTime() - Date.now();
+		if (ms <= 0) return $t('tasks.expiresNow');
+		const hours = Math.floor(ms / 3600000);
+		const minutes = Math.floor((ms % 3600000) / 60000);
+		if (hours > 0) return $t('tasks.expiresInHours', { values: { hours, minutes } });
+		return $t('tasks.expiresInMinutes', { values: { minutes } });
+	});
 
 	function toggleBacklog() {
 		if (!backlogLabel) return;
@@ -518,8 +529,16 @@
 				{/if}
 				{#if completed && completedAtLabel}
 					<p class="text-[11px] text-muted-foreground/60">{completedAtLabel}</p>
-				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0 || task.postpone_count > 0}
+				{:else if visibleLabels.length > 0 || task.due || task.sub_task_count > 0 || task.postpone_count > 0 || task.expires_at}
 					<div class="mt-0.5 flex flex-wrap items-center gap-1 md:mt-1 md:gap-1.5">
+						{#if expiresIn}
+							<span
+								class="flex items-center gap-0.5 text-[11px] text-orange-500"
+								title={expiresIn}
+							>
+								<FlameIcon class="h-3 w-3" />
+							</span>
+						{/if}
 						{#if notInWeeklyPlan}
 							<span class="flex items-center text-[11px] text-red-500" title={$t('tasks.notInWeeklyPlan')}>
 								<WeightIcon class="h-3 w-3" />
