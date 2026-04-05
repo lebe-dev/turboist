@@ -111,6 +111,13 @@ export class DefaultBackendConnector implements BackendConnector {
 		return this.request<TasksResponse>(`/api/tasks/backlog${params}`);
 	}
 
+	async getProjectTasks(projectId: string): Promise<Task[]> {
+		const res = await this.request<{ tasks: Task[] }>(
+			`/api/tasks/project/${encodeURIComponent(projectId)}`
+		);
+		return res.tasks;
+	}
+
 	async getCompletedSubtasks(id: string): Promise<Task[]> {
 		const res = await this.request<{ tasks: Task[] }>(
 			`/api/tasks/${encodeURIComponent(id)}/completed-subtasks`

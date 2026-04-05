@@ -15,6 +15,10 @@
   "sidebar.all": "All",
   "sidebar.planning": "Planning",
   "sidebar.labels": "Labels",
+  "sidebar.projects": "Projects",
+
+  "projects.noTasks": "No tasks in this project",
+  "projects.noSection": "No section",
 
   "settings.title": "Settings",
   "settings.appearance": "Appearance",

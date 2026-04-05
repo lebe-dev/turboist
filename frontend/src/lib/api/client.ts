@@ -96,6 +96,10 @@ export async function decomposeTask(id: string, data: DecomposeTaskRequest): Pro
 	return getBackend().decomposeTask(id, data);
 }
 
+export async function getProjectTasks(projectId: string): Promise<Task[]> {
+	return getBackend().getProjectTasks(projectId);
+}
+
 export async function getCompletedSubtasks(id: string): Promise<Task[]> {
 	return getBackend().getCompletedSubtasks(id);
 }

@@ -15,6 +15,10 @@
   "sidebar.all": "Все",
   "sidebar.planning": "Планирование",
   "sidebar.labels": "Метки",
+  "sidebar.projects": "Проекты",
+
+  "projects.noTasks": "В проекте нет задач",
+  "projects.noSection": "Без секции",
 
   "settings.title": "Настройки",
   "settings.appearance": "Внешний вид",

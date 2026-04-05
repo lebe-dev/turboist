@@ -111,6 +111,11 @@ export class MockBackendConnector implements BackendConnector {
 		return emptyTasksResponse(this.tasks);
 	}
 
+	async getProjectTasks(projectId: string): Promise<Task[]> {
+		this.record('getProjectTasks', [projectId]);
+		return this.tasks.filter((t) => t.project_id === projectId);
+	}
+
 	async getCompletedSubtasks(id: string): Promise<Task[]> {
 		this.record('getCompletedSubtasks', [id]);
 		return [];

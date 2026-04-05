@@ -73,6 +73,10 @@ export class QueuedBackend implements BackendConnector {
 		return this.inner.getBacklogTasks(context);
 	}
 
+	getProjectTasks(projectId: string): Promise<Task[]> {
+		return this.inner.getProjectTasks(projectId);
+	}
+
 	getCompletedSubtasks(id: string): Promise<Task[]> {
 		return this.inner.getCompletedSubtasks(id);
 	}

@@ -14,6 +14,7 @@ import { sidebarStore } from './sidebar.svelte';
 import { planningStore } from './planning.svelte';
 import { dayPartNotesStore } from './day-part-notes.svelte';
 import { tasksStore } from './tasks.svelte';
+import { projectTasksStore } from './project-tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
 import { saveAppConfig, loadAppConfig } from '$lib/sync/db';
 import { initState, destroyState, loadPersistedUI } from '$lib/state/index.svelte';
@@ -182,6 +183,9 @@ function createAppStore() {
 		// Start task store (registers WS handlers and subscribes)
 		await tasksStore.start();
 
+		// Load all tasks for project views (offline-first via Y.Doc)
+		projectTasksStore.start();
+
 		// Start auto-flush timer using sync_interval from config (default 60s)
 		const syncMs = (cfg.settings.sync_interval || 60) * 1000;
 		actionQueue.startAutoFlush(defaultBackend, syncMs);
@@ -196,6 +200,7 @@ function createAppStore() {
 	function destroy(): void {
 		actionQueue.stopAutoFlush();
 		tasksStore.stop();
+		projectTasksStore.stop();
 		wsClient.disconnect();
 		destroyState();
 		initialized = false;

@@ -94,6 +94,28 @@ func (h *TasksHandler) Tomorrow(c fiber.Ctx) error {
 	return c.JSON(resultToResponse(r))
 }
 
+// ProjectTasks handles GET /api/tasks/project/:id — returns all tasks for a given project.
+func (h *TasksHandler) ProjectTasks(c fiber.Ctx) error {
+	projectID := c.Params("id")
+	if projectID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "project id is required"})
+	}
+
+	allTasks := h.cache.Tasks()
+	var filtered []*todoist.Task
+	for _, t := range allTasks {
+		if t.ProjectID == projectID {
+			filtered = append(filtered, t)
+		}
+	}
+	if filtered == nil {
+		filtered = []*todoist.Task{}
+	}
+
+	tree := taskview.BuildTree(filtered)
+	return c.JSON(fiber.Map{"tasks": tree})
+}
+
 // Inbox handles GET /api/tasks/inbox?context=...
 func (h *TasksHandler) Inbox(c fiber.Ctx) error {
 	r := taskview.ComputeTasks(h.cache, h.cfg, taskview.ViewParams{

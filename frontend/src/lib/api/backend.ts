@@ -27,6 +27,7 @@ export interface BackendConnector {
 	getTomorrowTasks(context?: string): Promise<TasksResponse>;
 	getCompletedTasks(context?: string): Promise<TasksResponse>;
 	getBacklogTasks(context?: string): Promise<TasksResponse>;
+	getProjectTasks(projectId: string): Promise<Task[]>;
 	getCompletedSubtasks(id: string): Promise<Task[]>;
 
 	// Task mutations
