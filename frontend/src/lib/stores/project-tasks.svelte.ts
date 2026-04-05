@@ -70,6 +70,7 @@ function createProjectTasksStore() {
 		},
 		start,
 		stop,
+		refresh: fetchFromServer,
 		getProjectTasks
 	};
 }

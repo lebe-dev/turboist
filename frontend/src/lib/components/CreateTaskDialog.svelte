@@ -19,7 +19,7 @@
 	import { tick, untrack } from 'svelte';
 	import { t } from 'svelte-intl-precompile';
 
-	let { open = $bindable(false), dueDate = '', dayPartLabel = '' }: { open: boolean; dueDate?: string; dayPartLabel?: string } = $props();
+	let { open = $bindable(false), dueDate = '', dayPartLabel = '', projectId = '', sectionId = '', oncreated }: { open: boolean; dueDate?: string; dayPartLabel?: string; projectId?: string; sectionId?: string; oncreated?: () => void } = $props();
 
 	let content = $state('');
 	let description = $state('');
@@ -214,8 +214,12 @@
 
 		const req: Parameters<typeof createTask>[0] = { content: trimmedContent, description: trimmedDesc, labels, priority: pri };
 		if (dueDate) req.due_date = dueDate;
+		if (projectId) req.project_id = projectId;
+		if (sectionId) req.section_id = sectionId;
 
-		createTask(req, context, tempId).catch((e) => {
+		createTask(req, context, tempId).then(() => {
+			oncreated?.();
+		}).catch((e) => {
 			logger.error('tasks', `create failed: ${e}`);
 			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();

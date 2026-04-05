@@ -80,6 +80,8 @@ export interface CreateTaskRequest {
 	priority: number;
 	parent_id?: string;
 	due_date?: string;
+	project_id?: string;
+	section_id?: string;
 }
 
 export interface UpdateTaskRequest {

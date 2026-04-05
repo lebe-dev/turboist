@@ -4,8 +4,10 @@
 	import { projectTasksStore } from '$lib/stores/project-tasks.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskItem from '$lib/components/TaskItem.svelte';
+	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { t } from 'svelte-intl-precompile';
 
 	const projectId = $derived($page.params.id ?? '');
@@ -49,6 +51,18 @@
 
 		return groups;
 	});
+
+	let createDialogOpen = $state(false);
+	let createSectionId = $state('');
+
+	function openCreateDialog(sectionId: string | null) {
+		createSectionId = sectionId ?? '';
+		createDialogOpen = true;
+	}
+
+	function handleTaskCreated() {
+		projectTasksStore.refresh();
+	}
 </script>
 
 <div class="flex h-full flex-col">
@@ -80,6 +94,13 @@
 						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/60">
 							{group.tasks.length}
 						</span>
+						<button
+							class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground"
+							onclick={() => openCreateDialog(group.id)}
+							title={$t('task.addTask')}
+						>
+							<PlusIcon class="h-3.5 w-3.5" />
+						</button>
 						<div class="h-px flex-1 bg-border/40"></div>
 					</div>
 					<div class="space-y-px px-1">
@@ -94,3 +115,10 @@
 		{/if}
 	</div>
 </div>
+
+<CreateTaskDialog
+	bind:open={createDialogOpen}
+	projectId={projectId}
+	sectionId={createSectionId}
+	oncreated={handleTaskCreated}
+/>

@@ -160,6 +160,8 @@ type createTaskRequest struct {
 	Priority    int      `json:"priority"`
 	ParentID    string   `json:"parent_id"`
 	DueDate     string   `json:"due_date"`
+	ProjectID   string   `json:"project_id"`
+	SectionID   string   `json:"section_id"`
 }
 
 // Create handles POST /api/tasks?context=...
@@ -227,6 +229,14 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 
 	if len(labels) > 0 {
 		args.Labels = labels
+	}
+
+	// Explicit project/section from request take precedence over context
+	if req.ProjectID != "" {
+		args.ProjectID = &req.ProjectID
+	}
+	if req.SectionID != "" {
+		args.SectionID = &req.SectionID
 	}
 
 	if req.ParentID != "" {
