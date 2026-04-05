@@ -78,7 +78,7 @@ func main() {
 			}
 		}
 
-		if len(cfg.App.AutoRemove.Rules) > 0 {
+		if cfg.App.AutoRemove.Enabled && len(cfg.App.AutoRemove.Rules) > 0 {
 			firstSeenMap, err := store.GetAutoRemoveFirstSeen()
 			if err != nil {
 				log.Error("load auto_remove first_seen failed", "err", err)
@@ -104,7 +104,7 @@ func main() {
 
 	sched := scheduler.New(cfg.App.PollInterval)
 	var autoRemove *scheduler.AutoRemove
-	if len(cfg.App.AutoRemove.Rules) > 0 {
+	if cfg.App.AutoRemove.Enabled && len(cfg.App.AutoRemove.Rules) > 0 {
 		autoRemove = scheduler.NewAutoRemove(cache, cfg.App.AutoRemove, store)
 		sched.Register("auto-remove", autoRemove.Job)
 		log.Info("auto-remove rules registered", "count", len(cfg.App.AutoRemove.Rules))
@@ -114,10 +114,10 @@ func main() {
 		sched.Register("weekly-limit", wl.Job)
 		log.Info("weekly-limit check registered", "max_tasks", cfg.App.Weekly.MaxTasks)
 	}
-	if len(cfg.App.LabelProjectMap) > 0 {
-		lp := scheduler.NewLabelProjectSync(cache, cfg.App.LabelProjectMap)
+	if cfg.App.LabelProjectMap.Enabled && len(cfg.App.LabelProjectMap.Mappings) > 0 {
+		lp := scheduler.NewLabelProjectSync(cache, cfg.App.LabelProjectMap.Mappings)
 		sched.Register("label-project", lp.Job)
-		log.Info("label-project sync registered", "mappings", len(cfg.App.LabelProjectMap))
+		log.Info("label-project sync registered", "mappings", len(cfg.App.LabelProjectMap.Mappings))
 	}
 	sched.Start(ctx)
 	log.Info("scheduler started", "interval", cfg.App.PollInterval)

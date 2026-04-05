@@ -100,14 +100,20 @@ type labelProjectMappingResponse struct {
 	Section string `json:"section,omitempty"`
 }
 
+type labelProjectMapResponse struct {
+	Enabled  bool                          `json:"enabled"`
+	Mappings []labelProjectMappingResponse `json:"mappings"`
+}
+
 type autoRemoveRuleResponse struct {
 	Label string `json:"label"`
 	TTL   int    `json:"ttl"` // seconds
 }
 
 type autoRemoveStatusResponse struct {
-	Rules  []autoRemoveRuleResponse `json:"rules"`
-	Paused bool                     `json:"paused"`
+	Enabled bool                     `json:"enabled"`
+	Rules   []autoRemoveRuleResponse `json:"rules"`
+	Paused  bool                     `json:"paused"`
 }
 
 type appConfigResponse struct {
@@ -119,7 +125,7 @@ type appConfigResponse struct {
 	AutoLabels      []autoLabelResponse           `json:"auto_labels"`
 	QuickCapture    *quickCaptureResponse         `json:"quick_capture"`
 	ProjectTasks    []projectTaskItem             `json:"project_tasks"`
-	LabelProjectMap []labelProjectMappingResponse `json:"label_project_map"`
+	LabelProjectMap labelProjectMapResponse        `json:"label_project_map"`
 	AutoRemove      autoRemoveStatusResponse      `json:"auto_remove"`
 	State           *storage.UserState            `json:"state"`
 }
@@ -251,13 +257,17 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 	}
 
 	// Label-project map
-	labelProjectMap := make([]labelProjectMappingResponse, 0, len(h.cfg.LabelProjectMap))
-	for _, m := range h.cfg.LabelProjectMap {
-		labelProjectMap = append(labelProjectMap, labelProjectMappingResponse{
+	lpMappings := make([]labelProjectMappingResponse, 0, len(h.cfg.LabelProjectMap.Mappings))
+	for _, m := range h.cfg.LabelProjectMap.Mappings {
+		lpMappings = append(lpMappings, labelProjectMappingResponse{
 			Label:   m.Label,
 			Project: m.Project,
 			Section: m.Section,
 		})
+	}
+	labelProjectMap := labelProjectMapResponse{
+		Enabled:  h.cfg.LabelProjectMap.Enabled,
+		Mappings: lpMappings,
 	}
 
 	// Auto-remove status
@@ -268,7 +278,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 			TTL:   int(r.TTL.Seconds()),
 		})
 	}
-	arStatus := autoRemoveStatusResponse{Rules: arRules}
+	arStatus := autoRemoveStatusResponse{Enabled: h.cfg.AutoRemove.Enabled, Rules: arRules}
 	if h.autoRemove != nil {
 		arStatus.Paused = h.autoRemove.Paused()
 	}

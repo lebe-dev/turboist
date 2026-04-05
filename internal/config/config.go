@@ -80,7 +80,7 @@ type AppConfig struct {
 	QuickCapture       *QuickCaptureConfig
 	AutoLabels         []AutoLabelConfig
 	CompiledAutoLabels []CompiledAutoLabel
-	LabelProjectMap    []LabelProjectMapping
+	LabelProjectMap    LabelProjectMapConfig
 }
 
 // FindContext returns the context with the given ID, or nil if not found.
@@ -159,6 +159,7 @@ type TomorrowConfig struct {
 
 // AutoRemoveConfig holds safety-guarded settings for automatic task deletion.
 type AutoRemoveConfig struct {
+	Enabled    bool
 	MinTTL     time.Duration
 	MaxPerTick int
 	MaxPercent int
@@ -174,6 +175,11 @@ type AutoLabelConfig struct {
 	Mask       string `yaml:"mask"`
 	Label      string `yaml:"label"`
 	IgnoreCase *bool  `yaml:"ignore_case"`
+}
+
+type LabelProjectMapConfig struct {
+	Enabled  bool
+	Mappings []LabelProjectMapping
 }
 
 type LabelProjectMapping struct {
@@ -213,14 +219,20 @@ type yamlFile struct {
 	AutoRemove      *yamlAutoRemove       `yaml:"auto_remove"`
 	QuickCapture    *QuickCaptureConfig   `yaml:"quick_capture"`
 	AutoLabels      []AutoLabelConfig     `yaml:"auto_labels"`
-	LabelProjectMap []LabelProjectMapping `yaml:"label_project_map"`
+	LabelProjectMap *yamlLabelProjectMap `yaml:"label_project_map"`
 }
 
 type yamlAutoRemove struct {
+	Enabled    bool                 `yaml:"enabled"`
 	MinTTL     string               `yaml:"min_ttl"`
 	MaxPerTick int                  `yaml:"max_per_tick"`
 	MaxPercent int                  `yaml:"max_percent"`
 	Rules      []yamlAutoRemoveRule `yaml:"rules"`
+}
+
+type yamlLabelProjectMap struct {
+	Enabled  bool                  `yaml:"enabled"`
+	Mappings []LabelProjectMapping `yaml:"mappings"`
 }
 
 type yamlAutoRemoveRule struct {
@@ -324,7 +336,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		Completed:       completed,
 		QuickCapture:    yf.QuickCapture,
 		AutoLabels:      yf.AutoLabels,
-		LabelProjectMap: yf.LabelProjectMap,
+		LabelProjectMap: parseLabelProjectMap(yf.LabelProjectMap),
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {
@@ -335,7 +347,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		return AppConfig{}, err
 	}
 
-	if err := validateLabelProjectMap(yf.LabelProjectMap); err != nil {
+	if err := validateLabelProjectMap(app.LabelProjectMap.Mappings); err != nil {
 		return AppConfig{}, err
 	}
 
@@ -354,6 +366,16 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	app.CompiledAutoLabels = compiled
 
 	return app, nil
+}
+
+func parseLabelProjectMap(ylp *yamlLabelProjectMap) LabelProjectMapConfig {
+	if ylp == nil {
+		return LabelProjectMapConfig{}
+	}
+	return LabelProjectMapConfig{
+		Enabled:  ylp.Enabled,
+		Mappings: ylp.Mappings,
+	}
 }
 
 func parseAutoRemove(yar *yamlAutoRemove) (AutoRemoveConfig, error) {
@@ -394,6 +416,7 @@ func parseAutoRemove(yar *yamlAutoRemove) (AutoRemoveConfig, error) {
 	}
 
 	return AutoRemoveConfig{
+		Enabled:    yar.Enabled,
 		MinTTL:     minTTL,
 		MaxPerTick: maxPerTick,
 		MaxPercent: maxPercent,

@@ -7,6 +7,10 @@ timezone: "Europe/Moscow"
 # Default: 30s
 poll_interval: "30s"
 
+# Project tasks — tasks tagged with this label are treated as projects.
+project:
+  label: "проект"
+
 # Contexts — named filter sets for tasks.
 # Each context has a unique id used in query params (?context=health).
 # All conditions within a single context are combined with AND.
@@ -14,7 +18,6 @@ poll_interval: "30s"
 contexts:
   - id: health
     display_name: "Здоровье"
-    inherit_labels: true
     color: green
     filters:
       # Filter by Todoist labels (OR between items)
@@ -45,23 +48,20 @@ contexts:
 labels:
   - name: "проект"
     inherit_to_subtasks: false
-  - name: "на неделе"
+  - name: "эта неделя"
     inherit_to_subtasks: false
   - name: "backlog"
     inherit_to_subtasks: false
 
-# Project tasks — tasks tagged with this label are treated as projects.
-project:
-  label: "проект"
-
 # Label used to identify "projects" in the project list view.
+# Tasks with this label appear in the project picker dropdown.
 # Default: empty (feature disabled)
 projects_label: "проект"
 
 # Tasks for the current week
 weekly:
   # Todoist label that marks tasks for the current week
-  label: "на неделе"
+  label: "эта неделя"
   # Maximum number of tasks per week (used for the progress bar and warnings)
   max_tasks: 15
 
@@ -138,25 +138,35 @@ auto_labels:
     label: "проект"
     ignore_case: false
 
-# Label-to-project mapping: automatically assign root tasks to Todoist projects
-# based on their labels. First matching label wins.
-# Tasks with no matching label are moved to Inbox.
-# Subtasks (tasks with a parent) are never affected.
-# Optionally specify a section within the project.
-# Omit or leave empty to disable.
+# Label-to-project mapping: автоматически перемещает корневые задачи в проекты
+# Todoist на основе их меток. Первая совпавшая метка побеждает.
+# Задачи без подходящей метки перемещаются в Inbox.
+# Подзадачи (с родителем) не затрагиваются.
+# ⚠️ МАССОВАЯ ОПЕРАЦИЯ: перемещает задачи между проектами автоматически.
+# enabled: false по умолчанию — установите true для активации.
 label_project_map:
-  - label: "здоровье"
-    project: "Личное"
-    section: "Здоровье"  # optional: move to specific section within project
-  - label: "работа"
-    project: "Работа"
+  enabled: false
+  mappings:
+    - label: "здоровье"
+      project: "Личное"
+      section: "Здоровье"  # optional: move to specific section within project
+    - label: "работа"
+      project: "Работа"
 
-# Auto-expire: tasks with the given label are completed after the TTL elapses.
-# TTL is counted from the moment the label is first seen in the cache.
-# The timer resets on application restart.
-# Tasks are completed (not deleted): they remain in the completed history.
-auto_expire:
-  - label: "срочное"
-    ttl: "24h"
-  - label: "горит"
-    ttl: "4h"
+# Auto-remove: автоматически удаляет задачи после истечения TTL.
+# TTL отсчитывается с момента первого обнаружения метки в кеше.
+# Таймер сбрасывается при перезапуске приложения.
+# Защита: min_ttl валидирует TTL правил, max_per_tick ограничивает удаления за тик,
+# max_percent включает circuit breaker при слишком большом количестве совпадений.
+# ⚠️ МАССОВАЯ ОПЕРАЦИЯ: автоматически удаляет задачи.
+# enabled: false по умолчанию — установите true для активации.
+auto_remove:
+  enabled: false
+  min_ttl: "1h"
+  max_per_tick: 1
+  max_percent: 10
+  rules:
+    - label: "срочное"
+      ttl: "24h"
+    - label: "горит"
+      ttl: "4h"

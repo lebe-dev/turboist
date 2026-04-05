@@ -29,3 +29,7 @@ location / {
     proxy_set_header X-Real-IP $remote_addr;
 }
 ```
+
+## Roadmap
+
+- Offline support (PWA)

@@ -43,7 +43,7 @@ RUN apk --no-cache add tzdata && \
     chown -R turboist: /app
 
 COPY --from=app-build /build/turboist /app/turboist
-# COPY --from=app-build /build/config.yml /app/config.yml
+COPY --from=app-build /build/config.example.yml /app/config.yml
 
 RUN chown -R turboist: /app && chmod +x /app/turboist
 

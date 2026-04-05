@@ -756,3 +756,88 @@ func TestParseAppConfig_AutoRemoveEmpty(t *testing.T) {
 		t.Errorf("expected 0 auto_remove rules, got %d", len(app.AutoRemove.Rules))
 	}
 }
+
+func TestParseAppConfig_AutoRemoveEnabledTrue(t *testing.T) {
+	yaml := `
+auto_remove:
+  enabled: true
+  rules:
+    - label: "urgent"
+      ttl: "2h"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !app.AutoRemove.Enabled {
+		t.Error("auto_remove.enabled: got false, want true")
+	}
+}
+
+func TestParseAppConfig_AutoRemoveEnabledDefaultFalse(t *testing.T) {
+	yaml := `
+auto_remove:
+  rules:
+    - label: "urgent"
+      ttl: "2h"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.AutoRemove.Enabled {
+		t.Error("auto_remove.enabled: got true, want false (default)")
+	}
+}
+
+func TestParseAppConfig_LabelProjectMapEnabledTrue(t *testing.T) {
+	yaml := `
+label_project_map:
+  enabled: true
+  mappings:
+    - label: "work"
+      project: "Work"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !app.LabelProjectMap.Enabled {
+		t.Error("label_project_map.enabled: got false, want true")
+	}
+	if len(app.LabelProjectMap.Mappings) != 1 {
+		t.Fatalf("label_project_map.mappings: got %d, want 1", len(app.LabelProjectMap.Mappings))
+	}
+	if app.LabelProjectMap.Mappings[0].Label != "work" {
+		t.Errorf("label_project_map.mappings[0].label: got %q, want %q", app.LabelProjectMap.Mappings[0].Label, "work")
+	}
+}
+
+func TestParseAppConfig_LabelProjectMapEnabledDefaultFalse(t *testing.T) {
+	yaml := `
+label_project_map:
+  mappings:
+    - label: "work"
+      project: "Work"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.LabelProjectMap.Enabled {
+		t.Error("label_project_map.enabled: got true, want false (default)")
+	}
+}
+
+func TestParseAppConfig_LabelProjectMapOmitted(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.LabelProjectMap.Enabled {
+		t.Error("label_project_map.enabled: got true, want false")
+	}
+	if len(app.LabelProjectMap.Mappings) != 0 {
+		t.Errorf("label_project_map.mappings: got %d, want 0", len(app.LabelProjectMap.Mappings))
+	}
+}
