@@ -429,14 +429,14 @@ func compileAutoLabels(tags []AutoLabelConfig) ([]CompiledAutoLabel, error) {
 	result := make([]CompiledAutoLabel, 0, len(tags))
 	for i, at := range tags {
 		if at.Mask == "" {
-			return nil, fmt.Errorf("auto_tags[%d]: mask is required", i)
+			return nil, fmt.Errorf("auto_labels[%d]: mask is required", i)
 		}
 		if at.Label == "" {
-			return nil, fmt.Errorf("auto_tags[%d]: label is required", i)
+			return nil, fmt.Errorf("auto_labels[%d]: label is required", i)
 		}
 		key := at.Mask + "\x00" + at.Label
 		if _, ok := seen[key]; ok {
-			log.Printf("warning: auto_tags[%d]: duplicate mask+label %q+%q", i, at.Mask, at.Label)
+			log.Printf("warning: auto_labels[%d]: duplicate mask+label %q+%q", i, at.Mask, at.Label)
 			continue
 		}
 		seen[key] = struct{}{}
