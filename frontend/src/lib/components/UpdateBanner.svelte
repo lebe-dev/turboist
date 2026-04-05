@@ -9,7 +9,7 @@
 
 {#if $needRefresh && !dismissed}
 	<div
-		class="fixed bottom-4 left-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-lg sm:left-1/2 sm:right-auto sm:-translate-x-1/2"
+		class="fixed bottom-4 left-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-lg sm:right-auto sm:w-auto"
 	>
 		<span class="text-sm text-foreground">{$t('pwa.updateAvailable')}</span>
 		<button
