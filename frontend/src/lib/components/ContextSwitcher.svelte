@@ -79,7 +79,7 @@
 
 		{#if !collapsed}
 			<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-				{$t('sidebar.pinned')}
+				{$t('sidebar.pinned')}{#if pinnedStore.isFull} ({pinnedStore.items.length}/{pinnedStore.maxPinned}){/if}
 			</p>
 		{/if}
 
