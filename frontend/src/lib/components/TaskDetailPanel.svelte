@@ -68,7 +68,8 @@
 	let taskFetching = $state(false);
 	let fetchSeq = 0; // incremented on every fetch; guards against stale responses
 
-	// Always fetch full task from API (store version may have filtered children)
+	// Fetch full task from API — store may have filtered children (different context).
+	// API result supplements the store but never overrides local state.
 	$effect(() => {
 		const seq = ++fetchSeq;
 		taskFetching = true;
@@ -79,9 +80,23 @@
 			.finally(() => { taskFetching = false; });
 	});
 
-	// Prefer API version (has all children); fall back to store for instant display
-	// Guard: ignore stale taskFromApi when taskId has changed but $effect hasn't re-run yet
-	const task = $derived((taskFromApi?.id === taskId ? taskFromApi : null) ?? taskFromStore);
+	// Store is the source of truth (offline-first). API only supplements
+	// with children that aren't in the current view/context.
+	const task = $derived.by(() => {
+		const api = taskFromApi?.id === taskId ? taskFromApi : null;
+		const store = taskFromStore;
+		if (!store) return api;
+		if (!api) return store;
+		// Supplement store children with API-only children (filtered out of current view)
+		const storeChildIds = new Set(store.children.map((c) => c.id));
+		const extraChildren = api.children.filter((c) => !storeChildIds.has(c.id));
+		if (extraChildren.length === 0) return store;
+		return {
+			...store,
+			children: [...store.children, ...extraChildren],
+			sub_task_count: Math.max(store.sub_task_count, api.sub_task_count)
+		};
+	});
 
 	function updateLocal(updater: (t: Task) => Task) {
 		if (taskFromApi) taskFromApi = updater(taskFromApi);
@@ -637,6 +652,24 @@ function setDateQuick(date: string) {
 	function duplicateSubtask(child: Task) {
 		openSubtaskMenuId = null;
 		const newContent = incrementDuplicateTitle(child.content);
+		const tempChild: Task = {
+			...child,
+			id: `temp-dup-${Date.now()}`,
+			content: newContent,
+			children: [],
+			sub_task_count: 0,
+		};
+		// Optimistic: add to flat store so buildTree places it under parent
+		tasksStore.addTaskLocal(tempChild);
+		// Also update taskFromApi so it stays in sync
+		if (taskFromApi) {
+			taskFromApi = {
+				...taskFromApi,
+				children: [...taskFromApi.children, tempChild],
+				sub_task_count: taskFromApi.sub_task_count + 1
+			};
+		}
+		// Enqueue mutation — sync happens via the main WS cycle
 		createTask(
 			{
 				content: newContent,
@@ -647,12 +680,7 @@ function setDateQuick(date: string) {
 				...(child.due ? { due_date: child.due.date } : {}),
 			},
 			contextsStore.activeContextId ?? undefined
-		).then(() => {
-			actionQueue.flushNow()
-				.then(() => getTask(taskId))
-				.then((t) => { taskFromApi = t; })
-				.catch(() => {});
-		}).catch((e) => {
+		).catch((e) => {
 			logger.error('tasks', `duplicate subtask failed: ${e}`);
 			toast.error($t('errors.duplicateFailed'));
 			tasksStore.refresh();

@@ -19,6 +19,7 @@ export class DefaultBackendConnector implements BackendConnector {
 
 		const res = await fetch(path, {
 			credentials: 'same-origin',
+			cache: 'no-store',
 			...options,
 			headers: {
 				'Content-Type': 'application/json',
