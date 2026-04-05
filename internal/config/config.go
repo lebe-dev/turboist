@@ -202,23 +202,23 @@ type CompiledAutoLabel struct {
 }
 
 type yamlFile struct {
-	Timezone        string                `yaml:"timezone"`
-	PollInterval    string                `yaml:"poll_interval"`
-	TaskSort        string                `yaml:"task_sort"`
-	MaxPinned       int                   `yaml:"max_pinned"`
-	Contexts        []ContextConfig       `yaml:"contexts"`
-	Labels          []LabelConfig         `yaml:"labels"`
-	Weekly          WeeklyConfig          `yaml:"weekly"`
-	Backlog         BacklogConfig         `yaml:"backlog"`
-	Inbox           InboxConfig           `yaml:"inbox"`
-	Project         ProjectConfig         `yaml:"project"`
-	ProjectsLabel   string                `yaml:"projects_label"`
-	Today           TodayConfig           `yaml:"today"`
-	Tomorrow        TomorrowConfig        `yaml:"tomorrow"`
-	Completed       CompletedConfig       `yaml:"completed"`
-	AutoRemove      *yamlAutoRemove       `yaml:"auto_remove"`
-	QuickCapture    *QuickCaptureConfig   `yaml:"quick_capture"`
-	AutoLabels      []AutoLabelConfig     `yaml:"auto_labels"`
+	Timezone        string               `yaml:"timezone"`
+	PollInterval    string               `yaml:"poll_interval"`
+	TaskSort        string               `yaml:"task_sort"`
+	MaxPinned       int                  `yaml:"max_pinned"`
+	Contexts        []ContextConfig      `yaml:"contexts"`
+	Labels          []LabelConfig        `yaml:"labels"`
+	Weekly          WeeklyConfig         `yaml:"weekly"`
+	Backlog         BacklogConfig        `yaml:"backlog"`
+	Inbox           InboxConfig          `yaml:"inbox"`
+	Project         ProjectConfig        `yaml:"project"`
+	ProjectsLabel   string               `yaml:"projects_label"`
+	Today           TodayConfig          `yaml:"today"`
+	Tomorrow        TomorrowConfig       `yaml:"tomorrow"`
+	Completed       CompletedConfig      `yaml:"completed"`
+	AutoRemove      *yamlAutoRemove      `yaml:"auto_remove"`
+	QuickCapture    *QuickCaptureConfig  `yaml:"quick_capture"`
+	AutoLabels      []AutoLabelConfig    `yaml:"auto_labels"`
 	LabelProjectMap *yamlLabelProjectMap `yaml:"label_project_map"`
 }
 

@@ -117,17 +117,17 @@ type autoRemoveStatusResponse struct {
 }
 
 type appConfigResponse struct {
-	Settings        settingsResponse              `json:"settings"`
-	Contexts        []contextItem                 `json:"contexts"`
-	Projects        []projectWithSections         `json:"projects"`
-	Labels          []*todoist.Label              `json:"labels"`
-	LabelConfigs    []labelConfigResponse         `json:"label_configs"`
-	AutoLabels      []autoLabelResponse           `json:"auto_labels"`
-	QuickCapture    *quickCaptureResponse         `json:"quick_capture"`
-	ProjectTasks    []projectTaskItem             `json:"project_tasks"`
-	LabelProjectMap labelProjectMapResponse        `json:"label_project_map"`
-	AutoRemove      autoRemoveStatusResponse      `json:"auto_remove"`
-	State           *storage.UserState            `json:"state"`
+	Settings        settingsResponse         `json:"settings"`
+	Contexts        []contextItem            `json:"contexts"`
+	Projects        []projectWithSections    `json:"projects"`
+	Labels          []*todoist.Label         `json:"labels"`
+	LabelConfigs    []labelConfigResponse    `json:"label_configs"`
+	AutoLabels      []autoLabelResponse      `json:"auto_labels"`
+	QuickCapture    *quickCaptureResponse    `json:"quick_capture"`
+	ProjectTasks    []projectTaskItem        `json:"project_tasks"`
+	LabelProjectMap labelProjectMapResponse  `json:"label_project_map"`
+	AutoRemove      autoRemoveStatusResponse `json:"auto_remove"`
+	State           *storage.UserState       `json:"state"`
 }
 
 // Config handles GET /api/config — consolidated response with settings, contexts, projects, labels, quick_capture, and state.
