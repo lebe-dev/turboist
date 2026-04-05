@@ -138,12 +138,12 @@ auto_labels:
     label: "проект"
     ignore_case: false
 
-# Label-to-project mapping: автоматически перемещает корневые задачи в проекты
-# Todoist на основе их меток. Первая совпавшая метка побеждает.
-# Задачи без подходящей метки перемещаются в Inbox.
-# Подзадачи (с родителем) не затрагиваются.
-# ⚠️ МАССОВАЯ ОПЕРАЦИЯ: перемещает задачи между проектами автоматически.
-# enabled: false по умолчанию — установите true для активации.
+# Label-to-project mapping: automatically assign root tasks to Todoist projects
+# based on their labels. First matching label wins.
+# Tasks with no matching label are moved to Inbox.
+# Subtasks (tasks with a parent) are never affected.
+# ⚠️ BULK OPERATION: moves tasks between projects automatically.
+# enabled: false by default — set to true to activate.
 label_project_map:
   enabled: false
   mappings:
@@ -153,13 +153,13 @@ label_project_map:
     - label: "работа"
       project: "Работа"
 
-# Auto-remove: автоматически удаляет задачи после истечения TTL.
-# TTL отсчитывается с момента первого обнаружения метки в кеше.
-# Таймер сбрасывается при перезапуске приложения.
-# Защита: min_ttl валидирует TTL правил, max_per_tick ограничивает удаления за тик,
-# max_percent включает circuit breaker при слишком большом количестве совпадений.
-# ⚠️ МАССОВАЯ ОПЕРАЦИЯ: автоматически удаляет задачи.
-# enabled: false по умолчанию — установите true для активации.
+# Auto-remove: automatically delete tasks after TTL expires.
+# TTL is counted from the moment the label is first seen in the cache.
+# The timer resets on application restart.
+# Safety: min_ttl validates rule TTLs, max_per_tick limits deletions per scheduler tick,
+# max_percent triggers circuit breaker if too many tasks match at once.
+# ⚠️ BULK OPERATION: automatically deletes tasks.
+# enabled: false by default — set to true to activate.
 auto_remove:
   enabled: false
   min_ttl: "1h"
