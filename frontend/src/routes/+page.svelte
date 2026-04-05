@@ -329,18 +329,6 @@
 	<!-- Desktop header -->
 	<header class="hidden h-12 shrink-0 items-center border-b border-border/50 px-6 md:flex">
 		<h1 class="shrink-0 text-sm font-semibold tracking-wide text-foreground">{title}</h1>
-		{#if showInboxOverflow}
-			<Button
-				onclick={addInboxOverflowTask}
-				variant="ghost"
-				size="icon"
-				class="ml-1 h-6 w-6 text-amber-500 hover:text-amber-400"
-				title={$t('tasks.inboxOverflow', { values: { content: inboxOverflowContent } })}
-			>
-				<PlusIcon class="h-3.5 w-3.5" />
-				<span class="sr-only">{$t('tasks.inboxOverflow', { values: { content: inboxOverflowContent } })}</span>
-			</Button>
-		{/if}
 		{#if contextsStore.contexts.length > 0}
 			<div class="ml-4 flex items-center gap-0.5">
 				{#each contextsStore.contexts as ctx (ctx.id)}
@@ -535,11 +523,16 @@
 
 	{#if showInboxOverflow}
 		<button
-			class="flex shrink-0 items-center gap-2 border-b border-amber-500/10 bg-amber-500/5 px-3 py-1.5 md:px-6 w-full cursor-pointer hover:bg-amber-500/10 transition-colors md:hidden"
+			class="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/5 px-3 py-3 md:px-6 w-full cursor-pointer hover:bg-amber-500/10 transition-colors"
 			onclick={addInboxOverflowTask}
 		>
-			<PlusIcon class="h-3 w-3 text-amber-500/70" />
-			<span class="text-[12px] text-amber-500/70">{$t('tasks.inboxOverflow', { values: { content: inboxOverflowContent } })}</span>
+			<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15">
+				<PlusIcon class="h-4 w-4 text-amber-500" />
+			</div>
+			<div class="flex flex-col gap-0.5">
+				<span class="text-[13px] font-medium text-amber-500">{$t('tasks.inboxOverflow', { values: { content: inboxOverflowContent } })}</span>
+				<span class="text-[11px] text-amber-500/50">{$t('tasks.inboxOverflowHint', { values: { count: tasksStore.inboxCount } })}</span>
+			</div>
 		</button>
 	{/if}
 

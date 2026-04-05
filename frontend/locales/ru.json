@@ -43,6 +43,7 @@
   "tasks.expiresInMinutes": "Автоудаление через {minutes}м",
   "tasks.autoRemovePaused": "Автоудаление приостановлено: слишком много задач на удаление. Проверьте конфигурацию.",
   "tasks.inboxOverflow": "Добавить «{content}» на сегодня",
+  "tasks.inboxOverflowHint": "Во Входящих {count, plural, one {# задача} few {# задачи} other {# задач}}",
 
   "due.today": "Сегодня",
   "due.tomorrow": "Завтра",

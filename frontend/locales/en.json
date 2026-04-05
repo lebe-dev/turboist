@@ -43,6 +43,7 @@
   "tasks.expiresInMinutes": "Auto-removes in {minutes}m",
   "tasks.autoRemovePaused": "Auto-remove paused: too many tasks matched for deletion. Check config.",
   "tasks.inboxOverflow": "Add \"{content}\" for today",
+  "tasks.inboxOverflowHint": "{count, plural, one {# task} other {# tasks}} in Inbox",
 
   "due.today": "Today",
   "due.tomorrow": "Tomorrow",
