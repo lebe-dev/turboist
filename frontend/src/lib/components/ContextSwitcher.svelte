@@ -192,7 +192,7 @@
 			</p>
 		{/if}
 
-		{#each appStore.projects as project (project.id)}
+		{#each appStore.projects.filter((p) => p.id !== appStore.inboxProjectId) as project (project.id)}
 			<a
 				href="/projects/{project.id}"
 				class="group flex cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
