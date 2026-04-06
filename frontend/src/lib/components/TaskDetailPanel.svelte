@@ -636,14 +636,26 @@ function setDateQuick(date: string) {
 	// --- Delete subtask ---
 	function deleteSubtask(childId: string) {
 		if (!task) return;
-		updateLocal((t) => ({
-			...t,
-			children: t.children.filter((c) => c.id !== childId),
-			sub_task_count: Math.max(0, t.sub_task_count - 1)
-		}));
+		openSubtaskMenuId = null;
+		// Optimistic removal from flat store — works at any depth
+		tasksStore.removeTaskLocal(childId);
+		// Also mirror the removal in taskFromApi so the panel updates immediately
+		// even when children were supplemented from the API (e.g. filtered out of view)
+		if (taskFromApi) {
+			const removeInTree = (children: Task[]): Task[] =>
+				children
+					.filter((c) => c.id !== childId)
+					.map((c) => ({ ...c, children: removeInTree(c.children) }));
+			taskFromApi = {
+				...taskFromApi,
+				children: removeInTree(taskFromApi.children),
+				sub_task_count: Math.max(0, taskFromApi.sub_task_count - 1)
+			};
+		}
 		deleteTask(childId).catch((e) => {
 			logger.error('tasks', `delete subtask failed: ${e}`);
 			toast.error($t('errors.deleteFailed'));
+			tasksStore.clearPendingRemoval(childId);
 			tasksStore.refresh();
 		});
 	}
@@ -1575,8 +1587,7 @@ function setDateQuick(date: string) {
 											{/each}
 										</div>
 									</div>
-									{#if depth === 0}
-										<TaskDropdownMenu
+									<TaskDropdownMenu
 											open={openSubtaskMenuId === child.id}
 											onOpenChange={(v) => { openSubtaskMenuId = v ? child.id : null; }}
 											task={child}
@@ -1605,7 +1616,6 @@ function setDateQuick(date: string) {
 												</DropdownMenu.Trigger>
 											{/snippet}
 										</TaskDropdownMenu>
-									{/if}
 								</div>
 								{#each child.children as grandchild (grandchild.id)}
 									{@render subtaskNode(grandchild, depth + 1)}

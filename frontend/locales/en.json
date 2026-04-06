@@ -19,6 +19,12 @@
 
   "projects.noTasks": "No tasks in this project",
   "projects.noSection": "No section",
+  "projects.collapseAllSubtasks": "Collapse all subtasks",
+  "projects.expandAllSubtasks": "Expand all subtasks",
+  "projects.collapseSection": "Collapse section",
+  "projects.expandSection": "Expand section",
+  "projects.pinSection": "Pin section",
+  "projects.unpinSection": "Unpin section",
 
   "settings.title": "Settings",
   "settings.appearance": "Appearance",

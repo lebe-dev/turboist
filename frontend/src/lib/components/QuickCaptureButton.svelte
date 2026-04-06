@@ -22,6 +22,12 @@
 	let contentInput: HTMLInputElement | undefined = $state();
 	let dialogEl: HTMLDivElement | undefined = $state();
 
+	const CONTENT_PREFIX = 'turboist: ';
+	function stripPrefix(s: string): string {
+		return s.startsWith(CONTENT_PREFIX) ? s.slice(CONTENT_PREFIX.length) : s;
+	}
+	const hasContent = $derived(stripPrefix(content).trim().length > 0);
+
 	const priorityItems = [
 		{ value: 4, label: 'P1', color: 'text-red-500', bg: 'bg-red-500/15 border-red-500/30' },
 		{ value: 3, label: 'P2', color: 'text-amber-500', bg: 'bg-amber-500/15 border-amber-500/30' },
@@ -51,7 +57,7 @@
 	}
 
 	function handleSubmit() {
-		if (!content.trim() || submitting || !parentTaskId) return;
+		if (!hasContent || submitting || !parentTaskId) return;
 		submitting = true;
 		const taskContent = content.trim();
 		const taskDescription = description.trim();
@@ -189,10 +195,10 @@
 					</button>
 					<button
 						class="rounded-lg px-4 py-1.5 text-[13px] font-medium transition-colors
-							{content.trim() && parentTaskId
+							{hasContent && parentTaskId
 								? 'bg-primary text-primary-foreground hover:bg-primary/90'
 								: 'bg-muted text-muted-foreground cursor-not-allowed'}"
-						disabled={!content.trim() || submitting || !parentTaskId}
+						disabled={!hasContent || submitting || !parentTaskId}
 						onclick={handleSubmit}
 					>
 						{submitting ? $t('quickCapture.saving') : $t('quickCapture.saveIdea')}

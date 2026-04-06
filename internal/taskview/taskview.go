@@ -62,7 +62,7 @@ func ComputeTasks(cache *todoist.Cache, cfg *config.AppConfig, params ViewParams
 		result = computeAll(tasks, cfg, params.Context, weeklyCount)
 	}
 
-	result.Meta.InboxCount = countInbox(cache, tasks)
+	result.Meta.InboxCount = countInbox(cache, cache.Tasks())
 	return result
 }
 

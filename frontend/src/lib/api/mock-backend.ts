@@ -188,7 +188,7 @@ export class MockBackendConnector implements BackendConnector {
 			auto_labels: [],
 			quick_capture: null,
 			project_tasks: [],
-			label_project_map: [],
+			label_project_map: { enabled: false, mappings: [] },
 			auto_remove: { rules: [], paused: false },
 			state: {
 				pinned_tasks: [],

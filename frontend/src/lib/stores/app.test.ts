@@ -84,6 +84,10 @@ vi.mock('./collapsed.svelte', () => ({
 	collapsedStore: { init: vi.fn() }
 }));
 
+vi.mock('./sections.svelte', () => ({
+	sectionsStore: { init: vi.fn() }
+}));
+
 vi.mock('./sidebar.svelte', () => ({
 	sidebarStore: { init: vi.fn() }
 }));

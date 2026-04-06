@@ -79,6 +79,8 @@ export interface PersistedUI {
 	sidebar_collapsed: boolean;
 	collapsed_ids: string[];
 	pinned_tasks: PinnedTask[];
+	collapsed_section_ids: string[];
+	pinned_section_ids: string[];
 }
 
 export function persistUI(data: Partial<PersistedUI>): void {
@@ -100,6 +102,8 @@ export function loadPersistedUI(): PersistedUI | null {
 		active_view: (map.get('active_view') as string) ?? 'all',
 		sidebar_collapsed: (map.get('sidebar_collapsed') as boolean) ?? false,
 		collapsed_ids: (map.get('collapsed_ids') as string[]) ?? [],
-		pinned_tasks: (map.get('pinned_tasks') as PinnedTask[]) ?? []
+		pinned_tasks: (map.get('pinned_tasks') as PinnedTask[]) ?? [],
+		collapsed_section_ids: (map.get('collapsed_section_ids') as string[]) ?? [],
+		pinned_section_ids: (map.get('pinned_section_ids') as string[]) ?? []
 	};
 }

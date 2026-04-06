@@ -10,6 +10,7 @@ import { compileAutoLabels, matchAutoLabels } from '$lib/utils/auto-labels';
 import { contextsStore } from './contexts.svelte';
 import { pinnedStore } from './pinned.svelte';
 import { collapsedStore } from './collapsed.svelte';
+import { sectionsStore } from './sections.svelte';
 import { sidebarStore } from './sidebar.svelte';
 import { planningStore } from './planning.svelte';
 import { dayPartNotesStore } from './day-part-notes.svelte';
@@ -108,6 +109,7 @@ function createAppStore() {
 	let autoLabelMappings = $state<AutoLabelMapping[]>([]);
 	let _compiledAutoLabels = $derived(compileAutoLabels(autoLabelMappings));
 	let labelProjectMap = $state<LabelProjectMapping[]>([]);
+	let labelProjectMapEnabled = $state(false);
 	let _projects = $state<Project[]>([]);
 	let inboxProjectId = $state<string>('');
 	let quickCaptureOpen = $state(false);
@@ -120,7 +122,8 @@ function createAppStore() {
 		quickCapture = cfg.quick_capture;
 		projectTasks = cfg.project_tasks ?? [];
 		autoLabelMappings = cfg.auto_labels ?? [];
-		labelProjectMap = cfg.label_project_map ?? [];
+		labelProjectMap = cfg.label_project_map?.mappings ?? [];
+		labelProjectMapEnabled = cfg.label_project_map?.enabled ?? false;
 		_projects = cfg.projects.map((p) => ({ id: p.id, name: p.name, color: p.color, sections: p.sections }));
 		inboxProjectId = cfg.settings.inbox_project_id ?? '';
 
@@ -130,8 +133,13 @@ function createAppStore() {
 			cfg.state.active_view as View
 		);
 		pinnedStore.init(cfg.state.pinned_tasks, cfg.settings.max_pinned);
-		const hasCachedUI = loadPersistedUI() !== null;
+		const cachedUI = loadPersistedUI();
+		const hasCachedUI = cachedUI !== null;
 		collapsedStore.init(hasCachedUI ? cfg.state.collapsed_ids : []);
+		sectionsStore.init(
+			cachedUI?.collapsed_section_ids ?? [],
+			cachedUI?.pinned_section_ids ?? []
+		);
 		sidebarStore.init(cfg.state.sidebar_collapsed);
 		planningStore.initActive(cfg.state.planning_open);
 		dayPartNotesStore.init(
@@ -217,7 +225,7 @@ function createAppStore() {
 	}
 
 	function resolveProjectIdForLabels(labels: string[]): string | null {
-		if (labelProjectMap.length === 0) return null;
+		if (!labelProjectMapEnabled || labelProjectMap.length === 0) return null;
 		for (const mapping of labelProjectMap) {
 			if (labels.includes(mapping.label)) {
 				const proj = _projects.find((p) => p.name === mapping.project);

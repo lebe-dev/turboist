@@ -19,6 +19,12 @@
 
   "projects.noTasks": "В проекте нет задач",
   "projects.noSection": "Без секции",
+  "projects.collapseAllSubtasks": "Свернуть все подзадачи",
+  "projects.expandAllSubtasks": "Развернуть все подзадачи",
+  "projects.collapseSection": "Свернуть секцию",
+  "projects.expandSection": "Развернуть секцию",
+  "projects.pinSection": "Закрепить секцию",
+  "projects.unpinSection": "Открепить секцию",
 
   "settings.title": "Настройки",
   "settings.appearance": "Внешний вид",

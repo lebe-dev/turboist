@@ -175,6 +175,11 @@ export interface LabelProjectMapping {
 	section?: string;
 }
 
+export interface LabelProjectMap {
+	enabled: boolean;
+	mappings: LabelProjectMapping[];
+}
+
 export interface AutoRemoveRule {
 	label: string;
 	ttl: number; // seconds
@@ -194,7 +199,7 @@ export interface AppConfig {
 	auto_labels: AutoLabelMapping[];
 	quick_capture: QuickCaptureConfig | null;
 	project_tasks: ProjectTask[];
-	label_project_map: LabelProjectMapping[];
+	label_project_map: LabelProjectMap;
 	auto_remove: AutoRemoveStatus;
 	state: UserState;
 }

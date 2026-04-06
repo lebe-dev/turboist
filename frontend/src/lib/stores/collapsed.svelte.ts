@@ -44,6 +44,33 @@ function createCollapsedStore() {
 				logger.error('collapsed', `collapseAll save failed: ${err}`)
 			);
 		},
+		collapseMany(taskIds: string[]): void {
+			for (const id of taskIds) ids.add(id);
+			ids = new Set(ids);
+			const arr = [...ids];
+			syncToState(arr);
+			logger.log('collapsed', `collapseMany: ${taskIds.length}`);
+			patchState({ collapsed_ids: arr }).catch((err) =>
+				logger.error('collapsed', `collapseMany save failed: ${err}`)
+			);
+		},
+		expandMany(taskIds: string[]): void {
+			for (const id of taskIds) ids.delete(id);
+			ids = new Set(ids);
+			const arr = [...ids];
+			syncToState(arr);
+			logger.log('collapsed', `expandMany: ${taskIds.length}`);
+			patchState({ collapsed_ids: arr }).catch((err) =>
+				logger.error('collapsed', `expandMany save failed: ${err}`)
+			);
+		},
+		allCollapsed(taskIds: string[]): boolean {
+			if (taskIds.length === 0) return false;
+			for (const id of taskIds) {
+				if (!ids.has(id)) return false;
+			}
+			return true;
+		},
 		expandAll(): void {
 			ids = new Set();
 			syncToState([]);
