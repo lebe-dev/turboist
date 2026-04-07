@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Task } from '$lib/api/types';
-import { taskToFlat, flatToTask, flattenTasks, buildTree, type FlatTask } from './types';
+import { taskToFlat, flatToTask, flattenTasks, buildTree, type FlatTask } from './task-tree';
 
 function makeTask(overrides: Partial<Task> = {}): Task {
 	return {

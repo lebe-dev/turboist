@@ -3,7 +3,6 @@
 	import { updateTask, createTask, completeTask, deleteTask, moveTask, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { incrementDuplicateTitle, stripTaskPrefix, stripMarkdownLinks } from '$lib/utils';
 	import { cleanPaste } from '$lib/utils/clean-paste';
-	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
@@ -837,12 +836,9 @@ function setDateQuick(date: string) {
 			contextsStore.activeContextId ?? undefined,
 			tempId
 		).then(() => {
-			// Flush the queue so the backend actually creates the subtask,
-			// then re-fetch to replace temp child IDs with real ones.
-			// Bump fetchSeq so the initial page-load fetch (if still in flight) cannot overwrite this result.
+			// Re-fetch to replace temp child IDs with real ones.
 			const seq = ++fetchSeq;
-			actionQueue.flushNow()
-				.then(() => getTask(taskId))
+			getTask(taskId)
 				.then((t) => { if (fetchSeq === seq) taskFromApi = t; })
 				.catch(() => {});
 		}).catch((e) => {

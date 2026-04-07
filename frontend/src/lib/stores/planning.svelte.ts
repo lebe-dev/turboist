@@ -8,8 +8,7 @@ import {
 	type DeltaPlanningData
 } from '$lib/ws/client.svelte';
 import { mergeUpserted, filterByIds } from '$lib/ws/merge';
-import { isStateReady, persistTasks, persistMeta, loadPersistedTasks, loadPersistedMeta } from '$lib/state/index.svelte';
-import { flattenTasks, buildTree, taskToFlat, type FlatTask } from '$lib/state/types';
+import { flattenTasks, buildTree, taskToFlat, type FlatTask } from '$lib/utils/task-tree';
 
 function createPlanningStore() {
 	let active = $state(false);
@@ -38,10 +37,6 @@ function createPlanningStore() {
 		weeklyFlat = flattenTasks(d.weekly);
 		meta = d.meta;
 		loading = false;
-
-		persistTasks('backlogTasks', backlogFlat);
-		persistTasks('weeklyTasks', weeklyFlat);
-		persistMeta('planningMeta', d.meta);
 	}
 
 	function handlePlanningDelta(data: unknown, _seq?: number): void {
@@ -70,10 +65,6 @@ function createPlanningStore() {
 		if (d.meta) {
 			meta = d.meta;
 		}
-
-		persistTasks('backlogTasks', backlogFlat);
-		persistTasks('weeklyTasks', weeklyFlat);
-		if (d.meta) persistMeta('planningMeta', d.meta);
 	}
 
 	async function enter(): Promise<void> {

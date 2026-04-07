@@ -1,11 +1,8 @@
 import { logger } from '$lib/stores/logger';
 import { getTasks } from '$lib/api/client';
 import type { Task } from '$lib/api/types';
-import { persistTasks, loadPersistedTasks } from '$lib/state/index.svelte';
-import { flattenTasks, buildTree, type FlatTask } from '$lib/state/types';
+import { flattenTasks, buildTree, type FlatTask } from '$lib/utils/task-tree';
 import { wsClient } from '$lib/ws/client.svelte';
-
-const YDOC_KEY = 'projectTasks';
 
 function createProjectTasksStore() {
 	let flatTasks = $state<FlatTask[]>([]);
@@ -14,21 +11,11 @@ function createProjectTasksStore() {
 
 	let cleanups: (() => void)[] = [];
 
-	function loadFromCache(): void {
-		const cached = loadPersistedTasks(YDOC_KEY);
-		if (cached.length > 0) {
-			flatTasks = cached;
-			loaded = true;
-			logger.log('project-tasks', `loaded ${cached.length} tasks from cache`);
-		}
-	}
-
 	async function fetchFromServer(): Promise<void> {
 		loading = true;
 		try {
 			const res = await getTasks();
 			flatTasks = flattenTasks(res.tasks);
-			persistTasks(YDOC_KEY, flatTasks);
 			loaded = true;
 			logger.log('project-tasks', `fetched ${flatTasks.length} tasks from server`);
 		} catch (err) {
@@ -39,7 +26,6 @@ function createProjectTasksStore() {
 	}
 
 	async function start(): Promise<void> {
-		loadFromCache();
 		await fetchFromServer();
 
 		cleanups.push(

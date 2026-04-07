@@ -1,18 +1,11 @@
 import { logger } from '$lib/stores/logger';
 import { patchState } from '$lib/api/client';
-import { isStateReady, persistUI } from '$lib/state/index.svelte';
 
 function createCollapsedStore() {
 	let ids = $state(new Set<string>());
 
-	function syncToState(idArray: string[]): void {
-		if (!isStateReady()) return;
-		persistUI({ collapsed_ids: idArray });
-	}
-
 	function init(initialIds: string[]): void {
 		ids = new Set(initialIds);
-		syncToState(initialIds);
 	}
 
 	return {
@@ -30,7 +23,6 @@ function createCollapsedStore() {
 			}
 			ids = new Set(ids);
 			const arr = [...ids];
-			syncToState(arr);
 			logger.log('collapsed', `toggle: ${id} total: ${ids.size}`);
 			patchState({ collapsed_ids: arr }).catch((err) =>
 				logger.error('collapsed', `toggle save failed: ${err}`)
@@ -38,7 +30,6 @@ function createCollapsedStore() {
 		},
 		collapseAll(taskIds: string[]): void {
 			ids = new Set(taskIds);
-			syncToState(taskIds);
 			logger.log('collapsed', `collapseAll: ${taskIds.length}`);
 			patchState({ collapsed_ids: [...ids] }).catch((err) =>
 				logger.error('collapsed', `collapseAll save failed: ${err}`)
@@ -48,7 +39,6 @@ function createCollapsedStore() {
 			for (const id of taskIds) ids.add(id);
 			ids = new Set(ids);
 			const arr = [...ids];
-			syncToState(arr);
 			logger.log('collapsed', `collapseMany: ${taskIds.length}`);
 			patchState({ collapsed_ids: arr }).catch((err) =>
 				logger.error('collapsed', `collapseMany save failed: ${err}`)
@@ -58,7 +48,6 @@ function createCollapsedStore() {
 			for (const id of taskIds) ids.delete(id);
 			ids = new Set(ids);
 			const arr = [...ids];
-			syncToState(arr);
 			logger.log('collapsed', `expandMany: ${taskIds.length}`);
 			patchState({ collapsed_ids: arr }).catch((err) =>
 				logger.error('collapsed', `expandMany save failed: ${err}`)
@@ -73,7 +62,6 @@ function createCollapsedStore() {
 		},
 		expandAll(): void {
 			ids = new Set();
-			syncToState([]);
 			logger.log('collapsed', 'expandAll');
 			patchState({ collapsed_ids: [] }).catch((err) =>
 				logger.error('collapsed', `expandAll save failed: ${err}`)

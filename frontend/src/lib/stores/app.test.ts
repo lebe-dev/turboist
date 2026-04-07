@@ -35,13 +35,6 @@ vi.mock('$lib/api/client', () => ({
 	patchState: vi.fn(() => Promise.resolve())
 }));
 
-vi.mock('$lib/sync/db', () => ({
-	saveAppConfig: vi.fn(() => Promise.resolve()),
-	loadAppConfig: vi.fn(() => Promise.resolve(null)),
-	loadCompletedTasks: vi.fn(() => Promise.resolve(null)),
-	saveCompletedTasks: vi.fn(() => Promise.resolve())
-}));
-
 const mockWsClient = {
 	connected: false,
 	connect: vi.fn(),
@@ -54,18 +47,6 @@ const mockWsClient = {
 
 vi.mock('$lib/ws/client.svelte', () => ({
 	wsClient: mockWsClient
-}));
-
-vi.mock('$lib/state/index.svelte', () => ({
-	initState: vi.fn(() => Promise.resolve()),
-	destroyState: vi.fn(),
-	isStateReady: () => true,
-	persistTasks: vi.fn(),
-	persistMeta: vi.fn(),
-	persistUI: vi.fn(),
-	loadPersistedTasks: vi.fn(() => []),
-	loadPersistedMeta: vi.fn(() => null),
-	loadPersistedUI: vi.fn(() => null)
 }));
 
 vi.mock('./contexts.svelte', () => ({
@@ -117,15 +98,6 @@ describe('appStore', () => {
 		expect(appStore.initialized).toBe(true);
 	});
 
-	it('init initializes SyncroState', async () => {
-		const { appStore } = await import('./app.svelte');
-		const { initState } = await import('$lib/state/index.svelte');
-
-		await appStore.init();
-
-		expect(initState).toHaveBeenCalled();
-	});
-
 	it('init connects WebSocket and starts tasks', async () => {
 		const { appStore } = await import('./app.svelte');
 		const { tasksStore } = await import('./tasks.svelte');
@@ -153,10 +125,9 @@ describe('appStore', () => {
 		expect(planningStore.initActive).toHaveBeenCalled();
 	});
 
-	it('destroy stops tasks, disconnects WS, destroys state, and resets initialized', async () => {
+	it('destroy stops tasks, disconnects WS, and resets initialized', async () => {
 		const { appStore } = await import('./app.svelte');
 		const { tasksStore } = await import('./tasks.svelte');
-		const { destroyState } = await import('$lib/state/index.svelte');
 
 		await appStore.init();
 		expect(appStore.initialized).toBe(true);
@@ -165,7 +136,6 @@ describe('appStore', () => {
 
 		expect(tasksStore.stop).toHaveBeenCalled();
 		expect(mockWsClient.disconnect).toHaveBeenCalled();
-		expect(destroyState).toHaveBeenCalled();
 		expect(appStore.initialized).toBe(false);
 	});
 

@@ -150,20 +150,6 @@
   "filters.labels": "Labels",
   "filters.clearAll": "Clear filters",
 
-  "pwa.updateAvailable": "New version available",
-  "pwa.update": "Update",
-  "pwa.installIOS": "Add Turboist to Home Screen: tap Share → Add to Home Screen",
-  "pwa.dismiss": "Dismiss",
-  "pwa.offline": "Offline — showing cached data",
-  "pwa.pendingChanges": "{count} pending changes",
-  "pwa.requiresNetwork": "This action requires a network connection",
-  "pwa.syncComplete": "Changes synced successfully",
-  "pwa.syncFailed": "{count} changes failed to sync",
-  "pwa.pendingActions": "Pending actions",
-  "pwa.retryAction": "Retry",
-  "pwa.discardAction": "Discard",
-  "pwa.clearQueue": "Clear all",
-
   "task.completedToast": "Completed: {name}",
   "task.completedSubtasks": "Completed {count}",
   "task.duplicatedToast": "Duplicated: {name}",
@@ -189,9 +175,6 @@
   "errors.duplicateFailed": "Failed to duplicate task",
   "errors.decomposeFailed": "Failed to decompose task",
   "errors.moveFailed": "Failed to move task",
-
-  "connectivity.reconnecting": "Reconnecting...",
-  "connectivity.backOnline": "Back online",
 
   "settings.general": "General",
   "settings.logs": "Logs",

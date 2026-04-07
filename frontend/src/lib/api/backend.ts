@@ -10,7 +10,7 @@ import type {
 import { DefaultBackendConnector } from './default-backend';
 
 // Interface that all backend connectors must implement.
-// Mirrors the public API surface of client.ts.
+// Kept for mock tests (MockBackendConnector).
 export interface BackendConnector {
 	// Auth
 	login(password: string): Promise<void>;
@@ -46,13 +46,4 @@ export interface BackendConnector {
 	resetWeeklyLabel(): Promise<void>;
 }
 
-// Start with DefaultBackendConnector so auth works before appStore.init()
-let _backend: BackendConnector = new DefaultBackendConnector();
-
-export function getBackend(): BackendConnector {
-	return _backend;
-}
-
-export function setBackend(b: BackendConnector): void {
-	_backend = b;
-}
+export const backend: BackendConnector = new DefaultBackendConnector();

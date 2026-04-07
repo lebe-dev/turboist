@@ -1,22 +1,17 @@
 import { logger } from '$lib/stores/logger';
 import { getAppConfig, getCompletedTasks } from '$lib/api/client';
-import { actionQueue } from '$lib/sync/action-queue.svelte';
-import type { Config, Meta, Task, UpdateTaskRequest } from '$lib/api/types';
+import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
 import {
 	wsClient,
 	type SnapshotTasksData,
 	type DeltaTasksData
 } from '$lib/ws/client.svelte';
-import { loadCompletedTasks, saveCompletedTasks } from '$lib/sync/db';
-import { isStateReady, persistTasks, persistMeta, loadPersistedTasks, loadPersistedMeta } from '$lib/state/index.svelte';
-import { flattenTasks, buildTree, taskToFlat, type FlatTask } from '$lib/state/types';
+import { flattenTasks, buildTree, taskToFlat, type FlatTask } from '$lib/utils/task-tree';
 
 const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
-const OFFLINE_GRACE_MS = 5000; // grace period before showing offline banner
 
 function createTasksStore() {
-	// Flat task array — reactive source for UI, persisted to Y.Doc via y-indexeddb
 	let flatTasks = $state<FlatTask[]>([]);
 	let meta = $state<Meta>({
 		context: '',
@@ -29,7 +24,6 @@ function createTasksStore() {
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let isStale = $state(false);
-	let isOffline = $state(false);
 
 	// Completed tasks are fetched via HTTP, not WS — kept separate
 	let completedTasks = $state<Task[]>([]);
@@ -50,10 +44,6 @@ function createTasksStore() {
 	let cleanups: (() => void)[] = [];
 	let running = false;
 	let hasReceivedSnapshot = false;
-	let offlineTimer: ReturnType<typeof setTimeout> | null = null;
-
-	const MAX_SUBSCRIBE_RETRIES = 2;
-	let subscribeRetryCount = 0;
 
 	function updateStale(lastSyncedAt?: string): void {
 		isStale = lastSyncedAt
@@ -81,119 +71,12 @@ function createTasksStore() {
 		return filterPending(taskList);
 	}
 
-	function pendingUpdateMap(): Map<string, UpdateTaskRequest> | null {
-		const pending = actionQueue.items.filter(
-			(a) => a.type === 'updateTask' && (a.status === 'pending' || a.status === 'processing')
-		);
-		if (pending.length === 0) return null;
-
-		const map = new Map<string, UpdateTaskRequest>();
-		for (const action of pending) {
-			const { id, data } = action.payload as { id: string; data: UpdateTaskRequest };
-			const existing = map.get(id);
-			map.set(id, existing ? { ...existing, ...data } : data);
-		}
-		return map;
-	}
-
-	function overlayUpdate(task: Task, update: UpdateTaskRequest): Task {
-		const result = { ...task };
-		if (update.content !== undefined) result.content = update.content;
-		if (update.description !== undefined) result.description = update.description;
-		if (update.labels !== undefined) result.labels = update.labels;
-		if (update.priority !== undefined) result.priority = update.priority;
-		if (update.due_string !== undefined) {
-			result.due = { date: result.due?.date ?? '', recurring: true };
-		} else if (update.due_date !== undefined) {
-			result.due = update.due_date === '' ? null : { date: update.due_date, recurring: false };
-		}
-		return result;
-	}
-
-	function walkWithUpdates(list: Task[], updates: Map<string, UpdateTaskRequest>): Task[] {
-		return list.map((t) => {
-			const update = updates.get(t.id);
-			const result = update ? overlayUpdate(t, update) : t;
-			if (t.children.length > 0) {
-				return { ...result, children: walkWithUpdates(t.children, updates) };
-			}
-			return result;
-		});
-	}
-
-	function applyPendingUpdates(taskList: Task[]): Task[] {
-		const map = pendingUpdateMap();
-		if (!map) return taskList;
-		return walkWithUpdates(taskList, map);
-	}
-
-	function applyPendingTaskUpdate(task: Task): Task {
-		const map = pendingUpdateMap();
-		if (!map) return task;
-		return walkWithUpdates([task], map)[0];
-	}
-
 	function currentView(): View {
 		return contextsStore.activeView;
 	}
 
 	function currentContextId(): string | undefined {
 		return contextsStore.activeContextId ?? undefined;
-	}
-
-	// Capture temp tasks that have pending createTask actions — called before snapshot replaces flatTasks
-	function captureTempTasks(): { task: FlatTask; afterId: string | null }[] {
-		const result: { task: FlatTask; afterId: string | null }[] = [];
-
-		const pendingCreateContents = new Set<string>();
-		for (const action of actionQueue.items) {
-			if ((action.status === 'pending' || action.status === 'processing') && action.type === 'createTask') {
-				const { data } = action.payload as { data: { content: string } };
-				pendingCreateContents.add(data.content);
-			}
-		}
-
-		for (let i = 0; i < flatTasks.length; i++) {
-			const t = flatTasks[i];
-			if (!t.id.startsWith('temp-')) continue;
-			if (!pendingCreateContents.has(t.content)) continue;
-
-			// Find nearest non-temp predecessor for position anchoring
-			let afterId: string | null = null;
-			for (let j = i - 1; j >= 0; j--) {
-				if (!flatTasks[j].id.startsWith('temp-')) {
-					afterId = flatTasks[j].id;
-					break;
-				}
-			}
-			result.push({ task: t, afterId });
-			pendingCreateContents.delete(t.content);
-		}
-		return result;
-	}
-
-	// Reinject captured temp tasks into flatTasks after snapshot replacement
-	function reinjectTempTasks(captured: { task: FlatTask; afterId: string | null }[]): void {
-		if (captured.length === 0) return;
-
-		const updated = [...flatTasks];
-		for (const { task, afterId } of captured) {
-			// Skip if in pendingRemovals (was removed locally)
-			if (pendingRemovals.has(task.id)) continue;
-			// Skip if server already has a task with this content (reconciled)
-			if (updated.some((t) => t.content === task.content && !t.id.startsWith('temp-'))) continue;
-
-			if (afterId) {
-				const idx = updated.findIndex((t) => t.id === afterId);
-				if (idx >= 0) {
-					updated.splice(idx + 1, 0, task);
-					continue;
-				}
-			}
-			// Fallback: prepend (matches addTaskLocal behavior)
-			updated.unshift(task);
-		}
-		flatTasks = updated;
 	}
 
 	function handleTasksSnapshot(data: unknown, seq?: number): void {
@@ -204,23 +87,12 @@ function createTasksStore() {
 		const d = data as SnapshotTasksData;
 		logger.log('tasks', `snapshot received: ${d.tasks.length} tasks, synced at: ${d.meta.last_synced_at}`);
 		hasReceivedSnapshot = true;
-		cancelOfflineTimer();
 
-		const captured = captureTempTasks();
-
-		const flat = flattenTasks(d.tasks);
-		flatTasks = flat;
+		flatTasks = flattenTasks(d.tasks);
 		meta = d.meta;
-
-		reinjectTempTasks(captured);
-
-		// Persist to Y.Doc (y-indexeddb saves automatically)
-		persistTasks('tasks', flatTasks);
-		persistMeta('meta', d.meta);
 
 		loading = false;
 		error = null;
-		isOffline = false;
 		updateStale(d.meta.last_synced_at);
 	}
 
@@ -327,56 +199,11 @@ function createTasksStore() {
 			meta = d.meta;
 			updateStale(d.meta.last_synced_at);
 		}
-
-		// Persist updated state
-		persistTasks('tasks', updated);
-		if (d.meta) persistMeta('meta', d.meta);
 	}
 
 	// Register WS handlers once
 	wsClient.onMessage('snapshot', 'tasks', handleTasksSnapshot);
 	wsClient.onMessage('delta', 'tasks', handleTasksDelta);
-
-	function cancelOfflineTimer(): void {
-		if (offlineTimer) {
-			clearTimeout(offlineTimer);
-			offlineTimer = null;
-		}
-	}
-
-	function scheduleOfflineCheck(): void {
-		cancelOfflineTimer();
-		offlineTimer = setTimeout(() => {
-			offlineTimer = null;
-			if (hasReceivedSnapshot) return;
-
-			// Retry if WS is connected and we have retries left
-			if (wsClient.connected && subscribeRetryCount < MAX_SUBSCRIBE_RETRIES) {
-				subscribeRetryCount++;
-				logger.warn('tasks', `no snapshot within grace period, retrying (${subscribeRetryCount}/${MAX_SUBSCRIBE_RETRIES})`);
-				subscribeWS();
-				scheduleOfflineCheck();
-				return;
-			}
-
-			logger.warn('tasks', 'no snapshot received within grace period');
-			if (!wsClient.connected) {
-				isOffline = true;
-			}
-			isStale = true;
-
-			// Stop spinner: try loading stale cache so the user isn't stuck
-			if (loading) {
-				const cached = loadPersistedTasks('tasks');
-				if (cached.length > 0) {
-					flatTasks = cached;
-					const cachedMeta = loadPersistedMeta('meta');
-					if (cachedMeta) meta = cachedMeta;
-				}
-				loading = false;
-			}
-		}, OFFLINE_GRACE_MS);
-	}
 
 	function subscribeWS(): void {
 		const contextId = currentContextId();
@@ -384,7 +211,7 @@ function createTasksStore() {
 
 		if (view === 'completed') {
 			logger.log('tasks', 'fetching completed (HTTP)');
-			fetchCompleted(contextId);
+			fetchCompleted();
 			return;
 		}
 
@@ -392,25 +219,15 @@ function createTasksStore() {
 		wsClient.subscribe('tasks', { view, context: contextId });
 	}
 
-	async function fetchCompleted(_context?: string): Promise<void> {
+	async function fetchCompleted(): Promise<void> {
 		loading = true;
 		try {
 			const res = await getCompletedTasks();
 			completedTasks = res.tasks;
 			completedMeta = res.meta;
 			error = null;
-			isOffline = false;
-			saveCompletedTasks(currentContextId(), res.tasks).catch((e) => logger.error('tasks', String(e)));
 		} catch (err) {
-			const cached = await loadCompletedTasks(currentContextId());
-			if (cached) {
-				completedTasks = cached.tasks;
-				isStale = true;
-				isOffline = true;
-				error = null;
-			} else {
-				error = err instanceof Error ? err.message : String(err);
-			}
+			error = err instanceof Error ? err.message : String(err);
 		} finally {
 			loading = false;
 		}
@@ -423,7 +240,6 @@ function createTasksStore() {
 		loading = true;
 		error = null;
 		hasReceivedSnapshot = false;
-		subscribeRetryCount = 0;
 
 		try {
 			const cfg = await getAppConfig();
@@ -434,46 +250,21 @@ function createTasksStore() {
 
 		cleanups.push(
 			wsClient.onStateChange((connected) => {
-				if (!connected && hasReceivedSnapshot) {
-					logger.log('tasks', 'WS disconnected after snapshot, marking offline');
-					isOffline = true;
-				}
-				if (connected && (isOffline || (isStale && !hasReceivedSnapshot))) {
-					logger.log('tasks', 'WS reconnected/recovered, flushing queued mutations');
-					isOffline = false;
+				if (connected && isStale) {
+					logger.log('tasks', 'WS reconnected, re-subscribing');
 					isStale = false;
-					subscribeRetryCount = 0;
-					actionQueue.flushNow().then(() => {
-						logger.log('tasks', 'Queue flush complete, re-subscribing');
-						hasReceivedSnapshot = false;
-						subscribeWS();
-						scheduleOfflineCheck();
-					});
+					hasReceivedSnapshot = false;
+					subscribeWS();
 				}
 			})
 		);
 
-		// Try loading from y-indexeddb (via Y.Doc) for instant display
-		const cached = loadPersistedTasks('tasks');
-		if (cached.length > 0) {
-			logger.log('tasks', `y-indexeddb cache hit: ${cached.length} tasks`);
-			flatTasks = cached;
-			const cachedMeta = loadPersistedMeta('meta');
-			if (cachedMeta) meta = cachedMeta;
-			loading = false;
-		}
-
 		subscribeWS();
-
-		if (cached.length > 0) {
-			scheduleOfflineCheck();
-		}
 	}
 
 	function stop(): void {
 		if (!running) return;
 		running = false;
-		cancelOfflineTimer();
 		for (const cleanup of cleanups) cleanup();
 		cleanups = [];
 		wsClient.unsubscribe('tasks');
@@ -492,13 +283,10 @@ function createTasksStore() {
 		completedTasks = [];
 		loading = true;
 		error = null;
-		isOffline = false;
 		isStale = false;
 		hasReceivedSnapshot = false;
-		subscribeRetryCount = 0;
 
 		subscribeWS();
-		scheduleOfflineCheck();
 	}
 
 	// Optimistic local mutations
@@ -509,7 +297,6 @@ function createTasksStore() {
 			const updated = updater(task);
 			return taskToFlat(updated);
 		});
-		persistTasks('tasks', flatTasks);
 	}
 
 	function removeTaskLocal(taskId: string): void {
@@ -524,7 +311,6 @@ function createTasksStore() {
 
 	function addTaskLocal(task: Task): void {
 		flatTasks = [taskToFlat(task), ...flatTasks];
-		persistTasks('tasks', flatTasks);
 	}
 
 	function insertAfterLocal(siblingId: string, newTask: Task): void {
@@ -537,7 +323,6 @@ function createTasksStore() {
 			updated.push(flat);
 		}
 		flatTasks = updated;
-		persistTasks('tasks', flatTasks);
 	}
 
 	function flatToTaskSingle(flat: FlatTask): Task {
@@ -567,7 +352,7 @@ function createTasksStore() {
 				return completedTasks;
 			}
 			const tree = buildTree(flatTasks);
-			return applyPendingUpdates(applyPendingRemovals(tree));
+			return applyPendingRemovals(tree);
 		},
 		get meta(): Meta {
 			if (currentView() === 'completed') {
@@ -587,9 +372,6 @@ function createTasksStore() {
 		get isStale() {
 			return isStale;
 		},
-		get isOffline() {
-			return isOffline;
-		},
 		get inboxCount(): number {
 			return meta.inbox_count ?? 0;
 		},
@@ -602,7 +384,11 @@ function createTasksStore() {
 		clearPendingRemoval,
 		addTaskLocal,
 		insertAfterLocal,
-		applyPendingTaskUpdate,
+		// Identity function — kept for callers that still reference it (e.g. TaskDetailPanel).
+		// Previously overlaid queued mutations; now mutations go directly to server.
+		applyPendingTaskUpdate(task: Task): Task {
+			return task;
+		},
 		resolveTaskId(id: string): string | null {
 			return reconciledIds[id] ?? null;
 		}

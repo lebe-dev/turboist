@@ -11,11 +11,8 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { initLocale } from '$lib/i18n';
-	import UpdateBanner from '$lib/components/UpdateBanner.svelte';
-	import InstallBanner from '$lib/components/InstallBanner.svelte';
 	import AutoRemovePausedBanner from '$lib/components/AutoRemovePausedBanner.svelte';
 	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
-	import ConnectionIndicator from '$lib/components/ConnectionIndicator.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 
@@ -54,8 +51,6 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <ModeWatcher />
 <Toaster />
-<UpdateBanner />
-<InstallBanner />
 <AutoRemovePausedBanner />
 
 <QuickCaptureButton showButton={false} />
@@ -119,9 +114,6 @@
                             {$t(view.key)}
                         </button>
                     {/each}
-                </div>
-                <div class="ml-auto">
-                    <ConnectionIndicator compact />
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto">
