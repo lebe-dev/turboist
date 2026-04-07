@@ -254,6 +254,7 @@ describe('tasksStore local mutations', () => {
 		handleSnapshot({ tasks: [makeTask('1'), makeTask('2')], meta });
 		expect(tasksStore.tasks).toHaveLength(2);
 	});
+
 });
 
 describe('tasksStore pending queue updates overlay', () => {
@@ -425,6 +426,20 @@ describe('tasksStore pending queue updates overlay', () => {
 		});
 
 		expect(tasksStore.tasks[0].due).toBeNull();
+	});
+
+	it('delta upsert clears pendingRemoval — recurring task reappears with next due date', async () => {
+		const recurringTask: Task = { ...makeTask('1'), due: { date: '2026-04-07', recurring: true } };
+		const { tasksStore, handleDelta } = await setupWithTasks([recurringTask, makeTask('2')]);
+
+		tasksStore.removeTaskLocal('1');
+		expect(tasksStore.tasks).toHaveLength(1);
+
+		// Server processes item_close: same ID, next due date
+		handleDelta({ upserted: [{ ...makeTask('1'), due: { date: '2026-04-14', recurring: true } }], removed: [] });
+
+		expect(tasksStore.tasks).toHaveLength(2);
+		expect(tasksStore.tasks.find((t) => t.id === '1')!.due!.date).toBe('2026-04-14');
 	});
 });
 

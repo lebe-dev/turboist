@@ -242,6 +242,14 @@ function createTasksStore() {
 		if (d.upserted?.length > 0) {
 			const upsertedFlat = flattenTasks(d.upserted);
 
+			// Clear pendingRemovals for upserted tasks — handles recurring tasks
+			// that come back with a new due date after item_close.
+			for (const f of upsertedFlat) {
+				if (pendingRemovals.has(f.id)) {
+					pendingRemovals.delete(f.id);
+				}
+			}
+
 			// Reconcile: remove optimistic temp tasks whose real counterparts arrived
 			const newContents = new Set(
 				upsertedFlat
