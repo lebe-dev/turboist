@@ -16,6 +16,7 @@ const (
 	coldStartRetries  = 10
 	coldStartInterval = 10 * time.Second
 	refreshDebounce   = 1 * time.Second
+	evictGracePeriod  = 15 * time.Second
 )
 
 // cacheClient abstracts the Todoist client methods used by Cache, enabling testing.
@@ -26,6 +27,7 @@ type cacheClient interface {
 	MoveTask(ctx context.Context, id string, parentID string) error
 	MoveTaskToProject(ctx context.Context, id string, projectID string) error
 	CompleteTask(ctx context.Context, id string) error
+	CloseTask(ctx context.Context, id string) error
 	DeleteTask(ctx context.Context, id string) error
 	DecomposeTask(ctx context.Context, src *Task, newContents []string) error
 	BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error
@@ -48,6 +50,11 @@ type Cache struct {
 	taskEnricher   func(tasks []*Task)
 	refreshTimer   *time.Timer
 	refreshTimerMu sync.Mutex
+
+	// Recently evicted task IDs — prevents Todoist eventual-consistency lag
+	// from re-adding tasks that were just completed/deleted.
+	evictedMu sync.Mutex
+	evicted   map[string]time.Time
 }
 
 // NewCache creates a Cache, performs a synchronous cold-start Refresh with retries, and panics
@@ -79,6 +86,8 @@ func (c *Cache) Refresh(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	result.Tasks = c.filterEvicted(result.Tasks)
 
 	c.mu.Lock()
 	c.tasks = result.Tasks
@@ -239,11 +248,30 @@ func (c *Cache) MoveTaskToProject(ctx context.Context, id string, projectID stri
 	return nil
 }
 
-// CompleteTask closes a task via the Todoist API and schedules a cache refresh.
+// CompleteTask completes a task via the Todoist API and schedules a cache refresh.
+// For recurring tasks it uses item_close (advances to next occurrence).
+// For non-recurring tasks it uses item_complete (archives permanently).
 func (c *Cache) CompleteTask(ctx context.Context, id string) error {
-	if err := c.client.CompleteTask(ctx, id); err != nil {
-		return err
+	recurring := false
+	c.mu.RLock()
+	for _, t := range c.tasks {
+		if t.ID == id {
+			recurring = t.Due != nil && t.Due.Recurring
+			break
+		}
 	}
+	c.mu.RUnlock()
+
+	if recurring {
+		if err := c.client.CloseTask(ctx, id); err != nil {
+			return err
+		}
+	} else {
+		if err := c.client.CompleteTask(ctx, id); err != nil {
+			return err
+		}
+	}
+	c.evictTask(id)
 	c.ScheduleRefresh()
 	return nil
 }
@@ -253,8 +281,92 @@ func (c *Cache) DeleteTask(ctx context.Context, id string) error {
 	if err := c.client.DeleteTask(ctx, id); err != nil {
 		return err
 	}
+	c.evictTask(id)
 	c.ScheduleRefresh()
 	return nil
+}
+
+// evictTask optimistically removes a task (and its subtasks) from the in-memory
+// cache and broadcasts the change. This prevents stale data from appearing if the
+// deferred Todoist sync hasn't caught up yet (eventual consistency).
+func (c *Cache) evictTask(id string) {
+	c.mu.Lock()
+	// Collect the target and all its descendants
+	evict := map[string]bool{id: true}
+	changed := true
+	for changed {
+		changed = false
+		for _, t := range c.tasks {
+			if t.ParentID != nil && evict[*t.ParentID] && !evict[t.ID] {
+				evict[t.ID] = true
+				changed = true
+			}
+		}
+	}
+	filtered := make([]*Task, 0, len(c.tasks))
+	for _, t := range c.tasks {
+		if !evict[t.ID] {
+			filtered = append(filtered, t)
+		}
+	}
+	c.tasks = filtered
+	c.mu.Unlock()
+
+	// Record evicted IDs so filterEvicted suppresses them in subsequent refreshes
+	now := time.Now()
+	c.evictedMu.Lock()
+	if c.evicted == nil {
+		c.evicted = make(map[string]time.Time)
+	}
+	for id := range evict {
+		c.evicted[id] = now
+	}
+	c.evictedMu.Unlock()
+
+	if c.onRefresh != nil {
+		c.onRefresh()
+	}
+}
+
+// ClearEvicted removes all entries from the evicted set, allowing
+// a subsequent Refresh to return the full Todoist state.
+func (c *Cache) ClearEvicted() {
+	c.evictedMu.Lock()
+	c.evicted = nil
+	c.evictedMu.Unlock()
+}
+
+// filterEvicted removes tasks that were recently completed/deleted from the
+// fetched result, preventing Todoist eventual-consistency lag from resurrecting them.
+// Expired entries are cleaned up on each call.
+func (c *Cache) filterEvicted(tasks []*Task) []*Task {
+	c.evictedMu.Lock()
+	defer c.evictedMu.Unlock()
+
+	if len(c.evicted) == 0 {
+		return tasks
+	}
+
+	// Expire old entries
+	now := time.Now()
+	for id, t := range c.evicted {
+		if now.Sub(t) > evictGracePeriod {
+			delete(c.evicted, id)
+		}
+	}
+	if len(c.evicted) == 0 {
+		return tasks
+	}
+
+	filtered := make([]*Task, 0, len(tasks))
+	for _, t := range tasks {
+		if _, ok := c.evicted[t.ID]; ok {
+			log.Debug("filterEvicted: suppressing task", "id", t.ID, "content", t.Content)
+			continue
+		}
+		filtered = append(filtered, t)
+	}
+	return filtered
 }
 
 // DecomposeTask creates new tasks from the source task and deletes the original,

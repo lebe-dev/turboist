@@ -265,16 +265,29 @@ func (c *Client) MoveTaskToProject(ctx context.Context, id string, projectID str
 	return nil
 }
 
-// CompleteTask closes a task via the Todoist API.
+// CompleteTask archives a non-recurring task using item_complete.
 func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	log.Debug("todoist CompleteTask", "id", id)
 	start := time.Now()
-	_, err := c.taskSvc.CloseTask(ctx, &sync.TaskCloseArgs{ID: id})
+	_, err := c.taskSvc.CompleteTask(ctx, &sync.TaskCompleteArgs{ID: id})
 	if err != nil {
 		log.Debug("todoist CompleteTask failed", "id", id, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "CompleteTask", Err: err}
 	}
 	log.Debug("todoist CompleteTask done", "id", id, "elapsed", time.Since(start))
+	return nil
+}
+
+// CloseTask advances a recurring task to its next occurrence using item_close.
+func (c *Client) CloseTask(ctx context.Context, id string) error {
+	log.Debug("todoist CloseTask", "id", id)
+	start := time.Now()
+	_, err := c.taskSvc.CloseTask(ctx, &sync.TaskCloseArgs{ID: id})
+	if err != nil {
+		log.Debug("todoist CloseTask failed", "id", id, "err", err, "elapsed", time.Since(start))
+		return &APIError{Op: "CloseTask", Err: err}
+	}
+	log.Debug("todoist CloseTask done", "id", id, "elapsed", time.Since(start))
 	return nil
 }
 

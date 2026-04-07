@@ -196,5 +196,11 @@
   "settings.general": "General",
   "settings.logs": "Logs",
   "settings.logs.empty": "No log entries yet",
-  "settings.logs.clear": "Clear"
+  "settings.logs.clear": "Clear",
+  "settings.data": "Data",
+  "settings.cacheReset": "Reset backend cache",
+  "settings.cacheResetting": "Resetting...",
+  "settings.cacheResetDone": "Cache reset successfully",
+  "settings.cacheResetFailed": "Failed to reset cache",
+  "settings.cacheResetHint": "Forces a full re-sync with Todoist. Use if tasks appear stale."
 }

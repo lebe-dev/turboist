@@ -39,6 +39,7 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 
 	healthHandler := handler.NewHealthHandler(cache)
 	app.Get("/api/health", healthHandler.Health)
+	app.Post("/api/cache/reset", healthHandler.ResetCache)
 
 	// WebSocket endpoint
 	app.Get("/api/ws", func(c fiber.Ctx) error {

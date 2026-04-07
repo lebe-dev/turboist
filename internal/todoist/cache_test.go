@@ -73,6 +73,13 @@ func (m *mockCacheClient) CompleteTask(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *mockCacheClient) CloseTask(ctx context.Context, id string) error {
+	if m.completeTaskFn != nil {
+		return m.completeTaskFn(ctx, id)
+	}
+	return nil
+}
+
 func (m *mockCacheClient) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
 	if m.decomposeTaskFn != nil {
 		return m.decomposeTaskFn(ctx, src, newContents)
@@ -233,5 +240,107 @@ func TestScheduleRefresh_MultipleWavesFireSeparately(t *testing.T) {
 	count := refreshCount.Load()
 	if count != 2 {
 		t.Errorf("got %d refreshes, want 2 (separate waves should fire independently)", count)
+	}
+}
+
+func TestCompleteTask_EvictsFromCache(t *testing.T) {
+	parentID := "parent"
+	mock := &mockCacheClient{
+		completeTaskFn: func(_ context.Context, _ string) error { return nil },
+		fetchAllFn:     func(_ context.Context) (*SyncResult, error) { return &SyncResult{}, nil },
+	}
+	cache := newTestCache(mock)
+	cache.mu.Lock()
+	cache.tasks = []*Task{
+		{ID: "parent", Content: "Parent"},
+		{ID: "child", Content: "Child", ParentID: &parentID},
+		{ID: "other", Content: "Other"},
+	}
+	cache.mu.Unlock()
+
+	var broadcastCount int
+	cache.onRefresh = func() { broadcastCount++ }
+
+	err := cache.CompleteTask(context.Background(), "parent")
+	if err != nil {
+		t.Fatalf("got err %v, want nil", err)
+	}
+
+	tasks := cache.Tasks()
+	if len(tasks) != 1 {
+		t.Fatalf("got %d tasks, want 1 (parent + child evicted)", len(tasks))
+	}
+	if tasks[0].ID != "other" {
+		t.Errorf("remaining task id: got %q, want %q", tasks[0].ID, "other")
+	}
+	if broadcastCount == 0 {
+		t.Error("onRefresh not called after evict")
+	}
+}
+
+func TestDeleteTask_EvictsFromCache(t *testing.T) {
+	mock := &mockCacheClient{
+		deleteTaskFn: func(_ context.Context, _ string) error { return nil },
+		fetchAllFn:   func(_ context.Context) (*SyncResult, error) { return &SyncResult{}, nil },
+	}
+	cache := newTestCache(mock)
+	cache.mu.Lock()
+	cache.tasks = []*Task{
+		{ID: "1", Content: "Task 1"},
+		{ID: "2", Content: "Task 2"},
+	}
+	cache.mu.Unlock()
+
+	err := cache.DeleteTask(context.Background(), "1")
+	if err != nil {
+		t.Fatalf("got err %v, want nil", err)
+	}
+
+	tasks := cache.Tasks()
+	if len(tasks) != 1 {
+		t.Fatalf("got %d tasks, want 1", len(tasks))
+	}
+	if tasks[0].ID != "2" {
+		t.Errorf("remaining task id: got %q, want %q", tasks[0].ID, "2")
+	}
+}
+
+func TestFilterEvicted_SuppressesDuringRefresh(t *testing.T) {
+	mock := &mockCacheClient{
+		completeTaskFn: func(_ context.Context, _ string) error { return nil },
+		fetchAllFn: func(_ context.Context) (*SyncResult, error) {
+			// Todoist returns the task as still active (eventual consistency lag)
+			return &SyncResult{
+				Tasks: []*Task{
+					{ID: "completed", Content: "Done task"},
+					{ID: "active", Content: "Active task"},
+				},
+			}, nil
+		},
+	}
+	cache := newTestCache(mock)
+	cache.mu.Lock()
+	cache.tasks = []*Task{
+		{ID: "completed", Content: "Done task"},
+		{ID: "active", Content: "Active task"},
+	}
+	cache.mu.Unlock()
+
+	// Complete the task — evicts immediately
+	if err := cache.CompleteTask(context.Background(), "completed"); err != nil {
+		t.Fatalf("CompleteTask: %v", err)
+	}
+
+	// Now refresh — FetchAll returns the task (stale), but filterEvicted suppresses it
+	if err := cache.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+
+	tasks := cache.Tasks()
+	if len(tasks) != 1 {
+		t.Fatalf("got %d tasks after refresh, want 1 (evicted task suppressed)", len(tasks))
+	}
+	if tasks[0].ID != "active" {
+		t.Errorf("remaining task: got %q, want %q", tasks[0].ID, "active")
 	}
 }

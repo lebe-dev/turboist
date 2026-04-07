@@ -103,3 +103,8 @@ export async function getProjectTasks(projectId: string): Promise<Task[]> {
 export async function getCompletedSubtasks(id: string): Promise<Task[]> {
 	return getBackend().getCompletedSubtasks(id);
 }
+
+export async function resetCache(): Promise<void> {
+	const res = await fetch('/api/cache/reset', { method: 'POST' });
+	if (!res.ok) throw new Error(`resetCache: ${res.status}`);
+}

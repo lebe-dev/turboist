@@ -196,5 +196,11 @@
   "settings.general": "Основные",
   "settings.logs": "Логи",
   "settings.logs.empty": "Записей пока нет",
-  "settings.logs.clear": "Очистить"
+  "settings.logs.clear": "Очистить",
+  "settings.data": "Данные",
+  "settings.cacheReset": "Сбросить кэш бэкенда",
+  "settings.cacheResetting": "Сброс...",
+  "settings.cacheResetDone": "Кэш успешно сброшен",
+  "settings.cacheResetFailed": "Не удалось сбросить кэш",
+  "settings.cacheResetHint": "Принудительная полная синхронизация с Todoist. Используйте, если задачи выглядят устаревшими."
 }

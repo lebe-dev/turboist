@@ -3,16 +3,33 @@
 	import { setMode, userPrefersMode } from 'mode-watcher';
 	import { t, locale } from 'svelte-intl-precompile';
 	import { availableLocales } from '$lib/i18n';
-	import { patchState } from '$lib/api/client';
+	import { patchState, resetCache } from '$lib/api/client';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import MonitorIcon from '@lucide/svelte/icons/monitor';
+	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import LogsPanel from '$lib/components/LogsPanel.svelte';
 	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { toast } from 'svelte-sonner';
+
+	let resettingCache = $state(false);
+
+	async function handleResetCache() {
+		if (resettingCache) return;
+		resettingCache = true;
+		try {
+			await resetCache();
+			toast.success($t('settings.cacheResetDone'));
+		} catch {
+			toast.error($t('settings.cacheResetFailed'));
+		} finally {
+			resettingCache = false;
+		}
+	}
 
 	const themes = [
 		{ value: 'light' as const, key: 'settings.theme.light', icon: SunIcon },
@@ -79,6 +96,19 @@
 							</button>
 						{/each}
 					</div>
+				</section>
+
+				<section class="mt-8">
+					<h2 class="mb-3 text-xs font-medium tracking-wider uppercase text-muted-foreground">{$t('settings.data')}</h2>
+					<button
+						class="flex items-center gap-2.5 rounded-lg border border-border/50 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/30 hover:text-foreground disabled:opacity-50"
+						onclick={handleResetCache}
+						disabled={resettingCache}
+					>
+						<DatabaseIcon class="h-4 w-4" />
+						{resettingCache ? $t('settings.cacheResetting') : $t('settings.cacheReset')}
+					</button>
+					<p class="mt-1.5 text-[11px] text-muted-foreground/60">{$t('settings.cacheResetHint')}</p>
 				</section>
 			</Tabs.Content>
 
