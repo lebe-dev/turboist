@@ -344,3 +344,95 @@ func TestFilterEvicted_SuppressesDuringRefresh(t *testing.T) {
 		t.Errorf("remaining task: got %q, want %q", tasks[0].ID, "active")
 	}
 }
+
+func TestFilterEvicted_SurvivesFullPollCycle(t *testing.T) {
+	mock := &mockCacheClient{
+		completeTaskFn: func(_ context.Context, _ string) error { return nil },
+	}
+	cache := newTestCache(mock)
+	cache.mu.Lock()
+	cache.tasks = []*Task{
+		{ID: "recurring", Content: "Daily standup"},
+		{ID: "active", Content: "Active task"},
+	}
+	cache.mu.Unlock()
+
+	// Complete the task — evicts immediately
+	if err := cache.CompleteTask(context.Background(), "recurring"); err != nil {
+		t.Fatalf("CompleteTask: %v", err)
+	}
+
+	// Simulate 30s passing (one full default poll cycle).
+	// The eviction must still suppress the task at this point.
+	cache.evictedMu.Lock()
+	for id := range cache.evicted {
+		cache.evicted[id] = time.Now().Add(-30 * time.Second)
+	}
+	cache.evictedMu.Unlock()
+
+	// FetchAll returns the task again (recurring task with next occurrence)
+	mock.fetchAllFn = func(_ context.Context) (*SyncResult, error) {
+		return &SyncResult{
+			Tasks: []*Task{
+				{ID: "recurring", Content: "Daily standup"},
+				{ID: "active", Content: "Active task"},
+			},
+		}, nil
+	}
+
+	if err := cache.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+
+	tasks := cache.Tasks()
+	if len(tasks) != 1 {
+		t.Fatalf("got %d tasks, want 1 (evicted task should still be suppressed after 30s)", len(tasks))
+	}
+	if tasks[0].ID != "active" {
+		t.Errorf("remaining task: got %q, want %q", tasks[0].ID, "active")
+	}
+}
+
+func TestFilterEvicted_ExpiresAfterGracePeriod(t *testing.T) {
+	mock := &mockCacheClient{
+		completeTaskFn: func(_ context.Context, _ string) error { return nil },
+	}
+	cache := newTestCache(mock)
+	cache.mu.Lock()
+	cache.tasks = []*Task{
+		{ID: "recurring", Content: "Daily standup"},
+	}
+	cache.mu.Unlock()
+
+	if err := cache.CompleteTask(context.Background(), "recurring"); err != nil {
+		t.Fatalf("CompleteTask: %v", err)
+	}
+
+	// Simulate grace period expiring (46s > 45s)
+	cache.evictedMu.Lock()
+	for id := range cache.evicted {
+		cache.evicted[id] = time.Now().Add(-46 * time.Second)
+	}
+	cache.evictedMu.Unlock()
+
+	// FetchAll returns the task (recurring next occurrence)
+	mock.fetchAllFn = func(_ context.Context) (*SyncResult, error) {
+		return &SyncResult{
+			Tasks: []*Task{
+				{ID: "recurring", Content: "Daily standup (next)"},
+			},
+		}, nil
+	}
+
+	if err := cache.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+
+	tasks := cache.Tasks()
+	if len(tasks) != 1 {
+		t.Fatalf("got %d tasks, want 1 (eviction should have expired, task should reappear)", len(tasks))
+	}
+	if tasks[0].ID != "recurring" {
+		t.Errorf("task id: got %q, want %q", tasks[0].ID, "recurring")
+	}
+}

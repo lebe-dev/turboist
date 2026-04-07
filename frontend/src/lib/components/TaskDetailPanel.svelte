@@ -74,12 +74,12 @@
 		taskFetching = true;
 		taskFromApi = null;
 		getTask(taskId)
-			.then((t) => { if (fetchSeq === seq) taskFromApi = tasksStore.applyPendingTaskUpdate(t); })
+			.then((t) => { if (fetchSeq === seq) taskFromApi = t; })
 			.catch(() => { if (!taskFromStore) onclose(); })
 			.finally(() => { taskFetching = false; });
 	});
 
-	// Store is the source of truth (offline-first). API only supplements
+	// Store is the source of truth. API only supplements
 	// with children that aren't in the current view/context.
 	const task = $derived.by(() => {
 		const api = taskFromApi?.id === taskId ? taskFromApi : null;

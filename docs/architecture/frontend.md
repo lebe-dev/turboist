@@ -87,6 +87,6 @@ Two channels: `tasks` (main view) and `planning` (weekly/backlog).
 
 ## Optimistic Mutation Strategy
 
-- **Remove**: `pendingRemovals` Set overlay — tasks filtered out in getter, cleared when server confirms
+- **Remove**: `pendingRemovals` Map overlay (id → timestamp) — tasks filtered out in getter, entries expire after 30s grace period
 - **Add/Insert**: directly modifies `$state` flat array
 - **Update**: modifies `$state` flat array directly

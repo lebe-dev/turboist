@@ -16,7 +16,7 @@ const (
 	coldStartRetries  = 10
 	coldStartInterval = 10 * time.Second
 	refreshDebounce   = 1 * time.Second
-	evictGracePeriod  = 15 * time.Second
+	evictGracePeriod  = 45 * time.Second
 )
 
 // cacheClient abstracts the Todoist client methods used by Cache, enabling testing.

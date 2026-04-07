@@ -7,9 +7,10 @@ import {
 	type SnapshotTasksData,
 	type DeltaTasksData
 } from '$lib/ws/client.svelte';
-import { flattenTasks, buildTree, taskToFlat, type FlatTask } from '$lib/utils/task-tree';
+import { flattenTasks, buildTree, taskToFlat, flatToTask, type FlatTask } from '$lib/utils/task-tree';
 
 const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const PENDING_REMOVAL_GRACE_MS = 30_000; // 30 seconds — must exceed backend poll interval
 
 function createTasksStore() {
 	let flatTasks = $state<FlatTask[]>([]);
@@ -35,8 +36,8 @@ function createTasksStore() {
 		backlog_count: 0
 	});
 
-	// IDs of tasks optimistically removed — survives fetches until server catches up
-	const pendingRemovals = new Set<string>();
+	// IDs of tasks optimistically removed — survives fetches until grace period expires
+	const pendingRemovals = new Map<string, number>();
 
 	// Map temp task IDs to their reconciled real IDs (for navigation redirect)
 	let reconciledIds = $state<Record<string, string>>({});
@@ -54,11 +55,11 @@ function createTasksStore() {
 	function applyPendingRemovals(taskList: Task[]): Task[] {
 		if (pendingRemovals.size === 0) return taskList;
 
-		function hasId(list: Task[], id: string): boolean {
-			return list.some((t) => t.id === id || hasId(t.children, id));
-		}
-		for (const id of [...pendingRemovals]) {
-			if (!hasId(taskList, id)) pendingRemovals.delete(id);
+		const now = Date.now();
+		for (const [id, timestamp] of [...pendingRemovals]) {
+			if (now - timestamp > PENDING_REMOVAL_GRACE_MS) {
+				pendingRemovals.delete(id);
+			}
 		}
 		if (pendingRemovals.size === 0) return taskList;
 
@@ -114,10 +115,12 @@ function createTasksStore() {
 		if (d.upserted?.length > 0) {
 			const upsertedFlat = flattenTasks(d.upserted);
 
-			// Clear pendingRemovals for upserted tasks — handles recurring tasks
-			// that come back with a new due date after item_close.
+			// Clear pendingRemovals for upserted tasks only after grace period —
+			// prevents completed tasks from reappearing before backend confirms removal.
+			const now = Date.now();
 			for (const f of upsertedFlat) {
-				if (pendingRemovals.has(f.id)) {
+				const removedAt = pendingRemovals.get(f.id);
+				if (removedAt !== undefined && now - removedAt > PENDING_REMOVAL_GRACE_MS) {
 					pendingRemovals.delete(f.id);
 				}
 			}
@@ -293,7 +296,7 @@ function createTasksStore() {
 	function updateTaskLocal(taskId: string, updater: (task: Task) => Task): void {
 		flatTasks = flatTasks.map((f) => {
 			if (f.id !== taskId) return f;
-			const task = flatToTaskSingle(f);
+			const task = flatToTask(f);
 			const updated = updater(task);
 			return taskToFlat(updated);
 		});
@@ -302,7 +305,7 @@ function createTasksStore() {
 	function removeTaskLocal(taskId: string): void {
 		// Only add to pendingRemovals overlay — don't modify $state.
 		// The tasks getter applies pendingRemovals filter on read.
-		pendingRemovals.add(taskId);
+		pendingRemovals.set(taskId, Date.now());
 	}
 
 	function clearPendingRemoval(taskId: string): void {
@@ -323,27 +326,6 @@ function createTasksStore() {
 			updated.push(flat);
 		}
 		flatTasks = updated;
-	}
-
-	function flatToTaskSingle(flat: FlatTask): Task {
-		return {
-			id: flat.id,
-			content: flat.content,
-			description: flat.description,
-			project_id: flat.project_id,
-			section_id: flat.section_id,
-			parent_id: flat.parent_id,
-			labels: [...flat.labels],
-			priority: flat.priority,
-			due: flat.due_date ? { date: flat.due_date, recurring: flat.due_recurring } : null,
-			sub_task_count: flat.sub_task_count,
-			completed_sub_task_count: flat.completed_sub_task_count,
-			completed_at: flat.completed_at,
-			added_at: flat.added_at,
-			is_project_task: flat.is_project_task,
-			postpone_count: flat.postpone_count,
-			children: []
-		};
 	}
 
 	return {
@@ -384,11 +366,6 @@ function createTasksStore() {
 		clearPendingRemoval,
 		addTaskLocal,
 		insertAfterLocal,
-		// Identity function — kept for callers that still reference it (e.g. TaskDetailPanel).
-		// Previously overlaid queued mutations; now mutations go directly to server.
-		applyPendingTaskUpdate(task: Task): Task {
-			return task;
-		},
 		resolveTaskId(id: string): string | null {
 			return reconciledIds[id] ?? null;
 		}

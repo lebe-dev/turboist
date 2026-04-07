@@ -310,16 +310,110 @@ describe('tasksStore delta temp→real reconciliation', () => {
 		expect(tasksStore.tasks.map((t) => t.id)).toEqual(['A', 'B', 'new-1']);
 	});
 
-	it('delta upsert clears pendingRemoval — recurring task reappears with next due date', async () => {
+	it('delta upsert clears pendingRemoval — recurring task reappears after grace period', async () => {
+		vi.useFakeTimers();
+		try {
+			const recurringTask: Task = { ...makeTask('1'), due: { date: '2026-04-07', recurring: true } };
+			const { tasksStore, handleDelta } = await setupWithTasks([recurringTask, makeTask('2')]);
+
+			tasksStore.removeTaskLocal('1');
+			expect(tasksStore.tasks).toHaveLength(1);
+
+			// Advance past grace period (30s)
+			vi.advanceTimersByTime(31_000);
+
+			// Server processes item_close: same ID, next due date
+			handleDelta({ upserted: [{ ...makeTask('1'), due: { date: '2026-04-14', recurring: true } }], removed: [] });
+
+			expect(tasksStore.tasks).toHaveLength(2);
+			expect(tasksStore.tasks.find((t) => t.id === '1')!.due!.date).toBe('2026-04-14');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe('tasksStore pendingRemovals grace period', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.useFakeTimers();
+		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.resetModules();
+	});
+
+	async function setupWithTasks(tasks: Task[]) {
+		const { tasksStore } = await import('./tasks.svelte');
+		const calls = mockWsClient.onMessage.mock.calls as unknown[][];
+		const snapshotCall = calls.findLast(
+			(c) => c[0] === 'snapshot' && c[1] === 'tasks'
+		);
+		if (!snapshotCall) throw new Error('snapshot handler not registered');
+		const handleSnapshot = snapshotCall[2] as (data: unknown) => void;
+		const deltaCall = calls.findLast(
+			(c) => c[0] === 'delta' && c[1] === 'tasks'
+		);
+		if (!deltaCall) throw new Error('delta handler not registered');
+		const handleDelta = deltaCall[2] as (data: unknown) => void;
+
+		const meta: Meta = {
+			context: '',
+			weekly_limit: 0,
+			weekly_count: 0,
+			backlog_limit: 0,
+			backlog_count: 0,
+			last_synced_at: new Date().toISOString()
+		};
+		handleSnapshot({ tasks, meta });
+		return { tasksStore, handleSnapshot, handleDelta, meta };
+	}
+
+	it('task stays hidden when delta upserts within grace period', async () => {
 		const recurringTask: Task = { ...makeTask('1'), due: { date: '2026-04-07', recurring: true } };
 		const { tasksStore, handleDelta } = await setupWithTasks([recurringTask, makeTask('2')]);
 
+		// Complete the task
 		tasksStore.removeTaskLocal('1');
 		expect(tasksStore.tasks).toHaveLength(1);
 
-		// Server processes item_close: same ID, next due date
-		handleDelta({ upserted: [{ ...makeTask('1'), due: { date: '2026-04-14', recurring: true } }], removed: [] });
+		// Delta removes the task (server eviction)
+		handleDelta({ upserted: [], removed: ['1'] });
 
+		// Advance 10s (within 30s grace period)
+		vi.advanceTimersByTime(10_000);
+
+		// Server sends delta with recurring task (next occurrence) — within grace period
+		handleDelta({
+			upserted: [{ ...makeTask('1'), due: { date: '2026-04-14', recurring: true } }],
+			removed: []
+		});
+
+		// Task should still be hidden (within grace period)
+		expect(tasksStore.tasks).toHaveLength(1);
+		expect(tasksStore.tasks[0].id).toBe('2');
+	});
+
+	it('recurring task reappears after grace period expires', async () => {
+		const recurringTask: Task = { ...makeTask('1'), due: { date: '2026-04-07', recurring: true } };
+		const { tasksStore, handleDelta } = await setupWithTasks([recurringTask, makeTask('2')]);
+
+		// Complete the task
+		tasksStore.removeTaskLocal('1');
+		expect(tasksStore.tasks).toHaveLength(1);
+
+		// Advance past grace period (31s > 30s)
+		vi.advanceTimersByTime(31_000);
+
+		// Server sends delta with recurring task (next occurrence)
+		handleDelta({
+			upserted: [{ ...makeTask('1'), due: { date: '2026-04-14', recurring: true } }],
+			removed: []
+		});
+
+		// Task should reappear (grace period expired)
 		expect(tasksStore.tasks).toHaveLength(2);
 		expect(tasksStore.tasks.find((t) => t.id === '1')!.due!.date).toBe('2026-04-14');
 	});
@@ -384,21 +478,3 @@ describe('tasksStore WS reconnect resubscribe', () => {
 	});
 });
 
-describe('tasksStore applyPendingTaskUpdate', () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		mockWsClient.onStateChange.mockImplementation(() => vi.fn());
-	});
-
-	afterEach(() => {
-		vi.resetModules();
-	});
-
-	it('applyPendingTaskUpdate is identity (no queue)', async () => {
-		const { tasksStore } = await import('./tasks.svelte');
-
-		const task = makeTask('1');
-		const result = tasksStore.applyPendingTaskUpdate(task);
-		expect(result).toBe(task);
-	});
-});
