@@ -368,11 +368,14 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 		}
 	}
 
-	// Detect postpone: task had a due date and it's being changed to a different date.
+	// Detect postpone: only increment when the due date moves further into the future.
+	// Moving closer (earlier date or today) is not a postpone.
 	if req.DueDate != nil && *req.DueDate != "" {
 		if existing := h.findTask(id); existing != nil && existing.Due != nil && existing.Due.Date != *req.DueDate {
-			if err := h.store.IncrementPostponeCount(id); err != nil {
-				log.Error("increment postpone count failed", "id", id, "err", err)
+			if *req.DueDate > existing.Due.Date {
+				if err := h.store.IncrementPostponeCount(id); err != nil {
+					log.Error("increment postpone count failed", "id", id, "err", err)
+				}
 			}
 		}
 	}
