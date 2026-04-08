@@ -116,6 +116,13 @@ type autoRemoveStatusResponse struct {
 	Paused  bool                     `json:"paused"`
 }
 
+type troikiConfigResponse struct {
+	Enabled            bool   `json:"enabled"`
+	ProjectID          string `json:"project_id,omitempty"`
+	ProjectName        string `json:"project_name,omitempty"`
+	MaxTasksPerSection int    `json:"max_tasks_per_section,omitempty"`
+}
+
 type appConfigResponse struct {
 	Settings        settingsResponse         `json:"settings"`
 	Contexts        []contextItem            `json:"contexts"`
@@ -127,6 +134,7 @@ type appConfigResponse struct {
 	ProjectTasks    []projectTaskItem        `json:"project_tasks"`
 	LabelProjectMap labelProjectMapResponse  `json:"label_project_map"`
 	AutoRemove      autoRemoveStatusResponse `json:"auto_remove"`
+	Troiki          troikiConfigResponse     `json:"troiki"`
 	State           *storage.UserState       `json:"state"`
 }
 
@@ -283,6 +291,20 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		arStatus.Paused = h.autoRemove.Paused()
 	}
 
+	// Troiki
+	var troiki troikiConfigResponse
+	if h.cfg.TroikiSystem.Enabled {
+		troiki.Enabled = true
+		troiki.ProjectName = h.cfg.TroikiSystem.ProjectName
+		troiki.MaxTasksPerSection = h.cfg.TroikiSystem.MaxTasksPerSection
+		for _, p := range projects {
+			if p.Name == h.cfg.TroikiSystem.ProjectName {
+				troiki.ProjectID = p.ID
+				break
+			}
+		}
+	}
+
 	// User state
 	state, err := h.store.GetState()
 	if err != nil {
@@ -300,6 +322,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		ProjectTasks:    projectTasks,
 		LabelProjectMap: labelProjectMap,
 		AutoRemove:      arStatus,
+		Troiki:          troiki,
 		State:           state,
 	})
 }
