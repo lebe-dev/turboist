@@ -69,7 +69,9 @@
 
 	// Fetch full task from API — store may have filtered children (different context).
 	// API result supplements the store but never overrides local state.
+	// Skip fetch for temp IDs — they only exist locally until reconciliation.
 	$effect(() => {
+		if (taskId.startsWith('temp-')) return;
 		const seq = ++fetchSeq;
 		taskFetching = true;
 		taskFromApi = null;
@@ -143,7 +145,7 @@
 
 	$effect(() => {
 		const id = taskId;
-		if (!id) {
+		if (!id || id.startsWith('temp-')) {
 			completedSubtasks = [];
 			return;
 		}
