@@ -82,6 +82,7 @@ type AppConfig struct {
 	AutoLabels         []AutoLabelConfig
 	CompiledAutoLabels []CompiledAutoLabel
 	LabelProjectMap    LabelProjectMapConfig
+	TroikiSystem       TroikiConfig
 }
 
 // FindContext returns the context with the given ID, or nil if not found.
@@ -183,6 +184,19 @@ type LabelProjectMapConfig struct {
 	Mappings []LabelProjectMapping
 }
 
+type TroikiSectionsConfig struct {
+	Important string `yaml:"important"` // default "Важное"
+	Medium    string `yaml:"medium"`    // default "Среднее"
+	Rest      string `yaml:"rest"`      // default "Остальное"
+}
+
+type TroikiConfig struct {
+	Enabled            bool                 `yaml:"enabled"`
+	ProjectName        string               `yaml:"project_name"`
+	Sections           TroikiSectionsConfig `yaml:"sections"`
+	MaxTasksPerSection int                  `yaml:"max_tasks_per_section"` // default 3
+}
+
 type LabelProjectMapping struct {
 	Label   string `yaml:"label"`
 	Project string `yaml:"project"`
@@ -221,6 +235,7 @@ type yamlFile struct {
 	QuickCapture    *QuickCaptureConfig  `yaml:"quick_capture"`
 	AutoLabels      []AutoLabelConfig    `yaml:"auto_labels"`
 	LabelProjectMap *yamlLabelProjectMap `yaml:"label_project_map"`
+	TroikiSystem    *TroikiConfig        `yaml:"troiki_system"`
 }
 
 type yamlAutoRemove struct {
@@ -340,6 +355,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 		QuickCapture:    yf.QuickCapture,
 		AutoLabels:      yf.AutoLabels,
 		LabelProjectMap: parseLabelProjectMap(yf.LabelProjectMap),
+		TroikiSystem:    parseTroikiSystem(yf.TroikiSystem),
 	}
 
 	if err := validateDayParts(yf.Today.DayParts); err != nil {
@@ -369,6 +385,26 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	app.CompiledAutoLabels = compiled
 
 	return app, nil
+}
+
+func parseTroikiSystem(tc *TroikiConfig) TroikiConfig {
+	if tc == nil {
+		return TroikiConfig{}
+	}
+	result := *tc
+	if result.MaxTasksPerSection <= 0 {
+		result.MaxTasksPerSection = 3
+	}
+	if result.Sections.Important == "" {
+		result.Sections.Important = "Важное"
+	}
+	if result.Sections.Medium == "" {
+		result.Sections.Medium = "Среднее"
+	}
+	if result.Sections.Rest == "" {
+		result.Sections.Rest = "Остальное"
+	}
+	return result
 }
 
 func parseLabelProjectMap(ylp *yamlLabelProjectMap) LabelProjectMapConfig {

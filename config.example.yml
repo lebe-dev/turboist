@@ -153,6 +153,22 @@ label_project_map:
     - label: "работа"
       project: "Работа"
 
+# Troiki System — organizes tasks into 3 priority classes (Important, Medium, Rest)
+# within a dedicated Todoist project. Each class holds max N root tasks.
+# Completing tasks in a higher class unlocks capacity in the next class.
+# enabled: false by default — set to true to activate.
+troiki_system:
+  enabled: false
+  # Name of the Todoist project to use (will be resolved by name from cache)
+  project_name: "Тройки"
+  # Maximum root tasks per section (default: 3)
+  max_tasks_per_section: 3
+  # Section names in Todoist (defaults: "Важное", "Среднее", "Остальное")
+  sections:
+    important: "Важное"
+    medium: "Среднее"
+    rest: "Остальное"
+
 # Auto-remove: automatically delete tasks after TTL expires.
 # TTL is counted from the moment the label is first seen in the cache.
 # The timer resets on application restart.
