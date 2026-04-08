@@ -44,7 +44,8 @@ type Client struct {
 
 // NewClient creates a new Todoist API client with the given API key.
 func NewClient(apiKey string) *Client {
-	cli := extclient.NewClient(http.DefaultClient, apiKey, extclient.DefaultHandler)
+	handler := newSyncHandler()
+	cli := extclient.NewClient(http.DefaultClient, apiKey, handler)
 	return &Client{
 		cli:     cli,
 		taskSvc: extclient.NewTaskService(cli),
