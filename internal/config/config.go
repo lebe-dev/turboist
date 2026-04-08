@@ -64,6 +64,7 @@ type AppConfig struct {
 	PollInterval       time.Duration
 	SyncInterval       time.Duration
 	Timezone           string
+	Location           *time.Location
 	TaskSort           TaskSort
 	MaxPinned          int
 	Contexts           []ContextConfig
@@ -267,7 +268,8 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	if tz == "" {
 		tz = "UTC"
 	}
-	if _, err := time.LoadLocation(tz); err != nil {
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
 		return AppConfig{}, fmt.Errorf("timezone: %w", err)
 	}
 
@@ -318,6 +320,7 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	app := AppConfig{
 		PollInterval:  pollInterval,
 		Timezone:      tz,
+		Location:      loc,
 		TaskSort:      taskSort,
 		MaxPinned:     maxPinned,
 		Contexts:      yf.Contexts,

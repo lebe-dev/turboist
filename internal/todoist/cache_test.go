@@ -13,6 +13,7 @@ import (
 // mockCacheClient implements cacheClient for tests.
 type mockCacheClient struct {
 	fetchAllFn                func(ctx context.Context) (*SyncResult, error)
+	fetchIncrementalFn        func(ctx context.Context) (*DeltaResult, error)
 	addTaskFn                 func(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error)
 	updateTaskFn              func(ctx context.Context, args *synctodoist.TaskUpdateArgs) error
 	deleteTaskFn              func(ctx context.Context, id string) error
@@ -29,6 +30,18 @@ func (m *mockCacheClient) FetchAll(ctx context.Context) (*SyncResult, error) {
 		return m.fetchAllFn(ctx)
 	}
 	return &SyncResult{}, nil
+}
+
+func (m *mockCacheClient) FetchIncremental(ctx context.Context) (*DeltaResult, error) {
+	if m.fetchIncrementalFn != nil {
+		return m.fetchIncrementalFn(ctx)
+	}
+	// Fall back to FetchAll wrapped as a full-sync DeltaResult.
+	result, err := m.FetchAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &DeltaResult{FullSync: true, Result: result}, nil
 }
 
 func (m *mockCacheClient) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error) {

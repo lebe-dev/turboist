@@ -58,6 +58,22 @@ type Label struct {
 	Name string `json:"name"`
 }
 
+// DeltaResult holds incremental sync changes.
+// If FullSync is true, the server returned a full dataset (token expired) and
+// Result contains the complete state — delta fields should be ignored.
+type DeltaResult struct {
+	FullSync          bool
+	Result            *SyncResult
+	UpsertedTasks     []*Task
+	RemovedTaskIDs    []string
+	UpsertedProjects  []*Project
+	RemovedProjectIDs []string
+	UpsertedSections  []*Section
+	RemovedSectionIDs []string
+	UpsertedLabels    []*Label
+	RemovedLabelIDs   []string
+}
+
 // TaskFromSync maps a sync.Task to our internal Task model.
 func TaskFromSync(t *sync.Task) *Task {
 	task := &Task{
