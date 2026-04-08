@@ -33,6 +33,7 @@ type cacheClient interface {
 	DecomposeTask(ctx context.Context, src *Task, newContents []string) error
 	BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error
 	BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget) error
+	AddSection(ctx context.Context, name string, projectID string) (string, error)
 }
 
 // Cache holds an in-memory snapshot of Todoist data and keeps it fresh via Refresh.
@@ -538,6 +539,17 @@ func (c *Cache) BatchMoveTasksToProject(ctx context.Context, moves map[string]st
 	}
 	c.ScheduleRefresh()
 	return nil
+}
+
+// AddSection creates a section in a project via the Todoist API and schedules a cache refresh.
+// Returns the new section ID.
+func (c *Cache) AddSection(ctx context.Context, name string, projectID string) (string, error) {
+	newID, err := c.client.AddSection(ctx, name, projectID)
+	if err != nil {
+		return "", err
+	}
+	c.ScheduleRefresh()
+	return newID, nil
 }
 
 // BatchMoveTasks moves multiple tasks to their targets (project or section) in a single API call

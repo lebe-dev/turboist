@@ -23,6 +23,7 @@ type mockCacheClient struct {
 	decomposeTaskFn           func(ctx context.Context, src *Task, newContents []string) error
 	batchMoveTasksToProjectFn func(ctx context.Context, moves map[string]string) error
 	batchMoveTasksFn          func(ctx context.Context, moves map[string]MoveTarget) error
+	addSectionFn              func(ctx context.Context, name string, projectID string) (string, error)
 }
 
 func (m *mockCacheClient) FetchAll(ctx context.Context) (*SyncResult, error) {
@@ -112,6 +113,13 @@ func (m *mockCacheClient) BatchMoveTasks(ctx context.Context, moves map[string]M
 		return m.batchMoveTasksFn(ctx, moves)
 	}
 	return nil
+}
+
+func (m *mockCacheClient) AddSection(ctx context.Context, name string, projectID string) (string, error) {
+	if m.addSectionFn != nil {
+		return m.addSectionFn(ctx, name, projectID)
+	}
+	return "", nil
 }
 
 func newTestCache(client cacheClient) *Cache {

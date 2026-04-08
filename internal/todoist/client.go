@@ -457,6 +457,31 @@ func (c *Client) BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget
 	return nil
 }
 
+// AddSection creates a new section in a project via the Todoist Sync API and returns the new section ID.
+func (c *Client) AddSection(ctx context.Context, name string, projectID string) (string, error) {
+	log.Debug("todoist AddSection", "name", name, "project_id", projectID)
+	start := time.Now()
+	tempID := uuid.New()
+	cmds := sync.Commands{
+		&sync.Command{
+			Type:   "section_add",
+			UUID:   uuid.New(),
+			TempID: tempID,
+			Args:   map[string]any{"name": name, "project_id": projectID},
+		},
+	}
+	resp, err := c.cli.ExecuteCommands(ctx, cmds)
+	if err != nil {
+		log.Debug("todoist AddSection failed", "err", err, "elapsed", time.Since(start))
+		return "", &APIError{Op: "AddSection", Err: err}
+	}
+	if id, ok := resp.TempIDMapping[tempID]; ok {
+		log.Debug("todoist AddSection done", "id", id, "elapsed", time.Since(start))
+		return id, nil
+	}
+	return "", nil
+}
+
 // IsRateLimited reports whether the error indicates a Todoist API rate limit (HTTP 429).
 // The external library returns errors.New(http.StatusText(429)) for non-200 responses.
 func IsRateLimited(err error) bool {
