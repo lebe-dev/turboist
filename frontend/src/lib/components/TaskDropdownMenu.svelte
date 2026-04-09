@@ -58,6 +58,9 @@
 
 		onDelete,
 
+		hideDecompose = false,
+		hidePriority = false,
+
 		width = 'w-52',
 		align = 'end'
 	}: {
@@ -97,6 +100,9 @@
 		onSetPriority: (p: number) => void;
 
 		onDelete: () => void;
+
+		hideDecompose?: boolean;
+		hidePriority?: boolean;
 
 		width?: string;
 		align?: 'start' | 'end' | 'center';
@@ -150,7 +156,7 @@
 			</DropdownMenu.Item>
 		{/if}
 
-		{#if onDecompose}
+		{#if onDecompose && !hideDecompose}
 			<DropdownMenu.Item onclick={() => { handleOpenChange(false); onDecompose(); }}>
 				<ListTreeIcon class="h-4 w-4" />
 				{$t('task.decompose')}
@@ -267,21 +273,23 @@
 		{/if}
 
 		<!-- Priority section -->
-		<div class="px-2 py-1.5">
-			<p class="text-xs font-semibold text-muted-foreground">{$t('task.priority')}</p>
-			<div class="mt-1.5 flex items-center gap-1">
-				{#each priorityItems as p (p.value)}
-					<button
-						class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
-							{task.priority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
-						onclick={() => { onSetPriority(p.value); handleOpenChange(false); }}
-						aria-label={p.label}
-					>
-						<FlagIcon class="h-4 w-4" />
-					</button>
-				{/each}
+		{#if !hidePriority}
+			<div class="px-2 py-1.5">
+				<p class="text-xs font-semibold text-muted-foreground">{$t('task.priority')}</p>
+				<div class="mt-1.5 flex items-center gap-1">
+					{#each priorityItems as p (p.value)}
+						<button
+							class="flex h-7 w-7 items-center justify-center rounded-md transition-colors {p.color}
+								{task.priority === p.value ? 'bg-accent' : 'hover:bg-accent'}"
+							onclick={() => { onSetPriority(p.value); handleOpenChange(false); }}
+							aria-label={p.label}
+						>
+							<FlagIcon class="h-4 w-4" />
+						</button>
+					{/each}
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<DropdownMenu.Separator />
 

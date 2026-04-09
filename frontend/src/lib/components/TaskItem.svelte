@@ -32,7 +32,7 @@
 
 	import type { Snippet } from 'svelte';
 
-	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet } = $props();
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton, hideDecompose = false, hidePriority = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet; hideDecompose?: boolean; hidePriority?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -637,6 +637,8 @@
 					{onCalendarSelect}
 					onSetPriority={setPriority}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
+					{hideDecompose}
+					{hidePriority}
 				>
 					{#snippet trigger()}
 						<DropdownMenu.Trigger
