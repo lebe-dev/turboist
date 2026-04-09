@@ -829,6 +829,16 @@ function setDateQuick(date: string) {
 		// Using insertAfterLocal positions it after the last sibling.
 		tasksStore.insertAfterLocal(lastSiblingId, optimistic);
 		tasksStore.updateTaskLocal(parentId, (t) => ({ ...t, sub_task_count: t.sub_task_count + 1 }));
+		// Update taskFromApi when the parent is not in the flat store (e.g. navigated from troiki
+		// or task filtered out of current context). In that case insertAfterLocal won't make the
+		// child visible through taskFromStore, so we patch the API snapshot directly.
+		if (taskFromApi?.id === parentId && !taskFromStore) {
+			taskFromApi = {
+				...taskFromApi,
+				children: [...taskFromApi.children, optimistic],
+				sub_task_count: taskFromApi.sub_task_count + 1
+			};
+		}
 		// Keep form open for adding more subtasks; reset to detected prefix
 		const nextPrefix = detectPrefixFromSiblings([...existingChildren, optimistic]);
 		subtaskContent = nextPrefix || extractPrefix(task?.content ?? '');
