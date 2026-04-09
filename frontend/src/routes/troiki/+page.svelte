@@ -6,6 +6,7 @@
 	import TaskItem from '$lib/components/TaskItem.svelte';
 	import Layers3Icon from '@lucide/svelte/icons/layers-3';
 	import LockIcon from '@lucide/svelte/icons/lock';
+	import LockOpenIcon from '@lucide/svelte/icons/lock-open';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -66,19 +67,11 @@
 		return '';
 	}
 
-	function sectionHeaderClass(sectionClass: SectionClass): string {
+	function sectionColor(sectionClass: SectionClass): string {
 		switch (sectionClass) {
-			case 'important': return 'text-[13px]';
-			case 'medium': return 'text-[12px]';
-			default: return 'text-[11px]';
-		}
-	}
-
-	function taskTextSize(sectionClass: SectionClass): string {
-		switch (sectionClass) {
-			case 'important': return 'text-[15px]';
-			case 'medium': return 'text-[14px]';
-			default: return 'text-[13px]';
+			case 'important': return 'text-amber-500';
+			case 'medium': return 'text-blue-500';
+			default: return 'text-emerald-500';
 		}
 	}
 
@@ -104,35 +97,22 @@
 	{:else}
 		<div class="flex-1 overflow-y-auto px-1 pb-20 pt-2 md:px-3 md:py-3">
 			{#each troikiStore.sections as section (section.class)}
-				{@const isLocked = !section.can_add && section.class !== 'important'}
-				{@const showCapacity = section.class !== 'important'}
 				{@const completed = completedForSection(section.class)}
 
 				<div class="mb-4">
 					<!-- Section divider with name and counter -->
 					<div class="mb-2 flex items-center gap-2 px-2 md:px-3">
 						<div class="h-px flex-1 bg-border/40"></div>
-						<span class="{sectionHeaderClass(section.class)} font-semibold uppercase tracking-wider text-muted-foreground/50">
+						<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/50">
 							{section.name}
 						</span>
-						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/60">
+						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground/60">
 							{section.root_count}/{section.max_tasks}
 						</span>
-						{#if showCapacity}
-							{#if isLocked}
-								<span class="flex items-center gap-1 text-[10px] text-muted-foreground/40">
-									<LockIcon class="h-3 w-3" />
-									{$t('troiki.sectionLocked')}
-								</span>
-							{:else}
-								<span class="text-[10px] text-muted-foreground/40">
-									{$t('troiki.capacity')}: {section.capacity}
-								</span>
-							{/if}
+						{#if section.can_add}
+							<LockOpenIcon class="h-3 w-3 {sectionColor(section.class)}" />
 						{:else}
-							<span class="text-[10px] text-muted-foreground/40">
-								{$t('troiki.alwaysOpen')}
-							</span>
+							<LockIcon class="h-3 w-3 text-muted-foreground/40" />
 						{/if}
 						<div class="h-px flex-1 bg-border/40"></div>
 					</div>
@@ -141,7 +121,7 @@
 					{#if section.tasks.length > 0}
 						<div class="space-y-px px-1">
 							{#each section.tasks as task (task.id)}
-								{@render taskRow(task, taskTextSize(section.class))}
+								{@render taskRow(task, 'text-sm')}
 							{/each}
 						</div>
 					{/if}
@@ -159,11 +139,7 @@
 								disabled={submitting[section.class]}
 							/>
 						</div>
-					{:else if section.root_count >= section.max_tasks}
-						<div class="mt-1 px-3 md:px-4">
-							<p class="text-[12px] text-muted-foreground/40">{$t('troiki.sectionFull')}</p>
-						</div>
-					{:else}
+					{:else if !section.can_add && section.root_count < section.max_tasks}
 						<div class="mt-1 px-3 md:px-4">
 							<p class="text-[12px] text-muted-foreground/40">
 								{$t('troiki.unlockHint', { values: { section: previousSectionName(section.class) } })}
@@ -175,20 +151,20 @@
 					{#if completed.length > 0}
 						<div class="mt-2 px-1">
 							<button
-								class="flex cursor-pointer items-center gap-1.5 px-2 py-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground/70 transition-colors"
+								class="flex cursor-pointer items-center gap-1.5 px-2 py-2.5 text-xs text-muted-foreground/50 hover:text-muted-foreground/70 transition-colors"
 								onclick={() => { completedExpanded[section.class] = !completedExpanded[section.class]; }}
 							>
 								{#if completedExpanded[section.class]}
-									<ChevronDownIcon class="h-3 w-3" />
+									<ChevronDownIcon class="h-3.5 w-3.5" />
 								{:else}
-									<ChevronRightIcon class="h-3 w-3" />
+									<ChevronRightIcon class="h-3.5 w-3.5" />
 								{/if}
 								{$t('troiki.completed', { values: { count: completed.length } })}
 							</button>
 							{#if completedExpanded[section.class]}
 								<div class="mt-1 space-y-px opacity-50">
 									{#each completed as task (task.id)}
-										<TaskItem {task} textSize={taskTextSize(section.class)} />
+										<TaskItem {task} textSize="text-sm" completed={true} />
 									{/each}
 								</div>
 							{/if}

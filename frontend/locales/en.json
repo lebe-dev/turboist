@@ -187,7 +187,7 @@
   "settings.cacheResetFailed": "Failed to reset cache",
   "settings.cacheResetHint": "Forces a full re-sync with Todoist. Use if tasks appear stale.",
 
-  "troiki.title": "Troiki",
+  "troiki.title": "Troiki System",
   "troiki.important": "Important",
   "troiki.medium": "Medium",
   "troiki.rest": "Rest",

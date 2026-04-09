@@ -187,7 +187,7 @@
   "settings.cacheResetFailed": "Не удалось сбросить кэш",
   "settings.cacheResetHint": "Принудительная полная синхронизация с Todoist. Используйте, если задачи выглядят устаревшими.",
 
-  "troiki.title": "Тройки",
+  "troiki.title": "Система Тройки",
   "troiki.important": "Важное",
   "troiki.medium": "Среднее",
   "troiki.rest": "Остальное",
