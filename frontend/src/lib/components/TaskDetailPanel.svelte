@@ -243,7 +243,7 @@
 
 	// Close pickers/editors on click outside
 	$effect(() => {
-		if (!showLabelPicker && !showPriorityPicker && !showCalendar && !editingTitle && !editingDesc) return;
+		if (!showLabelPicker && !showPriorityPicker && !showCalendar && !editingTitle && !editingDesc && !showSubtaskPriorityPicker) return;
 
 		function handlePointerDown(e: PointerEvent) {
 			const target = e.target as Node;
@@ -252,6 +252,9 @@
 			}
 			if (showPriorityPicker && priorityPickerRef && !priorityPickerRef.contains(target)) {
 				showPriorityPicker = false;
+			}
+			if (showSubtaskPriorityPicker && subtaskPriorityPickerRef && !subtaskPriorityPickerRef.contains(target)) {
+				showSubtaskPriorityPicker = false;
 			}
 			if (showCalendar && calendarRef && !calendarRef.contains(target)) {
 				showCalendar = false;
@@ -738,6 +741,16 @@ function setDateQuick(date: string) {
 	let subtaskContent = $state('');
 	let subtaskTextarea: HTMLTextAreaElement | undefined = $state();
 	let addingSubtask = $state(false);
+	let subtaskPriority = $state(1);
+	let subtaskDueDate = $state('');
+	let showSubtaskPriorityPicker = $state(false);
+	let subtaskPriorityPickerRef: HTMLDivElement | undefined = $state();
+
+	function localISODate(offsetDays = 0): string {
+		const d = new Date();
+		d.setDate(d.getDate() + offsetDays);
+		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+	}
 
 	function extractPrefix(content: string): string {
 		const match = content.match(/^(.+?(?::\s|\s-\s))/);
@@ -785,6 +798,9 @@ function setDateQuick(date: string) {
 			}
 		}
 		subtaskContent = prefix;
+		subtaskPriority = 1;
+		subtaskDueDate = '';
+		showSubtaskPriorityPicker = false;
 
 		showSubtaskForm = true;
 		tick().then(() => {
@@ -807,6 +823,9 @@ function setDateQuick(date: string) {
 		const existingChildren = task.children;
 		const lastSiblingId = existingChildren.at(-1)?.id ?? '';
 
+		const pri = subtaskPriority;
+		const dueDate = subtaskDueDate;
+
 		const optimistic: Task = {
 			id: tempId,
 			content,
@@ -815,8 +834,8 @@ function setDateQuick(date: string) {
 			section_id: task.section_id,
 			parent_id: parentId,
 			labels,
-			priority: 1,
-			due: null,
+			priority: pri,
+			due: dueDate ? { date: dueDate, recurring: false } : null,
 			sub_task_count: 0,
 			completed_sub_task_count: 0,
 			completed_at: null,
@@ -839,18 +858,15 @@ function setDateQuick(date: string) {
 				sub_task_count: taskFromApi.sub_task_count + 1
 			};
 		}
-		// Keep form open for adding more subtasks; reset to detected prefix
-		const nextPrefix = detectPrefixFromSiblings([...existingChildren, optimistic]);
-		subtaskContent = nextPrefix || extractPrefix(task?.content ?? '');
-		tick().then(() => {
-			subtaskTextarea?.focus();
-			subtaskTextarea?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-		});
-		createTask(
-			{ content, description: '', labels, priority: 1, parent_id: parentId },
-			contextsStore.activeContextId ?? undefined,
-			tempId
-		).catch((e) => {
+		// Close form after submit
+		showSubtaskForm = false;
+		subtaskContent = '';
+		subtaskDueDate = '';
+		subtaskPriority = 1;
+		showSubtaskPriorityPicker = false;
+		const req: Parameters<typeof createTask>[0] = { content, description: '', labels, priority: pri, parent_id: parentId };
+		if (dueDate) req.due_date = dueDate;
+		createTask(req, contextsStore.activeContextId ?? undefined, tempId).catch((e) => {
 			logger.error('tasks', `create subtask failed: ${e}`);
 			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();
@@ -1174,23 +1190,67 @@ function setDateQuick(date: string) {
 				}
 			}}
 		></textarea>
-		<div class="mt-1.5 flex items-center justify-end gap-2">
+		<div class="mt-1.5 flex items-center gap-1">
 			<button
-				class="rounded-md px-3 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-				onclick={() => { showSubtaskForm = false; subtaskContent = ''; }}
+				class="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors
+					{subtaskDueDate === localISODate(0) ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+				onclick={() => { subtaskDueDate = subtaskDueDate === localISODate(0) ? '' : localISODate(0); }}
 			>
-				{$t('dialog.cancel')}
+				<CalendarIcon class="h-3 w-3" />
+				{$t('due.today')}
 			</button>
 			<button
-				class="rounded-md px-3 py-1 text-[12px] font-medium transition-colors
-					{subtaskContent.trim()
-						? 'bg-primary text-primary-foreground hover:bg-primary/90'
-						: 'bg-muted text-muted-foreground cursor-not-allowed'}"
-				disabled={!subtaskContent.trim() || addingSubtask}
-				onclick={saveSubtask}
+				class="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors
+					{subtaskDueDate === localISODate(1) ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+				onclick={() => { subtaskDueDate = subtaskDueDate === localISODate(1) ? '' : localISODate(1); }}
 			>
-				{addingSubtask ? '...' : $t('task.add')}
+				<CalendarIcon class="h-3 w-3" />
+				{$t('due.tomorrow')}
 			</button>
+			<div bind:this={subtaskPriorityPickerRef} class="relative">
+				<button
+					class="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition-colors
+						{subtaskPriority > 1 ? (priorityItems.find(p => p.value === subtaskPriority)?.color ?? 'text-muted-foreground') : 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+					onclick={() => { showSubtaskPriorityPicker = !showSubtaskPriorityPicker; }}
+				>
+					<FlagIcon class="h-3 w-3" />
+					{subtaskPriority > 1 ? (priorityItems.find(p => p.value === subtaskPriority)?.label ?? '') : $t('task.priority')}
+				</button>
+				{#if showSubtaskPriorityPicker}
+					<div class="absolute bottom-full left-0 z-10 mb-1 w-32 rounded-lg border border-border bg-popover shadow-xl">
+						<div class="px-1 py-1">
+							{#each priorityItems as p (p.value)}
+								<button
+									class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
+										{subtaskPriority === p.value ? 'bg-accent' : ''}"
+									onclick={() => { subtaskPriority = p.value; showSubtaskPriorityPicker = false; }}
+								>
+									<FlagIcon class="h-3 w-3 {p.color}" />
+									<span class={p.color}>{p.label}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
+			<div class="ml-auto flex items-center gap-2">
+				<button
+					class="rounded-md px-3 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					onclick={() => { showSubtaskForm = false; subtaskContent = ''; subtaskDueDate = ''; subtaskPriority = 1; }}
+				>
+					{$t('dialog.cancel')}
+				</button>
+				<button
+					class="rounded-md px-3 py-1 text-[12px] font-medium transition-colors
+						{subtaskContent.trim()
+							? 'bg-primary text-primary-foreground hover:bg-primary/90'
+							: 'bg-muted text-muted-foreground cursor-not-allowed'}"
+					disabled={!subtaskContent.trim() || addingSubtask}
+					onclick={saveSubtask}
+				>
+					{addingSubtask ? '...' : $t('task.add')}
+				</button>
+			</div>
 		</div>
 	{/snippet}
 
