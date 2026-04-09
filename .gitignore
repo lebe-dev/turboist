@@ -10,3 +10,4 @@
 /plans/
 /coverage.*
 docs/superpowers
+.playwright-mcp
