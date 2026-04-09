@@ -4,9 +4,11 @@ import type { BackendConnector } from './backend';
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	CreateTroikiTaskRequest,
 	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
+	TroikiState,
 	UpdateTaskRequest,
 	UserState
 } from './types';
@@ -177,6 +179,20 @@ export class DefaultBackendConnector implements BackendConnector {
 			method: 'POST',
 			body: JSON.stringify(data)
 		});
+	}
+
+	// Troiki
+
+	async getTroikiState(): Promise<TroikiState> {
+		return this.request<TroikiState>('/api/troiki');
+	}
+
+	async createTroikiTask(data: CreateTroikiTaskRequest): Promise<string> {
+		const res = await this.request<{ ok: boolean; id?: string }>('/api/troiki/tasks', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+		return res?.id ?? '';
 	}
 
 	// Config & state

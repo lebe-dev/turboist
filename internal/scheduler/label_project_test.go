@@ -272,6 +272,30 @@ func TestLabelProjectSync_SameProjectNoSection_Moves(t *testing.T) {
 	}
 }
 
+func TestLabelProjectSync_ExcludedProject_NeverMoved(t *testing.T) {
+	m := &mockProjectMover{
+		tasks: []*todoist.Task{
+			lpTask("1", "troiki"),          // in excluded project, no label → would go to inbox
+			lpTask("2", "inbox", "health"), // normal task → should move
+		},
+		projects: []*todoist.Project{{ID: "p1", Name: "Personal"}},
+		inboxID:  "inbox",
+	}
+	lp := NewLabelProjectSync(m, lpMappings("health", "Personal"))
+	lp.ExcludeProjects("troiki")
+	lp.Job(context.Background())
+
+	if len(m.moves) != 1 {
+		t.Fatalf("got %d moves, want 1 (excluded task must not move)", len(m.moves))
+	}
+	if m.moves["1"] != (todoist.MoveTarget{}) {
+		t.Error("excluded project task should not be in moves")
+	}
+	if m.moves["2"].ProjectID != "p1" {
+		t.Errorf("got project %q, want p1", m.moves["2"].ProjectID)
+	}
+}
+
 func TestLabelProjectSync_UnknownSection_MovesToProject(t *testing.T) {
 	m := &mockProjectMover{
 		tasks:    []*todoist.Task{lpTask("1", "inbox", "health")},

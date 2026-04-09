@@ -1,20 +1,24 @@
 package ws
 
 import (
+	"encoding/json"
+	"hash/fnv"
 	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/taskview"
 	"github.com/lebe-dev/turboist/internal/todoist"
+	"github.com/lebe-dev/turboist/internal/troiki"
 )
 
 // Hub manages all WebSocket clients and broadcasts cache updates.
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[*Client]struct{}
-	cache   *todoist.Cache
-	cfg     *config.AppConfig
+	mu            sync.RWMutex
+	clients       map[*Client]struct{}
+	cache         *todoist.Cache
+	cfg           *config.AppConfig
+	troikiService *troiki.Service
 }
 
 // NewHub creates a new Hub.
@@ -24,6 +28,11 @@ func NewHub(cache *todoist.Cache, cfg *config.AppConfig) *Hub {
 		cache:   cache,
 		cfg:     cfg,
 	}
+}
+
+// SetTroikiService sets the troiki service for the hub (nil when disabled).
+func (h *Hub) SetTroikiService(svc *troiki.Service) {
+	h.troikiService = svc
 }
 
 func (h *Hub) register(c *Client) {
@@ -67,6 +76,9 @@ func (h *Hub) broadcastToClient(c *Client) {
 	}
 	if c.planningSub != nil {
 		h.broadcastPlanning(c)
+	}
+	if c.troikiSub != nil && h.troikiService != nil {
+		h.broadcastTroiki(c)
 	}
 }
 
@@ -216,4 +228,103 @@ func (h *Hub) sendPlanningSnapshot(c *Client) {
 	if !ok {
 		c.lastPlanningSnap = nil
 	}
+}
+
+func (h *Hub) broadcastTroiki(c *Client) {
+	state, err := h.troikiService.ComputeState()
+	if err != nil {
+		log.Error("ws: troiki compute state failed", "err", err)
+		return
+	}
+
+	newSnap := hashTroikiState(state)
+
+	if c.lastTroikiSnap == nil {
+		snap := newSnap
+		c.lastTroikiSnap = &snap
+		ok := c.sendJSON(OutgoingMessage{
+			Type:    MsgSnapshot,
+			Channel: ChannelTroiki,
+			Seq:     c.troikiSub.Seq,
+			Data:    state,
+		})
+		if !ok {
+			c.lastTroikiSnap = nil
+		}
+		return
+	}
+
+	// Find changed sections
+	var changed []troiki.SectionState
+	for i := 0; i < 3 && i < len(state.Sections); i++ {
+		if newSnap[i] != c.lastTroikiSnap[i] {
+			changed = append(changed, state.Sections[i])
+		}
+	}
+
+	if len(changed) == 0 {
+		return
+	}
+
+	snap := newSnap
+	c.lastTroikiSnap = &snap
+	c.sendJSON(OutgoingMessage{
+		Type:    MsgDelta,
+		Channel: ChannelTroiki,
+		Seq:     c.troikiSub.Seq,
+		Data: TroikiDelta{
+			Sections: toAnySlice(changed),
+		},
+	})
+}
+
+// sendTroikiSnapshot computes and sends a full troiki snapshot to a client.
+// Caller must hold c.mu.
+func (h *Hub) sendTroikiSnapshot(c *Client) {
+	if c.troikiSub == nil || h.troikiService == nil {
+		return
+	}
+
+	state, err := h.troikiService.ComputeState()
+	if err != nil {
+		log.Error("ws: troiki compute state failed", "err", err)
+		return
+	}
+
+	snap := hashTroikiState(state)
+	c.lastTroikiSnap = &snap
+	ok := c.sendJSON(OutgoingMessage{
+		Type:    MsgSnapshot,
+		Channel: ChannelTroiki,
+		Seq:     c.troikiSub.Seq,
+		Data:    state,
+	})
+	if !ok {
+		c.lastTroikiSnap = nil
+	}
+}
+
+func hashTroikiState(state troiki.State) TroikiSnapshot {
+	var snap TroikiSnapshot
+	for i, sec := range state.Sections {
+		if i >= 3 {
+			break
+		}
+		data, err := json.Marshal(sec)
+		if err != nil {
+			continue
+		}
+		h := fnv.New64a()
+		h.Write(data)
+		snap[i] = h.Sum64()
+	}
+	return snap
+}
+
+func toAnySlice(sections []troiki.SectionState) []any {
+	result := make([]any, len(sections))
+	for i, s := range sections {
+		result[i] = s
+	}
+	return result
 }

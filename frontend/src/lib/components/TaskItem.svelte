@@ -32,7 +32,7 @@
 
 	import type { Snippet } from 'svelte';
 
-	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, dropdownExtra, actionButton }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; dropdownExtra?: Snippet; actionButton?: Snippet } = $props();
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -523,7 +523,7 @@
 			{/if}
 
 			{#snippet taskContentInner()}
-				<MarkdownContent text={task.content} class="break-words text-[13px] leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}" />
+				<MarkdownContent text={task.content} class="break-words {textSize} leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}" />
 				{#if task.description && !completed}
 					<p class="truncate text-[12px] text-muted-foreground"><MarkdownContent text={task.description} /></p>
 				{/if}

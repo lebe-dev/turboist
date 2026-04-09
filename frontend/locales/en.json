@@ -185,5 +185,18 @@
   "settings.cacheResetting": "Resetting...",
   "settings.cacheResetDone": "Cache reset successfully",
   "settings.cacheResetFailed": "Failed to reset cache",
-  "settings.cacheResetHint": "Forces a full re-sync with Todoist. Use if tasks appear stale."
+  "settings.cacheResetHint": "Forces a full re-sync with Todoist. Use if tasks appear stale.",
+
+  "troiki.title": "Troiki",
+  "troiki.important": "Important",
+  "troiki.medium": "Medium",
+  "troiki.rest": "Rest",
+  "troiki.capacity": "capacity",
+  "troiki.slotsUsed": "{count}/{max}",
+  "troiki.sectionLocked": "locked",
+  "troiki.sectionFull": "Section is full",
+  "troiki.addTask": "Add task...",
+  "troiki.alwaysOpen": "always open",
+  "troiki.unlockHint": "Complete a task in {section} to unlock",
+  "troiki.empty": "Troiki sections are loading..."
 }

@@ -1,0 +1,44 @@
+[     132ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://t.tinyops.ru/troiki:0
+[     159ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://t.tinyops.ru/troiki:0
+[     249ms] [WARNING] [svelte-intl-precompile] The message "troiki.empty" was not found in "", "en".
+
+Note: there are at least one loader still registered to this locale that wasn't executed. @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     249ms] [WARNING] [svelte-intl-precompile] The message "troiki.title" was not found in "", "en".
+
+Note: there are at least one loader still registered to this locale that wasn't executed. @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     250ms] [LOG] [troiki] entering troiki view @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     250ms] [LOG] [ws] subscribe troiki {} seq=1 sent=false readyState=undefined @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     250ms] [LOG] [api] GET /api/auth/me @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     460ms] [LOG] [api] GET /api/auth/me → 200 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     465ms] [LOG] [troiki] exiting troiki view @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     465ms] [LOG] [tasks] start @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     466ms] [LOG] [api] GET /api/config @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     466ms] [LOG] [troiki] entering troiki view @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     466ms] [LOG] [ws] subscribe troiki {} seq=2 sent=false readyState=undefined @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     466ms] [LOG] [app] init start @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     466ms] [LOG] [api] GET /api/config @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     589ms] [LOG] [api] GET /api/config → 200 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     590ms] [LOG] [tasks] subscribing WS: view=all context=undefined @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     590ms] [LOG] [ws] subscribe tasks {"view":"all"} seq=3 sent=false readyState=undefined @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     631ms] [LOG] [api] GET /api/config → 200 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     631ms] [LOG] [app] config loaded from API @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     632ms] [LOG] [ws] connecting to wss://t.tinyops.ru/api/ws @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     632ms] [LOG] [tasks] start @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     632ms] [LOG] [api] GET /api/config @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     755ms] [LOG] [api] GET /api/config → 200 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     756ms] [LOG] [tasks] subscribing WS: view=today context=undefined @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     756ms] [LOG] [ws] subscribe tasks {"view":"today"} seq=4 sent=false readyState=0 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     756ms] [LOG] [api] GET /api/tasks @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     756ms] [LOG] [app] init complete @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     861ms] [LOG] [api] GET /api/tasks → 200 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     938ms] [LOG] [ws] connected @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     938ms] [LOG] [ws] resubscribe troiki @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     938ms] [LOG] [ws] resubscribe tasks @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[     940ms] [LOG] [project-tasks] fetched 636 tasks from server @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[    1036ms] [LOG] [ws] snapshot troiki seq=5 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[    1038ms] [LOG] [ws] snapshot tasks seq=5 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[    1038ms] [LOG] [tasks] snapshot received: 15 tasks, synced at: 2026-04-09T11:19:54Z @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[  328694ms] [LOG] [api] POST /api/troiki/tasks @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[  329908ms] [LOG] [api] POST /api/troiki/tasks → 201 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[  331460ms] [LOG] [ws] delta troiki seq=5 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1
+[  345844ms] [LOG] [ws] delta troiki seq=5 @ https://t.tinyops.ru/_app/immutable/chunks/DcBcimpv.js:1

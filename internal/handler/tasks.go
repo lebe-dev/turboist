@@ -12,19 +12,21 @@ import (
 	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/taskview"
 	"github.com/lebe-dev/turboist/internal/todoist"
+	"github.com/lebe-dev/turboist/internal/troiki"
 
 	"github.com/charmbracelet/log"
 	"github.com/gofiber/fiber/v3"
 )
 
 type TasksHandler struct {
-	cache *todoist.Cache
-	cfg   *config.AppConfig
-	store *storage.Store
+	cache         *todoist.Cache
+	cfg           *config.AppConfig
+	store         *storage.Store
+	troikiService *troiki.Service
 }
 
-func NewTasksHandler(cache *todoist.Cache, cfg *config.AppConfig, store *storage.Store) *TasksHandler {
-	return &TasksHandler{cache: cache, cfg: cfg, store: store}
+func NewTasksHandler(cache *todoist.Cache, cfg *config.AppConfig, store *storage.Store, troikiService *troiki.Service) *TasksHandler {
+	return &TasksHandler{cache: cache, cfg: cfg, store: store, troikiService: troikiService}
 }
 
 // todoistErrorResponse maps Todoist API errors to appropriate HTTP status codes.
@@ -295,10 +297,19 @@ func (h *TasksHandler) GetByID(c fiber.Ctx) error {
 func (h *TasksHandler) Complete(c fiber.Ctx) error {
 	id := c.Params("id")
 	log.Debug("complete task", "id", id)
+
+	// Look up task before completing so we know its section for troiki capacity unlock
+	task := h.findTask(id)
+
 	if err := h.cache.CompleteTask(c.Context(), id); err != nil {
 		log.Error("complete task failed", "id", id, "err", err)
 		return todoistErrorResponse(c, err)
 	}
+
+	if h.troikiService != nil && task != nil {
+		h.troikiService.OnTaskCompleted(task)
+	}
+
 	return c.SendStatus(fiber.StatusOK)
 }
 
@@ -524,6 +535,10 @@ func (h *TasksHandler) Duplicate(c fiber.Ctx) error {
 	if err != nil {
 		log.Error("duplicate task failed", "id", id, "err", err)
 		return todoistErrorResponse(c, err)
+	}
+
+	if err := h.store.ResetPostponeCount(id); err != nil {
+		log.Error("reset postpone count after duplicate failed", "id", id, "err", err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true, "task_id": newID})

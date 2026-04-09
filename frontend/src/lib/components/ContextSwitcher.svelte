@@ -17,6 +17,7 @@
 	import SunriseIcon from '@lucide/svelte/icons/sunrise';
 	import CircleCheckBigIcon from '@lucide/svelte/icons/circle-check-big';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
+	import Layers3Icon from '@lucide/svelte/icons/layers-3';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { t } from 'svelte-intl-precompile';
@@ -167,13 +168,31 @@
 	</a>
 
 	<!-- Projects -->
-	{#if appStore.projects.length > 0}
+	{#if appStore.projects.length > 0 || appStore.troikiEnabled}
 		<div class="my-3 border-t border-sidebar-border"></div>
 
 		{#if !collapsed}
 			<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
 				{$t('sidebar.projects')}
 			</p>
+		{/if}
+
+		{#if appStore.troikiEnabled}
+			<a
+				href="/troiki"
+				class="group flex cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+					{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
+					{$page.url.pathname === '/troiki'
+					? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+					: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+				title={collapsed ? $t('troiki.title') : undefined}
+				onclick={() => onItemClick?.()}
+			>
+				<Layers3Icon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+				{#if !collapsed}
+					<span class="truncate">{$t('troiki.title')}</span>
+				{/if}
+			</a>
 		{/if}
 
 		{#each appStore.projects.filter((p) => p.id !== appStore.inboxProjectId) as project (project.id)}

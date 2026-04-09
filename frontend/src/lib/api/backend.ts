@@ -1,9 +1,11 @@
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	CreateTroikiTaskRequest,
 	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
+	TroikiState,
 	UpdateTaskRequest,
 	UserState
 } from './types';
@@ -39,6 +41,10 @@ export interface BackendConnector {
 	duplicateTask(id: string): Promise<void>;
 	deleteTask(id: string): Promise<void>;
 	decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void>;
+
+	// Troiki
+	getTroikiState(): Promise<TroikiState>;
+	createTroikiTask(data: CreateTroikiTaskRequest): Promise<string>;
 
 	// Config & state
 	getAppConfig(): Promise<AppConfig>;

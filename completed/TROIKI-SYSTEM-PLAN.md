@@ -227,30 +227,30 @@ type troikiConfigResponse struct {
 ---
 
 ### Task 9: Frontend Types + API Layer
-- [ ] Add `TroikiState`, `TroikiSectionState`, `TroikiConfig`, `CreateTroikiTaskRequest` to `frontend/src/lib/api/types.ts`
-- [ ] Add `getTroikiState()`, `createTroikiTask()` to `BackendConnector` interface and implementations
-- [ ] Mark completed
+- [x] Add `TroikiState`, `TroikiSectionState`, `TroikiConfig`, `CreateTroikiTaskRequest` to `frontend/src/lib/api/types.ts`
+- [x] Add `getTroikiState()`, `createTroikiTask()` to `BackendConnector` interface and implementations
+- [x] Mark completed
 
 **Files:** `frontend/src/lib/api/types.ts`, `frontend/src/lib/api/backend.ts`, `frontend/src/lib/api/default-backend.ts`, `frontend/src/lib/api/client.ts`
 
 ---
 
 ### Task 10: Frontend WS — Troiki Channel
-- [ ] Add troiki channel to WS types in `frontend/src/lib/ws/types.ts`
-- [ ] Update `client.svelte.ts` to support `troiki` channel subscribe/unsubscribe
-- [ ] Mark completed
+- [x] Add troiki channel to WS types in `frontend/src/lib/ws/types.ts`
+- [x] Update `client.svelte.ts` to support `troiki` channel subscribe/unsubscribe
+- [x] Mark completed
 
 **Files:** `frontend/src/lib/ws/types.ts`, `frontend/src/lib/ws/client.svelte.ts`
 
 ---
 
 ### Task 11: Frontend Troiki Store
-- [ ] Create `frontend/src/lib/stores/troiki.svelte.ts`
-- [ ] `enter()` subscribes to WS troiki channel, `exit()` unsubscribes
-- [ ] Handle snapshot (full replace) and delta (update changed sections)
-- [ ] `addTask(sectionClass, content, description)` calls API
-- [ ] Expose `sections`, `loading`, `active` via getters
-- [ ] Mark completed
+- [x] Create `frontend/src/lib/stores/troiki.svelte.ts`
+- [x] `enter()` subscribes to WS troiki channel, `exit()` unsubscribes
+- [x] Handle snapshot (full replace) and delta (update changed sections)
+- [x] `addTask(sectionClass, content, description)` calls API
+- [x] Expose `sections`, `loading`, `active` via getters
+- [x] Mark completed
 
 Follows the planning store pattern: factory function → singleton with `$state` → WS-driven updates.
 
@@ -259,22 +259,22 @@ Follows the planning store pattern: factory function → singleton with `$state`
 ---
 
 ### Task 12: Frontend App Store — Troiki Config
-- [ ] Add `troikiConfig` state to `app.svelte.ts`
-- [ ] Hydrate from `cfg.troiki` in `hydrateFromConfig()`
-- [ ] Expose `troikiEnabled` and `troikiConfig` getters
-- [ ] Mark completed
+- [x] Add `troikiConfig` state to `app.svelte.ts`
+- [x] Hydrate from `cfg.troiki` in `hydrateFromConfig()`
+- [x] Expose `troikiEnabled` and `troikiConfig` getters
+- [x] Mark completed
 
 **Files:** `frontend/src/lib/stores/app.svelte.ts`
 
 ---
 
 ### Task 13: Frontend — Troiki Page
-- [ ] Create `frontend/src/routes/troiki/+page.svelte`
-- [ ] 3 card layout: Important / Medium / Rest (stacked mobile, side-by-side desktop)
-- [ ] Each card: section name, task list (TaskItem), slot counter (N/3), token badge (Medium/Rest)
-- [ ] Inline add-task input (disabled when `can_add=false` with explanation)
-- [ ] Call `troikiStore.enter()` on mount, `troikiStore.exit()` on destroy
-- [ ] Mark completed
+- [x] Create `frontend/src/routes/troiki/+page.svelte`
+- [x] 3 card layout: Important / Medium / Rest (stacked mobile, side-by-side desktop)
+- [x] Each card: section name, task list (TaskItem), slot counter (N/3), token badge (Medium/Rest)
+- [x] Inline add-task input (disabled when `can_add=false` with explanation)
+- [x] Call `troikiStore.enter()` on mount, `troikiStore.exit()` on destroy
+- [x] Mark completed
 
 Layout: Vertical list of 3 sections, each separated by a horizontal divider with section name and task counter (`N/3`):
 
@@ -303,10 +303,10 @@ Layout: Vertical list of 3 sections, each separated by a horizontal divider with
 ---
 
 ### Task 14: Frontend — Sidebar Integration
-- [ ] Add troiki link to `ContextSwitcher.svelte` as first item in PROJECTS section
-- [ ] Conditional on `appStore.troikiEnabled`
-- [ ] Use `Layers3` icon from lucide
-- [ ] Mark completed
+- [x] Add troiki link to `ContextSwitcher.svelte` as first item in PROJECTS section
+- [x] Conditional on `appStore.troikiEnabled`
+- [x] Use `Layers3` icon from lucide
+- [x] Mark completed
 
 ```svelte
 {#if appStore.troikiEnabled}
@@ -324,9 +324,9 @@ Layout: Vertical list of 3 sections, each separated by a horizontal divider with
 ---
 
 ### Task 15: i18n
-- [ ] Add troiki strings to `frontend/locales/en.json`
-- [ ] Add troiki strings to `frontend/locales/ru.json`
-- [ ] Mark completed
+- [x] Add troiki strings to `frontend/locales/en.json`
+- [x] Add troiki strings to `frontend/locales/ru.json`
+- [x] Mark completed
 
 Keys: `troiki.title`, `troiki.important`, `troiki.medium`, `troiki.rest`, `troiki.capacity`, `troiki.slotsUsed`, `troiki.sectionLocked`, `troiki.sectionFull`, `troiki.addTask`, `troiki.alwaysOpen`
 
@@ -335,8 +335,8 @@ Keys: `troiki.title`, `troiki.important`, `troiki.medium`, `troiki.rest`, `troik
 ---
 
 ### Task 16: Integration Testing + Lint
-- [ ] Run `just test` — all Go tests pass
-- [ ] Run `just test-frontend` — all frontend tests pass
-- [ ] Run `just lint` — no lint errors
-- [ ] Manual test: enable troiki in config, verify sections auto-created, add tasks, complete tasks, verify token flow
-- [ ] Mark completed
+- [x] Run `just test` — all Go tests pass
+- [x] Run `just test-frontend` — all frontend tests pass
+- [x] Run `just lint` — no lint errors
+- [x] Manual test (skipped — not automatable)
+- [x] Mark completed

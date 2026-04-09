@@ -185,5 +185,18 @@
   "settings.cacheResetting": "Сброс...",
   "settings.cacheResetDone": "Кэш успешно сброшен",
   "settings.cacheResetFailed": "Не удалось сбросить кэш",
-  "settings.cacheResetHint": "Принудительная полная синхронизация с Todoist. Используйте, если задачи выглядят устаревшими."
+  "settings.cacheResetHint": "Принудительная полная синхронизация с Todoist. Используйте, если задачи выглядят устаревшими.",
+
+  "troiki.title": "Тройки",
+  "troiki.important": "Важное",
+  "troiki.medium": "Среднее",
+  "troiki.rest": "Остальное",
+  "troiki.capacity": "ёмкость",
+  "troiki.slotsUsed": "{count}/{max}",
+  "troiki.sectionLocked": "заблокировано",
+  "troiki.sectionFull": "Секция заполнена",
+  "troiki.addTask": "Добавить задачу...",
+  "troiki.alwaysOpen": "всегда открыта",
+  "troiki.unlockHint": "Завершите задачу в «{section}» для разблокировки",
+  "troiki.empty": "Секции тройки загружаются..."
 }

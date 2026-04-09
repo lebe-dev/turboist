@@ -1,19 +1,22 @@
 import { logger } from '$lib/stores/logger';
 import type {
+	Channel,
 	ClientMessage,
 	SubscribeMessage,
 	ServerMessage,
 	SnapshotTasksData,
 	DeltaTasksData,
 	SnapshotPlanningData,
-	DeltaPlanningData
+	DeltaPlanningData,
+	SnapshotTroikiData,
+	DeltaTroikiData
 } from './types';
 
 const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 30000;
 const ACTIVITY_TIMEOUT = 45_000; // Server pings every 30s; close if silent for 45s
 
-type MessageKey = `${'snapshot' | 'delta'}:${'tasks' | 'planning'}`;
+type MessageKey = `${'snapshot' | 'delta'}:${Channel}`;
 type MessageHandler = (data: unknown, seq?: number) => void;
 
 function createWSClient() {
@@ -164,7 +167,7 @@ function createWSClient() {
 	}
 
 	function subscribe(
-		channel: 'tasks' | 'planning',
+		channel: Channel,
 		params: { view?: string; context?: string }
 	): void {
 		subSeq++;
@@ -183,14 +186,14 @@ function createWSClient() {
 		sendRaw({ ...msg, seq: subSeq });
 	}
 
-	function unsubscribe(channel: 'tasks' | 'planning'): void {
+	function unsubscribe(channel: Channel): void {
 		activeSubs = activeSubs.filter((s) => s.channel !== channel);
 		sendRaw({ type: 'unsubscribe', channel });
 	}
 
 	function onMessage(
 		type: 'snapshot' | 'delta',
-		channel: 'tasks' | 'planning',
+		channel: Channel,
 		handler: MessageHandler
 	): () => void {
 		const key: MessageKey = `${type}:${channel}`;
@@ -235,4 +238,12 @@ function createWSClient() {
 export const wsClient = createWSClient();
 
 // Re-export data types for convenience
-export type { SnapshotTasksData, DeltaTasksData, SnapshotPlanningData, DeltaPlanningData };
+export type {
+	Channel,
+	SnapshotTasksData,
+	DeltaTasksData,
+	SnapshotPlanningData,
+	DeltaPlanningData,
+	SnapshotTroikiData,
+	DeltaTroikiData
+};

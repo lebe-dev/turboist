@@ -29,6 +29,11 @@ type PlanningSubscription struct {
 	Seq     int
 }
 
+// TroikiSubscription holds parameters for the troiki channel.
+type TroikiSubscription struct {
+	Seq int
+}
+
 // Client represents a single WebSocket connection.
 type Client struct {
 	mu sync.Mutex
@@ -38,9 +43,11 @@ type Client struct {
 
 	tasksSub    *TasksSubscription
 	planningSub *PlanningSubscription
+	troikiSub   *TroikiSubscription
 
 	lastTasksSnap    TasksSnapshot
 	lastPlanningSnap *PlanningSnapshot
+	lastTroikiSnap   *TroikiSnapshot
 
 	writeCh chan []byte
 	done    chan struct{}
@@ -173,6 +180,11 @@ func (c *Client) handleSubscribe(msg IncomingMessage) {
 		c.lastPlanningSnap = nil
 		c.hub.sendPlanningSnapshot(c)
 
+	case ChannelTroiki:
+		c.troikiSub = &TroikiSubscription{Seq: msg.Seq}
+		c.lastTroikiSnap = nil
+		c.hub.sendTroikiSnapshot(c)
+
 	default:
 		c.sendError("unknown channel: " + msg.Channel)
 	}
@@ -189,5 +201,8 @@ func (c *Client) handleUnsubscribe(msg IncomingMessage) {
 	case ChannelPlanning:
 		c.planningSub = nil
 		c.lastPlanningSnap = nil
+	case ChannelTroiki:
+		c.troikiSub = nil
+		c.lastTroikiSnap = nil
 	}
 }

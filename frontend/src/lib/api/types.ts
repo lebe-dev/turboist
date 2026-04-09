@@ -201,7 +201,39 @@ export interface AppConfig {
 	project_tasks: ProjectTask[];
 	label_project_map: LabelProjectMap;
 	auto_remove: AutoRemoveStatus;
+	troiki: TroikiConfig;
 	state: UserState;
+}
+
+export type SectionClass = 'important' | 'medium' | 'rest';
+
+export interface TroikiSectionState {
+	class: SectionClass;
+	section_id: string;
+	name: string;
+	tasks: Task[];
+	root_count: number;
+	max_tasks: number;
+	capacity: number;
+	can_add: boolean;
+}
+
+export interface TroikiState {
+	project_id: string;
+	sections: TroikiSectionState[];
+}
+
+export interface TroikiConfig {
+	enabled: boolean;
+	project_id?: string;
+	project_name?: string;
+	max_tasks_per_section?: number;
+}
+
+export interface CreateTroikiTaskRequest {
+	section_class: SectionClass;
+	content: string;
+	description: string;
 }
 
 // Legacy alias for backward compatibility within tasks/planning stores

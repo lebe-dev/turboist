@@ -13,10 +13,11 @@ import (
 	"github.com/lebe-dev/turboist/internal/server"
 	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/todoist"
+	"github.com/lebe-dev/turboist/internal/troiki"
 	"github.com/lebe-dev/turboist/internal/ws"
 )
 
-const Version = "0.17.1"
+const Version = "0.18.0"
 
 func main() {
 	log.Info("starting turboist", "version", Version)
@@ -65,6 +66,16 @@ func main() {
 	}
 	defer func() { _ = store.Close() }()
 	log.Info("storage initialized")
+
+	var troikiService *troiki.Service
+	if cfg.App.TroikiSystem.Enabled {
+		troikiService = troiki.NewService(cache, cfg.App.TroikiSystem, store)
+		if err := troikiService.Init(ctx); err != nil {
+			log.Fatal("troiki init failed", "err", err)
+		}
+		hub.SetTroikiService(troikiService)
+		log.Info("troiki system enabled", "project", cfg.App.TroikiSystem.ProjectName)
+	}
 
 	cache.SetTaskEnricher(func(tasks []*todoist.Task) {
 		counts, err := store.GetPostponeCounts()
@@ -116,6 +127,9 @@ func main() {
 	}
 	if cfg.App.LabelProjectMap.Enabled && len(cfg.App.LabelProjectMap.Mappings) > 0 {
 		lp := scheduler.NewLabelProjectSync(cache, cfg.App.LabelProjectMap.Mappings)
+		if troikiService != nil {
+			lp.ExcludeProjects(troikiService.ProjectID())
+		}
 		sched.Register("label-project", lp.Job)
 		log.Info("label-project sync registered", "mappings", len(cfg.App.LabelProjectMap.Mappings))
 	}
@@ -126,7 +140,7 @@ func main() {
 	if autoRemove != nil {
 		autoRemovePauser = autoRemove
 	}
-	app := server.New(cfg, cache, store, hub, autoRemovePauser)
+	app := server.New(cfg, cache, store, hub, autoRemovePauser, troikiService)
 
 	go func() {
 		<-ctx.Done()

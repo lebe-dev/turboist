@@ -1,6 +1,6 @@
 import { logger } from '$lib/stores/logger';
 import { getAppConfig, patchState } from '$lib/api/client';
-import type { AllFiltersState, AutoLabelMapping, Label, LabelConfig, LabelProjectMapping, Project, ProjectTask, QuickCaptureConfig, View } from '$lib/api/types';
+import type { AllFiltersState, AutoLabelMapping, Label, LabelConfig, LabelProjectMapping, Project, ProjectTask, QuickCaptureConfig, TroikiConfig, View } from '$lib/api/types';
 import { applyLocaleFromConfig } from '$lib/i18n';
 import { compileAutoLabels, matchAutoLabels } from '$lib/utils/auto-labels';
 import { contextsStore } from './contexts.svelte';
@@ -109,6 +109,7 @@ function createAppStore() {
 	let quickCaptureOpen = $state(false);
 	let allFilters = $state<AllFiltersState | null>(null);
 	let autoRemovePaused = $state(false);
+	let troiki = $state<TroikiConfig>({ enabled: false });
 
 	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
@@ -139,6 +140,7 @@ function createAppStore() {
 		applyLocaleFromConfig(cfg.state.locale);
 		allFilters = cfg.state.all_filters ?? null;
 		autoRemovePaused = cfg.auto_remove?.paused ?? false;
+		troiki = cfg.troiki ?? { enabled: false };
 	}
 
 	async function init(): Promise<void> {
@@ -232,6 +234,12 @@ function createAppStore() {
 		},
 		get autoRemovePaused() {
 			return autoRemovePaused;
+		},
+		get troikiEnabled() {
+			return troiki.enabled;
+		},
+		get troikiConfig() {
+			return troiki;
 		},
 		saveAllFilters(f: AllFiltersState) {
 			allFilters = f;

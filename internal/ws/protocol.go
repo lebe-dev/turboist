@@ -21,6 +21,7 @@ const (
 const (
 	ChannelTasks    = "tasks"
 	ChannelPlanning = "planning"
+	ChannelTroiki   = "troiki"
 )
 
 // IncomingMessage is the envelope for client-to-server messages.
