@@ -7,6 +7,16 @@ Multiple augementations for Todoist.
 **Contents:**
 - [Frontend architecture](docs/architecture/frontend.md)
 
+## Features
+
+- Contexts
+- Day phases
+- Planning mode
+- Pinned tasks
+- Increment ongoing tasks: Task (1) -> Task (2)
+- Troiki System support ([en](docs/troiki-system.md), [ru](docs/troiki-system.ru.md))
+- Locales: en, ru
+
 ## Nginx Configuration
 
 When running behind nginx, add WebSocket proxy support:
