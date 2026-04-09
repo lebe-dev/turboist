@@ -71,6 +71,13 @@ func (m *mockStore) IncrementTroikiCapacity(sectionClass string) error {
 	return nil
 }
 
+func (m *mockStore) EnsureMinTroikiCapacity(sectionClass string, min int) error {
+	if m.capacity[sectionClass] < min {
+		m.capacity[sectionClass] = min
+	}
+	return nil
+}
+
 // --- helpers ---
 
 func defaultCfg() config.TroikiConfig {
@@ -78,6 +85,7 @@ func defaultCfg() config.TroikiConfig {
 		Enabled:            true,
 		ProjectName:        "Troiki",
 		MaxTasksPerSection: 3,
+		InitialCapacity:    3,
 		Sections: config.TroikiSectionsConfig{
 			Important: "Важное",
 			Medium:    "Среднее",
@@ -193,6 +201,50 @@ func TestInit_IgnoresSectionsFromOtherProjects(t *testing.T) {
 	// All 3 sections should be created since the existing one is from a different project
 	if len(mc.addedSections) != 3 {
 		t.Errorf("expected 3 sections created, got %d", len(mc.addedSections))
+	}
+}
+
+func TestInit_SetsInitialCapacityForMediumAndRest(t *testing.T) {
+	mc := &mockCache{
+		projects: []*todoist.Project{{ID: "proj-1", Name: "Troiki"}},
+		sections: []*todoist.Section{
+			{ID: "sec-1", Name: "Важное", ProjectID: "proj-1"},
+			{ID: "sec-2", Name: "Среднее", ProjectID: "proj-1"},
+			{ID: "sec-3", Name: "Остальное", ProjectID: "proj-1"},
+		},
+	}
+	store := newMockStore()
+	svc := newTestService(mc, store)
+
+	if err := svc.Init(context.Background()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if store.capacity["medium"] != 3 {
+		t.Errorf("medium initial capacity: got %d, want 3", store.capacity["medium"])
+	}
+	if store.capacity["rest"] != 3 {
+		t.Errorf("rest initial capacity: got %d, want 3", store.capacity["rest"])
+	}
+}
+
+func TestInit_DoesNotDecreaseExistingCapacity(t *testing.T) {
+	mc := &mockCache{
+		projects: []*todoist.Project{{ID: "proj-1", Name: "Troiki"}},
+		sections: []*todoist.Section{
+			{ID: "sec-1", Name: "Важное", ProjectID: "proj-1"},
+			{ID: "sec-2", Name: "Среднее", ProjectID: "proj-1"},
+			{ID: "sec-3", Name: "Остальное", ProjectID: "proj-1"},
+		},
+	}
+	store := newMockStore()
+	store.capacity["medium"] = 7 // accumulated over time
+	svc := newTestService(mc, store)
+
+	if err := svc.Init(context.Background()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if store.capacity["medium"] != 7 {
+		t.Errorf("medium capacity: got %d, want 7 (should not decrease)", store.capacity["medium"])
 	}
 }
 

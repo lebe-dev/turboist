@@ -195,6 +195,7 @@ type TroikiConfig struct {
 	ProjectName        string               `yaml:"project_name"`
 	Sections           TroikiSectionsConfig `yaml:"sections"`
 	MaxTasksPerSection int                  `yaml:"max_tasks_per_section"` // default 3
+	InitialCapacity    int                  `yaml:"initial_capacity"`      // default = MaxTasksPerSection
 }
 
 type LabelProjectMapping struct {
@@ -394,6 +395,9 @@ func parseTroikiSystem(tc *TroikiConfig) TroikiConfig {
 	result := *tc
 	if result.MaxTasksPerSection <= 0 {
 		result.MaxTasksPerSection = 3
+	}
+	if result.InitialCapacity <= 0 {
+		result.InitialCapacity = result.MaxTasksPerSection
 	}
 	if result.Sections.Important == "" {
 		result.Sections.Important = "Важное"

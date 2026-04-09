@@ -72,3 +72,41 @@ func TestIncrementTroikiCapacity_MultipleSections(t *testing.T) {
 		t.Errorf("expected rest=1, got %d", caps["rest"])
 	}
 }
+
+func TestEnsureMinTroikiCapacity_SetsNew(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.EnsureMinTroikiCapacity("medium", 3); err != nil {
+		t.Fatalf("ensure min: %v", err)
+	}
+
+	caps, err := s.GetAllTroikiCapacity()
+	if err != nil {
+		t.Fatalf("get all: %v", err)
+	}
+	if caps["medium"] != 3 {
+		t.Errorf("expected medium=3, got %d", caps["medium"])
+	}
+}
+
+func TestEnsureMinTroikiCapacity_DoesNotDecrease(t *testing.T) {
+	s := newTestStore(t)
+
+	for range 5 {
+		if err := s.IncrementTroikiCapacity("medium"); err != nil {
+			t.Fatalf("increment: %v", err)
+		}
+	}
+
+	if err := s.EnsureMinTroikiCapacity("medium", 3); err != nil {
+		t.Fatalf("ensure min: %v", err)
+	}
+
+	caps, err := s.GetAllTroikiCapacity()
+	if err != nil {
+		t.Fatalf("get all: %v", err)
+	}
+	if caps["medium"] != 5 {
+		t.Errorf("expected medium to stay at 5, got %d", caps["medium"])
+	}
+}

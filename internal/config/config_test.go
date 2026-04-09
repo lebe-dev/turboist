@@ -936,3 +936,36 @@ troiki_system:
 		t.Errorf("troiki_system.sections.rest default: got %q, want %q", app.TroikiSystem.Sections.Rest, "Остальное")
 	}
 }
+
+func TestParseTroikiSystem_DefaultInitialCapacity(t *testing.T) {
+	yaml := `
+troiki_system:
+  enabled: true
+  project_name: "Троики"
+  max_tasks_per_section: 5
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("ParseAppConfig: %v", err)
+	}
+	if app.TroikiSystem.InitialCapacity != 5 {
+		t.Errorf("initial_capacity default: got %d, want 5 (= max_tasks_per_section)", app.TroikiSystem.InitialCapacity)
+	}
+}
+
+func TestParseTroikiSystem_ExplicitInitialCapacity(t *testing.T) {
+	yaml := `
+troiki_system:
+  enabled: true
+  project_name: "Троики"
+  max_tasks_per_section: 5
+  initial_capacity: 2
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("ParseAppConfig: %v", err)
+	}
+	if app.TroikiSystem.InitialCapacity != 2 {
+		t.Errorf("initial_capacity explicit: got %d, want 2", app.TroikiSystem.InitialCapacity)
+	}
+}

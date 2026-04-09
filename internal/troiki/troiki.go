@@ -41,6 +41,7 @@ type State struct {
 type capacityStore interface {
 	GetAllTroikiCapacity() (map[string]int, error)
 	IncrementTroikiCapacity(sectionClass string) error
+	EnsureMinTroikiCapacity(sectionClass string, min int) error
 }
 
 type cache interface {
@@ -118,6 +119,12 @@ func (s *Service) Init(ctx context.Context) error {
 			return fmt.Errorf("create section %q: %w", name, err)
 		}
 		s.sectionIDs[class] = id
+	}
+
+	for _, class := range []SectionClass{Medium, Rest} {
+		if err := s.store.EnsureMinTroikiCapacity(string(class), s.cfg.InitialCapacity); err != nil {
+			return fmt.Errorf("init capacity for %s: %w", class, err)
+		}
 	}
 
 	log.Info("troiki initialized",

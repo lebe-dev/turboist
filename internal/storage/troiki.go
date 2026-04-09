@@ -36,3 +36,16 @@ func (s *Store) IncrementTroikiCapacity(sectionClass string) error {
 	}
 	return nil
 }
+
+// EnsureMinTroikiCapacity sets capacity to at least min, never decreasing an existing value.
+func (s *Store) EnsureMinTroikiCapacity(sectionClass string, min int) error {
+	_, err := s.db.Exec(
+		`INSERT INTO troiki_capacity (section_class, capacity) VALUES (?, ?)
+		 ON CONFLICT(section_class) DO UPDATE SET capacity = MAX(capacity, excluded.capacity)`,
+		sectionClass, min,
+	)
+	if err != nil {
+		return fmt.Errorf("ensure min troiki capacity for %s: %w", sectionClass, err)
+	}
+	return nil
+}

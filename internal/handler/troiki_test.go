@@ -70,6 +70,13 @@ func (m *troikiMockStore) IncrementTroikiCapacity(sectionClass string) error {
 	return nil
 }
 
+func (m *troikiMockStore) EnsureMinTroikiCapacity(sectionClass string, min int) error {
+	if m.capacity[sectionClass] < min {
+		m.capacity[sectionClass] = min
+	}
+	return nil
+}
+
 // --- helpers ---
 
 func troikiCfg() config.TroikiConfig {
