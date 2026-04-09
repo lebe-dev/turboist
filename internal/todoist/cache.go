@@ -16,12 +16,13 @@ const (
 	coldStartRetries  = 10
 	coldStartInterval = 10 * time.Second
 	refreshDebounce   = 1 * time.Second
-	evictGracePeriod  = 15 * time.Second
+	evictGracePeriod  = 45 * time.Second
 )
 
 // cacheClient abstracts the Todoist client methods used by Cache, enabling testing.
 type cacheClient interface {
 	FetchAll(ctx context.Context) (*SyncResult, error)
+	FetchIncremental(ctx context.Context) (*DeltaResult, error)
 	AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error)
 	UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs) error
 	MoveTask(ctx context.Context, id string, parentID string) error
@@ -32,6 +33,7 @@ type cacheClient interface {
 	DecomposeTask(ctx context.Context, src *Task, newContents []string) error
 	BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error
 	BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget) error
+	AddSection(ctx context.Context, name string, projectID string) (string, error)
 }
 
 // Cache holds an in-memory snapshot of Todoist data and keeps it fresh via Refresh.
@@ -79,9 +81,19 @@ func NewCache(client *Client) *Cache {
 	panic("todoist cache cold start failed after retries: " + lastErr.Error())
 }
 
-// Refresh fetches all data from Todoist and atomically replaces the cached snapshot.
+// Refresh fetches data from Todoist and updates the cache.
+// On cold start (first call), it does a full sync. Subsequent calls use incremental
+// sync to work around a Todoist Sync v1 API issue where full sync returns stale data.
 func (c *Cache) Refresh(ctx context.Context) error {
 	start := time.Now()
+
+	if !c.Warmed() {
+		return c.fullRefresh(ctx, start)
+	}
+	return c.incrementalRefresh(ctx, start)
+}
+
+func (c *Cache) fullRefresh(ctx context.Context, start time.Time) error {
 	result, err := c.client.FetchAll(ctx)
 	if err != nil {
 		return err
@@ -101,7 +113,7 @@ func (c *Cache) Refresh(ctx context.Context) error {
 	}
 	c.mu.Unlock()
 
-	log.Debug("cache refreshed",
+	log.Debug("cache refreshed (full)",
 		"tasks", len(result.Tasks),
 		"projects", len(result.Projects),
 		"elapsed", time.Since(start),
@@ -110,8 +122,148 @@ func (c *Cache) Refresh(ctx context.Context) error {
 	if c.onRefresh != nil {
 		c.onRefresh()
 	}
-
 	return nil
+}
+
+func (c *Cache) incrementalRefresh(ctx context.Context, start time.Time) error {
+	delta, err := c.client.FetchIncremental(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Server may return a full sync if the token expired.
+	if delta.FullSync {
+		delta.Result.Tasks = c.filterEvicted(delta.Result.Tasks)
+
+		c.mu.Lock()
+		c.tasks = delta.Result.Tasks
+		c.projects = delta.Result.Projects
+		c.sections = delta.Result.Sections
+		c.labels = delta.Result.Labels
+		c.lastSyncedAt = time.Now()
+		if c.taskEnricher != nil {
+			c.taskEnricher(c.tasks)
+		}
+		c.mu.Unlock()
+
+		log.Debug("cache refreshed (full via incremental)",
+			"tasks", len(delta.Result.Tasks),
+			"elapsed", time.Since(start),
+		)
+		if c.onRefresh != nil {
+			c.onRefresh()
+		}
+		return nil
+	}
+
+	// Apply delta to existing cache.
+	c.mu.Lock()
+	c.tasks = c.filterEvicted(applyDelta(c.tasks, delta.UpsertedTasks, delta.RemovedTaskIDs))
+	c.projects = applyDeltaProjects(c.projects, delta.UpsertedProjects, delta.RemovedProjectIDs)
+	c.sections = applyDeltaSections(c.sections, delta.UpsertedSections, delta.RemovedSectionIDs)
+	c.labels = applyDeltaLabels(c.labels, delta.UpsertedLabels, delta.RemovedLabelIDs)
+	c.lastSyncedAt = time.Now()
+	if c.taskEnricher != nil {
+		c.taskEnricher(c.tasks)
+	}
+	c.mu.Unlock()
+
+	log.Debug("cache refreshed (incremental)",
+		"upserted_tasks", len(delta.UpsertedTasks),
+		"removed_tasks", len(delta.RemovedTaskIDs),
+		"total_tasks", len(c.tasks),
+		"elapsed", time.Since(start),
+	)
+
+	if c.onRefresh != nil {
+		c.onRefresh()
+	}
+	return nil
+}
+
+// applyDelta merges upserted tasks and removes deleted ones from the existing list.
+func applyDelta(existing []*Task, upserted []*Task, removedIDs []string) []*Task {
+	if len(upserted) == 0 && len(removedIDs) == 0 {
+		return existing
+	}
+
+	remove := make(map[string]bool, len(removedIDs))
+	for _, id := range removedIDs {
+		remove[id] = true
+	}
+	// Also remove upserted IDs so we can re-add them fresh.
+	for _, t := range upserted {
+		remove[t.ID] = true
+	}
+
+	result := make([]*Task, 0, len(existing))
+	for _, t := range existing {
+		if !remove[t.ID] {
+			result = append(result, t)
+		}
+	}
+	result = append(result, upserted...)
+	return result
+}
+
+func applyDeltaProjects(existing []*Project, upserted []*Project, removedIDs []string) []*Project {
+	if len(upserted) == 0 && len(removedIDs) == 0 {
+		return existing
+	}
+	remove := make(map[string]bool, len(removedIDs)+len(upserted))
+	for _, id := range removedIDs {
+		remove[id] = true
+	}
+	for _, p := range upserted {
+		remove[p.ID] = true
+	}
+	result := make([]*Project, 0, len(existing))
+	for _, p := range existing {
+		if !remove[p.ID] {
+			result = append(result, p)
+		}
+	}
+	return append(result, upserted...)
+}
+
+func applyDeltaSections(existing []*Section, upserted []*Section, removedIDs []string) []*Section {
+	if len(upserted) == 0 && len(removedIDs) == 0 {
+		return existing
+	}
+	remove := make(map[string]bool, len(removedIDs)+len(upserted))
+	for _, id := range removedIDs {
+		remove[id] = true
+	}
+	for _, s := range upserted {
+		remove[s.ID] = true
+	}
+	result := make([]*Section, 0, len(existing))
+	for _, s := range existing {
+		if !remove[s.ID] {
+			result = append(result, s)
+		}
+	}
+	return append(result, upserted...)
+}
+
+func applyDeltaLabels(existing []*Label, upserted []*Label, removedIDs []string) []*Label {
+	if len(upserted) == 0 && len(removedIDs) == 0 {
+		return existing
+	}
+	remove := make(map[string]bool, len(removedIDs)+len(upserted))
+	for _, id := range removedIDs {
+		remove[id] = true
+	}
+	for _, l := range upserted {
+		remove[l.ID] = true
+	}
+	result := make([]*Label, 0, len(existing))
+	for _, l := range existing {
+		if !remove[l.ID] {
+			result = append(result, l)
+		}
+	}
+	return append(result, upserted...)
 }
 
 // Warmed reports whether the cache has been successfully populated at least once.
@@ -171,6 +323,11 @@ func (c *Cache) InboxProjectID() string {
 // Client returns the underlying Todoist API client.
 func (c *Cache) Client() *Client {
 	return c.client.(*Client)
+}
+
+// FetchCompletedBySection returns completed root tasks for a specific project section.
+func (c *Cache) FetchCompletedBySection(ctx context.Context, projectID, sectionID string) ([]*Task, error) {
+	return c.Client().FetchCompletedBySection(ctx, projectID, sectionID)
 }
 
 // SetOnRefresh sets a callback that is invoked after every successful cache refresh.
@@ -387,6 +544,17 @@ func (c *Cache) BatchMoveTasksToProject(ctx context.Context, moves map[string]st
 	}
 	c.ScheduleRefresh()
 	return nil
+}
+
+// AddSection creates a section in a project via the Todoist API and schedules a cache refresh.
+// Returns the new section ID.
+func (c *Cache) AddSection(ctx context.Context, name string, projectID string) (string, error) {
+	newID, err := c.client.AddSection(ctx, name, projectID)
+	if err != nil {
+		return "", err
+	}
+	c.ScheduleRefresh()
+	return newID, nil
 }
 
 // BatchMoveTasks moves multiple tasks to their targets (project or section) in a single API call

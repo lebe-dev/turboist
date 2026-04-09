@@ -1,7 +1,7 @@
 import type { Task, Due } from '$lib/api/types';
 
 /**
- * Flat representation of a Task for SyncroState storage.
+ * Flat representation of a Task for store storage.
  * No recursive `children` — tree is derived at read time via buildTree().
  * `due` object flattened into due_date + due_recurring primitives.
  */

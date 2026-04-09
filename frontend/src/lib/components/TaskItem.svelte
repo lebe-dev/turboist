@@ -32,7 +32,7 @@
 
 	import type { Snippet } from 'svelte';
 
-	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, dropdownExtra, actionButton }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; dropdownExtra?: Snippet; actionButton?: Snippet } = $props();
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton, hideDecompose = false, hidePriority = false, hideDuplicate = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet; hideDecompose?: boolean; hidePriority?: boolean; hideDuplicate?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -523,7 +523,7 @@
 			{/if}
 
 			{#snippet taskContentInner()}
-				<MarkdownContent text={task.content} class="break-words text-[13px] leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}" />
+				<MarkdownContent text={task.content} class="break-words {textSize} leading-relaxed {completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}" />
 				{#if task.description && !completed}
 					<p class="truncate text-[12px] text-muted-foreground"><MarkdownContent text={task.description} /></p>
 				{/if}
@@ -619,7 +619,7 @@
 					bind:open={dropdownOpen}
 					{task}
 					onEdit={() => goto(`/task/${task.id}`)}
-					onDuplicate={handleDuplicate}
+					onDuplicate={hideDuplicate ? undefined : handleDuplicate}
 					onCopy={() => { navigator.clipboard.writeText(stripTaskPrefix(task.content)); dropdownOpen = false; }}
 					onDecompose={() => { dropdownOpen = false; showDecomposeDialog = true; }}
 					{canPin}
@@ -637,6 +637,8 @@
 					{onCalendarSelect}
 					onSetPriority={setPriority}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
+					{hideDecompose}
+					{hidePriority}
 				>
 					{#snippet trigger()}
 						<DropdownMenu.Trigger
@@ -655,7 +657,7 @@
 			{#if hasChildren && !collapsed && !completed}
 			<div>
 				{#each task.children as child (child.id)}
-					<TaskItem task={child} depth={depth + 1} {searchQuery} {dimmed} {hideTodayDue} {hideTomorrowDue} />
+					<TaskItem task={child} depth={depth + 1} {searchQuery} {dimmed} {hideTodayDue} {hideTomorrowDue} {textSize} />
 				{/each}
 			</div>
 		{/if}

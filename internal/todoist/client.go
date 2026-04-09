@@ -44,30 +44,94 @@ type Client struct {
 
 // NewClient creates a new Todoist API client with the given API key.
 func NewClient(apiKey string) *Client {
-	cli := extclient.NewClient(http.DefaultClient, apiKey, extclient.DefaultHandler)
+	handler := newSyncHandler()
+	cli := extclient.NewClient(http.DefaultClient, apiKey, handler)
 	return &Client{
 		cli:     cli,
 		taskSvc: extclient.NewTaskService(cli),
 	}
 }
 
-func (c *Client) fullSync(ctx context.Context) (*sync.SyncResponse, error) {
-	resp, err := c.cli.SyncWithAutoToken(ctx, true)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-// FetchAll fetches tasks, projects, sections and labels in a single API call.
+// FetchAll fetches tasks, projects, sections and labels via a full sync (sync_token=*).
 func (c *Client) FetchAll(ctx context.Context) (*SyncResult, error) {
 	start := time.Now()
-	resp, err := c.fullSync(ctx)
+	resp, err := c.cli.SyncWithAutoToken(ctx, true)
 	if err != nil {
 		log.Debug("todoist FetchAll failed", "err", err, "elapsed", time.Since(start))
 		return nil, &APIError{Op: "FetchAll", Err: err}
 	}
 
+	result := parseSyncResponse(resp)
+	log.Debug("todoist FetchAll done",
+		"tasks", len(result.Tasks),
+		"projects", len(result.Projects),
+		"sections", len(result.Sections),
+		"labels", len(result.Labels),
+		"elapsed", time.Since(start),
+	)
+	return result, nil
+}
+
+// FetchIncremental fetches only changes since the last sync using a stored sync token.
+// Returns a DeltaResult containing items to upsert and IDs to remove.
+// If the server returns a full sync (token expired), FullSync is set to true and
+// the Result field contains the complete dataset.
+func (c *Client) FetchIncremental(ctx context.Context) (*DeltaResult, error) {
+	start := time.Now()
+	resp, err := c.cli.SyncWithAutoToken(ctx, false)
+	if err != nil {
+		log.Debug("todoist FetchIncremental failed", "err", err, "elapsed", time.Since(start))
+		return nil, &APIError{Op: "FetchIncremental", Err: err}
+	}
+
+	if resp.FullSync {
+		result := parseSyncResponse(resp)
+		log.Debug("todoist FetchIncremental got full sync",
+			"tasks", len(result.Tasks),
+			"elapsed", time.Since(start),
+		)
+		return &DeltaResult{FullSync: true, Result: result}, nil
+	}
+
+	delta := &DeltaResult{}
+	for _, t := range resp.Tasks {
+		if t.IsDeleted || t.Checked {
+			delta.RemovedTaskIDs = append(delta.RemovedTaskIDs, t.ID)
+		} else {
+			delta.UpsertedTasks = append(delta.UpsertedTasks, TaskFromSync(t))
+		}
+	}
+	for _, p := range resp.Projects {
+		if p.IsDeleted || p.IsArchived {
+			delta.RemovedProjectIDs = append(delta.RemovedProjectIDs, p.ID)
+		} else {
+			delta.UpsertedProjects = append(delta.UpsertedProjects, ProjectFromSync(p))
+		}
+	}
+	for _, s := range resp.Sections {
+		if s.IsDeleted {
+			delta.RemovedSectionIDs = append(delta.RemovedSectionIDs, s.ID)
+		} else {
+			delta.UpsertedSections = append(delta.UpsertedSections, SectionFromSync(s))
+		}
+	}
+	for _, l := range resp.Labels {
+		if l.IsDeleted {
+			delta.RemovedLabelIDs = append(delta.RemovedLabelIDs, l.ID)
+		} else {
+			delta.UpsertedLabels = append(delta.UpsertedLabels, LabelFromSync(l))
+		}
+	}
+
+	log.Debug("todoist FetchIncremental done",
+		"upserted_tasks", len(delta.UpsertedTasks),
+		"removed_tasks", len(delta.RemovedTaskIDs),
+		"elapsed", time.Since(start),
+	)
+	return delta, nil
+}
+
+func parseSyncResponse(resp *sync.SyncResponse) *SyncResult {
 	result := &SyncResult{
 		Tasks:    make([]*Task, 0, len(resp.Tasks)),
 		Projects: make([]*Project, 0, len(resp.Projects)),
@@ -100,14 +164,7 @@ func (c *Client) FetchAll(ctx context.Context) (*SyncResult, error) {
 		result.Labels = append(result.Labels, LabelFromSync(l))
 	}
 
-	log.Debug("todoist FetchAll done",
-		"tasks", len(result.Tasks),
-		"projects", len(result.Projects),
-		"sections", len(result.Sections),
-		"labels", len(result.Labels),
-		"elapsed", time.Since(start),
-	)
-	return result, nil
+	return result
 }
 
 // GetTasks returns all active tasks.
@@ -207,6 +264,30 @@ func (c *Client) FetchCompletedTasks(ctx context.Context, since, until time.Time
 	tasks := make([]*Task, 0, len(items))
 	for _, t := range items {
 		tasks = append(tasks, TaskFromSync(t))
+	}
+	return tasks, nil
+}
+
+// FetchCompletedBySection returns completed root tasks in a specific project section (last 30 days).
+func (c *Client) FetchCompletedBySection(ctx context.Context, projectID, sectionID string) ([]*Task, error) {
+	now := time.Now()
+	since := now.AddDate(0, -1, 0) // 1 month back
+
+	items, err := c.taskSvc.GetAllCompletedTasksByCompletionDate(ctx, &rest.TaskGetCompletedByCompletionDateParams{
+		Since:     since,
+		Until:     now,
+		ProjectID: &projectID,
+		SectionID: &sectionID,
+	})
+	if err != nil {
+		return nil, &APIError{Op: "FetchCompletedBySection", Err: err}
+	}
+
+	tasks := make([]*Task, 0, len(items))
+	for _, t := range items {
+		if t.ParentID == nil && t.SectionID != nil && *t.SectionID == sectionID {
+			tasks = append(tasks, TaskFromSync(t))
+		}
 	}
 	return tasks, nil
 }
@@ -398,6 +479,31 @@ func (c *Client) BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget
 		return &APIError{Op: "BatchMoveTasks", Err: err}
 	}
 	return nil
+}
+
+// AddSection creates a new section in a project via the Todoist Sync API and returns the new section ID.
+func (c *Client) AddSection(ctx context.Context, name string, projectID string) (string, error) {
+	log.Debug("todoist AddSection", "name", name, "project_id", projectID)
+	start := time.Now()
+	tempID := uuid.New()
+	cmds := sync.Commands{
+		&sync.Command{
+			Type:   "section_add",
+			UUID:   uuid.New(),
+			TempID: tempID,
+			Args:   map[string]any{"name": name, "project_id": projectID},
+		},
+	}
+	resp, err := c.cli.ExecuteCommands(ctx, cmds)
+	if err != nil {
+		log.Debug("todoist AddSection failed", "err", err, "elapsed", time.Since(start))
+		return "", &APIError{Op: "AddSection", Err: err}
+	}
+	if id, ok := resp.TempIDMapping[tempID]; ok {
+		log.Debug("todoist AddSection done", "id", id, "elapsed", time.Since(start))
+		return id, nil
+	}
+	return "", nil
 }
 
 // IsRateLimited reports whether the error indicates a Todoist API rate limit (HTTP 429).

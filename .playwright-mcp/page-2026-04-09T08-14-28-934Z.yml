@@ -1,0 +1,14 @@
+- generic [active] [ref=e1]:
+  - heading "Welcome to nginx!" [level=1] [ref=e2]
+  - paragraph [ref=e3]: If you see this page, the nginx web server is successfully installed and working. Further configuration is required.
+  - paragraph [ref=e4]:
+    - text: For online documentation and support please refer to
+    - link "nginx.org" [ref=e5] [cursor=pointer]:
+      - /url: http://nginx.org/
+    - text: .
+    - text: Commercial support is available at
+    - link "nginx.com" [ref=e6] [cursor=pointer]:
+      - /url: http://nginx.com/
+    - text: .
+  - paragraph [ref=e7]:
+    - emphasis [ref=e8]: Thank you for using nginx.

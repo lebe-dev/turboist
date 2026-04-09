@@ -150,20 +150,6 @@
   "filters.labels": "Метки",
   "filters.clearAll": "Сбросить фильтры",
 
-  "pwa.updateAvailable": "Доступна новая версия",
-  "pwa.update": "Обновить",
-  "pwa.installIOS": "Добавьте Turboist на экран: Поделиться → На экран «Домой»",
-  "pwa.dismiss": "Скрыть",
-  "pwa.offline": "Офлайн — показаны кэшированные данные",
-  "pwa.pendingChanges": "{count} ожидающих изменений",
-  "pwa.requiresNetwork": "Для этого действия нужно подключение к сети",
-  "pwa.syncComplete": "Изменения синхронизированы",
-  "pwa.syncFailed": "{count} изменений не удалось синхронизировать",
-  "pwa.pendingActions": "Ожидающие действия",
-  "pwa.retryAction": "Повторить",
-  "pwa.discardAction": "Отменить",
-  "pwa.clearQueue": "Очистить все",
-
   "task.completedToast": "Выполнено: {name}",
   "task.completedSubtasks": "Выполнено {count}",
   "task.duplicatedToast": "Дублировано: {name}",
@@ -190,9 +176,6 @@
   "errors.decomposeFailed": "Не удалось декомпозировать задачу",
   "errors.moveFailed": "Не удалось переместить задачу",
 
-  "connectivity.reconnecting": "Переподключение...",
-  "connectivity.backOnline": "Снова онлайн",
-
   "settings.general": "Основные",
   "settings.logs": "Логи",
   "settings.logs.empty": "Записей пока нет",
@@ -202,5 +185,19 @@
   "settings.cacheResetting": "Сброс...",
   "settings.cacheResetDone": "Кэш успешно сброшен",
   "settings.cacheResetFailed": "Не удалось сбросить кэш",
-  "settings.cacheResetHint": "Принудительная полная синхронизация с Todoist. Используйте, если задачи выглядят устаревшими."
+  "settings.cacheResetHint": "Принудительная полная синхронизация с Todoist. Используйте, если задачи выглядят устаревшими.",
+
+  "troiki.title": "Система Тройки",
+  "troiki.important": "Важное",
+  "troiki.medium": "Среднее",
+  "troiki.rest": "Остальное",
+  "troiki.capacity": "ёмкость",
+  "troiki.slotsUsed": "{count}/{max}",
+  "troiki.sectionLocked": "заблокировано",
+  "troiki.sectionFull": "Секция заполнена",
+  "troiki.addTask": "Добавить задачу...",
+  "troiki.alwaysOpen": "всегда открыта",
+  "troiki.unlockHint": "Завершите задачу в «{section}» для разблокировки",
+  "troiki.empty": "Секции тройки загружаются...",
+  "troiki.completed": "Выполнено ({count})"
 }

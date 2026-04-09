@@ -841,3 +841,131 @@ func TestParseAppConfig_LabelProjectMapOmitted(t *testing.T) {
 		t.Errorf("label_project_map.mappings: got %d, want 0", len(app.LabelProjectMap.Mappings))
 	}
 }
+
+func TestParseAppConfig_TroikiSystemDefaults(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.TroikiSystem.Enabled {
+		t.Error("troiki_system.enabled: got true, want false")
+	}
+	if app.TroikiSystem.MaxTasksPerSection != 0 {
+		t.Errorf("troiki_system.max_tasks_per_section: got %d, want 0 (omitted)", app.TroikiSystem.MaxTasksPerSection)
+	}
+}
+
+func TestParseAppConfig_TroikiSystemEnabled(t *testing.T) {
+	yaml := `
+troiki_system:
+  enabled: true
+  project_name: "Тройки"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !app.TroikiSystem.Enabled {
+		t.Error("troiki_system.enabled: got false, want true")
+	}
+	if app.TroikiSystem.ProjectName != "Тройки" {
+		t.Errorf("troiki_system.project_name: got %q, want %q", app.TroikiSystem.ProjectName, "Тройки")
+	}
+	if app.TroikiSystem.MaxTasksPerSection != 3 {
+		t.Errorf("troiki_system.max_tasks_per_section default: got %d, want 3", app.TroikiSystem.MaxTasksPerSection)
+	}
+	if app.TroikiSystem.Sections.Important != "Важное" {
+		t.Errorf("troiki_system.sections.important default: got %q, want %q", app.TroikiSystem.Sections.Important, "Важное")
+	}
+	if app.TroikiSystem.Sections.Medium != "Среднее" {
+		t.Errorf("troiki_system.sections.medium default: got %q, want %q", app.TroikiSystem.Sections.Medium, "Среднее")
+	}
+	if app.TroikiSystem.Sections.Rest != "Остальное" {
+		t.Errorf("troiki_system.sections.rest default: got %q, want %q", app.TroikiSystem.Sections.Rest, "Остальное")
+	}
+}
+
+func TestParseAppConfig_TroikiSystemCustomSections(t *testing.T) {
+	yaml := `
+troiki_system:
+  enabled: true
+  project_name: "Тройки"
+  max_tasks_per_section: 5
+  sections:
+    important: "Top"
+    medium: "Mid"
+    rest: "Low"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.TroikiSystem.MaxTasksPerSection != 5 {
+		t.Errorf("troiki_system.max_tasks_per_section: got %d, want 5", app.TroikiSystem.MaxTasksPerSection)
+	}
+	if app.TroikiSystem.Sections.Important != "Top" {
+		t.Errorf("troiki_system.sections.important: got %q, want %q", app.TroikiSystem.Sections.Important, "Top")
+	}
+	if app.TroikiSystem.Sections.Medium != "Mid" {
+		t.Errorf("troiki_system.sections.medium: got %q, want %q", app.TroikiSystem.Sections.Medium, "Mid")
+	}
+	if app.TroikiSystem.Sections.Rest != "Low" {
+		t.Errorf("troiki_system.sections.rest: got %q, want %q", app.TroikiSystem.Sections.Rest, "Low")
+	}
+}
+
+func TestParseAppConfig_TroikiSystemPartialSections(t *testing.T) {
+	yaml := `
+troiki_system:
+  enabled: true
+  project_name: "Тройки"
+  sections:
+    important: "Custom"
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.TroikiSystem.Sections.Important != "Custom" {
+		t.Errorf("troiki_system.sections.important: got %q, want %q", app.TroikiSystem.Sections.Important, "Custom")
+	}
+	if app.TroikiSystem.Sections.Medium != "Среднее" {
+		t.Errorf("troiki_system.sections.medium default: got %q, want %q", app.TroikiSystem.Sections.Medium, "Среднее")
+	}
+	if app.TroikiSystem.Sections.Rest != "Остальное" {
+		t.Errorf("troiki_system.sections.rest default: got %q, want %q", app.TroikiSystem.Sections.Rest, "Остальное")
+	}
+}
+
+func TestParseTroikiSystem_DefaultInitialCapacity(t *testing.T) {
+	yaml := `
+troiki_system:
+  enabled: true
+  project_name: "Троики"
+  max_tasks_per_section: 5
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("ParseAppConfig: %v", err)
+	}
+	if app.TroikiSystem.InitialCapacity != 5 {
+		t.Errorf("initial_capacity default: got %d, want 5 (= max_tasks_per_section)", app.TroikiSystem.InitialCapacity)
+	}
+}
+
+func TestParseTroikiSystem_ExplicitInitialCapacity(t *testing.T) {
+	yaml := `
+troiki_system:
+  enabled: true
+  project_name: "Троики"
+  max_tasks_per_section: 5
+  initial_capacity: 2
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("ParseAppConfig: %v", err)
+	}
+	if app.TroikiSystem.InitialCapacity != 2 {
+		t.Errorf("initial_capacity explicit: got %d, want 2", app.TroikiSystem.InitialCapacity)
+	}
+}

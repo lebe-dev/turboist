@@ -142,7 +142,7 @@ func computeInbox(cache *todoist.Cache, tasks []*todoist.Task, cfg *config.AppCo
 }
 
 func computeToday(tasks []*todoist.Task, cfg *config.AppConfig, context string, weeklyCount int) TasksResult {
-	today := FilterByDueDate(tasks, time.Now(), cfg.Today.IncludeOverdue)
+	today := FilterByDueDate(tasks, time.Now().In(cfg.Location), cfg.Today.IncludeOverdue)
 	tree := BuildTree(today)
 	SortTasks(tree, cfg.TaskSort)
 	return TasksResult{
@@ -156,7 +156,7 @@ func computeToday(tasks []*todoist.Task, cfg *config.AppConfig, context string, 
 }
 
 func computeTomorrow(tasks []*todoist.Task, cfg *config.AppConfig, context string, weeklyCount int) TasksResult {
-	tomorrow := FilterByDueDate(tasks, time.Now().AddDate(0, 0, 1), false)
+	tomorrow := FilterByDueDate(tasks, time.Now().In(cfg.Location).AddDate(0, 0, 1), false)
 	tree := BuildTree(tomorrow)
 	SortTasks(tree, cfg.TaskSort)
 	return TasksResult{

@@ -1,18 +1,22 @@
 import { logger } from '$lib/stores/logger';
 import type {
+	Channel,
 	ClientMessage,
 	SubscribeMessage,
 	ServerMessage,
 	SnapshotTasksData,
 	DeltaTasksData,
 	SnapshotPlanningData,
-	DeltaPlanningData
+	DeltaPlanningData,
+	SnapshotTroikiData,
+	DeltaTroikiData
 } from './types';
 
 const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 30000;
+const ACTIVITY_TIMEOUT = 45_000; // Server pings every 30s; close if silent for 45s
 
-type MessageKey = `${'snapshot' | 'delta'}:${'tasks' | 'planning'}`;
+type MessageKey = `${'snapshot' | 'delta'}:${Channel}`;
 type MessageHandler = (data: unknown, seq?: number) => void;
 
 function createWSClient() {
@@ -21,6 +25,7 @@ function createWSClient() {
 	let socket: WebSocket | null = null;
 	let reconnectDelay = RECONNECT_MIN;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let activityTimer: ReturnType<typeof setTimeout> | null = null;
 	let intentionalClose = false;
 
 	const handlers = new Map<MessageKey, MessageHandler>();
@@ -31,6 +36,23 @@ function createWSClient() {
 
 	// Monotonically increasing subscription sequence number
 	let subSeq = 0;
+
+	function resetActivityTimer(): void {
+		if (activityTimer !== null) clearTimeout(activityTimer);
+		activityTimer = setTimeout(() => {
+			if (socket && !intentionalClose) {
+				logger.warn('ws', 'no activity, forcing reconnect');
+				socket.close();
+			}
+		}, ACTIVITY_TIMEOUT);
+	}
+
+	function clearActivityTimer(): void {
+		if (activityTimer !== null) {
+			clearTimeout(activityTimer);
+			activityTimer = null;
+		}
+	}
 
 	function getWsUrl(): string {
 		const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -50,6 +72,7 @@ function createWSClient() {
 		socket.onopen = () => {
 			connected = true;
 			reconnectDelay = RECONNECT_MIN;
+			resetActivityTimer();
 			logger.log('ws', 'connected');
 
 			// Notify listeners
@@ -66,6 +89,7 @@ function createWSClient() {
 		};
 
 		socket.onmessage = (event) => {
+			resetActivityTimer();
 			const msg = JSON.parse(event.data) as ServerMessage;
 			handleMessage(msg);
 		};
@@ -74,6 +98,7 @@ function createWSClient() {
 			const wasConnected = connected;
 			connected = false;
 			socket = null;
+			clearActivityTimer();
 			logger.log('ws', `disconnected code=${event.code} reason=${event.reason} wasConnected=${wasConnected}`);
 
 			// Notify listeners
@@ -96,6 +121,7 @@ function createWSClient() {
 			clearTimeout(reconnectTimer);
 			reconnectTimer = null;
 		}
+		clearActivityTimer();
 		socket?.close();
 		socket = null;
 		connected = false;
@@ -141,7 +167,7 @@ function createWSClient() {
 	}
 
 	function subscribe(
-		channel: 'tasks' | 'planning',
+		channel: Channel,
 		params: { view?: string; context?: string }
 	): void {
 		subSeq++;
@@ -160,14 +186,14 @@ function createWSClient() {
 		sendRaw({ ...msg, seq: subSeq });
 	}
 
-	function unsubscribe(channel: 'tasks' | 'planning'): void {
+	function unsubscribe(channel: Channel): void {
 		activeSubs = activeSubs.filter((s) => s.channel !== channel);
 		sendRaw({ type: 'unsubscribe', channel });
 	}
 
 	function onMessage(
 		type: 'snapshot' | 'delta',
-		channel: 'tasks' | 'planning',
+		channel: Channel,
 		handler: MessageHandler
 	): () => void {
 		const key: MessageKey = `${type}:${channel}`;
@@ -212,4 +238,12 @@ function createWSClient() {
 export const wsClient = createWSClient();
 
 // Re-export data types for convenience
-export type { SnapshotTasksData, DeltaTasksData, SnapshotPlanningData, DeltaPlanningData };
+export type {
+	Channel,
+	SnapshotTasksData,
+	DeltaTasksData,
+	SnapshotPlanningData,
+	DeltaPlanningData,
+	SnapshotTroikiData,
+	DeltaTroikiData
+};

@@ -13,8 +13,6 @@
 	import PanelLeftCloseIcon from '@lucide/svelte/icons/panel-left-close';
 	import PanelLeftOpenIcon from '@lucide/svelte/icons/panel-left-open';
 	import { t } from 'svelte-intl-precompile';
-	import ConnectionIndicator from './ConnectionIndicator.svelte';
-
 	let { onClose }: { onClose?: () => void } = $props();
 
 	let isMobile = $state(false);
@@ -46,7 +44,6 @@
 				<ZapIcon class="h-4 w-4 shrink-0 text-primary" fill="currentColor" />
 				<span class="text-sm font-bold tracking-widest uppercase text-foreground">Turboist</span>
 			</button>
-			<ConnectionIndicator />
 		{/if}
 		{#if onClose}
 			<button

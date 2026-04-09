@@ -21,14 +21,21 @@ type ProjectMover interface {
 // LabelProjectSync moves root tasks to projects (and optionally sections) based on
 // label-to-project mappings. First matching label wins; tasks with no match go to Inbox.
 // Subtasks (tasks with a parent_id) are skipped entirely.
+// Tasks in excludeProjectIDs are never touched.
 type LabelProjectSync struct {
-	mover    ProjectMover
-	mappings []config.LabelProjectMapping
+	mover             ProjectMover
+	mappings          []config.LabelProjectMapping
+	excludeProjectIDs []string
 }
 
 // NewLabelProjectSync creates a LabelProjectSync job.
 func NewLabelProjectSync(mover ProjectMover, mappings []config.LabelProjectMapping) *LabelProjectSync {
 	return &LabelProjectSync{mover: mover, mappings: mappings}
+}
+
+// ExcludeProjects adds project IDs that LabelProjectSync should never touch.
+func (lp *LabelProjectSync) ExcludeProjects(ids ...string) {
+	lp.excludeProjectIDs = append(lp.excludeProjectIDs, ids...)
 }
 
 // Job implements scheduler.Job. Register it with the Scheduler.
@@ -54,6 +61,9 @@ func (lp *LabelProjectSync) Job(ctx context.Context) {
 	moves := make(map[string]todoist.MoveTarget)
 	for _, task := range tasks {
 		if task.ParentID != nil {
+			continue
+		}
+		if slices.Contains(lp.excludeProjectIDs, task.ProjectID) {
 			continue
 		}
 

@@ -3,7 +3,6 @@
 	import { updateTask, createTask, completeTask, deleteTask, moveTask, getTask, getCompletedSubtasks } from '$lib/api/client';
 	import { incrementDuplicateTitle, stripTaskPrefix, stripMarkdownLinks } from '$lib/utils';
 	import { cleanPaste } from '$lib/utils/clean-paste';
-	import { actionQueue } from '$lib/sync/action-queue.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
@@ -70,17 +69,19 @@
 
 	// Fetch full task from API — store may have filtered children (different context).
 	// API result supplements the store but never overrides local state.
+	// Skip fetch for temp IDs — they only exist locally until reconciliation.
 	$effect(() => {
+		if (taskId.startsWith('temp-')) return;
 		const seq = ++fetchSeq;
 		taskFetching = true;
 		taskFromApi = null;
 		getTask(taskId)
-			.then((t) => { if (fetchSeq === seq) taskFromApi = tasksStore.applyPendingTaskUpdate(t); })
+			.then((t) => { if (fetchSeq === seq) taskFromApi = t; })
 			.catch(() => { if (!taskFromStore) onclose(); })
 			.finally(() => { taskFetching = false; });
 	});
 
-	// Store is the source of truth (offline-first). API only supplements
+	// Store is the source of truth. API only supplements
 	// with children that aren't in the current view/context.
 	const task = $derived.by(() => {
 		const api = taskFromApi?.id === taskId ? taskFromApi : null;
@@ -144,7 +145,7 @@
 
 	$effect(() => {
 		const id = taskId;
-		if (!id) {
+		if (!id || id.startsWith('temp-')) {
 			completedSubtasks = [];
 			return;
 		}
@@ -802,6 +803,10 @@ function setDateQuick(date: string) {
 		const labels = [...new Set([...inheritableParentLabels, ...contextLabels])];
 		const parentId = task.id;
 		const tempId = `temp-${Date.now()}`;
+		// Capture children before state mutations so prefix detection is stable.
+		const existingChildren = task.children;
+		const lastSiblingId = existingChildren.at(-1)?.id ?? '';
+
 		const optimistic: Task = {
 			id: tempId,
 			content,
@@ -820,13 +825,22 @@ function setDateQuick(date: string) {
 			postpone_count: 0,
 			children: []
 		};
-		updateLocal((t) => ({
-			...t,
-			children: [...t.children, optimistic],
-			sub_task_count: t.sub_task_count + 1
-		}));
+		// Add temp subtask to flat store so WS delta reconciliation replaces it with the real ID.
+		// Using insertAfterLocal positions it after the last sibling.
+		tasksStore.insertAfterLocal(lastSiblingId, optimistic);
+		tasksStore.updateTaskLocal(parentId, (t) => ({ ...t, sub_task_count: t.sub_task_count + 1 }));
+		// Update taskFromApi when the parent is not in the flat store (e.g. navigated from troiki
+		// or task filtered out of current context). In that case insertAfterLocal won't make the
+		// child visible through taskFromStore, so we patch the API snapshot directly.
+		if (taskFromApi?.id === parentId && !taskFromStore) {
+			taskFromApi = {
+				...taskFromApi,
+				children: [...taskFromApi.children, optimistic],
+				sub_task_count: taskFromApi.sub_task_count + 1
+			};
+		}
 		// Keep form open for adding more subtasks; reset to detected prefix
-		const nextPrefix = detectPrefixFromSiblings([...(task?.children ?? []), optimistic]);
+		const nextPrefix = detectPrefixFromSiblings([...existingChildren, optimistic]);
 		subtaskContent = nextPrefix || extractPrefix(task?.content ?? '');
 		tick().then(() => {
 			subtaskTextarea?.focus();
@@ -836,16 +850,7 @@ function setDateQuick(date: string) {
 			{ content, description: '', labels, priority: 1, parent_id: parentId },
 			contextsStore.activeContextId ?? undefined,
 			tempId
-		).then(() => {
-			// Flush the queue so the backend actually creates the subtask,
-			// then re-fetch to replace temp child IDs with real ones.
-			// Bump fetchSeq so the initial page-load fetch (if still in flight) cannot overwrite this result.
-			const seq = ++fetchSeq;
-			actionQueue.flushNow()
-				.then(() => getTask(taskId))
-				.then((t) => { if (fetchSeq === seq) taskFromApi = t; })
-				.catch(() => {});
-		}).catch((e) => {
+		).catch((e) => {
 			logger.error('tasks', `create subtask failed: ${e}`);
 			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();
@@ -1025,6 +1030,10 @@ function setDateQuick(date: string) {
 
 	const currentProject = $derived(
 		task ? appStore.projects.find((p) => p.id === task.project_id) ?? null : null
+	);
+
+	const isTroikiParent = $derived(
+		!!task && task.project_id === appStore.troikiProjectId && !task.parent_id
 	);
 
 	function handleMoveToProject(projectId: string) {
@@ -1218,7 +1227,7 @@ function setDateQuick(date: string) {
 				<TaskDropdownMenu
 					bind:open={dropdownOpen}
 					{task}
-					onDuplicate={handleDuplicate}
+					onDuplicate={isTroikiParent ? undefined : handleDuplicate}
 					onCopy={() => { if (task) navigator.clipboard.writeText(stripTaskPrefix(task.content)); dropdownOpen = false; }}
 					{canPin}
 					{isPinned}
@@ -1234,6 +1243,7 @@ function setDateQuick(date: string) {
 					onSetDate={setDateQuick}
 					onClearDate={clearDate}
 					onSetPriority={setPriority}
+					hidePriority={isTroikiParent}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 				>
 					{#snippet trigger()}
@@ -1410,35 +1420,37 @@ function setDateQuick(date: string) {
 						</div>
 
 						<!-- Priority -->
-						<div>
-							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
-							<div bind:this={priorityPickerRef} class="relative">
-								<button
-									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
-									onclick={() => (showPriorityPicker = !showPriorityPicker)}
-								>
-									<FlagIcon class="h-4 w-4" />
-									{activePriority?.label ?? 'P4'}
-								</button>
+						{#if !isTroikiParent}
+							<div>
+								<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
+								<div bind:this={priorityPickerRef} class="relative">
+									<button
+										class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
+										onclick={() => (showPriorityPicker = !showPriorityPicker)}
+									>
+										<FlagIcon class="h-4 w-4" />
+										{activePriority?.label ?? 'P4'}
+									</button>
 
-								{#if showPriorityPicker}
-									<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
-										<div class="px-1 py-1">
-											{#each priorityItems as p (p.value)}
-												<button
-													class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
-														{localPriority === p.value ? 'bg-accent' : ''}"
-													onclick={() => setPriority(p.value)}
-												>
-													<FlagIcon class="h-3.5 w-3.5 {p.color}" />
-													<span class={p.color}>{p.label}</span>
-												</button>
-											{/each}
+									{#if showPriorityPicker}
+										<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
+											<div class="px-1 py-1">
+												{#each priorityItems as p (p.value)}
+													<button
+														class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
+															{localPriority === p.value ? 'bg-accent' : ''}"
+														onclick={() => setPriority(p.value)}
+													>
+														<FlagIcon class="h-3.5 w-3.5 {p.color}" />
+														<span class={p.color}>{p.label}</span>
+													</button>
+												{/each}
+											</div>
 										</div>
-									</div>
-								{/if}
+									{/if}
+								</div>
 							</div>
-						</div>
+						{/if}
 
 						<!-- Recurrence -->
 						<RecurrencePicker
@@ -1699,35 +1711,37 @@ function setDateQuick(date: string) {
 					</div>
 
 					<!-- Priority -->
-					<div>
-						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
-						<div bind:this={priorityPickerRef} class="relative">
-							<button
-								class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
-								onclick={() => (showPriorityPicker = !showPriorityPicker)}
-							>
-								<FlagIcon class="h-4 w-4" />
-								{activePriority?.label ?? 'P4'}
-							</button>
+					{#if !isTroikiParent}
+						<div>
+							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
+							<div bind:this={priorityPickerRef} class="relative">
+								<button
+									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
+									onclick={() => (showPriorityPicker = !showPriorityPicker)}
+								>
+									<FlagIcon class="h-4 w-4" />
+									{activePriority?.label ?? 'P4'}
+								</button>
 
-							{#if showPriorityPicker}
-								<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
-									<div class="px-1 py-1">
-										{#each priorityItems as p (p.value)}
-											<button
-												class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
-													{localPriority === p.value ? 'bg-accent' : ''}"
-												onclick={() => setPriority(p.value)}
-											>
-												<FlagIcon class="h-3.5 w-3.5 {p.color}" />
-												<span class={p.color}>{p.label}</span>
-											</button>
-										{/each}
+								{#if showPriorityPicker}
+									<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
+										<div class="px-1 py-1">
+											{#each priorityItems as p (p.value)}
+												<button
+													class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
+														{localPriority === p.value ? 'bg-accent' : ''}"
+													onclick={() => setPriority(p.value)}
+												>
+													<FlagIcon class="h-3.5 w-3.5 {p.color}" />
+													<span class={p.color}>{p.label}</span>
+												</button>
+											{/each}
+										</div>
 									</div>
-								</div>
-							{/if}
+								{/if}
+							</div>
 						</div>
-					</div>
+					{/if}
 
 					<!-- Recurrence -->
 					<RecurrencePicker

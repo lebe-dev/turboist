@@ -30,6 +30,7 @@
 	import FilterIcon from '@lucide/svelte/icons/filter';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
+	import TroikiLogo from '$lib/components/TroikiLogo.svelte';
 	import { t } from 'svelte-intl-precompile';
 	import { untrack } from 'svelte';
 
@@ -395,6 +396,16 @@
 				<FilterIcon class="h-2.5 w-2.5" />
 				<span class="sr-only">Filters</span>
 			</Toggle>
+		{/if}
+		{#if appStore.troikiEnabled}
+			<a
+				href="/troiki"
+				class="ml-2 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+				aria-label={$t('troiki.title')}
+				title={$t('troiki.title')}
+			>
+				<TroikiLogo class="h-3.5 w-3.5" />
+			</a>
 		{/if}
 	</header>
 

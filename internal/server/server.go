@@ -16,6 +16,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/handler"
 	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/todoist"
+	"github.com/lebe-dev/turboist/internal/troiki"
 	"github.com/lebe-dev/turboist/internal/ws"
 )
 
@@ -25,7 +26,7 @@ type AutoRemovePauser interface {
 	Paused() bool
 }
 
-func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws.Hub, autoRemove AutoRemovePauser) *fiber.App {
+func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws.Hub, autoRemove AutoRemovePauser, troikiService *troiki.Service) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName: "turboist",
 	})
@@ -53,7 +54,7 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 		return hub.HandleWS(c)
 	})
 
-	tasksHandler := handler.NewTasksHandler(cache, &cfg.App, store)
+	tasksHandler := handler.NewTasksHandler(cache, &cfg.App, store, troikiService)
 	app.Get("/api/tasks", tasksHandler.Tasks)
 	app.Get("/api/tasks/inbox", tasksHandler.Inbox)
 	app.Get("/api/tasks/weekly", tasksHandler.Weekly)
@@ -74,6 +75,13 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 	app.Post("/api/tasks/:id/move", tasksHandler.Move)
 	app.Delete("/api/tasks/:id", tasksHandler.Delete)
 	app.Get("/api/tasks/:id/completed-subtasks", tasksHandler.CompletedSubtasks)
+
+	if troikiService != nil {
+		troikiHandler := handler.NewTroikiHandler(troikiService)
+		app.Get("/api/troiki", troikiHandler.State)
+		app.Get("/api/troiki/completed", troikiHandler.Completed)
+		app.Post("/api/troiki/tasks", troikiHandler.CreateTask)
+	}
 
 	configHandler := handler.NewConfigHandler(cache, &cfg.App, store, autoRemove)
 	app.Get("/api/config", configHandler.Config)

@@ -1,10 +1,6 @@
 import { logger } from '$lib/stores/logger';
 import { getAppConfig, patchState } from '$lib/api/client';
-import { setBackend, getBackend } from '$lib/api/backend';
-import { DefaultBackendConnector } from '$lib/api/default-backend';
-import { QueuedBackend } from '$lib/api/queued-backend';
-import { actionQueue } from '$lib/sync/action-queue.svelte';
-import type { AllFiltersState, AutoLabelMapping, Label, LabelConfig, LabelProjectMapping, Project, ProjectTask, QuickCaptureConfig, View } from '$lib/api/types';
+import type { AllFiltersState, AutoLabelMapping, Label, LabelConfig, LabelProjectMapping, Project, ProjectTask, QuickCaptureConfig, TroikiConfig, View } from '$lib/api/types';
 import { applyLocaleFromConfig } from '$lib/i18n';
 import { compileAutoLabels, matchAutoLabels } from '$lib/utils/auto-labels';
 import { contextsStore } from './contexts.svelte';
@@ -17,8 +13,6 @@ import { dayPartNotesStore } from './day-part-notes.svelte';
 import { tasksStore } from './tasks.svelte';
 import { projectTasksStore } from './project-tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
-import { saveAppConfig, loadAppConfig } from '$lib/sync/db';
-import { initState, destroyState, loadPersistedUI } from '$lib/state/index.svelte';
 
 const LOCAL_STORAGE_KEYS = [
 	'turboist:context',
@@ -115,6 +109,7 @@ function createAppStore() {
 	let quickCaptureOpen = $state(false);
 	let allFilters = $state<AllFiltersState | null>(null);
 	let autoRemovePaused = $state(false);
+	let troiki = $state<TroikiConfig>({ enabled: false });
 
 	function hydrateFromConfig(cfg: import('$lib/api/types').AppConfig): void {
 		labels = cfg.labels;
@@ -133,13 +128,8 @@ function createAppStore() {
 			cfg.state.active_view as View
 		);
 		pinnedStore.init(cfg.state.pinned_tasks, cfg.settings.max_pinned);
-		const cachedUI = loadPersistedUI();
-		const hasCachedUI = cachedUI !== null;
-		collapsedStore.init(hasCachedUI ? cfg.state.collapsed_ids : []);
-		sectionsStore.init(
-			cachedUI?.collapsed_section_ids ?? [],
-			cachedUI?.pinned_section_ids ?? []
-		);
+		collapsedStore.init(cfg.state.collapsed_ids ?? []);
+		sectionsStore.init([], []);
 		sidebarStore.init(cfg.state.sidebar_collapsed);
 		planningStore.initActive(cfg.state.planning_open);
 		dayPartNotesStore.init(
@@ -150,38 +140,17 @@ function createAppStore() {
 		applyLocaleFromConfig(cfg.state.locale);
 		allFilters = cfg.state.all_filters ?? null;
 		autoRemovePaused = cfg.auto_remove?.paused ?? false;
+		troiki = cfg.troiki ?? { enabled: false };
 	}
 
 	async function init(): Promise<void> {
 		logger.log('app', 'init start');
 
-		// Set up the backend connector chain: Default → Queued
-		const defaultBackend = new DefaultBackendConnector();
-		setBackend(new QueuedBackend(defaultBackend, actionQueue));
-
-		// Load any pending offline actions from previous session
-		await actionQueue.init();
-
 		// Migrate localStorage first (one-time)
 		await migrateLocalStorage();
 
-		// Initialize SyncroState + y-indexeddb (loads cached data from IDB)
-		await initState();
-		logger.log('app', 'SyncroState initialized, y-indexeddb synced');
-
-		let cfg;
-		try {
-			cfg = await getAppConfig();
-			logger.log('app', 'config loaded from API');
-			// Cache config to IDB for offline use
-			saveAppConfig(cfg).catch((e) => logger.error('app', String(e)));
-		} catch {
-			logger.warn('app', 'config API failed, trying IDB cache');
-			// Fallback to cached config from IDB
-			cfg = await loadAppConfig();
-			if (!cfg) throw new Error('No network and no cached config');
-			logger.log('app', 'config loaded from IDB cache');
-		}
+		const cfg = await getAppConfig();
+		logger.log('app', 'config loaded from API');
 
 		hydrateFromConfig(cfg);
 
@@ -191,26 +160,17 @@ function createAppStore() {
 		// Start task store (registers WS handlers and subscribes)
 		await tasksStore.start();
 
-		// Load all tasks for project views (offline-first via Y.Doc)
+		// Load all tasks for project views
 		projectTasksStore.start();
-
-		// Start auto-flush timer using sync_interval from config (default 60s)
-		const syncMs = (cfg.settings.sync_interval || 60) * 1000;
-		actionQueue.startAutoFlush(defaultBackend, syncMs);
-
-		// Flush any queued actions from previous session immediately
-		actionQueue.flushNow().catch((e) => logger.error('app', `Initial queue flush failed: ${e}`));
 
 		initialized = true;
 		logger.log('app', 'init complete');
 	}
 
 	function destroy(): void {
-		actionQueue.stopAutoFlush();
 		tasksStore.stop();
 		projectTasksStore.stop();
 		wsClient.disconnect();
-		destroyState();
 		initialized = false;
 	}
 
@@ -274,6 +234,15 @@ function createAppStore() {
 		},
 		get autoRemovePaused() {
 			return autoRemovePaused;
+		},
+		get troikiEnabled() {
+			return troiki.enabled;
+		},
+		get troikiProjectId() {
+			return troiki.project_id ?? '';
+		},
+		get troikiConfig() {
+			return troiki;
 		},
 		saveAllFilters(f: AllFiltersState) {
 			allFilters = f;

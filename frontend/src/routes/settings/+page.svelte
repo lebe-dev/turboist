@@ -11,9 +11,6 @@
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import LogsPanel from '$lib/components/LogsPanel.svelte';
-	import { actionQueue } from '$lib/sync/action-queue.svelte';
-	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { toast } from 'svelte-sonner';
 
 	let resettingCache = $state(false);
@@ -113,51 +110,6 @@
 			</Tabs.Content>
 
 			<Tabs.Content value="logs">
-				{#if actionQueue.items.length > 0}
-					<section class="mb-6">
-						<div class="mb-3 flex items-center justify-between">
-							<h2 class="text-xs font-medium tracking-wider uppercase text-muted-foreground">{$t('pwa.pendingActions')}</h2>
-							<button
-								class="rounded-md px-2 py-1 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10"
-								onclick={() => actionQueue.clear()}
-							>
-								{$t('pwa.clearQueue')}
-							</button>
-						</div>
-						<div class="space-y-1">
-							{#each actionQueue.items as action (action.id)}
-								<div class="flex items-center justify-between rounded-md border px-3 py-2 text-sm
-									{action.status === 'failed' ? 'border-destructive/30 bg-destructive/5' : 'border-border/50'}">
-									<div class="min-w-0 flex-1">
-										<span class="font-mono text-xs text-muted-foreground">{action.type}</span>
-										{#if action.error}
-											<p class="mt-0.5 truncate text-[11px] text-destructive">{action.error}</p>
-										{/if}
-										<p class="text-[11px] text-muted-foreground/60">{new Date(action.createdAt).toLocaleTimeString()}</p>
-									</div>
-									<div class="ml-2 flex shrink-0 items-center gap-1">
-										{#if action.status === 'failed'}
-											<button
-												class="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-												title={$t('pwa.retryAction')}
-												onclick={() => actionQueue.retryFailed(action.id!)}
-											>
-												<RefreshCwIcon class="h-3.5 w-3.5" />
-											</button>
-										{/if}
-										<button
-											class="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-											title={$t('pwa.discardAction')}
-											onclick={() => actionQueue.discard(action.id!)}
-										>
-											<Trash2Icon class="h-3.5 w-3.5" />
-										</button>
-									</div>
-								</div>
-							{/each}
-						</div>
-					</section>
-				{/if}
 				<LogsPanel />
 			</Tabs.Content>
 		</Tabs.Root>

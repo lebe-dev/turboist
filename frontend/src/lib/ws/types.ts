@@ -1,9 +1,11 @@
-import type { Meta, Task } from '$lib/api/types';
+import type { Meta, Task, TroikiState, TroikiSectionState } from '$lib/api/types';
+
+export type Channel = 'tasks' | 'planning' | 'troiki';
 
 // Client → Server
 export interface SubscribeMessage {
 	type: 'subscribe';
-	channel: 'tasks' | 'planning';
+	channel: Channel;
 	view?: string;
 	context?: string;
 	seq?: number;
@@ -11,7 +13,7 @@ export interface SubscribeMessage {
 
 export interface UnsubscribeMessage {
 	type: 'unsubscribe';
-	channel: 'tasks' | 'planning';
+	channel: Channel;
 }
 
 export interface PongMessage {
@@ -46,9 +48,15 @@ export interface DeltaPlanningData {
 	meta: Meta;
 }
 
+export type SnapshotTroikiData = TroikiState;
+
+export interface DeltaTroikiData {
+	sections: TroikiSectionState[];
+}
+
 export interface ServerMessage {
 	type: 'snapshot' | 'delta' | 'ping' | 'error';
-	channel?: 'tasks' | 'planning';
+	channel?: Channel;
 	data?: unknown;
 	message?: string;
 	seq?: number;

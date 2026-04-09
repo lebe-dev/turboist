@@ -1,16 +1,19 @@
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	CreateTroikiTaskRequest,
 	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
+	TroikiCompletedState,
+	TroikiState,
 	UpdateTaskRequest,
 	UserState
 } from './types';
 import { DefaultBackendConnector } from './default-backend';
 
 // Interface that all backend connectors must implement.
-// Mirrors the public API surface of client.ts.
+// Kept for mock tests (MockBackendConnector).
 export interface BackendConnector {
 	// Auth
 	login(password: string): Promise<void>;
@@ -40,19 +43,15 @@ export interface BackendConnector {
 	deleteTask(id: string): Promise<void>;
 	decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void>;
 
+	// Troiki
+	getTroikiState(): Promise<TroikiState>;
+	getTroikiCompleted(): Promise<TroikiCompletedState>;
+	createTroikiTask(data: CreateTroikiTaskRequest): Promise<string>;
+
 	// Config & state
 	getAppConfig(): Promise<AppConfig>;
 	patchState(update: Partial<UserState>): Promise<void>;
 	resetWeeklyLabel(): Promise<void>;
 }
 
-// Start with DefaultBackendConnector so auth works before appStore.init()
-let _backend: BackendConnector = new DefaultBackendConnector();
-
-export function getBackend(): BackendConnector {
-	return _backend;
-}
-
-export function setBackend(b: BackendConnector): void {
-	_backend = b;
-}
+export const backend: BackendConnector = new DefaultBackendConnector();

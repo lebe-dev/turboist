@@ -7,6 +7,14 @@ import (
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
 
+// TroikiSnapshot stores per-section hashes for delta computation.
+type TroikiSnapshot [3]uint64
+
+// TroikiDelta represents changed sections in the troiki channel.
+type TroikiDelta struct {
+	Sections []any `json:"sections"` // changed SectionState entries
+}
+
 // TasksSnapshot maps task ID → hash for delta computation.
 type TasksSnapshot map[string]uint64
 

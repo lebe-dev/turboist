@@ -11,11 +11,9 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { initLocale } from '$lib/i18n';
-	import UpdateBanner from '$lib/components/UpdateBanner.svelte';
-	import InstallBanner from '$lib/components/InstallBanner.svelte';
 	import AutoRemovePausedBanner from '$lib/components/AutoRemovePausedBanner.svelte';
 	import QuickCaptureButton from '$lib/components/QuickCaptureButton.svelte';
-	import ConnectionIndicator from '$lib/components/ConnectionIndicator.svelte';
+	import TroikiLogo from '$lib/components/TroikiLogo.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 
@@ -54,8 +52,6 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <ModeWatcher />
 <Toaster />
-<UpdateBanner />
-<InstallBanner />
 <AutoRemovePausedBanner />
 
 <QuickCaptureButton showButton={false} />
@@ -107,7 +103,7 @@
                     {#each [{ id: "today", key: "views.today" }, { id: "tomorrow", key: "views.tomorrow" }, { id: "weekly", key: "views.weekly" }] as view (view.id)}
                         <button
                             class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors duration-150
-							{contextsStore.activeView === view.id
+							{contextsStore.activeView === view.id && $page.url.pathname !== '/troiki'
                                 ? 'bg-accent text-foreground'
                                 : 'text-muted-foreground hover:text-foreground'}"
                             onclick={() => {
@@ -120,9 +116,18 @@
                         </button>
                     {/each}
                 </div>
-                <div class="ml-auto">
-                    <ConnectionIndicator compact />
-                </div>
+                {#if appStore.troikiEnabled}
+                    <a
+                        href="/troiki"
+                        class="ml-auto flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-150
+							{$page.url.pathname === '/troiki'
+                                ? 'bg-accent text-foreground'
+                                : 'text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/50'}"
+                        aria-label="Troiki"
+                    >
+                        <TroikiLogo class="h-3.5 w-3.5" />
+                    </a>
+                {/if}
             </div>
             <div class="flex-1 overflow-y-auto">
                 {@render children()}

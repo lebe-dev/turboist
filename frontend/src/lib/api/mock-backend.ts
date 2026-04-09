@@ -4,10 +4,13 @@ import type { BackendConnector } from './backend';
 import type {
 	AppConfig,
 	CreateTaskRequest,
+	CreateTroikiTaskRequest,
 	DecomposeTaskRequest,
 	Meta,
 	Task,
 	TasksResponse,
+	TroikiCompletedState,
+	TroikiState,
 	UpdateTaskRequest,
 	UserState
 } from './types';
@@ -156,6 +159,23 @@ export class MockBackendConnector implements BackendConnector {
 		this.record('decomposeTask', [id, data]);
 	}
 
+	// Troiki
+
+	async getTroikiState(): Promise<TroikiState> {
+		this.record('getTroikiState', []);
+		return { project_id: '', sections: [] };
+	}
+
+	async getTroikiCompleted(): Promise<TroikiCompletedState> {
+		this.record('getTroikiCompleted', []);
+		return { sections: [] };
+	}
+
+	async createTroikiTask(data: CreateTroikiTaskRequest): Promise<string> {
+		this.record('createTroikiTask', [data]);
+		return `mock-${Date.now()}`;
+	}
+
 	// Config & state
 
 	async getAppConfig(): Promise<AppConfig> {
@@ -190,6 +210,7 @@ export class MockBackendConnector implements BackendConnector {
 			project_tasks: [],
 			label_project_map: { enabled: false, mappings: [] },
 			auto_remove: { rules: [], paused: false },
+			troiki: { enabled: false },
 			state: {
 				pinned_tasks: [],
 				active_context_id: '',

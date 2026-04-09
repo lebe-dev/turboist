@@ -25,6 +25,15 @@ func (s *Store) GetPostponeCounts() (map[string]int, error) {
 	return result, nil
 }
 
+// ResetPostponeCount removes the postpone count for a task (resets to zero).
+func (s *Store) ResetPostponeCount(taskID string) error {
+	_, err := s.db.Exec("DELETE FROM postpone_counts WHERE task_id = ?", taskID)
+	if err != nil {
+		return fmt.Errorf("reset postpone count for %s: %w", taskID, err)
+	}
+	return nil
+}
+
 // IncrementPostponeCount atomically increments the postpone count for a task.
 func (s *Store) IncrementPostponeCount(taskID string) error {
 	_, err := s.db.Exec(
