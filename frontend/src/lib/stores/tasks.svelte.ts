@@ -38,6 +38,8 @@ function createTasksStore() {
 
 	// IDs of tasks optimistically removed — survives fetches until grace period expires
 	const pendingRemovals = new Map<string, number>();
+	// Incremented on every pendingRemovals mutation so $derived consumers re-evaluate.
+	let pendingRemovalsVersion = $state(0);
 
 	// Map temp task IDs to their reconciled real IDs (for navigation redirect)
 	let reconciledIds = $state<Record<string, string>>({});
@@ -303,13 +305,13 @@ function createTasksStore() {
 	}
 
 	function removeTaskLocal(taskId: string): void {
-		// Only add to pendingRemovals overlay — don't modify $state.
-		// The tasks getter applies pendingRemovals filter on read.
 		pendingRemovals.set(taskId, Date.now());
+		pendingRemovalsVersion++;
 	}
 
 	function clearPendingRemoval(taskId: string): void {
 		pendingRemovals.delete(taskId);
+		pendingRemovalsVersion++;
 	}
 
 	function addTaskLocal(task: Task): void {
@@ -330,6 +332,8 @@ function createTasksStore() {
 
 	return {
 		get tasks(): Task[] {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			const _v = pendingRemovalsVersion; // reactive dependency on pendingRemovals mutations
 			if (currentView() === 'completed') {
 				return completedTasks;
 			}
