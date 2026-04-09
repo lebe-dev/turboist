@@ -8,6 +8,7 @@ import type {
 	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
+	TroikiCompletedState,
 	TroikiState,
 	UpdateTaskRequest,
 	UserState
@@ -185,6 +186,10 @@ export class DefaultBackendConnector implements BackendConnector {
 
 	async getTroikiState(): Promise<TroikiState> {
 		return this.request<TroikiState>('/api/troiki');
+	}
+
+	async getTroikiCompleted(): Promise<TroikiCompletedState> {
+		return this.request<TroikiCompletedState>('/api/troiki/completed');
 	}
 
 	async createTroikiTask(data: CreateTroikiTaskRequest): Promise<string> {

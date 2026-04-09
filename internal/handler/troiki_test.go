@@ -49,6 +49,10 @@ func (m *troikiMockCache) AddSection(_ context.Context, name string, projectID s
 	return fmt.Sprintf("sec-%d", len(m.addedSections)), nil
 }
 
+func (m *troikiMockCache) FetchCompletedBySection(_ context.Context, _, _ string) ([]*todoist.Task, error) {
+	return nil, nil
+}
+
 type troikiMockStore struct {
 	capacity map[string]int
 }

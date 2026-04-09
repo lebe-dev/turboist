@@ -268,6 +268,30 @@ func (c *Client) FetchCompletedTasks(ctx context.Context, since, until time.Time
 	return tasks, nil
 }
 
+// FetchCompletedBySection returns completed root tasks in a specific project section (last 30 days).
+func (c *Client) FetchCompletedBySection(ctx context.Context, projectID, sectionID string) ([]*Task, error) {
+	now := time.Now()
+	since := now.AddDate(0, -1, 0) // 1 month back
+
+	items, err := c.taskSvc.GetAllCompletedTasksByCompletionDate(ctx, &rest.TaskGetCompletedByCompletionDateParams{
+		Since:     since,
+		Until:     now,
+		ProjectID: &projectID,
+		SectionID: &sectionID,
+	})
+	if err != nil {
+		return nil, &APIError{Op: "FetchCompletedBySection", Err: err}
+	}
+
+	tasks := make([]*Task, 0, len(items))
+	for _, t := range items {
+		if t.ParentID == nil && t.SectionID != nil && *t.SectionID == sectionID {
+			tasks = append(tasks, TaskFromSync(t))
+		}
+	}
+	return tasks, nil
+}
+
 // FetchCompletedSubtasks returns subtasks of the given parent completed in the last 90 days.
 func (c *Client) FetchCompletedSubtasks(ctx context.Context, parentID string) ([]*Task, error) {
 	now := time.Now()

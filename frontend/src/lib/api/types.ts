@@ -236,5 +236,14 @@ export interface CreateTroikiTaskRequest {
 	description: string;
 }
 
+export interface TroikiCompletedSection {
+	class: SectionClass;
+	tasks: Task[];
+}
+
+export interface TroikiCompletedState {
+	sections: TroikiCompletedSection[];
+}
+
 // Legacy alias for backward compatibility within tasks/planning stores
 export type Config = Settings;

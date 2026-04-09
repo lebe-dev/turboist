@@ -198,5 +198,6 @@
   "troiki.addTask": "Add task...",
   "troiki.alwaysOpen": "always open",
   "troiki.unlockHint": "Complete a task in {section} to unlock",
-  "troiki.empty": "Troiki sections are loading..."
+  "troiki.empty": "Troiki sections are loading...",
+  "troiki.completed": "Completed ({count})"
 }

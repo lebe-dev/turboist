@@ -79,6 +79,7 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 	if troikiService != nil {
 		troikiHandler := handler.NewTroikiHandler(troikiService)
 		app.Get("/api/troiki", troikiHandler.State)
+		app.Get("/api/troiki/completed", troikiHandler.Completed)
 		app.Post("/api/troiki/tasks", troikiHandler.CreateTask)
 	}
 

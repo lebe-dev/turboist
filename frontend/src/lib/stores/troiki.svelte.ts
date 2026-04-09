@@ -1,22 +1,44 @@
 import { logger } from '$lib/stores/logger';
-import { createTroikiTask } from '$lib/api/client';
-import type { TroikiSectionState, SectionClass, CreateTroikiTaskRequest } from '$lib/api/types';
+import { createTroikiTask, getTroikiCompleted } from '$lib/api/client';
+import type { Task, TroikiCompletedSection, TroikiSectionState, SectionClass, CreateTroikiTaskRequest } from '$lib/api/types';
 import {
 	wsClient,
 	type SnapshotTroikiData,
 	type DeltaTroikiData
 } from '$lib/ws/client.svelte';
 
+function buildSectionTree(tasks: Task[]): Task[] {
+	const byId = new Map<string, Task>();
+	for (const t of tasks) {
+		byId.set(t.id, { ...t, children: [] });
+	}
+	const roots: Task[] = [];
+	for (const t of tasks) {
+		const node = byId.get(t.id)!;
+		if (t.parent_id && byId.has(t.parent_id)) {
+			byId.get(t.parent_id)!.children.push(node);
+		} else {
+			roots.push(node);
+		}
+	}
+	return roots;
+}
+
+function processSection(section: TroikiSectionState): TroikiSectionState {
+	return { ...section, tasks: buildSectionTree(section.tasks) };
+}
+
 function createTroikiStore() {
 	let active = $state(false);
 	let sections = $state<TroikiSectionState[]>([]);
 	let loading = $state(false);
+	let completedSections = $state<TroikiCompletedSection[]>([]);
 
 	let cleanups: (() => void)[] = [];
 
 	function handleSnapshot(data: unknown, _seq?: number): void {
 		const d = data as SnapshotTroikiData;
-		sections = d.sections;
+		sections = d.sections.map(processSection);
 		loading = false;
 	}
 
@@ -24,7 +46,7 @@ function createTroikiStore() {
 		const d = data as DeltaTroikiData;
 		sections = sections.map((existing) => {
 			const updated = d.sections.find((s) => s.class === existing.class);
-			return updated ?? existing;
+			return updated ? processSection(updated) : existing;
 		});
 	}
 
@@ -37,6 +59,10 @@ function createTroikiStore() {
 		cleanups.push(wsClient.onMessage('delta', 'troiki', handleDelta));
 
 		wsClient.subscribe('troiki', {});
+
+		getTroikiCompleted()
+			.then((data) => { completedSections = data.sections; })
+			.catch((err) => { logger.error('troiki', `fetch completed failed: ${err}`); });
 	}
 
 	function exit(): void {
@@ -48,6 +74,7 @@ function createTroikiStore() {
 		wsClient.unsubscribe('troiki');
 
 		sections = [];
+		completedSections = [];
 	}
 
 	function refresh(): void {
@@ -83,6 +110,9 @@ function createTroikiStore() {
 		},
 		get loading() {
 			return loading;
+		},
+		get completedSections() {
+			return completedSections;
 		},
 		enter,
 		exit,

@@ -38,6 +38,11 @@ type State struct {
 	Sections  []SectionState `json:"sections"`
 }
 
+type CompletedSectionState struct {
+	Class SectionClass    `json:"class"`
+	Tasks []*todoist.Task `json:"tasks"`
+}
+
 type capacityStore interface {
 	GetAllTroikiCapacity() (map[string]int, error)
 	IncrementTroikiCapacity(sectionClass string) error
@@ -51,6 +56,7 @@ type cache interface {
 	Tasks() []*todoist.Task
 	AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error)
 	AddSection(ctx context.Context, name string, projectID string) (string, error)
+	FetchCompletedBySection(ctx context.Context, projectID, sectionID string) ([]*todoist.Task, error)
 }
 
 type Service struct {
@@ -351,6 +357,20 @@ func priorityForClass(class SectionClass) int {
 	default:
 		return 1
 	}
+}
+
+// FetchCompletedTasks returns completed root tasks for each troiki section.
+func (s *Service) FetchCompletedTasks(ctx context.Context) ([]CompletedSectionState, error) {
+	result := make([]CompletedSectionState, 0, len(sectionOrder))
+	for _, class := range sectionOrder {
+		sectionID := s.sectionIDs[class]
+		tasks, err := s.cache.FetchCompletedBySection(ctx, s.projectID, sectionID)
+		if err != nil {
+			return nil, fmt.Errorf("fetch completed for %s: %w", class, err)
+		}
+		result = append(result, CompletedSectionState{Class: class, Tasks: tasks})
+	}
+	return result, nil
 }
 
 var ErrNoCapacity = fmt.Errorf("no capacity available")

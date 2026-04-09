@@ -325,6 +325,11 @@ func (c *Cache) Client() *Client {
 	return c.client.(*Client)
 }
 
+// FetchCompletedBySection returns completed root tasks for a specific project section.
+func (c *Cache) FetchCompletedBySection(ctx context.Context, projectID, sectionID string) ([]*Task, error) {
+	return c.Client().FetchCompletedBySection(ctx, projectID, sectionID)
+}
+
 // SetOnRefresh sets a callback that is invoked after every successful cache refresh.
 func (c *Cache) SetOnRefresh(fn func()) {
 	c.onRefresh = fn

@@ -9,6 +9,7 @@ import type {
 	Meta,
 	Task,
 	TasksResponse,
+	TroikiCompletedState,
 	TroikiState,
 	UpdateTaskRequest,
 	UserState
@@ -163,6 +164,11 @@ export class MockBackendConnector implements BackendConnector {
 	async getTroikiState(): Promise<TroikiState> {
 		this.record('getTroikiState', []);
 		return { project_id: '', sections: [] };
+	}
+
+	async getTroikiCompleted(): Promise<TroikiCompletedState> {
+		this.record('getTroikiCompleted', []);
+		return { sections: [] };
 	}
 
 	async createTroikiTask(data: CreateTroikiTaskRequest): Promise<string> {

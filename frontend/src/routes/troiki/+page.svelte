@@ -2,11 +2,13 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
-	import type { SectionClass } from '$lib/api/types';
+	import type { SectionClass, Task } from '$lib/api/types';
 	import TaskItem from '$lib/components/TaskItem.svelte';
 	import Layers3Icon from '@lucide/svelte/icons/layers-3';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { t } from 'svelte-intl-precompile';
 	import { toast } from 'svelte-sonner';
 
@@ -16,6 +18,11 @@
 		rest: ''
 	});
 	let submitting = $state<Record<SectionClass, boolean>>({
+		important: false,
+		medium: false,
+		rest: false
+	});
+	let completedExpanded = $state<Record<SectionClass, boolean>>({
 		important: false,
 		medium: false,
 		rest: false
@@ -74,7 +81,15 @@
 			default: return 'text-[13px]';
 		}
 	}
+
+	function completedForSection(sectionClass: SectionClass): Task[] {
+		return troikiStore.completedSections.find((s) => s.class === sectionClass)?.tasks ?? [];
+	}
 </script>
+
+{#snippet taskRow(task: Task, textSize: string)}
+	<TaskItem {task} {textSize} />
+{/snippet}
 
 <div class="flex h-full flex-col">
 	<header class="flex h-12 shrink-0 items-center gap-2.5 border-b border-border/50 px-4 md:px-6">
@@ -91,6 +106,7 @@
 			{#each troikiStore.sections as section (section.class)}
 				{@const isLocked = !section.can_add && section.class !== 'important'}
 				{@const showCapacity = section.class !== 'important'}
+				{@const completed = completedForSection(section.class)}
 
 				<div class="mb-4">
 					<!-- Section divider with name and counter -->
@@ -121,11 +137,11 @@
 						<div class="h-px flex-1 bg-border/40"></div>
 					</div>
 
-					<!-- Task list -->
+					<!-- Active task list -->
 					{#if section.tasks.length > 0}
 						<div class="space-y-px px-1">
 							{#each section.tasks as task (task.id)}
-								<TaskItem {task} textSize={taskTextSize(section.class)} />
+								{@render taskRow(task, taskTextSize(section.class))}
 							{/each}
 						</div>
 					{/if}
@@ -152,6 +168,30 @@
 							<p class="text-[12px] text-muted-foreground/40">
 								{$t('troiki.unlockHint', { values: { section: previousSectionName(section.class) } })}
 							</p>
+						</div>
+					{/if}
+
+					<!-- Completed tasks (collapsed by default) -->
+					{#if completed.length > 0}
+						<div class="mt-2 px-1">
+							<button
+								class="flex cursor-pointer items-center gap-1.5 px-2 py-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground/70 transition-colors"
+								onclick={() => { completedExpanded[section.class] = !completedExpanded[section.class]; }}
+							>
+								{#if completedExpanded[section.class]}
+									<ChevronDownIcon class="h-3 w-3" />
+								{:else}
+									<ChevronRightIcon class="h-3 w-3" />
+								{/if}
+								{$t('troiki.completed', { values: { count: completed.length } })}
+							</button>
+							{#if completedExpanded[section.class]}
+								<div class="mt-1 space-y-px opacity-50">
+									{#each completed as task (task.id)}
+										<TaskItem {task} textSize={taskTextSize(section.class)} />
+									{/each}
+								</div>
+							{/if}
 						</div>
 					{/if}
 				</div>

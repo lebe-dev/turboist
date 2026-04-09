@@ -5,6 +5,7 @@ import type {
 	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
+	TroikiCompletedState,
 	TroikiState,
 	UpdateTaskRequest,
 	UserState
@@ -44,6 +45,7 @@ export interface BackendConnector {
 
 	// Troiki
 	getTroikiState(): Promise<TroikiState>;
+	getTroikiCompleted(): Promise<TroikiCompletedState>;
 	createTroikiTask(data: CreateTroikiTaskRequest): Promise<string>;
 
 	// Config & state

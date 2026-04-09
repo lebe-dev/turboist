@@ -238,6 +238,9 @@ function createAppStore() {
 		get troikiEnabled() {
 			return troiki.enabled;
 		},
+		get troikiProjectId() {
+			return troiki.project_id ?? '';
+		},
 		get troikiConfig() {
 			return troiki;
 		},

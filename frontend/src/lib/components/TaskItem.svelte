@@ -655,7 +655,7 @@
 			{#if hasChildren && !collapsed && !completed}
 			<div>
 				{#each task.children as child (child.id)}
-					<TaskItem task={child} depth={depth + 1} {searchQuery} {dimmed} {hideTodayDue} {hideTomorrowDue} />
+					<TaskItem task={child} depth={depth + 1} {searchQuery} {dimmed} {hideTodayDue} {hideTomorrowDue} {textSize} />
 				{/each}
 			</div>
 		{/if}

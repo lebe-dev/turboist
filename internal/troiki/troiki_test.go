@@ -50,6 +50,10 @@ func (m *mockCache) AddSection(_ context.Context, name string, projectID string)
 	return id, nil
 }
 
+func (m *mockCache) FetchCompletedBySection(_ context.Context, _, _ string) ([]*todoist.Task, error) {
+	return nil, nil
+}
+
 type mockStore struct {
 	capacity map[string]int
 }

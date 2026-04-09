@@ -32,6 +32,16 @@ type createTroikiTaskRequest struct {
 	Description  string `json:"description"`
 }
 
+// Completed handles GET /api/troiki/completed — returns completed root tasks per section.
+func (h *TroikiHandler) Completed(c fiber.Ctx) error {
+	sections, err := h.service.FetchCompletedTasks(c.Context())
+	if err != nil {
+		log.Error("troiki fetch completed failed", "err", err)
+		return todoistErrorResponse(c, err)
+	}
+	return c.JSON(fiber.Map{"sections": sections})
+}
+
 // CreateTask handles POST /api/troiki/tasks — creates a task in the specified troiki section.
 func (h *TroikiHandler) CreateTask(c fiber.Ctx) error {
 	var req createTroikiTaskRequest

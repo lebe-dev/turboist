@@ -198,5 +198,6 @@
   "troiki.addTask": "Добавить задачу...",
   "troiki.alwaysOpen": "всегда открыта",
   "troiki.unlockHint": "Завершите задачу в «{section}» для разблокировки",
-  "troiki.empty": "Секции тройки загружаются..."
+  "troiki.empty": "Секции тройки загружаются...",
+  "troiki.completed": "Выполнено ({count})"
 }

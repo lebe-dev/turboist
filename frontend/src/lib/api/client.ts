@@ -1,5 +1,5 @@
 import { backend } from './backend';
-import type { AppConfig, CreateTaskRequest, CreateTroikiTaskRequest, DecomposeTaskRequest, Task, TasksResponse, TroikiState, UpdateTaskRequest, UserState } from './types';
+import type { AppConfig, CreateTaskRequest, CreateTroikiTaskRequest, DecomposeTaskRequest, Task, TasksResponse, TroikiCompletedState, TroikiState, UpdateTaskRequest, UserState } from './types';
 
 // Thin wrapper layer: each function delegates to the active BackendConnector.
 // All existing imports from '$lib/api/client' continue to work unchanged.
@@ -110,6 +110,10 @@ export async function getTroikiState(): Promise<TroikiState> {
 
 export async function createTroikiTask(data: CreateTroikiTaskRequest): Promise<string> {
 	return backend.createTroikiTask(data);
+}
+
+export async function getTroikiCompleted(): Promise<TroikiCompletedState> {
+	return backend.getTroikiCompleted();
 }
 
 export async function resetCache(): Promise<void> {

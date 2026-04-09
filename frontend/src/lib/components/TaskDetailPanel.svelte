@@ -803,6 +803,10 @@ function setDateQuick(date: string) {
 		const labels = [...new Set([...inheritableParentLabels, ...contextLabels])];
 		const parentId = task.id;
 		const tempId = `temp-${Date.now()}`;
+		// Capture children before state mutations so prefix detection is stable.
+		const existingChildren = task.children;
+		const lastSiblingId = existingChildren.at(-1)?.id ?? '';
+
 		const optimistic: Task = {
 			id: tempId,
 			content,
@@ -821,13 +825,12 @@ function setDateQuick(date: string) {
 			postpone_count: 0,
 			children: []
 		};
-		updateLocal((t) => ({
-			...t,
-			children: [...t.children, optimistic],
-			sub_task_count: t.sub_task_count + 1
-		}));
+		// Add temp subtask to flat store so WS delta reconciliation replaces it with the real ID.
+		// Using insertAfterLocal positions it after the last sibling.
+		tasksStore.insertAfterLocal(lastSiblingId, optimistic);
+		tasksStore.updateTaskLocal(parentId, (t) => ({ ...t, sub_task_count: t.sub_task_count + 1 }));
 		// Keep form open for adding more subtasks; reset to detected prefix
-		const nextPrefix = detectPrefixFromSiblings([...(task?.children ?? []), optimistic]);
+		const nextPrefix = detectPrefixFromSiblings([...existingChildren, optimistic]);
 		subtaskContent = nextPrefix || extractPrefix(task?.content ?? '');
 		tick().then(() => {
 			subtaskTextarea?.focus();
@@ -837,13 +840,7 @@ function setDateQuick(date: string) {
 			{ content, description: '', labels, priority: 1, parent_id: parentId },
 			contextsStore.activeContextId ?? undefined,
 			tempId
-		).then(() => {
-			// Re-fetch to replace temp child IDs with real ones.
-			const seq = ++fetchSeq;
-			getTask(taskId)
-				.then((t) => { if (fetchSeq === seq) taskFromApi = t; })
-				.catch(() => {});
-		}).catch((e) => {
+		).catch((e) => {
 			logger.error('tasks', `create subtask failed: ${e}`);
 			toast.error($t('errors.createFailed'));
 			tasksStore.refresh();
