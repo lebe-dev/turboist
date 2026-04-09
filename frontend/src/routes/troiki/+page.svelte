@@ -81,7 +81,7 @@
 </script>
 
 {#snippet taskRow(task: Task, textSize: string)}
-	<TaskItem {task} {textSize} hideDecompose={true} hidePriority={true} />
+	<TaskItem {task} {textSize} hideDecompose={true} hidePriority={true} hideDuplicate={true} />
 {/snippet}
 
 <div class="flex h-full flex-col">

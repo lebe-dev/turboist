@@ -32,7 +32,7 @@
 
 	import type { Snippet } from 'svelte';
 
-	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton, hideDecompose = false, hidePriority = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet; hideDecompose?: boolean; hidePriority?: boolean } = $props();
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton, hideDecompose = false, hidePriority = false, hideDuplicate = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet; hideDecompose?: boolean; hidePriority?: boolean; hideDuplicate?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -619,7 +619,7 @@
 					bind:open={dropdownOpen}
 					{task}
 					onEdit={() => goto(`/task/${task.id}`)}
-					onDuplicate={handleDuplicate}
+					onDuplicate={hideDuplicate ? undefined : handleDuplicate}
 					onCopy={() => { navigator.clipboard.writeText(stripTaskPrefix(task.content)); dropdownOpen = false; }}
 					onDecompose={() => { dropdownOpen = false; showDecomposeDialog = true; }}
 					{canPin}

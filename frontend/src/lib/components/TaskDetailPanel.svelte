@@ -1032,6 +1032,10 @@ function setDateQuick(date: string) {
 		task ? appStore.projects.find((p) => p.id === task.project_id) ?? null : null
 	);
 
+	const isTroikiParent = $derived(
+		!!task && task.project_id === appStore.troikiProjectId && !task.parent_id
+	);
+
 	function handleMoveToProject(projectId: string) {
 		if (!task) return;
 		showProjectPicker = false;
@@ -1223,7 +1227,7 @@ function setDateQuick(date: string) {
 				<TaskDropdownMenu
 					bind:open={dropdownOpen}
 					{task}
-					onDuplicate={handleDuplicate}
+					onDuplicate={isTroikiParent ? undefined : handleDuplicate}
 					onCopy={() => { if (task) navigator.clipboard.writeText(stripTaskPrefix(task.content)); dropdownOpen = false; }}
 					{canPin}
 					{isPinned}
@@ -1239,6 +1243,7 @@ function setDateQuick(date: string) {
 					onSetDate={setDateQuick}
 					onClearDate={clearDate}
 					onSetPriority={setPriority}
+					hidePriority={isTroikiParent}
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 				>
 					{#snippet trigger()}
@@ -1415,35 +1420,37 @@ function setDateQuick(date: string) {
 						</div>
 
 						<!-- Priority -->
-						<div>
-							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
-							<div bind:this={priorityPickerRef} class="relative">
-								<button
-									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
-									onclick={() => (showPriorityPicker = !showPriorityPicker)}
-								>
-									<FlagIcon class="h-4 w-4" />
-									{activePriority?.label ?? 'P4'}
-								</button>
+						{#if !isTroikiParent}
+							<div>
+								<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
+								<div bind:this={priorityPickerRef} class="relative">
+									<button
+										class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
+										onclick={() => (showPriorityPicker = !showPriorityPicker)}
+									>
+										<FlagIcon class="h-4 w-4" />
+										{activePriority?.label ?? 'P4'}
+									</button>
 
-								{#if showPriorityPicker}
-									<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
-										<div class="px-1 py-1">
-											{#each priorityItems as p (p.value)}
-												<button
-													class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
-														{localPriority === p.value ? 'bg-accent' : ''}"
-													onclick={() => setPriority(p.value)}
-												>
-													<FlagIcon class="h-3.5 w-3.5 {p.color}" />
-													<span class={p.color}>{p.label}</span>
-												</button>
-											{/each}
+									{#if showPriorityPicker}
+										<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
+											<div class="px-1 py-1">
+												{#each priorityItems as p (p.value)}
+													<button
+														class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
+															{localPriority === p.value ? 'bg-accent' : ''}"
+														onclick={() => setPriority(p.value)}
+													>
+														<FlagIcon class="h-3.5 w-3.5 {p.color}" />
+														<span class={p.color}>{p.label}</span>
+													</button>
+												{/each}
+											</div>
 										</div>
-									</div>
-								{/if}
+									{/if}
+								</div>
 							</div>
-						</div>
+						{/if}
 
 						<!-- Recurrence -->
 						<RecurrencePicker
@@ -1704,35 +1711,37 @@ function setDateQuick(date: string) {
 					</div>
 
 					<!-- Priority -->
-					<div>
-						<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
-						<div bind:this={priorityPickerRef} class="relative">
-							<button
-								class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
-								onclick={() => (showPriorityPicker = !showPriorityPicker)}
-							>
-								<FlagIcon class="h-4 w-4" />
-								{activePriority?.label ?? 'P4'}
-							</button>
+					{#if !isTroikiParent}
+						<div>
+							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
+							<div bind:this={priorityPickerRef} class="relative">
+								<button
+									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
+									onclick={() => (showPriorityPicker = !showPriorityPicker)}
+								>
+									<FlagIcon class="h-4 w-4" />
+									{activePriority?.label ?? 'P4'}
+								</button>
 
-							{#if showPriorityPicker}
-								<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
-									<div class="px-1 py-1">
-										{#each priorityItems as p (p.value)}
-											<button
-												class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
-													{localPriority === p.value ? 'bg-accent' : ''}"
-												onclick={() => setPriority(p.value)}
-											>
-												<FlagIcon class="h-3.5 w-3.5 {p.color}" />
-												<span class={p.color}>{p.label}</span>
-											</button>
-										{/each}
+								{#if showPriorityPicker}
+									<div class="absolute left-0 top-full z-10 mt-1 w-36 rounded-lg border border-border bg-popover shadow-xl">
+										<div class="px-1 py-1">
+											{#each priorityItems as p (p.value)}
+												<button
+													class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] transition-colors hover:bg-accent
+														{localPriority === p.value ? 'bg-accent' : ''}"
+													onclick={() => setPriority(p.value)}
+												>
+													<FlagIcon class="h-3.5 w-3.5 {p.color}" />
+													<span class={p.color}>{p.label}</span>
+												</button>
+											{/each}
+										</div>
 									</div>
-								</div>
-							{/if}
+								{/if}
+							</div>
 						</div>
-					</div>
+					{/if}
 
 					<!-- Recurrence -->
 					<RecurrencePicker
