@@ -41,6 +41,7 @@ type State struct {
 type capacityStore interface {
 	GetAllTroikiCapacity() (map[string]int, error)
 	IncrementTroikiCapacity(sectionClass string) error
+	DecrementTroikiCapacity(sectionClass string) error
 	EnsureMinTroikiCapacity(sectionClass string, min int) error
 }
 
@@ -285,6 +286,11 @@ func (s *Service) AddTask(ctx context.Context, class SectionClass, content, desc
 	if err != nil {
 		return "", fmt.Errorf("add task: %w", err)
 	}
+	if class != Important {
+		if err := s.store.DecrementTroikiCapacity(string(class)); err != nil {
+			log.Error("troiki: failed to decrement capacity", "class", class, "err", err)
+		}
+	}
 	return id, nil
 }
 
@@ -297,7 +303,7 @@ func (s *Service) canAdd(class SectionClass, rootCount, capacity int) bool {
 	if class == Important {
 		return rootCount < s.cfg.MaxTasksPerSection
 	}
-	return rootCount < min(capacity, s.cfg.MaxTasksPerSection)
+	return capacity > 0 && rootCount < s.cfg.MaxTasksPerSection
 }
 
 func (s *Service) classForSection(sectionID *string) (SectionClass, bool) {

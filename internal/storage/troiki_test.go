@@ -73,6 +73,65 @@ func TestIncrementTroikiCapacity_MultipleSections(t *testing.T) {
 	}
 }
 
+func TestDecrementTroikiCapacity_Decrements(t *testing.T) {
+	s := newTestStore(t)
+
+	for range 3 {
+		if err := s.IncrementTroikiCapacity("medium"); err != nil {
+			t.Fatalf("increment: %v", err)
+		}
+	}
+
+	if err := s.DecrementTroikiCapacity("medium"); err != nil {
+		t.Fatalf("decrement: %v", err)
+	}
+
+	caps, err := s.GetAllTroikiCapacity()
+	if err != nil {
+		t.Fatalf("get all: %v", err)
+	}
+	if caps["medium"] != 2 {
+		t.Errorf("expected medium=2, got %d", caps["medium"])
+	}
+}
+
+func TestDecrementTroikiCapacity_FloorsAtZero(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.IncrementTroikiCapacity("medium"); err != nil {
+		t.Fatalf("increment: %v", err)
+	}
+	for range 5 {
+		if err := s.DecrementTroikiCapacity("medium"); err != nil {
+			t.Fatalf("decrement: %v", err)
+		}
+	}
+
+	caps, err := s.GetAllTroikiCapacity()
+	if err != nil {
+		t.Fatalf("get all: %v", err)
+	}
+	if caps["medium"] != 0 {
+		t.Errorf("expected medium=0, got %d", caps["medium"])
+	}
+}
+
+func TestDecrementTroikiCapacity_MissingRowNoOp(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.DecrementTroikiCapacity("medium"); err != nil {
+		t.Fatalf("decrement on missing row: %v", err)
+	}
+
+	caps, err := s.GetAllTroikiCapacity()
+	if err != nil {
+		t.Fatalf("get all: %v", err)
+	}
+	if caps["medium"] != 0 {
+		t.Errorf("expected medium=0 (absent key), got %d", caps["medium"])
+	}
+}
+
 func TestEnsureMinTroikiCapacity_SetsNew(t *testing.T) {
 	s := newTestStore(t)
 

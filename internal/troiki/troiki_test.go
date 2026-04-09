@@ -71,6 +71,13 @@ func (m *mockStore) IncrementTroikiCapacity(sectionClass string) error {
 	return nil
 }
 
+func (m *mockStore) DecrementTroikiCapacity(sectionClass string) error {
+	if m.capacity[sectionClass] > 0 {
+		m.capacity[sectionClass]--
+	}
+	return nil
+}
+
 func (m *mockStore) EnsureMinTroikiCapacity(sectionClass string, min int) error {
 	if m.capacity[sectionClass] < min {
 		m.capacity[sectionClass] = min
@@ -452,7 +459,7 @@ func TestAddTask_NoCapacity(t *testing.T) {
 	}
 }
 
-func TestAddTask_NoCapacitySpent(t *testing.T) {
+func TestAddTask_DecrementsCapacity(t *testing.T) {
 	mc := &mockCache{
 		tasks: []*todoist.Task{
 			task("t1", "proj-1", ptr("sec-med"), nil),
@@ -468,9 +475,23 @@ func TestAddTask_NoCapacitySpent(t *testing.T) {
 		t.Fatalf("AddTask: %v", err)
 	}
 
-	// Capacity should remain unchanged — AddTask does not decrement capacity
-	if store.capacity["medium"] != 3 {
-		t.Errorf("medium capacity: got %d, want 3 (should not be spent)", store.capacity["medium"])
+	if store.capacity["medium"] != 2 {
+		t.Errorf("medium capacity: got %d, want 2 (token spent on add)", store.capacity["medium"])
+	}
+}
+
+func TestAddTask_ImportantDoesNotDecrementCapacity(t *testing.T) {
+	mc := &mockCache{tasks: []*todoist.Task{}, nextTaskID: "imp-1"}
+	store := newMockStore()
+	store.capacity["important"] = 5 // hypothetical, should never be touched
+	svc := setupInitialized(mc, store)
+
+	_, err := svc.AddTask(context.Background(), Important, "Urgent task", "")
+	if err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	if store.capacity["important"] != 5 {
+		t.Errorf("important capacity should not change, got %d", store.capacity["important"])
 	}
 }
 
@@ -591,11 +612,12 @@ func TestCapacityAccumulation(t *testing.T) {
 	}
 }
 
-// --- Delete frees slot ---
+// --- Delete does not free slot ---
 
-func TestDeleteFreesSlot_NoCapacityChange(t *testing.T) {
+func TestDeleteDoesNotFreeSlot(t *testing.T) {
 	store := newMockStore()
-	store.capacity["medium"] = 2
+	// capacity=0: both tokens were spent when the 2 tasks were added
+	store.capacity["medium"] = 0
 
 	mc := &mockCache{
 		tasks: []*todoist.Task{
@@ -605,32 +627,26 @@ func TestDeleteFreesSlot_NoCapacityChange(t *testing.T) {
 	}
 	svc := setupInitialized(mc, store)
 
-	// Verify we can't add (2 root tasks, capacity 2 → 2 < 2 = false)
 	can, err := svc.CanAddTask(Medium)
 	if err != nil {
 		t.Fatalf("CanAddTask: %v", err)
 	}
 	if can {
-		t.Error("should not be able to add when rootCount == capacity")
+		t.Error("should not be able to add with 0 capacity")
 	}
 
-	// Simulate deletion by removing a task from cache
+	// Simulate deletion — removes a task from Todoist cache
 	mc.tasks = []*todoist.Task{
 		task("t1", "proj-1", ptr("sec-med"), nil),
 	}
 
-	// Now should be able to add (1 root task, capacity 2 → 1 < 2 = true)
+	// Still cannot add: capacity is still 0, deletion doesn't earn tokens
 	can, err = svc.CanAddTask(Medium)
 	if err != nil {
 		t.Fatalf("CanAddTask: %v", err)
 	}
-	if !can {
-		t.Error("should be able to add after deletion freed a slot")
-	}
-
-	// Capacity stays the same — no decrement on delete
-	if store.capacity["medium"] != 2 {
-		t.Errorf("medium capacity: got %d, want 2 (unchanged after delete)", store.capacity["medium"])
+	if can {
+		t.Error("should not be able to add after deletion — must complete an upstream task to earn a token")
 	}
 }
 

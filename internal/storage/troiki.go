@@ -37,6 +37,18 @@ func (s *Store) IncrementTroikiCapacity(sectionClass string) error {
 	return nil
 }
 
+// DecrementTroikiCapacity atomically decrements the capacity for a section class by 1, flooring at 0.
+func (s *Store) DecrementTroikiCapacity(sectionClass string) error {
+	_, err := s.db.Exec(
+		"UPDATE troiki_capacity SET capacity = MAX(0, capacity - 1) WHERE section_class = ?",
+		sectionClass,
+	)
+	if err != nil {
+		return fmt.Errorf("decrement troiki capacity for %s: %w", sectionClass, err)
+	}
+	return nil
+}
+
 // EnsureMinTroikiCapacity sets capacity to at least min, never decreasing an existing value.
 func (s *Store) EnsureMinTroikiCapacity(sectionClass string, min int) error {
 	_, err := s.db.Exec(
