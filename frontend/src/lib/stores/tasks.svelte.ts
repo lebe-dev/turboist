@@ -1,5 +1,5 @@
 import { logger } from '$lib/stores/logger';
-import { getAppConfig, getCompletedTasks } from '$lib/api/client';
+import { getAppConfig, getCompletedTasks, deleteTask } from '$lib/api/client';
 import type { Config, Meta, Task } from '$lib/api/types';
 import { contextsStore, type View } from './contexts.svelte';
 import {
@@ -148,6 +148,14 @@ function createTasksStore() {
 					);
 					if (realTask) {
 						newMappings[tempTask.id] = realTask.id;
+						// If the temp task was pending removal (user deleted before real ID arrived),
+						// transfer the removal to the real ID and fire a proper delete against it.
+						const removedAt = pendingRemovals.get(tempTask.id);
+						if (removedAt !== undefined) {
+							pendingRemovals.set(realTask.id, removedAt);
+							pendingRemovalsVersion++;
+							deleteTask(realTask.id).catch(() => refresh());
+						}
 					}
 					// Record position before removal
 					const positions = tempPositions.get(tempTask.content) ?? [];
