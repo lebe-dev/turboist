@@ -37,15 +37,17 @@ func NewStateHandler(store *storage.Store, cfg *config.AppConfig) *StateHandler 
 }
 
 type stateUpdateRequest struct {
-	PinnedTasks      *[]storage.PinnedTask    `json:"pinned_tasks"`
-	ActiveContextID  *string                  `json:"active_context_id"`
-	ActiveView       *string                  `json:"active_view"`
-	CollapsedIDs     *[]string                `json:"collapsed_ids"`
-	SidebarCollapsed *bool                    `json:"sidebar_collapsed"`
-	PlanningOpen     *bool                    `json:"planning_open"`
-	DayPartNotes     *map[string]string       `json:"day_part_notes"`
-	Locale           *string                  `json:"locale"`
-	AllFilters       *storage.AllFiltersState `json:"all_filters"`
+	PinnedTasks         *[]storage.PinnedTask    `json:"pinned_tasks"`
+	ActiveContextID     *string                  `json:"active_context_id"`
+	ActiveView          *string                  `json:"active_view"`
+	CollapsedIDs        *[]string                `json:"collapsed_ids"`
+	SidebarCollapsed    *bool                    `json:"sidebar_collapsed"`
+	PlanningOpen        *bool                    `json:"planning_open"`
+	DayPartNotes        *map[string]string       `json:"day_part_notes"`
+	Locale              *string                  `json:"locale"`
+	AllFilters          *storage.AllFiltersState `json:"all_filters"`
+	BannerText          *string                  `json:"banner_text"`
+	BannerDismissedText *string                  `json:"banner_dismissed_text"`
 }
 
 // Update handles PATCH /api/state.
@@ -140,6 +142,26 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 		if err := h.store.SetValue("all_filters", string(data)); err != nil {
 			log.Error("state save failed", "field", "all_filters", "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: all_filters", "detail": err.Error()})
+		}
+	}
+
+	if req.BannerText != nil {
+		if utf8.RuneCountInString(*req.BannerText) > 200 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "banner_text too long"})
+		}
+		if err := h.store.SetValue("banner_text", *req.BannerText); err != nil {
+			log.Error("state save failed", "field", "banner_text", "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: banner_text", "detail": err.Error()})
+		}
+	}
+
+	if req.BannerDismissedText != nil {
+		if utf8.RuneCountInString(*req.BannerDismissedText) > 200 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "banner_dismissed_text too long"})
+		}
+		if err := h.store.SetValue("banner_dismissed_text", *req.BannerDismissedText); err != nil {
+			log.Error("state save failed", "field", "banner_dismissed_text", "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: banner_dismissed_text", "detail": err.Error()})
 		}
 	}
 

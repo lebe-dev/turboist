@@ -128,6 +128,8 @@ export interface UserState {
 	day_part_notes: Record<string, string>;
 	locale: string;
 	all_filters: AllFiltersState | null;
+	banner_text: string;
+	banner_dismissed_text: string;
 }
 
 export interface Settings {

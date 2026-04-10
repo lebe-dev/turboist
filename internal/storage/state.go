@@ -73,6 +73,9 @@ func (s *Store) GetState() (*UserState, error) {
 		state.AllFilters = &af
 	}
 
+	state.BannerText = kv["banner_text"]
+	state.BannerDismissedText = kv["banner_dismissed_text"]
+
 	return state, nil
 }
 

@@ -10,6 +10,7 @@ import { sectionsStore } from './sections.svelte';
 import { sidebarStore } from './sidebar.svelte';
 import { planningStore } from './planning.svelte';
 import { dayPartNotesStore } from './day-part-notes.svelte';
+import { bannerStore } from './banner.svelte';
 import { tasksStore } from './tasks.svelte';
 import { projectTasksStore } from './project-tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
@@ -136,6 +137,8 @@ function createAppStore() {
 			cfg.state.day_part_notes ?? {},
 			cfg.settings.max_day_part_note_length ?? 200
 		);
+
+		bannerStore.init(cfg.state.banner_text ?? '', cfg.state.banner_dismissed_text ?? '');
 
 		applyLocaleFromConfig(cfg.state.locale);
 		allFilters = cfg.state.all_filters ?? null;

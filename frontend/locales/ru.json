@@ -189,6 +189,11 @@
   "settings.cacheResetFailed": "Не удалось сбросить кэш",
   "settings.cacheResetHint": "Принудительная полная синхронизация с Todoist. Используйте, если задачи выглядят устаревшими.",
 
+  "settings.banner": "Баннер",
+  "settings.bannerPlaceholder": "напр. Неделя без чтения новостей",
+  "settings.bannerHint": "Отображается над задачами на экране Сегодня. Закрывается крестиком до смены текста.",
+  "settings.bannerClear": "Очистить",
+
   "troiki.title": "Система Тройки",
   "troiki.important": "Важное",
   "troiki.medium": "Среднее",

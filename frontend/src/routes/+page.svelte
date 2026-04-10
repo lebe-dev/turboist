@@ -5,6 +5,7 @@
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { planningStore } from '$lib/stores/planning.svelte';
 	import { appStore } from '$lib/stores/app.svelte';
+	import { bannerStore } from '$lib/stores/banner.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskList from '$lib/components/TaskList.svelte';
 	import DayPartTaskList from '$lib/components/DayPartTaskList.svelte';
@@ -529,6 +530,19 @@
 					</button>
 				{/if}
 			</div>
+		</div>
+	{/if}
+
+	{#if contextsStore.activeView === 'today' && bannerStore.visible}
+		<div class="flex shrink-0 items-center gap-3 border-b border-primary/20 bg-primary/5 px-3 py-3 md:px-6">
+			<span class="flex-1 text-[13px] font-medium text-primary">{bannerStore.text}</span>
+			<button
+				class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-primary/60 transition-colors hover:bg-primary/10 hover:text-primary"
+				onclick={() => bannerStore.dismiss()}
+				aria-label="Dismiss banner"
+			>
+				<XIcon class="h-3.5 w-3.5" />
+			</button>
 		</div>
 	{/if}
 

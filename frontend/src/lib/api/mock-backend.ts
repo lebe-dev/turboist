@@ -220,7 +220,9 @@ export class MockBackendConnector implements BackendConnector {
 				planning_open: false,
 				day_part_notes: {},
 				locale: '',
-				all_filters: null
+				all_filters: null,
+				banner_text: '',
+				banner_dismissed_text: ''
 			}
 		};
 	}

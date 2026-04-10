@@ -17,13 +17,15 @@ type AllFiltersState struct {
 
 // UserState represents the full user state stored in the database.
 type UserState struct {
-	PinnedTasks      []PinnedTask      `json:"pinned_tasks"`
-	ActiveContextID  string            `json:"active_context_id"`
-	ActiveView       string            `json:"active_view"`
-	CollapsedIDs     []string          `json:"collapsed_ids"`
-	SidebarCollapsed bool              `json:"sidebar_collapsed"`
-	PlanningOpen     bool              `json:"planning_open"`
-	DayPartNotes     map[string]string `json:"day_part_notes"`
-	Locale           string            `json:"locale"`
-	AllFilters       *AllFiltersState  `json:"all_filters"`
+	PinnedTasks         []PinnedTask      `json:"pinned_tasks"`
+	ActiveContextID     string            `json:"active_context_id"`
+	ActiveView          string            `json:"active_view"`
+	CollapsedIDs        []string          `json:"collapsed_ids"`
+	SidebarCollapsed    bool              `json:"sidebar_collapsed"`
+	PlanningOpen        bool              `json:"planning_open"`
+	DayPartNotes        map[string]string `json:"day_part_notes"`
+	Locale              string            `json:"locale"`
+	AllFilters          *AllFiltersState  `json:"all_filters"`
+	BannerText          string            `json:"banner_text"`
+	BannerDismissedText string            `json:"banner_dismissed_text"`
 }

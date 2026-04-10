@@ -189,6 +189,11 @@
   "settings.cacheResetFailed": "Failed to reset cache",
   "settings.cacheResetHint": "Forces a full re-sync with Todoist. Use if tasks appear stale.",
 
+  "settings.banner": "Banner",
+  "settings.bannerPlaceholder": "e.g. Week without reading news",
+  "settings.bannerHint": "Displayed above tasks on the Today screen. Close with X to dismiss until text changes.",
+  "settings.bannerClear": "Clear",
+
   "troiki.title": "Troiki System",
   "troiki.important": "Important",
   "troiki.medium": "Medium",
