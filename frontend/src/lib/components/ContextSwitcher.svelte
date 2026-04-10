@@ -111,7 +111,7 @@
 			>
 				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 {priorityPinColor(pinnedPriority(pinned))}" />
 				{#if !collapsed}
-					<span class="flex-1 break-words text-left text-[11px] leading-tight">{pinned.content}</span>
+					<span class="flex-1 break-words text-left text-[11px] leading-tight text-white">{pinned.content}</span>
 					<span
 						class="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
 						role="button"

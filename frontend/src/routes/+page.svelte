@@ -534,10 +534,10 @@
 	{/if}
 
 	{#if contextsStore.activeView === 'today' && bannerStore.visible}
-		<div class="flex shrink-0 items-center gap-3 border-b border-primary/20 bg-primary/5 px-3 py-3 md:px-6">
-			<span class="flex-1 text-[13px] font-medium text-primary">{bannerStore.text}</span>
+		<div class="flex shrink-0 items-center gap-3 border-b border-border/50 bg-muted/50 px-3 py-3 md:px-6">
+			<span class="flex-1 text-[13px] font-medium text-foreground/90">{bannerStore.text}</span>
 			<button
-				class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-primary/60 transition-colors hover:bg-primary/10 hover:text-primary"
+				class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-accent hover:text-muted-foreground"
 				onclick={() => bannerStore.dismiss()}
 				aria-label="Dismiss banner"
 			>
