@@ -11,15 +11,19 @@
 	const completedGroups = $derived.by<DateGroup[]>(() => {
 		if (!completed) return [];
 
+		function localDateKey(d: Date): string {
+			return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+		}
+
 		const today = new Date();
 		const yesterday = new Date(today);
 		yesterday.setDate(yesterday.getDate() - 1);
-		const todayStr = today.toISOString().slice(0, 10);
-		const yesterdayStr = yesterday.toISOString().slice(0, 10);
+		const todayStr = localDateKey(today);
+		const yesterdayStr = localDateKey(yesterday);
 
 		const grouped = new Map<string, Task[]>();
 		for (const task of tasks) {
-			const dateKey = task.completed_at ? task.completed_at.slice(0, 10) : 'unknown';
+			const dateKey = task.completed_at ? localDateKey(new Date(task.completed_at)) : 'unknown';
 			if (!grouped.has(dateKey)) grouped.set(dateKey, []);
 			grouped.get(dateKey)!.push(task);
 		}
