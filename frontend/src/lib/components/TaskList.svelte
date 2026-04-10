@@ -5,6 +5,43 @@
 	import { t } from 'svelte-intl-precompile';
 
 	let { tasks, searchQuery = '', completed = false, contextName = '', onResetContext }: { tasks: Task[]; searchQuery?: string; completed?: boolean; contextName?: string; onResetContext?: () => void } = $props();
+
+	type DateGroup = { dateKey: string; label: string; tasks: Task[] };
+
+	const completedGroups = $derived.by<DateGroup[]>(() => {
+		if (!completed) return [];
+
+		const today = new Date();
+		const yesterday = new Date(today);
+		yesterday.setDate(yesterday.getDate() - 1);
+		const todayStr = today.toISOString().slice(0, 10);
+		const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+		const grouped = new Map<string, Task[]>();
+		for (const task of tasks) {
+			const dateKey = task.completed_at ? task.completed_at.slice(0, 10) : 'unknown';
+			if (!grouped.has(dateKey)) grouped.set(dateKey, []);
+			grouped.get(dateKey)!.push(task);
+		}
+
+		const result: DateGroup[] = [];
+		for (const [dateKey, groupTasks] of grouped) {
+			let label: string;
+			if (dateKey === todayStr) {
+				label = $t('tasks.dateToday');
+			} else if (dateKey === yesterdayStr) {
+				label = $t('tasks.dateYesterday');
+			} else if (dateKey === 'unknown') {
+				label = '—';
+			} else {
+				const d = new Date(dateKey + 'T00:00:00');
+				label = d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+			}
+			result.push({ dateKey, label, tasks: groupTasks });
+		}
+
+		return result;
+	});
 </script>
 
 {#if tasks.length === 0}
@@ -20,6 +57,21 @@
 				{/if}
 			</p>
 		{/if}
+	</div>
+{:else if completed}
+	<div class="space-y-px px-1">
+		{#each completedGroups as group (group.dateKey)}
+			<div class="flex items-center gap-3 px-2 pt-4 pb-1 md:px-3">
+				<div class="h-px flex-1 bg-border/40"></div>
+				<span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/40">{group.label}</span>
+				<div class="h-px flex-1 bg-border/40"></div>
+			</div>
+			{#each group.tasks as task, i (task.id)}
+				<div class="animate-fade-in-up" style="animation-delay: {Math.min(i * 30, 300)}ms">
+					<TaskItem {task} {searchQuery} {completed} />
+				</div>
+			{/each}
+		{/each}
 	</div>
 {:else}
 	<div class="space-y-px px-1">

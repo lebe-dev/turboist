@@ -45,6 +45,8 @@
   "dayPartNote.placeholder": "Add a note...",
   "tasks.moveAllTo": "Move all to {label}",
   "tasks.completedToday": "Completed today",
+  "tasks.dateToday": "Today",
+  "tasks.dateYesterday": "Yesterday",
   "tasks.search": "Search...",
   "tasks.notInWeeklyPlan": "Task added outside weekly planning",
   "tasks.postponed": "Postponed {count, plural, one {# time} other {# times}}",

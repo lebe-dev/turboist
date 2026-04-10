@@ -45,6 +45,8 @@
   "dayPartNote.placeholder": "Добавить заметку...",
   "tasks.moveAllTo": "Переместить все в {label}",
   "tasks.completedToday": "Выполнено сегодня",
+  "tasks.dateToday": "Сегодня",
+  "tasks.dateYesterday": "Вчера",
   "tasks.search": "Поиск...",
   "tasks.notInWeeklyPlan": "Задача добавлена вне недельного планирования",
   "tasks.postponed": "Перенесено {count, plural, one {# раз} few {# раза} other {# раз}}",
