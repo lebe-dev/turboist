@@ -236,8 +236,11 @@
 	// --- Priority (optimistic) ---
 	let showPriorityPicker = $state(false);
 	let labelPickerRef: HTMLDivElement | undefined = $state();
+	let labelPickerRef2: HTMLDivElement | undefined = $state();
 	let priorityPickerRef: HTMLDivElement | undefined = $state();
+	let priorityPickerRef2: HTMLDivElement | undefined = $state();
 	let calendarRef: HTMLDivElement | undefined = $state();
+	let calendarRef2: HTMLDivElement | undefined = $state();
 	let titleEditRef: HTMLDivElement | undefined = $state();
 	let descEditRef: HTMLDivElement | undefined = $state();
 
@@ -247,16 +250,16 @@
 
 		function handlePointerDown(e: PointerEvent) {
 			const target = e.target as Node;
-			if (showLabelPicker && labelPickerRef && !labelPickerRef.contains(target)) {
+			if (showLabelPicker && labelPickerRef && !labelPickerRef.contains(target) && (!labelPickerRef2 || !labelPickerRef2.contains(target))) {
 				showLabelPicker = false;
 			}
-			if (showPriorityPicker && priorityPickerRef && !priorityPickerRef.contains(target)) {
+			if (showPriorityPicker && priorityPickerRef && !priorityPickerRef.contains(target) && (!priorityPickerRef2 || !priorityPickerRef2.contains(target))) {
 				showPriorityPicker = false;
 			}
 			if (showSubtaskPriorityPicker && subtaskPriorityPickerRef && !subtaskPriorityPickerRef.contains(target)) {
 				showSubtaskPriorityPicker = false;
 			}
-			if (showCalendar && calendarRef && !calendarRef.contains(target)) {
+			if (showCalendar && calendarRef && !calendarRef.contains(target) && (!calendarRef2 || !calendarRef2.contains(target))) {
 				showCalendar = false;
 			}
 			if (editingTitle && titleEditRef && !titleEditRef.contains(target)) {
@@ -1432,7 +1435,7 @@ function setDateQuick(date: string) {
 					<!-- Mobile metadata (date, priority, labels) -->
 					<div class="mt-5 space-y-4 pl-8 md:hidden">
 						<!-- Date -->
-						<div bind:this={calendarRef}>
+						<div bind:this={calendarRef2}>
 							<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.date')}</h3>
 							<div class="flex items-center gap-1.5">
 								<button
@@ -1483,7 +1486,7 @@ function setDateQuick(date: string) {
 						{#if !isTroikiParent}
 							<div>
 								<h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{$t('task.priority')}</h3>
-								<div bind:this={priorityPickerRef} class="relative">
+								<div bind:this={priorityPickerRef2} class="relative">
 									<button
 										class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-accent {activePriority?.color}"
 										onclick={() => (showPriorityPicker = !showPriorityPicker)}
@@ -1541,7 +1544,7 @@ function setDateQuick(date: string) {
 								</div>
 							{/if}
 
-							<div bind:this={labelPickerRef} class="relative">
+							<div bind:this={labelPickerRef2} class="relative">
 								<button
 									class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 									onclick={() => { showLabelPicker = !showLabelPicker; labelSearch = ''; }}
