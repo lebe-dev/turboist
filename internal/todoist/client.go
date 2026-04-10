@@ -2,16 +2,15 @@ package todoist
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
-	"strings"
+	gosync "sync"
 	"time"
 
-	"github.com/CnTeng/todoist-api-go/rest"
-	"github.com/CnTeng/todoist-api-go/sync"
-	extclient "github.com/CnTeng/todoist-api-go/todoist"
+	todoist "github.com/lebe-dev/go-todoist-api"
+
 	"github.com/charmbracelet/log"
-	"github.com/google/uuid"
 )
 
 // APIError wraps errors returned by the Todoist API.
@@ -36,32 +35,47 @@ type SyncResult struct {
 	Labels   []*Label
 }
 
-// Client wraps the todoist-api-go client.
+// Client wraps the lebe-dev/go-todoist-api client.
 type Client struct {
-	cli     *extclient.Client
-	taskSvc *extclient.TaskService
+	cli       *todoist.Client
+	mu        gosync.Mutex
+	syncToken string
 }
 
 // NewClient creates a new Todoist API client with the given API key.
 func NewClient(apiKey string) *Client {
-	handler := newSyncHandler()
-	cli := extclient.NewClient(http.DefaultClient, apiKey, handler)
 	return &Client{
-		cli:     cli,
-		taskSvc: extclient.NewTaskService(cli),
+		cli:       todoist.NewClient(apiKey),
+		syncToken: "*",
 	}
 }
 
 // FetchAll fetches tasks, projects, sections and labels via a full sync (sync_token=*).
 func (c *Client) FetchAll(ctx context.Context) (*SyncResult, error) {
 	start := time.Now()
-	resp, err := c.cli.SyncWithAutoToken(ctx, true)
+	resp, err := c.cli.Sync(ctx, &todoist.SyncRequest{
+		SyncToken: "*",
+		ResourceTypes: []todoist.SyncResourceType{
+			todoist.SyncResourceItems,
+			todoist.SyncResourceProjects,
+			todoist.SyncResourceSections,
+			todoist.SyncResourceLabels,
+		},
+	})
 	if err != nil {
 		log.Debug("todoist FetchAll failed", "err", err, "elapsed", time.Since(start))
 		return nil, &APIError{Op: "FetchAll", Err: err}
 	}
 
-	result := parseSyncResponse(resp)
+	result, err := parseSyncResponse(resp)
+	if err != nil {
+		return nil, &APIError{Op: "FetchAll", Err: err}
+	}
+
+	c.mu.Lock()
+	c.syncToken = resp.SyncToken
+	c.mu.Unlock()
+
 	log.Debug("todoist FetchAll done",
 		"tasks", len(result.Tasks),
 		"projects", len(result.Projects),
@@ -78,14 +92,39 @@ func (c *Client) FetchAll(ctx context.Context) (*SyncResult, error) {
 // the Result field contains the complete dataset.
 func (c *Client) FetchIncremental(ctx context.Context) (*DeltaResult, error) {
 	start := time.Now()
-	resp, err := c.cli.SyncWithAutoToken(ctx, false)
+
+	c.mu.Lock()
+	token := c.syncToken
+	c.mu.Unlock()
+
+	resp, err := c.cli.Sync(ctx, &todoist.SyncRequest{
+		SyncToken: token,
+		ResourceTypes: []todoist.SyncResourceType{
+			todoist.SyncResourceItems,
+			todoist.SyncResourceProjects,
+			todoist.SyncResourceSections,
+			todoist.SyncResourceLabels,
+		},
+	})
 	if err != nil {
 		log.Debug("todoist FetchIncremental failed", "err", err, "elapsed", time.Since(start))
 		return nil, &APIError{Op: "FetchIncremental", Err: err}
 	}
 
+	// Only update sync token for data syncs (no SyncStatus entries).
+	// Command responses include SyncStatus; by keeping the pre-mutation token,
+	// the next incremental sync picks up the mutation's effects.
+	if len(resp.SyncStatus) == 0 {
+		c.mu.Lock()
+		c.syncToken = resp.SyncToken
+		c.mu.Unlock()
+	}
+
 	if resp.FullSync {
-		result := parseSyncResponse(resp)
+		result, err := parseSyncResponse(resp)
+		if err != nil {
+			return nil, &APIError{Op: "FetchIncremental", Err: err}
+		}
 		log.Debug("todoist FetchIncremental got full sync",
 			"tasks", len(result.Tasks),
 			"elapsed", time.Since(start),
@@ -93,34 +132,9 @@ func (c *Client) FetchIncremental(ctx context.Context) (*DeltaResult, error) {
 		return &DeltaResult{FullSync: true, Result: result}, nil
 	}
 
-	delta := &DeltaResult{}
-	for _, t := range resp.Tasks {
-		if t.IsDeleted || t.Checked {
-			delta.RemovedTaskIDs = append(delta.RemovedTaskIDs, t.ID)
-		} else {
-			delta.UpsertedTasks = append(delta.UpsertedTasks, TaskFromSync(t))
-		}
-	}
-	for _, p := range resp.Projects {
-		if p.IsDeleted || p.IsArchived {
-			delta.RemovedProjectIDs = append(delta.RemovedProjectIDs, p.ID)
-		} else {
-			delta.UpsertedProjects = append(delta.UpsertedProjects, ProjectFromSync(p))
-		}
-	}
-	for _, s := range resp.Sections {
-		if s.IsDeleted {
-			delta.RemovedSectionIDs = append(delta.RemovedSectionIDs, s.ID)
-		} else {
-			delta.UpsertedSections = append(delta.UpsertedSections, SectionFromSync(s))
-		}
-	}
-	for _, l := range resp.Labels {
-		if l.IsDeleted {
-			delta.RemovedLabelIDs = append(delta.RemovedLabelIDs, l.ID)
-		} else {
-			delta.UpsertedLabels = append(delta.UpsertedLabels, LabelFromSync(l))
-		}
+	delta, err := parseSyncDelta(resp)
+	if err != nil {
+		return nil, &APIError{Op: "FetchIncremental", Err: err}
 	}
 
 	log.Debug("todoist FetchIncremental done",
@@ -131,99 +145,176 @@ func (c *Client) FetchIncremental(ctx context.Context) (*DeltaResult, error) {
 	return delta, nil
 }
 
-func parseSyncResponse(resp *sync.SyncResponse) *SyncResult {
+func parseSyncResponse(resp *todoist.SyncResponse) (*SyncResult, error) {
 	result := &SyncResult{
-		Tasks:    make([]*Task, 0, len(resp.Tasks)),
-		Projects: make([]*Project, 0, len(resp.Projects)),
-		Sections: make([]*Section, 0, len(resp.Sections)),
-		Labels:   make([]*Label, 0, len(resp.Labels)),
+		Tasks:    make([]*Task, 0),
+		Projects: make([]*Project, 0),
+		Sections: make([]*Section, 0),
+		Labels:   make([]*Label, 0),
 	}
 
-	for _, t := range resp.Tasks {
-		if t.IsDeleted || t.Checked {
+	for _, raw := range resp.Items {
+		var item syncItem
+		if err := json.Unmarshal(raw, &item); err != nil {
+			return nil, fmt.Errorf("unmarshal sync item: %w", err)
+		}
+		if item.IsDeleted || item.Checked {
 			continue
 		}
-		result.Tasks = append(result.Tasks, TaskFromSync(t))
+		result.Tasks = append(result.Tasks, TaskFromSync(&item))
 	}
 
-	for _, p := range resp.Projects {
-		if p.IsDeleted || p.IsArchived {
+	for _, raw := range resp.Projects {
+		var proj syncProject
+		if err := json.Unmarshal(raw, &proj); err != nil {
+			return nil, fmt.Errorf("unmarshal sync project: %w", err)
+		}
+		if proj.IsDeleted || proj.IsArchived {
 			continue
 		}
-		result.Projects = append(result.Projects, ProjectFromSync(p))
+		result.Projects = append(result.Projects, ProjectFromSync(&proj))
 	}
 
-	for _, s := range resp.Sections {
-		result.Sections = append(result.Sections, SectionFromSync(s))
-	}
-
-	for _, l := range resp.Labels {
-		if l.IsDeleted {
+	for _, raw := range resp.Sections {
+		var sec syncSection
+		if err := json.Unmarshal(raw, &sec); err != nil {
+			return nil, fmt.Errorf("unmarshal sync section: %w", err)
+		}
+		if sec.IsDeleted {
 			continue
 		}
-		result.Labels = append(result.Labels, LabelFromSync(l))
+		result.Sections = append(result.Sections, SectionFromSync(&sec))
 	}
 
-	return result
-}
-
-// GetTasks returns all active tasks.
-func (c *Client) GetTasks(ctx context.Context) ([]*Task, error) {
-	result, err := c.FetchAll(ctx)
-	if err != nil {
-		return nil, err
+	for _, raw := range resp.Labels {
+		var lbl syncLabel
+		if err := json.Unmarshal(raw, &lbl); err != nil {
+			return nil, fmt.Errorf("unmarshal sync label: %w", err)
+		}
+		if lbl.IsDeleted {
+			continue
+		}
+		result.Labels = append(result.Labels, LabelFromSync(&lbl))
 	}
-	return result.Tasks, nil
+
+	return result, nil
 }
 
-// GetProjects returns all active projects.
-func (c *Client) GetProjects(ctx context.Context) ([]*Project, error) {
-	result, err := c.FetchAll(ctx)
-	if err != nil {
-		return nil, err
+func parseSyncDelta(resp *todoist.SyncResponse) (*DeltaResult, error) {
+	delta := &DeltaResult{}
+
+	for _, raw := range resp.Items {
+		var item syncItem
+		if err := json.Unmarshal(raw, &item); err != nil {
+			return nil, fmt.Errorf("unmarshal sync item: %w", err)
+		}
+		if item.IsDeleted || item.Checked {
+			delta.RemovedTaskIDs = append(delta.RemovedTaskIDs, item.ID)
+		} else {
+			delta.UpsertedTasks = append(delta.UpsertedTasks, TaskFromSync(&item))
+		}
 	}
-	return result.Projects, nil
-}
 
-// GetSections returns all sections.
-func (c *Client) GetSections(ctx context.Context) ([]*Section, error) {
-	result, err := c.FetchAll(ctx)
-	if err != nil {
-		return nil, err
+	for _, raw := range resp.Projects {
+		var proj syncProject
+		if err := json.Unmarshal(raw, &proj); err != nil {
+			return nil, fmt.Errorf("unmarshal sync project: %w", err)
+		}
+		if proj.IsDeleted || proj.IsArchived {
+			delta.RemovedProjectIDs = append(delta.RemovedProjectIDs, proj.ID)
+		} else {
+			delta.UpsertedProjects = append(delta.UpsertedProjects, ProjectFromSync(&proj))
+		}
 	}
-	return result.Sections, nil
-}
 
-// GetLabels returns all personal labels.
-func (c *Client) GetLabels(ctx context.Context) ([]*Label, error) {
-	result, err := c.FetchAll(ctx)
-	if err != nil {
-		return nil, err
+	for _, raw := range resp.Sections {
+		var sec syncSection
+		if err := json.Unmarshal(raw, &sec); err != nil {
+			return nil, fmt.Errorf("unmarshal sync section: %w", err)
+		}
+		if sec.IsDeleted {
+			delta.RemovedSectionIDs = append(delta.RemovedSectionIDs, sec.ID)
+		} else {
+			delta.UpsertedSections = append(delta.UpsertedSections, SectionFromSync(&sec))
+		}
 	}
-	return result.Labels, nil
+
+	for _, raw := range resp.Labels {
+		var lbl syncLabel
+		if err := json.Unmarshal(raw, &lbl); err != nil {
+			return nil, fmt.Errorf("unmarshal sync label: %w", err)
+		}
+		if lbl.IsDeleted {
+			delta.RemovedLabelIDs = append(delta.RemovedLabelIDs, lbl.ID)
+		} else {
+			delta.UpsertedLabels = append(delta.UpsertedLabels, LabelFromSync(&lbl))
+		}
+	}
+
+	return delta, nil
 }
 
-// AddTask creates a new task via the Todoist API and returns the new task ID.
-func (c *Client) AddTask(ctx context.Context, args *sync.TaskAddArgs) (string, error) {
+// AddTask creates a new task via the REST API and returns the new task ID.
+func (c *Client) AddTask(ctx context.Context, args *TaskAddArgs) (string, error) {
 	log.Debug("todoist AddTask", "content", args.Content)
 	start := time.Now()
-	resp, err := c.taskSvc.AddTask(ctx, args)
+
+	restArgs := &todoist.AddTaskArgs{
+		Content: args.Content,
+	}
+	if args.Description != "" {
+		restArgs.Description = &args.Description
+	}
+	if args.ProjectID != "" {
+		restArgs.ProjectID = &args.ProjectID
+	}
+	if args.SectionID != "" {
+		restArgs.SectionID = &args.SectionID
+	}
+	if args.ParentID != "" {
+		restArgs.ParentID = &args.ParentID
+	}
+	if len(args.Labels) > 0 {
+		restArgs.Labels = args.Labels
+	}
+	if args.Priority != 0 {
+		restArgs.Priority = &args.Priority
+	}
+	if args.DueDate != "" {
+		restArgs.DueDate = &args.DueDate
+	}
+	if args.DueString != "" {
+		restArgs.DueString = &args.DueString
+	}
+	if args.DueLang != "" {
+		restArgs.DueLang = &args.DueLang
+	}
+
+	task, err := c.cli.AddTask(ctx, restArgs)
 	if err != nil {
 		log.Debug("todoist AddTask failed", "err", err, "elapsed", time.Since(start))
 		return "", &APIError{Op: "AddTask", Err: err}
 	}
-	for _, id := range resp.TempIDMapping {
-		log.Debug("todoist AddTask done", "id", id, "elapsed", time.Since(start))
-		return id, nil
-	}
-	return "", nil
+	log.Debug("todoist AddTask done", "id", task.ID, "elapsed", time.Since(start))
+	return task.ID, nil
 }
 
-// UpdateTask updates an existing task via the Todoist API.
-func (c *Client) UpdateTask(ctx context.Context, args *sync.TaskUpdateArgs) error {
+// UpdateTask updates an existing task via the REST API.
+func (c *Client) UpdateTask(ctx context.Context, args *TaskUpdateArgs) error {
 	log.Debug("todoist UpdateTask", "id", args.ID)
 	start := time.Now()
-	_, err := c.taskSvc.UpdateTask(ctx, args)
+
+	restArgs := &todoist.UpdateTaskArgs{
+		Content:     args.Content,
+		Description: args.Description,
+		Labels:      args.Labels,
+		Priority:    args.Priority,
+		DueDate:     args.DueDate,
+		DueString:   args.DueString,
+		DueLang:     args.DueLang,
+	}
+
+	_, err := c.cli.UpdateTask(ctx, args.ID, restArgs)
 	if err != nil {
 		log.Debug("todoist UpdateTask failed", "id", args.ID, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "UpdateTask", Err: err}
@@ -234,17 +325,19 @@ func (c *Client) UpdateTask(ctx context.Context, args *sync.TaskUpdateArgs) erro
 
 // SetTasksLabels updates labels for multiple tasks in a single sync call.
 // Unlike UpdateTask, this always sends the labels field (even when empty)
-// to work around the omitempty tag on TaskUpdateArgs.Labels.
+// to work around the omitempty tag on UpdateTaskArgs.Labels.
 func (c *Client) SetTasksLabels(ctx context.Context, updates map[string][]string) error {
-	cmds := make(sync.Commands, 0, len(updates))
+	cmds := make([]todoist.SyncCommand, 0, len(updates))
 	for id, labels := range updates {
-		cmds = append(cmds, &sync.Command{
-			Type: "item_update",
-			UUID: uuid.New(),
-			Args: map[string]any{"id": id, "labels": labels},
-		})
+		cmds = append(cmds, todoist.CreateCommand(
+			todoist.SyncCmdItemUpdate,
+			map[string]any{"id": id, "labels": labels},
+		))
 	}
-	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	_, err := c.cli.Sync(ctx, &todoist.SyncRequest{
+		Commands:  cmds,
+		SyncToken: "*",
+	})
 	if err != nil {
 		return &APIError{Op: "SetTasksLabels", Err: err}
 	}
@@ -253,17 +346,12 @@ func (c *Client) SetTasksLabels(ctx context.Context, updates map[string][]string
 
 // FetchCompletedTasks returns tasks completed between since and until.
 func (c *Client) FetchCompletedTasks(ctx context.Context, since, until time.Time) ([]*Task, error) {
-	items, err := c.taskSvc.GetAllCompletedTasksByCompletionDate(ctx, &rest.TaskGetCompletedByCompletionDateParams{
-		Since: since,
-		Until: until,
+	tasks, err := c.fetchAllCompletedByDate(ctx, &todoist.GetCompletedTasksByCompletionDateArgs{
+		Since: since.Format(time.RFC3339),
+		Until: until.Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, &APIError{Op: "FetchCompletedTasks", Err: err}
-	}
-
-	tasks := make([]*Task, 0, len(items))
-	for _, t := range items {
-		tasks = append(tasks, TaskFromSync(t))
 	}
 	return tasks, nil
 }
@@ -273,9 +361,9 @@ func (c *Client) FetchCompletedBySection(ctx context.Context, projectID, section
 	now := time.Now()
 	since := now.AddDate(0, -1, 0) // 1 month back
 
-	items, err := c.taskSvc.GetAllCompletedTasksByCompletionDate(ctx, &rest.TaskGetCompletedByCompletionDateParams{
-		Since:     since,
-		Until:     now,
+	allTasks, err := c.fetchAllCompletedByDate(ctx, &todoist.GetCompletedTasksByCompletionDateArgs{
+		Since:     since.Format(time.RFC3339),
+		Until:     now.Format(time.RFC3339),
 		ProjectID: &projectID,
 		SectionID: &sectionID,
 	})
@@ -283,10 +371,10 @@ func (c *Client) FetchCompletedBySection(ctx context.Context, projectID, section
 		return nil, &APIError{Op: "FetchCompletedBySection", Err: err}
 	}
 
-	tasks := make([]*Task, 0, len(items))
-	for _, t := range items {
+	tasks := make([]*Task, 0, len(allTasks))
+	for _, t := range allTasks {
 		if t.ParentID == nil && t.SectionID != nil && *t.SectionID == sectionID {
-			tasks = append(tasks, TaskFromSync(t))
+			tasks = append(tasks, t)
 		}
 	}
 	return tasks, nil
@@ -297,31 +385,78 @@ func (c *Client) FetchCompletedSubtasks(ctx context.Context, parentID string) ([
 	now := time.Now()
 	since := now.AddDate(0, -3, 0) // 3 months back
 
-	items, err := c.taskSvc.GetAllCompletedTasksByCompletionDate(ctx, &rest.TaskGetCompletedByCompletionDateParams{
-		Since: since,
-		Until: now,
+	tasks, err := c.fetchAllCompletedByDate(ctx, &todoist.GetCompletedTasksByCompletionDateArgs{
+		Since:    since.Format(time.RFC3339),
+		Until:    now.Format(time.RFC3339),
+		ParentID: &parentID,
 	})
 	if err != nil {
 		return nil, &APIError{Op: "FetchCompletedSubtasks", Err: err}
 	}
-
-	tasks := make([]*Task, 0)
-	for _, t := range items {
-		if t.ParentID != nil && *t.ParentID == parentID {
-			tasks = append(tasks, TaskFromSync(t))
-		}
-	}
 	return tasks, nil
 }
 
-// MoveTask moves a task to be a subtask of the given parent via the Todoist API.
+// fetchAllCompletedByDate fetches all pages of completed tasks matching the given args.
+func (c *Client) fetchAllCompletedByDate(ctx context.Context, args *todoist.GetCompletedTasksByCompletionDateArgs) ([]*Task, error) {
+	var all []*Task
+	for {
+		page, err := c.cli.GetCompletedTasksByCompletionDate(ctx, args)
+		if err != nil {
+			return nil, err
+		}
+		for i := range page.Results {
+			all = append(all, taskFromREST(&page.Results[i]))
+		}
+		if !page.HasNextPage() {
+			break
+		}
+		args.Cursor = page.NextCursor
+	}
+	return all, nil
+}
+
+// taskFromREST converts a lebe-dev/go-todoist-api Task to our internal Task model.
+func taskFromREST(t *todoist.Task) *Task {
+	task := &Task{
+		ID:          t.ID,
+		Content:     t.Content,
+		Description: t.Description,
+		ProjectID:   t.ProjectID,
+		SectionID:   t.SectionID,
+		ParentID:    t.ParentID,
+		Labels:      t.Labels,
+		Priority:    t.Priority,
+		CompletedAt: t.CompletedAt,
+		Children:    []*Task{},
+	}
+
+	if t.AddedAt != nil {
+		task.AddedAt = *t.AddedAt
+	}
+
+	if t.Due != nil && t.Due.Date != "" {
+		date := t.Due.Date
+		if len(date) > 10 {
+			date = date[:10]
+		}
+		task.Due = &Due{
+			Date:      date,
+			Recurring: t.Due.IsRecurring,
+		}
+	}
+
+	if task.Labels == nil {
+		task.Labels = []string{}
+	}
+
+	return task
+}
+
+// MoveTask moves a task to be a subtask of the given parent via the REST API.
 func (c *Client) MoveTask(ctx context.Context, id string, parentID string) error {
 	log.Debug("todoist MoveTask", "id", id, "parent_id", parentID)
 	start := time.Now()
-	_, err := c.taskSvc.MoveTask(ctx, &sync.TaskMoveArgs{
-		ID:       id,
-		ParentID: &parentID,
-	})
+	_, err := c.cli.MoveTask(ctx, id, &todoist.MoveTaskArgs{ParentID: &parentID})
 	if err != nil {
 		log.Debug("todoist MoveTask failed", "id", id, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "MoveTask", Err: err}
@@ -330,14 +465,11 @@ func (c *Client) MoveTask(ctx context.Context, id string, parentID string) error
 	return nil
 }
 
-// MoveTaskToProject moves a task to the given project via the Todoist API.
+// MoveTaskToProject moves a task to the given project via the REST API.
 func (c *Client) MoveTaskToProject(ctx context.Context, id string, projectID string) error {
 	log.Debug("todoist MoveTaskToProject", "id", id, "project_id", projectID)
 	start := time.Now()
-	_, err := c.taskSvc.MoveTask(ctx, &sync.TaskMoveArgs{
-		ID:        id,
-		ProjectID: &projectID,
-	})
+	_, err := c.cli.MoveTask(ctx, id, &todoist.MoveTaskArgs{ProjectID: &projectID})
 	if err != nil {
 		log.Debug("todoist MoveTaskToProject failed", "id", id, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "MoveTaskToProject", Err: err}
@@ -346,12 +478,13 @@ func (c *Client) MoveTaskToProject(ctx context.Context, id string, projectID str
 	return nil
 }
 
-// CompleteTask archives a non-recurring task using item_complete.
+// CompleteTask closes a task via the REST API.
+// REST close handles both recurring (advances to next occurrence) and
+// non-recurring (archives permanently) tasks.
 func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	log.Debug("todoist CompleteTask", "id", id)
 	start := time.Now()
-	_, err := c.taskSvc.CompleteTask(ctx, &sync.TaskCompleteArgs{ID: id})
-	if err != nil {
+	if err := c.cli.CloseTask(ctx, id); err != nil {
 		log.Debug("todoist CompleteTask failed", "id", id, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "CompleteTask", Err: err}
 	}
@@ -359,25 +492,11 @@ func (c *Client) CompleteTask(ctx context.Context, id string) error {
 	return nil
 }
 
-// CloseTask advances a recurring task to its next occurrence using item_close.
-func (c *Client) CloseTask(ctx context.Context, id string) error {
-	log.Debug("todoist CloseTask", "id", id)
-	start := time.Now()
-	_, err := c.taskSvc.CloseTask(ctx, &sync.TaskCloseArgs{ID: id})
-	if err != nil {
-		log.Debug("todoist CloseTask failed", "id", id, "err", err, "elapsed", time.Since(start))
-		return &APIError{Op: "CloseTask", Err: err}
-	}
-	log.Debug("todoist CloseTask done", "id", id, "elapsed", time.Since(start))
-	return nil
-}
-
-// DeleteTask deletes a task and all its sub-tasks via the Todoist API.
+// DeleteTask deletes a task and all its sub-tasks via the REST API.
 func (c *Client) DeleteTask(ctx context.Context, id string) error {
 	log.Debug("todoist DeleteTask", "id", id)
 	start := time.Now()
-	_, err := c.taskSvc.DeleteTask(ctx, &sync.TaskDeleteArgs{ID: id})
-	if err != nil {
+	if err := c.cli.DeleteTask(ctx, id); err != nil {
 		log.Debug("todoist DeleteTask failed", "id", id, "err", err, "elapsed", time.Since(start))
 		return &APIError{Op: "DeleteTask", Err: err}
 	}
@@ -388,7 +507,7 @@ func (c *Client) DeleteTask(ctx context.Context, id string) error {
 // DecomposeTask creates N new tasks (inheriting properties from src) and deletes the source
 // task in a single Todoist Sync API batch call.
 func (c *Client) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
-	cmds := make(sync.Commands, 0, len(newContents)+1)
+	cmds := make([]todoist.SyncCommand, 0, len(newContents)+1)
 
 	for _, content := range newContents {
 		args := map[string]any{
@@ -408,22 +527,19 @@ func (c *Client) DecomposeTask(ctx context.Context, src *Task, newContents []str
 		if src.Due != nil {
 			args["due"] = map[string]any{"date": src.Due.Date}
 		}
-		cmds = append(cmds, &sync.Command{
-			Type:   "item_add",
-			UUID:   uuid.New(),
-			TempID: uuid.New(),
-			Args:   args,
-		})
+		cmds = append(cmds, todoist.CreateCommand(todoist.SyncCmdItemAdd, args))
 	}
 
-	cmds = append(cmds, &sync.Command{
-		Type: "item_delete",
-		UUID: uuid.New(),
-		Args: map[string]any{"id": src.ID},
-	})
+	cmds = append(cmds, todoist.CreateCommand(
+		todoist.SyncCmdItemDelete,
+		map[string]any{"id": src.ID},
+	))
 
 	log.Debug("todoist DecomposeTask", "src", src.ID, "new_tasks", len(newContents))
-	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	_, err := c.cli.Sync(ctx, &todoist.SyncRequest{
+		Commands:  cmds,
+		SyncToken: "*",
+	})
 	if err != nil {
 		return &APIError{Op: "DecomposeTask", Err: err}
 	}
@@ -431,21 +547,23 @@ func (c *Client) DecomposeTask(ctx context.Context, src *Task, newContents []str
 }
 
 // BatchMoveTasksToProject moves multiple tasks to their target projects in a single sync call.
-// The moves map is taskID → projectID.
+// The moves map is taskID -> projectID.
 func (c *Client) BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error {
 	if len(moves) == 0 {
 		return nil
 	}
-	cmds := make(sync.Commands, 0, len(moves))
+	cmds := make([]todoist.SyncCommand, 0, len(moves))
 	for id, projectID := range moves {
-		cmds = append(cmds, &sync.Command{
-			Type: "item_move",
-			UUID: uuid.New(),
-			Args: map[string]any{"id": id, "project_id": projectID},
-		})
+		cmds = append(cmds, todoist.CreateCommand(
+			todoist.SyncCmdItemMove,
+			map[string]any{"id": id, "project_id": projectID},
+		))
 	}
 	log.Debug("todoist BatchMoveTasksToProject", "count", len(moves))
-	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	_, err := c.cli.Sync(ctx, &todoist.SyncRequest{
+		Commands:  cmds,
+		SyncToken: "*",
+	})
 	if err != nil {
 		return &APIError{Op: "BatchMoveTasksToProject", Err: err}
 	}
@@ -459,7 +577,7 @@ func (c *Client) BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget
 	if len(moves) == 0 {
 		return nil
 	}
-	cmds := make(sync.Commands, 0, len(moves))
+	cmds := make([]todoist.SyncCommand, 0, len(moves))
 	for id, target := range moves {
 		args := map[string]any{"id": id}
 		if target.SectionID != "" {
@@ -467,50 +585,41 @@ func (c *Client) BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget
 		} else {
 			args["project_id"] = target.ProjectID
 		}
-		cmds = append(cmds, &sync.Command{
-			Type: "item_move",
-			UUID: uuid.New(),
-			Args: args,
-		})
+		cmds = append(cmds, todoist.CreateCommand(todoist.SyncCmdItemMove, args))
 	}
 	log.Debug("todoist BatchMoveTasks", "count", len(moves))
-	_, err := c.cli.ExecuteCommands(ctx, cmds)
+	_, err := c.cli.Sync(ctx, &todoist.SyncRequest{
+		Commands:  cmds,
+		SyncToken: "*",
+	})
 	if err != nil {
 		return &APIError{Op: "BatchMoveTasks", Err: err}
 	}
 	return nil
 }
 
-// AddSection creates a new section in a project via the Todoist Sync API and returns the new section ID.
+// AddSection creates a new section in a project via the REST API and returns the new section ID.
 func (c *Client) AddSection(ctx context.Context, name string, projectID string) (string, error) {
 	log.Debug("todoist AddSection", "name", name, "project_id", projectID)
 	start := time.Now()
-	tempID := uuid.New()
-	cmds := sync.Commands{
-		&sync.Command{
-			Type:   "section_add",
-			UUID:   uuid.New(),
-			TempID: tempID,
-			Args:   map[string]any{"name": name, "project_id": projectID},
-		},
-	}
-	resp, err := c.cli.ExecuteCommands(ctx, cmds)
+
+	section, err := c.cli.AddSection(ctx, &todoist.AddSectionArgs{
+		Name:      name,
+		ProjectID: projectID,
+	})
 	if err != nil {
 		log.Debug("todoist AddSection failed", "err", err, "elapsed", time.Since(start))
 		return "", &APIError{Op: "AddSection", Err: err}
 	}
-	if id, ok := resp.TempIDMapping[tempID]; ok {
-		log.Debug("todoist AddSection done", "id", id, "elapsed", time.Since(start))
-		return id, nil
-	}
-	return "", nil
+	log.Debug("todoist AddSection done", "id", section.ID, "elapsed", time.Since(start))
+	return section.ID, nil
 }
 
 // IsRateLimited reports whether the error indicates a Todoist API rate limit (HTTP 429).
-// The external library returns errors.New(http.StatusText(429)) for non-200 responses.
 func IsRateLimited(err error) bool {
-	if err == nil {
-		return false
+	var reqErr *todoist.TodoistRequestError
+	if errors.As(err, &reqErr) {
+		return reqErr.HTTPStatusCode == 429
 	}
-	return strings.Contains(err.Error(), "Too Many Requests")
+	return false
 }

@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/charmbracelet/log"
 	"golang.org/x/sync/singleflight"
 )
@@ -23,12 +22,11 @@ const (
 type cacheClient interface {
 	FetchAll(ctx context.Context) (*SyncResult, error)
 	FetchIncremental(ctx context.Context) (*DeltaResult, error)
-	AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error)
-	UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs) error
+	AddTask(ctx context.Context, args *TaskAddArgs) (string, error)
+	UpdateTask(ctx context.Context, args *TaskUpdateArgs) error
 	MoveTask(ctx context.Context, id string, parentID string) error
 	MoveTaskToProject(ctx context.Context, id string, projectID string) error
 	CompleteTask(ctx context.Context, id string) error
-	CloseTask(ctx context.Context, id string) error
 	DeleteTask(ctx context.Context, id string) error
 	DecomposeTask(ctx context.Context, src *Task, newContents []string) error
 	BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error
@@ -166,12 +164,13 @@ func (c *Cache) incrementalRefresh(ctx context.Context, start time.Time) error {
 	if c.taskEnricher != nil {
 		c.taskEnricher(c.tasks)
 	}
+	totalTasks := len(c.tasks)
 	c.mu.Unlock()
 
 	log.Debug("cache refreshed (incremental)",
 		"upserted_tasks", len(delta.UpsertedTasks),
 		"removed_tasks", len(delta.RemovedTaskIDs),
-		"total_tasks", len(c.tasks),
+		"total_tasks", totalTasks,
 		"elapsed", time.Since(start),
 	)
 
@@ -369,7 +368,7 @@ func (c *Cache) RefreshAfterMutation() {
 
 // AddTask creates a task via the Todoist API and schedules a cache refresh.
 // Returns the new task ID.
-func (c *Cache) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error) {
+func (c *Cache) AddTask(ctx context.Context, args *TaskAddArgs) (string, error) {
 	newID, err := c.client.AddTask(ctx, args)
 	if err != nil {
 		return "", err
@@ -379,7 +378,7 @@ func (c *Cache) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (str
 }
 
 // UpdateTask updates a task via the Todoist API and schedules a cache refresh.
-func (c *Cache) UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs) error {
+func (c *Cache) UpdateTask(ctx context.Context, args *TaskUpdateArgs) error {
 	if err := c.client.UpdateTask(ctx, args); err != nil {
 		return err
 	}
@@ -406,27 +405,11 @@ func (c *Cache) MoveTaskToProject(ctx context.Context, id string, projectID stri
 }
 
 // CompleteTask completes a task via the Todoist API and schedules a cache refresh.
-// For recurring tasks it uses item_close (advances to next occurrence).
-// For non-recurring tasks it uses item_complete (archives permanently).
+// REST close handles both recurring (advances to next occurrence) and
+// non-recurring (archives permanently) tasks.
 func (c *Cache) CompleteTask(ctx context.Context, id string) error {
-	recurring := false
-	c.mu.RLock()
-	for _, t := range c.tasks {
-		if t.ID == id {
-			recurring = t.Due != nil && t.Due.Recurring
-			break
-		}
-	}
-	c.mu.RUnlock()
-
-	if recurring {
-		if err := c.client.CloseTask(ctx, id); err != nil {
-			return err
-		}
-	} else {
-		if err := c.client.CompleteTask(ctx, id); err != nil {
-			return err
-		}
+	if err := c.client.CompleteTask(ctx, id); err != nil {
+		return err
 	}
 	c.evictTask(id)
 	c.ScheduleRefresh()
