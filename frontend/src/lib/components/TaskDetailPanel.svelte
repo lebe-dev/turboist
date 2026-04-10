@@ -474,7 +474,7 @@ function setDateQuick(date: string) {
 		localLabels = newLabels;
 		labelsSyncing = true;
 
-		const resolvedProjectId = task.parent_id === null
+		const resolvedProjectId = task.parent_id === null && task.project_id !== appStore.troikiProjectId
 			? appStore.resolveProjectIdForLabels(newLabels)
 			: null;
 
