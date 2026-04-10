@@ -28,6 +28,10 @@
 
 	let planningExpanded = $state(false);
 
+	function pinnedPriority(pinned: { id: string; priority?: number }): number | undefined {
+		return tasksStore.taskPriority(pinned.id) ?? pinned.priority;
+	}
+
 	function priorityPinColor(priority: number | undefined): string {
 		switch (priority) {
 			case 4: return 'text-red-500';
@@ -105,7 +109,7 @@
 				title={collapsed ? pinned.content : undefined}
 			onclick={() => onItemClick?.()}
 			>
-				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 {priorityPinColor(pinned.priority)}" />
+				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 {priorityPinColor(pinnedPriority(pinned))}" />
 				{#if !collapsed}
 					<span class="flex-1 break-words text-left text-[11px] leading-tight">{pinned.content}</span>
 					<span

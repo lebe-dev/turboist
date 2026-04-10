@@ -380,6 +380,9 @@ function createTasksStore() {
 		insertAfterLocal,
 		resolveTaskId(id: string): string | null {
 			return reconciledIds[id] ?? null;
+		},
+		taskPriority(id: string): number | undefined {
+			return flatTasks.find((t) => t.id === id)?.priority;
 		}
 	};
 }
