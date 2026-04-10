@@ -190,7 +190,7 @@
 						<div class="space-y-px px-1">
 							{#each group.tasks as task, i (task.id)}
 								<div class="animate-fade-in-up" style="animation-delay: {Math.min(i * 30, 300)}ms">
-									<TaskItem {task} />
+									<TaskItem {task} hideWeight={true} />
 								</div>
 							{/each}
 						</div>

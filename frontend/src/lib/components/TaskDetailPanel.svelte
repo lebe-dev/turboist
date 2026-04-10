@@ -1035,7 +1035,7 @@ function setDateQuick(date: string) {
 		if (isPinned) {
 			pinnedStore.unpin(task.id);
 		} else {
-			pinnedStore.pin({ id: task.id, content: task.content });
+			pinnedStore.pin({ id: task.id, content: task.content, priority: task.priority });
 		}
 	}
 
@@ -1630,16 +1630,14 @@ function setDateQuick(date: string) {
 									class="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50"
 									style={depth > 0 ? `padding-left: ${8 + depth * 20}px` : undefined}
 								>
-									{#if depth === 0}
-										<button
-											class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
-												{priorityBorder(child.priority)} {priorityHover(child.priority)}"
-											onclick={() => handleComplete(child.id)}
-											aria-label="Complete subtask"
-										>
-											<CheckIcon class="h-2 w-2 text-primary opacity-0 transition-opacity group-hover:opacity-50" strokeWidth={3} />
-										</button>
-									{/if}
+									<button
+										class="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-150
+											{priorityBorder(child.priority)} {priorityHover(child.priority)}"
+										onclick={() => handleComplete(child.id)}
+										aria-label="Complete subtask"
+									>
+										<CheckIcon class="h-2 w-2 text-primary opacity-0 transition-opacity group-hover:opacity-50" strokeWidth={3} />
+									</button>
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div

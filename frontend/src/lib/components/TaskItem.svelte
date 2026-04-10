@@ -32,7 +32,7 @@
 
 	import type { Snippet } from 'svelte';
 
-	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton, hideDecompose = false, hidePriority = false, hideDuplicate = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet; hideDecompose?: boolean; hidePriority?: boolean; hideDuplicate?: boolean } = $props();
+	let { task, depth = 0, searchQuery = '', dimmed = false, hideTodayDue = false, hideTomorrowDue = false, completed = false, textSize = 'text-[13px]', dropdownExtra, actionButton, hideDecompose = false, hidePriority = false, hideDuplicate = false, hideWeight = false }: { task: Task; depth?: number; searchQuery?: string; dimmed?: boolean; hideTodayDue?: boolean; hideTomorrowDue?: boolean; completed?: boolean; textSize?: string; dropdownExtra?: Snippet; actionButton?: Snippet; hideDecompose?: boolean; hidePriority?: boolean; hideDuplicate?: boolean; hideWeight?: boolean } = $props();
 
 	const priorityColor = $derived.by(() => {
 		switch (task.priority) {
@@ -213,7 +213,7 @@
 		if (isPinned) {
 			pinnedStore.unpin(task.id);
 		} else {
-			pinnedStore.pin({ id: task.id, content: task.content });
+			pinnedStore.pin({ id: task.id, content: task.content, priority: task.priority });
 		}
 	}
 
@@ -539,7 +539,7 @@
 								<FlameIcon class="h-3 w-3" />
 							</span>
 						{/if}
-						{#if notInWeeklyPlan}
+						{#if notInWeeklyPlan && !hideWeight}
 							<span class="flex items-center text-[11px] text-red-500" title={$t('tasks.notInWeeklyPlan')}>
 								<WeightIcon class="h-3 w-3" />
 							</span>

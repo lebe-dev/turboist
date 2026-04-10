@@ -106,6 +106,7 @@ export interface DayPart {
 export interface PinnedTask {
 	id: string;
 	content: string;
+	priority?: number;
 }
 
 export type View = 'all' | 'inbox' | 'today' | 'tomorrow' | 'weekly' | 'backlog' | 'completed';

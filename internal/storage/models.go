@@ -2,8 +2,9 @@ package storage
 
 // PinnedTask represents a pinned task with its ID and content.
 type PinnedTask struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
+	ID       string `json:"id"`
+	Content  string `json:"content"`
+	Priority int    `json:"priority,omitempty"`
 }
 
 // AllFiltersState stores the filter state for the "all tasks" view.

@@ -19,11 +19,23 @@
 	import Layers3Icon from '@lucide/svelte/icons/layers-3';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import XIcon from '@lucide/svelte/icons/x';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { t } from 'svelte-intl-precompile';
 
 	const INBOX_ALERT_THRESHOLD = 5;
 
 	let { collapsed = false, onItemClick }: { collapsed?: boolean; onItemClick?: () => void } = $props();
+
+	let planningExpanded = $state(false);
+
+	function priorityPinColor(priority: number | undefined): string {
+		switch (priority) {
+			case 4: return 'text-red-500';
+			case 3: return 'text-amber-500';
+			case 2: return 'text-blue-400';
+			default: return 'opacity-60';
+		}
+	}
 
 	function navigateToMainIfNeeded() {
 		if ($page.url.pathname !== '/') {
@@ -93,7 +105,7 @@
 				title={collapsed ? pinned.content : undefined}
 			onclick={() => onItemClick?.()}
 			>
-				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+				<PinIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 {priorityPinColor(pinned.priority)}" />
 				{#if !collapsed}
 					<span class="flex-1 break-words text-left text-[11px] leading-tight">{pinned.content}</span>
 					<span
@@ -114,40 +126,46 @@
 	<div class="my-3 border-t border-sidebar-border"></div>
 
 	{#if !collapsed}
-		<p class="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+		<button
+			class="mb-1.5 flex w-full items-center gap-1 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+			onclick={() => (planningExpanded = !planningExpanded)}
+		>
+			<ChevronRightIcon class="h-3 w-3 transition-transform duration-150 {planningExpanded ? 'rotate-90' : ''}" />
 			{$t('sidebar.planning')}
-		</p>
+		</button>
 	{/if}
 
-	<button
-		class="group flex w-full cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
-			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
-			{!planningStore.active && contextsStore.activeView === 'backlog'
-			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => { if (planningStore.active) planningStore.exit(); navigateToMainIfNeeded(); contextsStore.setView('backlog'); onItemClick?.(); }}
-		title={collapsed ? $t('views.backlog') : undefined}
-	>
-		<ArchiveIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
-		{#if !collapsed}
-			{$t('views.backlog')}
-		{/if}
-	</button>
+	{#if planningExpanded || collapsed}
+		<button
+			class="group flex w-full cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
+				{!planningStore.active && contextsStore.activeView === 'backlog'
+				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+			onclick={() => { if (planningStore.active) planningStore.exit(); navigateToMainIfNeeded(); contextsStore.setView('backlog'); onItemClick?.(); }}
+			title={collapsed ? $t('views.backlog') : undefined}
+		>
+			<ArchiveIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+			{#if !collapsed}
+				{$t('views.backlog')}
+			{/if}
+		</button>
 
-	<button
-		class="group flex w-full cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
-			{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
-			{planningStore.active
-			? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-			: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-		onclick={() => { navigateToMainIfNeeded(); if (planningStore.active) { planningStore.exit(); } else { planningStore.enter(); } onItemClick?.(); }}
-		title={collapsed ? $t('planning.title') : undefined}
-	>
-		<CalendarRangeIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
-		{#if !collapsed}
-			{$t('planning.title')}
-		{/if}
-	</button>
+		<button
+			class="group flex w-full cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150
+				{collapsed ? 'justify-center p-2' : 'gap-2.5 px-2.5 py-2 md:py-1.5'}
+				{planningStore.active
+				? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+				: 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+			onclick={() => { navigateToMainIfNeeded(); if (planningStore.active) { planningStore.exit(); } else { planningStore.enter(); } onItemClick?.(); }}
+			title={collapsed ? $t('planning.title') : undefined}
+		>
+			<CalendarRangeIcon class="h-4 w-4 md:h-3.5 md:w-3.5 shrink-0 opacity-60" />
+			{#if !collapsed}
+				{$t('planning.title')}
+			{/if}
+		</button>
+	{/if}
 
 	<!-- Labels -->
 	<a
