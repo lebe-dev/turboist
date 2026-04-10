@@ -3,8 +3,10 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
+	import { appStore } from '$lib/stores/app.svelte';
 	import ContextSwitcher from './ContextSwitcher.svelte';
 	import ZapIcon from '@lucide/svelte/icons/zap';
+	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { goto } from '$app/navigation';
@@ -32,9 +34,9 @@
 
 <aside
 	class="flex h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out
-		{effectiveCollapsed ? 'w-12' : 'w-60'}"
+		{effectiveCollapsed ? 'w-14' : 'w-60'}"
 >
-	<div class="flex h-12 items-center border-b border-sidebar-border {effectiveCollapsed ? 'justify-center px-0' : 'gap-2.5 px-4'}">
+	<div class="flex h-12 items-center border-b border-sidebar-border {effectiveCollapsed ? 'justify-center px-2' : 'gap-2.5 px-4'}">
 		{#if !effectiveCollapsed}
 			<button
 				class="flex items-center gap-2.5 cursor-pointer"
@@ -45,26 +47,42 @@
 				<span class="text-sm font-bold tracking-widest uppercase text-foreground">Turboist</span>
 			</button>
 		{/if}
-		{#if onClose}
+
+		<div class="{effectiveCollapsed ? 'flex items-center gap-1.5' : 'ml-auto flex items-center gap-1'}">
+			<!-- Idea button -->
 			<button
-				class="ml-auto flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:hidden"
-				onclick={onClose}
-				aria-label="Close menu"
+				class="flex {effectiveCollapsed ? 'h-6 w-6' : 'h-7 w-7'} cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-yellow-400"
+				onclick={() => { appStore.quickCaptureOpen = true; onClose?.(); }}
+				title={$t('quickCapture.title')}
+				aria-label={$t('quickCapture.title')}
 			>
-				<XIcon class="h-4 w-4" />
+				<LightbulbIcon class="{effectiveCollapsed ? 'h-3 w-3' : 'h-3.5 w-3.5'}" />
 			</button>
-		{/if}
-		<button
-			class="{effectiveCollapsed ? '' : 'ml-auto'} hidden h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:flex"
-			onclick={() => sidebarStore.toggle()}
-			aria-label={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-		>
-			{#if effectiveCollapsed}
-				<PanelLeftOpenIcon class="h-3.5 w-3.5" />
-			{:else}
-				<PanelLeftCloseIcon class="h-3.5 w-3.5" />
+
+			<!-- Close button (mobile) -->
+			{#if onClose}
+				<button
+					class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:hidden"
+					onclick={onClose}
+					aria-label="Close menu"
+				>
+					<XIcon class="h-4 w-4" />
+				</button>
 			{/if}
-		</button>
+
+			<!-- Toggle button (desktop) -->
+			<button
+				class="hidden {effectiveCollapsed ? 'h-6 w-6' : 'h-7 w-7'} cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:flex"
+				onclick={() => sidebarStore.toggle()}
+				aria-label={effectiveCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+			>
+				{#if effectiveCollapsed}
+					<PanelLeftOpenIcon class="h-3 w-3" />
+				{:else}
+					<PanelLeftCloseIcon class="h-3.5 w-3.5" />
+				{/if}
+			</button>
+		</div>
 	</div>
 
 	<div class="flex-1 overflow-y-auto {effectiveCollapsed ? 'px-1.5 py-2' : 'px-3 py-4'}">
