@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/todoist"
@@ -22,7 +21,7 @@ type troikiMockCache struct {
 	projects      []*todoist.Project
 	sections      []*todoist.Section
 	tasks         []*todoist.Task
-	addedTasks    []synctodoist.TaskAddArgs
+	addedTasks    []todoist.TaskAddArgs
 	addedSections []struct{ name, projectID string }
 	nextTaskID    string
 	addTaskErr    error
@@ -32,7 +31,7 @@ func (m *troikiMockCache) Projects() []*todoist.Project { return m.projects }
 func (m *troikiMockCache) Sections() []*todoist.Section { return m.sections }
 func (m *troikiMockCache) Tasks() []*todoist.Task       { return m.tasks }
 
-func (m *troikiMockCache) AddTask(_ context.Context, args *synctodoist.TaskAddArgs) (string, error) {
+func (m *troikiMockCache) AddTask(_ context.Context, args *todoist.TaskAddArgs) (string, error) {
 	if m.addTaskErr != nil {
 		return "", m.addTaskErr
 	}

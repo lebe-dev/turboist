@@ -6,16 +6,14 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 )
 
 // mockCacheClient implements cacheClient for tests.
 type mockCacheClient struct {
 	fetchAllFn                func(ctx context.Context) (*SyncResult, error)
 	fetchIncrementalFn        func(ctx context.Context) (*DeltaResult, error)
-	addTaskFn                 func(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error)
-	updateTaskFn              func(ctx context.Context, args *synctodoist.TaskUpdateArgs) error
+	addTaskFn                 func(ctx context.Context, args *TaskAddArgs) (string, error)
+	updateTaskFn              func(ctx context.Context, args *TaskUpdateArgs) error
 	deleteTaskFn              func(ctx context.Context, id string) error
 	moveTaskFn                func(ctx context.Context, id string, parentID string) error
 	moveTaskToProjectFn       func(ctx context.Context, id string, projectID string) error
@@ -45,14 +43,14 @@ func (m *mockCacheClient) FetchIncremental(ctx context.Context) (*DeltaResult, e
 	return &DeltaResult{FullSync: true, Result: result}, nil
 }
 
-func (m *mockCacheClient) AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error) {
+func (m *mockCacheClient) AddTask(ctx context.Context, args *TaskAddArgs) (string, error) {
 	if m.addTaskFn != nil {
 		return m.addTaskFn(ctx, args)
 	}
 	return "new-id", nil
 }
 
-func (m *mockCacheClient) UpdateTask(ctx context.Context, args *synctodoist.TaskUpdateArgs) error {
+func (m *mockCacheClient) UpdateTask(ctx context.Context, args *TaskUpdateArgs) error {
 	if m.updateTaskFn != nil {
 		return m.updateTaskFn(ctx, args)
 	}
@@ -81,13 +79,6 @@ func (m *mockCacheClient) MoveTaskToProject(ctx context.Context, id string, proj
 }
 
 func (m *mockCacheClient) CompleteTask(ctx context.Context, id string) error {
-	if m.completeTaskFn != nil {
-		return m.completeTaskFn(ctx, id)
-	}
-	return nil
-}
-
-func (m *mockCacheClient) CloseTask(ctx context.Context, id string) error {
 	if m.completeTaskFn != nil {
 		return m.completeTaskFn(ctx, id)
 	}
@@ -131,7 +122,7 @@ func newTestCache(client cacheClient) *Cache {
 
 func TestAddTask_SucceedsWhenFetchAllFails(t *testing.T) {
 	mock := &mockCacheClient{
-		addTaskFn: func(_ context.Context, _ *synctodoist.TaskAddArgs) (string, error) {
+		addTaskFn: func(_ context.Context, _ *TaskAddArgs) (string, error) {
 			return "task-123", nil
 		},
 		fetchAllFn: func(_ context.Context) (*SyncResult, error) {
@@ -140,7 +131,7 @@ func TestAddTask_SucceedsWhenFetchAllFails(t *testing.T) {
 	}
 	cache := newTestCache(mock)
 
-	id, err := cache.AddTask(context.Background(), &synctodoist.TaskAddArgs{Content: "test"})
+	id, err := cache.AddTask(context.Background(), &TaskAddArgs{Content: "test"})
 	if err != nil {
 		t.Fatalf("got err %v, want nil (FetchAll failure should not propagate)", err)
 	}
@@ -152,13 +143,13 @@ func TestAddTask_SucceedsWhenFetchAllFails(t *testing.T) {
 func TestAddTask_PropagatesMutationError(t *testing.T) {
 	mutationErr := errors.New("network error")
 	mock := &mockCacheClient{
-		addTaskFn: func(_ context.Context, _ *synctodoist.TaskAddArgs) (string, error) {
+		addTaskFn: func(_ context.Context, _ *TaskAddArgs) (string, error) {
 			return "", mutationErr
 		},
 	}
 	cache := newTestCache(mock)
 
-	_, err := cache.AddTask(context.Background(), &synctodoist.TaskAddArgs{Content: "test"})
+	_, err := cache.AddTask(context.Background(), &TaskAddArgs{Content: "test"})
 	if err == nil {
 		t.Fatal("got nil error, want mutation error to propagate")
 	}
@@ -201,7 +192,7 @@ func TestDeleteTask_PropagatesMutationError(t *testing.T) {
 
 func TestUpdateTask_SucceedsWhenFetchAllFails(t *testing.T) {
 	mock := &mockCacheClient{
-		updateTaskFn: func(_ context.Context, _ *synctodoist.TaskUpdateArgs) error {
+		updateTaskFn: func(_ context.Context, _ *TaskUpdateArgs) error {
 			return nil
 		},
 		fetchAllFn: func(_ context.Context) (*SyncResult, error) {
@@ -210,7 +201,7 @@ func TestUpdateTask_SucceedsWhenFetchAllFails(t *testing.T) {
 	}
 	cache := newTestCache(mock)
 
-	err := cache.UpdateTask(context.Background(), &synctodoist.TaskUpdateArgs{ID: "task-123"})
+	err := cache.UpdateTask(context.Background(), &TaskUpdateArgs{ID: "task-123"})
 	if err != nil {
 		t.Fatalf("got err %v, want nil (FetchAll failure should not propagate)", err)
 	}

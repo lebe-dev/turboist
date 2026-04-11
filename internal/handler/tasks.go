@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/lebe-dev/turboist/internal/config"
 	ctxfilter "github.com/lebe-dev/turboist/internal/context"
 	"github.com/lebe-dev/turboist/internal/storage"
@@ -176,15 +175,15 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "content is required"})
 	}
 
-	args := &synctodoist.TaskAddArgs{
+	args := &todoist.TaskAddArgs{
 		Content: req.Content,
 	}
 
 	if req.Description != "" {
-		args.Description = &req.Description
+		args.Description = req.Description
 	}
 	if req.Priority >= 1 && req.Priority <= 4 {
-		args.Priority = &req.Priority
+		args.Priority = req.Priority
 	}
 
 	labels := make([]string, 0)
@@ -201,14 +200,14 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 			if len(ctx.Filters.Projects) > 0 {
 				projectID := resolveProjectID(ctx.Filters.Projects[0], h.cache.Projects())
 				if projectID != "" {
-					args.ProjectID = &projectID
+					args.ProjectID = projectID
 				}
 			}
 			// Set section from context filter (first match)
 			if len(ctx.Filters.Sections) > 0 {
 				sectionID := resolveSectionID(ctx.Filters.Sections[0], h.cache.Sections())
 				if sectionID != "" {
-					args.SectionID = &sectionID
+					args.SectionID = sectionID
 				}
 			}
 			// Merge context labels (avoid duplicates) if inherit_labels is enabled
@@ -235,22 +234,21 @@ func (h *TasksHandler) Create(c fiber.Ctx) error {
 
 	// Explicit project/section from request take precedence over context
 	if req.ProjectID != "" {
-		args.ProjectID = &req.ProjectID
+		args.ProjectID = req.ProjectID
 	}
 	if req.SectionID != "" {
-		args.SectionID = &req.SectionID
+		args.SectionID = req.SectionID
 	}
 
 	if req.ParentID != "" {
-		args.ParentID = &req.ParentID
+		args.ParentID = req.ParentID
 	}
 
 	if req.DueDate != "" {
-		dueDate, err := time.Parse("2006-01-02", req.DueDate)
-		if err != nil {
+		if _, err := time.Parse("2006-01-02", req.DueDate); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid due_date format, expected YYYY-MM-DD"})
 		}
-		args.Due = &synctodoist.Due{Date: &dueDate}
+		args.DueDate = req.DueDate
 	}
 
 	log.Debug("create task", "content", req.Content, "context", contextKey, "labels", labels)
@@ -330,7 +328,7 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	args := &synctodoist.TaskUpdateArgs{ID: id}
+	args := &todoist.TaskUpdateArgs{ID: id}
 
 	if req.Content != nil {
 		args.Content = req.Content
@@ -353,29 +351,25 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	}
 	if req.DueString != nil {
 		// due_string takes precedence — pass the human-readable string (e.g. "every day")
-		// directly to the Todoist sync API which will parse it.
+		// directly to the Todoist API which will parse it.
 		// Also preserve the existing due date so Todoist doesn't skip to the next
 		// occurrence (e.g. setting "every month on the 1st" on April 1st should
 		// keep April 1st, not jump to May 1st).
 		lang := "en"
-		due := &synctodoist.Due{String: req.DueString, Lang: &lang}
+		args.DueString = req.DueString
+		args.DueLang = &lang
 		if existing := h.findTask(id); existing != nil && existing.Due != nil {
-			date, err := time.Parse("2006-01-02", existing.Due.Date)
-			if err == nil {
-				due.Date = &date
-			}
+			args.DueDate = &existing.Due.Date
 		}
-		args.Due = due
 	} else if req.DueDate != nil {
 		if *req.DueDate == "" {
 			noDate := "no date"
-			args.Due = &synctodoist.Due{String: &noDate}
+			args.DueString = &noDate
 		} else {
-			dueDate, err := time.Parse("2006-01-02", *req.DueDate)
-			if err != nil {
+			if _, err := time.Parse("2006-01-02", *req.DueDate); err != nil {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid due_date format, expected YYYY-MM-DD"})
 			}
-			args.Due = &synctodoist.Due{Date: &dueDate}
+			args.DueDate = req.DueDate
 		}
 	}
 
@@ -508,26 +502,27 @@ func (h *TasksHandler) Duplicate(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
 	}
 
-	args := &synctodoist.TaskAddArgs{
+	args := &todoist.TaskAddArgs{
 		Content:   src.Content,
-		ProjectID: &src.ProjectID,
-		SectionID: src.SectionID,
-		ParentID:  src.ParentID,
+		ProjectID: src.ProjectID,
+	}
+	if src.SectionID != nil {
+		args.SectionID = *src.SectionID
+	}
+	if src.ParentID != nil {
+		args.ParentID = *src.ParentID
 	}
 	if src.Description != "" {
-		args.Description = &src.Description
+		args.Description = src.Description
 	}
 	if src.Priority >= 1 && src.Priority <= 4 {
-		args.Priority = &src.Priority
+		args.Priority = src.Priority
 	}
 	if len(src.Labels) > 0 {
 		args.Labels = src.Labels
 	}
 	if src.Due != nil {
-		dueDate, err := time.Parse("2006-01-02", src.Due.Date)
-		if err == nil {
-			args.Due = &synctodoist.Due{Date: &dueDate}
-		}
+		args.DueDate = src.Due.Date
 	}
 
 	log.Debug("duplicate task", "id", id, "content", src.Content)

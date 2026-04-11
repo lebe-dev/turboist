@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/charmbracelet/log"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/todoist"
@@ -54,7 +53,7 @@ type cache interface {
 	Projects() []*todoist.Project
 	Sections() []*todoist.Section
 	Tasks() []*todoist.Task
-	AddTask(ctx context.Context, args *synctodoist.TaskAddArgs) (string, error)
+	AddTask(ctx context.Context, args *todoist.TaskAddArgs) (string, error)
 	AddSection(ctx context.Context, name string, projectID string) (string, error)
 	FetchCompletedBySection(ctx context.Context, projectID, sectionID string) ([]*todoist.Task, error)
 }
@@ -275,17 +274,14 @@ func (s *Service) AddTask(ctx context.Context, class SectionClass, content, desc
 		return "", ErrNoCapacity
 	}
 
-	sectionID := s.sectionIDs[class]
-	projectID := s.projectID
-	priority := priorityForClass(class)
-	args := &synctodoist.TaskAddArgs{
+	args := &todoist.TaskAddArgs{
 		Content:   content,
-		ProjectID: &projectID,
-		SectionID: &sectionID,
-		Priority:  &priority,
+		ProjectID: s.projectID,
+		SectionID: s.sectionIDs[class],
+		Priority:  priorityForClass(class),
 	}
 	if description != "" {
-		args.Description = &description
+		args.Description = description
 	}
 
 	id, err := s.cache.AddTask(ctx, args)

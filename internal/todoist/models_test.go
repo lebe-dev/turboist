@@ -2,19 +2,12 @@ package todoist
 
 import (
 	"testing"
-	"time"
-
-	"github.com/CnTeng/todoist-api-go/sync"
 )
 
 func ptr(s string) *string { return &s }
-func boolPtr(b bool) *bool { return &b }
 
 func TestTaskFromSync_Full(t *testing.T) {
-	addedAt := time.Date(2026, 3, 15, 10, 30, 0, 0, time.UTC)
-	dueDate := time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC)
-
-	st := &sync.Task{
+	st := &syncItem{
 		ID:          "123",
 		Content:     "Buy groceries",
 		Description: "Milk, eggs, bread",
@@ -24,10 +17,10 @@ func TestTaskFromSync_Full(t *testing.T) {
 		Labels:      []string{"errand", "weekly"},
 		Priority:    4,
 		CompletedAt: ptr("2026-03-18T12:00:00Z"),
-		AddedAt:     addedAt,
-		Due: &sync.Due{
-			Date:        &dueDate,
-			IsRecurring: boolPtr(false),
+		AddedAt:     "2026-03-15T10:30:00Z",
+		Due: &syncDue{
+			Date:        "2026-03-20",
+			IsRecurring: false,
 		},
 	}
 
@@ -78,10 +71,10 @@ func TestTaskFromSync_Full(t *testing.T) {
 }
 
 func TestTaskFromSync_NilDue(t *testing.T) {
-	st := &sync.Task{
+	st := &syncItem{
 		ID:      "1",
 		Content: "No due date",
-		AddedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		AddedAt: "2026-01-01T00:00:00Z",
 	}
 
 	task := TaskFromSync(st)
@@ -91,11 +84,11 @@ func TestTaskFromSync_NilDue(t *testing.T) {
 }
 
 func TestTaskFromSync_NilLabels(t *testing.T) {
-	st := &sync.Task{
+	st := &syncItem{
 		ID:      "1",
 		Content: "No labels",
 		Labels:  nil,
-		AddedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		AddedAt: "2026-01-01T00:00:00Z",
 	}
 
 	task := TaskFromSync(st)
@@ -108,14 +101,13 @@ func TestTaskFromSync_NilLabels(t *testing.T) {
 }
 
 func TestTaskFromSync_RecurringDue(t *testing.T) {
-	dueDate := time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC)
-	st := &sync.Task{
+	st := &syncItem{
 		ID:      "1",
 		Content: "Recurring task",
-		AddedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-		Due: &sync.Due{
-			Date:        &dueDate,
-			IsRecurring: boolPtr(true),
+		AddedAt: "2026-01-01T00:00:00Z",
+		Due: &syncDue{
+			Date:        "2026-03-20",
+			IsRecurring: true,
 		},
 	}
 
@@ -128,15 +120,13 @@ func TestTaskFromSync_RecurringDue(t *testing.T) {
 	}
 }
 
-func TestTaskFromSync_DueWithNilIsRecurring(t *testing.T) {
-	dueDate := time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC)
-	st := &sync.Task{
+func TestTaskFromSync_DueDateTruncation(t *testing.T) {
+	st := &syncItem{
 		ID:      "1",
-		Content: "Due without recurring flag",
-		AddedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-		Due: &sync.Due{
-			Date:        &dueDate,
-			IsRecurring: nil,
+		Content: "Task with datetime due",
+		AddedAt: "2026-01-01T00:00:00Z",
+		Due: &syncDue{
+			Date: "2026-03-20T12:00:00",
 		},
 	}
 
@@ -144,7 +134,21 @@ func TestTaskFromSync_DueWithNilIsRecurring(t *testing.T) {
 	if task.Due == nil {
 		t.Fatal("got Due nil, want non-nil")
 	}
-	if task.Due.Recurring {
-		t.Error("got Due.Recurring true, want false (nil defaults to false)")
+	if task.Due.Date != "2026-03-20" {
+		t.Errorf("got Due.Date %q, want %q", task.Due.Date, "2026-03-20")
+	}
+}
+
+func TestTaskFromSync_EmptyDueDate(t *testing.T) {
+	st := &syncItem{
+		ID:      "1",
+		Content: "Empty due date",
+		AddedAt: "2026-01-01T00:00:00Z",
+		Due:     &syncDue{Date: ""},
+	}
+
+	task := TaskFromSync(st)
+	if task.Due != nil {
+		t.Errorf("got Due %v, want nil (empty date treated as no due)", task.Due)
 	}
 }

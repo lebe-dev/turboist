@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	synctodoist "github.com/CnTeng/todoist-api-go/sync"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
@@ -18,7 +17,7 @@ type mockCache struct {
 	projects      []*todoist.Project
 	sections      []*todoist.Section
 	tasks         []*todoist.Task
-	addedTasks    []synctodoist.TaskAddArgs
+	addedTasks    []todoist.TaskAddArgs
 	addedSections []struct{ name, projectID string }
 	nextTaskID    string
 	nextSectionID string
@@ -29,7 +28,7 @@ func (m *mockCache) Projects() []*todoist.Project { return m.projects }
 func (m *mockCache) Sections() []*todoist.Section { return m.sections }
 func (m *mockCache) Tasks() []*todoist.Task       { return m.tasks }
 
-func (m *mockCache) AddTask(_ context.Context, args *synctodoist.TaskAddArgs) (string, error) {
+func (m *mockCache) AddTask(_ context.Context, args *todoist.TaskAddArgs) (string, error) {
 	if m.addTaskErr != nil {
 		return "", m.addTaskErr
 	}
@@ -443,11 +442,11 @@ func TestAddTask_Success(t *testing.T) {
 	if added.Content != "Test task" {
 		t.Errorf("content: got %q, want %q", added.Content, "Test task")
 	}
-	if added.ProjectID == nil || *added.ProjectID != "proj-1" {
-		t.Errorf("project ID: got %v, want %q", added.ProjectID, "proj-1")
+	if added.ProjectID != "proj-1" {
+		t.Errorf("project ID: got %q, want %q", added.ProjectID, "proj-1")
 	}
-	if added.SectionID == nil || *added.SectionID != "sec-med" {
-		t.Errorf("section ID: got %v, want %q", added.SectionID, "sec-med")
+	if added.SectionID != "sec-med" {
+		t.Errorf("section ID: got %q, want %q", added.SectionID, "sec-med")
 	}
 }
 
@@ -681,10 +680,8 @@ func TestAddTask_SetsCorrectPriority(t *testing.T) {
 			t.Fatalf("class=%s: expected 1 added task, got %d", tc.class, len(mc.addedTasks))
 		}
 		added := mc.addedTasks[0]
-		if added.Priority == nil {
-			t.Errorf("class=%s: priority is nil, want %d", tc.class, tc.wantPrio)
-		} else if *added.Priority != tc.wantPrio {
-			t.Errorf("class=%s: priority got %d, want %d", tc.class, *added.Priority, tc.wantPrio)
+		if added.Priority != tc.wantPrio {
+			t.Errorf("class=%s: priority got %d, want %d", tc.class, added.Priority, tc.wantPrio)
 		}
 	}
 }
