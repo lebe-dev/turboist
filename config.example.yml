@@ -169,6 +169,38 @@ troiki_system:
     medium: "Среднее"
     rest: "Остальное"
 
+# Constraints: self-imposed limitations to enforce focus and discipline.
+# enabled: true by default — set to false to disable all constraints.
+constraints:
+  enabled: true
+  # Label blocks: temporarily block labels from being scheduled (Today/Tomorrow).
+  # Duration supports day suffix: "14d", "7d", "2d12h".
+  label_blocks:
+    - label: "здоровье"
+      duration: "14d"
+    - label: "покупки"
+      duration: "7d"
+  # Daily constraints: randomly selected self-discipline items shown each day.
+  # The constraint pool (list of items to pick from) is managed via the Settings UI,
+  # not this config file. Pool items are stored in user_state as constraint_pool.
+  # max_constraints: how many items are picked from the pool (default: 3)
+  # max_rerolls: how many times you can re-roll or swap per day (default: 2)
+  max_constraints: 3
+  max_rerolls: 2
+  # Day part caps: limit how many tasks can be assigned to a day part.
+  day_part_caps:
+    - label: "утро"
+      max_tasks: 3
+    - label: "день"
+      max_tasks: 5
+    - label: "вечер"
+      max_tasks: 3
+  # Priority floor: tasks with priority number below this value cannot be scheduled for Today.
+  # Todoist priorities: 1 (p4/lowest) to 4 (p1/highest). Default: 4 (no restriction).
+  priority_floor: 4
+  # Postpone budget: max times you can postpone tasks per day. 0 = unlimited.
+  postpone_budget: 0
+
 # Auto-remove: automatically delete tasks after TTL expires.
 # TTL is counted from the moment the label is first seen in the cache.
 # The timer resets on application restart.
