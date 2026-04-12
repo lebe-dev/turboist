@@ -89,12 +89,12 @@
 		if (!store) return api;
 		if (!api) return store;
 		// Supplement store children with API-only children (filtered out of current view)
-		const storeChildIds = new Set(store.children.map((c) => c.id));
-		const extraChildren = api.children.filter((c) => !storeChildIds.has(c.id));
+		const storeChildIds = new Set((store.children ?? []).map((c) => c.id));
+		const extraChildren = (api.children ?? []).filter((c) => !storeChildIds.has(c.id));
 		if (extraChildren.length === 0) return store;
 		return {
 			...store,
-			children: [...store.children, ...extraChildren],
+			children: [...(store.children ?? []), ...extraChildren],
 			sub_task_count: Math.max(store.sub_task_count, api.sub_task_count)
 		};
 	});
@@ -149,9 +149,11 @@
 			completedSubtasks = [];
 			return;
 		}
+		let cancelled = false;
 		getCompletedSubtasks(id)
-			.then((tasks) => { completedSubtasks = tasks; })
-			.catch(() => { completedSubtasks = []; });
+			.then((tasks) => { if (!cancelled) completedSubtasks = tasks; })
+			.catch(() => { if (!cancelled) completedSubtasks = []; });
+		return () => { cancelled = true; };
 	});
 
 	// --- Title editing ---
@@ -1655,7 +1657,7 @@ function setDateQuick(date: string) {
 													{formatDueDate(child.due.date)}
 												</span>
 											{/if}
-											{#each child.labels as label (label)}
+											{#each (child.labels ?? []) as label (label)}
 												<span class="rounded px-1.5 py-0.5 text-[11px] bg-muted text-muted-foreground">{label}</span>
 											{/each}
 										</div>
@@ -1690,7 +1692,7 @@ function setDateQuick(date: string) {
 											{/snippet}
 										</TaskDropdownMenu>
 								</div>
-								{#each child.children as grandchild (grandchild.id)}
+								{#each (child.children ?? []) as grandchild (grandchild.id)}
 									{@render subtaskNode(grandchild, depth + 1)}
 								{/each}
 							{/snippet}

@@ -76,7 +76,7 @@ export function flattenTasks(tasks: Task[]): FlatTask[] {
 	function walk(list: Task[]) {
 		for (const task of list) {
 			result.push(taskToFlat(task));
-			if (task.children.length > 0) walk(task.children);
+			if (task.children?.length) walk(task.children);
 		}
 	}
 	walk(tasks);
