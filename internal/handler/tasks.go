@@ -375,13 +375,37 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 
 	// Detect postpone: only increment when the due date moves further into the future.
 	// Moving closer (earlier date or today) is not a postpone.
+	var isPostpone bool
 	if req.DueDate != nil && *req.DueDate != "" {
 		if existing := h.findTask(id); existing != nil && existing.Due != nil && existing.Due.Date != *req.DueDate {
 			if *req.DueDate > existing.Due.Date {
-				if err := h.store.IncrementPostponeCount(id); err != nil {
-					log.Error("increment postpone count failed", "id", id, "err", err)
-				}
+				isPostpone = true
 			}
+		}
+	}
+
+	// Enforce postpone budget before allowing the update.
+	var postponeBudgetUsed int
+	var today string
+	enforceBudget := isPostpone && h.cfg.Constraints.Enabled && h.cfg.Constraints.PostponeBudget > 0
+	if enforceBudget {
+		today = time.Now().In(h.cfg.Location).Format("2006-01-02")
+		budgetState, err := h.store.GetPostponeBudget()
+		if err != nil {
+			log.Error("get postpone budget failed", "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check postpone budget"})
+		}
+		if budgetState != nil && budgetState.Date == today {
+			postponeBudgetUsed = budgetState.Used
+		}
+		if postponeBudgetUsed >= h.cfg.Constraints.PostponeBudget {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Daily postpone limit reached"})
+		}
+	}
+
+	if isPostpone {
+		if err := h.store.IncrementPostponeCount(id); err != nil {
+			log.Error("increment postpone count failed", "id", id, "err", err)
 		}
 	}
 
@@ -406,6 +430,13 @@ func (h *TasksHandler) Update(c fiber.Ctx) error {
 	} else if labelsViaSync {
 		// Only labels were updated via sync — still refresh the cache.
 		h.cache.RefreshAfterMutation()
+	}
+
+	// Increment daily postpone budget after successful update.
+	if enforceBudget {
+		if err := h.store.SetPostponeBudget(&storage.PostponeBudgetState{Date: today, Used: postponeBudgetUsed + 1}); err != nil {
+			log.Error("set postpone budget failed", "err", err)
+		}
 	}
 
 	return c.JSON(fiber.Map{"ok": true})

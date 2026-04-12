@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,6 +61,30 @@ type InboxConfig struct {
 	OverflowTaskContent string `yaml:"overflow_task_content"`
 }
 
+type LabelBlockConfig struct {
+	Label    string
+	Duration time.Duration
+}
+
+type DailyConstraintsConfig struct {
+	MaxConstraints int
+	MaxRerolls     int
+}
+
+type DayPartCapConfig struct {
+	Label    string
+	MaxTasks int
+}
+
+type ConstraintsConfig struct {
+	Enabled        bool
+	LabelBlocks    []LabelBlockConfig
+	Daily          DailyConstraintsConfig
+	DayPartCaps    []DayPartCapConfig
+	PriorityFloor  int
+	PostponeBudget int
+}
+
 type AppConfig struct {
 	PollInterval       time.Duration
 	SyncInterval       time.Duration
@@ -83,6 +108,7 @@ type AppConfig struct {
 	CompiledAutoLabels []CompiledAutoLabel
 	LabelProjectMap    LabelProjectMapConfig
 	TroikiSystem       TroikiConfig
+	Constraints        ConstraintsConfig
 }
 
 // FindContext returns the context with the given ID, or nil if not found.
@@ -217,6 +243,26 @@ type CompiledAutoLabel struct {
 	IgnoreCase bool
 }
 
+type yamlLabelBlock struct {
+	Label    string `yaml:"label"`
+	Duration string `yaml:"duration"`
+}
+
+type yamlDayPartCap struct {
+	Label    string `yaml:"label"`
+	MaxTasks int    `yaml:"max_tasks"`
+}
+
+type yamlConstraints struct {
+	Enabled        *bool            `yaml:"enabled"`
+	LabelBlocks    []yamlLabelBlock `yaml:"label_blocks"`
+	MaxConstraints int              `yaml:"max_constraints"`
+	MaxRerolls     int              `yaml:"max_rerolls"`
+	DayPartCaps    []yamlDayPartCap `yaml:"day_part_caps"`
+	PriorityFloor  int              `yaml:"priority_floor"`
+	PostponeBudget int              `yaml:"postpone_budget"`
+}
+
 type yamlFile struct {
 	Timezone        string               `yaml:"timezone"`
 	PollInterval    string               `yaml:"poll_interval"`
@@ -237,6 +283,7 @@ type yamlFile struct {
 	AutoLabels      []AutoLabelConfig    `yaml:"auto_labels"`
 	LabelProjectMap *yamlLabelProjectMap `yaml:"label_project_map"`
 	TroikiSystem    *TroikiConfig        `yaml:"troiki_system"`
+	Constraints     *yamlConstraints     `yaml:"constraints"`
 }
 
 type yamlAutoRemove struct {
@@ -385,7 +432,106 @@ func ParseAppConfig(data []byte) (AppConfig, error) {
 	}
 	app.CompiledAutoLabels = compiled
 
+	constraints, err := parseConstraints(yf.Constraints)
+	if err != nil {
+		return AppConfig{}, err
+	}
+	app.Constraints = constraints
+
 	return app, nil
+}
+
+// parseDurationWithDays extends time.ParseDuration to support a "d" suffix for days.
+// e.g. "14d" → 14 * 24h, "2d12h" → 2*24h + 12h, "30s" → 30s.
+func parseDurationWithDays(s string) (time.Duration, error) {
+	if dayPart, rest, ok := strings.Cut(s, "d"); ok {
+		days, err := strconv.Atoi(dayPart)
+		if err != nil {
+			return 0, fmt.Errorf("invalid day value %q: %w", dayPart, err)
+		}
+		if days < 0 {
+			return 0, fmt.Errorf("negative day value: %d", days)
+		}
+
+		d := time.Duration(days) * 24 * time.Hour
+		if rest != "" {
+			extra, err := time.ParseDuration(rest)
+			if err != nil {
+				return 0, fmt.Errorf("invalid duration after days %q: %w", rest, err)
+			}
+			d += extra
+		}
+		return d, nil
+	}
+	return time.ParseDuration(s)
+}
+
+func parseConstraints(yc *yamlConstraints) (ConstraintsConfig, error) {
+	if yc == nil {
+		return ConstraintsConfig{
+			Enabled:       true,
+			PriorityFloor: 1,
+			Daily: DailyConstraintsConfig{
+				MaxConstraints: 3,
+				MaxRerolls:     2,
+			},
+		}, nil
+	}
+
+	enabled := true
+	if yc.Enabled != nil {
+		enabled = *yc.Enabled
+	}
+
+	priorityFloor := yc.PriorityFloor
+	if priorityFloor <= 0 {
+		priorityFloor = 1
+	}
+
+	maxConstraints := yc.MaxConstraints
+	if maxConstraints <= 0 {
+		maxConstraints = 3
+	}
+
+	maxRerolls := yc.MaxRerolls
+	if maxRerolls <= 0 {
+		maxRerolls = 2
+	}
+
+	var labelBlocks []LabelBlockConfig
+	for i, lb := range yc.LabelBlocks {
+		if lb.Label == "" {
+			return ConstraintsConfig{}, fmt.Errorf("constraints.label_blocks[%d]: label is required", i)
+		}
+		if lb.Duration == "" {
+			return ConstraintsConfig{}, fmt.Errorf("constraints.label_blocks[%d]: duration is required", i)
+		}
+		dur, err := parseDurationWithDays(lb.Duration)
+		if err != nil {
+			return ConstraintsConfig{}, fmt.Errorf("constraints.label_blocks[%d] duration: %w", i, err)
+		}
+		labelBlocks = append(labelBlocks, LabelBlockConfig{Label: lb.Label, Duration: dur})
+	}
+
+	var dayPartCaps []DayPartCapConfig
+	for i, dc := range yc.DayPartCaps {
+		if dc.Label == "" {
+			return ConstraintsConfig{}, fmt.Errorf("constraints.day_part_caps[%d]: label is required", i)
+		}
+		if dc.MaxTasks <= 0 {
+			return ConstraintsConfig{}, fmt.Errorf("constraints.day_part_caps[%d]: max_tasks must be positive", i)
+		}
+		dayPartCaps = append(dayPartCaps, DayPartCapConfig(dc))
+	}
+
+	return ConstraintsConfig{
+		Enabled:        enabled,
+		LabelBlocks:    labelBlocks,
+		Daily:          DailyConstraintsConfig{MaxConstraints: maxConstraints, MaxRerolls: maxRerolls},
+		DayPartCaps:    dayPartCaps,
+		PriorityFloor:  priorityFloor,
+		PostponeBudget: yc.PostponeBudget,
+	}, nil
 }
 
 func parseTroikiSystem(tc *TroikiConfig) TroikiConfig {

@@ -196,8 +196,9 @@ constraints:
     - label: "вечер"
       max_tasks: 3
   # Priority floor: tasks with priority number below this value cannot be scheduled for Today.
-  # Todoist priorities: 1 (p4/lowest) to 4 (p1/highest). Default: 4 (no restriction).
-  priority_floor: 4
+  # Todoist priorities: 1 (p4/lowest) to 4 (p1/highest). Default: 1 (no restriction).
+  # Example: priority_floor: 3 blocks p4 and p3 tasks from Today.
+  priority_floor: 3
   # Postpone budget: max times you can postpone tasks per day. 0 = unlimited.
   postpone_budget: 0
 

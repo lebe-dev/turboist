@@ -1,11 +1,18 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
+	"github.com/lebe-dev/turboist/internal/storage"
 	"github.com/lebe-dev/turboist/internal/taskview"
 	"github.com/lebe-dev/turboist/internal/todoist"
 )
@@ -278,5 +285,195 @@ func TestCountWithLabel(t *testing.T) {
 	}
 	if n := taskview.CountWithLabel(tasks, ""); n != 0 {
 		t.Errorf("expected 0 for empty label, got %d", n)
+	}
+}
+
+// --- Postpone budget enforcement tests ---
+
+func newTestTasksApp(t *testing.T, cfg *config.AppConfig, store *storage.Store, tasks []*todoist.Task) *fiber.App {
+	t.Helper()
+	cache := todoist.NewTestCacheWithMock(tasks, nil, nil, nil)
+
+	sessStore := auth.NewSessionStore()
+	token, _ := sessStore.CreateSession()
+	mw := auth.NewMiddleware(sessStore)
+
+	h := NewTasksHandler(cache, cfg, store, nil)
+
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.Request().Header.SetCookie(cookieName, token)
+		return c.Next()
+	})
+	app.Use(mw)
+	app.Patch("/api/tasks/:id", h.Update)
+
+	return app
+}
+
+func patchTask(t *testing.T, app *fiber.App, id string, body any) *http.Response {
+	t.Helper()
+	data, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPatch, "/api/tasks/"+id, bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	return resp
+}
+
+func TestUpdate_PostponeBudgetAllowed(t *testing.T) {
+	store := newTestStore(t)
+	today := time.Now().Format("2006-01-02")
+
+	// Set budget with 1 used out of 3
+	if err := store.SetPostponeBudget(&storage.PostponeBudgetState{Date: today, Used: 1}); err != nil {
+		t.Fatalf("set postpone budget: %v", err)
+	}
+
+	cfg := &config.AppConfig{
+		Location: time.UTC,
+		Constraints: config.ConstraintsConfig{
+			Enabled:        true,
+			PostponeBudget: 3,
+		},
+	}
+
+	tasks := []*todoist.Task{
+		{ID: "task1", Due: &todoist.Due{Date: today}},
+	}
+
+	app := newTestTasksApp(t, cfg, store, tasks)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	resp := patchTask(t, app, "task1", map[string]any{"due_date": tomorrow})
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d, want 200 (under budget)", resp.StatusCode)
+	}
+
+	// Verify budget was incremented
+	budgetState, err := store.GetPostponeBudget()
+	if err != nil {
+		t.Fatalf("get postpone budget: %v", err)
+	}
+	if budgetState == nil {
+		t.Fatal("postpone budget state is nil after postpone")
+	}
+	if budgetState.Used != 2 {
+		t.Errorf("got used %d, want 2", budgetState.Used)
+	}
+}
+
+func TestUpdate_PostponeBudgetExhausted(t *testing.T) {
+	store := newTestStore(t)
+	today := time.Now().Format("2006-01-02")
+
+	// Set budget to max
+	if err := store.SetPostponeBudget(&storage.PostponeBudgetState{Date: today, Used: 3}); err != nil {
+		t.Fatalf("set postpone budget: %v", err)
+	}
+
+	cfg := &config.AppConfig{
+		Location: time.UTC,
+		Constraints: config.ConstraintsConfig{
+			Enabled:        true,
+			PostponeBudget: 3,
+		},
+	}
+
+	tasks := []*todoist.Task{
+		{ID: "task1", Due: &todoist.Due{Date: today}},
+	}
+
+	app := newTestTasksApp(t, cfg, store, tasks)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	resp := patchTask(t, app, "task1", map[string]any{"due_date": tomorrow})
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400 (budget exhausted)", resp.StatusCode)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["error"] != "Daily postpone limit reached" {
+		t.Errorf("got error %q, want %q", body["error"], "Daily postpone limit reached")
+	}
+}
+
+func TestUpdate_PostponeBudgetResetsOnNewDay(t *testing.T) {
+	store := newTestStore(t)
+	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+
+	// Set budget exhausted for yesterday
+	if err := store.SetPostponeBudget(&storage.PostponeBudgetState{Date: yesterday, Used: 3}); err != nil {
+		t.Fatalf("set postpone budget: %v", err)
+	}
+
+	cfg := &config.AppConfig{
+		Location: time.UTC,
+		Constraints: config.ConstraintsConfig{
+			Enabled:        true,
+			PostponeBudget: 3,
+		},
+	}
+
+	tasks := []*todoist.Task{
+		{ID: "task1", Due: &todoist.Due{Date: today}},
+	}
+
+	app := newTestTasksApp(t, cfg, store, tasks)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	resp := patchTask(t, app, "task1", map[string]any{"due_date": tomorrow})
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d, want 200 (budget resets on new day)", resp.StatusCode)
+	}
+
+	// Verify budget was set to 1 for today
+	budgetState, err := store.GetPostponeBudget()
+	if err != nil {
+		t.Fatalf("get postpone budget: %v", err)
+	}
+	if budgetState.Date != today {
+		t.Errorf("got date %q, want %q", budgetState.Date, today)
+	}
+	if budgetState.Used != 1 {
+		t.Errorf("got used %d, want 1", budgetState.Used)
+	}
+}
+
+func TestUpdate_PostponeBudgetUnlimitedWhenZero(t *testing.T) {
+	store := newTestStore(t)
+	today := time.Now().Format("2006-01-02")
+
+	cfg := &config.AppConfig{
+		Constraints: config.ConstraintsConfig{
+			PostponeBudget: 0, // unlimited
+		},
+	}
+
+	tasks := []*todoist.Task{
+		{ID: "task1", Due: &todoist.Due{Date: today}},
+	}
+
+	app := newTestTasksApp(t, cfg, store, tasks)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	resp := patchTask(t, app, "task1", map[string]any{"due_date": tomorrow})
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("got %d, want 200 (unlimited when budget=0)", resp.StatusCode)
+	}
+
+	// Budget state should NOT be set when PostponeBudget=0
+	budgetState, err := store.GetPostponeBudget()
+	if err != nil {
+		t.Fatalf("get postpone budget: %v", err)
+	}
+	if budgetState != nil {
+		t.Errorf("got budget state %+v, want nil (no tracking when unlimited)", budgetState)
 	}
 }

@@ -123,6 +123,25 @@ type troikiConfigResponse struct {
 	MaxTasksPerSection int    `json:"max_tasks_per_section,omitempty"`
 }
 
+type labelBlockStatusResponse struct {
+	Label            string `json:"label"`
+	RemainingSeconds int    `json:"remaining_seconds"`
+}
+
+type dayPartCapResponse struct {
+	Label    string `json:"label"`
+	MaxTasks int    `json:"max_tasks"`
+}
+
+type constraintsResponse struct {
+	Enabled            bool                       `json:"enabled"`
+	LabelBlocks        []labelBlockStatusResponse `json:"label_blocks"`
+	DayPartCaps        []dayPartCapResponse       `json:"day_part_caps"`
+	PriorityFloor      int                        `json:"priority_floor"`
+	PostponeBudget     int                        `json:"postpone_budget"`
+	PostponeBudgetUsed int                        `json:"postpone_budget_used"`
+}
+
 type appConfigResponse struct {
 	Settings        settingsResponse         `json:"settings"`
 	Contexts        []contextItem            `json:"contexts"`
@@ -135,6 +154,7 @@ type appConfigResponse struct {
 	LabelProjectMap labelProjectMapResponse  `json:"label_project_map"`
 	AutoRemove      autoRemoveStatusResponse `json:"auto_remove"`
 	Troiki          troikiConfigResponse     `json:"troiki"`
+	Constraints     constraintsResponse      `json:"constraints"`
 	State           *storage.UserState       `json:"state"`
 }
 
@@ -305,6 +325,60 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		}
 	}
 
+	// Constraints
+	constraints := constraintsResponse{
+		Enabled:        h.cfg.Constraints.Enabled,
+		LabelBlocks:    []labelBlockStatusResponse{},
+		DayPartCaps:    []dayPartCapResponse{},
+		PriorityFloor:  h.cfg.Constraints.PriorityFloor,
+		PostponeBudget: h.cfg.Constraints.PostponeBudget,
+	}
+
+	if h.cfg.Constraints.Enabled {
+		// Label blocks: load from storage, compute remaining seconds
+		durationByLabel := make(map[string]time.Duration, len(h.cfg.Constraints.LabelBlocks))
+		for _, lb := range h.cfg.Constraints.LabelBlocks {
+			durationByLabel[lb.Label] = lb.Duration
+		}
+		blocks, err := h.store.GetLabelBlocks()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load label blocks"})
+		}
+		now := time.Now().In(h.cfg.Location)
+		for _, b := range blocks {
+			dur, ok := durationByLabel[b.Label]
+			if !ok {
+				continue
+			}
+			expiresAt := b.StartedAt.Add(dur)
+			remaining := expiresAt.Sub(now)
+			if remaining <= 0 {
+				continue
+			}
+			constraints.LabelBlocks = append(constraints.LabelBlocks, labelBlockStatusResponse{
+				Label:            b.Label,
+				RemainingSeconds: int(remaining.Seconds()),
+			})
+		}
+
+		// Day part caps
+		for _, dc := range h.cfg.Constraints.DayPartCaps {
+			constraints.DayPartCaps = append(constraints.DayPartCaps, dayPartCapResponse{
+				Label:    dc.Label,
+				MaxTasks: dc.MaxTasks,
+			})
+		}
+
+		// Postpone budget: load from user_state, check date
+		budgetState, err := h.store.GetPostponeBudget()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load postpone budget"})
+		}
+		if budgetState != nil && budgetState.Date == now.Format("2006-01-02") {
+			constraints.PostponeBudgetUsed = budgetState.Used
+		}
+	}
+
 	// User state
 	state, err := h.store.GetState()
 	if err != nil {
@@ -323,6 +397,7 @@ func (h *ConfigHandler) Config(c fiber.Ctx) error {
 		LabelProjectMap: labelProjectMap,
 		AutoRemove:      arStatus,
 		Troiki:          troiki,
+		Constraints:     constraints,
 		State:           state,
 	})
 }

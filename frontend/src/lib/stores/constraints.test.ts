@@ -175,8 +175,9 @@ describe('constraintsStore', () => {
 			expect(constraintsStore.isPriorityBelowFloor(3)).toBe(false);
 		});
 
-		it('handles default floor of 4 (lowest priority passes)', () => {
-			constraintsStore.init(makeConfig({ priority_floor: 4 }));
+		it('handles default floor of 1 (no restriction, all priorities pass)', () => {
+			constraintsStore.init(makeConfig({ priority_floor: 1 }));
+			expect(constraintsStore.isPriorityBelowFloor(1)).toBe(false);
 			expect(constraintsStore.isPriorityBelowFloor(4)).toBe(false);
 		});
 	});

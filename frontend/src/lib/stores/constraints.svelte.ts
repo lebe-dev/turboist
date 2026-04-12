@@ -13,7 +13,7 @@ function createConstraintsStore() {
 	});
 	let postponeBudget = $state<{ limit: number; used: number }>({ limit: 0, used: 0 });
 	let dayPartCaps = $state<Map<string, number>>(new Map());
-	let priorityFloor = $state(4);
+	let priorityFloor = $state(1);
 	let constraintPool = $state<string[]>([]);
 
 	function init(config: ConstraintsConfig): void {

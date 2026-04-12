@@ -546,6 +546,193 @@ func TestParseAppConfig_AutoLabelsEmpty(t *testing.T) {
 	}
 }
 
+func TestParseDurationWithDays(t *testing.T) {
+	tests := []struct {
+		input string
+		want  time.Duration
+	}{
+		{"14d", 14 * 24 * time.Hour},
+		{"1d", 24 * time.Hour},
+		{"2d12h", 2*24*time.Hour + 12*time.Hour},
+		{"30s", 30 * time.Second},
+		{"1h30m", time.Hour + 30*time.Minute},
+		{"0d", 0},
+	}
+	for _, tt := range tests {
+		got, err := parseDurationWithDays(tt.input)
+		if err != nil {
+			t.Errorf("parseDurationWithDays(%q): unexpected error: %v", tt.input, err)
+			continue
+		}
+		if got != tt.want {
+			t.Errorf("parseDurationWithDays(%q): got %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestParseDurationWithDays_Invalid(t *testing.T) {
+	invalids := []string{"abcd", "d", "14d-invalid"}
+	for _, s := range invalids {
+		_, err := parseDurationWithDays(s)
+		if err == nil {
+			t.Errorf("parseDurationWithDays(%q): expected error, got nil", s)
+		}
+	}
+}
+
+func TestParseAppConfig_ConstraintsDefaults(t *testing.T) {
+	app, err := ParseAppConfig([]byte(`weekly: {label: "x"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !app.Constraints.Enabled {
+		t.Error("expected constraints.enabled=true by default")
+	}
+	if app.Constraints.PriorityFloor != 1 {
+		t.Errorf("priority_floor: got %d, want 1", app.Constraints.PriorityFloor)
+	}
+	if app.Constraints.PostponeBudget != 0 {
+		t.Errorf("postpone_budget: got %d, want 0", app.Constraints.PostponeBudget)
+	}
+	if app.Constraints.Daily.MaxConstraints != 3 {
+		t.Errorf("max_constraints: got %d, want 3", app.Constraints.Daily.MaxConstraints)
+	}
+	if app.Constraints.Daily.MaxRerolls != 2 {
+		t.Errorf("max_rerolls: got %d, want 2", app.Constraints.Daily.MaxRerolls)
+	}
+	if len(app.Constraints.LabelBlocks) != 0 {
+		t.Errorf("label_blocks: got %d, want 0", len(app.Constraints.LabelBlocks))
+	}
+	if len(app.Constraints.DayPartCaps) != 0 {
+		t.Errorf("day_part_caps: got %d, want 0", len(app.Constraints.DayPartCaps))
+	}
+}
+
+func TestParseAppConfig_ConstraintsFull(t *testing.T) {
+	yaml := `
+constraints:
+  enabled: true
+  label_blocks:
+    - label: "здоровье"
+      duration: "14d"
+    - label: "покупки"
+      duration: "7d"
+  max_constraints: 5
+  max_rerolls: 3
+  day_part_caps:
+    - label: "утро"
+      max_tasks: 3
+    - label: "вечер"
+      max_tasks: 2
+  priority_floor: 3
+  postpone_budget: 5
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := app.Constraints
+	if !c.Enabled {
+		t.Error("expected enabled=true")
+	}
+	if len(c.LabelBlocks) != 2 {
+		t.Fatalf("label_blocks: got %d, want 2", len(c.LabelBlocks))
+	}
+	if c.LabelBlocks[0].Label != "здоровье" || c.LabelBlocks[0].Duration != 14*24*time.Hour {
+		t.Errorf("label_blocks[0]: got %+v", c.LabelBlocks[0])
+	}
+	if c.LabelBlocks[1].Label != "покупки" || c.LabelBlocks[1].Duration != 7*24*time.Hour {
+		t.Errorf("label_blocks[1]: got %+v", c.LabelBlocks[1])
+	}
+	if c.Daily.MaxConstraints != 5 {
+		t.Errorf("max_constraints: got %d, want 5", c.Daily.MaxConstraints)
+	}
+	if c.Daily.MaxRerolls != 3 {
+		t.Errorf("max_rerolls: got %d, want 3", c.Daily.MaxRerolls)
+	}
+	if len(c.DayPartCaps) != 2 {
+		t.Fatalf("day_part_caps: got %d, want 2", len(c.DayPartCaps))
+	}
+	if c.DayPartCaps[0].Label != "утро" || c.DayPartCaps[0].MaxTasks != 3 {
+		t.Errorf("day_part_caps[0]: got %+v", c.DayPartCaps[0])
+	}
+	if c.DayPartCaps[1].Label != "вечер" || c.DayPartCaps[1].MaxTasks != 2 {
+		t.Errorf("day_part_caps[1]: got %+v", c.DayPartCaps[1])
+	}
+	if c.PriorityFloor != 3 {
+		t.Errorf("priority_floor: got %d, want 3", c.PriorityFloor)
+	}
+	if c.PostponeBudget != 5 {
+		t.Errorf("postpone_budget: got %d, want 5", c.PostponeBudget)
+	}
+}
+
+func TestParseAppConfig_ConstraintsDisabled(t *testing.T) {
+	yaml := `
+constraints:
+  enabled: false
+`
+	app, err := ParseAppConfig([]byte(yaml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Constraints.Enabled {
+		t.Error("expected enabled=false")
+	}
+}
+
+func TestParseAppConfig_ConstraintsLabelBlockEmptyLabel(t *testing.T) {
+	yaml := `
+constraints:
+  label_blocks:
+    - label: ""
+      duration: "7d"
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty label block label")
+	}
+}
+
+func TestParseAppConfig_ConstraintsLabelBlockEmptyDuration(t *testing.T) {
+	yaml := `
+constraints:
+  label_blocks:
+    - label: "test"
+      duration: ""
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty label block duration")
+	}
+}
+
+func TestParseAppConfig_ConstraintsDayPartCapEmptyLabel(t *testing.T) {
+	yaml := `
+constraints:
+  day_part_caps:
+    - label: ""
+      max_tasks: 3
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for empty day part cap label")
+	}
+}
+
+func TestParseAppConfig_ConstraintsDayPartCapInvalidMaxTasks(t *testing.T) {
+	yaml := `
+constraints:
+  day_part_caps:
+    - label: "утро"
+      max_tasks: 0
+`
+	_, err := ParseAppConfig([]byte(yaml))
+	if err == nil {
+		t.Fatal("expected error for zero max_tasks")
+	}
+}
+
 func TestLoadDotEnv_SetsVars(t *testing.T) {
 	f := filepath.Join(t.TempDir(), ".env")
 	content := `
