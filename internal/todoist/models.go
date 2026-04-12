@@ -115,6 +115,12 @@ type Section struct {
 	ProjectID string `json:"project_id"`
 }
 
+// DecomposeOpts holds optional overrides for decomposed tasks.
+type DecomposeOpts struct {
+	Priority *int
+	DueDate  *string // "2006-01-02" format
+}
+
 // MoveTarget describes where a task should be moved.
 // When SectionID is non-empty, the task moves to that section (project is implicit).
 // When SectionID is empty, the task moves to ProjectID only.

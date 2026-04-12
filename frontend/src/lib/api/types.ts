@@ -95,6 +95,8 @@ export interface UpdateTaskRequest {
 
 export interface DecomposeTaskRequest {
 	tasks: string[];
+	priority?: number;
+	due_date?: string;
 }
 
 export interface DayPart {

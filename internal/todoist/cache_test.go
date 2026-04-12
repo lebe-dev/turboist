@@ -18,7 +18,7 @@ type mockCacheClient struct {
 	moveTaskFn                func(ctx context.Context, id string, parentID string) error
 	moveTaskToProjectFn       func(ctx context.Context, id string, projectID string) error
 	completeTaskFn            func(ctx context.Context, id string) error
-	decomposeTaskFn           func(ctx context.Context, src *Task, newContents []string) error
+	decomposeTaskFn           func(ctx context.Context, src *Task, newContents []string, opts DecomposeOpts) error
 	batchMoveTasksToProjectFn func(ctx context.Context, moves map[string]string) error
 	batchMoveTasksFn          func(ctx context.Context, moves map[string]MoveTarget) error
 	addSectionFn              func(ctx context.Context, name string, projectID string) (string, error)
@@ -85,9 +85,9 @@ func (m *mockCacheClient) CompleteTask(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockCacheClient) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
+func (m *mockCacheClient) DecomposeTask(ctx context.Context, src *Task, newContents []string, opts DecomposeOpts) error {
 	if m.decomposeTaskFn != nil {
-		return m.decomposeTaskFn(ctx, src, newContents)
+		return m.decomposeTaskFn(ctx, src, newContents, opts)
 	}
 	return nil
 }

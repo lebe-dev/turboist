@@ -47,6 +47,10 @@ function createProjectTasksStore() {
 		return buildTree(filtered);
 	}
 
+	function removeTaskLocal(id: string): void {
+		flatTasks = flatTasks.filter((t) => t.id !== id);
+	}
+
 	return {
 		get loaded() {
 			return loaded;
@@ -57,7 +61,8 @@ function createProjectTasksStore() {
 		start,
 		stop,
 		refresh: fetchFromServer,
-		getProjectTasks
+		getProjectTasks,
+		removeTaskLocal
 	};
 }
 

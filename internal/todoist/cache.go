@@ -28,7 +28,7 @@ type cacheClient interface {
 	MoveTaskToProject(ctx context.Context, id string, projectID string) error
 	CompleteTask(ctx context.Context, id string) error
 	DeleteTask(ctx context.Context, id string) error
-	DecomposeTask(ctx context.Context, src *Task, newContents []string) error
+	DecomposeTask(ctx context.Context, src *Task, newContents []string, opts DecomposeOpts) error
 	BatchMoveTasksToProject(ctx context.Context, moves map[string]string) error
 	BatchMoveTasks(ctx context.Context, moves map[string]MoveTarget) error
 	AddSection(ctx context.Context, name string, projectID string) (string, error)
@@ -511,8 +511,8 @@ func (c *Cache) filterEvicted(tasks []*Task) []*Task {
 
 // DecomposeTask creates new tasks from the source task and deletes the original,
 // then schedules a cache refresh.
-func (c *Cache) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
-	if err := c.client.DecomposeTask(ctx, src, newContents); err != nil {
+func (c *Cache) DecomposeTask(ctx context.Context, src *Task, newContents []string, opts DecomposeOpts) error {
+	if err := c.client.DecomposeTask(ctx, src, newContents, opts); err != nil {
 		return err
 	}
 	c.ScheduleRefresh()

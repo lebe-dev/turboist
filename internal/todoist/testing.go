@@ -45,7 +45,9 @@ func (m *noopCacheClient) MoveTask(context.Context, string, string) error       
 func (m *noopCacheClient) MoveTaskToProject(context.Context, string, string) error { return nil }
 func (m *noopCacheClient) CompleteTask(context.Context, string) error              { return nil }
 func (m *noopCacheClient) DeleteTask(context.Context, string) error                { return nil }
-func (m *noopCacheClient) DecomposeTask(context.Context, *Task, []string) error    { return nil }
+func (m *noopCacheClient) DecomposeTask(context.Context, *Task, []string, DecomposeOpts) error {
+	return nil
+}
 func (m *noopCacheClient) BatchMoveTasksToProject(context.Context, map[string]string) error {
 	return nil
 }

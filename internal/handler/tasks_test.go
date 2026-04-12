@@ -477,3 +477,151 @@ func TestUpdate_PostponeBudgetUnlimitedWhenZero(t *testing.T) {
 		t.Errorf("got budget state %+v, want nil (no tracking when unlimited)", budgetState)
 	}
 }
+
+// --- Decompose handler tests ---
+
+func newDecomposeApp(t *testing.T, tasks []*todoist.Task) *fiber.App {
+	t.Helper()
+	cache := todoist.NewTestCacheWithMock(tasks, nil, nil, nil)
+	store := newTestStore(t)
+
+	sessStore := auth.NewSessionStore()
+	token, _ := sessStore.CreateSession()
+	mw := auth.NewMiddleware(sessStore)
+
+	h := NewTasksHandler(cache, &config.AppConfig{}, store, nil)
+
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.Request().Header.SetCookie(cookieName, token)
+		return c.Next()
+	})
+	app.Use(mw)
+	app.Post("/api/tasks/:id/decompose", h.Decompose)
+
+	return app
+}
+
+func postDecompose(t *testing.T, app *fiber.App, id string, body any) *http.Response {
+	t.Helper()
+	data, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/"+id+"/decompose", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	return resp
+}
+
+func TestDecompose_WithPriorityAndDueDate(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "src-1", Content: "Big task", Priority: 2, Due: &todoist.Due{Date: "2026-04-10"}, Labels: []string{"work"}, Children: []*todoist.Task{}},
+	}
+
+	app := newDecomposeApp(t, tasks)
+	resp := postDecompose(t, app, "src-1", map[string]any{
+		"tasks":    []string{"Sub A", "Sub B"},
+		"priority": 4,
+		"due_date": "2026-04-15",
+	})
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("got %d, want 201", resp.StatusCode)
+	}
+}
+
+func TestDecompose_WithoutOverrides(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "src-1", Content: "Big task", Priority: 2, Children: []*todoist.Task{}},
+	}
+
+	app := newDecomposeApp(t, tasks)
+	resp := postDecompose(t, app, "src-1", map[string]any{
+		"tasks": []string{"Sub A"},
+	})
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("got %d, want 201", resp.StatusCode)
+	}
+}
+
+func TestDecompose_InvalidPriority(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "src-1", Content: "Big task", Priority: 2, Children: []*todoist.Task{}},
+	}
+
+	app := newDecomposeApp(t, tasks)
+	resp := postDecompose(t, app, "src-1", map[string]any{
+		"tasks":    []string{"Sub A"},
+		"priority": 5,
+	})
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400 (invalid priority)", resp.StatusCode)
+	}
+}
+
+func TestDecompose_PriorityZero(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "src-1", Content: "Big task", Priority: 2, Children: []*todoist.Task{}},
+	}
+
+	app := newDecomposeApp(t, tasks)
+	resp := postDecompose(t, app, "src-1", map[string]any{
+		"tasks":    []string{"Sub A"},
+		"priority": 0,
+	})
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400 (priority 0 is below range)", resp.StatusCode)
+	}
+}
+
+func TestDecompose_PriorityOnly(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "src-1", Content: "Big task", Priority: 2, Children: []*todoist.Task{}},
+	}
+
+	app := newDecomposeApp(t, tasks)
+	resp := postDecompose(t, app, "src-1", map[string]any{
+		"tasks":    []string{"Sub A"},
+		"priority": 3,
+	})
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("got %d, want 201", resp.StatusCode)
+	}
+}
+
+func TestDecompose_DueDateOnly(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "src-1", Content: "Big task", Priority: 2, Children: []*todoist.Task{}},
+	}
+
+	app := newDecomposeApp(t, tasks)
+	resp := postDecompose(t, app, "src-1", map[string]any{
+		"tasks":    []string{"Sub A"},
+		"due_date": "2026-04-15",
+	})
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("got %d, want 201", resp.StatusCode)
+	}
+}
+
+func TestDecompose_InvalidDueDate(t *testing.T) {
+	tasks := []*todoist.Task{
+		{ID: "src-1", Content: "Big task", Priority: 2, Children: []*todoist.Task{}},
+	}
+
+	app := newDecomposeApp(t, tasks)
+	resp := postDecompose(t, app, "src-1", map[string]any{
+		"tasks":    []string{"Sub A"},
+		"due_date": "not-a-date",
+	})
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d, want 400 (invalid due_date)", resp.StatusCode)
+	}
+}

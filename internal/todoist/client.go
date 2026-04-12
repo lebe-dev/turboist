@@ -505,15 +505,21 @@ func (c *Client) DeleteTask(ctx context.Context, id string) error {
 }
 
 // DecomposeTask creates N new tasks (inheriting properties from src) and deletes the source
-// task in a single Todoist Sync API batch call.
-func (c *Client) DecomposeTask(ctx context.Context, src *Task, newContents []string) error {
+// task in a single Todoist Sync API batch call. Optional overrides in opts take precedence
+// over the source task's priority and due date.
+func (c *Client) DecomposeTask(ctx context.Context, src *Task, newContents []string, opts DecomposeOpts) error {
 	cmds := make([]todoist.SyncCommand, 0, len(newContents)+1)
+
+	priority := src.Priority
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
 
 	for _, content := range newContents {
 		args := map[string]any{
 			"content":    content,
 			"project_id": src.ProjectID,
-			"priority":   src.Priority,
+			"priority":   priority,
 		}
 		if src.SectionID != nil {
 			args["section_id"] = *src.SectionID
@@ -524,7 +530,9 @@ func (c *Client) DecomposeTask(ctx context.Context, src *Task, newContents []str
 		if len(src.Labels) > 0 {
 			args["labels"] = src.Labels
 		}
-		if src.Due != nil {
+		if opts.DueDate != nil {
+			args["due"] = map[string]any{"date": *opts.DueDate}
+		} else if src.Due != nil {
 			args["due"] = map[string]any{"date": src.Due.Date}
 		}
 		cmds = append(cmds, todoist.CreateCommand(todoist.SyncCmdItemAdd, args))

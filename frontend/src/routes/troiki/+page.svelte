@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
+	import { labelFilterStore } from '$lib/stores/label-filter.svelte';
 	import type { SectionClass, Task } from '$lib/api/types';
 	import TaskItem from '$lib/components/TaskItem.svelte';
 	import Layers3Icon from '@lucide/svelte/icons/layers-3';
@@ -30,6 +31,7 @@
 	});
 
 	onMount(() => {
+		labelFilterStore.clear();
 		tasksStore.stop();
 		troikiStore.enter();
 	});

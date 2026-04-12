@@ -32,6 +32,10 @@
 		return tasksStore.taskPriority(pinned.id) ?? pinned.priority;
 	}
 
+	const sortedPinned = $derived(
+		[...pinnedStore.items].sort((a, b) => (pinnedPriority(b) ?? 1) - (pinnedPriority(a) ?? 1))
+	);
+
 	function priorityPinColor(priority: number | undefined): string {
 		switch (priority) {
 			case 4: return 'text-red-500';
@@ -100,7 +104,7 @@
 			</p>
 		{/if}
 
-		{#each pinnedStore.items as pinned (pinned.id)}
+		{#each sortedPinned as pinned (pinned.id)}
 			<a
 				href="/task/{pinned.id}"
 				class="group flex cursor-pointer items-center rounded-lg text-[15px] md:text-[13px] transition-all duration-150

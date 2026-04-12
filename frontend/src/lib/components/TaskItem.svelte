@@ -6,6 +6,7 @@
 
 	import { collapsedStore } from '$lib/stores/collapsed.svelte';
 	import { pinnedStore } from '$lib/stores/pinned.svelte';
+	import { projectTasksStore } from '$lib/stores/project-tasks.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { labelFilterStore } from '$lib/stores/label-filter.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
@@ -101,6 +102,7 @@
 
 		await new Promise((r) => setTimeout(r, 200));
 		tasksStore.removeTaskLocal(taskId);
+		projectTasksStore.removeTaskLocal(taskId);
 		completing = false;
 
 		// Show next-action toast
@@ -443,12 +445,16 @@
 	let showDeleteConfirm = $state(false);
 	let showDecomposeDialog = $state(false);
 
-	function handleDecompose(taskNames: string[]) {
+	function handleDecompose(taskNames: string[], priority?: number, dueDate?: string) {
 		const taskId = task.id;
 		const count = taskNames.length;
 		showDecomposeDialog = false;
 		tasksStore.removeTaskLocal(taskId);
-		decomposeTask(taskId, { tasks: taskNames }).then(() => {
+		projectTasksStore.removeTaskLocal(taskId);
+		const req: import('$lib/api/types').DecomposeTaskRequest = { tasks: taskNames };
+		if (priority !== undefined) req.priority = priority;
+		if (dueDate !== undefined) req.due_date = dueDate;
+		decomposeTask(taskId, req).then(() => {
 			toast($t('task.decomposeSuccess', { values: { count } }), { duration: 5000 });
 		}).catch((e) => {
 			logger.error('tasks', `decompose failed: ${e}`);
@@ -461,6 +467,7 @@
 	function handleDelete() {
 		const taskId = task.id;
 		tasksStore.removeTaskLocal(taskId);
+		projectTasksStore.removeTaskLocal(taskId);
 		showDeleteConfirm = false;
 		deleteTask(taskId).catch((e) => {
 			logger.error('tasks', `delete failed: ${e}`);

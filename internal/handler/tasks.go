@@ -478,7 +478,9 @@ func (h *TasksHandler) Delete(c fiber.Ctx) error {
 }
 
 type decomposeTaskRequest struct {
-	Tasks []string `json:"tasks"`
+	Tasks    []string `json:"tasks"`
+	Priority *int     `json:"priority"`
+	DueDate  *string  `json:"due_date"`
 }
 
 // Decompose handles POST /api/tasks/:id/decompose
@@ -508,8 +510,22 @@ func (h *TasksHandler) Decompose(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
 	}
 
+	opts := todoist.DecomposeOpts{}
+	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 4 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "priority must be 1-4"})
+		}
+		opts.Priority = req.Priority
+	}
+	if req.DueDate != nil {
+		if _, err := time.Parse("2006-01-02", *req.DueDate); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid due_date format, expected YYYY-MM-DD"})
+		}
+		opts.DueDate = req.DueDate
+	}
+
 	log.Debug("decompose task", "id", id, "content", src.Content, "new_tasks", len(req.Tasks))
-	if err := h.cache.DecomposeTask(c.Context(), src, req.Tasks); err != nil {
+	if err := h.cache.DecomposeTask(c.Context(), src, req.Tasks, opts); err != nil {
 		log.Error("decompose task failed", "id", id, "err", err)
 		return todoistErrorResponse(c, err)
 	}
