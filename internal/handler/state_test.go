@@ -368,6 +368,52 @@ func TestStateUpdate_Locale_PersistAndRead(t *testing.T) {
 	}
 }
 
+func TestStateUpdate_ConstraintPool(t *testing.T) {
+	store, err := storage.New(":memory:")
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	cfg := defaultTestCfg()
+	sessStore := auth.NewSessionStore()
+	token, _ := sessStore.CreateSession()
+	mw := auth.NewMiddleware(sessStore)
+	h := NewStateHandler(store, cfg)
+
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.Request().Header.SetCookie(cookieName, token)
+		return c.Next()
+	})
+	app.Use(mw)
+	app.Patch("/api/state", h.Update)
+
+	pool := []string{"no phone", "exercise", "deep focus"}
+	body, _ := json.Marshal(map[string]any{"constraint_pool": pool})
+	req := httptest.NewRequest(http.MethodPatch, "/api/state", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("got %d, want 204", resp.StatusCode)
+	}
+
+	// Verify via storage
+	got, err := store.GetConstraintPool()
+	if err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("got %d items, want 3", len(got))
+	}
+	if got[0] != "no phone" || got[1] != "exercise" || got[2] != "deep focus" {
+		t.Errorf("got pool %v, want %v", got, pool)
+	}
+}
+
 func TestStateUpdate_DayPartNotes_PersistAndRead(t *testing.T) {
 	store, err := storage.New(":memory:")
 	if err != nil {

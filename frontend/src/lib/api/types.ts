@@ -130,6 +130,7 @@ export interface UserState {
 	all_filters: AllFiltersState | null;
 	banner_text: string;
 	banner_dismissed_text: string;
+	constraint_pool?: string[];
 }
 
 export interface Settings {
@@ -205,6 +206,7 @@ export interface AppConfig {
 	label_project_map: LabelProjectMap;
 	auto_remove: AutoRemoveStatus;
 	troiki: TroikiConfig;
+	constraints: ConstraintsConfig;
 	state: UserState;
 }
 
@@ -246,6 +248,34 @@ export interface TroikiCompletedSection {
 
 export interface TroikiCompletedState {
 	sections: TroikiCompletedSection[];
+}
+
+export interface LabelBlockStatus {
+	label: string;
+	remaining_seconds: number;
+}
+
+export interface DayPartCap {
+	label: string;
+	max_tasks: number;
+}
+
+export interface ConstraintsConfig {
+	enabled: boolean;
+	label_blocks: LabelBlockStatus[];
+	day_part_caps: DayPartCap[];
+	priority_floor: number;
+	postpone_budget: number;
+	postpone_budget_used: number;
+}
+
+export interface DailyConstraintsResponse {
+	needs_selection: boolean;
+	items: string[];
+	rerolls_used: number;
+	max_rerolls: number;
+	pool_size: number;
+	confirmed: boolean;
 }
 
 // Legacy alias for backward compatibility within tasks/planning stores

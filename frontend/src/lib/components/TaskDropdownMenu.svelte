@@ -61,6 +61,11 @@
 		hideDecompose = false,
 		hidePriority = false,
 
+		labelBlocked = false,
+		priorityBlocked = false,
+		labelBlockedTooltip = '',
+		postponeExhausted = false,
+
 		width = 'w-52',
 		align = 'end'
 	}: {
@@ -103,6 +108,11 @@
 
 		hideDecompose?: boolean;
 		hidePriority?: boolean;
+
+		labelBlocked?: boolean;
+		priorityBlocked?: boolean;
+		labelBlockedTooltip?: string;
+		postponeExhausted?: boolean;
 
 		width?: string;
 		align?: 'start' | 'end' | 'center';
@@ -223,24 +233,35 @@
 			<div class="mt-1.5 flex items-center gap-1">
 				<button
 					class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-						{task.due?.date === todayStr() ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
-					onclick={() => { onSetDate(todayStr()); handleOpenChange(false); }}
+						{labelBlocked || priorityBlocked
+						? 'text-muted-foreground/40 cursor-not-allowed'
+						: task.due?.date === todayStr() ? 'bg-accent text-green-500' : 'text-green-500 hover:bg-accent'}"
+					onclick={() => { if (!labelBlocked && !priorityBlocked) { onSetDate(todayStr()); handleOpenChange(false); } }}
+					disabled={labelBlocked || priorityBlocked}
+					title={labelBlocked ? labelBlockedTooltip : priorityBlocked ? $t('constraints.priorityFloor') : undefined}
 					aria-label="Today"
 				>
 					<CalendarIcon class="h-4 w-4" />
 				</button>
 				<button
 					class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-						{task.due?.date === tomorrowStr() ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
-					onclick={() => { onSetDate(tomorrowStr()); handleOpenChange(false); }}
+						{labelBlocked || postponeExhausted
+						? 'text-muted-foreground/40 cursor-not-allowed'
+						: task.due?.date === tomorrowStr() ? 'bg-accent text-amber-500' : 'text-amber-500 hover:bg-accent'}"
+					onclick={() => { if (!labelBlocked && !postponeExhausted) { onSetDate(tomorrowStr()); handleOpenChange(false); } }}
+					disabled={labelBlocked || postponeExhausted}
+					title={labelBlocked ? labelBlockedTooltip : postponeExhausted ? $t('constraints.postponeLimitReached') : undefined}
 					aria-label="Tomorrow"
 				>
 					<SunIcon class="h-4 w-4" />
 				</button>
 				{#if onOpenDatePicker}
 					<button
-						class="flex h-7 w-7 items-center justify-center rounded-md text-purple-400 transition-colors hover:bg-accent"
-						onclick={onOpenDatePicker}
+						class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
+							{labelBlocked || postponeExhausted ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-purple-400 hover:bg-accent'}"
+						onclick={() => { if (!labelBlocked && !postponeExhausted) onOpenDatePicker?.(); }}
+						disabled={labelBlocked || postponeExhausted}
+						title={labelBlocked ? labelBlockedTooltip : postponeExhausted ? $t('constraints.postponeLimitReached') : undefined}
 						aria-label="Pick date"
 					>
 						<ArrowRightIcon class="h-4 w-4" />

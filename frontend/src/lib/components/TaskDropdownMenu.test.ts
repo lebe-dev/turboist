@@ -389,6 +389,135 @@ describe('TaskDropdownMenu', () => {
 		expect(btn.className).toContain('bg-accent');
 	});
 
+	// --- Constraint-based disabled states ---
+
+	it('disables today button when labelBlocked is true', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, labelBlocked: true, labelBlockedTooltip: 'Blocked (5 days)' }
+		});
+		const btn = screen.getByLabelText('Today');
+		expect(btn).toBeDisabled();
+		expect(btn.className).toContain('cursor-not-allowed');
+		expect(btn.getAttribute('title')).toBe('Blocked (5 days)');
+	});
+
+	it('disables tomorrow button when labelBlocked is true', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, labelBlocked: true, labelBlockedTooltip: 'Blocked (5 days)' }
+		});
+		const btn = screen.getByLabelText('Tomorrow');
+		expect(btn).toBeDisabled();
+		expect(btn.className).toContain('cursor-not-allowed');
+		expect(btn.getAttribute('title')).toBe('Blocked (5 days)');
+	});
+
+	it('disables today button when priorityBlocked is true', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, priorityBlocked: true }
+		});
+		const btn = screen.getByLabelText('Today');
+		expect(btn).toBeDisabled();
+		expect(btn.className).toContain('cursor-not-allowed');
+		expect(btn.getAttribute('title')).toBe('constraints.priorityFloor');
+	});
+
+	it('does not disable tomorrow button when only priorityBlocked is true', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, priorityBlocked: true }
+		});
+		const btn = screen.getByLabelText('Tomorrow');
+		expect(btn).not.toBeDisabled();
+		expect(btn.className).not.toContain('cursor-not-allowed');
+	});
+
+	it('does not call onSetDate when today button is clicked while labelBlocked', async () => {
+		const user = userEvent.setup();
+		const onSetDate = vi.fn();
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, onSetDate, labelBlocked: true }
+		});
+		await user.click(screen.getByLabelText('Today'));
+		expect(onSetDate).not.toHaveBeenCalled();
+	});
+
+	it('does not call onSetDate when tomorrow button is clicked while labelBlocked', async () => {
+		const user = userEvent.setup();
+		const onSetDate = vi.fn();
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, onSetDate, labelBlocked: true }
+		});
+		await user.click(screen.getByLabelText('Tomorrow'));
+		expect(onSetDate).not.toHaveBeenCalled();
+	});
+
+	it('does not call onSetDate when today button is clicked while priorityBlocked', async () => {
+		const user = userEvent.setup();
+		const onSetDate = vi.fn();
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, onSetDate, priorityBlocked: true }
+		});
+		await user.click(screen.getByLabelText('Today'));
+		expect(onSetDate).not.toHaveBeenCalled();
+	});
+
+	it('today and tomorrow both disabled when both labelBlocked and priorityBlocked', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, labelBlocked: true, priorityBlocked: true, labelBlockedTooltip: 'Blocked' }
+		});
+		expect(screen.getByLabelText('Today')).toBeDisabled();
+		expect(screen.getByLabelText('Tomorrow')).toBeDisabled();
+	});
+
+	// --- Postpone exhausted disabled states ---
+
+	it('disables tomorrow button when postponeExhausted is true', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, postponeExhausted: true }
+		});
+		const btn = screen.getByLabelText('Tomorrow');
+		expect(btn).toBeDisabled();
+		expect(btn.className).toContain('cursor-not-allowed');
+		expect(btn.getAttribute('title')).toBe('constraints.postponeLimitReached');
+	});
+
+	it('does not disable today button when only postponeExhausted is true', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, postponeExhausted: true }
+		});
+		const btn = screen.getByLabelText('Today');
+		expect(btn).not.toBeDisabled();
+	});
+
+	it('disables date picker button when postponeExhausted is true', () => {
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, postponeExhausted: true, onOpenDatePicker: vi.fn() }
+		});
+		const btn = screen.getByLabelText('Pick date');
+		expect(btn).toBeDisabled();
+		expect(btn.className).toContain('cursor-not-allowed');
+		expect(btn.getAttribute('title')).toBe('constraints.postponeLimitReached');
+	});
+
+	it('does not call onSetDate when tomorrow button is clicked while postponeExhausted', async () => {
+		const user = userEvent.setup();
+		const onSetDate = vi.fn();
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, onSetDate, postponeExhausted: true }
+		});
+		await user.click(screen.getByLabelText('Tomorrow'));
+		expect(onSetDate).not.toHaveBeenCalled();
+	});
+
+	it('does not call onOpenDatePicker when pick date button is clicked while postponeExhausted', async () => {
+		const user = userEvent.setup();
+		const onOpenDatePicker = vi.fn();
+		render(TaskDropdownMenu, {
+			props: { ...baseProps, postponeExhausted: true, onOpenDatePicker }
+		});
+		await user.click(screen.getByLabelText('Pick date'));
+		expect(onOpenDatePicker).not.toHaveBeenCalled();
+	});
+
 	it('priority button has active style when matching task priority', () => {
 		render(TaskDropdownMenu, {
 			props: {

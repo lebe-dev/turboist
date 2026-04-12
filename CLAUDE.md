@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Turboist
 
-Turboist is a web app that augments Todoist with extra features: context-based task filtering, weekly planning, backlog management, day parts, auto-labeling, auto-remove, and quick capture. Go backend + SvelteKit frontend, deployed as a single binary with embedded static files.
+Turboist is a web app that augments Todoist with extra features: context-based task filtering, weekly planning, backlog management, day parts, auto-labeling, auto-remove, quick capture, and self-discipline constraints. Go backend + SvelteKit frontend, deployed as a single binary with embedded static files.
 
 ## Production instance
 
@@ -58,11 +58,11 @@ cmd/turboist/main.go    — entrypoint, wires everything together
 internal/
   config/               — YAML + env config loading
   todoist/              — Todoist API client (REST for single ops, Sync for batch/fetch) + in-memory cache
-  handler/              — HTTP handlers (Fiber v3): tasks, auth, config, state, health
+  handler/              — HTTP handlers (Fiber v3): tasks, auth, config, state, constraints, health
   server/               — Fiber app setup, routing, middleware, static file serving
   ws/                   — WebSocket hub: channels, delta broadcasting, protocol
   scheduler/            — Background jobs: auto-remove, weekly-limit, label-project sync
-  storage/              — SQLite persistence (user state, postpone counts, auto-remove tracking)
+  storage/              — SQLite persistence (user state, postpone counts, auto-remove tracking, constraints label blocks)
   context/              — Task filtering by context (labels, projects, sections)
   taskview/             — Task view/sort logic
   auth/                 — Session-based auth with cookie tokens
@@ -93,6 +93,23 @@ frontend/src/
 **WebSocket protocol:** Two channels (`tasks`, `planning`). Server sends `snapshot` (full replace) or `delta` (upserted + removed IDs). Client subscribes with view/context params.
 
 **Flat task model:** Tasks arrive as trees but are stored flat (`FlatTask[]`) for efficient reactive updates. `buildTree()` reconstructs the tree in store getters.
+
+**Constraints store:** `constraints.svelte.ts` — singleton store hydrated from `config.constraints`. Enforcement queries: `isLabelBlocked(labels)`, `getBlockedLabelSeconds(labels)`, `isPostponeExhausted()`, `isPriorityBelowFloor(priority)`, `getDayPartCap(label)`. Mutation helpers: `incrementPostponeUsed()`, `updateDailyConstraints(response)`. Used by TaskItem, DayPartTaskList, DailyConstraintsDialog, DailyConstraintsBanner, +page.svelte, and settings/+page.svelte. TaskDropdownMenu receives constraint state as props from TaskItem.
+
+**Constraints UI:** `DailyConstraintsDialog` opens automatically on the Today view when daily constraints need selection (pool > 0, not yet picked today). `DailyConstraintsBanner` shows confirmed constraints as a banner above the Today task list.
+
+### Constraints API
+
+```
+GET  /api/constraints/daily        — daily constraints status (needs_selection, items, rerolls)
+POST /api/constraints/daily/roll   — pick/re-roll random constraints from pool
+POST /api/constraints/daily/swap   — swap one constraint item { index: N }
+POST /api/constraints/daily/confirm — lock daily constraints selection
+```
+
+Label block status and config-driven constraints (day part caps, priority floor, postpone budget) are served via `GET /api/config` in the `constraints` field. Constraint pool is persisted via `PATCH /api/state` with `constraint_pool` key. All constraint endpoints require `constraints.enabled = true`; they return 400 when disabled.
+
+**Postpone budget enforcement:** The task Update handler (`tasks.go`) detects date-forward changes as postpones. When `constraints.enabled` and `constraints.postpone_budget > 0` and the daily used count meets the limit, the handler returns `400 "Daily postpone limit reached"`. After a successful postpone, it increments the used count in `postpone_budget` user_state.
 
 ### Embedding
 

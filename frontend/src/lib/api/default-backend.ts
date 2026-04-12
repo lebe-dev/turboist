@@ -5,6 +5,7 @@ import type {
 	AppConfig,
 	CreateTaskRequest,
 	CreateTroikiTaskRequest,
+	DailyConstraintsResponse,
 	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
@@ -198,6 +199,31 @@ export class DefaultBackendConnector implements BackendConnector {
 			body: JSON.stringify(data)
 		});
 		return res?.id ?? '';
+	}
+
+	// Constraints
+
+	async getDailyConstraints(): Promise<DailyConstraintsResponse> {
+		return this.request<DailyConstraintsResponse>('/api/constraints/daily');
+	}
+
+	async rollDailyConstraints(): Promise<DailyConstraintsResponse> {
+		return this.request<DailyConstraintsResponse>('/api/constraints/daily/roll', {
+			method: 'POST'
+		});
+	}
+
+	async swapDailyConstraint(index: number): Promise<DailyConstraintsResponse> {
+		return this.request<DailyConstraintsResponse>('/api/constraints/daily/swap', {
+			method: 'POST',
+			body: JSON.stringify({ index })
+		});
+	}
+
+	async confirmDailyConstraints(): Promise<DailyConstraintsResponse> {
+		return this.request<DailyConstraintsResponse>('/api/constraints/daily/confirm', {
+			method: 'POST'
+		});
 	}
 
 	// Config & state

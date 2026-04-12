@@ -48,6 +48,7 @@ type stateUpdateRequest struct {
 	AllFilters          *storage.AllFiltersState `json:"all_filters"`
 	BannerText          *string                  `json:"banner_text"`
 	BannerDismissedText *string                  `json:"banner_dismissed_text"`
+	ConstraintPool      *[]string                `json:"constraint_pool"`
 }
 
 // Update handles PATCH /api/state.
@@ -182,6 +183,21 @@ func (h *StateHandler) Update(c fiber.Ctx) error {
 		if err := h.store.SetValue("day_part_notes", string(data)); err != nil {
 			log.Error("state save failed", "field", "day_part_notes", "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: day_part_notes", "detail": err.Error()})
+		}
+	}
+
+	if req.ConstraintPool != nil {
+		if len(*req.ConstraintPool) > 50 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "too many constraint pool items (max 50)"})
+		}
+		for _, item := range *req.ConstraintPool {
+			if utf8.RuneCountInString(item) > 200 {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "constraint pool item too long (max 200 chars)"})
+			}
+		}
+		if err := h.store.SetConstraintPool(*req.ConstraintPool); err != nil {
+			log.Error("state save failed", "field", "constraint_pool", "err", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "save failed: constraint_pool", "detail": err.Error()})
 		}
 	}
 

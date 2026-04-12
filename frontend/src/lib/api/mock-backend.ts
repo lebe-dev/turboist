@@ -5,6 +5,7 @@ import type {
 	AppConfig,
 	CreateTaskRequest,
 	CreateTroikiTaskRequest,
+	DailyConstraintsResponse,
 	DecomposeTaskRequest,
 	Meta,
 	Task,
@@ -176,6 +177,28 @@ export class MockBackendConnector implements BackendConnector {
 		return `mock-${Date.now()}`;
 	}
 
+	// Constraints
+
+	async getDailyConstraints(): Promise<DailyConstraintsResponse> {
+		this.record('getDailyConstraints', []);
+		return { needs_selection: true, items: [], rerolls_used: 0, max_rerolls: 2, pool_size: 0, confirmed: false };
+	}
+
+	async rollDailyConstraints(): Promise<DailyConstraintsResponse> {
+		this.record('rollDailyConstraints', []);
+		return { needs_selection: false, items: [], rerolls_used: 0, max_rerolls: 2, pool_size: 0, confirmed: false };
+	}
+
+	async swapDailyConstraint(index: number): Promise<DailyConstraintsResponse> {
+		this.record('swapDailyConstraint', [index]);
+		return { needs_selection: false, items: [], rerolls_used: 1, max_rerolls: 2, pool_size: 0, confirmed: false };
+	}
+
+	async confirmDailyConstraints(): Promise<DailyConstraintsResponse> {
+		this.record('confirmDailyConstraints', []);
+		return { needs_selection: false, items: [], rerolls_used: 0, max_rerolls: 2, pool_size: 0, confirmed: true };
+	}
+
 	// Config & state
 
 	async getAppConfig(): Promise<AppConfig> {
@@ -211,6 +234,14 @@ export class MockBackendConnector implements BackendConnector {
 			label_project_map: { enabled: false, mappings: [] },
 			auto_remove: { rules: [], paused: false },
 			troiki: { enabled: false },
+			constraints: {
+				enabled: false,
+				label_blocks: [],
+				day_part_caps: [],
+				priority_floor: 4,
+				postpone_budget: 0,
+				postpone_budget_used: 0
+			},
 			state: {
 				pinned_tasks: [],
 				active_context_id: '',

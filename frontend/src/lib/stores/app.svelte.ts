@@ -11,6 +11,7 @@ import { sidebarStore } from './sidebar.svelte';
 import { planningStore } from './planning.svelte';
 import { dayPartNotesStore } from './day-part-notes.svelte';
 import { bannerStore } from './banner.svelte';
+import { constraintsStore } from './constraints.svelte';
 import { tasksStore } from './tasks.svelte';
 import { projectTasksStore } from './project-tasks.svelte';
 import { wsClient } from '$lib/ws/client.svelte';
@@ -139,6 +140,11 @@ function createAppStore() {
 		);
 
 		bannerStore.init(cfg.state.banner_text ?? '', cfg.state.banner_dismissed_text ?? '');
+
+		if (cfg.constraints) {
+			constraintsStore.init(cfg.constraints);
+		}
+		constraintsStore.constraintPool = cfg.state.constraint_pool ?? [];
 
 		applyLocaleFromConfig(cfg.state.locale);
 		allFilters = cfg.state.all_filters ?? null;

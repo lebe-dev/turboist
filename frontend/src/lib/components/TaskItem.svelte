@@ -9,6 +9,7 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { labelFilterStore } from '$lib/stores/label-filter.svelte';
 	import { nextActionStore } from '$lib/stores/next-action.svelte';
+	import { constraintsStore } from '$lib/stores/constraints.svelte';
 	import { toast } from 'svelte-sonner';
 	import { logger } from '$lib/stores/logger';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -19,6 +20,7 @@
 	import WeightIcon from '@lucide/svelte/icons/weight';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import FlameIcon from '@lucide/svelte/icons/flame';
+	import LockIcon from '@lucide/svelte/icons/lock';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import TaskDropdownMenu from './TaskDropdownMenu.svelte';
@@ -174,6 +176,17 @@
 	const backlogLabel = $derived(tasksStore.config?.backlog_label ?? '');
 	const isInBacklog = $derived(backlogLabel !== '' && task.labels.includes(backlogLabel));
 
+	const labelBlocked = $derived(constraintsStore.isLabelBlocked(task.labels));
+	const priorityBlocked = $derived(constraintsStore.isPriorityBelowFloor(task.priority));
+	const isTodayView = $derived(contextsStore.activeView === 'today');
+	const postponeExhausted = $derived(isTodayView && constraintsStore.isPostponeExhausted());
+	const labelBlockedTooltip = $derived.by(() => {
+		const seconds = constraintsStore.getBlockedLabelSeconds(task.labels);
+		if (seconds === null) return '';
+		const days = Math.ceil(seconds / 86400);
+		return $t('constraints.labelBlocked', { values: { days } });
+	});
+
 	const expiresIn = $derived.by(() => {
 		if (!task.expires_at) return null;
 		const ms = new Date(task.expires_at).getTime() - Date.now();
@@ -237,9 +250,11 @@
 		dropdownOpen = false;
 		if (task.due?.date === date) return;
 		const taskId = task.id;
+		const isPostpone = isTodayView && task.due?.date === formatDateStr(new Date()) && date > task.due.date;
 		const shouldRemove = shouldRemoveFromView(date);
 		tasksStore.updateTaskLocal(task.id, (t) => ({ ...t, due: { date, recurring: false } }));
 		if (shouldRemove) tasksStore.removeTaskLocal(taskId);
+		if (isPostpone) constraintsStore.incrementPostponeUsed();
 		updateTask(task.id, { due_date: date }).catch((e) => {
 			logger.error('tasks', `set due date failed: ${e}`);
 			toast.error($t('errors.updateFailed'));
@@ -479,6 +494,7 @@
 		<div
 			class="group relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50 md:gap-3 md:px-3 md:py-2 select-none {isParent && !completed ? 'border-l-2 border-l-primary/30' : ''}"
 			class:opacity-40={completing}
+			class:opacity-60={labelBlocked && !completing}
 			class:scale-[0.99]={completing}
 			ontouchstart={!completed ? handleTouchStart : undefined}
 			ontouchend={!completed ? handleTouchEnd : undefined}
@@ -557,6 +573,11 @@
 							>
 								<CalendarIcon class="h-3 w-3" />
 								{dueLabel}
+							</span>
+						{/if}
+						{#if labelBlocked}
+							<span class="flex items-center text-[11px] text-amber-500" title={labelBlockedTooltip}>
+								<LockIcon class="h-3 w-3" />
 							</span>
 						{/if}
 						{#each visibleLabels as label (label)}
@@ -639,6 +660,10 @@
 					onDelete={() => { dropdownOpen = false; showDeleteConfirm = true; }}
 					{hideDecompose}
 					{hidePriority}
+					{labelBlocked}
+					{priorityBlocked}
+					{labelBlockedTooltip}
+					{postponeExhausted}
 				>
 					{#snippet trigger()}
 						<DropdownMenu.Trigger

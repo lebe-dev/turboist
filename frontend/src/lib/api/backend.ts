@@ -2,6 +2,7 @@ import type {
 	AppConfig,
 	CreateTaskRequest,
 	CreateTroikiTaskRequest,
+	DailyConstraintsResponse,
 	DecomposeTaskRequest,
 	Task,
 	TasksResponse,
@@ -47,6 +48,12 @@ export interface BackendConnector {
 	getTroikiState(): Promise<TroikiState>;
 	getTroikiCompleted(): Promise<TroikiCompletedState>;
 	createTroikiTask(data: CreateTroikiTaskRequest): Promise<string>;
+
+	// Constraints
+	getDailyConstraints(): Promise<DailyConstraintsResponse>;
+	rollDailyConstraints(): Promise<DailyConstraintsResponse>;
+	swapDailyConstraint(index: number): Promise<DailyConstraintsResponse>;
+	confirmDailyConstraints(): Promise<DailyConstraintsResponse>;
 
 	// Config & state
 	getAppConfig(): Promise<AppConfig>;

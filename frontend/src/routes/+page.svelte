@@ -15,10 +15,14 @@
 	import CreateTaskDialog from '$lib/components/CreateTaskDialog.svelte';
 	import NextActionDialog from '$lib/components/NextActionDialog.svelte';
 
-	import { getCompletedTasks, createTask } from '$lib/api/client';
+	import { constraintsStore } from '$lib/stores/constraints.svelte';
+	import { getCompletedTasks, createTask, getDailyConstraints } from '$lib/api/client';
 	import { toast } from 'svelte-sonner';
 	import { logger } from '$lib/stores/logger';
 	import TaskItem from '$lib/components/TaskItem.svelte';
+	import DailyConstraintsDialog from '$lib/components/DailyConstraintsDialog.svelte';
+	import DailyConstraintsBanner from '$lib/components/DailyConstraintsBanner.svelte';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import InboxPlusIcon from '@lucide/svelte/icons/inbox';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -218,6 +222,23 @@
 	let createDialogOpen = $state(false);
 	const quickCaptureOpen = $derived(appStore.quickCaptureOpen);
 	let createDayPartLabel = $state('');
+	let constraintsDialogOpen = $state(false);
+
+	// Fetch daily constraints when switching to today view
+	$effect(() => {
+		if (contextsStore.activeView !== 'today') return;
+		if (!constraintsStore.enabled) return;
+		getDailyConstraints()
+			.then((res) => {
+				constraintsStore.updateDailyConstraints(res);
+				if (res.needs_selection && res.pool_size > 0) {
+					constraintsDialogOpen = true;
+				}
+			})
+			.catch((e) => {
+				logger.error('constraints', `fetch daily constraints failed: ${e}`);
+			});
+	});
 
 	// Completed-today tasks for the Today view
 	let completedTodayTasks = $state<import('$lib/api/types').Task[]>([]);
@@ -533,6 +554,19 @@
 		</div>
 	{/if}
 
+	{#if contextsStore.activeView === 'today'}
+		<DailyConstraintsBanner />
+	{/if}
+
+	{#if contextsStore.activeView === 'today' && constraintsStore.enabled && constraintsStore.postponeBudget.limit > 0}
+		<div class="flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-1.5 md:px-6">
+			<CalendarClockIcon class="h-3.5 w-3.5 {constraintsStore.isPostponeExhausted() ? 'text-red-500' : 'text-muted-foreground/60'}" />
+			<span class="text-[12px] tabular-nums {constraintsStore.isPostponeExhausted() ? 'font-medium text-red-500' : 'text-muted-foreground/60'}">
+				{$t('constraints.postponeBudget', { values: { used: constraintsStore.postponeBudget.used, limit: constraintsStore.postponeBudget.limit } })}
+			</span>
+		</div>
+	{/if}
+
 	{#if contextsStore.activeView === 'today' && bannerStore.visible}
 		<div class="flex shrink-0 items-center gap-3 border-b border-border/50 bg-muted/50 px-3 py-3 md:px-6">
 			<span class="flex-1 text-[13px] font-medium text-foreground/90">{bannerStore.text}</span>
@@ -655,5 +689,6 @@
 {#if !isCompletedView}
 	<NextActionDialog />
 {/if}
+<DailyConstraintsDialog bind:open={constraintsDialogOpen} />
 
 {/if}

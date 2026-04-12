@@ -89,6 +89,12 @@ func New(cfg *config.Config, cache *todoist.Cache, store *storage.Store, hub *ws
 	stateHandler := handler.NewStateHandler(store, &cfg.App)
 	app.Patch("/api/state", stateHandler.Update)
 
+	constraintsHandler := handler.NewConstraintsHandler(store, &cfg.App)
+	app.Get("/api/constraints/daily", constraintsHandler.Daily)
+	app.Post("/api/constraints/daily/roll", constraintsHandler.Roll)
+	app.Post("/api/constraints/daily/swap", constraintsHandler.Swap)
+	app.Post("/api/constraints/daily/confirm", constraintsHandler.Confirm)
+
 	api := app.Group("/api/auth")
 	api.Post("/login", authHandler.Login)
 	api.Post("/logout", authHandler.Logout)

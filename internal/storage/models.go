@@ -28,4 +28,5 @@ type UserState struct {
 	AllFilters          *AllFiltersState  `json:"all_filters"`
 	BannerText          string            `json:"banner_text"`
 	BannerDismissedText string            `json:"banner_dismissed_text"`
+	ConstraintPool      []string          `json:"constraint_pool"`
 }

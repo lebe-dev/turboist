@@ -2,6 +2,7 @@
 	import type { DayPart, Task } from '$lib/api/types';
 	import { updateTask, batchUpdateLabels } from '$lib/api/client';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
+	import { constraintsStore } from '$lib/stores/constraints.svelte';
 	import { dayPartNotesStore } from '$lib/stores/day-part-notes.svelte';
 	import { logger } from '$lib/stores/logger';
 	import { toast } from 'svelte-sonner';
@@ -124,6 +125,21 @@
 
 	const dayPartLabels = $derived(new Set(dayParts.map((dp) => dp.label)));
 
+	// Build a map of day part label -> task count for cap checking in dropdowns
+	const sectionTaskCounts = $derived.by(() => {
+		const counts = new Map<string, number>();
+		for (const s of sections) {
+			if (s.dayPart) counts.set(s.dayPart.label, s.tasks.length);
+		}
+		return counts;
+	});
+
+	function isDayPartAtCap(label: string): boolean {
+		const cap = constraintsStore.getDayPartCap(label);
+		if (cap === null) return false;
+		return (sectionTaskCounts.get(label) ?? 0) >= cap;
+	}
+
 	function moveAllTasks(tasks: Task[], targetLabel: string) {
 		if (tasks.length === 0) return;
 
@@ -182,6 +198,8 @@
 			{@const Icon = sectionIcon(sectionIdx, dayParts.length)}
 			{#if section.tasks.length > 0}
 				{@const isActive = view !== 'tomorrow' && currentDayPartLabel !== null && section.dayPart?.label === currentDayPartLabel}
+				{@const cap = section.dayPart ? constraintsStore.getDayPartCap(section.dayPart.label) : null}
+				{@const atCap = cap !== null && section.tasks.length >= cap}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="group/section rounded-xl transition-all duration-300 {isActive ? 'border border-border/60 bg-muted/30 py-2.5' : 'py-0'}"
@@ -196,12 +214,26 @@
 						{#if section.timeRange}
 							<span class="{isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.timeRange}</span>
 						{/if}
-						<span class="tabular-nums {isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.tasks.length}</span>
+						{#if cap !== null}
+							<span class="flex items-center gap-1 tabular-nums {isActive ? 'text-[11px]' : 'text-[10px]'} {atCap ? 'font-medium text-red-500' : isActive ? 'text-foreground/40' : 'text-muted-foreground/40'}">
+								{$t('constraints.dayPartProgress', { values: { count: section.tasks.length, max: cap } })}
+								<span class="inline-flex h-1 w-5 overflow-hidden rounded-full {atCap ? 'bg-red-500/20' : 'bg-muted-foreground/15'}">
+									<span
+										class="h-full rounded-full transition-all duration-300 {atCap ? 'bg-red-500' : 'bg-primary/50'}"
+										style="width: {Math.min((section.tasks.length / cap) * 100, 100)}%"
+									></span>
+								</span>
+							</span>
+						{:else}
+							<span class="tabular-nums {isActive ? 'text-[11px] text-foreground/40' : 'text-[10px] text-muted-foreground/40'}">{section.tasks.length}</span>
+						{/if}
 						{#if section.dayPart && oncreate}
 							<button
-								class="ml-auto flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-all md:opacity-0 md:group-hover/section:opacity-100 hover:text-foreground"
-								title={$t('task.addTask')}
-								onclick={() => oncreate(section.dayPart!.label)}
+								class="ml-auto flex h-5 w-5 items-center justify-center rounded transition-all md:opacity-0 md:group-hover/section:opacity-100
+									{atCap ? 'text-muted-foreground/20 cursor-not-allowed' : 'text-muted-foreground/40 hover:text-foreground'}"
+								title={atCap ? $t('constraints.dayPartFull') : $t('task.addTask')}
+								onclick={() => { if (!atCap) oncreate(section.dayPart!.label); }}
+								disabled={atCap}
 							>
 								<PlusIcon class="h-3.5 w-3.5" />
 							</button>
@@ -209,10 +241,13 @@
 							<div class="ml-auto flex items-center gap-0.5 md:opacity-0 md:group-hover/section:opacity-100 transition-opacity">
 								{#each dayParts as dp, dpIdx (dp.label)}
 									{@const DPIcon = sectionIcon(dpIdx, dayParts.length)}
+									{@const moveAllAtCap = isDayPartAtCap(dp.label)}
 									<button
-										class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground"
-										title={$t('tasks.moveAllTo', { values: { label: dp.label } })}
-										onclick={() => moveAllTasks(section.tasks, dp.label)}
+										class="flex h-5 w-5 items-center justify-center rounded transition-colors
+											{moveAllAtCap ? 'text-muted-foreground/20 cursor-not-allowed' : 'text-muted-foreground/40 hover:bg-accent hover:text-foreground'}"
+										title={moveAllAtCap ? $t('constraints.dayPartFull') : $t('tasks.moveAllTo', { values: { label: dp.label } })}
+										onclick={() => { if (!moveAllAtCap) moveAllTasks(section.tasks, dp.label); }}
+										disabled={moveAllAtCap}
 									>
 										<DPIcon class="h-3.5 w-3.5" />
 									</button>
@@ -257,11 +292,15 @@
 											<div class="mt-1.5 flex items-center gap-1">
 												{#each dayParts as dp, dpIdx (dp.label)}
 													{@const DPIcon = sectionIcon(dpIdx, dayParts.length)}
+													{@const targetAtCap = dp.label !== section.dayPart?.label && isDayPartAtCap(dp.label)}
 													<button
 														class="flex h-7 w-7 items-center justify-center rounded-md transition-colors
-															{dp.label === section.dayPart?.label ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
-														title={dp.label}
-														onclick={() => { if (dp.label !== section.dayPart?.label) moveTask(task, dp.label); }}
+															{targetAtCap
+															? 'text-muted-foreground/30 cursor-not-allowed'
+															: dp.label === section.dayPart?.label ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+														title={targetAtCap ? $t('constraints.dayPartFull') : dp.label}
+														onclick={() => { if (dp.label !== section.dayPart?.label && !targetAtCap) moveTask(task, dp.label); }}
+														disabled={targetAtCap}
 													>
 														<DPIcon class="h-4 w-4" />
 													</button>

@@ -76,6 +76,15 @@ func (s *Store) GetState() (*UserState, error) {
 	state.BannerText = kv["banner_text"]
 	state.BannerDismissedText = kv["banner_dismissed_text"]
 
+	if raw, ok := kv["constraint_pool"]; ok {
+		if err := json.Unmarshal([]byte(raw), &state.ConstraintPool); err != nil {
+			return nil, fmt.Errorf("unmarshal constraint_pool: %w", err)
+		}
+	}
+	if state.ConstraintPool == nil {
+		state.ConstraintPool = []string{}
+	}
+
 	return state, nil
 }
 
