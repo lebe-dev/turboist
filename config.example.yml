@@ -3,123 +3,42 @@
 # Default: UTC
 timezone: "Europe/Moscow"
 
-# Todoist API polling interval. Format: Go duration (5s, 30s, 1m, ...)
-# Default: 30s
-poll_interval: "30s"
-
-# Project tasks — tasks tagged with this label are treated as projects.
-project:
-  label: "проект"
-
-# Contexts — named filter sets for tasks.
-# Each context has a unique id used in query params (?context=health).
-# All conditions within a single context are combined with AND.
-# Multiple values within an array are combined with OR.
-contexts:
-  - id: health
-    display_name: "Здоровье"
-    color: green
-    filters:
-      # Filter by Todoist labels (OR between items)
-      labels: ["здоровье"]
-
-  - id: dev
-    display_name: "Разработка"
-    color: "#FF5733"
-    inherit_labels: false
-    filters:
-      # Filter by Todoist project names (OR between items)
-      projects: ["Проекты"]
-      # Filter by section names within a project (OR between items)
-      sections: ["Секция - Разработка"]
-      # Filter by Todoist labels (OR between items)
-      labels: ["проект"]
-
-  - id: work
-    display_name: "Работа"
-    color: "#3B82F6"
-    inherit_labels: true
-    filters:
-      labels: ["работа"]
-
-# Label behavior overrides.
-# Only labels that need non-default behavior should be listed here.
-# inherit_to_subtasks: whether this label is inherited when creating subtasks (default: true)
-labels:
-  - name: "проект"
-    inherit_to_subtasks: false
-  - name: "эта неделя"
-    inherit_to_subtasks: false
-  - name: "backlog"
-    inherit_to_subtasks: false
-
-# Label used to identify "projects" in the project list view.
-# Tasks with this label appear in the project picker dropdown.
-# Default: empty (feature disabled)
-projects_label: "проект"
-
 # Tasks for the current week
 weekly:
-  # Todoist label that marks tasks for the current week
-  label: "эта неделя"
   # Maximum number of tasks per week (used for the progress bar and warnings)
-  max_tasks: 15
+  max-tasks: 15
 
 # Backlog tasks
 backlog:
-  # Todoist label for backlog tasks
-  label: "backlog"
-  # Sort order within backlog. Options: priority, due_date, content, added_at (default: added_at)
-  task_sort: "added_at"
   # Maximum tasks shown in the backlog view (default: 20)
-  max_limit: 20
+  max-limit: 20
 
 # Inbox overflow — when inbox task count exceeds max_limit, the UI shows
 # a quick-add button that creates a task with overflow_task_content for today.
 inbox:
   # Maximum number of inbox tasks before the overflow button appears (default: 10)
-  max_limit: 10
+  max-limit: 10
   # Content of the auto-created task (default: "Разобрать Входящие")
-  overflow_task_content: "Разобрать Входящие"
-
-# Task sorting. Options: priority, due_date, content, added_at
-# Default: priority (highest first, then by due date)
-task_sort: "priority"
+  overflow_task:
+    title: "Разобрать Входящие"
+    priority: "medium"
 
 # Maximum number of pinned tasks in the sidebar (default: 5)
-max_pinned: 5
+max-pinned: 5
 
 # Tasks for today (filtered by due date)
 today:
-  # Include overdue tasks (due date before today) in the "Today" view
-  include_overdue: true
-  # Maximum length (in characters) for day part notes (default: 200)
-  max_day_part_note_length: 200
   # Day parts: split today's tasks into time-based sections.
-  # Tasks are assigned to sections via Todoist labels.
-  # Omit or leave empty to disable sectioning.
-  day_parts:
-    - label: "утро"
-      start: 8
-      end: 12
-    - label: "день"
-      start: 12
-      end: 16
-    - label: "вечер"
-      start: 16
-      end: 23
-
-# Tasks for tomorrow (filtered by due date)
-tomorrow: {}
-
-# Completed tasks view
-completed:
-  # How many days back to show completed tasks (default: 3)
-  days: 3
-
-# Quick capture — save ideas as subtasks under a parent task
-quick_capture:
-  title: "Inbox"
+  day-parts:
+    morning:
+      start: 9
+      end: 13
+    afternoon:
+      start: 13
+      end: 17
+    evening:
+      start: 17
+      end: 22
 
 # Auto-labels: automatically add labels when the task title contains the mask substring.
 # Tags appear in real time while typing and are visually distinct from manually chosen labels.
@@ -137,85 +56,3 @@ auto_labels:
   - mask: "Проект -"
     label: "проект"
     ignore_case: false
-
-# Label-to-project mapping: automatically assign root tasks to Todoist projects
-# based on their labels. First matching label wins.
-# Tasks with no matching label are moved to Inbox.
-# Subtasks (tasks with a parent) are never affected.
-# ⚠️ BULK OPERATION: moves tasks between projects automatically.
-# enabled: false by default — set to true to activate.
-label_project_map:
-  enabled: false
-  mappings:
-    - label: "здоровье"
-      project: "Личное"
-      section: "Здоровье"  # optional: move to specific section within project
-    - label: "работа"
-      project: "Работа"
-
-# Troiki System — organizes tasks into 3 priority classes (Important, Medium, Rest)
-# within a dedicated Todoist project. Each class holds max N root tasks.
-# Completing tasks in a higher class unlocks capacity in the next class.
-# enabled: false by default — set to true to activate.
-troiki_system:
-  enabled: false
-  # Name of the Todoist project to use (will be resolved by name from cache)
-  project_name: "Тройки"
-  # Maximum root tasks per section (default: 3)
-  max_tasks_per_section: 3
-  # Section names in Todoist (defaults: "Важное", "Среднее", "Остальное")
-  sections:
-    important: "Важное"
-    medium: "Среднее"
-    rest: "Остальное"
-
-# Constraints: self-imposed limitations to enforce focus and discipline.
-# enabled: true by default — set to false to disable all constraints.
-constraints:
-  enabled: true
-  # Label blocks: temporarily block labels from being scheduled (Today/Tomorrow).
-  # Duration supports day suffix: "14d", "7d", "2d12h".
-  label_blocks:
-    - label: "здоровье"
-      duration: "14d"
-    - label: "покупки"
-      duration: "7d"
-  # Daily constraints: randomly selected self-discipline items shown each day.
-  # The constraint pool (list of items to pick from) is managed via the Settings UI,
-  # not this config file. Pool items are stored in user_state as constraint_pool.
-  # max_constraints: how many items are picked from the pool (default: 3)
-  # max_rerolls: how many times you can re-roll or swap per day (default: 2)
-  max_constraints: 3
-  max_rerolls: 2
-  # Day part caps: limit how many tasks can be assigned to a day part.
-  day_part_caps:
-    - label: "утро"
-      max_tasks: 3
-    - label: "день"
-      max_tasks: 5
-    - label: "вечер"
-      max_tasks: 3
-  # Priority floor: tasks with priority number below this value cannot be scheduled for Today.
-  # Todoist priorities: 1 (p4/lowest) to 4 (p1/highest). Default: 1 (no restriction).
-  # Example: priority_floor: 3 blocks p4 and p3 tasks from Today.
-  priority_floor: 3
-  # Postpone budget: max times you can postpone tasks per day. 0 = unlimited.
-  postpone_budget: 0
-
-# Auto-remove: automatically delete tasks after TTL expires.
-# TTL is counted from the moment the label is first seen in the cache.
-# The timer resets on application restart.
-# Safety: min_ttl validates rule TTLs, max_per_tick limits deletions per scheduler tick,
-# max_percent triggers circuit breaker if too many tasks match at once.
-# ⚠️ BULK OPERATION: automatically deletes tasks.
-# enabled: false by default — set to true to activate.
-auto_remove:
-  enabled: false
-  min_ttl: "1h"
-  max_per_tick: 1
-  max_percent: 10
-  rules:
-    - label: "срочное"
-      ttl: "24h"
-    - label: "горит"
-      ttl: "4h"

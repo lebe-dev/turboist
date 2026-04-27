@@ -1,11 +1,8 @@
 # Turboist
 
-Multiple augementations for Todoist.
+Turboist is a task management app with multiple advanced features.
 
 **Status:** work in progress
-
-**Contents:**
-- [Frontend architecture](docs/architecture/frontend.md)
 
 ## Features
 
@@ -14,8 +11,6 @@ Multiple augementations for Todoist.
 - Planning mode
 - Pinned tasks
 - Increment ongoing tasks: Task (1) -> Task (2)
-- Troiki System support ([en](docs/troiki-system.md), [ru](docs/troiki-system.ru.md))
-- Locales: en, ru
 
 ## Nginx Configuration
 
@@ -42,6 +37,7 @@ location / {
 
 ## RoadMap
 
-- Feature: constraints
+- Feature: Troiki System support
 - Offline-first
 - iOS Native App
+- Feature: Constraints
