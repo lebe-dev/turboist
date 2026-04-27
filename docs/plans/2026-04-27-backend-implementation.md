@@ -54,13 +54,13 @@
 **Files:**
 - Create: `internal/model/enums.go`, `internal/model/entities.go`, `internal/model/time.go`, `internal/model/model_test.go`
 
-- [ ] Перенести enums из `structs.md` (Priority, TaskStatus, ProjectStatus, DayPart, PlanState, ClientKind)
-- [ ] Структуры Context, Label, Project, ProjectSection, Task, User, Session с указателями на nullable
-- [ ] `Task.URL(baseURL)` метод
-- [ ] `model/time.go`: `FormatUTC(t time.Time) string` → `2006-01-02T15:04:05.000Z`; `ParseUTC(s string) (time.Time, error)`
-- [ ] Validators для enum-значений (IsValid методы) — используются хендлерами
-- [ ] Тесты: format/parse round-trip; IsValid на всех вариантах
-- [ ] `just test ./internal/model/...` зелёный
+- [x] Перенести enums из `structs.md` (Priority, TaskStatus, ProjectStatus, DayPart, PlanState, ClientKind)
+- [x] Структуры Context, Label, Project, ProjectSection, Task, User, Session с указателями на nullable
+- [x] `Task.URL(baseURL)` метод
+- [x] `model/time.go`: `FormatUTC(t time.Time) string` → `2006-01-02T15:04:05.000Z`; `ParseUTC(s string) (time.Time, error)`
+- [x] Validators для enum-значений (IsValid методы) — используются хендлерами
+- [x] Тесты: format/parse round-trip; IsValid на всех вариантах
+- [x] `just test ./internal/model/...` зелёный
 
 ### Task 4: Репозитории — contexts, labels, projects, sections
 
