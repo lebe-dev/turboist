@@ -80,29 +80,29 @@
 **Files:**
 - Create: `internal/repo/tasks.go`, `internal/repo/task_labels.go`, `internal/repo/views.go`, `internal/repo/search.go`, тесты к каждому
 
-- [ ] Insert/Update/Delete tasks с проверкой placement-инвариантов в коде (зеркалирует CHECK)
-- [ ] Reject циклов: при `move` строится цепочка `parent_id` вверх, отказ если содержит target id
-- [ ] `task_labels` linking + hydrate labels на чтение
-- [ ] Запросы views: today/tomorrow (по `due_at` BETWEEN), overdue (`due_at < now AND status='open'`), week/backlog (по `plan_state`)
-- [ ] Search: LIKE по title/description, минимум 2 символа (валидируется выше)
-- [ ] Counters: `CountWeek`, `CountBacklog`, `CountInbox`, `CountPinnedTasks`, `CountPinnedProjects` для лимитов
-- [ ] Single sort util (`ORDER BY is_pinned DESC, priority CASE..., pinned_at DESC, created_at DESC`)
-- [ ] Тесты: placement матрица (inbox без подзадач, секция требует проект, ровно один из inbox/context); subtree move; FK CASCADE на удаление родителя
-- [ ] `just test ./internal/repo/...` зелёный
+- [x] Insert/Update/Delete tasks с проверкой placement-инвариантов в коде (зеркалирует CHECK)
+- [x] Reject циклов: при `move` строится цепочка `parent_id` вверх, отказ если содержит target id
+- [x] `task_labels` linking + hydrate labels на чтение
+- [x] Запросы views: today/tomorrow (по `due_at` BETWEEN), overdue (`due_at < now AND status='open'`), week/backlog (по `plan_state`)
+- [x] Search: LIKE по title/description, минимум 2 символа (валидируется выше)
+- [x] Counters: `CountWeek`, `CountBacklog`, `CountInbox`, `CountPinnedTasks`, `CountPinnedProjects` для лимитов
+- [x] Single sort util (`ORDER BY is_pinned DESC, priority CASE..., pinned_at DESC, created_at DESC`)
+- [x] Тесты: placement матрица (inbox без подзадач, секция требует проект, ровно один из inbox/context); subtree move; FK CASCADE на удаление родителя
+- [x] `just test ./internal/repo/...` зелёный
 
 ### Task 6: Auth — argon2, JWT, sessions, rate-limit
 
 **Files:**
 - Create: `internal/auth/password.go`, `internal/auth/jwt.go`, `internal/auth/refresh.go`, `internal/auth/ratelimit.go`, `internal/repo/users.go`, `internal/repo/sessions.go`, `internal/auth/cleanup.go`, тесты
 
-- [ ] argon2id hash/verify в PHC-формате (time=3, mem=64MB, threads=4, salt=16, key=32)
-- [ ] JWT HS256: Issue(userID, sessionID) → 15min expiry; Verify → claims (sub, sid, iat, exp)
-- [ ] Refresh: 32 random bytes, base64url; sha256 hash сохраняется в БД
-- [ ] Sessions repo: create, getByTokenHash, rotate (update token_hash/expires_at/last_used_at), revoke, revokeAllForUser, enforceLimit5(client_kind), cleanup
-- [ ] IPLimiter (token-bucket): rate.Every(6s), burst=10, ttl 10min, GC горутина
-- [ ] StartSessionCleanup(ctx, db, log) — тикер 24h
-- [ ] Тесты: hash/verify round-trip; jwt expiry; refresh ротация; session limit (6-я вытесняет старейшую); cleanup удаляет expired/revoked>7d; ratelimit allows N then blocks
-- [ ] `just test ./internal/auth/...` зелёный
+- [x] argon2id hash/verify в PHC-формате (time=3, mem=64MB, threads=4, salt=16, key=32)
+- [x] JWT HS256: Issue(userID, sessionID) → 15min expiry; Verify → claims (sub, sid, iat, exp)
+- [x] Refresh: 32 random bytes, base64url; sha256 hash сохраняется в БД
+- [x] Sessions repo: create, getByTokenHash, rotate (update token_hash/expires_at/last_used_at), revoke, revokeAllForUser, enforceLimit5(client_kind), cleanup
+- [x] IPLimiter (token-bucket): rate.Every(6s), burst=10, ttl 10min, GC горутина
+- [x] StartSessionCleanup(ctx, db, log) — тикер 24h
+- [x] Тесты: hash/verify round-trip; jwt expiry; refresh ротация; session limit (6-я вытесняет старейшую); cleanup удаляет expired/revoked>7d; ratelimit allows N then blocks
+- [x] `just test ./internal/auth/...` зелёный
 
 ### Task 7: HTTP-сервер (Fiber v3) — каркас, middleware, error envelope
 
