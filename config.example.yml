@@ -1,52 +1,40 @@
-# IANA timezone for day part calculations (e.g. "Europe/Moscow", "America/New_York").
-# Overrides browser-detected timezone on the frontend.
-# Default: UTC
+# IANA timezone for day-part calculations (e.g. "Europe/Moscow", "America/New_York").
 timezone: "Europe/Moscow"
 
-# Tasks for the current week
+# Maximum number of pinned tasks/projects shown in the sidebar (separately for each kind).
+max-pinned: 5
+
 weekly:
-  # Maximum number of tasks per week (used for the progress bar and warnings)
-  max-tasks: 15
+  # Maximum number of tasks with plan_state = 'week'.
+  limit: 30
 
-# Backlog tasks
 backlog:
-  # Maximum tasks shown in the backlog view (default: 20)
-  max-limit: 20
+  # Maximum number of tasks with plan_state = 'backlog'.
+  limit: 30
 
-# Inbox overflow — when inbox task count exceeds max_limit, the UI shows
-# a quick-add button that creates a task with overflow_task_content for today.
 inbox:
-  # Maximum number of inbox tasks before the overflow button appears (default: 10)
-  max-limit: 10
-  # Content of the auto-created task (default: "Разобрать Входящие")
-  overflow_task:
+  # When inbox task count exceeds this threshold, the UI surfaces a warning
+  # plus a quick-add button that creates the task below for today.
+  warn-threshold: 10
+  overflow-task:
     title: "Разобрать Входящие"
     priority: "medium"
 
-# Maximum number of pinned tasks in the sidebar (default: 5)
-max-pinned: 5
+# Day-part boundaries (hours 0–24, end exclusive). Must not overlap.
+day-parts:
+  morning:
+    start: 9
+    end: 13
+  afternoon:
+    start: 13
+    end: 17
+  evening:
+    start: 17
+    end: 22
 
-# Tasks for today (filtered by due date)
-today:
-  # Day parts: split today's tasks into time-based sections.
-  day-parts:
-    morning:
-      start: 9
-      end: 13
-    afternoon:
-      start: 13
-      end: 17
-    evening:
-      start: 17
-      end: 22
-
-# Auto-labels: automatically add labels when the task title contains the mask substring.
-# Tags appear in real time while typing and are visually distinct from manually chosen labels.
-# The user can remove an auto-label before submitting; it will not reappear for that entry.
-# mask        — substring to look for in the task title.
-# label       — Todoist label name to attach when the mask is found.
-# ignore_case — case-insensitive matching (default: true).
-auto_labels:
+# Auto-labels: when a task title contains `mask`, the backend attaches `label`.
+# `ignore-case` defaults to true. Missing labels are auto-created on first match.
+auto-labels:
   - mask: "купить"
     label: "покупки"
   - mask: "встреча"
@@ -55,4 +43,4 @@ auto_labels:
     label: "работа"
   - mask: "Проект -"
     label: "проект"
-    ignore_case: false
+    ignore-case: false

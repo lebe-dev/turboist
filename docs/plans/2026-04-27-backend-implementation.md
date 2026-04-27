@@ -28,14 +28,14 @@
 - Modify: `cmd/turboist/main.go`, `go.mod`, `config.example.yml`
 - Create: `internal/config/config.go`, `internal/config/config_test.go`, `internal/logging/logger.go`, `.env.example`
 
-- [ ] Добавить зависимости: fiber/v3, modernc.org/sqlite, goose/v3, jwt/v5, argon2 (x/crypto), x/time/rate, rrule-go, yaml.v3, godotenv
-- [ ] Реализовать загрузку env (BIND, LOG_LEVEL, BASE_URL, JWT_SECRET) с fail-fast и `.env`
-- [ ] Реализовать загрузку `config.yml` (yaml.v3) и валидацию: timezone через `time.LoadLocation`, day-parts покрытие/непересечение, priority overflow-task, лимиты > 0, auto-labels.label непустой
-- [ ] Привести `config.example.yml` к спеке (`weekly.limit`, `backlog.limit`, `inbox.warn-threshold`, `inbox.overflow-task`, `auto-labels` в kebab-case)
-- [ ] Настроить структурный логер (slog) с уровнем из LOG_LEVEL (case-insensitive)
-- [ ] `main.go`: load env → load config → init logger → log "starting"
-- [ ] Тесты config: валидный yaml; ошибки на пересекающихся day-parts; неверный timezone; неверный priority; пустой label
-- [ ] `just test ./internal/config/...` зелёный, `just lint-backend` зелёный
+- [x] Добавить зависимости: fiber/v3, modernc.org/sqlite, goose/v3, jwt/v5, argon2 (x/crypto), x/time/rate, rrule-go, yaml.v3, godotenv
+- [x] Реализовать загрузку env (BIND, LOG_LEVEL, BASE_URL, JWT_SECRET) с fail-fast и `.env`
+- [x] Реализовать загрузку `config.yml` (yaml.v3) и валидацию: timezone через `time.LoadLocation`, day-parts покрытие/непересечение, priority overflow-task, лимиты > 0, auto-labels.label непустой
+- [x] Привести `config.example.yml` к спеке (`weekly.limit`, `backlog.limit`, `inbox.warn-threshold`, `inbox.overflow-task`, `auto-labels` в kebab-case)
+- [x] Настроить структурный логер (slog) с уровнем из LOG_LEVEL (case-insensitive)
+- [x] `main.go`: load env → load config → init logger → log "starting"
+- [x] Тесты config: валидный yaml; ошибки на пересекающихся day-parts; неверный timezone; неверный priority; пустой label
+- [x] `just test ./internal/config/...` зелёный, `just lint-backend` зелёный
 
 ### Task 2: SQLite + миграции (goose)
 
