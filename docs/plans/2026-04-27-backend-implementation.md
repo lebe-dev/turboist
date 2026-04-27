@@ -42,12 +42,12 @@
 **Files:**
 - Create: `internal/db/db.go`, `internal/db/db_test.go`, `internal/db/migrations/001_schema.sql`, `internal/db/migrations/002_users_sessions.sql`, `internal/db/migrations.go`
 
-- [ ] Open SQLite через `modernc.org/sqlite` с DSN включающим `_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)`; выставить `SetMaxOpenConns(1)` для записей или sane defaults
-- [ ] Embed-миграции через `embed.FS`, прогон через goose на старте
-- [ ] Перенести миграции 001 и 002 из `database.md` дословно (включая INSERT inbox)
-- [ ] Helper для транзакций (`WithTx(ctx, fn)`)
-- [ ] Тесты: миграции up/down round-trip; PRAGMA foreign_keys=1 после Open; INSERT в `inbox(id=2)` падает; INSERT в `users(id=2)` падает
-- [ ] `just test ./internal/db/...` зелёный
+- [x] Open SQLite через `modernc.org/sqlite` с DSN включающим `_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)`; выставить `SetMaxOpenConns(1)` для записей или sane defaults
+- [x] Embed-миграции через `embed.FS`, прогон через goose на старте
+- [x] Перенести миграции 001 и 002 из `database.md` дословно (включая INSERT inbox)
+- [x] Helper для транзакций (`WithTx(ctx, fn)`)
+- [x] Тесты: миграции up/down round-trip; PRAGMA foreign_keys=1 после Open; INSERT в `inbox(id=2)` падает; INSERT в `users(id=2)` падает
+- [x] `just test ./internal/db/...` зелёный
 
 ### Task 3: Доменная модель
 
