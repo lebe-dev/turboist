@@ -67,13 +67,13 @@
 **Files:**
 - Create: `internal/repo/contexts.go`, `internal/repo/labels.go`, `internal/repo/projects.go`, `internal/repo/sections.go`, `internal/repo/project_labels.go`, `internal/repo/testdb_test.go`, `internal/repo/{contexts,labels,projects,sections}_test.go`
 
-- [ ] CRUD raw-SQL для каждой сущности; nullable → `sql.Null*` с конверсией в указатели
-- [ ] Listing с пагинацией (limit/offset) и `total` count'ом отдельным запросом
-- [ ] Projects: фильтры `?contextId=&status=`, сортировка `is_pinned DESC, pinned_at DESC, created_at DESC`
-- [ ] Hydrate `project_labels` отдельным запросом + сшивание в коде (без GROUP_CONCAT)
-- [ ] Helper `setupTestDB(t)` запускает миграции на in-memory SQLite
-- [ ] Тесты CRUD на каждое; конфликт UNIQUE → определённая ошибка; CASCADE при удалении контекста/проекта; pagination границы
-- [ ] `just test ./internal/repo/...` зелёный
+- [x] CRUD raw-SQL для каждой сущности; nullable → `sql.Null*` с конверсией в указатели
+- [x] Listing с пагинацией (limit/offset) и `total` count'ом отдельным запросом
+- [x] Projects: фильтры `?contextId=&status=`, сортировка `is_pinned DESC, pinned_at DESC, created_at DESC`
+- [x] Hydrate `project_labels` отдельным запросом + сшивание в коде (без GROUP_CONCAT)
+- [x] Helper `setupTestDB(t)` запускает миграции на in-memory SQLite
+- [x] Тесты CRUD на каждое; конфликт UNIQUE → определённая ошибка; CASCADE при удалении контекста/проекта; pagination границы
+- [x] `just test ./internal/repo/...` зелёный
 
 ### Task 5: Репозиторий tasks + task_labels + views + search
 
