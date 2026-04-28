@@ -62,7 +62,9 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task) (
 
 	next := r.After(base, false)
 
-	upd := repo.TaskUpdate{}
+	planNone := model.PlanStateNone
+	dayNone := model.DayPartNone
+	upd := repo.TaskUpdate{PlanState: &planNone, DayPart: &dayNone}
 	if next.IsZero() {
 		status := model.TaskStatusCompleted
 		upd.Status = &status

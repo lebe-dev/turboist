@@ -11,6 +11,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+	rrule "github.com/teambition/rrule-go"
 )
 
 func parseID(c fiber.Ctx) (int64, error) {
@@ -87,6 +88,11 @@ func buildTaskCreate(req dto.CreateTaskRequest, placement repo.Placement) (repo.
 		}
 		in.DeadlineAt = &t
 		in.DeadlineHasTime = req.DeadlineHasTime
+	}
+	if req.RecurrenceRule != nil {
+		if _, err := rrule.StrToRRule(*req.RecurrenceRule); err != nil {
+			return repo.CreateTask{}, httpapi.ErrValidation("invalid recurrenceRule")
+		}
 	}
 	in.RecurrenceRule = req.RecurrenceRule
 	return in, nil

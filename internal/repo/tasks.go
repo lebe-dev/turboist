@@ -459,6 +459,9 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 		if err := rows.Close(); err != nil {
 			return nil, err
 		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 		out = append(out, next...)
 		frontier = next
 	}

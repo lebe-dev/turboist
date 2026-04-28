@@ -10,6 +10,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+	rrule "github.com/teambition/rrule-go"
 )
 
 // TaskHandler implements GET/PATCH/DELETE /tasks/:id and POST /tasks/:id/subtasks.
@@ -122,6 +123,9 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 	if req.RecurrenceRule.IsNull() {
 		u.RecurrenceClear = true
 	} else if v, ok := req.RecurrenceRule.Value(); ok {
+		if _, err := rrule.StrToRRule(v); err != nil {
+			return httpapi.ErrValidation("invalid recurrenceRule")
+		}
 		u.RecurrenceRule = &v
 	}
 

@@ -60,6 +60,9 @@ func (h *TaskBulkHandler) bulkComplete(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&req); err != nil {
 		return httpapi.ErrValidation("invalid request body")
 	}
+	if len(req.IDs) > 100 {
+		return httpapi.ErrValidation("too many ids")
+	}
 
 	resp := bulkResponse{
 		Succeeded: make([]int64, 0),
@@ -80,6 +83,9 @@ func (h *TaskBulkHandler) bulkMove(c fiber.Ctx) error {
 	var req BulkMoveRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		return httpapi.ErrValidation("invalid request body")
+	}
+	if len(req.IDs) > 100 {
+		return httpapi.ErrValidation("too many ids")
 	}
 
 	target := repo.Placement{

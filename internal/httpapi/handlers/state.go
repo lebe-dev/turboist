@@ -47,6 +47,9 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 	if claims == nil {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
+	if len(c.Body()) > 64*1024 {
+		return httpapi.ErrValidation("state payload too large")
+	}
 	var patch map[string]json.RawMessage
 	if err := json.Unmarshal(c.Body(), &patch); err != nil {
 		return httpapi.ErrValidation("invalid JSON object")

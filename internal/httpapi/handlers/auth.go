@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/auth"
@@ -242,6 +243,7 @@ func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.Cli
 	}
 
 	if err := h.sessions.EnforceLimit(c.Context(), user.ID, kind, sessionLimit); err != nil {
+		_ = h.sessions.Revoke(c.Context(), session.ID)
 		return httpapi.ErrInternal("enforce session limit")
 	}
 
@@ -362,6 +364,9 @@ func (tc *theftCache) gc() {
 func truncateString(s string, maxBytes int) string {
 	if len(s) <= maxBytes {
 		return s
+	}
+	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+		maxBytes--
 	}
 	return s[:maxBytes]
 }
