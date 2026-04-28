@@ -9,6 +9,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { getApiClient } from '$lib/api/client';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
+	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { sections as sectionsApi } from '$lib/api/endpoints/sections';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import type { Project, ProjectSection, Task, TaskInput } from '$lib/api/types';
@@ -102,11 +103,22 @@
 		}
 	}
 
-	async function onQuickSubmit(payload: TaskInput): Promise<void> {
+	async function onQuickSubmit(
+		payload: TaskInput,
+		target: { projectId: number | null }
+	): Promise<void> {
 		if (!project) return;
 		try {
-			const created = await projectsApi.createTask(getApiClient(), project.id, payload);
-			tasks = [...tasks, created];
+			const client = getApiClient();
+			if (target.projectId === null) {
+				await tasksApi.createInbox(client, payload);
+				toast.success('Task added to inbox');
+				return;
+			}
+			const created = await projectsApi.createTask(client, target.projectId, payload);
+			if (target.projectId === project.id) {
+				tasks = [...tasks, created];
+			}
 			toast.success('Task added');
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
@@ -210,7 +222,7 @@
 					<TaskTree
 						tasks={tasksWithoutSection}
 						showProject={false}
-						onToggle={(t) => toggleComplete(t, mutator)}
+						onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 						onPinToggle={(t) => togglePin(t, mutator)}
 						onDelete={(t) => deleteTask(t, mutator)}
 						onEdit={openEditor}
@@ -221,7 +233,7 @@
 				<SectionList
 					sections={sectionList}
 					{tasksBySection}
-					onToggle={(t) => toggleComplete(t, mutator)}
+					onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 					onPinToggle={(t) => togglePin(t, mutator)}
 					onDelete={(t) => deleteTask(t, mutator)}
 					onEdit={openEditor}

@@ -101,6 +101,13 @@
 		editing = task;
 		editorOpen = true;
 	}
+
+	function matchesQuery(t: Task): boolean {
+		if (!lastQuery) return true;
+		const needle = lastQuery.toLowerCase();
+		const haystack = `${t.title} ${t.description ?? ''}`.toLowerCase();
+		return haystack.includes(needle);
+	}
 </script>
 
 <ViewHeader title="Search" subtitle={lastQuery ? `Results for "${lastQuery}"` : 'Find tasks and projects'} />
@@ -154,7 +161,7 @@
 		{:else}
 			<TaskTree
 				{tasks}
-				onToggle={(t) => toggleComplete(t, mutator)}
+				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 				onPinToggle={(t) => togglePin(t, mutator)}
 				onDelete={(t) => deleteTask(t, mutator)}
 				onEdit={openEditor}
@@ -188,5 +195,5 @@
 <TaskEditorSheet
 	bind:open={editorOpen}
 	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+	onSubmit={(id, payload) => saveEdit(id, payload, mutator, matchesQuery)}
 />

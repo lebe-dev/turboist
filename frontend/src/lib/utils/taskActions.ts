@@ -15,15 +15,33 @@ export interface ListMutator {
 	remove(id: number): void;
 }
 
-export async function toggleComplete(task: Task, mutator: ListMutator): Promise<void> {
+export interface ToggleCompleteOptions {
+	// On views that filter to open tasks (Today, Overdue, Backlog, …), a task
+	// that just got completed is no longer in the result set, so drop it from
+	// local state. On unfiltered views (Project, Context, Label, Search) it
+	// must stay so the user can immediately uncomplete it.
+	removeWhenCompleted?: boolean;
+	// Predicate that decides whether the (still-open) updated task belongs in
+	// the current view. Recurring tasks stay open after completion but get
+	// their due_at advanced, which can move them out of date-bound views like
+	// Today/Tomorrow/Overdue.
+	belongs?: (task: Task) => boolean;
+}
+
+export async function toggleComplete(
+	task: Task,
+	mutator: ListMutator,
+	options: ToggleCompleteOptions = {}
+): Promise<void> {
+	const { removeWhenCompleted = true, belongs } = options;
 	const client = getApiClient();
 	try {
 		const updated =
 			task.status === 'completed'
 				? await tasksApi.uncomplete(client, task.id)
 				: await tasksApi.complete(client, task.id);
-		// completed tasks disappear from views; uncompleted reappears
-		if (updated.status === 'completed') mutator.remove(task.id);
+		if (updated.status === 'completed' && removeWhenCompleted) mutator.remove(task.id);
+		else if (updated.status !== 'completed' && belongs && !belongs(updated)) mutator.remove(task.id);
 		else mutator.replace(updated);
 	} catch (err) {
 		toast.error(describeError(err, 'Failed to update task'));
@@ -56,13 +74,19 @@ export async function deleteTask(task: Task, mutator: ListMutator): Promise<void
 export async function saveEdit(
 	id: number,
 	payload: TaskInput,
-	mutator: ListMutator
+	mutator: ListMutator,
+	belongs?: (updated: Task) => boolean
 ): Promise<void> {
 	const client = getApiClient();
 	try {
 		const updated = await tasksApi.update(client, id, payload);
-		mutator.replace(updated);
+		if (belongs && !belongs(updated)) {
+			mutator.remove(id);
+		} else {
+			mutator.replace(updated);
+		}
 	} catch (err) {
 		toast.error(describeError(err, 'Failed to save task'));
+		throw err;
 	}
 }

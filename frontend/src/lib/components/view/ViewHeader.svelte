@@ -14,12 +14,14 @@
 	} = $props();
 </script>
 
-<header class="flex flex-col gap-2 border-b border-border px-6 py-4">
-	<div class="flex items-start justify-between gap-3">
-		<div class="min-w-0">
-			<h1 class="truncate text-xl font-semibold">{title}</h1>
+<header class="flex flex-col gap-3 px-4 pt-5 pb-4 sm:px-8 sm:pt-8">
+	<div class="flex items-end justify-between gap-3">
+		<div class="min-w-0 space-y-1">
+			<h1 class="truncate text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-[26px]">
+				{title}
+			</h1>
 			{#if subtitle}
-				<p class="text-xs text-muted-foreground">{subtitle}</p>
+				<p class="text-sm text-muted-foreground">{subtitle}</p>
 			{/if}
 		</div>
 		{#if actions}
@@ -27,6 +29,8 @@
 		{/if}
 	</div>
 	{#if banner}
-		{@render banner()}
+		<div class="-mx-1">
+			{@render banner()}
+		</div>
 	{/if}
 </header>

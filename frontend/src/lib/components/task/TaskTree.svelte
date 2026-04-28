@@ -27,7 +27,7 @@
 	const resolved = $derived<TaskNode[]>(nodes ?? (tasks ? buildTree(tasks) : []));
 </script>
 
-<div class="flex flex-col divide-y divide-border/50">
+<div class="flex flex-col divide-y divide-border/40">
 	{#each resolved as node (node.task.id)}
 		<TaskItem
 			task={node.task}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import LightningIcon from 'phosphor-svelte/lib/Lightning';
 	import InboxIcon from 'phosphor-svelte/lib/Tray';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
@@ -29,11 +30,22 @@
 	const weekLimit = $derived(configStore.value?.weekly.limit);
 	const backlogLimit = $derived(configStore.value?.backlog.limit);
 
-	const navItems = $derived([
-		{ href: resolve('/inbox'), label: 'Inbox', icon: InboxIcon },
+	type NavItem = {
+		href: string;
+		label: string;
+		icon: typeof InboxIcon;
+		badge?: number;
+		accent?: boolean;
+	};
+
+	const primaryNav = $derived<NavItem[]>([
+		{ href: resolve('/inbox'), label: 'Inbox', icon: InboxIcon, accent: true },
 		{ href: resolve('/today'), label: 'Today', icon: SunIcon },
 		{ href: resolve('/tomorrow'), label: 'Tomorrow', icon: SunHorizonIcon },
-		{ href: resolve('/week'), label: 'Week', icon: CalendarIcon, badge: weekLimit },
+		{ href: resolve('/week'), label: 'Week', icon: CalendarIcon, badge: weekLimit }
+	]);
+
+	const planningNav = $derived<NavItem[]>([
 		{ href: resolve('/backlog'), label: 'Backlog', icon: StackIcon, badge: backlogLimit },
 		{ href: resolve('/overdue'), label: 'Overdue', icon: WarningIcon },
 		{ href: resolve('/search'), label: 'Search', icon: MagnifyingGlassIcon }
@@ -46,42 +58,72 @@
 	const labelsOrdered = $derived([...labelsStore.favourites, ...labelsStore.rest]);
 </script>
 
+{#snippet navLink(item: NavItem)}
+	{@const Icon = item.icon}
+	{@const active = isActive(item.href)}
+	<a
+		href={item.href as ReturnType<typeof resolve>}
+		class="group/nav flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors"
+		class:bg-sidebar-accent={active}
+		class:text-sidebar-accent-foreground={active && !item.accent}
+		class:font-medium={active}
+		class:text-primary={item.accent}
+		class:hover:bg-sidebar-accent={!active}
+		class:hover:text-sidebar-accent-foreground={!active && !item.accent}
+		aria-current={active ? 'page' : undefined}
+	>
+		<span class="flex min-w-0 items-center gap-2.5">
+			<Icon class="size-[18px] shrink-0" weight={active ? 'fill' : 'regular'} />
+			<span class="truncate">{item.label}</span>
+		</span>
+		{#if item.badge != null}
+			<span
+				class="font-mono text-[11px] tabular-nums"
+				class:text-primary={item.accent}
+				class:text-muted-foreground={!item.accent}
+			>
+				{item.badge}
+			</span>
+		{/if}
+	</a>
+{/snippet}
+
 <aside
 	class="flex h-full w-64 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
 >
-	<div class="px-4 py-3 text-sm font-semibold tracking-wide">Turboist</div>
+	<div class="flex items-center gap-2 px-4 pb-3 pt-4">
+		<span
+			class="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm"
+		>
+			<LightningIcon class="size-4" weight="fill" />
+		</span>
+		<span class="text-[13px] font-semibold uppercase tracking-[0.18em]">Turboist</span>
+	</div>
 
-	<nav class="flex flex-col gap-px px-2 py-1" aria-label="Main">
-		{#each navItems as item (item.href)}
-			{@const Icon = item.icon}
-			<a
-				href={item.href}
-				class="flex items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-				class:bg-sidebar-accent={isActive(item.href)}
-				class:text-sidebar-accent-foreground={isActive(item.href)}
-				aria-current={isActive(item.href) ? 'page' : undefined}
-			>
-				<span class="flex items-center gap-2">
-					<Icon class="size-4" />
-					{item.label}
-				</span>
-				{#if item.badge != null}
-					<span class="text-xs text-muted-foreground">{item.badge}</span>
-				{/if}
-			</a>
+	<nav class="flex flex-col gap-0.5 px-2 pb-2" aria-label="Main">
+		{#each primaryNav as item (item.href)}
+			{@render navLink(item)}
 		{/each}
 	</nav>
+
+	<SidebarSection title="Planning">
+		{#each planningNav as item (item.href)}
+			{@render navLink(item)}
+		{/each}
+	</SidebarSection>
 
 	{#if projectsStore.pinned.length > 0}
 		<SidebarSection title="Pinned">
 			{#each projectsStore.pinned as project (project.id)}
 				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
+				{@const active = isActive(href)}
 				<a
 					{href}
-					class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sidebar-accent"
-					class:bg-sidebar-accent={isActive(href)}
+					class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+					class:bg-sidebar-accent={active}
+					class:font-medium={active}
 				>
-					<PushPinIcon class="size-3" />
+					<PushPinIcon class="size-4 shrink-0 text-amber-500" weight="fill" />
 					<span class="truncate">{project.title}</span>
 				</a>
 			{/each}
@@ -91,11 +133,13 @@
 	<SidebarSection title="Contexts" collapsible onAdd={() => (contextDialogOpen = true)}>
 		{#each contextsStore.items as ctx (ctx.id)}
 			{@const ctxHref = resolve('/(app)/context/[id]', { id: String(ctx.id) })}
+			{@const ctxActive = isActive(ctxHref)}
 			<div class="group flex items-center gap-1 pr-1">
 				<a
 					href={ctxHref}
-					class="flex flex-1 items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sidebar-accent"
-					class:bg-sidebar-accent={isActive(ctxHref)}
+					class="flex flex-1 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+					class:bg-sidebar-accent={ctxActive}
+					class:font-medium={ctxActive}
 				>
 					<span
 						class="inline-block size-2 shrink-0 rounded-full"
@@ -105,7 +149,7 @@
 				</a>
 				<button
 					type="button"
-					class="rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground"
+					class="rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground"
 					onclick={() => {
 						projectDialogContextId = ctx.id;
 						projectDialogOpen = true;
@@ -113,17 +157,19 @@
 					aria-label={`Add project to ${ctx.name}`}
 					title="Add project"
 				>
-					<PlusIcon class="size-3" />
+					<PlusIcon class="size-3.5" />
 				</button>
 			</div>
 			{#each projectsStore.byContext(ctx.id) as project (project.id)}
 				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
+				{@const active = isActive(href)}
 				<a
 					{href}
-					class="flex items-center gap-2 rounded pl-6 pr-2 py-1 text-sm hover:bg-sidebar-accent"
-					class:bg-sidebar-accent={isActive(href)}
+					class="flex items-center gap-2 rounded-md py-1.5 pl-7 pr-2.5 text-sm transition-colors hover:bg-sidebar-accent"
+					class:bg-sidebar-accent={active}
+					class:font-medium={active}
 				>
-					<FolderIcon class="size-3" />
+					<FolderIcon class="size-3.5 shrink-0 text-muted-foreground" />
 					<span class="truncate">{project.title}</span>
 				</a>
 			{/each}
@@ -133,12 +179,14 @@
 	<SidebarSection title="Labels" collapsible onAdd={() => (labelDialogOpen = true)}>
 		{#each labelsOrdered as label (label.id)}
 			{@const href = resolve('/(app)/label/[id]', { id: String(label.id) })}
+			{@const active = isActive(href)}
 			<a
 				{href}
-				class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sidebar-accent"
-				class:bg-sidebar-accent={isActive(href)}
+				class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+				class:bg-sidebar-accent={active}
+				class:font-medium={active}
 			>
-				<TagIcon class="size-3" style={`color: ${label.color}`} />
+				<TagIcon class="size-3.5 shrink-0" style={`color: ${label.color}`} weight="fill" />
 				<span class="truncate">{label.name}</span>
 			</a>
 		{/each}

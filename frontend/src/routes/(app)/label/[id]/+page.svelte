@@ -123,7 +123,7 @@
 		{:else}
 			<TaskTree
 				{tasks}
-				onToggle={(t) => toggleComplete(t, mutator)}
+				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 				onPinToggle={(t) => togglePin(t, mutator)}
 				onDelete={(t) => deleteTask(t, mutator)}
 				onEdit={openEditor}
@@ -134,7 +134,8 @@
 	<TaskEditorSheet
 		bind:open={editorOpen}
 		task={editing}
-		onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+		onSubmit={(id, payload) =>
+			saveEdit(id, payload, mutator, (t) => t.labels.some((l) => l.id === labelId))}
 	/>
 	<LabelDialog
 		bind:open={editOpen}

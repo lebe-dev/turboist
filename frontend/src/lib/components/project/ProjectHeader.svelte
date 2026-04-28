@@ -36,7 +36,7 @@
 	} = $props();
 </script>
 
-<header class="flex flex-col gap-2 border-b border-border px-6 py-4">
+<header class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
 	<div class="flex items-start justify-between gap-3">
 		<div class="flex min-w-0 items-center gap-2">
 			<span

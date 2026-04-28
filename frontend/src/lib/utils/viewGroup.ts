@@ -1,4 +1,5 @@
 import type { DayPart, Task } from '$lib/api/types';
+import { dayKeyInTz, dayStartUtcInTz } from './format';
 
 export interface DayPartGroup {
 	part: DayPart;
@@ -37,28 +38,22 @@ export interface DayGroup {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function startOfDayLocal(d: Date): Date {
-	const x = new Date(d);
-	x.setHours(0, 0, 0, 0);
-	return x;
-}
-
-function dayKey(d: Date): string {
-	const pad = (n: number) => String(n).padStart(2, '0');
-	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function labelFor(date: Date): string {
-	const today = startOfDayLocal(new Date());
-	const target = startOfDayLocal(date);
-	const diff = Math.round((target.getTime() - today.getTime()) / DAY_MS);
+function labelFor(key: string, todayKey: string, tz?: string | null): string {
+	const todayStart = dayStartUtcInTz(todayKey, tz);
+	const target = dayStartUtcInTz(key, tz);
+	const diff = Math.round((target.getTime() - todayStart.getTime()) / DAY_MS);
 	if (diff === 0) return 'Today';
 	if (diff === 1) return 'Tomorrow';
 	if (diff === -1) return 'Yesterday';
-	return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+	return target.toLocaleDateString('en-US', {
+		timeZone: tz || undefined,
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric'
+	});
 }
 
-export function groupByDay(tasks: Task[]): DayGroup[] {
+export function groupByDay(tasks: Task[], tz?: string | null): DayGroup[] {
 	const buckets = new Map<string, { date: Date; tasks: Task[] }>();
 	const noDate: Task[] = [];
 	for (const t of tasks) {
@@ -67,14 +62,20 @@ export function groupByDay(tasks: Task[]): DayGroup[] {
 			continue;
 		}
 		const d = new Date(t.dueAt);
-		const key = dayKey(d);
+		const key = dayKeyInTz(d, tz);
 		const bucket = buckets.get(key);
 		if (bucket) bucket.tasks.push(t);
-		else buckets.set(key, { date: startOfDayLocal(d), tasks: [t] });
+		else buckets.set(key, { date: dayStartUtcInTz(key, tz), tasks: [t] });
 	}
+	const todayKey = dayKeyInTz(new Date(), tz);
 	const groups: DayGroup[] = [...buckets.entries()]
 		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-		.map(([key, v]) => ({ dayKey: key, label: labelFor(v.date), date: v.date, tasks: v.tasks }));
+		.map(([key, v]) => ({
+			dayKey: key,
+			label: labelFor(key, todayKey, tz),
+			date: v.date,
+			tasks: v.tasks
+		}));
 	if (noDate.length) {
 		groups.push({ dayKey: 'no-date', label: 'No date', date: new Date(0), tasks: noDate });
 	}

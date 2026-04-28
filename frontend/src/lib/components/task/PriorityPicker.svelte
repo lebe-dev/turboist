@@ -9,16 +9,22 @@
 
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger
-		class="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs hover:bg-muted"
+		class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 		aria-label="Priority"
 	>
-		<FlagIcon class={`size-3.5 ${PRIORITY_COLOR[value]}`} />
+		<FlagIcon
+			class={`size-3.5 ${PRIORITY_COLOR[value]}`}
+			weight={value === 'no-priority' ? 'regular' : 'fill'}
+		/>
 		<span>{PRIORITY_LABEL[value]}</span>
 	</DropdownMenu.Trigger>
-	<DropdownMenu.Content>
+	<DropdownMenu.Content class="min-w-[10rem]">
 		{#each PRIORITY_ORDER as p (p)}
-			<DropdownMenu.Item onSelect={() => (value = p)}>
-				<FlagIcon class={`size-3.5 ${PRIORITY_COLOR[p]}`} />
+			<DropdownMenu.Item onSelect={() => (value = p)} class="gap-2">
+				<FlagIcon
+					class={`size-3.5 ${PRIORITY_COLOR[p]}`}
+					weight={p === 'no-priority' ? 'regular' : 'fill'}
+				/>
 				<span>{PRIORITY_LABEL[p]}</span>
 			</DropdownMenu.Item>
 		{/each}

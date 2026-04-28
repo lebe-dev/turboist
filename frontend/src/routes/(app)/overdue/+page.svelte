@@ -11,7 +11,8 @@
 	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
-	import { toIsoUtc } from '$lib/utils/format';
+	import { parseIso, toIsoUtc, dayKeyInTz, dayStartUtcInTz, shiftDayKey } from '$lib/utils/format';
+	import { configStore } from '$lib/stores/config.svelte';
 	import {
 		toggleComplete,
 		togglePin,
@@ -50,13 +51,10 @@
 	}
 
 	function startOfDayUtc(offsetDays: number): string {
-		const now = new Date();
-		const target = new Date(
-			now.getFullYear(),
-			now.getMonth(),
-			now.getDate() + offsetDays
-		);
-		return toIsoUtc(target);
+		const tz = configStore.value?.timezone ?? null;
+		const todayKey = dayKeyInTz(new Date(), tz);
+		const targetKey = offsetDays === 0 ? todayKey : shiftDayKey(todayKey, offsetDays);
+		return toIsoUtc(dayStartUtcInTz(targetKey, tz));
 	}
 
 	async function moveToDay(task: Task, offsetDays: number, label: string): Promise<void> {
@@ -81,6 +79,13 @@
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to move to backlog'));
 		}
+	}
+
+	function isOverdue(t: Task): boolean {
+		const dt = parseIso(t.dueAt);
+		if (!dt) return false;
+		const tz = configStore.value?.timezone ?? null;
+		return dayKeyInTz(dt, tz) < dayKeyInTz(new Date(), tz);
 	}
 
 	function openEditor(task: Task): void {
@@ -136,5 +141,5 @@
 <TaskEditorSheet
 	bind:open={editorOpen}
 	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+	onSubmit={(id, payload) => saveEdit(id, payload, mutator, isOverdue)}
 />

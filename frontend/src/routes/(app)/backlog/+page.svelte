@@ -100,5 +100,5 @@
 <TaskEditorSheet
 	bind:open={editorOpen}
 	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+	onSubmit={(id, payload) => saveEdit(id, payload, mutator, (t) => t.planState === 'backlog')}
 />

@@ -2,6 +2,7 @@
 	import Sidebar from '$lib/components/app/Sidebar.svelte';
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import * as Sheet from '$lib/components/ui/sheet';
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { decideAuthRedirect } from '$lib/auth/guard';
 	import { page } from '$app/state';
@@ -26,6 +27,12 @@
 	let loadStarted = $state(false);
 	let loadFailed = $state(false);
 	let quickOpen = $state(false);
+	let mobileSidebarOpen = $state(false);
+
+	$effect(() => {
+		page.url.pathname;
+		mobileSidebarOpen = false;
+	});
 
 	function startLoad(): void {
 		loadStarted = true;
@@ -115,13 +122,26 @@
 	</div>
 {:else}
 	<div class="flex h-screen overflow-hidden bg-background">
-		<Sidebar />
+		<div class="hidden md:flex">
+			<Sidebar />
+		</div>
 		<div class="flex min-w-0 flex-1 flex-col">
-			<Topbar {onQuickAdd} />
+			<Topbar {onQuickAdd} onMenuClick={() => (mobileSidebarOpen = true)} />
 			<main class="flex-1 overflow-y-auto">
 				{@render children()}
 			</main>
 		</div>
 	</div>
+	<Sheet.Root bind:open={mobileSidebarOpen}>
+		<Sheet.Content
+			side="left"
+			class="w-64 max-w-[85vw] border-sidebar-border bg-sidebar p-0 sm:max-w-[85vw] md:hidden"
+			showCloseButton={false}
+		>
+			<Sheet.Title class="sr-only">Navigation</Sheet.Title>
+			<Sheet.Description class="sr-only">Workspace navigation menu</Sheet.Description>
+			<Sidebar />
+		</Sheet.Content>
+	</Sheet.Root>
 	<QuickAddDialog bind:open={quickOpen} onSubmit={onQuickSubmit} />
 {/if}

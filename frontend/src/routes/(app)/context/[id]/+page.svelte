@@ -9,6 +9,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { getApiClient } from '$lib/api/client';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
+	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import type { Context, Project, Task, TaskInput } from '$lib/api/types';
@@ -108,11 +109,24 @@
 		}
 	}
 
-	async function onQuickSubmit(payload: TaskInput): Promise<void> {
+	async function onQuickSubmit(
+		payload: TaskInput,
+		target: { projectId: number | null }
+	): Promise<void> {
 		if (!context) return;
 		try {
-			const created = await contextsApi.createTask(getApiClient(), context.id, payload);
-			tasks = [...tasks, created];
+			const client = getApiClient();
+			if (target.projectId === null) {
+				const created = await contextsApi.createTask(client, context.id, payload);
+				tasks = [...tasks, created];
+				toast.success('Task added');
+				return;
+			}
+			const targetInContext = projects.some((p) => p.id === target.projectId);
+			const created = await projectsApi.createTask(client, target.projectId, payload);
+			if (targetInContext) {
+				tasks = [...tasks, created];
+			}
 			toast.success('Task added');
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
@@ -185,7 +199,7 @@
 		{:else}
 			<TaskTree
 				tasks={filteredTasks}
-				onToggle={(t) => toggleComplete(t, mutator)}
+				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 				onPinToggle={(t) => togglePin(t, mutator)}
 				onDelete={(t) => deleteTask(t, mutator)}
 				onEdit={openEditor}
@@ -193,7 +207,7 @@
 		{/if}
 	</div>
 
-	<QuickAddDialog bind:open={quickOpen} onSubmit={onQuickSubmit} />
+	<QuickAddDialog bind:open={quickOpen} emptyProjectLabel="No project" onSubmit={onQuickSubmit} />
 	<TaskEditorSheet
 		bind:open={editorOpen}
 		task={editing}

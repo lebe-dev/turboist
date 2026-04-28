@@ -19,7 +19,7 @@
 	} = $props();
 </script>
 
-<div class="flex flex-col divide-y divide-border/50">
+<div class="flex flex-col divide-y divide-border/40">
 	{#each tasks as task (task.id)}
 		<TaskItem {task} {showProject} {onToggle} {onEdit} {onDelete} {onPinToggle} />
 	{/each}

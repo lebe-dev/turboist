@@ -10,6 +10,8 @@
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import { groupByDayPart } from '$lib/utils/viewGroup';
+	import { parseIso, dayKeyInTz } from '$lib/utils/format';
+	import { configStore } from '$lib/stores/config.svelte';
 	import {
 		toggleComplete,
 		togglePin,
@@ -49,6 +51,13 @@
 		}
 	}
 
+	function isToday(t: Task): boolean {
+		const dt = parseIso(t.dueAt);
+		if (!dt) return false;
+		const tz = configStore.value?.timezone ?? null;
+		return dayKeyInTz(dt, tz) === dayKeyInTz(new Date(), tz);
+	}
+
 	function openEditor(task: Task): void {
 		editing = task;
 		editorOpen = true;
@@ -77,7 +86,7 @@
 					</h2>
 					<TaskTree
 						tasks={group.tasks}
-						onToggle={(t) => toggleComplete(t, mutator)}
+						onToggle={(t) => toggleComplete(t, mutator, { belongs: isToday })}
 						onPinToggle={(t) => togglePin(t, mutator)}
 						onDelete={(t) => deleteTask(t, mutator)}
 						onEdit={openEditor}
@@ -91,5 +100,5 @@
 <TaskEditorSheet
 	bind:open={editorOpen}
 	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+	onSubmit={(id, payload) => saveEdit(id, payload, mutator, isToday)}
 />

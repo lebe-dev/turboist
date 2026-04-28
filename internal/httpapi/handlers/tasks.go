@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -65,6 +66,9 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 
 	u := repo.TaskUpdate{}
 	if req.Title != nil {
+		if strings.TrimSpace(*req.Title) == "" {
+			return httpapi.ErrValidation("title must not be empty")
+		}
 		u.Title = req.Title
 	}
 	if req.Description != nil {

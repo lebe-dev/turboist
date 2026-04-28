@@ -26,7 +26,7 @@
 	let editing = $state<Task | null>(null);
 	let editorOpen = $state(false);
 
-	const groups = $derived(groupByDay(items));
+	const groups = $derived(groupByDay(items, configStore.value?.timezone ?? null));
 	const limit = $derived(configStore.value?.weekly.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
 
@@ -110,5 +110,5 @@
 <TaskEditorSheet
 	bind:open={editorOpen}
 	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+	onSubmit={(id, payload) => saveEdit(id, payload, mutator, (t) => t.planState === 'week')}
 />

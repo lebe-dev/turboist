@@ -22,12 +22,12 @@
 	let open = $state(defaultOpen);
 </script>
 
-<div class="px-2 py-1">
-	<div class="flex items-center justify-between px-2 py-1 text-xs uppercase tracking-wide text-muted-foreground">
+<div class="px-2 pb-1 pt-3">
+	<div class="flex items-center justify-between gap-1 px-2.5 pb-1.5">
 		{#if collapsible}
 			<button
 				type="button"
-				class="flex items-center gap-1 hover:text-foreground"
+				class="group flex flex-1 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
 				onclick={() => (open = !open)}
 				aria-expanded={open}
 			>
@@ -39,22 +39,24 @@
 				<span>{title}</span>
 			</button>
 		{:else}
-			<span>{title}</span>
+			<span class="flex-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+				{title}
+			</span>
 		{/if}
 		{#if onAdd}
 			<button
 				type="button"
-				class="rounded p-0.5 hover:bg-muted hover:text-foreground"
+				class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 				onclick={onAdd}
 				aria-label={`Add to ${title}`}
 				title={`Add to ${title}`}
 			>
-				<PlusIcon class="size-3" />
+				<PlusIcon class="size-3.5" />
 			</button>
 		{/if}
 	</div>
 	{#if !collapsible || open}
-		<div class="flex flex-col gap-px">
+		<div class="flex flex-col gap-0.5">
 			{@render children()}
 		</div>
 	{/if}

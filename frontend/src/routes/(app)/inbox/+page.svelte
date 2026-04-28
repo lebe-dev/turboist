@@ -120,7 +120,7 @@
 		<TaskTree
 			tasks={items}
 			showProject={false}
-			onToggle={(t) => toggleComplete(t, mutator)}
+			onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 			onPinToggle={(t) => togglePin(t, mutator)}
 			onDelete={(t) => deleteTask(t, mutator)}
 			onEdit={openEditor}
