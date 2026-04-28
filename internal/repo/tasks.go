@@ -27,7 +27,7 @@ func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, recurrence_rule, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, recurrence_rule, completed_at, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -43,7 +43,7 @@ const taskOrderBy = `is_pinned DESC,
 func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var t model.Task
 	var inboxID, contextID, projectID, sectionID, parentID sql.NullInt64
-	var dueAt, deadlineAt, pinnedAt sql.NullString
+	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
 	var recurrenceRule sql.NullString
 	var dueHasTime, deadlineHasTime, isPinned int
 	var createdAt, updatedAt string
@@ -53,7 +53,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&t.Priority, &t.Status,
 		&dueAt, &dueHasTime, &deadlineAt, &deadlineHasTime,
 		&t.DayPart, &t.PlanState,
-		&isPinned, &pinnedAt, &recurrenceRule,
+		&isPinned, &pinnedAt, &recurrenceRule, &completedAt,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
@@ -101,6 +101,13 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 			return nil, fmt.Errorf("parse pinned_at: %w", err)
 		}
 		t.PinnedAt = &ts
+	}
+	if completedAt.Valid {
+		ts, err := model.ParseUTC(completedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse completed_at: %w", err)
+		}
+		t.CompletedAt = &ts
 	}
 	if recurrenceRule.Valid {
 		v := recurrenceRule.String
@@ -283,6 +290,12 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	if u.Status != nil {
 		sets = append(sets, "status = ?")
 		args = append(args, string(*u.Status))
+		if *u.Status == model.TaskStatusCompleted {
+			sets = append(sets, "completed_at = ?")
+			args = append(args, model.FormatUTC(time.Now()))
+		} else {
+			sets = append(sets, "completed_at = NULL")
+		}
 	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)

@@ -22,6 +22,7 @@ function task(id: number, parentId: number | null = null, title = `t${id}`): Tas
 		planState: 'none',
 		isPinned: false,
 		pinnedAt: null,
+		completedAt: null,
 		recurrenceRule: null,
 		labels: [],
 		url: '',

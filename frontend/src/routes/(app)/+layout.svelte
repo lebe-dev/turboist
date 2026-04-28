@@ -3,6 +3,7 @@
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
+	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { decideAuthRedirect } from '$lib/auth/guard';
 	import { page } from '$app/state';
@@ -122,9 +123,11 @@
 	</div>
 {:else}
 	<div class="flex h-screen overflow-hidden bg-background">
-		<div class="hidden md:flex">
-			<Sidebar />
-		</div>
+		{#if !sidebarStore.collapsed}
+			<div class="hidden md:flex">
+				<Sidebar />
+			</div>
+		{/if}
 		<div class="flex min-w-0 flex-1 flex-col">
 			<Topbar {onQuickAdd} onMenuClick={() => (mobileSidebarOpen = true)} />
 			<main class="flex-1 overflow-y-auto">

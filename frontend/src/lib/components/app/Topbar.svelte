@@ -4,10 +4,11 @@
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import ListIcon from 'phosphor-svelte/lib/List';
+	import SidebarSimpleIcon from 'phosphor-svelte/lib/SidebarSimple';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
-	import UserMenu from './UserMenu.svelte';
 
 	let {
 		onQuickAdd,
@@ -37,6 +38,18 @@
 				<ListIcon class="size-5" />
 			</Button>
 		{/if}
+		{#if sidebarStore.collapsed}
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				class="hidden md:inline-flex"
+				onclick={() => sidebarStore.toggle()}
+				aria-label="Expand sidebar"
+				title="Expand sidebar"
+			>
+				<SidebarSimpleIcon class="size-5" />
+			</Button>
+		{/if}
 		<button
 			type="button"
 			onclick={handleSearch}
@@ -62,6 +75,5 @@
 			<Kbd.Kbd class="ml-1 hidden sm:inline-flex">Q</Kbd.Kbd>
 		</Button>
 		<ThemeToggle />
-		<UserMenu />
 	</div>
 </header>

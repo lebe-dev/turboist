@@ -29,6 +29,7 @@ func (h *TaskViewHandler) Register(r fiber.Router) {
 	r.Get("/tasks/overdue", h.overdue)
 	r.Get("/tasks/week", h.week)
 	r.Get("/tasks/backlog", h.backlog)
+	r.Get("/tasks/completed", h.completed)
 }
 
 // todayStart returns the start of the current day in the configured timezone.
@@ -79,6 +80,20 @@ func (h *TaskViewHandler) tomorrow(c fiber.Ctx) error {
 	items, total, err := h.tasks.ListTomorrow(c.Context(), h.todayStart(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
 		return httpapi.ErrInternal("list tomorrow")
+	}
+	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
+}
+
+// completed returns tasks completed within the requested date window.
+// Currently only date=today is supported; expand if other windows are needed.
+func (h *TaskViewHandler) completed(c fiber.Ctx) error {
+	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
+	filter := parseViewFilter(c)
+	start := h.todayStart()
+	end := start.Add(24 * time.Hour)
+	items, total, err := h.tasks.ListCompletedInRange(c.Context(), start, end, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
+	if err != nil {
+		return httpapi.ErrInternal("list completed")
 	}
 	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
 }

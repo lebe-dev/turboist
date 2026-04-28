@@ -108,6 +108,12 @@ func (r *TaskRepo) ListTomorrow(ctx context.Context, todayStart time.Time, filte
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true)
 }
 
+// ListCompletedInRange returns tasks marked completed within [start, end).
+func (r *TaskRepo) ListCompletedInRange(ctx context.Context, start, end time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
+	base := "FROM tasks t WHERE t.status = 'completed' AND t.completed_at >= ? AND t.completed_at < ?"
+	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true)
+}
+
 func (r *TaskRepo) ListOverdue(ctx context.Context, todayStart time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
 	base := "FROM tasks t WHERE t.status = 'open' AND t.due_at IS NOT NULL AND t.due_at < ?"
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(todayStart)}, filter, page, true)

@@ -94,6 +94,7 @@ export interface Task {
 
 	isPinned: boolean;
 	pinnedAt: string | null;
+	completedAt: string | null;
 
 	recurrenceRule: string | null;
 

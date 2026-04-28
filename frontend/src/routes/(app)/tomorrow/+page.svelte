@@ -8,6 +8,7 @@
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import DayPartSection from '$lib/components/view/DayPartSection.svelte';
 	import { groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz, shiftDayKey } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -22,7 +23,8 @@
 	let total = $state(0);
 	let loading = $state(true);
 
-	const groups = $derived(groupByDayPart(items));
+	const dayParts = $derived(configStore.value?.dayParts);
+	const groups = $derived(groupByDayPart(items, dayParts));
 
 	const mutator = {
 		replace(t: Task) {
@@ -75,10 +77,12 @@
 	{:else}
 		<div class="flex flex-col gap-4 py-2">
 			{#each groups as group (group.part)}
-				<section>
-					<h2 class="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-						{group.label}
-					</h2>
+				<DayPartSection
+					part={group.part}
+					label={group.label}
+					interval={group.interval}
+					count={group.tasks.length}
+				>
 					<TaskTree
 						tasks={group.tasks}
 						hideDayPart
@@ -86,7 +90,7 @@
 						onPinToggle={(t) => togglePin(t, mutator)}
 						onDelete={(t) => deleteTask(t, mutator)}
 					/>
-				</section>
+				</DayPartSection>
 			{/each}
 		</div>
 	{/if}

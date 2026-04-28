@@ -22,6 +22,7 @@ function makeTask(overrides: Partial<Task>): Task {
 		planState: 'none',
 		isPinned: false,
 		pinnedAt: null,
+		completedAt: null,
 		recurrenceRule: null,
 		labels: [],
 		url: '',

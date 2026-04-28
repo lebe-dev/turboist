@@ -1,9 +1,15 @@
-import type { DayPart, Task } from '$lib/api/types';
+import type { ConfigResponse, DayPart, Task } from '$lib/api/types';
 import { dayKeyInTz, dayStartUtcInTz } from './format';
+
+export interface DayPartInterval {
+	start: number;
+	end: number;
+}
 
 export interface DayPartGroup {
 	part: DayPart;
 	label: string;
+	interval: DayPartInterval | null;
 	tasks: Task[];
 }
 
@@ -14,7 +20,18 @@ const DAY_PART_ORDER: Array<{ part: DayPart; label: string }> = [
 	{ part: 'none', label: 'Anytime' }
 ];
 
-export function groupByDayPart(tasks: Task[]): DayPartGroup[] {
+function intervalFor(
+	part: DayPart,
+	dayParts: ConfigResponse['dayParts'] | undefined
+): DayPartInterval | null {
+	if (!dayParts || part === 'none') return null;
+	return dayParts[part];
+}
+
+export function groupByDayPart(
+	tasks: Task[],
+	dayParts?: ConfigResponse['dayParts']
+): DayPartGroup[] {
 	const buckets = new Map<DayPart, Task[]>();
 	for (const t of tasks) {
 		const key = t.dayPart ?? 'none';
@@ -25,8 +42,38 @@ export function groupByDayPart(tasks: Task[]): DayPartGroup[] {
 	return DAY_PART_ORDER.filter((g) => (buckets.get(g.part)?.length ?? 0) > 0).map((g) => ({
 		part: g.part,
 		label: g.label,
+		interval: intervalFor(g.part, dayParts),
 		tasks: buckets.get(g.part)!
 	}));
+}
+
+// activeDayPart returns the phase whose interval contains `now` in the given
+// timezone. Returns null if none matches (e.g. late night before morning starts).
+export function activeDayPart(
+	now: Date,
+	dayParts: ConfigResponse['dayParts'] | undefined,
+	tz?: string | null
+): DayPart | null {
+	if (!dayParts) return null;
+	const hour = hourInTz(now, tz);
+	for (const part of ['morning', 'afternoon', 'evening'] as const) {
+		const iv = dayParts[part];
+		if (hour >= iv.start && hour < iv.end) return part;
+	}
+	return null;
+}
+
+function hourInTz(date: Date, tz?: string | null): number {
+	if (!tz) return date.getHours();
+	const parts = new Intl.DateTimeFormat('en-US', {
+		hour12: false,
+		hour: '2-digit',
+		timeZone: tz
+	}).formatToParts(date);
+	const h = parts.find((p) => p.type === 'hour')?.value ?? '0';
+	const n = parseInt(h, 10);
+	// Intl returns "24" for midnight in some engines — normalize.
+	return n === 24 ? 0 : n;
 }
 
 export interface DayGroup {

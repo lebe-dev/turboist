@@ -24,7 +24,6 @@ const Version = "1.0.0"
 
 func main() {
 	configPath := flag.String("config", "config.yml", "path to config.yml")
-	dbPath := flag.String("db", "turboist.db", "path to SQLite database file")
 	flag.Parse()
 
 	_ = godotenv.Load()
@@ -50,7 +49,7 @@ func main() {
 		"timezone", cfg.Timezone,
 	)
 
-	sqlDB, err := db.Open(*dbPath)
+	sqlDB, err := db.Open(env.DataPath)
 	if err != nil {
 		log.Error("open db", "err", err)
 		os.Exit(1)

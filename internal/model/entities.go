@@ -70,6 +70,8 @@ type Task struct {
 	IsPinned bool
 	PinnedAt *time.Time
 
+	CompletedAt *time.Time
+
 	RecurrenceRule *string
 
 	Labels []Label
