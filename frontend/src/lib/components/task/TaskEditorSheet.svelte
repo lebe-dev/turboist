@@ -69,7 +69,7 @@
 					dueAt = toIsoUtc(new Date(`${dueDate}T${dueTime}:00`));
 					dueHasTime = true;
 				} else {
-					dueAt = toIsoUtc(new Date(`${dueDate}T00:00:00Z`));
+					dueAt = toIsoUtc(new Date(`${dueDate}T00:00:00`));
 					dueHasTime = false;
 				}
 			}

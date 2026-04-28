@@ -49,7 +49,7 @@
 			const payload: TaskInput = {
 				title: title.trim(),
 				priority,
-				dueAt: dueDate ? toIsoUtc(new Date(`${dueDate}T00:00:00Z`)) : null,
+				dueAt: dueDate ? toIsoUtc(new Date(`${dueDate}T00:00:00`)) : null,
 				dueHasTime: false,
 				labels: labelIds
 					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
