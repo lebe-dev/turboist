@@ -8,6 +8,7 @@
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { Button } from '$lib/components/ui/button';
 	import { getApiClient } from '$lib/api/client';
+	import { ApiError } from '$lib/api/errors';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
@@ -26,6 +27,7 @@
 	const contextId = $derived(Number(page.params.id));
 
 	let context = $state<Context | null>(null);
+	let notFound = $state(false);
 	let projects = $state<Project[]>([]);
 	let activeProjectId = $state<number | 'all'>('all');
 	let quickOpen = $state(false);
@@ -42,6 +44,11 @@
 	);
 
 	const loader = usePageLoad(async (isValid) => {
+		context = null;
+		notFound = false;
+		projects = [];
+		taskList.items = [];
+		if (!Number.isFinite(contextId)) return;
 		const client = getApiClient();
 		const [c, projs, ts] = await Promise.all([
 			contextsApi.get(client, contextId),
@@ -53,7 +60,14 @@
 		projects = projs.items;
 		taskList.items = ts.items;
 		activeProjectId = 'all';
-	}, { errorMessage: 'Failed to load context', autoLoad: false });
+	}, {
+		errorMessage: 'Failed to load context',
+		autoLoad: false,
+		initialLoading: true,
+		onError(err) {
+			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
+		}
+	});
 
 	async function toggleFavourite() {
 		if (!context) return;
@@ -108,7 +122,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(contextId)) void loader.refetch();
+		void loader.refetch();
 	});
 
 	onMount(() => {
@@ -118,7 +132,9 @@
 
 {#if loader.loading}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
-{:else if !context}
+{:else if loader.error && !notFound}
+	<div class="px-6 py-8 text-sm text-muted-foreground">{loader.error}</div>
+{:else if notFound || !context}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Context not found</div>
 {:else}
 	<ContextHeader

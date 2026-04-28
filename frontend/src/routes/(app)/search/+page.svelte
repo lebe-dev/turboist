@@ -72,6 +72,7 @@
 		if (timer) clearTimeout(timer);
 		timer = setTimeout(() => {
 			if (q.trim().length < 2) {
+				loader.cancel();
 				reset();
 			} else {
 				void loader.refetch();

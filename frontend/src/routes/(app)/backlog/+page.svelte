@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
 	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
@@ -8,44 +6,28 @@
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
-	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import LimitBadge from '$lib/components/view/LimitBadge.svelte';
-	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { toggleComplete } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
-	let items = $state<Task[]>([]);
 	let total = $state(0);
-	let loading = $state(true);
+
+	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
+	const { mutator } = list;
 
 	const limit = $derived(configStore.value?.backlog.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
 
-	const mutator = {
-		replace(t: Task) {
-			items = items.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			items = items.filter((x) => x.id !== id);
-			total = Math.max(0, total - 1);
-		}
-	};
-
-	async function load(): Promise<void> {
-		loading = true;
-		try {
-			const res = await viewsApi.backlog(getApiClient());
-			items = res.items;
-			total = res.total;
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to load backlog'));
-		} finally {
-			loading = false;
-		}
-	}
-
-	onMount(load);
+	const loader = usePageLoad(async () => {
+		const res = await viewsApi.backlog(getApiClient());
+		list.items = res.items;
+		total = res.total;
+	}, { errorMessage: 'Failed to load backlog' });
 </script>
 
-<ViewHeader title="Backlog" subtitle={loading ? 'Loading…' : 'Plans for later'}>
+<ViewHeader title="Backlog" subtitle={loader.loading ? 'Loading…' : 'Plans for later'}>
 	{#snippet actions()}
 		{#if limit !== null}
 			<LimitBadge count={total} {limit} />
@@ -64,20 +46,18 @@
 </ViewHeader>
 
 <div class="px-2 py-2">
-	{#if loading}
-		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
-	{:else if items.length === 0}
-		<EmptyState
-			icon={StackIcon}
-			title="Backlog is empty"
-			description="Park tasks here when they're not actionable yet."
-		/>
-	{:else}
+	<ViewContent
+		loading={loader.loading}
+		isEmpty={list.items.length === 0}
+		emptyIcon={StackIcon}
+		emptyTitle="Backlog is empty"
+		emptyDescription="Park tasks here when they're not actionable yet."
+	>
 		<TaskTree
-			tasks={items}
+			tasks={list.items}
 			{mutator}
 			belongs={(t) => t.planState === 'backlog'}
 			onToggle={(t) => toggleComplete(t, mutator)}
 		/>
-	{/if}
+	</ViewContent>
 </div>

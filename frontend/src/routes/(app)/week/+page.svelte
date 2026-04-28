@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
@@ -8,46 +6,30 @@
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
-	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import LimitBadge from '$lib/components/view/LimitBadge.svelte';
 	import { groupByDay } from '$lib/utils/viewGroup';
-	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { toggleComplete } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
-	let items = $state<Task[]>([]);
 	let total = $state(0);
-	let loading = $state(true);
 
-	const groups = $derived(groupByDay(items, configStore.value?.timezone ?? null));
+	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
+	const { mutator } = list;
+
+	const groups = $derived(groupByDay(list.items, configStore.value?.timezone ?? null));
 	const limit = $derived(configStore.value?.weekly.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
 
-	const mutator = {
-		replace(t: Task) {
-			items = items.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			items = items.filter((x) => x.id !== id);
-			total = Math.max(0, total - 1);
-		}
-	};
-
-	async function load(): Promise<void> {
-		loading = true;
-		try {
-			const res = await viewsApi.week(getApiClient());
-			items = res.items;
-			total = res.total;
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to load week'));
-		} finally {
-			loading = false;
-		}
-	}
-
-	onMount(load);
+	const loader = usePageLoad(async () => {
+		const res = await viewsApi.week(getApiClient());
+		list.items = res.items;
+		total = res.total;
+	}, { errorMessage: 'Failed to load week' });
 </script>
 
-<ViewHeader title="This week" subtitle={loading ? 'Loading…' : 'Tasks planned for the week'}>
+<ViewHeader title="This week" subtitle={loader.loading ? 'Loading…' : 'Tasks planned for the week'}>
 	{#snippet actions()}
 		{#if limit !== null}
 			<LimitBadge count={total} {limit} />
@@ -65,15 +47,13 @@
 </ViewHeader>
 
 <div class="px-2 py-2">
-	{#if loading}
-		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
-	{:else if items.length === 0}
-		<EmptyState
-			icon={CalendarIcon}
-			title="Week is empty"
-			description="Plan tasks for this week from Backlog or by setting a due date."
-		/>
-	{:else}
+	<ViewContent
+		loading={loader.loading}
+		isEmpty={list.items.length === 0}
+		emptyIcon={CalendarIcon}
+		emptyTitle="Week is empty"
+		emptyDescription="Plan tasks for this week from Backlog or by setting a due date."
+	>
 		<div class="flex flex-col gap-4 py-2">
 			{#each groups as group (group.dayKey)}
 				<section>
@@ -89,5 +69,5 @@
 				</section>
 			{/each}
 		</div>
-	{/if}
+	</ViewContent>
 </div>

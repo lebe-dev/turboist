@@ -8,6 +8,7 @@
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { Button } from '$lib/components/ui/button';
 	import { getApiClient } from '$lib/api/client';
+	import { ApiError } from '$lib/api/errors';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { sections as sectionsApi } from '$lib/api/endpoints/sections';
@@ -28,6 +29,7 @@
 	const projectId = $derived(Number(page.params.id));
 
 	let project = $state<Project | null>(null);
+	let notFound = $state(false);
 	let sectionList = $state<ProjectSection[]>([]);
 	let quickOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
@@ -52,6 +54,11 @@
 	});
 
 	const loader = usePageLoad(async (isValid) => {
+		project = null;
+		notFound = false;
+		sectionList = [];
+		taskList.items = [];
+		if (!Number.isFinite(projectId)) return;
 		const client = getApiClient();
 		const [p, sec, ts] = await Promise.all([
 			projectsApi.get(client, projectId),
@@ -62,7 +69,14 @@
 		project = p;
 		sectionList = sec.items;
 		taskList.items = ts.items;
-	}, { errorMessage: 'Failed to load project', autoLoad: false });
+	}, {
+		errorMessage: 'Failed to load project',
+		autoLoad: false,
+		initialLoading: true,
+		onError(err) {
+			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
+		}
+	});
 
 	const actionLabels: Record<string, string> = {
 		complete: 'completed', uncomplete: 'uncompleted', cancel: 'cancelled',
@@ -146,7 +160,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(projectId)) void loader.refetch();
+		void loader.refetch();
 	});
 
 	onMount(() => {
@@ -156,7 +170,9 @@
 
 {#if loader.loading}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
-{:else if !project}
+{:else if loader.error && !notFound}
+	<div class="px-6 py-8 text-sm text-muted-foreground">{loader.error}</div>
+{:else if notFound || !project}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Project not found</div>
 {:else}
 	<ProjectHeader

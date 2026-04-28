@@ -1,57 +1,45 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
-	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import DayPartSection from '$lib/components/view/DayPartSection.svelte';
 	import CompletedTodayFooter from '$lib/components/view/CompletedTodayFooter.svelte';
 	import { activeDayPart, groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
-	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { toggleComplete } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
-	let items = $state<Task[]>([]);
 	let total = $state(0);
-	let loading = $state(true);
 	let completedCount = $state(0);
 
-	const dayParts = $derived(configStore.value?.dayParts);
-	const tz = $derived(configStore.value?.timezone ?? null);
-	const groups = $derived(groupByDayPart(items, dayParts));
-	const active = $derived(activeDayPart(new Date(), dayParts, tz));
-
-	const mutator = {
-		replace(t: Task) {
-			items = items.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			items = items.filter((x) => x.id !== id);
+	const list = useListMutator<Task>({
+		onRemove: () => {
 			total = Math.max(0, total - 1);
 			completedCount += 1;
 		}
-	};
+	});
+	const { mutator } = list;
 
-	async function load(): Promise<void> {
-		loading = true;
-		try {
-			const [open, completed] = await Promise.all([
-				viewsApi.today(getApiClient()),
-				viewsApi.completedToday(getApiClient(), { limit: 1 })
-			]);
-			items = open.items;
-			total = open.total;
-			completedCount = completed.total;
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to load today'));
-		} finally {
-			loading = false;
-		}
-	}
+	const dayParts = $derived(configStore.value?.dayParts);
+	const tz = $derived(configStore.value?.timezone ?? null);
+	const groups = $derived(groupByDayPart(list.items, dayParts));
+	const active = $derived(activeDayPart(new Date(), dayParts, tz));
+
+	const loader = usePageLoad(async () => {
+		const [open, completed] = await Promise.all([
+			viewsApi.today(getApiClient()),
+			viewsApi.completedToday(getApiClient(), { limit: 1 })
+		]);
+		list.items = open.items;
+		total = open.total;
+		completedCount = completed.total;
+	}, { errorMessage: 'Failed to load today' });
 
 	function isToday(t: Task): boolean {
 		const dt = parseIso(t.dueAt);
@@ -63,21 +51,18 @@
 		completedCount = Math.max(0, completedCount - 1);
 	}
 
-	onMount(load);
 </script>
 
-<ViewHeader title="Today" subtitle={loading ? 'Loading…' : `${total} task${total === 1 ? '' : 's'}`} />
+<ViewHeader title="Today" subtitle={loader.loading ? 'Loading…' : `${total} task${total === 1 ? '' : 's'}`} />
 
 <div class="px-2 py-2">
-	{#if loading}
-		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
-	{:else if items.length === 0 && completedCount === 0}
-		<EmptyState
-			icon={SunIcon}
-			title="Nothing for today"
-			description="No tasks are scheduled for today. Enjoy the calm."
-		/>
-	{:else}
+	<ViewContent
+		loading={loader.loading}
+		isEmpty={list.items.length === 0 && completedCount === 0}
+		emptyIcon={SunIcon}
+		emptyTitle="Nothing for today"
+		emptyDescription="No tasks are scheduled for today. Enjoy the calm."
+	>
 		<div class="flex flex-col gap-4 py-2">
 			{#each groups as group (group.part)}
 				<DayPartSection
@@ -99,5 +84,5 @@
 
 			<CompletedTodayFooter count={completedCount} onUncompleteOutside={onUncompletedFromFooter} />
 		</div>
-	{/if}
+	</ViewContent>
 </div>

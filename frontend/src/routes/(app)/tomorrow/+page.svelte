@@ -1,48 +1,32 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { toast } from 'svelte-sonner';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
-	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import DayPartSection from '$lib/components/view/DayPartSection.svelte';
 	import { groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz, shiftDayKey } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
-	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { toggleComplete } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
-	let items = $state<Task[]>([]);
 	let total = $state(0);
-	let loading = $state(true);
+
+	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
+	const { mutator } = list;
 
 	const dayParts = $derived(configStore.value?.dayParts);
-	const groups = $derived(groupByDayPart(items, dayParts));
+	const groups = $derived(groupByDayPart(list.items, dayParts));
 
-	const mutator = {
-		replace(t: Task) {
-			items = items.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			items = items.filter((x) => x.id !== id);
-			total = Math.max(0, total - 1);
-		}
-	};
-
-	async function load(): Promise<void> {
-		loading = true;
-		try {
-			const res = await viewsApi.tomorrow(getApiClient());
-			items = res.items;
-			total = res.total;
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to load tomorrow'));
-		} finally {
-			loading = false;
-		}
-	}
+	const loader = usePageLoad(async () => {
+		const res = await viewsApi.tomorrow(getApiClient());
+		list.items = res.items;
+		total = res.total;
+	}, { errorMessage: 'Failed to load tomorrow' });
 
 	function isTomorrow(t: Task): boolean {
 		const dt = parseIso(t.dueAt);
@@ -52,24 +36,21 @@
 		return dayKeyInTz(dt, tz) === tomorrowKey;
 	}
 
-	onMount(load);
 </script>
 
 <ViewHeader
 	title="Tomorrow"
-	subtitle={loading ? 'Loading…' : `${total} task${total === 1 ? '' : 's'}`}
+	subtitle={loader.loading ? 'Loading…' : `${total} task${total === 1 ? '' : 's'}`}
 />
 
 <div class="px-2 py-2">
-	{#if loading}
-		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
-	{:else if items.length === 0}
-		<EmptyState
-			icon={SunHorizonIcon}
-			title="Nothing for tomorrow"
-			description="Schedule tasks ahead to see them here."
-		/>
-	{:else}
+	<ViewContent
+		loading={loader.loading}
+		isEmpty={list.items.length === 0}
+		emptyIcon={SunHorizonIcon}
+		emptyTitle="Nothing for tomorrow"
+		emptyDescription="Schedule tasks ahead to see them here."
+	>
 		<div class="flex flex-col gap-4 py-2">
 			{#each groups as group (group.part)}
 				<DayPartSection
@@ -88,5 +69,5 @@
 				</DayPartSection>
 			{/each}
 		</div>
-	{/if}
+	</ViewContent>
 </div>

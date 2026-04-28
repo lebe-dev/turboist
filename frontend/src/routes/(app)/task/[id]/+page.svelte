@@ -9,6 +9,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { getApiClient } from '$lib/api/client';
+	import { ApiError } from '$lib/api/errors';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -68,6 +69,11 @@
 
 	const loader = usePageLoad(async (isValid) => {
 		notFound = false;
+		task = null;
+		if (!Number.isFinite(taskId)) {
+			notFound = true;
+			return;
+		}
 		const t = await tasksApi.get(getApiClient(), taskId);
 		if (!isValid()) return;
 		hydrate(t);
@@ -75,7 +81,9 @@
 		autoLoad: false,
 		initialLoading: true,
 		onError(err) {
-			notFound = true;
+			if (err instanceof ApiError && err.code === 'not_found') {
+				notFound = true;
+			}
 			toast.error(describeError(err, 'Failed to load task'));
 		}
 	});
@@ -151,7 +159,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(taskId)) void loader.refetch();
+		void loader.refetch();
 	});
 </script>
 
@@ -181,6 +189,8 @@
 
 {#if loader.loading}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
+{:else if loader.error && !notFound}
+	<div class="px-6 py-8 text-sm text-muted-foreground">{loader.error}</div>
 {:else if notFound || !task}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Task not found</div>
 {:else}
