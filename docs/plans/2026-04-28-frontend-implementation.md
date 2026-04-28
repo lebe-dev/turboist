@@ -107,11 +107,11 @@
 - Create: `frontend/src/lib/components/context/ContextHeader.svelte`
 - Create: `frontend/src/lib/components/label/LabelHeader.svelte`
 
-- [ ] Project: header с actions (complete/cancel/archive/pin), список секций + drag-reorder секций (минимум — кнопки вверх/вниз через `sections/:id/reorder`), задачи в секциях и без секции
-- [ ] Context: header + projects-табы + flat tasks
-- [ ] Label: tasks с этим лейблом
-- [ ] Search: input с debounce → `GET /api/v1/search?q=`, табы Tasks/Projects, подсветка совпадений (без подсветки на этом MVP)
-- [ ] confirmation-диалоги для DELETE контекста/проекта (показывают cascade-предупреждение)
+- [x] Project: header с actions (complete/cancel/archive/pin), список секций + drag-reorder секций (минимум — кнопки вверх/вниз через `sections/:id/reorder`), задачи в секциях и без секции
+- [x] Context: header + projects-табы + flat tasks
+- [x] Label: tasks с этим лейблом
+- [x] Search: input с debounce → `GET /api/v1/search?q=`, табы Tasks/Projects, подсветка совпадений (без подсветки на этом MVP)
+- [x] confirmation-диалоги для DELETE контекста/проекта (показывают cascade-предупреждение)
 
 ### Task 7: CRUD-диалоги для контекстов, проектов, секций, меток
 
