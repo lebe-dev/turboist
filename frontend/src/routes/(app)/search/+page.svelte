@@ -11,81 +11,72 @@
 	import type { Project, SearchResponse, Task } from '$lib/api/types';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { ApiError } from '$lib/api/errors';
 	import { onDestroy } from 'svelte';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
 	let q = $state('');
 	let active = $state<'tasks' | 'projects'>('tasks');
-	let tasks = $state<Task[]>([]);
 	let projects = $state<Project[]>([]);
 	let total = $state({ tasks: 0, projects: 0 });
-	let loading = $state(false);
 	let lastQuery = $state('');
 
 	let timer: ReturnType<typeof setTimeout> | null = null;
-	let requestSeq = 0;
 
 	onDestroy(() => {
 		if (timer) clearTimeout(timer);
 	});
 
-	const mutator = {
-		replace(t: Task) {
-			tasks = tasks.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			tasks = tasks.filter((x) => x.id !== id);
-		}
-	};
+	const taskList = useListMutator<Task>();
+	const mutator = taskList.mutator;
 
 	function reset() {
-		tasks = [];
+		taskList.items = [];
 		projects = [];
 		total = { tasks: 0, projects: 0 };
-		loading = false;
 		lastQuery = '';
 	}
 
-	async function runSearch(query: string): Promise<void> {
-		const trimmed = query.trim();
-		if (trimmed.length < 2) {
-			reset();
-			return;
-		}
-		loading = true;
+	const loader = usePageLoad(async (isValid) => {
+		const trimmed = q.trim();
+		const res: SearchResponse = await viewsApi.search(getApiClient(), {
+			q: trimmed,
+			type: 'all',
+			limit: 100
+		});
+		if (!isValid()) return;
 		lastQuery = trimmed;
-		const seq = ++requestSeq;
-		try {
-			const res: SearchResponse = await viewsApi.search(getApiClient(), {
-				q: trimmed,
-				type: 'all',
-				limit: 100
-			});
-			if (seq !== requestSeq) return;
-			tasks = res.tasks?.items ?? [];
-			projects = res.projects?.items ?? [];
-			total = {
-				tasks: res.tasks?.total ?? 0,
-				projects: res.projects?.total ?? 0
-			};
-		} catch (err) {
-			if (seq !== requestSeq) return;
+		taskList.items = res.tasks?.items ?? [];
+		projects = res.projects?.items ?? [];
+		total = {
+			tasks: res.tasks?.total ?? 0,
+			projects: res.projects?.total ?? 0
+		};
+	}, {
+		autoLoad: false,
+		onError(err) {
 			if (err instanceof ApiError && err.code === 'validation_failed') {
 				reset();
 				return;
 			}
 			toast.error(describeError(err, 'Search failed'));
-		} finally {
-			if (seq === requestSeq) loading = false;
 		}
-	}
+	});
 
 	function onInput(e: Event) {
 		q = (e.target as HTMLInputElement).value;
 		if (timer) clearTimeout(timer);
-		timer = setTimeout(() => runSearch(q), 300);
+		timer = setTimeout(() => {
+			if (q.trim().length < 2) {
+				reset();
+			} else {
+				void loader.refetch();
+			}
+		}, 300);
 	}
 
 </script>
@@ -127,7 +118,7 @@
 </div>
 
 <div class="px-2 py-2">
-	{#if loading}
+	{#if loader.loading}
 		<div class="px-4 py-8 text-sm text-muted-foreground">Searching…</div>
 	{:else if !lastQuery}
 		<EmptyState
@@ -136,36 +127,44 @@
 			description="Type at least 2 characters to find matching tasks or projects."
 		/>
 	{:else if active === 'tasks'}
-		{#if tasks.length === 0}
-			<EmptyState icon={MagnifyingGlassIcon} title="No tasks match" />
-		{:else}
+		<ViewContent
+			loading={false}
+			isEmpty={taskList.items.length === 0}
+			emptyIcon={MagnifyingGlassIcon}
+			emptyTitle="No tasks match"
+		>
 			<TaskTree
-				{tasks}
+				tasks={taskList.items}
 				{mutator}
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 			/>
-		{/if}
-	{:else if projects.length === 0}
-		<EmptyState icon={FolderIcon} title="No projects match" />
+		</ViewContent>
 	{:else}
-		<ul class="flex flex-col divide-y divide-border/50">
-			{#each projects as p (p.id)}
-				<li>
-					<a
-						href={resolve('/(app)/project/[id]', { id: String(p.id) })}
-						class="flex items-center gap-3 px-3 py-2 hover:bg-muted/40"
-					>
-						<span
-							class="inline-block size-3 shrink-0 rounded-full"
-							style={`background-color: ${p.color}`}
-						></span>
-						<span class="min-w-0 flex-1 truncate text-sm">{p.title}</span>
-						{#if p.status !== 'open'}
-							<Badge variant="outline" class="capitalize">{p.status}</Badge>
-						{/if}
-					</a>
-				</li>
-			{/each}
-		</ul>
+		<ViewContent
+			loading={false}
+			isEmpty={projects.length === 0}
+			emptyIcon={FolderIcon}
+			emptyTitle="No projects match"
+		>
+			<ul class="flex flex-col divide-y divide-border/50">
+				{#each projects as p (p.id)}
+					<li>
+						<a
+							href={resolve('/(app)/project/[id]', { id: String(p.id) })}
+							class="flex items-center gap-3 px-3 py-2 hover:bg-muted/40"
+						>
+							<span
+								class="inline-block size-3 shrink-0 rounded-full"
+								style={`background-color: ${p.color}`}
+							></span>
+							<span class="min-w-0 flex-1 truncate text-sm">{p.title}</span>
+							{#if p.status !== 'open'}
+								<Badge variant="outline" class="capitalize">{p.status}</Badge>
+							{/if}
+						</a>
+					</li>
+				{/each}
+			</ul>
+		</ViewContent>
 	{/if}
 </div>

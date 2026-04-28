@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -18,11 +17,11 @@
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, timeKeyInTz, toIsoUtc } from '$lib/utils/format';
 	import { describeError } from '$lib/utils/taskActions';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
 	const taskId = $derived(Number(page.params.id));
 
 	let task = $state<Task | null>(null);
-	let loading = $state(true);
 	let notFound = $state(false);
 	let saving = $state(false);
 	let deleting = $state(false);
@@ -47,8 +46,6 @@
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
 
-	let requestSeq = 0;
-
 	function hydrate(t: Task): void {
 		task = t;
 		title = t.title;
@@ -69,22 +66,19 @@
 		removedAuto = [];
 	}
 
-	async function load(): Promise<void> {
-		const my = ++requestSeq;
-		loading = true;
+	const loader = usePageLoad(async (isValid) => {
 		notFound = false;
-		try {
-			const t = await tasksApi.get(getApiClient(), taskId);
-			if (my !== requestSeq) return;
-			hydrate(t);
-		} catch (err) {
-			if (my !== requestSeq) return;
+		const t = await tasksApi.get(getApiClient(), taskId);
+		if (!isValid()) return;
+		hydrate(t);
+	}, {
+		autoLoad: false,
+		initialLoading: true,
+		onError(err) {
 			notFound = true;
 			toast.error(describeError(err, 'Failed to load task'));
-		} finally {
-			if (my === requestSeq) loading = false;
 		}
-	}
+	});
 
 	function toggleLabel(id: string, name: string, isAuto: boolean): void {
 		if (labelIds.includes(id)) {
@@ -157,10 +151,8 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(taskId)) void load();
+		if (Number.isFinite(taskId)) void loader.refetch();
 	});
-
-	onMount(() => undefined);
 </script>
 
 <header class="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-8">
@@ -187,7 +179,7 @@
 	</div>
 </header>
 
-{#if loading}
+{#if loader.loading}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
 {:else if notFound || !task}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Task not found</div>

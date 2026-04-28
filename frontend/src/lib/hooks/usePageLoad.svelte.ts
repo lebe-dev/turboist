@@ -7,11 +7,12 @@ export function usePageLoad(
 	opts?: {
 		errorMessage?: string;
 		autoLoad?: boolean;
+		initialLoading?: boolean;
 		onError?: (err: unknown) => void;
 	}
 ) {
 	const autoLoad = opts?.autoLoad !== false;
-	let loading = $state(autoLoad);
+	let loading = $state(opts?.initialLoading ?? autoLoad);
 	let requestSeq = 0;
 
 	async function refetch(): Promise<void> {
