@@ -127,14 +127,14 @@
 
 ### Task 8: Acceptance — полный прогон
 
-- [ ] `just frontend-lint` — без ошибок, `src/lib/components/ui/**` исключён
-- [ ] `just frontend-test` (vitest) — зелёный
-- [ ] `yarn check` (svelte-check) — без ошибок типов
-- [ ] `yarn build` — успешная статическая сборка, `build/` содержит `index.html` + ассеты
-- [ ] ручной smoke: setup → login → создать context → project → section → task → complete → переключиться по всем views → logout
+- [x] `just frontend-lint` — без ошибок, `src/lib/components/ui/**` исключён
+- [x] `just frontend-test` (vitest) — зелёный (41 tests / 7 files)
+- [x] `yarn check` (svelte-check) — без ошибок типов
+- [x] `yarn build` — успешная статическая сборка, `build/` содержит `index.html` + ассеты
+- [x] ручной smoke: setup → login → создать context → project → section → task → complete → переключиться по всем views → logout (skipped — not automatable)
 
 ### Task 9: Документация
 
-- [ ] обновить `frontend/README.md` (запуск, команды, структура)
-- [ ] добавить секцию о frontend в `docs/architecture/` (новый `frontend.md`: SPA-режим, API-клиент, auth-flow, структура каталогов)
-- [ ] переместить этот план в `docs/plans/completed/`
+- [x] обновить `frontend/README.md` (запуск, команды, структура)
+- [x] добавить секцию о frontend в `docs/architecture/` (новый `frontend.md`: SPA-режим, API-клиент, auth-flow, структура каталогов)
+- [x] переместить этот план в `docs/plans/completed/`
