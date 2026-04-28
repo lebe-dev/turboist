@@ -29,7 +29,9 @@ func (h *TaskViewHandler) Register(r fiber.Router) {
 	r.Get("/tasks/overdue", h.overdue)
 	r.Get("/tasks/week", h.week)
 	r.Get("/tasks/backlog", h.backlog)
+	r.Get("/tasks/pinned", h.pinned)
 	r.Get("/tasks/completed", h.completed)
+	r.Get("/stats/plan", h.statsPlan)
 }
 
 // todayStart returns the start of the current day in the configured timezone.
@@ -130,6 +132,32 @@ func (h *TaskViewHandler) backlog(c fiber.Ctx) error {
 		return httpapi.ErrInternal("list backlog")
 	}
 	return c.JSON(viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total})
+}
+
+func (h *TaskViewHandler) pinned(c fiber.Ctx) error {
+	filter := parseViewFilter(c)
+	items, total, err := h.tasks.ListPinned(c.Context(), filter)
+	if err != nil {
+		return httpapi.ErrInternal("list pinned")
+	}
+	return c.JSON(viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total})
+}
+
+type statsPlanResponse struct {
+	Week    int `json:"week"`
+	Backlog int `json:"backlog"`
+}
+
+func (h *TaskViewHandler) statsPlan(c fiber.Ctx) error {
+	week, err := h.tasks.CountWeek(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("count week")
+	}
+	backlog, err := h.tasks.CountBacklog(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("count backlog")
+	}
+	return c.JSON(statsPlanResponse{Week: week, Backlog: backlog})
 }
 
 func tasksToDTO(tasks []model.Task, baseURL string) []dto.TaskDTO {

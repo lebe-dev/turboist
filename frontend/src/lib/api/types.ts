@@ -128,6 +128,15 @@ export interface SearchResponse {
 	projects?: ViewList<Project>;
 }
 
+export interface PlanStatsResponse {
+	week: number;
+	backlog: number;
+}
+
+export interface UserState {
+	activeContextId?: number | null;
+}
+
 export interface ConfigResponse {
 	timezone: string;
 	maxPinned: number;

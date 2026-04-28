@@ -122,6 +122,7 @@ func main() {
 	handlers.NewTaskHandler(taskRepo, taskSvc, env.BaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
+	handlers.NewStateHandler(userRepo).Register(api)
 
 	// graceful shutdown
 	quit := make(chan os.Signal, 1)

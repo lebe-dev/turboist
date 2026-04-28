@@ -11,6 +11,9 @@
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { planStatsStore } from '$lib/stores/planStats.svelte';
+	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
+	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
@@ -44,7 +47,10 @@
 					configStore.load(),
 					contextsStore.load(),
 					projectsStore.load(),
-					labelsStore.load()
+					labelsStore.load(),
+					planStatsStore.load(),
+					pinnedTasksStore.load(),
+					userStateStore.load()
 				]);
 				dataReady = true;
 			} catch (err) {

@@ -1,5 +1,13 @@
 import type { ApiClient } from '../client';
-import type { SearchQuery, SearchResponse, Task, ViewList, ViewPageQuery, ViewQuery } from '../types';
+import type {
+	PlanStatsResponse,
+	SearchQuery,
+	SearchResponse,
+	Task,
+	ViewList,
+	ViewPageQuery,
+	ViewQuery
+} from '../types';
 
 export const views = {
 	today(client: ApiClient, query: ViewPageQuery = {}): Promise<ViewList<Task>> {
@@ -24,6 +32,14 @@ export const views = {
 
 	backlog(client: ApiClient, query: ViewQuery = {}): Promise<ViewList<Task>> {
 		return client.fetch('/api/v1/tasks/backlog', { query });
+	},
+
+	pinned(client: ApiClient, query: ViewQuery = {}): Promise<ViewList<Task>> {
+		return client.fetch('/api/v1/tasks/pinned', { query });
+	},
+
+	planStats(client: ApiClient): Promise<PlanStatsResponse> {
+		return client.fetch('/api/v1/stats/plan');
 	},
 
 	search(client: ApiClient, query: SearchQuery): Promise<SearchResponse> {

@@ -85,6 +85,35 @@ func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.U
 	return u, nil
 }
 
+func (r *UserRepo) GetState(ctx context.Context, id int64) (string, error) {
+	var state string
+	err := r.db.QueryRowContext(ctx, `SELECT state FROM users WHERE id = ?`, id).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("get user state: %w", err)
+	}
+	return state, nil
+}
+
+func (r *UserRepo) SetState(ctx context.Context, id int64, state string) error {
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET state = ?, updated_at = ? WHERE id = ?`, state, now, id)
+	if err != nil {
+		return fmt.Errorf("set user state: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *UserRepo) UpdatePasswordHash(ctx context.Context, id int64, passwordHash string) error {
 	now := model.FormatUTC(time.Now())
 	res, err := r.db.ExecContext(ctx,

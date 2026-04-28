@@ -101,6 +101,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewTaskHandler(taskRepo, taskSvc, baseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, baseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
+	handlers.NewStateHandler(userRepo).Register(api)
 
 	return &smokeEnv{app: app, jwt: jwtIssuer}
 }

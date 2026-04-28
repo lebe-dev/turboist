@@ -12,7 +12,6 @@
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
-	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import SidebarSimpleIcon from 'phosphor-svelte/lib/SidebarSimple';
 	import SignOutIcon from 'phosphor-svelte/lib/SignOut';
 	import UserIcon from 'phosphor-svelte/lib/User';
@@ -20,16 +19,17 @@
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { planStatsStore } from '$lib/stores/planStats.svelte';
+	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
+	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { goto } from '$app/navigation';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import SidebarSection from './SidebarSection.svelte';
-	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 
-	let contextDialogOpen = $state(false);
 	let labelDialogOpen = $state(false);
 	let projectDialogOpen = $state(false);
 	let projectDialogContextId = $state<number | null>(null);
@@ -44,7 +44,8 @@
 		href: string;
 		label: string;
 		icon: typeof InboxIcon;
-		badge?: number;
+		current?: number;
+		limit?: number;
 		accent?: boolean;
 	};
 
@@ -52,14 +53,33 @@
 		{ href: resolve('/inbox'), label: 'Inbox', icon: InboxIcon, accent: true },
 		{ href: resolve('/today'), label: 'Today', icon: SunIcon },
 		{ href: resolve('/tomorrow'), label: 'Tomorrow', icon: SunHorizonIcon },
-		{ href: resolve('/week'), label: 'Week', icon: CalendarIcon, badge: weekLimit }
+		{
+			href: resolve('/week'),
+			label: 'Week',
+			icon: CalendarIcon,
+			current: planStatsStore.value?.week,
+			limit: weekLimit
+		}
 	]);
 
 	const planningNav = $derived<NavItem[]>([
-		{ href: resolve('/backlog'), label: 'Backlog', icon: StackIcon, badge: backlogLimit },
+		{
+			href: resolve('/backlog'),
+			label: 'Backlog',
+			icon: StackIcon,
+			current: planStatsStore.value?.backlog,
+			limit: backlogLimit
+		},
 		{ href: resolve('/overdue'), label: 'Overdue', icon: WarningIcon },
 		{ href: resolve('/search'), label: 'Search', icon: MagnifyingGlassIcon }
 	]);
+
+	const filteredProjects = $derived.by(() => {
+		const active = userStateStore.activeContextId;
+		const all = projectsStore.items ?? [];
+		if (active == null) return all;
+		return all.filter((p) => p.contextId === active);
+	});
 
 	function isActive(href: string): boolean {
 		return page.url.pathname === href;
@@ -72,6 +92,9 @@
 		projectsStore.clear();
 		labelsStore.clear();
 		configStore.clear();
+		planStatsStore.clear();
+		pinnedTasksStore.clear();
+		userStateStore.clear();
 	}
 
 	async function onLogout(): Promise<void> {
@@ -90,28 +113,30 @@
 {#snippet navLink(item: NavItem)}
 	{@const Icon = item.icon}
 	{@const active = isActive(item.href)}
+	{@const showBadge = item.current != null || item.limit != null}
 	<a
 		href={item.href as ReturnType<typeof resolve>}
-		class="group/nav flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors"
+		class="group/nav flex items-center justify-between gap-2 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors"
 		class:bg-sidebar-accent={active}
-		class:text-sidebar-accent-foreground={active && !item.accent}
-		class:font-medium={active}
+		class:text-foreground={active && !item.accent}
 		class:text-primary={item.accent}
 		class:hover:bg-sidebar-accent={!active}
-		class:hover:text-sidebar-accent-foreground={!active && !item.accent}
+		class:hover:text-foreground={!active && !item.accent}
 		aria-current={active ? 'page' : undefined}
 	>
 		<span class="flex min-w-0 items-center gap-2.5">
-			<Icon class="size-[18px] shrink-0" weight={active ? 'fill' : 'regular'} />
+			<Icon class="size-[16px] shrink-0 opacity-80" weight={active ? 'fill' : 'regular'} />
 			<span class="truncate">{item.label}</span>
 		</span>
-		{#if item.badge != null}
-			<span
-				class="font-mono text-[11px] tabular-nums"
-				class:text-primary={item.accent}
-				class:text-muted-foreground={!item.accent}
-			>
-				{item.badge}
+		{#if showBadge}
+			<span class="font-mono text-[10px] tabular-nums text-muted-foreground/70">
+				{#if item.current != null && item.limit != null}
+					{item.current}/{item.limit}
+				{:else if item.limit != null}
+					{item.limit}
+				{:else}
+					{item.current}
+				{/if}
 			</span>
 		{/if}
 	</a>
@@ -153,67 +178,57 @@
 			{/each}
 		</SidebarSection>
 
-		{#if projectsStore.pinned.length > 0}
+		{#if projectsStore.pinned.length > 0 || pinnedTasksStore.items.length > 0}
 			<SidebarSection title="Pinned">
-				{#each projectsStore.pinned as project (project.id)}
+				{#each projectsStore.pinned as project (`p-${project.id}`)}
 					{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 					{@const active = isActive(href)}
 					<a
 						{href}
-						class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+						class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 						class:bg-sidebar-accent={active}
-						class:font-medium={active}
+						class:text-foreground={active}
 					>
-						<PushPinIcon class="size-4 shrink-0 text-amber-500" weight="fill" />
+						<PushPinIcon class="size-3.5 shrink-0 text-amber-500/80" weight="fill" />
 						<span class="truncate">{project.title}</span>
+					</a>
+				{/each}
+				{#each pinnedTasksStore.items as task (`t-${task.id}`)}
+					{@const href = resolve('/(app)/task/[id]', { id: String(task.id) })}
+					{@const active = isActive(href)}
+					<a
+						{href}
+						class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+						class:bg-sidebar-accent={active}
+						class:text-foreground={active}
+					>
+						<PushPinIcon class="size-3.5 shrink-0 text-amber-500/80" weight="regular" />
+						<span class="truncate">{task.title}</span>
 					</a>
 				{/each}
 			</SidebarSection>
 		{/if}
 
-		<SidebarSection title="Contexts" collapsible onAdd={() => (contextDialogOpen = true)}>
-			{#each contextsStore.items as ctx (ctx.id)}
-				{@const ctxHref = resolve('/(app)/context/[id]', { id: String(ctx.id) })}
-				{@const ctxActive = isActive(ctxHref)}
-				<div class="group flex items-center gap-1 pr-1">
-					<a
-						href={ctxHref}
-						class="flex flex-1 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
-						class:bg-sidebar-accent={ctxActive}
-						class:font-medium={ctxActive}
-					>
-						<span
-							class="inline-block size-2 shrink-0 rounded-full"
-							style={`background-color: ${ctx.color}`}
-						></span>
-						<span class="truncate">{ctx.name}</span>
-					</a>
-					<button
-						type="button"
-						class="rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground"
-						onclick={() => {
-							projectDialogContextId = ctx.id;
-							projectDialogOpen = true;
-						}}
-						aria-label={`Add project to ${ctx.name}`}
-						title="Add project"
-					>
-						<PlusIcon class="size-3.5" />
-					</button>
-				</div>
-				{#each projectsStore.byContext(ctx.id) as project (project.id)}
-					{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
-					{@const active = isActive(href)}
-					<a
-						{href}
-						class="flex items-center gap-2 rounded-md py-1.5 pl-7 pr-2.5 text-sm transition-colors hover:bg-sidebar-accent"
-						class:bg-sidebar-accent={active}
-						class:font-medium={active}
-					>
-						<FolderIcon class="size-3.5 shrink-0 text-muted-foreground" />
-						<span class="truncate">{project.title}</span>
-					</a>
-				{/each}
+		<SidebarSection
+			title="Projects"
+			collapsible
+			onAdd={() => {
+				projectDialogContextId = userStateStore.activeContextId;
+				projectDialogOpen = true;
+			}}
+		>
+			{#each filteredProjects as project (project.id)}
+				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
+				{@const active = isActive(href)}
+				<a
+					{href}
+					class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+					class:bg-sidebar-accent={active}
+					class:text-foreground={active}
+				>
+					<FolderIcon class="size-3.5 shrink-0 opacity-70" />
+					<span class="truncate">{project.title}</span>
+				</a>
 			{/each}
 		</SidebarSection>
 
@@ -223,11 +238,11 @@
 				{@const active = isActive(href)}
 				<a
 					{href}
-					class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+					class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 					class:bg-sidebar-accent={active}
-					class:font-medium={active}
+					class:text-foreground={active}
 				>
-					<TagIcon class="size-3.5 shrink-0" style={`color: ${label.color}`} weight="fill" />
+					<TagIcon class="size-3.5 shrink-0 opacity-90" style={`color: ${label.color}`} weight="fill" />
 					<span class="truncate">{label.name}</span>
 				</a>
 			{/each}
@@ -241,9 +256,9 @@
 					<button
 						{...props}
 						type="button"
-						class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+						class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 					>
-						<UserIcon class="size-[18px] shrink-0" />
+						<UserIcon class="size-[16px] shrink-0 opacity-80" />
 						<span class="truncate">{auth.user?.username ?? ''}</span>
 					</button>
 				{/snippet}
@@ -257,17 +272,16 @@
 		<button
 			type="button"
 			onclick={onLogout}
-			class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors hover:bg-sidebar-accent"
+			class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 		>
 			<span class="flex min-w-0 items-center gap-2.5">
-				<SignOutIcon class="size-[18px] shrink-0" />
+				<SignOutIcon class="size-[16px] shrink-0 opacity-80" />
 				<span class="truncate">Log out</span>
 			</span>
-			<span class="font-mono text-[11px] tabular-nums text-muted-foreground">v{appVersion}</span>
+			<span class="font-mono text-[10px] tabular-nums text-muted-foreground/70">v{appVersion}</span>
 		</button>
 	</div>
 </aside>
 
-<ContextDialog bind:open={contextDialogOpen} />
 <LabelDialog bind:open={labelDialogOpen} />
 <ProjectDialog bind:open={projectDialogOpen} defaultContextId={projectDialogContextId} />

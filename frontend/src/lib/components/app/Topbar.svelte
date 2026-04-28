@@ -8,6 +8,10 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
+	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { toast } from 'svelte-sonner';
+	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
 
 	let {
@@ -18,8 +22,19 @@
 		onMenuClick?: () => void;
 	} = $props();
 
+	let contextDialogOpen = $state(false);
+
 	function handleSearch(): void {
 		void goto(resolve('/search'));
+	}
+
+	async function selectContext(id: number | null): Promise<void> {
+		try {
+			await userStateStore.setActiveContextId(id);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Failed to set context';
+			toast.error(message);
+		}
 	}
 </script>
 
@@ -50,6 +65,47 @@
 				<SidebarSimpleIcon class="size-5" />
 			</Button>
 		{/if}
+		<div
+			class="hidden flex-wrap items-center gap-1 md:flex"
+			role="group"
+			aria-label="Active context filter"
+		>
+			{#snippet chip(id: number | null, label: string, color?: string)}
+				{@const active = userStateStore.activeContextId === id}
+				<button
+					type="button"
+					onclick={() => selectContext(id)}
+					class="inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] transition-colors"
+					class:border-border={!active}
+					class:bg-transparent={!active}
+					class:text-muted-foreground={!active}
+					class:hover:bg-muted={!active}
+					class:hover:text-foreground={!active}
+					class:border-primary={active}
+					class:bg-primary={active}
+					class:text-primary-foreground={active}
+					aria-pressed={active}
+				>
+					{#if color}
+						<span class="size-2 shrink-0 rounded-full" style={`background-color: ${color}`}></span>
+					{/if}
+					<span class="truncate">{label}</span>
+				</button>
+			{/snippet}
+			{@render chip(null, 'All')}
+			{#each contextsStore.items as ctx (ctx.id)}
+				{@render chip(ctx.id, ctx.name, ctx.color)}
+			{/each}
+			<button
+				type="button"
+				onclick={() => (contextDialogOpen = true)}
+				class="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+				aria-label="Add context"
+				title="Add context"
+			>
+				<PlusIcon class="size-3.5" />
+			</button>
+		</div>
 		<button
 			type="button"
 			onclick={handleSearch}
@@ -77,3 +133,5 @@
 		<ThemeToggle />
 	</div>
 </header>
+
+<ContextDialog bind:open={contextDialogOpen} />

@@ -129,6 +129,11 @@ func (r *TaskRepo) ListBacklog(ctx context.Context, filter TaskFilter) ([]model.
 	return r.listWithBase(ctx, base, filter, Page{Limit: 200}, true)
 }
 
+func (r *TaskRepo) ListPinned(ctx context.Context, filter TaskFilter) ([]model.Task, int, error) {
+	base := "FROM tasks t WHERE t.is_pinned = 1 AND t.status = 'open'"
+	return r.listWithBase(ctx, base, filter, Page{Limit: 200}, true)
+}
+
 func (r *TaskRepo) listWithBase(ctx context.Context, base string, filter TaskFilter, page Page, hydrate bool) ([]model.Task, int, error) {
 	return r.listWithBaseArgs(ctx, base, nil, filter, page, hydrate)
 }
