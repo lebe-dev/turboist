@@ -63,7 +63,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(labelId)) loader.refetch();
+		if (Number.isFinite(labelId)) void loader.refetch();
 	});
 </script>
 
@@ -81,7 +81,7 @@
 
 	<div class="px-2 py-2">
 		<ViewContent
-			loading={loader.loading}
+			loading={false}
 			isEmpty={taskList.items.length === 0}
 			emptyIcon={TagIcon}
 			emptyTitle="No tasks with this label"

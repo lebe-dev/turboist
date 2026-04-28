@@ -146,7 +146,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(projectId)) loader.refetch();
+		if (Number.isFinite(projectId)) void loader.refetch();
 	});
 
 	onMount(() => {

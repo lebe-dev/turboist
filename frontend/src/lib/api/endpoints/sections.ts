@@ -1,5 +1,5 @@
 import type { ApiClient } from '../client';
-import type { ListQuery, Page, ProjectSection, SectionInput, Task, TaskInput, TasksQuery } from '../types';
+import type { Page, ProjectSection, SectionInput, Task, TaskInput, TasksQuery } from '../types';
 
 export const sections = {
 	get(client: ApiClient, id: number): Promise<ProjectSection> {
@@ -22,7 +22,7 @@ export const sections = {
 		return client.fetch(`/api/v1/sections/${id}/tasks`, { method: 'POST', body: input });
 	},
 
-	reorder(client: ApiClient, id: number, position: number, _query: ListQuery = {}): Promise<ProjectSection> {
+	reorder(client: ApiClient, id: number, position: number): Promise<ProjectSection> {
 		return client.fetch(`/api/v1/sections/${id}/reorder`, {
 			method: 'POST',
 			body: { position }
