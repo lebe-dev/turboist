@@ -154,6 +154,7 @@ type Env struct {
 	LogLevel  string
 	BaseURL   string
 	JWTSecret string
+	DataPath  string
 }
 
 func LoadEnv() (*Env, error) {
@@ -162,9 +163,13 @@ func LoadEnv() (*Env, error) {
 		LogLevel:  os.Getenv("LOG_LEVEL"),
 		BaseURL:   os.Getenv("BASE_URL"),
 		JWTSecret: os.Getenv("JWT_SECRET"),
+		DataPath:  os.Getenv("DATA_PATH"),
 	}
 	if e.LogLevel == "" {
 		e.LogLevel = "info"
+	}
+	if e.DataPath == "" {
+		e.DataPath = "data/turboist.db"
 	}
 	if e.Bind == "" {
 		return nil, fmt.Errorf("env: BIND is required")
