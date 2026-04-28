@@ -1,7 +1,8 @@
-import type { Task } from '$lib/api/types';
+import type { Task, TaskInput } from '$lib/api/types';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
+import { planStatsStore } from '$lib/stores/planStats.svelte';
 import { toast } from 'svelte-sonner';
 
 export function describeError(err: unknown, fallback: string): string {
@@ -71,3 +72,68 @@ export async function deleteTask(task: Task, mutator: ListMutator): Promise<void
 	}
 }
 
+export interface BelongsOption {
+	belongs?: (task: Task) => boolean;
+}
+
+function applyUpdate(updated: Task, mutator: ListMutator, belongs?: (t: Task) => boolean): void {
+	if (belongs && !belongs(updated)) mutator.remove(updated.id);
+	else mutator.replace(updated);
+}
+
+export async function updateTaskFields(
+	task: Task,
+	mutator: ListMutator,
+	patch: TaskInput,
+	options: BelongsOption = {}
+): Promise<void> {
+	const client = getApiClient();
+	try {
+		const updated = await tasksApi.update(client, task.id, patch);
+		applyUpdate(updated, mutator, options.belongs);
+	} catch (err) {
+		toast.error(describeError(err, 'Failed to update task'));
+	}
+}
+
+export async function moveToBacklog(
+	task: Task,
+	mutator: ListMutator,
+	options: BelongsOption = {}
+): Promise<void> {
+	const client = getApiClient();
+	try {
+		if (task.dueAt) {
+			await tasksApi.update(client, task.id, { dueAt: null, dueHasTime: false });
+		}
+		const updated = await tasksApi.plan(client, task.id, { state: 'backlog' });
+		applyUpdate(updated, mutator, options.belongs);
+		void planStatsStore.load().catch(() => {});
+	} catch (err) {
+		toast.error(describeError(err, 'Failed to move to backlog'));
+	}
+}
+
+export async function removeFromBacklog(
+	task: Task,
+	mutator: ListMutator,
+	options: BelongsOption = {}
+): Promise<void> {
+	const client = getApiClient();
+	try {
+		const updated = await tasksApi.plan(client, task.id, { state: 'none' });
+		applyUpdate(updated, mutator, options.belongs);
+		void planStatsStore.load().catch(() => {});
+	} catch (err) {
+		toast.error(describeError(err, 'Failed to remove from backlog'));
+	}
+}
+
+export async function copyTaskTitle(task: Task): Promise<void> {
+	try {
+		await navigator.clipboard.writeText(task.title);
+		toast.success('Copied');
+	} catch (err) {
+		toast.error(describeError(err, 'Failed to copy'));
+	}
+}

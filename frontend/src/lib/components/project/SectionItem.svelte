@@ -2,6 +2,7 @@
 	import type { ProjectSection, Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import type { ListMutator } from '$lib/utils/taskActions';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import PencilIcon from 'phosphor-svelte/lib/Pencil';
@@ -10,17 +11,17 @@
 	let {
 		section,
 		tasks,
+		mutator,
+		belongs,
 		onToggle,
-		onDelete,
-		onPinToggle,
 		onRename,
 		onRemove
 	}: {
 		section: ProjectSection;
 		tasks: Task[];
+		mutator?: ListMutator;
+		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
-		onDelete?: (task: Task) => void;
-		onPinToggle?: (task: Task) => void;
 		onRename?: (section: ProjectSection) => void;
 		onRemove?: (section: ProjectSection) => void;
 	} = $props();
@@ -76,9 +77,9 @@
 			<TaskTree
 				{tasks}
 				showProject={false}
+				{mutator}
+				{belongs}
 				{onToggle}
-				{onDelete}
-				{onPinToggle}
 			/>
 		{/if}
 	{/if}

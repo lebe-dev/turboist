@@ -70,7 +70,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	taskSvc := service.NewTaskService(tasks, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteService(tasks)
 	moveSvc := service.NewMoveService(tasks)
-	planSvc := service.NewPlanService(tasks, cfg.Weekly.Limit, cfg.Backlog.Limit)
+	planSvc := service.NewPlanService(tasks, ctxs, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	searchRepo := repo.NewSearchRepo(tasks, projs)
 	handlers.NewContextHandler(ctxs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(lbls, projs, tasks, testBaseURL).Register(api.Group("/labels"))

@@ -12,12 +12,7 @@
 	import { groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz, shiftDayKey } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	let items = $state<Task[]>([]);
 	let total = $state(0);
@@ -86,9 +81,9 @@
 					<TaskTree
 						tasks={group.tasks}
 						hideDayPart
+						{mutator}
+						belongs={isTomorrow}
 						onToggle={(t) => toggleComplete(t, mutator, { belongs: isTomorrow })}
-						onPinToggle={(t) => togglePin(t, mutator)}
-						onDelete={(t) => deleteTask(t, mutator)}
 					/>
 				</DayPartSection>
 			{/each}

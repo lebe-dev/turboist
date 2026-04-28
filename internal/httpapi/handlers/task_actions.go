@@ -162,6 +162,9 @@ func (h *TaskActionHandler) plan(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrPlanLimitExceeded) {
 			return httpapi.ErrLimitExceeded("plan limit exceeded")
 		}
+		if errors.Is(err, service.ErrNoContextForInbox) {
+			return httpapi.ErrValidation("create a context before planning inbox tasks")
+		}
 		return httpapi.ErrInternal("set plan state")
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))

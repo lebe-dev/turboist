@@ -3,7 +3,6 @@
 	import type { Task } from '$lib/api/types';
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
-	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
@@ -13,25 +12,27 @@
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { isOverdue } from '$lib/utils/format';
+	import type { ListMutator } from '$lib/utils/taskActions';
 	import LabelChips from './LabelChips.svelte';
 	import DateBadge from './DateBadge.svelte';
+	import TaskActionsMenu from './TaskActionsMenu.svelte';
 
 	let {
 		task,
 		depth = 0,
 		showProject = true,
 		hideDayPart = false,
-		onToggle,
-		onDelete,
-		onPinToggle
+		mutator,
+		belongs,
+		onToggle
 	}: {
 		task: Task;
 		depth?: number;
 		showProject?: boolean;
 		hideDayPart?: boolean;
+		mutator?: ListMutator;
+		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
-		onDelete?: (task: Task) => void;
-		onPinToggle?: (task: Task) => void;
 	} = $props();
 
 	const checked = $derived(task.status === 'completed');
@@ -117,30 +118,9 @@
 		{/if}
 	</div>
 
-	<div
-		class="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/task:opacity-100 focus-within:opacity-100"
-	>
-		{#if onPinToggle}
-			<button
-				type="button"
-				class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-				onclick={() => onPinToggle?.(task)}
-				aria-label={task.isPinned ? 'Unpin' : 'Pin'}
-				title={task.isPinned ? 'Unpin' : 'Pin'}
-			>
-				<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />
-			</button>
-		{/if}
-		{#if onDelete}
-			<button
-				type="button"
-				class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-				onclick={() => onDelete?.(task)}
-				aria-label="Delete"
-				title="Delete"
-			>
-				<TrashIcon class="size-4" />
-			</button>
-		{/if}
-	</div>
+	{#if mutator}
+		<div class="flex items-center self-center">
+			<TaskActionsMenu {task} {mutator} {belongs} />
+		</div>
+	{/if}
 </div>

@@ -21,12 +21,7 @@
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	const projectId = $derived(Number(page.params.id));
 
@@ -213,9 +208,8 @@
 					<TaskTree
 						tasks={tasksWithoutSection}
 						showProject={false}
+						{mutator}
 						onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-						onPinToggle={(t) => togglePin(t, mutator)}
-						onDelete={(t) => deleteTask(t, mutator)}
 					/>
 				</div>
 			{/if}
@@ -223,9 +217,8 @@
 				<SectionList
 					sections={sectionList}
 					{tasksBySection}
+					{mutator}
 					onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-					onPinToggle={(t) => togglePin(t, mutator)}
-					onDelete={(t) => deleteTask(t, mutator)}
 					onRenameSection={renameSection}
 					onRemoveSection={(sec) => {
 						pendingSectionDelete = sec;

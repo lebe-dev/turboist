@@ -19,12 +19,7 @@
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	const contextId = $derived(Number(page.params.id));
 
@@ -190,9 +185,8 @@
 		{:else}
 			<TaskTree
 				tasks={filteredTasks}
+				{mutator}
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-				onPinToggle={(t) => togglePin(t, mutator)}
-				onDelete={(t) => deleteTask(t, mutator)}
 			/>
 		{/if}
 	</div>

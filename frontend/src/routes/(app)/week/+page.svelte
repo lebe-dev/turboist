@@ -11,12 +11,7 @@
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import LimitBadge from '$lib/components/view/LimitBadge.svelte';
 	import { groupByDay } from '$lib/utils/viewGroup';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	let items = $state<Task[]>([]);
 	let total = $state(0);
@@ -87,9 +82,9 @@
 					</h2>
 					<TaskTree
 						tasks={group.tasks}
+						{mutator}
+						belongs={(t) => t.planState === 'week'}
 						onToggle={(t) => toggleComplete(t, mutator)}
-						onPinToggle={(t) => togglePin(t, mutator)}
-						onDelete={(t) => deleteTask(t, mutator)}
 					/>
 				</section>
 			{/each}

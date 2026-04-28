@@ -12,12 +12,7 @@
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { ApiError } from '$lib/api/errors';
 	import { onDestroy } from 'svelte';
 
@@ -146,9 +141,8 @@
 		{:else}
 			<TaskTree
 				{tasks}
+				{mutator}
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-				onPinToggle={(t) => togglePin(t, mutator)}
-				onDelete={(t) => deleteTask(t, mutator)}
 			/>
 		{/if}
 	{:else if projects.length === 0}

@@ -84,7 +84,7 @@ func main() {
 	taskSvc := service.NewTaskService(taskRepo, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, cfg.Location)
 	moveSvc := service.NewMoveService(taskRepo)
-	planSvc := service.NewPlanService(taskRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
+	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 
 	// session cleanup
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())

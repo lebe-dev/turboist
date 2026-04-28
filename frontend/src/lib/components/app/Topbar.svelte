@@ -75,15 +75,13 @@
 				<button
 					type="button"
 					onclick={() => selectContext(id)}
-					class="inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] transition-colors"
-					class:border-border={!active}
+					class="inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-2.5 text-[12px] transition-colors"
 					class:bg-transparent={!active}
 					class:text-muted-foreground={!active}
 					class:hover:bg-muted={!active}
 					class:hover:text-foreground={!active}
-					class:border-primary={active}
-					class:bg-primary={active}
-					class:text-primary-foreground={active}
+					class:bg-muted={active}
+					class:text-foreground={active}
 					aria-pressed={active}
 				>
 					{#if color}

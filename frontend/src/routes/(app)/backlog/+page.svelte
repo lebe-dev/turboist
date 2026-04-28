@@ -10,12 +10,7 @@
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import LimitBadge from '$lib/components/view/LimitBadge.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	let items = $state<Task[]>([]);
 	let total = $state(0);
@@ -80,9 +75,9 @@
 	{:else}
 		<TaskTree
 			tasks={items}
+			{mutator}
+			belongs={(t) => t.planState === 'backlog'}
 			onToggle={(t) => toggleComplete(t, mutator)}
-			onPinToggle={(t) => togglePin(t, mutator)}
-			onDelete={(t) => deleteTask(t, mutator)}
 		/>
 	{/if}
 </div>

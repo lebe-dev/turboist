@@ -14,12 +14,7 @@
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	const labelId = $derived(Number(page.params.id));
 
@@ -114,9 +109,8 @@
 		{:else}
 			<TaskTree
 				{tasks}
+				{mutator}
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-				onPinToggle={(t) => togglePin(t, mutator)}
-				onDelete={(t) => deleteTask(t, mutator)}
 			/>
 		{/if}
 	</div>

@@ -10,14 +10,10 @@
 	import TaskItem from '$lib/components/task/TaskItem.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
-	import { toIsoUtc, dayKeyInTz, dayStartUtcInTz, shiftDayKey } from '$lib/utils/format';
+	import { toIsoUtc, dayKeyInTz, dayStartUtcInTz, shiftDayKey, isOverdue } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { planStatsStore } from '$lib/stores/planStats.svelte';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	let items = $state<Task[]>([]);
 	let total = $state(0);
@@ -68,10 +64,15 @@
 	}
 
 	async function moveToBacklog(task: Task): Promise<void> {
+		const client = getApiClient();
 		try {
-			await tasksApi.plan(getApiClient(), task.id, { state: 'backlog' });
+			if (task.dueAt) {
+				await tasksApi.update(client, task.id, { dueAt: null, dueHasTime: false });
+			}
+			await tasksApi.plan(client, task.id, { state: 'backlog' });
 			mutator.remove(task.id);
 			toast.success('Moved to backlog');
+			void planStatsStore.load().catch(() => {});
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to move to backlog'));
 		}
@@ -100,9 +101,9 @@
 				<div class="border-b border-border/50">
 					<TaskItem
 						{task}
+						{mutator}
+						belongs={(t) => isOverdue(t.dueAt, configStore.value?.timezone ?? null)}
 						onToggle={(t) => toggleComplete(t, mutator)}
-						onPinToggle={(t) => togglePin(t, mutator)}
-						onDelete={(t) => deleteTask(t, mutator)}
 					/>
 					<div class="flex flex-wrap gap-2 px-4 pb-2 pl-10">
 						<Button size="sm" variant="outline" onclick={() => moveToDay(task, 0, 'today')}>

@@ -14,12 +14,7 @@
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
-	import {
-		toggleComplete,
-		togglePin,
-		deleteTask,
-		describeError
-	} from '$lib/utils/taskActions';
+	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 
 	let items = $state<Task[]>([]);
 	let count = $state(0);
@@ -111,9 +106,9 @@
 		<TaskTree
 			tasks={items}
 			showProject={false}
+			{mutator}
+			belongs={(t) => t.inboxId !== null}
 			onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-			onPinToggle={(t) => togglePin(t, mutator)}
-			onDelete={(t) => deleteTask(t, mutator)}
 		/>
 	{/if}
 </div>

@@ -14,7 +14,7 @@ func TestPlanService_SetWeek(t *testing.T) {
 	tlabels := repo.NewTaskLabelsRepo(d)
 	tasks := repo.NewTaskRepo(d, tlabels)
 	ctxs := repo.NewContextRepo(d)
-	svc := service.NewPlanService(tasks, 5, 10)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
@@ -38,7 +38,7 @@ func TestPlanService_WeeklyLimitEnforced(t *testing.T) {
 	tlabels := repo.NewTaskLabelsRepo(d)
 	tasks := repo.NewTaskRepo(d, tlabels)
 	ctxs := repo.NewContextRepo(d)
-	svc := service.NewPlanService(tasks, 2, 100) // limit = 2
+	svc := service.NewPlanService(tasks, ctxs, 2, 100) // limit = 2
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
@@ -67,12 +67,62 @@ func TestPlanService_WeeklyLimitEnforced(t *testing.T) {
 	}
 }
 
+func TestPlanService_InboxTaskMovedToFirstContextOnPlan(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels)
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	inboxID := int64(1)
+	task, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{InboxID: &inboxID},
+		Title:     "Inbox task",
+	})
+
+	result, err := svc.SetPlanState(ctx, task.ID, model.PlanStateBacklog)
+	if err != nil {
+		t.Fatalf("set plan state: %v", err)
+	}
+	if result.PlanState != model.PlanStateBacklog {
+		t.Errorf("planState: got %q, want %q", result.PlanState, model.PlanStateBacklog)
+	}
+	if result.InboxID != nil {
+		t.Errorf("inboxId: got %v, want nil", *result.InboxID)
+	}
+	if result.ContextID == nil || *result.ContextID != c.ID {
+		t.Errorf("contextId: got %v, want %d", result.ContextID, c.ID)
+	}
+}
+
+func TestPlanService_InboxTaskRejectedWhenNoContexts(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels)
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	inboxID := int64(1)
+	task, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{InboxID: &inboxID},
+		Title:     "Inbox task",
+	})
+
+	_, err := svc.SetPlanState(ctx, task.ID, model.PlanStateBacklog)
+	if err != service.ErrNoContextForInbox {
+		t.Errorf("error: got %v, want %v", err, service.ErrNoContextForInbox)
+	}
+}
+
 func TestPlanService_NoChangeIfSameState(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
 	tasks := repo.NewTaskRepo(d, tlabels)
 	ctxs := repo.NewContextRepo(d)
-	svc := service.NewPlanService(tasks, 1, 1) // limit = 1
+	svc := service.NewPlanService(tasks, ctxs, 1, 1) // limit = 1
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
