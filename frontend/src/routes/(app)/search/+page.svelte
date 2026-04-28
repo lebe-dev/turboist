@@ -21,6 +21,7 @@
 		describeError
 	} from '$lib/utils/taskActions';
 	import { ApiError } from '$lib/api/errors';
+	import { onDestroy } from 'svelte';
 
 	let q = $state('');
 	let active = $state<'tasks' | 'projects'>('tasks');
@@ -33,6 +34,11 @@
 	let editorOpen = $state(false);
 
 	let timer: ReturnType<typeof setTimeout> | null = null;
+	let requestSeq = 0;
+
+	onDestroy(() => {
+		if (timer) clearTimeout(timer);
+	});
 
 	const mutator = {
 		replace(t: Task) {
@@ -59,12 +65,14 @@
 		}
 		loading = true;
 		lastQuery = trimmed;
+		const seq = ++requestSeq;
 		try {
 			const res: SearchResponse = await viewsApi.search(getApiClient(), {
 				q: trimmed,
 				type: 'all',
 				limit: 100
 			});
+			if (seq !== requestSeq) return;
 			tasks = res.tasks?.items ?? [];
 			projects = res.projects?.items ?? [];
 			total = {
@@ -72,13 +80,14 @@
 				projects: res.projects?.total ?? 0
 			};
 		} catch (err) {
+			if (seq !== requestSeq) return;
 			if (err instanceof ApiError && err.code === 'validation_failed') {
 				reset();
 				return;
 			}
 			toast.error(describeError(err, 'Search failed'));
 		} finally {
-			loading = false;
+			if (seq === requestSeq) loading = false;
 		}
 	}
 
