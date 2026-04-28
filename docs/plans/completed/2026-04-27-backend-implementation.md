@@ -109,82 +109,82 @@
 **Files:**
 - Create: `internal/httpapi/server.go`, `internal/httpapi/errors.go`, `internal/httpapi/middleware.go`, `internal/httpapi/dto/common.go`, тесты
 
-- [ ] Fiber v3 app с custom ErrorHandler, маппящим типизированные ошибки (`ErrValidation`, `ErrNotFound`, `ErrConflict`, `ErrLimitExceeded`, `ErrForbiddenPlacement`, `ErrAuthInvalid`, `ErrAuthExpired`, `ErrAuthRateLimited`, `ErrSetupAlreadyDone`, `ErrRecurrenceInvalid`) в envelope `{error: {code, message, details}}` с кодами из таблицы `API.md`
-- [ ] Middleware: recover, request-id, structured access-log, AuthMiddleware (Bearer → claims в context)
-- [ ] Pagination helper: парсит `limit/offset`, дефолт 50 / max 200, формирует envelope `{items, total, limit, offset}`
-- [ ] DTO утилиты: nullable JSON (распознавание missing vs null vs value через `json.RawMessage` или `*pointer`+флаг); marshal time в формат `.000Z`
-- [ ] Регистрация маршрутов в `RegisterRoutes(app, deps)` (заглушки)
-- [ ] Тесты: ErrorHandler возвращает правильные коды и envelope; AuthMiddleware пропускает валидный bearer, отвергает битый/expired; pagination clamp
-- [ ] `just test ./internal/httpapi/...` зелёный
+- [x] Fiber v3 app с custom ErrorHandler, маппящим типизированные ошибки (`ErrValidation`, `ErrNotFound`, `ErrConflict`, `ErrLimitExceeded`, `ErrForbiddenPlacement`, `ErrAuthInvalid`, `ErrAuthExpired`, `ErrAuthRateLimited`, `ErrSetupAlreadyDone`, `ErrRecurrenceInvalid`) в envelope `{error: {code, message, details}}` с кодами из таблицы `API.md`
+- [x] Middleware: recover, request-id, structured access-log, AuthMiddleware (Bearer → claims в context)
+- [x] Pagination helper: парсит `limit/offset`, дефолт 50 / max 200, формирует envelope `{items, total, limit, offset}`
+- [x] DTO утилиты: nullable JSON (распознавание missing vs null vs value через `json.RawMessage` или `*pointer`+флаг); marshal time в формат `.000Z`
+- [x] Регистрация маршрутов в `RegisterRoutes(app, deps)` (заглушки)
+- [x] Тесты: ErrorHandler возвращает правильные коды и envelope; AuthMiddleware пропускает валидный bearer, отвергает битый/expired; pagination clamp
+- [x] `just test ./internal/httpapi/...` зелёный
 
 ### Task 8: Auth-эндпоинты
 
 **Files:**
 - Create: `internal/httpapi/handlers/auth.go`, `internal/httpapi/dto/auth.go`, тесты
 
-- [ ] `GET /auth/setup-required`, `POST /auth/setup` (410 если уже создан), `POST /auth/login`, `POST /auth/refresh` (cookie ИЛИ body), `POST /auth/logout`, `POST /auth/logout-all`, `GET /auth/me`
-- [ ] Login/setup с rate-limit per IP (10/min); `clientKind` enum-валидация; ответ `{access, refresh, user}`
-- [ ] Web (по `clientKind=web`): `Set-Cookie refresh=...; HttpOnly; Secure; SameSite=Lax; Path=/auth/refresh; Max-Age=2592000`
-- [ ] При login применять enforceLimit5 для client_kind
-- [ ] Refresh-rotation с детекцией кражи (in-memory short-lived map старых hashes — best-effort)
-- [ ] Тесты: end-to-end setup → login → refresh → me → logout; 410 на повторный setup; 401 на битый refresh; rate-limit срабатывает; cookie ставится только web
-- [ ] `just test ./internal/httpapi/handlers/...` зелёный
+- [x] `GET /auth/setup-required`, `POST /auth/setup` (410 если уже создан), `POST /auth/login`, `POST /auth/refresh` (cookie ИЛИ body), `POST /auth/logout`, `POST /auth/logout-all`, `GET /auth/me`
+- [x] Login/setup с rate-limit per IP (10/min); `clientKind` enum-валидация; ответ `{access, refresh, user}`
+- [x] Web (по `clientKind=web`): `Set-Cookie refresh=...; HttpOnly; Secure; SameSite=Lax; Path=/auth/refresh; Max-Age=2592000`
+- [x] При login применять enforceLimit5 для client_kind
+- [x] Refresh-rotation с детекцией кражи (in-memory short-lived map старых hashes — best-effort)
+- [x] Тесты: end-to-end setup → login → refresh → me → logout; 410 на повторный setup; 401 на битый refresh; rate-limit срабатывает; cookie ставится только web
+- [x] `just test ./internal/httpapi/handlers/...` зелёный
 
 ### Task 9: Contexts, Labels, Sections, Inbox handlers + Health/Version/Config
 
 **Files:**
 - Create: `internal/httpapi/handlers/{contexts,labels,sections,inbox,meta}.go`, соответствующие dto-файлы и тесты
 
-- [ ] CRUD для contexts: GET list, POST, GET/PATCH/DELETE/:id, GET /:id/projects, GET /:id/tasks (с фильтрами `status,priority,labelId,q`), POST /:id/tasks (создаёт задачу без проекта в контексте — делегирует tasks-сервису из task 11)
-- [ ] CRUD для labels: GET list (?q=), POST, GET/PATCH/DELETE/:id, GET /:id/tasks, GET /:id/projects
-- [ ] Sections: GET/PATCH/DELETE/:id, GET /:id/tasks, POST /:id/tasks; создание — `POST /projects/:id/sections`
-- [ ] Inbox: `GET /api/v1/inbox` → `{count, warnThresholdExceeded, tasks: [...]}`; `POST /api/v1/inbox/tasks` (через tasks-сервис)
-- [ ] Meta: `GET /healthz`, `GET /version` (без auth), `GET /api/v1/config` — фильтрованный публичный конфиг по схеме из API.md
-- [ ] Тесты: 200/201/204/404 кейсы; UNIQUE conflict → `conflict` envelope; CASCADE проверка через GET после DELETE
-- [ ] `just test ./...` зелёный
+- [x] CRUD для contexts: GET list, POST, GET/PATCH/DELETE/:id, GET /:id/projects, GET /:id/tasks (с фильтрами `status,priority,labelId,q`), POST /:id/tasks (создаёт задачу без проекта в контексте — делегирует tasks-сервису из task 11)
+- [x] CRUD для labels: GET list (?q=), POST, GET/PATCH/DELETE/:id, GET /:id/tasks, GET /:id/projects
+- [x] Sections: GET/PATCH/DELETE/:id, GET /:id/tasks, POST /:id/tasks; создание — `POST /projects/:id/sections`
+- [x] Inbox: `GET /api/v1/inbox` → `{count, warnThresholdExceeded, tasks: [...]}`; `POST /api/v1/inbox/tasks` (через tasks-сервис)
+- [x] Meta: `GET /healthz`, `GET /version` (без auth), `GET /api/v1/config` — фильтрованный публичный конфиг по схеме из API.md
+- [x] Тесты: 200/201/204/404 кейсы; UNIQUE conflict → `conflict` envelope; CASCADE проверка через GET после DELETE
+- [x] `just test ./...` зелёный
 
 ### Task 10: Projects handlers + actions
 
 **Files:**
 - Create: `internal/httpapi/handlers/projects.go`, `internal/service/pin.go`, тесты
 
-- [ ] CRUD: `GET /api/v1/projects` (filter contextId/status), `POST /api/v1/contexts/:id/projects`, `GET/PATCH/DELETE /api/v1/projects/:id`
-- [ ] Под-роуты: `/projects/:id/sections` (GET/POST), `/projects/:id/tasks` (GET/POST)
-- [ ] Action-эндпоинты: complete/uncomplete/cancel/archive/unarchive/pin/unpin
-- [ ] Pin-сервис: проверяет `max-pinned` для проектов отдельно от задач, ставит `pinned_at = now`
-- [ ] Hydrate labels на ответе; на вход — `labels: [name]` с резолвом в id (неизвестные → validation_failed, кроме auto-labels — но auto-labels к проектам не применяются)
-- [ ] Тесты: переходы статусов; pin > max → limit_exceeded; PATCH игнорирует placement/status/pin поля
-- [ ] `just test ./...` зелёный
+- [x] CRUD: `GET /api/v1/projects` (filter contextId/status), `POST /api/v1/contexts/:id/projects`, `GET/PATCH/DELETE /api/v1/projects/:id`
+- [x] Под-роуты: `/projects/:id/sections` (GET/POST), `/projects/:id/tasks` (GET/POST)
+- [x] Action-эндпоинты: complete/uncomplete/cancel/archive/unarchive/pin/unpin
+- [x] Pin-сервис: проверяет `max-pinned` для проектов отдельно от задач, ставит `pinned_at = now`
+- [x] Hydrate labels на ответе; на вход — `labels: [name]` с резолвом в id (неизвестные → validation_failed, кроме auto-labels — но auto-labels к проектам не применяются)
+- [x] Тесты: переходы статусов; pin > max → limit_exceeded; PATCH игнорирует placement/status/pin поля
+- [x] `just test ./...` зелёный
 
 ### Task 11: Tasks — CRUD, создание в контейнерах, subtasks, auto-labels
 
 **Files:**
 - Create: `internal/httpapi/handlers/tasks.go`, `internal/service/tasks_create.go`, `internal/service/auto_labels.go`, `internal/httpapi/dto/tasks.go`, тесты
 
-- [ ] Create-эндпоинты per API.md: `POST /contexts/:id/tasks`, `POST /projects/:id/tasks`, `POST /sections/:id/tasks`, `POST /inbox/tasks`, `POST /tasks/:parentId/subtasks` (наследует placement)
-- [ ] DTO `CreateTaskRequest` с теми же полями, partial; `min title required`
-- [ ] `GET /tasks/:id`, `PATCH /tasks/:id` (только редактируемые поля, см. API.md), `DELETE /tasks/:id`
-- [ ] Auto-labels сервис: применить правила к `title`, объединить с явными `labels`, вычесть `removedAutoLabels`; авто-создавать missing labels из `auto-labels` config
-- [ ] Подключается на create и patch (если изменился title или labels)
-- [ ] Hydrate labels + URL в ответе
-- [ ] Тесты: создание во всех контейнерах; subtask наследует поля; auto-labels: mask matched/unmatched/case-sensitive; removedAutoLabels уважается; PATCH не трогает placement; неизвестная метка → validation_failed
-- [ ] `just test ./...` зелёный
+- [x] Create-эндпоинты per API.md: `POST /contexts/:id/tasks`, `POST /projects/:id/tasks`, `POST /sections/:id/tasks`, `POST /inbox/tasks`, `POST /tasks/:parentId/subtasks` (наследует placement)
+- [x] DTO `CreateTaskRequest` с теми же полями, partial; `min title required`
+- [x] `GET /tasks/:id`, `PATCH /tasks/:id` (только редактируемые поля, см. API.md), `DELETE /tasks/:id`
+- [x] Auto-labels сервис: применить правила к `title`, объединить с явными `labels`, вычесть `removedAutoLabels`; авто-создавать missing labels из `auto-labels` config
+- [x] Подключается на create и patch (если изменился title или labels)
+- [x] Hydrate labels + URL в ответе
+- [x] Тесты: создание во всех контейнерах; subtask наследует поля; auto-labels: mask matched/unmatched/case-sensitive; removedAutoLabels уважается; PATCH не трогает placement; неизвестная метка → validation_failed
+- [x] `just test ./...` зелёный
 
 ### Task 12: Tasks actions (complete/move/plan/pin), views, bulk, search
 
 **Files:**
 - Create: `internal/httpapi/handlers/{task_actions,task_views,task_bulk,search}.go`, `internal/service/{complete,move,plan}.go`, тесты
 
-- [ ] complete: для recurring (`recurrence_rule != NULL`) парсить RRULE через rrule-go, считать next due_at от текущего due_at (или now если в прошлом); если итератор истощён → status=completed; иначе due_at=next, status=open
-- [ ] uncomplete, cancel — простые UPDATE
-- [ ] move: принимает один из inboxId / contextId{,projectId{,sectionId}} / parentId; одна транзакция: переместить задачу + всех потомков; запреты: подзадача в инбокс, цикл (target ∈ subtree)
-- [ ] plan: проверяет `weekly.limit`/`backlog.limit` до UPDATE → `limit_exceeded`
-- [ ] pin/unpin: проверяет `max-pinned` для задач (отдельно от проектов)
-- [ ] Views: `/tasks/{today,tomorrow,overdue,week,backlog}` — окна в TZ конфига; today/tomorrow/overdue с пагинацией и фильтрами `contextId,projectId,labelId,priority`; week/backlog без пагинации
-- [ ] Bulk: `/tasks/bulk/complete`, `/tasks/bulk/move` — независимые транзакции, ответ `{succeeded, failed}`
-- [ ] `GET /api/v1/search?q=&type=tasks|projects|all&limit=&offset=` — min q≥2 → validation_failed; LIKE; envelope per type
-- [ ] Тесты: recurring complete продвигает дату; cycle-detect в move; subtree-move; weekly limit; pin limit; today граница в not-UTC TZ; bulk частичный успех; search type фильтрация
-- [ ] `just test ./...` зелёный
+- [x] complete: для recurring (`recurrence_rule != NULL`) парсить RRULE через rrule-go, считать next due_at от текущего due_at (или now если в прошлом); если итератор истощён → status=completed; иначе due_at=next, status=open
+- [x] uncomplete, cancel — простые UPDATE
+- [x] move: принимает один из inboxId / contextId{,projectId{,sectionId}} / parentId; одна транзакция: переместить задачу + всех потомков; запреты: подзадача в инбокс, цикл (target ∈ subtree)
+- [x] plan: проверяет `weekly.limit`/`backlog.limit` до UPDATE → `limit_exceeded`
+- [x] pin/unpin: проверяет `max-pinned` для задач (отдельно от проектов)
+- [x] Views: `/tasks/{today,tomorrow,overdue,week,backlog}` — окна в TZ конфига; today/tomorrow/overdue с пагинацией и фильтрами `contextId,projectId,labelId,priority`; week/backlog без пагинации
+- [x] Bulk: `/tasks/bulk/complete`, `/tasks/bulk/move` — независимые транзакции, ответ `{succeeded, failed}`
+- [x] `GET /api/v1/search?q=&type=tasks|projects|all&limit=&offset=` — min q≥2 → validation_failed; LIKE; envelope per type
+- [x] Тесты: recurring complete продвигает дату; cycle-detect в move; subtree-move; weekly limit; pin limit; today граница в not-UTC TZ; bulk частичный успех; search type фильтрация
+- [x] `just test ./...` зелёный
 
 ### Task 13: Сборка main, sessions cleanup, smoke-тест
 
@@ -192,19 +192,19 @@
 - Modify: `cmd/turboist/main.go`
 - Create: `internal/httpapi/server_smoke_test.go`
 
-- [ ] В `main.go`: load config → open db → run migrations → build deps (repos, auth, services, handlers) → start session cleanup → запустить Fiber на BIND → graceful shutdown по SIGINT/SIGTERM
-- [ ] Smoke-тест: поднять весь app, прогнать setup → login → создать context/project/task → complete → views; убедиться что 200/201
-- [ ] `just test ./...` зелёный
+- [x] В `main.go`: load config → open db → run migrations → build deps (repos, auth, services, handlers) → start session cleanup → запустить Fiber на BIND → graceful shutdown по SIGINT/SIGTERM
+- [x] Smoke-тест: поднять весь app, прогнать setup → login → создать context/project/task → complete → views; убедиться что 200/201
+- [x] `just test ./...` зелёный
 
 ### Task 14: Verify acceptance criteria
 
-- [ ] `just test-all` зелёный
-- [ ] `just lint` зелёный
-- [ ] `just coverage` — `repo`, `service`, `auth` ≥ 80%
-- [ ] `just build` собирает бинарь без ошибок
+- [x] `just test-all` зелёный (backend `go test ./...` зелёный; frontend vitest не настроен — вне scope бэкенд-плана)
+- [x] `just lint` зелёный (backend `golangci-lint run ./...` — 0 issues)
+- [x] `just coverage` — `repo` 80.1%, `service` 82.2%, `auth` 82.8% — все ≥ 80%
+- [x] `just build` собирает бинарь без ошибок (`go build ./cmd/turboist`)
 
 ### Task 15: Update documentation
 
-- [ ] README.md: дополнить разделом «Backend» — как запускать, env vars, миграции
-- [ ] Создать (или обновить) `docs/architecture/backend.md` с layout `internal/...`
-- [ ] Переместить этот план в `docs/plans/completed/`
+- [x] README.md: дополнить разделом «Backend» — как запускать, env vars, миграции
+- [x] Создать (или обновить) `docs/architecture/backend.md` с layout `internal/...`
+- [x] Переместить этот план в `docs/plans/completed/`

@@ -175,5 +175,8 @@ func LoadEnv() (*Env, error) {
 	if e.JWTSecret == "" {
 		return nil, fmt.Errorf("env: JWT_SECRET is required")
 	}
+	if len(e.JWTSecret) < 32 {
+		return nil, fmt.Errorf("env: JWT_SECRET must be at least 32 bytes")
+	}
 	return e, nil
 }

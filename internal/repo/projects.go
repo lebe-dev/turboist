@@ -261,3 +261,56 @@ func (r *ProjectRepo) Delete(ctx context.Context, id int64) error {
 	}
 	return nil
 }
+
+func (r *ProjectRepo) SetLabels(ctx context.Context, projectID int64, labelIDs []int64) error {
+	if r.labels == nil {
+		return nil
+	}
+	return r.labels.SetForProject(ctx, projectID, labelIDs)
+}
+
+func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page) ([]model.Project, int, error) {
+	page = page.Normalize()
+	var total int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM projects p
+		 JOIN project_labels pl ON pl.project_id = p.id
+		 WHERE pl.label_id = ?`, labelID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count projects by label: %w", err)
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status,
+		        p.is_pinned, p.pinned_at, p.created_at, p.updated_at
+		 FROM projects p
+		 JOIN project_labels pl ON pl.project_id = p.id
+		 WHERE pl.label_id = ?
+		 ORDER BY p.is_pinned DESC, p.pinned_at DESC, p.created_at DESC
+		 LIMIT ? OFFSET ?`, labelID, page.Limit, page.Offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list projects by label: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]model.Project, 0)
+	ids := make([]int64, 0)
+	for rows.Next() {
+		p, err := scanProject(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *p)
+		ids = append(ids, p.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if r.labels != nil && len(ids) > 0 {
+		hydrated, err := r.labels.LabelsByProjectIDs(ctx, ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range out {
+			out[i].Labels = hydrated[out[i].ID]
+		}
+	}
+	return out, total, nil
+}

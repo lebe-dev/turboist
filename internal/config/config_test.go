@@ -140,7 +140,7 @@ func TestLoadEnv_MissingRequired(t *testing.T) {
 func TestLoadEnv_OK(t *testing.T) {
 	t.Setenv("BIND", "0.0.0.0:8080")
 	t.Setenv("BASE_URL", "https://x.test")
-	t.Setenv("JWT_SECRET", "supersecret")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
 	t.Setenv("LOG_LEVEL", "")
 	e, err := LoadEnv()
 	if err != nil {
@@ -148,5 +148,14 @@ func TestLoadEnv_OK(t *testing.T) {
 	}
 	if e.LogLevel != "info" {
 		t.Fatalf("default LOG_LEVEL must be info, got %q", e.LogLevel)
+	}
+}
+
+func TestLoadEnv_JWTSecretTooShort(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "short")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "32 bytes") {
+		t.Fatalf("expected JWT_SECRET length error, got %v", err)
 	}
 }

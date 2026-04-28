@@ -1,0 +1,97 @@
+package dto
+
+import (
+	"github.com/lebe-dev/turboist/internal/model"
+)
+
+type TaskDTO struct {
+	ID              int64      `json:"id"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	InboxID         *int64     `json:"inboxId,omitempty"`
+	ContextID       *int64     `json:"contextId,omitempty"`
+	ProjectID       *int64     `json:"projectId,omitempty"`
+	SectionID       *int64     `json:"sectionId,omitempty"`
+	ParentID        *int64     `json:"parentId,omitempty"`
+	Priority        string     `json:"priority"`
+	Status          string     `json:"status"`
+	DueAt           *string    `json:"dueAt"`
+	DueHasTime      bool       `json:"dueHasTime"`
+	DeadlineAt      *string    `json:"deadlineAt"`
+	DeadlineHasTime bool       `json:"deadlineHasTime"`
+	DayPart         string     `json:"dayPart"`
+	PlanState       string     `json:"planState"`
+	IsPinned        bool       `json:"isPinned"`
+	PinnedAt        *string    `json:"pinnedAt"`
+	RecurrenceRule  *string    `json:"recurrenceRule"`
+	Labels          []LabelDTO `json:"labels"`
+	URL             string     `json:"url"`
+	CreatedAt       string     `json:"createdAt"`
+	UpdatedAt       string     `json:"updatedAt"`
+}
+
+func TaskFromModel(t model.Task, baseURL string) TaskDTO {
+	labels := make([]LabelDTO, len(t.Labels))
+	for i, l := range t.Labels {
+		labels[i] = LabelFromModel(l)
+	}
+	return TaskDTO{
+		ID:              t.ID,
+		Title:           t.Title,
+		Description:     t.Description,
+		InboxID:         t.InboxID,
+		ContextID:       t.ContextID,
+		ProjectID:       t.ProjectID,
+		SectionID:       t.SectionID,
+		ParentID:        t.ParentID,
+		Priority:        string(t.Priority),
+		Status:          string(t.Status),
+		DueAt:           FormatTimePtr(t.DueAt),
+		DueHasTime:      t.DueHasTime,
+		DeadlineAt:      FormatTimePtr(t.DeadlineAt),
+		DeadlineHasTime: t.DeadlineHasTime,
+		DayPart:         string(t.DayPart),
+		PlanState:       string(t.PlanState),
+		IsPinned:        t.IsPinned,
+		PinnedAt:        FormatTimePtr(t.PinnedAt),
+		RecurrenceRule:  t.RecurrenceRule,
+		Labels:          labels,
+		URL:             t.URL(baseURL),
+		CreatedAt:       FormatTime(t.CreatedAt),
+		UpdatedAt:       FormatTime(t.UpdatedAt),
+	}
+}
+
+// CreateTaskRequest is the shared body for all task creation endpoints.
+type CreateTaskRequest struct {
+	Title             string   `json:"title"`
+	Description       string   `json:"description"`
+	Priority          string   `json:"priority"`
+	DueAt             *string  `json:"dueAt"`
+	DueHasTime        bool     `json:"dueHasTime"`
+	DeadlineAt        *string  `json:"deadlineAt"`
+	DeadlineHasTime   bool     `json:"deadlineHasTime"`
+	DayPart           string   `json:"dayPart"`
+	PlanState         string   `json:"planState"`
+	RecurrenceRule    *string  `json:"recurrenceRule"`
+	Labels            []string `json:"labels"`
+	RemovedAutoLabels []string `json:"removedAutoLabels"`
+}
+
+// PatchTaskRequest is the body for PATCH /tasks/:id.
+// Only editable fields are accepted; placement, status, and pin are managed via action endpoints.
+// Optional[string] distinguishes absent, null (clear), and set value.
+type PatchTaskRequest struct {
+	Title             *string          `json:"title"`
+	Description       *string          `json:"description"`
+	Priority          *string          `json:"priority"`
+	DueAt             Optional[string] `json:"dueAt"`
+	DueHasTime        *bool            `json:"dueHasTime"`
+	DeadlineAt        Optional[string] `json:"deadlineAt"`
+	DeadlineHasTime   *bool            `json:"deadlineHasTime"`
+	DayPart           *string          `json:"dayPart"`
+	PlanState         *string          `json:"planState"`
+	RecurrenceRule    Optional[string] `json:"recurrenceRule"`
+	Labels            *[]string        `json:"labels"`
+	RemovedAutoLabels []string         `json:"removedAutoLabels"`
+}
