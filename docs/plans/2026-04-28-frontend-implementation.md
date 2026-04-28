@@ -41,11 +41,11 @@
 - Create: `frontend/src/lib/auth/store.svelte.ts` (runes-based), `frontend/src/lib/auth/guard.ts`
 - Tests: `frontend/src/lib/api/client.test.ts`, `frontend/src/lib/auth/store.test.ts`
 
-- [ ] `client.ts`: `apiFetch<T>(path, init)` — добавляет `Authorization: Bearer`, обрабатывает 401 `auth_expired` → один параллельный `/auth/refresh` (singleflight через Promise) → retry; парсит error envelope в `ApiError(code, message, details, status)`
-- [ ] `endpoints/*` — типизированные обёртки над всеми эндпоинтами из `API.md` (config, contexts CRUD + tasks/projects, projects CRUD + actions complete/uncomplete/cancel/archive/unarchive/pin/unpin, sections CRUD + reorder, tasks CRUD + complete/uncomplete/cancel/move/plan/unplan/pin/unpin, labels CRUD, views inbox/today/tomorrow/week/backlog/overdue, search)
-- [ ] `types.ts` — DTO из `structs.md`/API.md (Context, Project, Section, Task, Label, View responses, Config); enums (Priority, Status, ColorToken, DayPart)
-- [ ] `auth/store.svelte.ts` — runes-state `{ user, accessToken, status: 'loading'|'guest'|'authenticated' }`; методы `bootstrap()` (вызов `/auth/setup-required` + попытка refresh), `login`, `setup`, `logout`, `logoutAll`
-- [ ] тесты: refresh-singleflight (два параллельных 401 → один `/auth/refresh`), error-envelope-парсинг, повтор после refresh, окончательный logout если refresh 401
+- [x] `client.ts`: `apiFetch<T>(path, init)` — добавляет `Authorization: Bearer`, обрабатывает 401 `auth_expired` → один параллельный `/auth/refresh` (singleflight через Promise) → retry; парсит error envelope в `ApiError(code, message, details, status)`
+- [x] `endpoints/*` — типизированные обёртки над всеми эндпоинтами из `API.md` (config, contexts CRUD + tasks/projects, projects CRUD + actions complete/uncomplete/cancel/archive/unarchive/pin/unpin, sections CRUD + reorder, tasks CRUD + complete/uncomplete/cancel/move/plan/unplan/pin/unpin, labels CRUD, views inbox/today/tomorrow/week/backlog/overdue, search)
+- [x] `types.ts` — DTO из `structs.md`/API.md (Context, Project, Section, Task, Label, View responses, Config); enums (Priority, Status, ColorToken, DayPart)
+- [x] `auth/store.svelte.ts` — runes-state `{ user, accessToken, status: 'loading'|'guest'|'authenticated' }`; методы `bootstrap()` (вызов `/auth/setup-required` + попытка refresh), `login`, `setup`, `logout`, `logoutAll`
+- [x] тесты: refresh-singleflight (два параллельных 401 → один `/auth/refresh`), error-envelope-парсинг, повтор после refresh, окончательный logout если refresh 401
 
 ### Task 3: App shell — auth-routes, layout с sidebar, тема
 
