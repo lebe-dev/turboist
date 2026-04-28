@@ -143,13 +143,15 @@ export class ApiClient {
 				credentials: 'include'
 			});
 		} catch {
-			this.setAccessToken(null);
-			this.onRefreshFailure();
+			// Network error: leave session intact; caller will see the original 401 and surface it.
 			return null;
 		}
 		if (!response.ok) {
-			this.setAccessToken(null);
-			this.onRefreshFailure();
+			// Only treat actual auth rejection as a forced logout; transient 5xx must not log the user out.
+			if (response.status === 401 || response.status === 403) {
+				this.setAccessToken(null);
+				this.onRefreshFailure();
+			}
 			return null;
 		}
 		const data = (await response.json()) as RefreshResponseBody;

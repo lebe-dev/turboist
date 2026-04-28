@@ -3,6 +3,8 @@
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import { getAuthStore } from '$lib/auth/store.svelte';
+	import { decideAuthRedirect } from '$lib/auth/guard';
+	import { page } from '$app/state';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -46,8 +48,9 @@
 	}
 
 	$effect(() => {
-		if (auth.status === 'guest') {
-			void goto(resolve('/login'));
+		const redirect = decideAuthRedirect(auth, page.url.pathname);
+		if (redirect && redirect !== page.url.pathname) {
+			void goto(resolve(redirect));
 			return;
 		}
 		if (auth.status !== 'authenticated' || loadStarted) return;
