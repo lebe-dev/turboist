@@ -18,6 +18,7 @@
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
+	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import {
 		toggleComplete,
 		togglePin,
@@ -37,6 +38,7 @@
 	let editing = $state<Task | null>(null);
 	let editorOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
+	let editOpen = $state(false);
 
 	const filteredTasks = $derived(
 		activeProjectId === 'all'
@@ -133,6 +135,7 @@
 {:else}
 	<ContextHeader
 		{context}
+		onEdit={() => (editOpen = true)}
 		onToggleFavourite={toggleFavourite}
 		onDelete={() => (confirmDeleteOpen = true)}
 	/>
@@ -190,6 +193,11 @@
 		bind:open={editorOpen}
 		task={editing}
 		onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+	/>
+	<ContextDialog
+		bind:open={editOpen}
+		initial={context}
+		onSaved={(c) => (context = c)}
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}

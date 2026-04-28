@@ -19,6 +19,8 @@
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
+	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
+	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
 	import {
 		toggleComplete,
 		togglePin,
@@ -39,6 +41,9 @@
 	let confirmDeleteOpen = $state(false);
 	let confirmSectionOpen = $state(false);
 	let pendingSectionDelete = $state<ProjectSection | null>(null);
+	let editProjectOpen = $state(false);
+	let sectionDialogOpen = $state(false);
+	let editingSection = $state<ProjectSection | null>(null);
 
 	const tasksWithoutSection = $derived(tasks.filter((t) => t.sectionId === null));
 	const tasksBySection = $derived.by(() => {
@@ -129,29 +134,19 @@
 		}
 	}
 
-	async function renameSection(sec: ProjectSection) {
-		const next = prompt('Rename section', sec.title);
-		if (!next || next.trim() === '' || next === sec.title) return;
-		try {
-			const updated = await sectionsApi.update(getApiClient(), sec.id, { title: next.trim() });
-			sectionList = sectionList.map((s) => (s.id === sec.id ? updated : s));
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to rename section'));
-		}
+	function renameSection(sec: ProjectSection) {
+		editingSection = sec;
+		sectionDialogOpen = true;
 	}
 
-	async function addSection() {
-		if (!project) return;
-		const title = prompt('Section title');
-		if (!title || !title.trim()) return;
-		try {
-			const created = await projectsApi.createSection(getApiClient(), project.id, {
-				title: title.trim()
-			});
-			sectionList = [...sectionList, created];
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to create section'));
-		}
+	function addSection() {
+		editingSection = null;
+		sectionDialogOpen = true;
+	}
+
+	function onSectionSaved(saved: ProjectSection) {
+		const i = sectionList.findIndex((s) => s.id === saved.id);
+		sectionList = i >= 0 ? sectionList.map((s) => (s.id === saved.id ? saved : s)) : [...sectionList, saved];
 	}
 
 	function openEditor(task: Task): void {
@@ -182,6 +177,7 @@
 		onUnarchive={() => action('unarchive')}
 		onPin={() => action('pin')}
 		onUnpin={() => action('unpin')}
+		onEdit={() => (editProjectOpen = true)}
 		onDelete={() => (confirmDeleteOpen = true)}
 	/>
 
@@ -234,6 +230,17 @@
 		{/if}
 	</div>
 
+	<ProjectDialog
+		bind:open={editProjectOpen}
+		initial={project}
+		onSaved={(p) => (project = p)}
+	/>
+	<SectionDialog
+		bind:open={sectionDialogOpen}
+		initial={editingSection}
+		projectId={project.id}
+		onSaved={onSectionSaved}
+	/>
 	<QuickAddDialog bind:open={quickOpen} onSubmit={onQuickSubmit} defaultProjectId={project.id} />
 	<TaskEditorSheet
 		bind:open={editorOpen}

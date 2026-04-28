@@ -11,11 +11,20 @@
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import SidebarSection from './SidebarSection.svelte';
+	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
+	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
+	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
+
+	let contextDialogOpen = $state(false);
+	let labelDialogOpen = $state(false);
+	let projectDialogOpen = $state(false);
+	let projectDialogContextId = $state<number | null>(null);
 
 	const weekLimit = $derived(configStore.value?.weekly.limit);
 	const backlogLimit = $derived(configStore.value?.backlog.limit);
@@ -79,20 +88,34 @@
 		</SidebarSection>
 	{/if}
 
-	<SidebarSection title="Contexts" collapsible>
+	<SidebarSection title="Contexts" collapsible onAdd={() => (contextDialogOpen = true)}>
 		{#each contextsStore.items as ctx (ctx.id)}
 			{@const ctxHref = resolve('/(app)/context/[id]', { id: String(ctx.id) })}
-			<a
-				href={ctxHref}
-				class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sidebar-accent"
-				class:bg-sidebar-accent={isActive(ctxHref)}
-			>
-				<span
-					class="inline-block size-2 shrink-0 rounded-full"
-					style={`background-color: ${ctx.color}`}
-				></span>
-				<span class="truncate">{ctx.name}</span>
-			</a>
+			<div class="group flex items-center gap-1 pr-1">
+				<a
+					href={ctxHref}
+					class="flex flex-1 items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sidebar-accent"
+					class:bg-sidebar-accent={isActive(ctxHref)}
+				>
+					<span
+						class="inline-block size-2 shrink-0 rounded-full"
+						style={`background-color: ${ctx.color}`}
+					></span>
+					<span class="truncate">{ctx.name}</span>
+				</a>
+				<button
+					type="button"
+					class="rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground"
+					onclick={() => {
+						projectDialogContextId = ctx.id;
+						projectDialogOpen = true;
+					}}
+					aria-label={`Add project to ${ctx.name}`}
+					title="Add project"
+				>
+					<PlusIcon class="size-3" />
+				</button>
+			</div>
 			{#each projectsStore.byContext(ctx.id) as project (project.id)}
 				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 				<a
@@ -107,19 +130,21 @@
 		{/each}
 	</SidebarSection>
 
-	{#if labelsOrdered.length > 0}
-		<SidebarSection title="Labels" collapsible>
-			{#each labelsOrdered as label (label.id)}
-				{@const href = resolve('/(app)/label/[id]', { id: String(label.id) })}
-				<a
-					{href}
-					class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sidebar-accent"
-					class:bg-sidebar-accent={isActive(href)}
-				>
-					<TagIcon class="size-3" style={`color: ${label.color}`} />
-					<span class="truncate">{label.name}</span>
-				</a>
-			{/each}
-		</SidebarSection>
-	{/if}
+	<SidebarSection title="Labels" collapsible onAdd={() => (labelDialogOpen = true)}>
+		{#each labelsOrdered as label (label.id)}
+			{@const href = resolve('/(app)/label/[id]', { id: String(label.id) })}
+			<a
+				{href}
+				class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sidebar-accent"
+				class:bg-sidebar-accent={isActive(href)}
+			>
+				<TagIcon class="size-3" style={`color: ${label.color}`} />
+				<span class="truncate">{label.name}</span>
+			</a>
+		{/each}
+	</SidebarSection>
 </aside>
+
+<ContextDialog bind:open={contextDialogOpen} />
+<LabelDialog bind:open={labelDialogOpen} />
+<ProjectDialog bind:open={projectDialogOpen} defaultContextId={projectDialogContextId} />

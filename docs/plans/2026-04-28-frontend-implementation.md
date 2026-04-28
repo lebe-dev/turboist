@@ -119,11 +119,11 @@
 - Create: `frontend/src/lib/components/dialog/{ContextDialog.svelte,ProjectDialog.svelte,SectionDialog.svelte,LabelDialog.svelte,ConfirmDestructiveDialog.svelte}`
 - Modify: Sidebar и соответствующие Header-компоненты (кнопки Add/Edit/Delete)
 
-- [ ] Context: name, color (палитра colorToken из config), isFavourite
-- [ ] Project: title, description, color, contextId, labels[]
-- [ ] Section: title (только в проекте)
-- [ ] Label: name, color, isFavourite
-- [ ] всё через соответствующие endpoints, оптимистичные обновления stores; на ошибке валидации/конфликта — toast (svelte-sonner уже в deps)
+- [x] Context: name, color (палитра colorToken из config), isFavourite
+- [x] Project: title, description, color, contextId, labels[]
+- [x] Section: title (только в проекте)
+- [x] Label: name, color, isFavourite
+- [x] всё через соответствующие endpoints, оптимистичные обновления stores; на ошибке валидации/конфликта — toast (svelte-sonner уже в deps)
 
 ### Task 8: Acceptance — полный прогон
 

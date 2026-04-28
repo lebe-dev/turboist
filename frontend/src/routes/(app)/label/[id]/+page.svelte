@@ -14,6 +14,7 @@
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
+	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import {
 		toggleComplete,
 		togglePin,
@@ -30,6 +31,7 @@
 	let editing = $state<Task | null>(null);
 	let editorOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
+	let editOpen = $state(false);
 
 	const mutator = {
 		replace(t: Task) {
@@ -101,6 +103,7 @@
 {:else}
 	<LabelHeader
 		{label}
+		onEdit={() => (editOpen = true)}
 		onToggleFavourite={toggleFavourite}
 		onDelete={() => (confirmDeleteOpen = true)}
 	/>
@@ -127,6 +130,11 @@
 		bind:open={editorOpen}
 		task={editing}
 		onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
+	/>
+	<LabelDialog
+		bind:open={editOpen}
+		initial={label}
+		onSaved={(l) => (label = l)}
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}
