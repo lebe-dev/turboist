@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { groupByDayPart, groupByDay } from './viewGroup';
 import type { Task } from '../api/types';
 
@@ -51,11 +51,13 @@ describe('groupByDayPart', () => {
 });
 
 describe('groupByDay', () => {
+	afterEach(() => vi.useRealTimers());
+
 	it('buckets by local calendar day, sorted ascending', () => {
-		const today = new Date();
-		today.setHours(10, 0, 0, 0);
-		const tomorrow = new Date(today);
-		tomorrow.setDate(tomorrow.getDate() + 1);
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-15T10:00:00.000Z'));
+		const today = new Date('2026-01-15T10:00:00.000Z');
+		const tomorrow = new Date('2026-01-16T10:00:00.000Z');
 		const tasks = [
 			makeTask({ id: 1, dueAt: tomorrow.toISOString() }),
 			makeTask({ id: 2, dueAt: today.toISOString() }),
@@ -69,7 +71,9 @@ describe('groupByDay', () => {
 	});
 
 	it('places dateless tasks into a No date bucket at the end', () => {
-		const today = new Date();
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-15T10:00:00.000Z'));
+		const today = new Date('2026-01-15T10:00:00.000Z');
 		const tasks = [
 			makeTask({ id: 1, dueAt: null }),
 			makeTask({ id: 2, dueAt: today.toISOString() })

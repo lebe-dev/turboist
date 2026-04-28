@@ -65,9 +65,33 @@ Runes-обёртки `*.svelte.ts` для редко меняющихся спр
 - `QuickAddDialog` — title + project + priority + due + labels.
 - `TaskEditorSheet` — полная форма: description, priority, dueDate, dayPart, plannedFor, labels, removedAutoLabels, parentId, sectionId, RRULE.
 
+## Хуки (`src/lib/hooks`)
+
+Переиспользуемые Svelte 5 runes-хуки, устраняющие boilerplate в маршрутах и диалогах.
+
+- `usePageLoad(fetcher, opts?)` — оборачивает асинхронный запрос: `requestSeq`-счётчик для сброса устаревших ответов при быстрой навигации, реактивный `loading`, метод `refetch()`. На ошибке вызывает `toast.error` или пользовательский `onError`. `autoLoad: false` отключает автоматический вызов при монтировании — caller сам зовёт `refetch()` через `$effect`.
+- `useFormDialog()` — возвращает `submitting` и `submit(fn, messages)`: guard от двойного сабмита, toast при успехе и ошибке.
+- `useListMutator<T>()` — держит `$state`-массив элементов; возвращает геттер `items` и `{ replace, remove }`.
+- `is-mobile.svelte.ts` — реактивный breakpoint-хелпер на базе `MediaQuery`.
+
+Barrel-экспорт: `$lib/hooks`.
+
+## View-компоненты (`src/lib/components/view`)
+
+Переиспользуемые UI-блоки для view-маршрутов.
+
+- `ViewContent` — трёхсостоятельная обёртка: `{#if loading}` спиннер, `{:else if isEmpty}` `<EmptyState>`, `{:else}` children. Принимает `loading`, `isEmpty`, `emptyIcon`, `emptyTitle`, `emptyDescription` и `children` snippet.
+- `ViewHeader` — заголовок страницы с кнопками действий.
+- `EmptyState` — центрированный плейсхолдер с иконкой, заголовком, описанием.
+- `DayPartSection` / `DayPartSectionHeader` — секция с иконкой и временным интервалом дня; используется в Today/Tomorrow.
+- `CompletedTodayFooter` — сворачиваемый список задач, завершённых сегодня; загружает `GET /api/v1/views/completed-today` лениво при раскрытии.
+- `LimitBadge` — бейдж числового лимита (используется в Week).
+
+Barrel-экспорт: `$lib/components/view`.
+
 ## CRUD-диалоги (`src/lib/components/dialog`)
 
-`ContextDialog`, `ProjectDialog`, `SectionDialog`, `LabelDialog`, `ConfirmDestructiveDialog` — переиспользуются из Sidebar и pivot-headers. На сабмите — соответствующий endpoint, оптимистичное обновление store, toast при ошибке.
+`ContextDialog`, `ProjectDialog`, `SectionDialog`, `LabelDialog`, `ConfirmDestructiveDialog` — переиспользуются из Sidebar и pivot-headers. На сабмите — через `useFormDialog()`: guard от двойного сабмита, toast при успехе и ошибке, оптимистичное обновление store.
 
 ## Тестирование
 

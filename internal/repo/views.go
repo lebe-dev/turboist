@@ -44,8 +44,9 @@ func (f TaskFilter) where() (string, []any) {
 		args = append(args, string(*f.Status))
 	}
 	if q := strings.TrimSpace(f.Query); q != "" {
-		conds = append(conds, "(t.title LIKE ? OR t.description LIKE ?)")
-		like := "%" + q + "%"
+		conds = append(conds, "(t.title LIKE ? ESCAPE '\\' OR t.description LIKE ? ESCAPE '\\')")
+		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q)
+		like := "%" + escaped + "%"
 		args = append(args, like, like)
 	}
 	if len(conds) == 0 {

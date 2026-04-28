@@ -50,6 +50,7 @@ func setupAuthTest(t *testing.T) *testEnv {
 	t.Cleanup(limiter.Stop)
 
 	handler := handlers.NewAuthHandler(users, sessions, issuer, limiter)
+	t.Cleanup(handler.Stop)
 
 	deps := httpapi.Deps{JWTIssuer: issuer}
 	app := httpapi.NewApp(deps)

@@ -22,7 +22,7 @@ describe('SidebarSection', () => {
 		expect(screen.getByTestId('content')).not.toBeNull();
 	});
 
-	it('hides children when collapsible toggled closed', async () => {
+	it('hides children when defaultOpen is false', async () => {
 		const { container } = render(SidebarSection, {
 			props: {
 				title: 'Labels',

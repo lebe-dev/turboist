@@ -45,6 +45,9 @@ func NewAuthHandler(
 	}
 }
 
+// Stop releases background goroutines started by this handler.
+func (h *AuthHandler) Stop() { h.theft.stop() }
+
 // RegisterAuth wires /auth routes onto r. Protected routes (logout, me) use jwtIssuer middleware.
 func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
 	r.Get("/setup-required", h.setupRequired)
@@ -300,14 +303,20 @@ type theftCacheEntry struct {
 }
 
 type theftCache struct {
-	mu      sync.Mutex
-	entries map[string]theftCacheEntry
+	mu       sync.Mutex
+	entries  map[string]theftCacheEntry
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 func newTheftCache() *theftCache {
-	tc := &theftCache{entries: make(map[string]theftCacheEntry)}
+	tc := &theftCache{entries: make(map[string]theftCacheEntry), stopCh: make(chan struct{})}
 	go tc.gc()
 	return tc
+}
+
+func (tc *theftCache) stop() {
+	tc.stopOnce.Do(func() { close(tc.stopCh) })
 }
 
 func (tc *theftCache) record(hash string, sessionID int64) {
@@ -329,14 +338,19 @@ func (tc *theftCache) wasRotated(hash string) (int64, bool) {
 func (tc *theftCache) gc() {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
-	for range t.C {
-		tc.mu.Lock()
-		now := time.Now()
-		for k, e := range tc.entries {
-			if now.After(e.expires) {
-				delete(tc.entries, k)
+	for {
+		select {
+		case <-tc.stopCh:
+			return
+		case <-t.C:
+			tc.mu.Lock()
+			now := time.Now()
+			for k, e := range tc.entries {
+				if now.After(e.expires) {
+					delete(tc.entries, k)
+				}
 			}
+			tc.mu.Unlock()
 		}
-		tc.mu.Unlock()
 	}
 }

@@ -110,7 +110,8 @@ func main() {
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)
 
-	handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter).RegisterAuth(app.Group("/auth"), jwtIssuer)
+	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter)
+	authHandler.RegisterAuth(app.Group("/auth"), jwtIssuer)
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, env.BaseURL).Register(api.Group("/labels"))
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))
@@ -132,6 +133,7 @@ func main() {
 		<-quit
 		log.Info("shutting down")
 		cleanupCancel()
+		authHandler.Stop()
 		if err := app.ShutdownWithTimeout(5 * time.Second); err != nil {
 			log.Error("shutdown error", "err", err)
 		}
