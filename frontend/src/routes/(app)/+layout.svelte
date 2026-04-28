@@ -22,15 +22,12 @@
 
 	let dataReady = $state(false);
 	let loadStarted = $state(false);
+	let loadFailed = $state(false);
 	let quickOpen = $state(false);
 
-	$effect(() => {
-		if (auth.status === 'guest') {
-			void goto(resolve('/login'));
-			return;
-		}
-		if (auth.status !== 'authenticated' || loadStarted) return;
+	function startLoad(): void {
 		loadStarted = true;
+		loadFailed = false;
 		void (async () => {
 			try {
 				await Promise.all([
@@ -43,10 +40,24 @@
 			} catch (err) {
 				const message = err instanceof Error ? err.message : 'Failed to load workspace';
 				toast.error(message);
-				loadStarted = false;
+				loadFailed = true;
 			}
 		})();
+	}
+
+	$effect(() => {
+		if (auth.status === 'guest') {
+			void goto(resolve('/login'));
+			return;
+		}
+		if (auth.status !== 'authenticated' || loadStarted) return;
+		startLoad();
 	});
+
+	function retryLoad(): void {
+		loadStarted = false;
+		startLoad();
+	}
 
 	function onQuickAdd(): void {
 		quickOpen = true;
@@ -61,16 +72,19 @@
 			if (target.projectId !== null) {
 				await projectsApi.createTask(client, target.projectId, payload);
 				toast.success('Task added to project');
+				void goto(resolve('/(app)/project/[id]', { id: String(target.projectId) }));
 				return;
 			}
 			await tasksApi.createInbox(client, payload);
 			toast.success('Task added to inbox');
+			void goto(resolve('/(app)/inbox'));
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
 		}
 	}
 
 	function onKeydown(e: KeyboardEvent): void {
+		if (e.metaKey || e.ctrlKey || e.altKey) return;
 		const target = e.target as HTMLElement | null;
 		if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
 			return;
@@ -87,9 +101,14 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-{#if auth.status !== 'authenticated' || !dataReady}
+{#if auth.status !== 'authenticated' || (!dataReady && !loadFailed)}
 	<div class="flex h-screen items-center justify-center text-sm text-muted-foreground">
 		Loading workspace…
+	</div>
+{:else if loadFailed && !dataReady}
+	<div class="flex h-screen flex-col items-center justify-center gap-3 text-sm">
+		<p class="text-muted-foreground">Failed to load workspace.</p>
+		<button class="rounded-md border px-3 py-1 hover:bg-muted" onclick={retryLoad}>Retry</button>
 	</div>
 {:else}
 	<div class="flex h-screen overflow-hidden bg-background">
