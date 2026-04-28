@@ -33,6 +33,10 @@ func (h *SearchHandler) search_(c fiber.Ctx) error {
 		return httpapi.ErrValidation("q must be at least 2 characters")
 	}
 	searchType := c.Query("type", "all")
+	if searchType != "tasks" && searchType != "projects" && searchType != "all" {
+		return httpapi.ErrValidation("type must be tasks, projects, or all")
+	}
+
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	page := repo.Page{Limit: pp.Limit, Offset: pp.Offset}
 
@@ -54,10 +58,6 @@ func (h *SearchHandler) search_(c fiber.Ctx) error {
 		}
 		r := dto.NewPagedResponse(projectsToDTO(projects), total, pp.Limit, pp.Offset)
 		resp.Projects = &r
-	}
-
-	if searchType != "tasks" && searchType != "projects" && searchType != "all" {
-		return httpapi.ErrValidation("type must be tasks, projects, or all")
 	}
 
 	return c.JSON(resp)
