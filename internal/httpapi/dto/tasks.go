@@ -8,11 +8,11 @@ type TaskDTO struct {
 	ID              int64      `json:"id"`
 	Title           string     `json:"title"`
 	Description     string     `json:"description"`
-	InboxID         *int64     `json:"inboxId,omitempty"`
-	ContextID       *int64     `json:"contextId,omitempty"`
-	ProjectID       *int64     `json:"projectId,omitempty"`
-	SectionID       *int64     `json:"sectionId,omitempty"`
-	ParentID        *int64     `json:"parentId,omitempty"`
+	InboxID         *int64     `json:"inboxId"`
+	ContextID       *int64     `json:"contextId"`
+	ProjectID       *int64     `json:"projectId"`
+	SectionID       *int64     `json:"sectionId"`
+	ParentID        *int64     `json:"parentId"`
 	Priority        string     `json:"priority"`
 	Status          string     `json:"status"`
 	DueAt           *string    `json:"dueAt"`
