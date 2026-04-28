@@ -106,6 +106,7 @@ func main() {
 		PinService:  pinSvc,
 		Cfg:         cfg,
 		BaseURL:     env.BaseURL,
+		Version:     Version,
 	}
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)

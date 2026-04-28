@@ -26,6 +26,7 @@ type Deps struct {
 	PinService  *service.PinService
 	Cfg         *config.Config
 	BaseURL     string
+	Version     string
 }
 
 type errorEnvelope struct {
@@ -59,7 +60,11 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 	app.Get("/version", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{"version": "dev", "commit": "", "buildTime": ""})
+		v := deps.Version
+		if v == "" {
+			v = "dev"
+		}
+		return c.JSON(fiber.Map{"version": v, "commit": "", "buildTime": ""})
 	})
 	return app.Group("/api/v1", AuthMiddleware(deps.JWTIssuer))
 }
