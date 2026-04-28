@@ -120,5 +120,5 @@ func toErrDetail(err error) bulkErrDetail {
 	if errors.Is(err, repo.ErrInvalidPlacement) || errors.Is(err, repo.ErrCycle) {
 		return bulkErrDetail{Code: httpapi.CodeForbiddenPlacement, Message: "invalid task placement"}
 	}
-	return bulkErrDetail{Code: httpapi.CodeInternalError, Message: err.Error()}
+	return bulkErrDetail{Code: httpapi.CodeInternalError, Message: "internal error"}
 }

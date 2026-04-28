@@ -58,7 +58,7 @@ func (f TaskFilter) where() (string, []any) {
 // ListInbox returns open inbox tasks; subtasks are forbidden in inbox so all
 // rows here are root-level.
 func (r *TaskRepo) ListInbox(ctx context.Context, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.inbox_id IS NOT NULL"
+	base := "FROM tasks t WHERE t.inbox_id IS NOT NULL AND t.status = 'open'"
 	return r.listWithBase(ctx, base, filter, page, true)
 }
 
