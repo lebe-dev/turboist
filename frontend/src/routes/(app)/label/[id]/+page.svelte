@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -11,49 +10,32 @@
 	import type { Label, Task } from '$lib/api/types';
 	import LabelHeader from '$lib/components/label/LabelHeader.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
-	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
 	const labelId = $derived(Number(page.params.id));
 
 	let label = $state<Label | null>(null);
-	let tasks = $state<Task[]>([]);
-	let loading = $state(true);
 	let confirmDeleteOpen = $state(false);
 	let editOpen = $state(false);
 
-	const mutator = {
-		replace(t: Task) {
-			tasks = tasks.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			tasks = tasks.filter((x) => x.id !== id);
-		}
-	};
+	const taskList = useListMutator<Task>();
+	const mutator = taskList.mutator;
 
-	let requestSeq = 0;
-
-	async function load(): Promise<void> {
-		const my = ++requestSeq;
-		loading = true;
-		try {
-			const client = getApiClient();
-			const [l, ts] = await Promise.all([
-				labelsApi.get(client, labelId),
-				labelsApi.listTasks(client, labelId, { limit: 500 })
-			]);
-			if (my !== requestSeq) return;
-			label = l;
-			tasks = ts.items;
-		} catch (err) {
-			if (my !== requestSeq) return;
-			toast.error(describeError(err, 'Failed to load label'));
-		} finally {
-			if (my === requestSeq) loading = false;
-		}
-	}
+	const loader = usePageLoad(async (isValid) => {
+		const client = getApiClient();
+		const [l, ts] = await Promise.all([
+			labelsApi.get(client, labelId),
+			labelsApi.listTasks(client, labelId, { limit: 500 })
+		]);
+		if (!isValid()) return;
+		label = l;
+		taskList.items = ts.items;
+	}, { errorMessage: 'Failed to load label', autoLoad: false });
 
 	async function toggleFavourite() {
 		if (!label) return;
@@ -74,20 +56,18 @@
 			await labelsApi.remove(getApiClient(), label.id);
 			labelsStore.remove(label.id);
 			toast.success('Label deleted');
-			goto(resolve('/inbox'));
+			void goto(resolve('/inbox'));
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to delete label'));
 		}
 	}
 
 	$effect(() => {
-		if (Number.isFinite(labelId)) load();
+		if (Number.isFinite(labelId)) loader.refetch();
 	});
-
-	onMount(() => undefined);
 </script>
 
-{#if loading}
+{#if loader.loading}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
 {:else if !label}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Label not found</div>
@@ -100,19 +80,19 @@
 	/>
 
 	<div class="px-2 py-2">
-		{#if tasks.length === 0}
-			<EmptyState
-				icon={TagIcon}
-				title="No tasks with this label"
-				description="Tag tasks with this label to see them here."
-			/>
-		{:else}
+		<ViewContent
+			loading={loader.loading}
+			isEmpty={taskList.items.length === 0}
+			emptyIcon={TagIcon}
+			emptyTitle="No tasks with this label"
+			emptyDescription="Tag tasks with this label to see them here."
+		>
 			<TaskTree
-				{tasks}
+				tasks={taskList.items}
 				{mutator}
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 			/>
-		{/if}
+		</ViewContent>
 	</div>
 
 	<LabelDialog

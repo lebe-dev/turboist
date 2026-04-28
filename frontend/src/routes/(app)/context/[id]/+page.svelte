@@ -15,62 +15,45 @@
 	import type { Context, Project, Task, TaskInput } from '$lib/api/types';
 	import ContextHeader from '$lib/components/context/ContextHeader.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
-	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
 	const contextId = $derived(Number(page.params.id));
 
 	let context = $state<Context | null>(null);
 	let projects = $state<Project[]>([]);
-	let tasks = $state<Task[]>([]);
 	let activeProjectId = $state<number | 'all'>('all');
-	let loading = $state(true);
 	let quickOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let editOpen = $state(false);
 
+	const taskList = useListMutator<Task>();
+	const mutator = taskList.mutator;
+
 	const filteredTasks = $derived(
 		activeProjectId === 'all'
-			? tasks
-			: tasks.filter((t) => t.projectId === activeProjectId)
+			? taskList.items
+			: taskList.items.filter((t) => t.projectId === activeProjectId)
 	);
 
-	const mutator = {
-		replace(t: Task) {
-			tasks = tasks.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			tasks = tasks.filter((x) => x.id !== id);
-		}
-	};
-
-	let requestSeq = 0;
-
-	async function load(): Promise<void> {
-		const my = ++requestSeq;
-		loading = true;
-		try {
-			const client = getApiClient();
-			const [c, projs, ts] = await Promise.all([
-				contextsApi.get(client, contextId),
-				contextsApi.listProjects(client, contextId, { limit: 200 }),
-				contextsApi.listTasks(client, contextId, { limit: 500 })
-			]);
-			if (my !== requestSeq) return;
-			context = c;
-			projects = projs.items;
-			tasks = ts.items;
-			activeProjectId = 'all';
-		} catch (err) {
-			if (my !== requestSeq) return;
-			toast.error(describeError(err, 'Failed to load context'));
-		} finally {
-			if (my === requestSeq) loading = false;
-		}
-	}
+	const loader = usePageLoad(async (isValid) => {
+		const client = getApiClient();
+		const [c, projs, ts] = await Promise.all([
+			contextsApi.get(client, contextId),
+			contextsApi.listProjects(client, contextId, { limit: 200 }),
+			contextsApi.listTasks(client, contextId, { limit: 500 })
+		]);
+		if (!isValid()) return;
+		context = c;
+		projects = projs.items;
+		taskList.items = ts.items;
+		activeProjectId = 'all';
+	}, { errorMessage: 'Failed to load context', autoLoad: false });
 
 	async function toggleFavourite() {
 		if (!context) return;
@@ -94,7 +77,7 @@
 				.filter((p) => p.contextId === context!.id)
 				.forEach((p) => projectsStore.remove(p.id));
 			toast.success('Context deleted');
-			goto(resolve('/inbox'));
+			void goto(resolve('/inbox'));
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to delete context'));
 		}
@@ -109,14 +92,14 @@
 			const client = getApiClient();
 			if (target.projectId === null) {
 				const created = await contextsApi.createTask(client, context.id, payload);
-				tasks = [...tasks, created];
+				taskList.items = [...taskList.items, created];
 				toast.success('Task added');
 				return;
 			}
 			const targetInContext = projects.some((p) => p.id === target.projectId);
 			const created = await projectsApi.createTask(client, target.projectId, payload);
 			if (targetInContext) {
-				tasks = [...tasks, created];
+				taskList.items = [...taskList.items, created];
 			}
 			toast.success('Task added');
 		} catch (err) {
@@ -125,7 +108,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(contextId)) load();
+		if (Number.isFinite(contextId)) loader.refetch();
 	});
 
 	onMount(() => {
@@ -133,7 +116,7 @@
 	});
 </script>
 
-{#if loading}
+{#if loader.loading}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
 {:else if !context}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Context not found</div>
@@ -152,10 +135,10 @@
 				variant={activeProjectId === 'all' ? 'secondary' : 'ghost'}
 				onclick={() => (activeProjectId = 'all')}
 			>
-				All ({tasks.length})
+				All ({taskList.items.length})
 			</Button>
 			{#each projects as p (p.id)}
-				{@const count = tasks.filter((t) => t.projectId === p.id).length}
+				{@const count = taskList.items.filter((t) => t.projectId === p.id).length}
 				<Button
 					size="sm"
 					variant={activeProjectId === p.id ? 'secondary' : 'ghost'}
@@ -176,19 +159,19 @@
 	</div>
 
 	<div class="px-2">
-		{#if filteredTasks.length === 0}
-			<EmptyState
-				icon={FolderIcon}
-				title="No tasks"
-				description="No tasks yet for this filter."
-			/>
-		{:else}
+		<ViewContent
+			loading={false}
+			isEmpty={filteredTasks.length === 0}
+			emptyIcon={FolderIcon}
+			emptyTitle="No tasks"
+			emptyDescription="No tasks yet for this filter."
+		>
 			<TaskTree
 				tasks={filteredTasks}
 				{mutator}
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 			/>
-		{/if}
+		</ViewContent>
 	</div>
 
 	<QuickAddDialog bind:open={quickOpen} emptyProjectLabel="No project" onSubmit={onQuickSubmit} />

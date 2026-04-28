@@ -12,10 +12,10 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
-	import { describeError } from '$lib/utils/taskActions';
 	import type { Project } from '$lib/api/types';
 	import ColorPicker from './ColorPicker.svelte';
 	import { DEFAULT_COLOR } from './colorPalette';
+	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
 
 	let {
 		open = $bindable(false),
@@ -34,7 +34,8 @@
 	let color = $state<string>(DEFAULT_COLOR);
 	let contextId = $state<string>('');
 	let labelIds = $state<string[]>([]);
-	let submitting = $state(false);
+
+	const form = useFormDialog();
 
 	const allContexts = $derived(contextsStore.items);
 	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
@@ -52,44 +53,42 @@
 
 	async function submit(e: Event) {
 		e.preventDefault();
-		if (!title.trim() || submitting) return;
+		if (!title.trim()) return;
 		const ctxIdNum = Number(contextId);
 		if (!Number.isFinite(ctxIdNum) || ctxIdNum <= 0) {
 			toast.error('Pick a context');
 			return;
 		}
-		submitting = true;
-		try {
-			const client = getApiClient();
-			const labelNames = labelIds
-				.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
-				.filter((n): n is string => !!n);
+		const saved = await form.submit(
+			async () => {
+				const client = getApiClient();
+				const labelNames = labelIds
+					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
+					.filter((n): n is string => !!n);
 
-			let saved: Project;
-			if (initial) {
-				saved = await projectsApi.update(client, initial.id, {
-					title: title.trim(),
-					description: description.trim() || null,
-					color,
-					contextId: ctxIdNum,
-					labels: labelNames
-				});
-			} else {
-				saved = await contextsApi.createProject(client, ctxIdNum, {
-					title: title.trim(),
-					description: description.trim() || null,
-					color,
-					labels: labelNames
-				});
-			}
+				if (initial) {
+					return projectsApi.update(client, initial.id, {
+						title: title.trim(),
+						description: description.trim() || null,
+						color,
+						contextId: ctxIdNum,
+						labels: labelNames
+					});
+				} else {
+					return contextsApi.createProject(client, ctxIdNum, {
+						title: title.trim(),
+						description: description.trim() || null,
+						color,
+						labels: labelNames
+					});
+				}
+			},
+			{ success: initial ? 'Project updated' : 'Project created', error: 'Failed to save project' }
+		);
+		if (saved) {
 			projectsStore.upsert(saved);
 			onSaved?.(saved);
-			toast.success(initial ? 'Project updated' : 'Project created');
 			open = false;
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to save project'));
-		} finally {
-			submitting = false;
 		}
 	}
 
@@ -158,8 +157,8 @@
 			{/if}
 
 			<Sheet.Footer class="px-0">
-				<Button type="submit" disabled={!title.trim() || submitting}>
-					{submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
+				<Button type="submit" disabled={!title.trim() || form.submitting}>
+					{form.submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
 				</Button>
 				<Sheet.Close>Cancel</Sheet.Close>
 			</Sheet.Footer>

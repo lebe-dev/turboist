@@ -4,14 +4,13 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label as FormLabel } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
-	import { toast } from 'svelte-sonner';
 	import { getApiClient } from '$lib/api/client';
 	import { labels as labelsApi } from '$lib/api/endpoints/labels';
 	import { labelsStore } from '$lib/stores/labels.svelte';
-	import { describeError } from '$lib/utils/taskActions';
 	import type { Label } from '$lib/api/types';
 	import ColorPicker from './ColorPicker.svelte';
 	import { DEFAULT_COLOR } from './colorPalette';
+	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
 
 	let {
 		open = $bindable(false),
@@ -26,7 +25,8 @@
 	let name = $state('');
 	let color = $state<string>(DEFAULT_COLOR);
 	let isFavourite = $state(false);
-	let submitting = $state(false);
+
+	const form = useFormDialog();
 
 	$effect(() => {
 		if (open) {
@@ -38,22 +38,21 @@
 
 	async function submit(e: Event) {
 		e.preventDefault();
-		if (!name.trim() || submitting) return;
-		submitting = true;
-		try {
-			const client = getApiClient();
-			const payload = { name: name.trim(), color, isFavourite };
-			const saved = initial
-				? await labelsApi.update(client, initial.id, payload)
-				: await labelsApi.create(client, payload);
+		if (!name.trim()) return;
+		const saved = await form.submit(
+			async () => {
+				const client = getApiClient();
+				const payload = { name: name.trim(), color, isFavourite };
+				return initial
+					? await labelsApi.update(client, initial.id, payload)
+					: await labelsApi.create(client, payload);
+			},
+			{ success: initial ? 'Label updated' : 'Label created', error: 'Failed to save label' }
+		);
+		if (saved) {
 			labelsStore.upsert(saved);
 			onSaved?.(saved);
-			toast.success(initial ? 'Label updated' : 'Label created');
 			open = false;
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to save label'));
-		} finally {
-			submitting = false;
 		}
 	}
 </script>
@@ -82,8 +81,8 @@
 			</div>
 
 			<Sheet.Footer class="px-0">
-				<Button type="submit" disabled={!name.trim() || submitting}>
-					{submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
+				<Button type="submit" disabled={!name.trim() || form.submitting}>
+					{form.submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
 				</Button>
 				<Sheet.Close>Cancel</Sheet.Close>
 			</Sheet.Footer>

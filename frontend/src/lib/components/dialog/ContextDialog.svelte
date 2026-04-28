@@ -4,14 +4,13 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
-	import { toast } from 'svelte-sonner';
 	import { getApiClient } from '$lib/api/client';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
-	import { describeError } from '$lib/utils/taskActions';
 	import type { Context } from '$lib/api/types';
 	import ColorPicker from './ColorPicker.svelte';
 	import { DEFAULT_COLOR } from './colorPalette';
+	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
 
 	let {
 		open = $bindable(false),
@@ -26,7 +25,8 @@
 	let name = $state('');
 	let color = $state<string>(DEFAULT_COLOR);
 	let isFavourite = $state(false);
-	let submitting = $state(false);
+
+	const form = useFormDialog();
 
 	$effect(() => {
 		if (open) {
@@ -38,22 +38,21 @@
 
 	async function submit(e: Event) {
 		e.preventDefault();
-		if (!name.trim() || submitting) return;
-		submitting = true;
-		try {
-			const client = getApiClient();
-			const payload = { name: name.trim(), color, isFavourite };
-			const saved = initial
-				? await contextsApi.update(client, initial.id, payload)
-				: await contextsApi.create(client, payload);
+		if (!name.trim()) return;
+		const saved = await form.submit(
+			async () => {
+				const client = getApiClient();
+				const payload = { name: name.trim(), color, isFavourite };
+				return initial
+					? await contextsApi.update(client, initial.id, payload)
+					: await contextsApi.create(client, payload);
+			},
+			{ success: initial ? 'Context updated' : 'Context created', error: 'Failed to save context' }
+		);
+		if (saved) {
 			contextsStore.upsert(saved);
 			onSaved?.(saved);
-			toast.success(initial ? 'Context updated' : 'Context created');
 			open = false;
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to save context'));
-		} finally {
-			submitting = false;
 		}
 	}
 </script>
@@ -82,8 +81,8 @@
 			</div>
 
 			<Sheet.Footer class="px-0">
-				<Button type="submit" disabled={!name.trim() || submitting}>
-					{submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
+				<Button type="submit" disabled={!name.trim() || form.submitting}>
+					{form.submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
 				</Button>
 				<Sheet.Close>Cancel</Sheet.Close>
 			</Sheet.Footer>

@@ -16,19 +16,19 @@
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
 	import SectionList from '$lib/components/project/SectionList.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
-	import EmptyState from '$lib/components/view/EmptyState.svelte';
+	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
 	const projectId = $derived(Number(page.params.id));
 
 	let project = $state<Project | null>(null);
 	let sectionList = $state<ProjectSection[]>([]);
-	let tasks = $state<Task[]>([]);
-	let loading = $state(true);
 	let quickOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let confirmSectionOpen = $state(false);
@@ -37,10 +37,13 @@
 	let sectionDialogOpen = $state(false);
 	let editingSection = $state<ProjectSection | null>(null);
 
-	const tasksWithoutSection = $derived(tasks.filter((t) => t.sectionId === null));
+	const taskList = useListMutator<Task>();
+	const mutator = taskList.mutator;
+
+	const tasksWithoutSection = $derived(taskList.items.filter((t) => t.sectionId === null));
 	const tasksBySection = $derived.by(() => {
 		const map: Record<number, Task[]> = {};
-		for (const t of tasks) {
+		for (const t of taskList.items) {
 			if (t.sectionId !== null) {
 				(map[t.sectionId] ??= []).push(t);
 			}
@@ -48,38 +51,23 @@
 		return map;
 	});
 
-	const mutator = {
-		replace(t: Task) {
-			tasks = tasks.map((x) => (x.id === t.id ? t : x));
-		},
-		remove(id: number) {
-			tasks = tasks.filter((x) => x.id !== id);
-		}
+	const loader = usePageLoad(async (isValid) => {
+		const client = getApiClient();
+		const [p, sec, ts] = await Promise.all([
+			projectsApi.get(client, projectId),
+			projectsApi.listSections(client, projectId, { limit: 200 }),
+			projectsApi.listTasks(client, projectId, { limit: 500 })
+		]);
+		if (!isValid()) return;
+		project = p;
+		sectionList = sec.items;
+		taskList.items = ts.items;
+	}, { errorMessage: 'Failed to load project', autoLoad: false });
+
+	const actionLabels: Record<string, string> = {
+		complete: 'completed', uncomplete: 'uncompleted', cancel: 'cancelled',
+		archive: 'archived', unarchive: 'unarchived', pin: 'pinned', unpin: 'unpinned'
 	};
-
-	let requestSeq = 0;
-
-	async function load(): Promise<void> {
-		const my = ++requestSeq;
-		loading = true;
-		try {
-			const client = getApiClient();
-			const [p, sec, ts] = await Promise.all([
-				projectsApi.get(client, projectId),
-				projectsApi.listSections(client, projectId, { limit: 200 }),
-				projectsApi.listTasks(client, projectId, { limit: 500 })
-			]);
-			if (my !== requestSeq) return;
-			project = p;
-			sectionList = sec.items;
-			tasks = ts.items;
-		} catch (err) {
-			if (my !== requestSeq) return;
-			toast.error(describeError(err, 'Failed to load project'));
-		} finally {
-			if (my === requestSeq) loading = false;
-		}
-	}
 
 	async function action(name: 'complete' | 'uncomplete' | 'cancel' | 'archive' | 'unarchive' | 'pin' | 'unpin') {
 		if (!project) return;
@@ -88,7 +76,7 @@
 			const updated = await projectsApi[name](client, project.id);
 			project = updated;
 			projectsStore.upsert(updated);
-			toast.success(`Project ${name}d`);
+			toast.success(`Project ${actionLabels[name]}`);
 		} catch (err) {
 			toast.error(describeError(err, `Failed to ${name}`));
 		}
@@ -108,7 +96,7 @@
 			}
 			const created = await projectsApi.createTask(client, target.projectId, payload);
 			if (target.projectId === project.id) {
-				tasks = [...tasks, created];
+				taskList.items = [...taskList.items, created];
 			}
 			toast.success('Task added');
 		} catch (err) {
@@ -122,7 +110,7 @@
 			await projectsApi.remove(getApiClient(), project.id);
 			projectsStore.remove(project.id);
 			toast.success('Project deleted');
-			goto(resolve('/inbox'));
+			void goto(resolve('/inbox'));
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to delete project'));
 		}
@@ -134,7 +122,7 @@
 		try {
 			await sectionsApi.remove(getApiClient(), sec.id);
 			sectionList = sectionList.filter((s) => s.id !== sec.id);
-			tasks = tasks.map((t) => (t.sectionId === sec.id ? { ...t, sectionId: null } : t));
+			taskList.items = taskList.items.map((t) => (t.sectionId === sec.id ? { ...t, sectionId: null } : t));
 			toast.success('Section deleted');
 			pendingSectionDelete = null;
 		} catch (err) {
@@ -158,7 +146,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(projectId)) load();
+		if (Number.isFinite(projectId)) loader.refetch();
 	});
 
 	onMount(() => {
@@ -166,7 +154,7 @@
 	});
 </script>
 
-{#if loading}
+{#if loader.loading}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
 {:else if !project}
 	<div class="px-6 py-8 text-sm text-muted-foreground">Project not found</div>
@@ -196,13 +184,13 @@
 	</div>
 
 	<div class="px-2">
-		{#if sectionList.length === 0 && tasks.length === 0}
-			<EmptyState
-				icon={FolderIcon}
-				title="No tasks yet"
-				description="Add a task or section to start organising this project."
-			/>
-		{:else}
+		<ViewContent
+			loading={false}
+			isEmpty={sectionList.length === 0 && taskList.items.length === 0}
+			emptyIcon={FolderIcon}
+			emptyTitle="No tasks yet"
+			emptyDescription="Add a task or section to start organising this project."
+		>
 			{#if tasksWithoutSection.length > 0}
 				<div class="px-1 py-2">
 					<TaskTree
@@ -226,7 +214,7 @@
 					}}
 				/>
 			{/if}
-		{/if}
+		</ViewContent>
 	</div>
 
 	<ProjectDialog

@@ -11,7 +11,7 @@ export function usePageLoad(
 	}
 ) {
 	const autoLoad = opts?.autoLoad !== false;
-	let loading = $state(true);
+	let loading = $state(autoLoad);
 	let requestSeq = 0;
 
 	async function refetch(): Promise<void> {
