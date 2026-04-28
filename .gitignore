@@ -13,3 +13,4 @@ docs/superpowers
 .playwright-mcp
 *.log
 .DS_Store
+/docs/plans
