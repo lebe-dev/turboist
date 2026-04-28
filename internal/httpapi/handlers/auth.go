@@ -126,6 +126,10 @@ func (h *AuthHandler) login(c fiber.Ctx) error {
 }
 
 func (h *AuthHandler) refresh(c fiber.Ctx) error {
+	if !h.limiter.Allow(c.IP()) {
+		return httpapi.ErrAuthRateLimited()
+	}
+
 	// Cookie-first, then body.
 	token := c.Cookies(refreshCookieName)
 	if token == "" {
@@ -230,7 +234,7 @@ func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.Cli
 		UserID:     user.ID,
 		TokenHash:  tokenHash,
 		ClientKind: kind,
-		UserAgent:  c.Get("User-Agent"),
+		UserAgent:  truncateString(c.Get("User-Agent"), 512),
 		ExpiresAt:  auth.RefreshExpiry(time.Now()),
 	})
 	if err != nil {
@@ -353,4 +357,11 @@ func (tc *theftCache) gc() {
 			tc.mu.Unlock()
 		}
 	}
+}
+
+func truncateString(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	return s[:maxBytes]
 }

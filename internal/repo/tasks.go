@@ -255,23 +255,27 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	}
 	if u.DueAtClear {
 		sets = append(sets, "due_at = NULL", "due_has_time = 0")
-	} else if u.DueAt != nil {
-		sets = append(sets, "due_at = ?")
-		args = append(args, model.FormatUTC(*u.DueAt))
-	}
-	if u.DueHasTime != nil {
-		sets = append(sets, "due_has_time = ?")
-		args = append(args, boolInt(*u.DueHasTime))
+	} else {
+		if u.DueAt != nil {
+			sets = append(sets, "due_at = ?")
+			args = append(args, model.FormatUTC(*u.DueAt))
+		}
+		if u.DueHasTime != nil {
+			sets = append(sets, "due_has_time = ?")
+			args = append(args, boolInt(*u.DueHasTime))
+		}
 	}
 	if u.DeadlineAtClear {
 		sets = append(sets, "deadline_at = NULL", "deadline_has_time = 0")
-	} else if u.DeadlineAt != nil {
-		sets = append(sets, "deadline_at = ?")
-		args = append(args, model.FormatUTC(*u.DeadlineAt))
-	}
-	if u.DeadlineHasTime != nil {
-		sets = append(sets, "deadline_has_time = ?")
-		args = append(args, boolInt(*u.DeadlineHasTime))
+	} else {
+		if u.DeadlineAt != nil {
+			sets = append(sets, "deadline_at = ?")
+			args = append(args, model.FormatUTC(*u.DeadlineAt))
+		}
+		if u.DeadlineHasTime != nil {
+			sets = append(sets, "deadline_has_time = ?")
+			args = append(args, boolInt(*u.DeadlineHasTime))
+		}
 	}
 	if u.DayPart != nil {
 		sets = append(sets, "day_part = ?")
