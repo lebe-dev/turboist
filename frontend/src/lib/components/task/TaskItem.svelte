@@ -1,8 +1,8 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type { Task } from '$lib/api/types';
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
-	import PencilSimpleIcon from 'phosphor-svelte/lib/PencilSimple';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
@@ -20,16 +20,16 @@
 		task,
 		depth = 0,
 		showProject = true,
+		hideDayPart = false,
 		onToggle,
-		onEdit,
 		onDelete,
 		onPinToggle
 	}: {
 		task: Task;
 		depth?: number;
 		showProject?: boolean;
+		hideDayPart?: boolean;
 		onToggle?: (task: Task) => void;
-		onEdit?: (task: Task) => void;
 		onDelete?: (task: Task) => void;
 		onPinToggle?: (task: Task) => void;
 	} = $props();
@@ -42,6 +42,7 @@
 		task.status === 'open' && isOverdue(task.dueAt, configStore.value?.timezone ?? null)
 	);
 	const showFlag = $derived(task.priority !== 'no-priority');
+	const taskHref = $derived(resolve('/(app)/task/[id]', { id: String(task.id) }));
 </script>
 
 <div
@@ -71,34 +72,37 @@
 			{#if showFlag}
 				<FlagIcon class={`size-4 shrink-0 ${PRIORITY_COLOR[task.priority]}`} weight="fill" />
 			{/if}
-			<span
-				class="min-w-0 flex-1 truncate text-[15px] leading-snug"
+			<a
+				href={taskHref}
+				class="min-w-0 flex-1 truncate text-[15px] leading-snug hover:underline"
 				class:font-medium={!checked}
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
 			>
 				{task.title}
-			</span>
+			</a>
 			{#if task.isPinned}
 				<PushPinIcon class="size-3.5 shrink-0 text-amber-500" weight="fill" />
 			{/if}
 		</div>
 
-		{#if task.dueAt || task.dayPart !== 'none' || (showProject && project) || task.labels.length > 0}
+		{#if task.dueAt || (!hideDayPart && task.dayPart !== 'none') || (showProject && project) || task.labels.length > 0}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} />
-				{#if task.dayPart === 'morning'}
-					<span class="inline-flex items-center gap-1 text-muted-foreground" title="Morning">
-						<SunHorizonIcon class="size-3.5" />
-					</span>
-				{:else if task.dayPart === 'afternoon'}
-					<span class="inline-flex items-center gap-1 text-muted-foreground" title="Afternoon">
-						<SunIcon class="size-3.5" />
-					</span>
-				{:else if task.dayPart === 'evening'}
-					<span class="inline-flex items-center gap-1 text-muted-foreground" title="Evening">
-						<MoonIcon class="size-3.5" />
-					</span>
+				{#if !hideDayPart}
+					{#if task.dayPart === 'morning'}
+						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Morning">
+							<SunHorizonIcon class="size-3.5" />
+						</span>
+					{:else if task.dayPart === 'afternoon'}
+						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Afternoon">
+							<SunIcon class="size-3.5" />
+						</span>
+					{:else if task.dayPart === 'evening'}
+						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Evening">
+							<MoonIcon class="size-3.5" />
+						</span>
+					{/if}
 				{/if}
 				{#if showProject && project}
 					<span class="inline-flex items-center gap-1 text-muted-foreground">
@@ -125,17 +129,6 @@
 				title={task.isPinned ? 'Unpin' : 'Pin'}
 			>
 				<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />
-			</button>
-		{/if}
-		{#if onEdit}
-			<button
-				type="button"
-				class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-				onclick={() => onEdit?.(task)}
-				aria-label="Edit"
-				title="Edit"
-			>
-				<PencilSimpleIcon class="size-4" />
 			</button>
 		{/if}
 		{#if onDelete}

@@ -18,7 +18,6 @@
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
-	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
@@ -26,7 +25,6 @@
 		toggleComplete,
 		togglePin,
 		deleteTask,
-		saveEdit,
 		describeError
 	} from '$lib/utils/taskActions';
 
@@ -37,8 +35,6 @@
 	let tasks = $state<Task[]>([]);
 	let loading = $state(true);
 	let quickOpen = $state(false);
-	let editing = $state<Task | null>(null);
-	let editorOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let confirmSectionOpen = $state(false);
 	let pendingSectionDelete = $state<ProjectSection | null>(null);
@@ -166,11 +162,6 @@
 		sectionList = i >= 0 ? sectionList.map((s) => (s.id === saved.id ? saved : s)) : [...sectionList, saved];
 	}
 
-	function openEditor(task: Task): void {
-		editing = task;
-		editorOpen = true;
-	}
-
 	$effect(() => {
 		if (Number.isFinite(projectId)) load();
 	});
@@ -225,7 +216,6 @@
 						onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 						onPinToggle={(t) => togglePin(t, mutator)}
 						onDelete={(t) => deleteTask(t, mutator)}
-						onEdit={openEditor}
 					/>
 				</div>
 			{/if}
@@ -236,7 +226,6 @@
 					onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 					onPinToggle={(t) => togglePin(t, mutator)}
 					onDelete={(t) => deleteTask(t, mutator)}
-					onEdit={openEditor}
 					onRenameSection={renameSection}
 					onRemoveSection={(sec) => {
 						pendingSectionDelete = sec;
@@ -259,11 +248,6 @@
 		onSaved={onSectionSaved}
 	/>
 	<QuickAddDialog bind:open={quickOpen} onSubmit={onQuickSubmit} defaultProjectId={project.id} />
-	<TaskEditorSheet
-		bind:open={editorOpen}
-		task={editing}
-		onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
-	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}
 		title="Delete project?"

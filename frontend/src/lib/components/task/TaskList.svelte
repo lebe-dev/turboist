@@ -5,15 +5,15 @@
 	let {
 		tasks,
 		showProject = true,
+		hideDayPart = false,
 		onToggle,
-		onEdit,
 		onDelete,
 		onPinToggle
 	}: {
 		tasks: Task[];
 		showProject?: boolean;
+		hideDayPart?: boolean;
 		onToggle?: (task: Task) => void;
-		onEdit?: (task: Task) => void;
 		onDelete?: (task: Task) => void;
 		onPinToggle?: (task: Task) => void;
 	} = $props();
@@ -21,6 +21,6 @@
 
 <div class="flex flex-col divide-y divide-border/40">
 	{#each tasks as task (task.id)}
-		<TaskItem {task} {showProject} {onToggle} {onEdit} {onDelete} {onPinToggle} />
+		<TaskItem {task} {showProject} {hideDayPart} {onToggle} {onDelete} {onPinToggle} />
 	{/each}
 </div>

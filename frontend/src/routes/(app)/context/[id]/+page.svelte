@@ -17,14 +17,12 @@
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
-	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import {
 		toggleComplete,
 		togglePin,
 		deleteTask,
-		saveEdit,
 		describeError
 	} from '$lib/utils/taskActions';
 
@@ -36,8 +34,6 @@
 	let activeProjectId = $state<number | 'all'>('all');
 	let loading = $state(true);
 	let quickOpen = $state(false);
-	let editing = $state<Task | null>(null);
-	let editorOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let editOpen = $state(false);
 
@@ -133,11 +129,6 @@
 		}
 	}
 
-	function openEditor(task: Task): void {
-		editing = task;
-		editorOpen = true;
-	}
-
 	$effect(() => {
 		if (Number.isFinite(contextId)) load();
 	});
@@ -202,17 +193,11 @@
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 				onPinToggle={(t) => togglePin(t, mutator)}
 				onDelete={(t) => deleteTask(t, mutator)}
-				onEdit={openEditor}
 			/>
 		{/if}
 	</div>
 
 	<QuickAddDialog bind:open={quickOpen} emptyProjectLabel="No project" onSubmit={onQuickSubmit} />
-	<TaskEditorSheet
-		bind:open={editorOpen}
-		task={editing}
-		onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
-	/>
 	<ContextDialog
 		bind:open={editOpen}
 		initial={context}

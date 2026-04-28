@@ -7,7 +7,6 @@
 	import { configStore } from '$lib/stores/config.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
-	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import LimitBadge from '$lib/components/view/LimitBadge.svelte';
@@ -15,15 +14,12 @@
 		toggleComplete,
 		togglePin,
 		deleteTask,
-		saveEdit,
 		describeError
 	} from '$lib/utils/taskActions';
 
 	let items = $state<Task[]>([]);
 	let total = $state(0);
 	let loading = $state(true);
-	let editing = $state<Task | null>(null);
-	let editorOpen = $state(false);
 
 	const limit = $derived(configStore.value?.backlog.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
@@ -49,11 +45,6 @@
 		} finally {
 			loading = false;
 		}
-	}
-
-	function openEditor(task: Task): void {
-		editing = task;
-		editorOpen = true;
 	}
 
 	onMount(load);
@@ -92,13 +83,6 @@
 			onToggle={(t) => toggleComplete(t, mutator)}
 			onPinToggle={(t) => togglePin(t, mutator)}
 			onDelete={(t) => deleteTask(t, mutator)}
-			onEdit={openEditor}
 		/>
 	{/if}
 </div>
-
-<TaskEditorSheet
-	bind:open={editorOpen}
-	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator, (t) => t.planState === 'backlog')}
-/>

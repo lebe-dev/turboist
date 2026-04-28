@@ -1,4 +1,4 @@
-import type { Task, TaskInput } from '$lib/api/types';
+import type { Task } from '$lib/api/types';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
@@ -71,22 +71,3 @@ export async function deleteTask(task: Task, mutator: ListMutator): Promise<void
 	}
 }
 
-export async function saveEdit(
-	id: number,
-	payload: TaskInput,
-	mutator: ListMutator,
-	belongs?: (updated: Task) => boolean
-): Promise<void> {
-	const client = getApiClient();
-	try {
-		const updated = await tasksApi.update(client, id, payload);
-		if (belongs && !belongs(updated)) {
-			mutator.remove(id);
-		} else {
-			mutator.replace(updated);
-		}
-	} catch (err) {
-		toast.error(describeError(err, 'Failed to save task'));
-		throw err;
-	}
-}

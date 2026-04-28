@@ -6,7 +6,6 @@
 		sections,
 		tasksBySection,
 		onToggle,
-		onEdit,
 		onDelete,
 		onPinToggle,
 		onRenameSection,
@@ -15,7 +14,6 @@
 		sections: ProjectSection[];
 		tasksBySection: Record<number, Task[]>;
 		onToggle?: (task: Task) => void;
-		onEdit?: (task: Task) => void;
 		onDelete?: (task: Task) => void;
 		onPinToggle?: (task: Task) => void;
 		onRenameSection?: (section: ProjectSection) => void;
@@ -29,7 +27,6 @@
 			{section}
 			tasks={tasksBySection[section.id] ?? []}
 			{onToggle}
-			{onEdit}
 			{onDelete}
 			{onPinToggle}
 			onRename={onRenameSection}

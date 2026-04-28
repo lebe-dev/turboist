@@ -11,7 +11,6 @@
 		section,
 		tasks,
 		onToggle,
-		onEdit,
 		onDelete,
 		onPinToggle,
 		onRename,
@@ -20,7 +19,6 @@
 		section: ProjectSection;
 		tasks: Task[];
 		onToggle?: (task: Task) => void;
-		onEdit?: (task: Task) => void;
 		onDelete?: (task: Task) => void;
 		onPinToggle?: (task: Task) => void;
 		onRename?: (section: ProjectSection) => void;
@@ -79,7 +77,6 @@
 				{tasks}
 				showProject={false}
 				{onToggle}
-				{onEdit}
 				{onDelete}
 				{onPinToggle}
 			/>

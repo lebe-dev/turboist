@@ -12,12 +12,10 @@
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
-	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import {
 		toggleComplete,
 		togglePin,
 		deleteTask,
-		saveEdit,
 		describeError
 	} from '$lib/utils/taskActions';
 	import { ApiError } from '$lib/api/errors';
@@ -30,8 +28,6 @@
 	let total = $state({ tasks: 0, projects: 0 });
 	let loading = $state(false);
 	let lastQuery = $state('');
-	let editing = $state<Task | null>(null);
-	let editorOpen = $state(false);
 
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let requestSeq = 0;
@@ -97,17 +93,6 @@
 		timer = setTimeout(() => runSearch(q), 300);
 	}
 
-	function openEditor(task: Task): void {
-		editing = task;
-		editorOpen = true;
-	}
-
-	function matchesQuery(t: Task): boolean {
-		if (!lastQuery) return true;
-		const needle = lastQuery.toLowerCase();
-		const haystack = `${t.title} ${t.description ?? ''}`.toLowerCase();
-		return haystack.includes(needle);
-	}
 </script>
 
 <ViewHeader title="Search" subtitle={lastQuery ? `Results for "${lastQuery}"` : 'Find tasks and projects'} />
@@ -164,7 +149,6 @@
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 				onPinToggle={(t) => togglePin(t, mutator)}
 				onDelete={(t) => deleteTask(t, mutator)}
-				onEdit={openEditor}
 			/>
 		{/if}
 	{:else if projects.length === 0}
@@ -191,9 +175,3 @@
 		</ul>
 	{/if}
 </div>
-
-<TaskEditorSheet
-	bind:open={editorOpen}
-	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator, matchesQuery)}
-/>

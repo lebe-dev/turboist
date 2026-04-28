@@ -12,14 +12,12 @@
 	import type { Task, TaskInput } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
-	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import {
 		toggleComplete,
 		togglePin,
 		deleteTask,
-		saveEdit,
 		describeError
 	} from '$lib/utils/taskActions';
 
@@ -28,8 +26,6 @@
 	let warn = $state(false);
 	let loading = $state(true);
 	let quickOpen = $state(false);
-	let editing = $state<Task | null>(null);
-	let editorOpen = $state(false);
 
 	const mutator = {
 		replace(t: Task) {
@@ -72,11 +68,6 @@
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
 		}
-	}
-
-	function openEditor(task: Task): void {
-		editing = task;
-		editorOpen = true;
 	}
 
 	onMount(load);
@@ -123,14 +114,8 @@
 			onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 			onPinToggle={(t) => togglePin(t, mutator)}
 			onDelete={(t) => deleteTask(t, mutator)}
-			onEdit={openEditor}
 		/>
 	{/if}
 </div>
 
 <QuickAddDialog bind:open={quickOpen} onSubmit={onQuickSubmit} />
-<TaskEditorSheet
-	bind:open={editorOpen}
-	task={editing}
-	onSubmit={(id, payload) => saveEdit(id, payload, mutator)}
-/>

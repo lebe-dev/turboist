@@ -9,8 +9,8 @@
 		nodes,
 		depth = 0,
 		showProject = true,
+		hideDayPart = false,
 		onToggle,
-		onEdit,
 		onDelete,
 		onPinToggle
 	}: {
@@ -18,8 +18,8 @@
 		nodes?: TaskNode[];
 		depth?: number;
 		showProject?: boolean;
+		hideDayPart?: boolean;
 		onToggle?: (task: Task) => void;
-		onEdit?: (task: Task) => void;
 		onDelete?: (task: Task) => void;
 		onPinToggle?: (task: Task) => void;
 	} = $props();
@@ -33,8 +33,8 @@
 			task={node.task}
 			{depth}
 			{showProject}
+			{hideDayPart}
 			{onToggle}
-			{onEdit}
 			{onDelete}
 			{onPinToggle}
 		/>
@@ -43,8 +43,8 @@
 				nodes={node.children}
 				depth={depth + 1}
 				{showProject}
+				{hideDayPart}
 				{onToggle}
-				{onEdit}
 				{onDelete}
 				{onPinToggle}
 			/>

@@ -12,14 +12,12 @@
 	import LabelHeader from '$lib/components/label/LabelHeader.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
-	import TaskEditorSheet from '$lib/components/task/TaskEditorSheet.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import {
 		toggleComplete,
 		togglePin,
 		deleteTask,
-		saveEdit,
 		describeError
 	} from '$lib/utils/taskActions';
 
@@ -28,8 +26,6 @@
 	let label = $state<Label | null>(null);
 	let tasks = $state<Task[]>([]);
 	let loading = $state(true);
-	let editing = $state<Task | null>(null);
-	let editorOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let editOpen = $state(false);
 
@@ -89,11 +85,6 @@
 		}
 	}
 
-	function openEditor(task: Task): void {
-		editing = task;
-		editorOpen = true;
-	}
-
 	$effect(() => {
 		if (Number.isFinite(labelId)) load();
 	});
@@ -126,17 +117,10 @@
 				onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 				onPinToggle={(t) => togglePin(t, mutator)}
 				onDelete={(t) => deleteTask(t, mutator)}
-				onEdit={openEditor}
 			/>
 		{/if}
 	</div>
 
-	<TaskEditorSheet
-		bind:open={editorOpen}
-		task={editing}
-		onSubmit={(id, payload) =>
-			saveEdit(id, payload, mutator, (t) => t.labels.some((l) => l.id === labelId))}
-	/>
 	<LabelDialog
 		bind:open={editOpen}
 		initial={label}
