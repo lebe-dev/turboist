@@ -56,13 +56,13 @@
 - Create: `frontend/src/lib/components/app/{Sidebar.svelte,SidebarSection.svelte,Topbar.svelte,UserMenu.svelte,ThemeToggle.svelte}`
 - Create: `frontend/src/lib/stores/{contexts,projects,labels,config}.svelte.ts` — глобальные runes-stores, инициализируются один раз в `(app)/+layout`
 
-- [ ] root layout: bootstrap auth, маршрутизация — guest → `/login`/`/setup`, authenticated → `(app)`
-- [ ] `/login`, `/setup` (сценарий из `auth.md`: `/auth/setup-required` определяет что показать)
-- [ ] `(app)/+layout.svelte` — Sidebar + main; Sidebar содержит: Inbox, Today, Tomorrow, Week (с лимитом из config), Backlog, Overdue, Search, разделы Pinned Projects, Contexts → Projects (collapsible), Labels (favourites first)
-- [ ] загрузка `/api/v1/config`, contexts, projects, labels при входе в `(app)`
-- [ ] dark/light через `mode-watcher` (уже в deps), Topbar c quick-add и user-menu (logout / logout-all)
-- [ ] keyboard-shortcuts caption через `kbd` shadcn-компонент (Q — quick add, / — search)
-- [ ] тесты: smoke-рендер layout с моком store
+- [x] root layout: bootstrap auth, маршрутизация — guest → `/login`/`/setup`, authenticated → `(app)`
+- [x] `/login`, `/setup` (сценарий из `auth.md`: `/auth/setup-required` определяет что показать)
+- [x] `(app)/+layout.svelte` — Sidebar + main; Sidebar содержит: Inbox, Today, Tomorrow, Week (с лимитом из config), Backlog, Overdue, Search, разделы Pinned Projects, Contexts → Projects (collapsible), Labels (favourites first)
+- [x] загрузка `/api/v1/config`, contexts, projects, labels при входе в `(app)`
+- [x] dark/light через `mode-watcher` (уже в deps), Topbar c quick-add и user-menu (logout / logout-all)
+- [x] keyboard-shortcuts caption через `kbd` shadcn-компонент (Q — quick add, / — search)
+- [x] тесты: smoke-рендер layout с моком store
 
 ### Task 4: Task primitives — TaskItem, TaskList, TaskTree, QuickAdd, TaskEditor
 
@@ -71,12 +71,12 @@
 - Create: `frontend/src/lib/utils/{taskTree.ts,format.ts,priority.ts}`
 - Tests: `frontend/src/lib/utils/taskTree.test.ts`, `frontend/src/lib/utils/format.test.ts`
 
-- [ ] `taskTree.ts` — `buildTree(tasks)` из плоского списка по `parentId`, сохраняя порядок `position`
-- [ ] `format.ts` — формат дат (UTC `.000Z` ↔ локальная TZ из config), `formatDay`, `formatDayPart`
-- [ ] `TaskItem` — checkbox (complete/uncomplete), title, метки, project/section badge, priority dot, dueDate, day-part icon, pin, edit, delete, indent для подзадач
-- [ ] `QuickAddDialog` — natural-input (title, опционально `#project`, `@context`, `+label`, `!p1..p4`, дата) — на этой стадии минимально: title + project + priority + due + labels
-- [ ] `TaskEditorSheet` — полная форма (title, description, priority, dueDate, dayPart, plannedFor, labels[], removedAutoLabels[], parentId, sectionId, recurrence RRULE)
-- [ ] юнит-тесты на `buildTree` и `format`
+- [x] `taskTree.ts` — `buildTree(tasks)` из плоского списка по `parentId`, сохраняя порядок `position`
+- [x] `format.ts` — формат дат (UTC `.000Z` ↔ локальная TZ из config), `formatDay`, `formatDayPart`
+- [x] `TaskItem` — checkbox (complete/uncomplete), title, метки, project/section badge, priority dot, dueDate, day-part icon, pin, edit, delete, indent для подзадач
+- [x] `QuickAddDialog` — natural-input (title, опционально `#project`, `@context`, `+label`, `!p1..p4`, дата) — на этой стадии минимально: title + project + priority + due + labels
+- [x] `TaskEditorSheet` — полная форма (title, description, priority, dueDate, dayPart, plannedFor, labels[], removedAutoLabels[], parentId, sectionId, recurrence RRULE)
+- [x] юнит-тесты на `buildTree` и `format`
 
 ### Task 5: Views — Inbox, Today, Tomorrow, Week, Backlog, Overdue
 
