@@ -160,7 +160,7 @@
 	}
 
 	$effect(() => {
-		void loader.refetch();
+		if (Number.isFinite(projectId)) void loader.refetch();
 	});
 
 	onMount(() => {

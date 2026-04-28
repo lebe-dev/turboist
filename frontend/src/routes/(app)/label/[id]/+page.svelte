@@ -76,7 +76,7 @@
 	}
 
 	$effect(() => {
-		void loader.refetch();
+		if (Number.isFinite(labelId)) void loader.refetch();
 	});
 </script>
 

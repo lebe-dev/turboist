@@ -122,7 +122,7 @@
 	}
 
 	$effect(() => {
-		void loader.refetch();
+		if (Number.isFinite(contextId)) void loader.refetch();
 	});
 
 	onMount(() => {

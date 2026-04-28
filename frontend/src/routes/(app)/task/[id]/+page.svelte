@@ -83,6 +83,7 @@
 		onError(err) {
 			if (err instanceof ApiError && err.code === 'not_found') {
 				notFound = true;
+				return;
 			}
 			toast.error(describeError(err, 'Failed to load task'));
 		}
@@ -159,7 +160,7 @@
 	}
 
 	$effect(() => {
-		void loader.refetch();
+		if (Number.isFinite(taskId)) void loader.refetch();
 	});
 </script>
 
