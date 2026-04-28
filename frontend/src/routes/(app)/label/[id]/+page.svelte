@@ -42,7 +42,10 @@
 		}
 	};
 
+	let requestSeq = 0;
+
 	async function load(): Promise<void> {
+		const my = ++requestSeq;
 		loading = true;
 		try {
 			const client = getApiClient();
@@ -50,12 +53,14 @@
 				labelsApi.get(client, labelId),
 				labelsApi.listTasks(client, labelId, { limit: 500 })
 			]);
+			if (my !== requestSeq) return;
 			label = l;
 			tasks = ts.items;
 		} catch (err) {
+			if (my !== requestSeq) return;
 			toast.error(describeError(err, 'Failed to load label'));
 		} finally {
-			loading = false;
+			if (my === requestSeq) loading = false;
 		}
 	}
 

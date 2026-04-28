@@ -32,6 +32,7 @@
 		},
 		remove(id: number) {
 			items = items.filter((x) => x.id !== id);
+			total = Math.max(0, total - 1);
 		}
 	};
 

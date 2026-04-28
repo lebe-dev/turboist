@@ -55,7 +55,10 @@
 		}
 	};
 
+	let requestSeq = 0;
+
 	async function load(): Promise<void> {
+		const my = ++requestSeq;
 		loading = true;
 		try {
 			const client = getApiClient();
@@ -64,14 +67,16 @@
 				contextsApi.listProjects(client, contextId, { limit: 200 }),
 				contextsApi.listTasks(client, contextId, { limit: 500 })
 			]);
+			if (my !== requestSeq) return;
 			context = c;
 			projects = projs.items;
 			tasks = ts.items;
 			activeProjectId = 'all';
 		} catch (err) {
+			if (my !== requestSeq) return;
 			toast.error(describeError(err, 'Failed to load context'));
 		} finally {
-			loading = false;
+			if (my === requestSeq) loading = false;
 		}
 	}
 

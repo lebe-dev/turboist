@@ -57,7 +57,7 @@
 		removedAuto = [];
 	});
 
-	function submit(e: Event) {
+	async function submit(e: Event) {
 		e.preventDefault();
 		if (!task || submitting) return;
 		submitting = true;
@@ -86,7 +86,7 @@
 					.filter((n): n is string => !!n),
 				removedAutoLabels: removedAuto
 			};
-			void onSubmit?.(task.id, payload, { removedAutoLabels: removedAuto });
+			await onSubmit?.(task.id, payload, { removedAutoLabels: removedAuto });
 			open = false;
 		} finally {
 			submitting = false;

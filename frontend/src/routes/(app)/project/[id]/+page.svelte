@@ -65,7 +65,10 @@
 		}
 	};
 
+	let requestSeq = 0;
+
 	async function load(): Promise<void> {
+		const my = ++requestSeq;
 		loading = true;
 		try {
 			const client = getApiClient();
@@ -74,13 +77,15 @@
 				projectsApi.listSections(client, projectId, { limit: 200 }),
 				projectsApi.listTasks(client, projectId, { limit: 500 })
 			]);
+			if (my !== requestSeq) return;
 			project = p;
 			sectionList = sec.items;
 			tasks = ts.items;
 		} catch (err) {
+			if (my !== requestSeq) return;
 			toast.error(describeError(err, 'Failed to load project'));
 		} finally {
-			loading = false;
+			if (my === requestSeq) loading = false;
 		}
 	}
 

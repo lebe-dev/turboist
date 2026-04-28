@@ -37,6 +37,7 @@
 		},
 		remove(id: number) {
 			items = items.filter((x) => x.id !== id);
+			count = Math.max(0, count - 1);
 		}
 	};
 
