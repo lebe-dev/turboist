@@ -1,6 +1,6 @@
 *.md
 !/docs/**/*.md
-/!README.md
+!README.md
 !DEV.md
 /tasks
 /turboist

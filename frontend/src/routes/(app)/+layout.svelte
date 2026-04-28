@@ -34,7 +34,7 @@
 	let mobileSidebarOpen = $state(false);
 
 	$effect(() => {
-		page.url.pathname;
+		void page.url.pathname;
 		mobileSidebarOpen = false;
 	});
 
@@ -89,12 +89,12 @@
 			if (target.projectId !== null) {
 				await projectsApi.createTask(client, target.projectId, payload);
 				toast.success('Task added to project');
-				void goto(resolve('/(app)/project/[id]', { id: String(target.projectId) }));
+				void goto(resolve(`/project/${target.projectId}`));
 				return;
 			}
 			await tasksApi.createInbox(client, payload);
 			toast.success('Task added to inbox');
-			void goto(resolve('/(app)/inbox'));
+			void goto(resolve('/inbox'));
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
 		}
