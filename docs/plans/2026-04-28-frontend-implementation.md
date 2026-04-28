@@ -89,12 +89,12 @@
 - Create: `frontend/src/routes/(app)/overdue/+page.svelte`
 - Create: `frontend/src/lib/components/view/{ViewHeader.svelte,EmptyState.svelte,LimitBadge.svelte}`
 
-- [ ] каждая view использует соответствующий `views.*` endpoint и `TaskTree`
-- [ ] Today/Tomorrow — группировка по dayPart (morning/afternoon/evening/anytime), drag-n-drop отложен
-- [ ] Week — группировка по дням, бейдж лимита (config.weekly.limit), запрет добавлять при превышении (показ ошибки `limit_exceeded`)
-- [ ] Backlog — лимит из config, аналогично
-- [ ] Overdue — действия «перенести на сегодня/завтра/в backlog» через `/tasks/:id/plan`
-- [ ] Inbox — warnThreshold-баннер, кнопка quick-add по умолчанию в Inbox
+- [x] каждая view использует соответствующий `views.*` endpoint и `TaskTree`
+- [x] Today/Tomorrow — группировка по dayPart (morning/afternoon/evening/anytime), drag-n-drop отложен
+- [x] Week — группировка по дням, бейдж лимита (config.weekly.limit), запрет добавлять при превышении (показ ошибки `limit_exceeded`)
+- [x] Backlog — лимит из config, аналогично
+- [x] Overdue — действия «перенести на сегодня/завтра/в backlog» через `/tasks/:id/plan`
+- [x] Inbox — warnThreshold-баннер, кнопка quick-add по умолчанию в Inbox
 
 ### Task 6: Project / Context / Label / Search routes
 
