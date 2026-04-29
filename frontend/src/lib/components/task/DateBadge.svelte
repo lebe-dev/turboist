@@ -6,14 +6,15 @@
 	let {
 		value,
 		hasTime = false,
-		overdue = false
-	}: { value: string | null; hasTime?: boolean; overdue?: boolean } = $props();
+		overdue = false,
+		hideTodayBadge = false
+	}: { value: string | null; hasTime?: boolean; overdue?: boolean; hideTodayBadge?: boolean } = $props();
 
 	const text = $derived(formatDay(value, hasTime, configStore.value?.timezone ?? null));
 	const isToday = $derived(text === 'Today');
 </script>
 
-{#if text}
+{#if text && !(hideTodayBadge && isToday)}
 	<span
 		class="inline-flex items-center gap-1.5 text-xs"
 		class:text-destructive={overdue}

@@ -3,6 +3,7 @@ import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
 import { planStatsStore } from '$lib/stores/planStats.svelte';
+import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 import { toast } from 'svelte-sonner';
 
 export function describeError(err: unknown, fallback: string): string {
@@ -51,11 +52,14 @@ export async function toggleComplete(
 
 export async function togglePin(task: Task, mutator: ListMutator): Promise<void> {
 	const client = getApiClient();
+	const wasPin = task.isPinned;
 	try {
-		const updated = task.isPinned
+		const updated = wasPin
 			? await tasksApi.unpin(client, task.id)
 			: await tasksApi.pin(client, task.id);
 		mutator.replace(updated);
+		if (wasPin) pinnedTasksStore.removeItem(task.id);
+		else pinnedTasksStore.addItem(updated);
 	} catch (err) {
 		toast.error(describeError(err, 'Failed to pin task'));
 	}

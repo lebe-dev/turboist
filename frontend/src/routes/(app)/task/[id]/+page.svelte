@@ -4,7 +4,6 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
-	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -14,8 +13,10 @@
 	import { configStore } from '$lib/stores/config.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import type { DayPart, Priority, Task, TaskInput } from '$lib/api/types';
+	import type { ListMutator } from '$lib/utils/taskActions';
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
+	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, timeKeyInTz, toIsoUtc } from '$lib/utils/format';
 	import { describeError } from '$lib/utils/taskActions';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -25,7 +26,6 @@
 	let task = $state<Task | null>(null);
 	let notFound = $state(false);
 	let saving = $state(false);
-	let deleting = $state(false);
 
 	let title = $state('');
 	let description = $state('');
@@ -36,6 +36,10 @@
 	let recurrence = $state('');
 	let labelIds = $state<string[]>([]);
 	let removedAuto = $state<string[]>([]);
+
+	// Non-reactive flag — guards against auto-save during initial hydration
+	let allowSave = false;
+	let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
 	const autoLabelNames = $derived(
@@ -48,6 +52,7 @@
 	);
 
 	function hydrate(t: Task): void {
+		allowSave = false;
 		task = t;
 		title = t.title;
 		description = t.description ?? '';
@@ -65,29 +70,61 @@
 		}
 		labelIds = t.labels.map((l) => String(l.id));
 		removedAuto = [];
+		// Permit auto-save only after all reactive effects from hydration have flushed
+		setTimeout(() => {
+			allowSave = true;
+		}, 0);
 	}
 
-	const loader = usePageLoad(async (isValid) => {
-		notFound = false;
-		task = null;
-		if (!Number.isFinite(taskId)) {
-			notFound = true;
-			return;
-		}
-		const t = await tasksApi.get(getApiClient(), taskId);
-		if (!isValid()) return;
-		hydrate(t);
-	}, {
-		autoLoad: false,
-		initialLoading: true,
-		onError(err) {
-			if (err instanceof ApiError && err.code === 'not_found') {
+	function scheduleSave(): void {
+		if (!allowSave || !task || !title.trim()) return;
+		if (saveTimer !== null) clearTimeout(saveTimer);
+		saveTimer = setTimeout(() => void save(), 800);
+	}
+
+	// Watch picker bindings for auto-save
+	$effect(() => {
+		void priority;
+		scheduleSave();
+	});
+	$effect(() => {
+		void dayPart;
+		scheduleSave();
+	});
+
+	const loader = usePageLoad(
+		async (isValid) => {
+			notFound = false;
+			task = null;
+			if (!Number.isFinite(taskId)) {
 				notFound = true;
 				return;
 			}
-			toast.error(describeError(err, 'Failed to load task'));
+			const t = await tasksApi.get(getApiClient(), taskId);
+			if (!isValid()) return;
+			hydrate(t);
+		},
+		{
+			autoLoad: false,
+			initialLoading: true,
+			onError(err) {
+				if (err instanceof ApiError && err.code === 'not_found') {
+					notFound = true;
+					return;
+				}
+				toast.error(describeError(err, 'Failed to load task'));
+			}
 		}
-	});
+	);
+
+	const pageMutator: ListMutator = {
+		replace(updated: Task) {
+			hydrate(updated);
+		},
+		remove(_id: number) {
+			void goto(resolve('/inbox'));
+		}
+	};
 
 	function toggleLabel(id: string, name: string, isAuto: boolean): void {
 		if (labelIds.includes(id)) {
@@ -97,6 +134,7 @@
 			labelIds = [...labelIds, id];
 			if (isAuto) removedAuto = removedAuto.filter((n) => n !== name);
 		}
+		scheduleSave();
 	}
 
 	async function save(): Promise<void> {
@@ -132,25 +170,10 @@
 			};
 			const updated = await tasksApi.update(getApiClient(), task.id, payload);
 			hydrate(updated);
-			toast.success('Saved');
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to save task'));
 		} finally {
 			saving = false;
-		}
-	}
-
-	async function remove(): Promise<void> {
-		if (!task || deleting) return;
-		if (!confirm(`Delete "${task.title}"? Subtasks will also be removed.`)) return;
-		deleting = true;
-		try {
-			await tasksApi.remove(getApiClient(), task.id);
-			toast.success('Task deleted');
-			void goto(resolve('/inbox'));
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to delete task'));
-			deleting = false;
 		}
 	}
 
@@ -169,23 +192,9 @@
 		<ArrowLeftIcon class="size-4" />
 		Back
 	</Button>
-	<div class="flex items-center gap-2">
-		{#if task}
-			<Button
-				variant="ghost"
-				size="sm"
-				onclick={remove}
-				disabled={deleting}
-				class="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-			>
-				<TrashIcon class="size-4" />
-				Delete
-			</Button>
-		{/if}
-		<Button size="sm" onclick={save} disabled={!task || saving || !title.trim()}>
-			{saving ? 'Saving…' : 'Save'}
-		</Button>
-	</div>
+	{#if task}
+		<TaskActionsMenu task={task} mutator={pageMutator} />
+	{/if}
 </header>
 
 {#if loader.loading}
@@ -198,7 +207,6 @@
 	<form
 		onsubmit={(e) => {
 			e.preventDefault();
-			void save();
 		}}
 		class="grid gap-8 p-6 sm:grid-cols-[1fr_16rem] sm:p-8"
 	>
@@ -207,6 +215,7 @@
 				bind:value={title}
 				aria-label="Title"
 				placeholder="Task name"
+				oninput={scheduleSave}
 				class="w-full bg-transparent text-2xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
 			/>
 			<textarea
@@ -214,6 +223,7 @@
 				aria-label="Description"
 				placeholder="Description"
 				rows="10"
+				oninput={scheduleSave}
 				class="w-full resize-y rounded-md border border-transparent bg-transparent text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-border focus:bg-muted/30 focus:p-3"
 			></textarea>
 		</div>
@@ -223,8 +233,8 @@
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					Date
 				</span>
-				<Input type="date" bind:value={dueDate} class="h-8 text-xs" />
-				<Input type="time" bind:value={dueTime} class="h-8 text-xs" />
+				<Input type="date" bind:value={dueDate} onchange={scheduleSave} class="h-8 text-xs" />
+				<Input type="time" bind:value={dueTime} onchange={scheduleSave} class="h-8 text-xs" />
 			</div>
 
 			<div class="flex flex-col gap-1.5">
@@ -245,7 +255,7 @@
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					Recurrence
 				</span>
-				<Input bind:value={recurrence} placeholder="FREQ=DAILY" class="h-8 text-xs" />
+				<Input bind:value={recurrence} placeholder="FREQ=DAILY" onchange={scheduleSave} class="h-8 text-xs" />
 			</div>
 
 			{#if allLabels.length > 0}

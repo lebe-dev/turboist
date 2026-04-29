@@ -1,14 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { Task } from '$lib/api/types';
-	import FlagIcon from 'phosphor-svelte/lib/Flag';
-	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
-	import { PRIORITY_COLOR } from '$lib/utils/priority';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { isOverdue } from '$lib/utils/format';
@@ -22,6 +19,7 @@
 		depth = 0,
 		showProject = true,
 		hideDayPart = false,
+		hideTodayBadge = false,
 		mutator,
 		belongs,
 		onToggle
@@ -30,6 +28,7 @@
 		depth?: number;
 		showProject?: boolean;
 		hideDayPart?: boolean;
+		hideTodayBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -42,7 +41,6 @@
 	const overdue = $derived(
 		task.status === 'open' && isOverdue(task.dueAt, configStore.value?.timezone ?? null)
 	);
-	const showFlag = $derived(task.priority !== 'no-priority');
 	const taskHref = $derived(resolve('/(app)/task/[id]', { id: String(task.id) }));
 </script>
 
@@ -55,8 +53,11 @@
 		type="button"
 		onclick={() => onToggle?.(task)}
 		class="mt-[3px] inline-flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-		class:border-border={!checked}
-		class:hover:border-primary={!checked}
+		class:border-red-500={!checked && task.priority === 'high'}
+		class:border-amber-500={!checked && task.priority === 'medium'}
+		class:border-blue-500={!checked && task.priority === 'low'}
+		class:border-border={!checked && task.priority === 'no-priority'}
+		class:hover:border-primary={!checked && task.priority === 'no-priority'}
 		class:bg-primary={checked}
 		class:border-primary={checked}
 		class:text-primary-foreground={checked}
@@ -70,26 +71,20 @@
 
 	<div class="flex min-w-0 flex-1 flex-col gap-1">
 		<div class="flex items-center gap-2">
-			{#if showFlag}
-				<FlagIcon class={`size-4 shrink-0 ${PRIORITY_COLOR[task.priority]}`} weight="fill" />
-			{/if}
 			<a
 				href={taskHref}
-				class="min-w-0 flex-1 truncate text-[15px] leading-snug hover:underline"
+				class="min-w-0 flex-1 truncate text-[15px] leading-snug"
 				class:font-medium={!checked}
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
 			>
 				{task.title}
 			</a>
-			{#if task.isPinned}
-				<PushPinIcon class="size-3.5 shrink-0 text-amber-500" weight="fill" />
-			{/if}
 		</div>
 
 		{#if task.dueAt || (!hideDayPart && task.dayPart !== 'none') || (showProject && project) || task.labels.length > 0}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} />
+				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} {hideTodayBadge} />
 				{#if !hideDayPart}
 					{#if task.dayPart === 'morning'}
 						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Morning">

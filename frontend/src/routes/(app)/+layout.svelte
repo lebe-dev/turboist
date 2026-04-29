@@ -129,11 +129,12 @@
 	</div>
 {:else}
 	<div class="flex h-screen overflow-hidden bg-background">
-		{#if !sidebarStore.collapsed}
-			<div class="hidden md:flex">
+		<div
+				class="hidden overflow-hidden transition-[width] duration-200 ease-in-out md:flex"
+				style:width={sidebarStore.collapsed ? '0' : '16rem'}
+			>
 				<Sidebar />
 			</div>
-		{/if}
 		<div class="flex min-w-0 flex-1 flex-col">
 			<Topbar {onQuickAdd} onMenuClick={() => (mobileSidebarOpen = true)} />
 			<main class="flex-1 overflow-y-auto">
