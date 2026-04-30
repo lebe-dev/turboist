@@ -295,7 +295,11 @@
 					class:bg-sidebar-accent={active}
 					class:text-foreground={active}
 				>
-					<FolderIcon class="size-3.5 shrink-0 opacity-70" />
+					<FolderIcon
+						class="size-3.5 shrink-0 opacity-90"
+						style={`color: ${project.color}`}
+						weight="fill"
+					/>
 					<span class="truncate">{project.title}</span>
 				</a>
 			{/each}

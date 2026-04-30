@@ -37,12 +37,14 @@
 	let contextDialogOpen = $state(false);
 
 	const pageTitle = $derived(STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title);
+	const contextsLocked = $derived(page.url.pathname === '/inbox');
 
 	function handleSearch(): void {
 		void goto(resolve('/search'));
 	}
 
 	async function selectContext(id: number | null): Promise<void> {
+		if (contextsLocked) return;
 		try {
 			await userStateStore.setActiveContextId(id);
 		} catch (err) {
@@ -92,17 +94,22 @@
 				<button
 					type="button"
 					onclick={() => selectContext(id)}
-					class="inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-2.5 text-[12px] transition-colors"
+					disabled={contextsLocked}
+					class="inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-2.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
 					class:bg-transparent={!active}
-					class:text-muted-foreground={!active}
-					class:hover:bg-muted={!active}
-					class:hover:text-foreground={!active}
+					class:text-muted-foreground={!active || contextsLocked}
+					class:hover:bg-muted={!active && !contextsLocked}
+					class:hover:text-foreground={!active && !contextsLocked}
 					class:bg-muted={active}
-					class:text-foreground={active}
+					class:text-foreground={active && !contextsLocked}
 					aria-pressed={active}
 				>
 					{#if color}
-						<span class="size-2 shrink-0 rounded-full" style={`background-color: ${color}`}></span>
+						<span
+							class="size-2 shrink-0 rounded-full"
+							style={contextsLocked ? undefined : `background-color: ${color}`}
+							class:bg-muted-foreground={contextsLocked}
+						></span>
 					{/if}
 					<span class="truncate">{label}</span>
 				</button>
@@ -114,7 +121,8 @@
 			<button
 				type="button"
 				onclick={() => (contextDialogOpen = true)}
-				class="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+				disabled={contextsLocked}
+				class="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 				aria-label="Add context"
 				title="Add context"
 			>
