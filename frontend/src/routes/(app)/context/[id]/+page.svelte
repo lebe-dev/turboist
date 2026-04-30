@@ -23,10 +23,13 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+
 
 	const contextId = $derived(Number(page.params.id));
 
 	let context = $state<Context | null>(null);
+	$effect(() => { if (context) viewFilterStore.setTitle(context.name); });
 	let notFound = $state(false);
 	let projects = $state<Project[]>([]);
 	let activeProjectId = $state<number | 'all'>('all');

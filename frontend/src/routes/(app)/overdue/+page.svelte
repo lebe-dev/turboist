@@ -7,25 +7,34 @@
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
 	import TaskItem from '$lib/components/task/TaskItem.svelte';
-	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import { toIsoUtc, dayKeyInTz, dayStartUtcInTz, shiftDayKey, isOverdue } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+
 
 	let total = $state(0);
 
 	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
 	const { mutator } = list;
 
-	const loader = usePageLoad(async () => {
-		const res = await viewsApi.overdue(getApiClient());
+	const loader = usePageLoad(async (isValid) => {
+		const res = await viewsApi.overdue(getApiClient(), {
+			contextId: userStateStore.activeContextId ?? undefined
+		});
+		if (!isValid()) return;
 		list.items = res.items;
 		total = res.total;
-	}, { errorMessage: 'Failed to load overdue' });
+	}, { errorMessage: 'Failed to load overdue', autoLoad: false, initialLoading: true });
+
+	$effect(() => {
+		void userStateStore.activeContextId;
+		void loader.refetch();
+	});
 
 	function startOfDayUtc(offsetDays: number): string {
 		const tz = configStore.value?.timezone ?? null;
@@ -63,11 +72,6 @@
 	}
 
 </script>
-
-<ViewHeader
-	title="Overdue"
-	subtitle={loader.loading ? 'Loading…' : `${total} task${total === 1 ? '' : 's'} past due`}
-/>
 
 <div class="px-2 py-2">
 	<ViewContent

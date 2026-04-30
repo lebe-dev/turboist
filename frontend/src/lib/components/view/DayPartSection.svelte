@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
 	import type { Snippet } from 'svelte';
 	import type { DayPart } from '$lib/api/types';
 	import type { DayPartInterval } from '$lib/utils/viewGroup';
@@ -10,6 +11,7 @@
 		interval,
 		count,
 		active = false,
+		onBulkMove,
 		children
 	}: {
 		part: DayPart;
@@ -17,8 +19,11 @@
 		interval: DayPartInterval | null;
 		count: number;
 		active?: boolean;
+		onBulkMove?: (targetPart: DayPart) => void;
 		children: Snippet;
 	} = $props();
+
+	setContext('dayPartActive', () => active);
 </script>
 
 <section
@@ -26,6 +31,6 @@
 	class:border-border={active}
 	class:border-transparent={!active}
 >
-	<DayPartSectionHeader {part} {label} {interval} {count} />
+	<DayPartSectionHeader {part} {label} {interval} {count} {onBulkMove} />
 	{@render children()}
 </section>

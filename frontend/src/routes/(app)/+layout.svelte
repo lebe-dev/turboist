@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Sidebar from '$lib/components/app/Sidebar.svelte';
 	import Topbar from '$lib/components/app/Topbar.svelte';
+	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
@@ -12,6 +13,7 @@
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
+	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { goto } from '$app/navigation';
@@ -49,6 +51,7 @@
 					projectsStore.load(),
 					labelsStore.load(),
 					planStatsStore.load(),
+					inboxStatsStore.load(),
 					pinnedTasksStore.load(),
 					userStateStore.load()
 				]);
@@ -94,6 +97,7 @@
 			}
 			await tasksApi.createInbox(client, payload);
 			toast.success('Task added to inbox');
+			void inboxStatsStore.load().catch(() => {});
 			void goto(resolve('/inbox'));
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
@@ -137,6 +141,7 @@
 			</div>
 		<div class="flex min-w-0 flex-1 flex-col">
 			<Topbar {onQuickAdd} onMenuClick={() => (mobileSidebarOpen = true)} />
+			<ContextFilterBanner />
 			<main class="flex-1 overflow-y-auto">
 				{@render children()}
 			</main>

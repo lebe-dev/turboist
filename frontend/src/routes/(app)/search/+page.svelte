@@ -9,7 +9,6 @@
 	import { getApiClient } from '$lib/api/client';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import type { Project, SearchResponse, Task } from '$lib/api/types';
-	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import EmptyState from '$lib/components/view/EmptyState.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
@@ -18,7 +17,6 @@
 	import { onDestroy } from 'svelte';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
-
 	let q = $state('');
 	let active = $state<'tasks' | 'projects'>('tasks');
 	let projects = $state<Project[]>([]);
@@ -81,8 +79,6 @@
 	}
 
 </script>
-
-<ViewHeader title="Search" subtitle={lastQuery ? `Results for "${lastQuery}"` : 'Find tasks and projects'} />
 
 <div class="px-6 py-3">
 	<div class="relative">

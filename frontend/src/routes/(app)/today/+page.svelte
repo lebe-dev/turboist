@@ -4,14 +4,16 @@
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
-	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import DayPartSection from '$lib/components/view/DayPartSection.svelte';
 	import CompletedTodayFooter from '$lib/components/view/CompletedTodayFooter.svelte';
 	import { activeDayPart, groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
-	import { toggleComplete } from '$lib/utils/taskActions';
+	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { toggleComplete, updateTaskFields } from '$lib/utils/taskActions';
+	import type { DayPart } from '$lib/api/types';
+	import type { DayPartGroup } from '$lib/utils/viewGroup';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
@@ -31,15 +33,23 @@
 	const groups = $derived(groupByDayPart(list.items, dayParts));
 	const active = $derived(activeDayPart(new Date(), dayParts, tz));
 
-	const loader = usePageLoad(async () => {
+
+	const loader = usePageLoad(async (isValid) => {
+		const ctxId = userStateStore.activeContextId ?? undefined;
 		const [open, completed] = await Promise.all([
-			viewsApi.today(getApiClient()),
-			viewsApi.completedToday(getApiClient(), { limit: 1 })
+			viewsApi.today(getApiClient(), { contextId: ctxId }),
+			viewsApi.completedToday(getApiClient(), { limit: 1, contextId: ctxId })
 		]);
+		if (!isValid()) return;
 		list.items = open.items;
 		total = open.total;
 		completedCount = completed.total;
-	}, { errorMessage: 'Failed to load today' });
+	}, { errorMessage: 'Failed to load today', autoLoad: false, initialLoading: true });
+
+	$effect(() => {
+		void userStateStore.activeContextId;
+		void loader.refetch();
+	});
 
 	function isToday(t: Task): boolean {
 		const dt = parseIso(t.dueAt);
@@ -47,13 +57,17 @@
 		return dayKeyInTz(dt, tz) === dayKeyInTz(new Date(), tz);
 	}
 
+	function bulkMove(group: DayPartGroup, targetPart: DayPart): void {
+		for (const task of group.tasks) {
+			void updateTaskFields(task, mutator, { dayPart: targetPart });
+		}
+	}
+
 	function onUncompletedFromFooter(): void {
 		completedCount = Math.max(0, completedCount - 1);
 	}
 
 </script>
-
-<ViewHeader title="Today" subtitle={loader.loading ? 'Loading…' : `${total} task${total === 1 ? '' : 's'}`} />
 
 <div class="px-2 py-2">
 	<ViewContent
@@ -71,6 +85,7 @@
 					interval={group.interval}
 					count={group.tasks.length}
 					active={group.part === active}
+					onBulkMove={(targetPart) => bulkMove(group, targetPart)}
 				>
 					<TaskTree
 						tasks={group.tasks}

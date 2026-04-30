@@ -13,6 +13,7 @@
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
+	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 
 	let {
 		open = $bindable(false),
@@ -40,6 +41,7 @@
 	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
 	let labelMenuOpen = $state(false);
+	let dismissedAutoLabels = $state<string[]>([]);
 
 	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
 	const selectedLabels = $derived(
@@ -47,6 +49,29 @@
 			.map((id) => allLabels.find((l) => String(l.id) === id))
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
+	const autoLabelRules = $derived(configStore.value?.autoLabels ?? []);
+	const detectedAutoLabels = $derived.by(() => {
+		const matched: string[] = [];
+		const explicitNames = selectedLabels.map((l) => l.name);
+		const lowerTitle = title.toLowerCase();
+		for (const rule of autoLabelRules) {
+			if (!rule.mask) continue;
+			const hay = rule.ignoreCase === false ? title : lowerTitle;
+			const needle = rule.ignoreCase === false ? rule.mask : rule.mask.toLowerCase();
+			if (!hay.includes(needle)) continue;
+			if (matched.includes(rule.label)) continue;
+			if (explicitNames.includes(rule.label)) continue;
+			if (dismissedAutoLabels.includes(rule.label)) continue;
+			matched.push(rule.label);
+		}
+		return matched;
+	});
+
+	function dismissAutoLabel(name: string): void {
+		if (!dismissedAutoLabels.includes(name)) {
+			dismissedAutoLabels = [...dismissedAutoLabels, name];
+		}
+	}
 	const projectName = $derived(
 		projectsStore.items.find((p) => String(p.id) === projectId)?.title ?? emptyProjectLabel
 	);
@@ -79,6 +104,7 @@
 		projectId = defaultProjectId ? String(defaultProjectId) : '';
 		labelIds = [];
 		labelMenuOpen = false;
+		dismissedAutoLabels = [];
 	}
 
 	function toggleLabel(id: string) {
@@ -104,7 +130,8 @@
 				recurrenceRule,
 				labels: labelIds
 					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
-					.filter((n): n is string => !!n)
+					.filter((n): n is string => !!n),
+				removedAutoLabels: dismissedAutoLabels.length > 0 ? [...dismissedAutoLabels] : undefined
 			};
 			const target = {
 				projectId: projectId ? Number(projectId) : null,
@@ -155,7 +182,7 @@
 						class="mt-2 w-full resize-none bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
 					></textarea>
 
-					{#if selectedLabels.length > 0}
+					{#if selectedLabels.length > 0 || detectedAutoLabels.length > 0}
 						<div class="mt-3 flex flex-wrap items-center gap-1.5">
 							{#each selectedLabels as label (label.id)}
 								<button
@@ -172,6 +199,23 @@
 									<span>{label.name}</span>
 									<XIcon class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100" />
 								</button>
+							{/each}
+							{#each detectedAutoLabels as name (name)}
+								<span
+									class="group/auto inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
+									title="Auto-detected from title — will be applied on save"
+								>
+									<SparkleIcon class="size-3" weight="fill" />
+									<span>{name}</span>
+									<button
+										type="button"
+										onclick={() => dismissAutoLabel(name)}
+										aria-label={`Reject auto-label ${name}`}
+										class="opacity-60 transition-opacity hover:opacity-100"
+									>
+										<XIcon class="size-3" />
+									</button>
+								</span>
 							{/each}
 						</div>
 					{/if}

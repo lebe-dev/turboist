@@ -6,6 +6,7 @@
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
+	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
 	import { Button } from '$lib/components/ui/button';
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
@@ -30,6 +31,7 @@
 
 	let title = $state('');
 	let description = $state('');
+	let descriptionFocused = $state(false);
 	let priority = $state<Priority>('no-priority');
 	let dayPart = $state<DayPart>('none');
 	let dueDate = $state('');
@@ -197,9 +199,9 @@
 	});
 </script>
 
-<header class="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-8">
-	<Button variant="ghost" size="sm" onclick={back} class="gap-2">
-		<ArrowLeftIcon class="size-4" />
+<header class="flex items-center justify-between gap-3 border-b border-border px-2 py-1 sm:px-5">
+	<Button variant="ghost" size="sm" onclick={back} class="h-7 gap-1 px-2 text-[10px] uppercase tracking-wider">
+		<ArrowLeftIcon class="size-3" />
 		Back
 	</Button>
 	{#if task}
@@ -226,16 +228,24 @@
 				aria-label="Title"
 				placeholder="Task name"
 				oninput={scheduleSave}
-				class="w-full bg-transparent text-2xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
+				class="w-full bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
 			/>
-			<textarea
-				bind:value={description}
-				aria-label="Description"
-				placeholder="Description"
-				rows="10"
-				oninput={scheduleSave}
-				class="w-full resize-y rounded-md border border-transparent bg-transparent text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-border focus:bg-muted/30 focus:p-3"
-			></textarea>
+			<div class="relative">
+				{#if !description && !descriptionFocused}
+					<TextAlignStartIcon class="pointer-events-none absolute left-0 top-[2px] size-3.5 text-muted-foreground/40" />
+				{/if}
+				<textarea
+					bind:value={description}
+					aria-label="Description"
+					placeholder="Description"
+					rows="10"
+					oninput={scheduleSave}
+					onfocus={() => (descriptionFocused = true)}
+					onblur={() => (descriptionFocused = false)}
+					class="w-full resize-y rounded-md border border-transparent bg-transparent text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-border focus:bg-muted/30 focus:p-3"
+					class:pl-5={!description && !descriptionFocused}
+				></textarea>
+			</div>
 		</div>
 
 		<aside class="flex flex-col gap-5 sm:border-l sm:border-border sm:pl-6">

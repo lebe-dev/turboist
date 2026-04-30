@@ -3,6 +3,7 @@
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { userStateStore } from '$lib/stores/userState.svelte';
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
@@ -12,6 +13,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
+
 	let total = $state(0);
 
 	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
@@ -20,14 +22,22 @@
 	const limit = $derived(configStore.value?.backlog.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
 
-	const loader = usePageLoad(async () => {
-		const res = await viewsApi.backlog(getApiClient());
+	const loader = usePageLoad(async (isValid) => {
+		const res = await viewsApi.backlog(getApiClient(), {
+			contextId: userStateStore.activeContextId ?? undefined
+		});
+		if (!isValid()) return;
 		list.items = res.items;
 		total = res.total;
-	}, { errorMessage: 'Failed to load backlog' });
+	}, { errorMessage: 'Failed to load backlog', autoLoad: false, initialLoading: true });
+
+	$effect(() => {
+		void userStateStore.activeContextId;
+		void loader.refetch();
+	});
 </script>
 
-<ViewHeader title="Backlog" subtitle={loader.loading ? 'Loading…' : 'Plans for later'}>
+<ViewHeader>
 	{#snippet actions()}
 		{#if limit !== null}
 			<LimitBadge count={total} {limit} />

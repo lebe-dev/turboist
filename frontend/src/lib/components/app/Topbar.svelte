@@ -7,12 +7,24 @@
 	import SidebarSimpleIcon from 'phosphor-svelte/lib/SidebarSimple';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { toast } from 'svelte-sonner';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
+
+	const STATIC_TITLES: Record<string, string> = {
+		'/today': 'Today',
+		'/tomorrow': 'Tomorrow',
+		'/inbox': 'Inbox',
+		'/week': 'This week',
+		'/backlog': 'Backlog',
+		'/overdue': 'Overdue',
+		'/search': 'Search',
+	};
 
 	let {
 		onQuickAdd,
@@ -23,6 +35,8 @@
 	} = $props();
 
 	let contextDialogOpen = $state(false);
+
+	const pageTitle = $derived(STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title);
 
 	function handleSearch(): void {
 		void goto(resolve('/search'));
@@ -70,6 +84,9 @@
 			role="group"
 			aria-label="Active context filter"
 		>
+			{#if pageTitle}
+				<span class="mr-1 text-[13px] font-semibold text-foreground">{pageTitle}</span>
+			{/if}
 			{#snippet chip(id: number | null, label: string, color?: string)}
 				{@const active = userStateStore.activeContextId === id}
 				<button

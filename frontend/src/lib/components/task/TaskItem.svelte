@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getContext } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
@@ -34,6 +35,9 @@
 		onToggle?: (task: Task) => void;
 	} = $props();
 
+	const getDayPartActive = getContext<(() => boolean) | undefined>('dayPartActive');
+	const phaseActive = $derived(getDayPartActive ? getDayPartActive() : true);
+
 	const checked = $derived(task.status === 'completed');
 	const project = $derived(
 		task.projectId ? projectsStore.items.find((p) => p.id === task.projectId) : null
@@ -53,11 +57,11 @@
 		type="button"
 		onclick={() => onToggle?.(task)}
 		class="mt-[3px] inline-flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-		class:border-red-500={!checked && task.priority === 'high'}
-		class:border-amber-500={!checked && task.priority === 'medium'}
-		class:border-blue-500={!checked && task.priority === 'low'}
-		class:border-border={!checked && task.priority === 'no-priority'}
-		class:hover:border-primary={!checked && task.priority === 'no-priority'}
+		class:border-red-500={!checked && task.priority === 'high' && phaseActive}
+		class:border-amber-500={!checked && task.priority === 'medium' && phaseActive}
+		class:border-blue-500={!checked && task.priority === 'low' && phaseActive}
+		class:border-border={!checked && (task.priority === 'no-priority' || !phaseActive)}
+		class:hover:border-primary={!checked && task.priority === 'no-priority' && phaseActive}
 		class:bg-primary={checked}
 		class:border-primary={checked}
 		class:text-primary-foreground={checked}

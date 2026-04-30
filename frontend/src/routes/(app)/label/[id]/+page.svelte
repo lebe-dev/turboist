@@ -17,10 +17,13 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+
 
 	const labelId = $derived(Number(page.params.id));
 
 	let label = $state<Label | null>(null);
+	$effect(() => { if (label) viewFilterStore.setTitle(label.name); });
 	let notFound = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let editOpen = $state(false);

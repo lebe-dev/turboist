@@ -25,10 +25,13 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+
 
 	const projectId = $derived(Number(page.params.id));
 
 	let project = $state<Project | null>(null);
+	$effect(() => { if (project) viewFilterStore.setTitle(project.title); });
 	let notFound = $state(false);
 	let sectionList = $state<ProjectSection[]>([]);
 	let quickOpen = $state(false);
