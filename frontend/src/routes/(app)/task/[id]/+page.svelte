@@ -13,6 +13,7 @@
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
+	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import type { DayPart, Priority, Task, TaskInput } from '$lib/api/types';
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
@@ -101,6 +102,9 @@
 	$effect(() => {
 		void recurrence;
 		scheduleSave();
+	});
+	$effect(() => {
+		if (task) viewFilterStore.setTitle(task.title);
 	});
 
 	const loader = usePageLoad(

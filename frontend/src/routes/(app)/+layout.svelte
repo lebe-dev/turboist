@@ -16,6 +16,7 @@
 	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
@@ -26,6 +27,21 @@
 	import type { TaskInput } from '$lib/api/types';
 
 	let { children } = $props();
+
+	const STATIC_TITLES: Record<string, string> = {
+		'/today': 'Today',
+		'/tomorrow': 'Tomorrow',
+		'/inbox': 'Inbox',
+		'/week': 'This week',
+		'/backlog': 'Backlog',
+		'/overdue': 'Overdue',
+		'/search': 'Search'
+	};
+
+	const documentTitle = $derived.by(() => {
+		const pageName = STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title;
+		return pageName ? `${pageName} — Turboist` : 'Turboist';
+	});
 
 	const auth = getAuthStore();
 
@@ -119,6 +135,10 @@
 		}
 	}
 </script>
+
+<svelte:head>
+	<title>{documentTitle}</title>
+</svelte:head>
 
 <svelte:window onkeydown={onKeydown} />
 
