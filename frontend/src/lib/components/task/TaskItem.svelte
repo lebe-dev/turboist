@@ -82,6 +82,10 @@
 			</a>
 		</div>
 
+		{#if task.description}
+			<p class="truncate text-xs text-muted-foreground/70">{task.description}</p>
+		{/if}
+
 		{#if task.dueAt || (!hideDayPart && task.dayPart !== 'none') || (showProject && project) || task.labels.length > 0}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} {hideTodayBadge} />
