@@ -18,7 +18,6 @@
 		type ListMutator
 	} from '$lib/utils/taskActions';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
-	import ArrowRightIcon from 'phosphor-svelte/lib/ArrowRight';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import CopySimpleIcon from 'phosphor-svelte/lib/CopySimple';
@@ -51,7 +50,7 @@
 
 	const isToday = $derived(dueKey === todayKey);
 	const isTomorrow = $derived(dueKey === shiftDayKey(todayKey, 1));
-	const isNextWeek = $derived(dueKey === shiftDayKey(todayKey, 7));
+	const inBacklog = $derived(task.planState === 'backlog');
 
 	function setDate(dayKey: string | null) {
 		if (dayKey === null) {
@@ -158,14 +157,17 @@
 				</button>
 				<button
 					type="button"
-					title="Next week"
-					aria-label="Next week"
-					aria-pressed={isNextWeek}
-					onclick={() => setDate(shiftDayKey(todayKey, 7))}
+					title={inBacklog ? 'Remove from backlog' : 'To backlog'}
+					aria-label={inBacklog ? 'Remove from backlog' : 'To backlog'}
+					aria-pressed={inBacklog}
+					onclick={() =>
+						inBacklog
+							? void removeFromBacklog(task, mutator, { belongs })
+							: void moveToBacklog(task, mutator, { belongs })}
 					class="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
-					class:bg-accent={isNextWeek}
+					class:bg-accent={inBacklog}
 				>
-					<ArrowRightIcon class="size-4 text-violet-500" />
+					<ArchiveIcon class="size-4 text-violet-500" />
 				</button>
 				<button
 					type="button"
