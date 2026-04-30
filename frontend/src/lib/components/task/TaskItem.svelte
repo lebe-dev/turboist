@@ -4,6 +4,7 @@
 	import type { Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
+	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { isOverdue } from '$lib/utils/format';
@@ -43,12 +44,14 @@
 	);
 	const taskHref = $derived(resolve('/(app)/task/[id]', { id: String(task.id) }));
 	const description = $derived(task.description?.trim() ?? '');
+	const isRecurring = $derived(!!task.recurrenceRule);
 	const hasMeta = $derived(
 		description.length > 0 ||
 			!!task.dueAt ||
 			(showProject && !!project) ||
 			task.labels.length > 0 ||
-			task.postponeCount >= 2
+			task.postponeCount >= 2 ||
+			isRecurring
 	);
 </script>
 
@@ -99,8 +102,17 @@
 			<p class="truncate text-xs text-muted-foreground/70">{description}</p>
 		{/if}
 
-		{#if task.dueAt || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
+		{#if isRecurring || task.dueAt || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+				{#if isRecurring}
+					<span
+						class="inline-flex items-center text-emerald-600 dark:text-emerald-400"
+						title="Recurring task"
+						aria-label="Recurring task"
+					>
+						<RepeatIcon class="size-3.5 shrink-0" weight="bold" />
+					</span>
+				{/if}
 				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} {hideTodayBadge} />
 				<PostponeBadge count={task.postponeCount} />
 				{#if showProject && project}
