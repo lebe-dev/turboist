@@ -207,9 +207,9 @@
 	<div class="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
 		<div class="flex min-w-0 items-center gap-2">
 			<span
-				class="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm"
+				class="flex size-5 items-center justify-center rounded-sm bg-primary text-primary-foreground shadow-sm"
 			>
-				<LightningIcon class="size-4" weight="fill" />
+				<LightningIcon class="size-3" weight="fill" />
 			</span>
 			<span class="text-[13px] font-semibold uppercase tracking-[0.18em]">Turboist</span>
 		</div>
