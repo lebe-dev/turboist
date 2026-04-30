@@ -48,9 +48,6 @@
 			{#if project.status !== 'open'}
 				<Badge variant="outline" class="capitalize">{project.status}</Badge>
 			{/if}
-			{#if project.isPinned}
-				<PushPinIcon class="size-4 text-amber-500" aria-label="Pinned" />
-			{/if}
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
 			{#if project.status === 'open'}

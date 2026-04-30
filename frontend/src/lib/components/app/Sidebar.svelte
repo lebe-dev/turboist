@@ -8,6 +8,7 @@
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
 	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
+	import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircle';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
@@ -76,7 +77,8 @@
 			icon: CalendarIcon,
 			current: planStatsStore.value?.week,
 			limit: weekLimit
-		}
+		},
+		{ href: resolve('/completed'), label: 'Completed', icon: CheckCircleIcon }
 	]);
 
 	const planningNav = $derived<NavItem[]>([
@@ -249,16 +251,16 @@
 					{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 					{@const active = isActive(href)}
 					<div
-						class="group/pin relative flex items-center rounded-md transition-colors hover:bg-sidebar-accent"
+						class="group/pin relative flex items-start rounded-md transition-colors hover:bg-sidebar-accent"
 						class:bg-sidebar-accent={active}
 					>
 						<a
 							{href}
-							class="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="size-3.5 shrink-0 text-amber-500/80" weight="fill" />
-							<span class="truncate">{project.title}</span>
+							<PushPinIcon class="mt-0.5 size-3.5 shrink-0 text-amber-500/80" weight="fill" />
+							<span class="break-words">{project.title}</span>
 						</a>
 						{@render unpinButton(() => unpinProject(project.id), `Unpin ${project.title}`)}
 					</div>
@@ -267,16 +269,16 @@
 					{@const href = resolve('/(app)/task/[id]', { id: String(task.id) })}
 					{@const active = isActive(href)}
 					<div
-						class="group/pin relative flex items-center rounded-md transition-colors hover:bg-sidebar-accent"
+						class="group/pin relative flex items-start rounded-md transition-colors hover:bg-sidebar-accent"
 						class:bg-sidebar-accent={active}
 					>
 						<a
 							{href}
-							class="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="size-3.5 shrink-0 text-amber-500/80" weight="regular" />
-							<span class="truncate">{task.title}</span>
+							<PushPinIcon class="mt-0.5 size-3.5 shrink-0 text-amber-500/80" weight="regular" />
+							<span class="break-words">{task.title}</span>
 						</a>
 						{@render unpinButton(() => unpinTask(task.id), `Unpin ${task.title}`)}
 					</div>

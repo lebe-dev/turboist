@@ -100,6 +100,27 @@ function labelFor(key: string, todayKey: string, tz?: string | null): string {
 	});
 }
 
+export function groupByCompletedDay(tasks: Task[], tz?: string | null): DayGroup[] {
+	const buckets = new Map<string, { date: Date; tasks: Task[] }>();
+	for (const t of tasks) {
+		if (!t.completedAt) continue;
+		const d = new Date(t.completedAt);
+		const key = dayKeyInTz(d, tz);
+		const bucket = buckets.get(key);
+		if (bucket) bucket.tasks.push(t);
+		else buckets.set(key, { date: dayStartUtcInTz(key, tz), tasks: [t] });
+	}
+	const todayKey = dayKeyInTz(new Date(), tz);
+	return [...buckets.entries()]
+		.sort(([a], [b]) => (a > b ? -1 : a < b ? 1 : 0))
+		.map(([key, v]) => ({
+			dayKey: key,
+			label: labelFor(key, todayKey, tz),
+			date: v.date,
+			tasks: v.tasks
+		}));
+}
+
 export function groupByDay(tasks: Task[], tz?: string | null): DayGroup[] {
 	const buckets = new Map<string, { date: Date; tasks: Task[] }>();
 	const noDate: Task[] = [];

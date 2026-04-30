@@ -86,13 +86,22 @@ func (h *TaskViewHandler) tomorrow(c fiber.Ctx) error {
 	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
 }
 
-// completed returns tasks completed within the requested date window.
-// Currently only date=today is supported; expand if other windows are needed.
+// completed returns tasks completed within the last `days` days (clamped to
+// [1, 90]). The window ends at the start of tomorrow in the configured
+// timezone, so today is always included. `days=1` keeps the original
+// today-only behavior.
 func (h *TaskViewHandler) completed(c fiber.Ctx) error {
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := parseViewFilter(c)
-	start := h.todayStart()
-	end := start.Add(24 * time.Hour)
+	days := 1
+	if v := c.Query("days"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 {
+			days = min(n, 90)
+		}
+	}
+	todayStart := h.todayStart()
+	start := todayStart.Add(-time.Duration(days-1) * 24 * time.Hour)
+	end := todayStart.Add(24 * time.Hour)
 	items, total, err := h.tasks.ListCompletedInRange(c.Context(), start, end, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
 		return httpapi.ErrInternal("list completed")

@@ -35,6 +35,7 @@
 		'/week': 'This week',
 		'/backlog': 'Backlog',
 		'/next-week': 'Next week',
+		'/completed': 'Completed',
 		'/search': 'Search'
 	};
 

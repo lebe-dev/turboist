@@ -20,6 +20,7 @@
 		showProject = true,
 		hideTodayBadge = false,
 		hideTomorrowBadge = false,
+		hideDue = false,
 		mutator,
 		belongs,
 		onToggle
@@ -29,6 +30,7 @@
 		showProject?: boolean;
 		hideTodayBadge?: boolean;
 		hideTomorrowBadge?: boolean;
+		hideDue?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -49,7 +51,7 @@
 	const isRecurring = $derived(!!task.recurrenceRule);
 	const hasMeta = $derived(
 		description.length > 0 ||
-			!!task.dueAt ||
+			(!hideDue && !!task.dueAt) ||
 			(showProject && !!project) ||
 			task.labels.length > 0 ||
 			task.postponeCount >= 2 ||
@@ -76,9 +78,11 @@
 		class:border-blue-500={!checked && task.priority === 'low' && phaseActive}
 		class:border-border={!checked && (task.priority === 'no-priority' || !phaseActive)}
 		class:hover:border-primary={!checked && task.priority === 'no-priority' && phaseActive}
-		class:bg-primary={checked}
-		class:border-primary={checked}
-		class:text-primary-foreground={checked}
+		class:bg-zinc-500={checked}
+		class:border-zinc-500={checked}
+		class:dark:bg-zinc-600={checked}
+		class:dark:border-zinc-600={checked}
+		class:text-white={checked}
 		aria-pressed={checked}
 		aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
 	>
@@ -104,7 +108,7 @@
 			<p class="truncate text-xs text-muted-foreground/70">{description}</p>
 		{/if}
 
-		{#if isRecurring || task.dueAt || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -115,13 +119,15 @@
 						<RepeatIcon class="size-3.5 shrink-0" weight="bold" />
 					</span>
 				{/if}
-				<DateBadge
-					value={task.dueAt}
-					hasTime={task.dueHasTime}
-					{overdue}
-					{hideTodayBadge}
-					{hideTomorrowBadge}
-				/>
+				{#if !hideDue}
+					<DateBadge
+						value={task.dueAt}
+						hasTime={task.dueHasTime}
+						{overdue}
+						{hideTodayBadge}
+						{hideTomorrowBadge}
+					/>
+				{/if}
 				<PostponeBadge count={task.postponeCount} />
 				{#if showProject && project}
 					<span class="inline-flex items-center gap-1 text-muted-foreground">
