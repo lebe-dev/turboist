@@ -354,7 +354,10 @@
 									type="button"
 									onclick={() =>
 										toggleLabel(String(label.id), label.name, autoLabelNames.has(label.name))}
-									class="group/chip inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/70"
+									class="group/chip inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
+									style={label.color
+										? `background-color: color-mix(in srgb, ${label.color} 32%, transparent);`
+										: 'background-color: var(--accent);'}
 								>
 									{label.name}
 									<XIcon class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100" />
@@ -375,12 +378,15 @@
 								<button
 									type="button"
 									onclick={() => toggleLabel(id, label.name, autoLabelNames.has(label.name))}
-									class="rounded-full border px-2 py-0.5 text-xs transition-colors"
+									class="rounded-full px-2 py-0.5 text-xs transition-colors"
 									class:font-medium={active}
+									class:text-foreground={active}
+									class:border={!active}
 									class:border-border={!active}
+									class:text-muted-foreground={!active}
 									class:hover:bg-accent={!active}
 									style={active && label.color
-										? `border-color: ${label.color}; color: ${label.color};`
+										? `background-color: color-mix(in srgb, ${label.color} 32%, transparent);`
 										: undefined}
 								>
 									{label.name}
