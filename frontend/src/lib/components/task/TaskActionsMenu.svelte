@@ -10,6 +10,7 @@
 	import {
 		copyTaskTitle,
 		deleteTask,
+		duplicateTask,
 		moveToBacklog,
 		removeFromBacklog,
 		togglePin,
@@ -20,6 +21,7 @@
 	import ArrowRightIcon from 'phosphor-svelte/lib/ArrowRight';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
+	import CopySimpleIcon from 'phosphor-svelte/lib/CopySimple';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
@@ -109,6 +111,9 @@
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void copyTaskTitle(task)}>
 			<CopyIcon class="size-4" /> Copy
+		</DropdownMenu.Item>
+		<DropdownMenu.Item onclick={() => void duplicateTask(task, mutator)}>
+			<CopySimpleIcon class="size-4" /> Duplicate
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>
 			<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />

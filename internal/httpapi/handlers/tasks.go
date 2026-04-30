@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -12,6 +14,16 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 	rrule "github.com/teambition/rrule-go"
 )
+
+var reTrailingCounter = regexp.MustCompile(`^(.*) \((\d+)\)$`)
+
+func duplicateTitle(title string) string {
+	if m := reTrailingCounter.FindStringSubmatch(title); m != nil {
+		n, _ := strconv.Atoi(m[2])
+		return m[1] + " (" + strconv.Itoa(n+1) + ")"
+	}
+	return title + " (2)"
+}
 
 // TaskHandler implements GET/PATCH/DELETE /tasks/:id and POST /tasks/:id/subtasks.
 type TaskHandler struct {
@@ -31,6 +43,7 @@ func (h *TaskHandler) Register(r fiber.Router) {
 	r.Patch("/tasks/:id", h.patch)
 	r.Delete("/tasks/:id", h.delete)
 	r.Post("/tasks/:id/subtasks", h.createSubtask)
+	r.Post("/tasks/:id/duplicate", h.duplicate)
 }
 
 func (h *TaskHandler) get(c fiber.Ctx) error {
@@ -217,6 +230,48 @@ func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
 		return appErr
 	}
 	t, err := h.taskSvc.Create(c.Context(), in, req.Labels, req.RemovedAutoLabels)
+	if err != nil {
+		return handleTaskCreateErr(err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(dto.TaskFromModel(*t, h.baseURL))
+}
+
+func (h *TaskHandler) duplicate(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+	src, err := h.tasks.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("task not found")
+		}
+		return httpapi.ErrInternal("get task")
+	}
+	in := repo.CreateTask{
+		Placement: repo.Placement{
+			InboxID:   src.InboxID,
+			ContextID: src.ContextID,
+			ProjectID: src.ProjectID,
+			SectionID: src.SectionID,
+			ParentID:  src.ParentID,
+		},
+		Title:           duplicateTitle(src.Title),
+		Description:     src.Description,
+		Priority:        src.Priority,
+		DueAt:           src.DueAt,
+		DueHasTime:      src.DueHasTime,
+		DeadlineAt:      src.DeadlineAt,
+		DeadlineHasTime: src.DeadlineHasTime,
+		DayPart:         src.DayPart,
+		PlanState:       src.PlanState,
+		RecurrenceRule:  src.RecurrenceRule,
+	}
+	labelNames := make([]string, len(src.Labels))
+	for i, l := range src.Labels {
+		labelNames[i] = l.Name
+	}
+	t, err := h.taskSvc.Create(c.Context(), in, labelNames, nil)
 	if err != nil {
 		return handleTaskCreateErr(err)
 	}

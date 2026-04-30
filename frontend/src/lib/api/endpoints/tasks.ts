@@ -26,6 +26,7 @@ export const tasks = {
 	cancel: (client: ApiClient, id: number) => action(client, id, 'cancel'),
 	pin: (client: ApiClient, id: number) => action(client, id, 'pin'),
 	unpin: (client: ApiClient, id: number) => action(client, id, 'unpin'),
+	duplicate: (client: ApiClient, id: number) => action(client, id, 'duplicate'),
 
 	move(client: ApiClient, id: number, input: TaskMoveInput): Promise<Task> {
 		return client.fetch(`/api/v1/tasks/${id}/move`, { method: 'POST', body: input });

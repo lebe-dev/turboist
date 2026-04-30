@@ -643,3 +643,59 @@ func TestAutoLabels_AutoCreatesLabel(t *testing.T) {
 		t.Errorf("auto-created label: got %v, want [{urgent-flag}]", result.Labels)
 	}
 }
+
+// --- POST /tasks/:id/duplicate ---
+
+func TestTaskDuplicate_Simple(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, ctx.ID, "Source Task")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", task.ID), nil))
+	if resp.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Title != "Source Task (2)" {
+		t.Errorf("title: got %q, want %q", result.Title, "Source Task (2)")
+	}
+	if result.ID == task.ID {
+		t.Error("duplicate must have a different ID")
+	}
+	if result.ContextID == nil || *result.ContextID != *task.ContextID {
+		t.Errorf("contextId: got %v, want %v", result.ContextID, task.ContextID)
+	}
+}
+
+func TestTaskDuplicate_AlreadyNumbered(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	// Create a task with "(2)" suffix and duplicate it → should become "(3)".
+	task := createTestTask(t, e, ctx.ID, "Task (2)")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", task.ID), nil))
+	if resp.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Title != "Task (3)" {
+		t.Errorf("title: got %q, want %q", result.Title, "Task (3)")
+	}
+}
+
+func TestTaskDuplicate_NotFound(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/tasks/9999/duplicate", nil))
+	if resp.StatusCode != 404 {
+		t.Fatalf("got %d, want 404", resp.StatusCode)
+	}
+}

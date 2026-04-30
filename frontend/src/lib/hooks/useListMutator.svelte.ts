@@ -8,6 +8,14 @@ export function useListMutator<T extends { id: number }>(opts?: { onRemove?: () 
 		remove(id: number) {
 			items = items.filter((x) => x.id !== id);
 			opts?.onRemove?.();
+		},
+		insertAfter(id: number, t: T) {
+			const idx = items.findIndex((x) => x.id === id);
+			if (idx === -1) {
+				items = [...items, t];
+			} else {
+				items = [...items.slice(0, idx + 1), t, ...items.slice(idx + 1)];
+			}
 		}
 	};
 

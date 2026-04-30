@@ -15,6 +15,7 @@ export function describeError(err: unknown, fallback: string): string {
 export interface ListMutator {
 	replace(task: Task): void;
 	remove(id: number): void;
+	insertAfter?: (id: number, task: Task) => void;
 }
 
 export interface ToggleCompleteOptions {
@@ -130,6 +131,17 @@ export async function removeFromBacklog(
 		void planStatsStore.load().catch(() => {});
 	} catch (err) {
 		toast.error(describeError(err, 'Failed to remove from backlog'));
+	}
+}
+
+export async function duplicateTask(task: Task, mutator: ListMutator): Promise<void> {
+	const client = getApiClient();
+	try {
+		const created = await tasksApi.duplicate(client, task.id);
+		mutator.insertAfter?.(task.id, created);
+		toast.success('Duplicated');
+	} catch (err) {
+		toast.error(describeError(err, 'Failed to duplicate task'));
 	}
 }
 
