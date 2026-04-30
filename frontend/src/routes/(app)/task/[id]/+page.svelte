@@ -5,6 +5,7 @@
 	import { toast } from 'svelte-sonner';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import XIcon from 'phosphor-svelte/lib/X';
+	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { getApiClient } from '$lib/api/client';
@@ -17,7 +18,7 @@
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
-	import { dayKeyInTz, dayStartUtcInTz, parseIso, timeKeyInTz, toIsoUtc } from '$lib/utils/format';
+	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { describeError } from '$lib/utils/taskActions';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
@@ -32,10 +33,17 @@
 	let priority = $state<Priority>('no-priority');
 	let dayPart = $state<DayPart>('none');
 	let dueDate = $state('');
-	let dueTime = $state('');
 	let recurrence = $state('');
 	let labelIds = $state<string[]>([]);
 	let removedAuto = $state<string[]>([]);
+
+	let dateInputEl = $state<HTMLInputElement | undefined>();
+
+	const todayKey = $derived(dayKeyInTz(new Date(), configStore.value?.timezone ?? null));
+	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
+	const isToday = $derived(dueDate === todayKey);
+	const isTomorrow = $derived(dueDate === tomorrowKey);
+	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
 
 	// Non-reactive flag — guards against auto-save during initial hydration
 	let allowSave = false;
@@ -61,12 +69,9 @@
 		recurrence = t.recurrenceRule ?? '';
 		const dt = parseIso(t.dueAt);
 		if (dt) {
-			const tz = configStore.value?.timezone ?? null;
-			dueDate = dayKeyInTz(dt, tz);
-			dueTime = t.dueHasTime ? timeKeyInTz(dt, tz) : '';
+			dueDate = dayKeyInTz(dt, configStore.value?.timezone ?? null);
 		} else {
 			dueDate = '';
-			dueTime = '';
 		}
 		labelIds = t.labels.map((l) => String(l.id));
 		removedAuto = [];
@@ -137,31 +142,32 @@
 		scheduleSave();
 	}
 
+	function setDate(value: string): void {
+		dueDate = dueDate === value ? '' : value;
+		scheduleSave();
+	}
+
+	function openDatePicker(): void {
+		const el = dateInputEl;
+		if (!el) return;
+		if (typeof el.showPicker === 'function') el.showPicker();
+		else el.focus();
+	}
+
 	async function save(): Promise<void> {
 		if (!task || saving || !title.trim()) return;
 		saving = true;
 		try {
-			let dueAt: string | null = null;
-			let dueHasTime = false;
-			if (dueDate) {
-				const tz = configStore.value?.timezone ?? null;
-				if (dueTime) {
-					const [hh, mm] = dueTime.split(':').map(Number);
-					const start = dayStartUtcInTz(dueDate, tz);
-					dueAt = toIsoUtc(new Date(start.getTime() + (hh * 60 + mm) * 60000));
-					dueHasTime = true;
-				} else {
-					dueAt = toIsoUtc(dayStartUtcInTz(dueDate, tz));
-					dueHasTime = false;
-				}
-			}
+			const dueAt: string | null = dueDate
+				? toIsoUtc(dayStartUtcInTz(dueDate, configStore.value?.timezone ?? null))
+				: null;
 			const payload: TaskInput = {
 				title: title.trim(),
 				description,
 				priority,
 				dayPart,
 				dueAt,
-				dueHasTime,
+				dueHasTime: false,
 				recurrenceRule: recurrence.trim() ? recurrence.trim() : null,
 				labels: labelIds
 					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
@@ -233,8 +239,66 @@
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					Date
 				</span>
-				<Input type="date" bind:value={dueDate} onchange={scheduleSave} class="h-8 text-xs" />
-				<Input type="time" bind:value={dueTime} onchange={scheduleSave} class="h-8 text-xs" />
+				<div
+					class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
+					role="group"
+					aria-label="Due date"
+				>
+					<button
+						type="button"
+						onclick={() => setDate(todayKey)}
+						aria-pressed={isToday}
+						class="inline-flex h-7 items-center rounded-[5px] px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
+						class:bg-accent={isToday}
+						class:text-foreground={isToday}
+						class:text-muted-foreground={!isToday}
+						class:hover:bg-accent={!isToday}
+						class:hover:text-foreground={!isToday}
+					>
+						Today
+					</button>
+					<button
+						type="button"
+						onclick={() => setDate(tomorrowKey)}
+						aria-pressed={isTomorrow}
+						class="inline-flex h-7 items-center rounded-[5px] px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
+						class:bg-accent={isTomorrow}
+						class:text-foreground={isTomorrow}
+						class:text-muted-foreground={!isTomorrow}
+						class:hover:bg-accent={!isTomorrow}
+						class:hover:text-foreground={!isTomorrow}
+					>
+						Tomorrow
+					</button>
+					<button
+						type="button"
+						onclick={openDatePicker}
+						aria-pressed={isCustomDate}
+						aria-label="Custom date"
+						title={isCustomDate ? dueDate : 'Pick a date'}
+						class="relative inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
+						class:bg-accent={isCustomDate}
+						class:text-foreground={isCustomDate}
+						class:text-muted-foreground={!isCustomDate}
+						class:hover:bg-accent={!isCustomDate}
+						class:hover:text-foreground={!isCustomDate}
+					>
+						{#if isCustomDate}
+							<span class="font-mono text-[11px]">{dueDate}</span>
+						{:else}
+							<DotsThreeIcon class="size-4" weight="bold" />
+						{/if}
+						<input
+							bind:this={dateInputEl}
+							bind:value={dueDate}
+							type="date"
+							tabindex="-1"
+							aria-hidden="true"
+							onchange={scheduleSave}
+							class="pointer-events-none absolute inset-0 size-full opacity-0"
+						/>
+					</button>
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-1.5">
