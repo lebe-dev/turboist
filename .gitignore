@@ -1,7 +1,7 @@
 *.md
 !/docs/**/*.md
-!README.md
-!DEV.md
+/!README.md
+/!DEV.md
 /tasks
 /turboist
 /.env
