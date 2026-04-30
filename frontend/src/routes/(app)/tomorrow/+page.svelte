@@ -74,6 +74,7 @@
 				>
 					<TaskTree
 						tasks={group.tasks}
+						hideTomorrowBadge
 						{mutator}
 						belongs={isTomorrow}
 						onToggle={(t) => toggleComplete(t, mutator, { belongs: isTomorrow })}

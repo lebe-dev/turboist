@@ -11,6 +11,7 @@
 		depth = 0,
 		showProject = true,
 		hideTodayBadge = false,
+		hideTomorrowBadge = false,
 		mutator,
 		belongs,
 		onToggle
@@ -20,6 +21,7 @@
 		depth?: number;
 		showProject?: boolean;
 		hideTodayBadge?: boolean;
+		hideTomorrowBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -35,6 +37,7 @@
 			{depth}
 			{showProject}
 			{hideTodayBadge}
+			{hideTomorrowBadge}
 			{mutator}
 			{belongs}
 			{onToggle}
@@ -45,6 +48,7 @@
 				depth={depth + 1}
 				{showProject}
 				{hideTodayBadge}
+				{hideTomorrowBadge}
 				{mutator}
 				{belongs}
 				{onToggle}

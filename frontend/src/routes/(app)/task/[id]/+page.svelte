@@ -376,11 +376,12 @@
 									type="button"
 									onclick={() => toggleLabel(id, label.name, autoLabelNames.has(label.name))}
 									class="rounded-full border px-2 py-0.5 text-xs transition-colors"
-									class:bg-primary={active}
-									class:text-primary-foreground={active}
-									class:border-primary={active}
+									class:font-medium={active}
 									class:border-border={!active}
 									class:hover:bg-accent={!active}
+									style={active && label.color
+										? `border-color: ${label.color}; color: ${label.color};`
+										: undefined}
 								>
 									{label.name}
 								</button>

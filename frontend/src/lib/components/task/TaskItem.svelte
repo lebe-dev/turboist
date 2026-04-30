@@ -19,6 +19,7 @@
 		depth = 0,
 		showProject = true,
 		hideTodayBadge = false,
+		hideTomorrowBadge = false,
 		mutator,
 		belongs,
 		onToggle
@@ -27,6 +28,7 @@
 		depth?: number;
 		showProject?: boolean;
 		hideTodayBadge?: boolean;
+		hideTomorrowBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -113,7 +115,13 @@
 						<RepeatIcon class="size-3.5 shrink-0" weight="bold" />
 					</span>
 				{/if}
-				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} {hideTodayBadge} />
+				<DateBadge
+					value={task.dueAt}
+					hasTime={task.dueHasTime}
+					{overdue}
+					{hideTodayBadge}
+					{hideTomorrowBadge}
+				/>
 				<PostponeBadge count={task.postponeCount} />
 				{#if showProject && project}
 					<span class="inline-flex items-center gap-1 text-muted-foreground">
