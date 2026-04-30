@@ -10,15 +10,13 @@
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
-	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { sections as sectionsApi } from '$lib/api/endpoints/sections';
 	import { projectsStore } from '$lib/stores/projects.svelte';
-	import type { Project, ProjectSection, Task, TaskInput } from '$lib/api/types';
+	import type { Project, ProjectSection, Task } from '$lib/api/types';
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
 	import SectionList from '$lib/components/project/SectionList.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
-	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
@@ -34,7 +32,6 @@
 	$effect(() => { if (project) viewFilterStore.setTitle(project.title); });
 	let notFound = $state(false);
 	let sectionList = $state<ProjectSection[]>([]);
-	let quickOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let confirmSectionOpen = $state(false);
 	let pendingSectionDelete = $state<ProjectSection | null>(null);
@@ -96,28 +93,6 @@
 			toast.success(`Project ${actionLabels[name]}`);
 		} catch (err) {
 			toast.error(describeError(err, `Failed to ${name}`));
-		}
-	}
-
-	async function onQuickSubmit(
-		payload: TaskInput,
-		target: { projectId: number | null }
-	): Promise<void> {
-		if (!project) return;
-		try {
-			const client = getApiClient();
-			if (target.projectId === null) {
-				await tasksApi.createInbox(client, payload);
-				toast.success('Task added to inbox');
-				return;
-			}
-			const created = await projectsApi.createTask(client, target.projectId, payload);
-			if (target.projectId === project.id) {
-				taskList.items = [...taskList.items, created];
-			}
-			toast.success('Task added');
-		} catch (err) {
-			toast.error(describeError(err, 'Failed to add task'));
 		}
 	}
 
@@ -191,14 +166,10 @@
 		onDelete={() => (confirmDeleteOpen = true)}
 	/>
 
-	<div class="flex items-center justify-between px-6 py-2">
+	<div class="flex items-center px-6 py-2">
 		<Button size="sm" variant="ghost" onclick={addSection}>
 			<PlusIcon class="size-4" />
 			Add section
-		</Button>
-		<Button size="sm" onclick={() => (quickOpen = true)}>
-			<PlusIcon class="size-4" />
-			Add task
 		</Button>
 	</div>
 
@@ -247,7 +218,6 @@
 		projectId={project.id}
 		onSaved={onSectionSaved}
 	/>
-	<QuickAddDialog bind:open={quickOpen} onSubmit={onQuickSubmit} defaultProjectId={project.id} />
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}
 		title="Delete project?"

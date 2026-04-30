@@ -22,29 +22,19 @@
 
 {#if activeContext}
 	<div
-		class="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-700 dark:text-amber-400 sm:px-6"
+		class="flex items-center justify-between gap-3 border-b border-amber-500/15 bg-amber-500/[0.04] px-4 py-2 text-xs text-amber-700/80 dark:text-amber-500/70 sm:px-6"
 		role="status"
 	>
 		<div class="flex min-w-0 items-center gap-2">
 			<FunnelIcon class="size-3.5 shrink-0" weight="fill" />
 			<span class="min-w-0 truncate">
-				Filter active: context
-				<span class="inline-flex items-center gap-1 font-semibold">
-					{#if activeContext.color}
-						<span
-							class="size-1.5 rounded-full"
-							style={`background-color: ${activeContext.color}`}
-						></span>
-					{/if}
-					{activeContext.name}
-				</span>
-				· some tasks may be hidden.
+				Context <span class="font-semibold">{activeContext.name}</span> is selected, so not all tasks are shown.
 			</span>
 		</div>
 		<button
 			type="button"
 			onclick={clear}
-			class="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/40 px-2 py-0.5 font-medium transition-colors hover:bg-amber-500/20"
+			class="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/20 px-2 py-0.5 font-medium transition-colors hover:bg-amber-500/10"
 		>
 			<XIcon class="size-3" />
 			Clear filter

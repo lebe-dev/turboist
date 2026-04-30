@@ -56,7 +56,7 @@
 	<button
 		type="button"
 		onclick={() => onToggle?.(task)}
-		class="mt-[3px] inline-flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+		class="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 		class:border-red-500={!checked && task.priority === 'high' && phaseActive}
 		class:border-amber-500={!checked && task.priority === 'medium' && phaseActive}
 		class:border-blue-500={!checked && task.priority === 'low' && phaseActive}
@@ -69,7 +69,7 @@
 		aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
 	>
 		{#if checked}
-			<CheckIcon class="size-3" weight="bold" />
+			<CheckIcon class="size-2.5" weight="bold" />
 		{/if}
 	</button>
 
@@ -77,7 +77,7 @@
 		<div class="flex items-center gap-2">
 			<a
 				href={taskHref}
-				class="min-w-0 flex-1 truncate text-[15px] leading-snug"
+				class="min-w-0 flex-1 truncate text-sm leading-snug"
 				class:font-medium={!checked}
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
