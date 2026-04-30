@@ -68,5 +68,9 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 			return nil, err
 		}
 	}
-	return s.tasks.Update(ctx, taskID, repo.TaskUpdate{PlanState: &state})
+	update := repo.TaskUpdate{PlanState: &state}
+	if state == model.PlanStateWeek || state == model.PlanStateBacklog {
+		update.DueAtClear = true
+	}
+	return s.tasks.Update(ctx, taskID, update)
 }

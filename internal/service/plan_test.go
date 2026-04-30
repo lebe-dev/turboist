@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
@@ -114,6 +115,130 @@ func TestPlanService_InboxTaskRejectedWhenNoContexts(t *testing.T) {
 	_, err := svc.SetPlanState(ctx, task.ID, model.PlanStateBacklog)
 	if err != service.ErrNoContextForInbox {
 		t.Errorf("error: got %v, want %v", err, service.ErrNoContextForInbox)
+	}
+}
+
+func TestPlanService_SetWeekClearsDue(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels)
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	task, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement:  repo.Placement{ContextID: &cid},
+		Title:      "Task with due",
+		DueAt:      &due,
+		DueHasTime: true,
+	})
+
+	result, err := svc.SetPlanState(ctx, task.ID, model.PlanStateWeek)
+	if err != nil {
+		t.Fatalf("set plan state: %v", err)
+	}
+	if result.PlanState != model.PlanStateWeek {
+		t.Errorf("planState: got %q, want %q", result.PlanState, model.PlanStateWeek)
+	}
+	if result.DueAt != nil {
+		t.Errorf("dueAt: got %v, want nil", *result.DueAt)
+	}
+	if result.DueHasTime {
+		t.Errorf("dueHasTime: got %v, want false", result.DueHasTime)
+	}
+}
+
+func TestPlanService_SetBacklogClearsDue(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels)
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	task, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement:  repo.Placement{ContextID: &cid},
+		Title:      "Task with due",
+		DueAt:      &due,
+		DueHasTime: true,
+	})
+
+	result, err := svc.SetPlanState(ctx, task.ID, model.PlanStateBacklog)
+	if err != nil {
+		t.Fatalf("set plan state: %v", err)
+	}
+	if result.PlanState != model.PlanStateBacklog {
+		t.Errorf("planState: got %q, want %q", result.PlanState, model.PlanStateBacklog)
+	}
+	if result.DueAt != nil {
+		t.Errorf("dueAt: got %v, want nil", *result.DueAt)
+	}
+	if result.DueHasTime {
+		t.Errorf("dueHasTime: got %v, want false", result.DueHasTime)
+	}
+}
+
+func TestPlanService_BacklogToWeekClearsBacklog(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels)
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	task, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid},
+		Title:     "Task",
+	})
+
+	if _, err := svc.SetPlanState(ctx, task.ID, model.PlanStateBacklog); err != nil {
+		t.Fatalf("set backlog: %v", err)
+	}
+
+	result, err := svc.SetPlanState(ctx, task.ID, model.PlanStateWeek)
+	if err != nil {
+		t.Fatalf("set week: %v", err)
+	}
+	if result.PlanState != model.PlanStateWeek {
+		t.Errorf("planState: got %q, want %q", result.PlanState, model.PlanStateWeek)
+	}
+}
+
+func TestPlanService_SetNoneKeepsDue(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels)
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	task, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid},
+		Title:     "Task with due",
+		DueAt:     &due,
+		PlanState: model.PlanStateWeek,
+	})
+
+	result, err := svc.SetPlanState(ctx, task.ID, model.PlanStateNone)
+	if err != nil {
+		t.Fatalf("set none: %v", err)
+	}
+	if result.PlanState != model.PlanStateNone {
+		t.Errorf("planState: got %q, want %q", result.PlanState, model.PlanStateNone)
+	}
+	if result.DueAt == nil {
+		t.Errorf("dueAt: got nil, want preserved")
 	}
 }
 

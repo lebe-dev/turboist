@@ -7,7 +7,7 @@
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
 	import StackIcon from 'phosphor-svelte/lib/Stack';
-	import WarningIcon from 'phosphor-svelte/lib/Warning';
+	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
@@ -87,7 +87,13 @@
 			current: planStatsStore.value?.backlog,
 			limit: backlogLimit
 		},
-		{ href: resolve('/overdue'), label: 'Overdue', icon: WarningIcon },
+		{
+			href: resolve('/next-week'),
+			label: 'Next week',
+			icon: CalendarCheckIcon,
+			current: planStatsStore.value?.week,
+			limit: weekLimit
+		},
 		{ href: resolve('/search'), label: 'Search', icon: MagnifyingGlassIcon }
 	]);
 

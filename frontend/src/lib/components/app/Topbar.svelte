@@ -22,7 +22,7 @@
 		'/inbox': 'Inbox',
 		'/week': 'This week',
 		'/backlog': 'Backlog',
-		'/overdue': 'Overdue',
+		'/next-week': 'Next week',
 		'/search': 'Search',
 	};
 
