@@ -21,7 +21,14 @@
 	const week = useListMutator<Task>();
 
 	const weeklyLimit = $derived(configStore.value?.weekly.limit ?? null);
-	const weekFull = $derived(weeklyLimit !== null && week.items.length >= weeklyLimit);
+	const backlogLimit = $derived(configStore.value?.backlog.limit ?? null);
+	// Counts come from planStatsStore (global), not from list lengths — list is
+	// filtered by active context, so item counts can lag the limit enforced
+	// server-side and let the user trigger a 422.
+	const weekCount = $derived(planStatsStore.value?.week ?? week.items.length);
+	const backlogCount = $derived(planStatsStore.value?.backlog ?? backlog.items.length);
+	const weekFull = $derived(weeklyLimit !== null && weekCount >= weeklyLimit);
+	const backlogFull = $derived(backlogLimit !== null && backlogCount >= backlogLimit);
 
 	const loader = usePageLoad(
 		async (isValid) => {
@@ -29,7 +36,8 @@
 			const ctx = userStateStore.activeContextId ?? undefined;
 			const [backlogRes, weekRes] = await Promise.all([
 				viewsApi.backlog(client, { contextId: ctx }),
-				viewsApi.week(client, { contextId: ctx })
+				viewsApi.week(client, { contextId: ctx }),
+				planStatsStore.load().catch(() => {})
 			]);
 			if (!isValid()) return;
 			backlog.items = backlogRes.items;
@@ -45,7 +53,7 @@
 
 	async function planForWeek(task: Task): Promise<void> {
 		if (weekFull) {
-			toast.error(`Weekly limit reached (${weeklyLimit}/${weeklyLimit})`);
+			toast.error(`Weekly limit reached (${weekCount}/${weeklyLimit})`);
 			return;
 		}
 		try {
@@ -59,6 +67,10 @@
 	}
 
 	async function returnToBacklog(task: Task): Promise<void> {
+		if (backlogFull) {
+			toast.error(`Backlog limit reached (${backlogCount}/${backlogLimit})`);
+			return;
+		}
 		try {
 			const updated = await tasksApi.plan(getApiClient(), task.id, { state: 'backlog' });
 			week.mutator.remove(task.id);
@@ -75,12 +87,29 @@
 		<header
 			class="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2"
 		>
-			<h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+			<h2
+				class="text-sm font-semibold uppercase tracking-wide"
+				class:text-muted-foreground={!backlogFull}
+				class:text-red-600={backlogFull}
+				class:dark:text-red-400={backlogFull}
+			>
 				Backlog
 			</h2>
-			<span class="font-mono text-[11px] tabular-nums text-muted-foreground">
-				{backlog.items.length}
-			</span>
+			{#if backlogLimit !== null}
+				<span
+					class="font-mono text-[11px] tabular-nums"
+					class:text-muted-foreground={!backlogFull}
+					class:text-red-600={backlogFull}
+					class:dark:text-red-400={backlogFull}
+					class:font-semibold={backlogFull}
+				>
+					{backlogCount} / {backlogLimit}
+				</span>
+			{:else}
+				<span class="font-mono text-[11px] tabular-nums text-muted-foreground">
+					{backlog.items.length}
+				</span>
+			{/if}
 		</header>
 		<div class="min-h-[200px]">
 			<ViewContent
@@ -140,7 +169,7 @@
 					class:dark:text-red-400={weekFull}
 					class:font-semibold={weekFull}
 				>
-					{week.items.length} / {weeklyLimit}
+					{weekCount} / {weeklyLimit}
 				</span>
 			{/if}
 		</header>
@@ -158,9 +187,12 @@
 							<button
 								type="button"
 								onclick={() => void returnToBacklog(task)}
+								disabled={backlogFull}
 								aria-label="Return to backlog"
-								title="Return to backlog"
-								class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+								title={backlogFull
+									? `Backlog limit reached (${backlogLimit})`
+									: 'Return to backlog'}
+								class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 							>
 								<ArrowLeftIcon class="size-4" weight="bold" />
 							</button>
