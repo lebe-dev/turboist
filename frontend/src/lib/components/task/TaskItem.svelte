@@ -46,17 +46,30 @@
 		task.status === 'open' && isOverdue(task.dueAt, configStore.value?.timezone ?? null)
 	);
 	const taskHref = $derived(resolve('/(app)/task/[id]', { id: String(task.id) }));
+	const description = $derived(task.description?.trim() ?? '');
+	const hasMeta = $derived(
+		description.length > 0 ||
+			!!task.dueAt ||
+			(!hideDayPart && task.dayPart !== 'none') ||
+			(showProject && !!project) ||
+			task.labels.length > 0
+	);
 </script>
 
 <div
-	class="group/task relative flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent/50"
+	class="group/task relative flex gap-3 rounded-lg px-3 transition-colors hover:bg-accent/50"
+	class:items-start={hasMeta}
+	class:items-center={!hasMeta}
+	class:py-2.5={hasMeta}
+	class:py-1.5={!hasMeta}
 	style:padding-left={`${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
 >
 	<button
 		type="button"
 		onclick={() => onToggle?.(task)}
-		class="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+		class="inline-flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+		class:mt-0.5={hasMeta}
 		class:border-red-500={!checked && task.priority === 'high' && phaseActive}
 		class:border-amber-500={!checked && task.priority === 'medium' && phaseActive}
 		class:border-blue-500={!checked && task.priority === 'low' && phaseActive}
@@ -86,8 +99,8 @@
 			</a>
 		</div>
 
-		{#if task.description}
-			<p class="truncate text-xs text-muted-foreground/70">{task.description}</p>
+		{#if description}
+			<p class="truncate text-xs text-muted-foreground/70">{description}</p>
 		{/if}
 
 		{#if task.dueAt || (!hideDayPart && task.dayPart !== 'none') || (showProject && project) || task.labels.length > 0}
