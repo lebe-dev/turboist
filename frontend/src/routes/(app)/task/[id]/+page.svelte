@@ -7,7 +7,6 @@
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
@@ -17,6 +16,7 @@
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
+	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { describeError } from '$lib/utils/taskActions';
@@ -33,7 +33,7 @@
 	let priority = $state<Priority>('no-priority');
 	let dayPart = $state<DayPart>('none');
 	let dueDate = $state('');
-	let recurrence = $state('');
+	let recurrence = $state<string | null>(null);
 	let labelIds = $state<string[]>([]);
 	let removedAuto = $state<string[]>([]);
 
@@ -66,7 +66,7 @@
 		description = t.description ?? '';
 		priority = t.priority;
 		dayPart = t.dayPart;
-		recurrence = t.recurrenceRule ?? '';
+		recurrence = t.recurrenceRule ?? null;
 		const dt = parseIso(t.dueAt);
 		if (dt) {
 			dueDate = dayKeyInTz(dt, configStore.value?.timezone ?? null);
@@ -94,6 +94,10 @@
 	});
 	$effect(() => {
 		void dayPart;
+		scheduleSave();
+	});
+	$effect(() => {
+		void recurrence;
 		scheduleSave();
 	});
 
@@ -168,7 +172,7 @@
 				dayPart,
 				dueAt,
 				dueHasTime: false,
-				recurrenceRule: recurrence.trim() ? recurrence.trim() : null,
+				recurrenceRule: recurrence,
 				labels: labelIds
 					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
 					.filter((n): n is string => !!n),
@@ -317,9 +321,9 @@
 
 			<div class="flex flex-col gap-1.5">
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-					Recurrence
+					Repeat
 				</span>
-				<Input bind:value={recurrence} placeholder="FREQ=DAILY" onchange={scheduleSave} class="h-8 text-xs" />
+				<RecurrencePicker bind:value={recurrence} />
 			</div>
 
 			{#if allLabels.length > 0}

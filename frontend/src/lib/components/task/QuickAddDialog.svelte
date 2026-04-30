@@ -8,6 +8,7 @@
 	import { configStore } from '$lib/stores/config.svelte';
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
+	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -36,6 +37,7 @@
 	// svelte-ignore state_referenced_locally
 	let projectId = $state<string>(defaultProjectId ? String(defaultProjectId) : '');
 	let labelIds = $state<string[]>([]);
+	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
 	let labelMenuOpen = $state(false);
 
@@ -73,6 +75,7 @@
 		priority = 'no-priority';
 		dayPart = 'none';
 		dueDate = '';
+		recurrenceRule = null;
 		projectId = defaultProjectId ? String(defaultProjectId) : '';
 		labelIds = [];
 		labelMenuOpen = false;
@@ -98,6 +101,7 @@
 					? toIsoUtc(dayStartUtcInTz(dueDate, configStore.value?.timezone ?? null))
 					: null,
 				dueHasTime: false,
+				recurrenceRule,
 				labels: labelIds
 					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
 					.filter((n): n is string => !!n)
@@ -236,6 +240,8 @@
 						<PriorityPicker bind:value={priority} />
 
 						<DayPartPicker bind:value={dayPart} />
+
+						<RecurrencePicker bind:value={recurrenceRule} />
 
 						{#if allLabels.length > 0}
 							<div class="relative">
