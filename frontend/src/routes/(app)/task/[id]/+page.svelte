@@ -316,7 +316,7 @@
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					Day part
 				</span>
-				<DayPartPicker bind:value={dayPart} compact />
+				<DayPartPicker bind:value={dayPart} />
 			</div>
 
 			<div class="flex flex-col gap-1.5">

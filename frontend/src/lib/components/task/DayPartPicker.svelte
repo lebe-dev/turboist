@@ -6,19 +6,14 @@
 	import ClockIcon from 'phosphor-svelte/lib/Clock';
 	import type { Component } from 'svelte';
 
-	let {
-		value = $bindable<DayPart>('none'),
-		compact = false
-	}: { value?: DayPart; compact?: boolean } = $props();
+	let { value = $bindable<DayPart>('none') }: { value?: DayPart } = $props();
 
-	const OPTIONS: Array<{ part: DayPart; label: string; icon: Component }> = [
-		{ part: 'morning', label: 'Morning', icon: SunHorizonIcon as unknown as Component },
-		{ part: 'afternoon', label: 'Afternoon', icon: SunIcon as unknown as Component },
-		{ part: 'evening', label: 'Evening', icon: MoonIcon as unknown as Component },
-		{ part: 'none', label: 'Anytime', icon: ClockIcon as unknown as Component }
+	const OPTIONS: Array<{ part: DayPart; label: string; icon: Component; color: string }> = [
+		{ part: 'morning', label: 'Morning', icon: SunHorizonIcon as unknown as Component, color: 'text-orange-400' },
+		{ part: 'afternoon', label: 'Afternoon', icon: SunIcon as unknown as Component, color: 'text-yellow-400' },
+		{ part: 'evening', label: 'Evening', icon: MoonIcon as unknown as Component, color: 'text-indigo-400' },
+		{ part: 'none', label: 'Anytime', icon: ClockIcon as unknown as Component, color: 'text-foreground' }
 	];
-
-	const labelClass = $derived(compact ? 'sr-only' : 'sr-only sm:not-sr-only');
 </script>
 
 <div
@@ -36,15 +31,10 @@
 			aria-label={opt.label}
 			title={opt.label}
 			onclick={() => (value = opt.part)}
-			class="inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
-			class:bg-accent={active}
-			class:text-foreground={active}
-			class:text-muted-foreground={!active}
-			class:hover:bg-accent={!active}
-			class:hover:text-foreground={!active}
+			class="inline-flex h-7 w-7 items-center justify-center rounded-[5px] transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50
+				{active ? `bg-accent ${opt.color}` : 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
 		>
 			<Icon class="size-3.5" />
-			<span class={labelClass}>{opt.label}</span>
 		</button>
 	{/each}
 </div>
