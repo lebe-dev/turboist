@@ -74,6 +74,8 @@ type Task struct {
 
 	RecurrenceRule *string
 
+	PostponeCount int
+
 	Labels []Label
 
 	CreatedAt time.Time

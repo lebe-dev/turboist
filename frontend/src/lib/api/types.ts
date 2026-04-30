@@ -98,6 +98,8 @@ export interface Task {
 
 	recurrenceRule: string | null;
 
+	postponeCount: number;
+
 	labels: Label[];
 
 	url: string;

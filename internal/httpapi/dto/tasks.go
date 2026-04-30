@@ -25,6 +25,7 @@ type TaskDTO struct {
 	PinnedAt        *string    `json:"pinnedAt"`
 	CompletedAt     *string    `json:"completedAt"`
 	RecurrenceRule  *string    `json:"recurrenceRule"`
+	PostponeCount   int        `json:"postponeCount"`
 	Labels          []LabelDTO `json:"labels"`
 	URL             string     `json:"url"`
 	CreatedAt       string     `json:"createdAt"`
@@ -57,6 +58,7 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		PinnedAt:        FormatTimePtr(t.PinnedAt),
 		CompletedAt:     FormatTimePtr(t.CompletedAt),
 		RecurrenceRule:  t.RecurrenceRule,
+		PostponeCount:   t.PostponeCount,
 		Labels:          labels,
 		URL:             t.URL(baseURL),
 		CreatedAt:       FormatTime(t.CreatedAt),

@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ const testBaseURL = "http://test"
 // apiEnv is the shared test environment for resource handler tests.
 type apiEnv struct {
 	app      *fiber.App
+	db       *sql.DB
 	jwt      *auth.JWTIssuer
 	ctxs     *repo.ContextRepo
 	labels   *repo.LabelRepo
@@ -86,6 +88,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 
 	return &apiEnv{
 		app:      app,
+		db:       d,
 		jwt:      issuer,
 		ctxs:     ctxs,
 		labels:   lbls,

@@ -13,6 +13,7 @@
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import LabelChips from './LabelChips.svelte';
 	import DateBadge from './DateBadge.svelte';
+	import PostponeBadge from './PostponeBadge.svelte';
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
 
 	let {
@@ -52,7 +53,8 @@
 			!!task.dueAt ||
 			(!hideDayPart && task.dayPart !== 'none') ||
 			(showProject && !!project) ||
-			task.labels.length > 0
+			task.labels.length > 0 ||
+			task.postponeCount >= 2
 	);
 </script>
 
@@ -103,9 +105,10 @@
 			<p class="truncate text-xs text-muted-foreground/70">{description}</p>
 		{/if}
 
-		{#if task.dueAt || (!hideDayPart && task.dayPart !== 'none') || (showProject && project) || task.labels.length > 0}
+		{#if task.dueAt || (!hideDayPart && task.dayPart !== 'none') || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} {hideTodayBadge} />
+				<PostponeBadge count={task.postponeCount} />
 				{#if !hideDayPart}
 					{#if task.dayPart === 'morning'}
 						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Morning">

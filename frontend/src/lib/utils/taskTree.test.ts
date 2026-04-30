@@ -24,6 +24,7 @@ function task(id: number, parentId: number | null = null, title = `t${id}`): Tas
 		pinnedAt: null,
 		completedAt: null,
 		recurrenceRule: null,
+		postponeCount: 0,
 		labels: [],
 		url: '',
 		createdAt: '',

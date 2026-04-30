@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -156,6 +157,8 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 			return httpapi.ErrValidation("deadlineHasTime requires deadlineAt")
 		}
 	}
+
+	u.IncPostponeCount = shouldIncPostpone(t, u, time.Now())
 
 	updated, err := h.tasks.Update(c.Context(), id, u)
 	if err != nil {

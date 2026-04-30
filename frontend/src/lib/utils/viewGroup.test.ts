@@ -24,6 +24,7 @@ function makeTask(overrides: Partial<Task>): Task {
 		pinnedAt: null,
 		completedAt: null,
 		recurrenceRule: null,
+		postponeCount: 0,
 		labels: [],
 		url: '',
 		createdAt: '2026-01-01T00:00:00.000Z',

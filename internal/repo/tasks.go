@@ -27,7 +27,7 @@ func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, recurrence_rule, completed_at, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, recurrence_rule, completed_at, postpone_count, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -54,6 +54,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&dueAt, &dueHasTime, &deadlineAt, &deadlineHasTime,
 		&t.DayPart, &t.PlanState,
 		&isPinned, &pinnedAt, &recurrenceRule, &completedAt,
+		&t.PostponeCount,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
@@ -236,6 +237,8 @@ type TaskUpdate struct {
 	RecurrenceRule  *string
 	RecurrenceClear bool
 	Status          *model.TaskStatus
+
+	IncPostponeCount bool
 }
 
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
@@ -300,6 +303,9 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 		} else {
 			sets = append(sets, "completed_at = NULL")
 		}
+	}
+	if u.IncPostponeCount {
+		sets = append(sets, "postpone_count = postpone_count + 1")
 	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
