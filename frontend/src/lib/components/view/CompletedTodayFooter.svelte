@@ -83,7 +83,7 @@
 				{:else if items.length === 0}
 					<div class="px-4 py-4 text-sm text-muted-foreground">No tasks completed today.</div>
 				{:else}
-					<TaskTree tasks={items} hideDayPart onToggle={onItemToggle} />
+					<TaskTree tasks={items} onToggle={onItemToggle} />
 				{/if}
 			</div>
 		{/if}

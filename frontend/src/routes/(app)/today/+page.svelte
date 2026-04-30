@@ -89,7 +89,6 @@
 				>
 					<TaskTree
 						tasks={group.tasks}
-						hideDayPart
 						hideTodayBadge
 						{mutator}
 						belongs={isToday}

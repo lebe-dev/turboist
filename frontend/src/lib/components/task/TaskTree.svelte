@@ -10,7 +10,6 @@
 		nodes,
 		depth = 0,
 		showProject = true,
-		hideDayPart = false,
 		hideTodayBadge = false,
 		mutator,
 		belongs,
@@ -20,7 +19,6 @@
 		nodes?: TaskNode[];
 		depth?: number;
 		showProject?: boolean;
-		hideDayPart?: boolean;
 		hideTodayBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
@@ -36,7 +34,6 @@
 			task={node.task}
 			{depth}
 			{showProject}
-			{hideDayPart}
 			{hideTodayBadge}
 			{mutator}
 			{belongs}
@@ -47,7 +44,6 @@
 				nodes={node.children}
 				depth={depth + 1}
 				{showProject}
-				{hideDayPart}
 				{hideTodayBadge}
 				{mutator}
 				{belongs}

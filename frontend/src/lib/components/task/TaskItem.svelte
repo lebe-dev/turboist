@@ -3,9 +3,6 @@
 	import { resolve } from '$app/paths';
 	import type { Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
-	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
-	import SunIcon from 'phosphor-svelte/lib/Sun';
-	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -20,7 +17,6 @@
 		task,
 		depth = 0,
 		showProject = true,
-		hideDayPart = false,
 		hideTodayBadge = false,
 		mutator,
 		belongs,
@@ -29,7 +25,6 @@
 		task: Task;
 		depth?: number;
 		showProject?: boolean;
-		hideDayPart?: boolean;
 		hideTodayBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
@@ -51,7 +46,6 @@
 	const hasMeta = $derived(
 		description.length > 0 ||
 			!!task.dueAt ||
-			(!hideDayPart && task.dayPart !== 'none') ||
 			(showProject && !!project) ||
 			task.labels.length > 0 ||
 			task.postponeCount >= 2
@@ -105,25 +99,10 @@
 			<p class="truncate text-xs text-muted-foreground/70">{description}</p>
 		{/if}
 
-		{#if task.dueAt || (!hideDayPart && task.dayPart !== 'none') || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
+		{#if task.dueAt || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				<DateBadge value={task.dueAt} hasTime={task.dueHasTime} {overdue} {hideTodayBadge} />
 				<PostponeBadge count={task.postponeCount} />
-				{#if !hideDayPart}
-					{#if task.dayPart === 'morning'}
-						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Morning">
-							<SunHorizonIcon class="size-3.5" />
-						</span>
-					{:else if task.dayPart === 'afternoon'}
-						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Afternoon">
-							<SunIcon class="size-3.5" />
-						</span>
-					{:else if task.dayPart === 'evening'}
-						<span class="inline-flex items-center gap-1 text-muted-foreground" title="Evening">
-							<MoonIcon class="size-3.5" />
-						</span>
-					{/if}
-				{/if}
 				{#if showProject && project}
 					<span class="inline-flex items-center gap-1 text-muted-foreground">
 						<FolderIcon class="size-3.5" />

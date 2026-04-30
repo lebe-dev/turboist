@@ -6,14 +6,12 @@
 	let {
 		tasks,
 		showProject = true,
-		hideDayPart = false,
 		mutator,
 		belongs,
 		onToggle
 	}: {
 		tasks: Task[];
 		showProject?: boolean;
-		hideDayPart?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -22,6 +20,6 @@
 
 <div class="flex flex-col divide-y divide-border/40">
 	{#each tasks as task (task.id)}
-		<TaskItem {task} {showProject} {hideDayPart} {mutator} {belongs} {onToggle} />
+		<TaskItem {task} {showProject} {mutator} {belongs} {onToggle} />
 	{/each}
 </div>
