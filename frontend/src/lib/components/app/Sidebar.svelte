@@ -290,6 +290,10 @@
 			title="Projects"
 			collapsible
 			onAdd={() => {
+				if (contextsStore.items.length === 0) {
+					toast.error('Create a context first');
+					return;
+				}
 				projectDialogContextId = userStateStore.activeContextId;
 				projectDialogOpen = true;
 			}}
