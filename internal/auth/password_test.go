@@ -1,17 +1,20 @@
 package auth
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
 
 func TestHashPassword_PHCFormat(t *testing.T) {
-	h, err := HashPassword("secret123")
+	h, err := HashPassword("secret123", DefaultArgon2Params())
 	if err != nil {
 		t.Fatalf("hash: %v", err)
 	}
-	if !strings.HasPrefix(h, "$argon2id$v=19$m=65536,t=3,p=4$") {
-		t.Errorf("unexpected PHC prefix: %q", h)
+	p := DefaultArgon2Params()
+	wantPrefix := fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$", p.Memory, p.Time, p.Threads)
+	if !strings.HasPrefix(h, wantPrefix) {
+		t.Errorf("PHC prefix: got %q, want prefix %q", h, wantPrefix)
 	}
 	parts := strings.Split(h, "$")
 	if len(parts) != 6 {
@@ -19,8 +22,19 @@ func TestHashPassword_PHCFormat(t *testing.T) {
 	}
 }
 
+func TestHashPassword_CustomParamsEncoded(t *testing.T) {
+	custom := Argon2Params{Memory: 8 * 1024, Time: 1, Threads: 2}
+	h, err := HashPassword("secret123", custom)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	if !strings.HasPrefix(h, "$argon2id$v=19$m=8192,t=1,p=2$") {
+		t.Errorf("custom params not encoded: %q", h)
+	}
+}
+
 func TestVerifyPassword_RoundTrip(t *testing.T) {
-	h, err := HashPassword("p@ssw0rd!")
+	h, err := HashPassword("p@ssw0rd!", DefaultArgon2Params())
 	if err != nil {
 		t.Fatalf("hash: %v", err)
 	}
@@ -32,9 +46,22 @@ func TestVerifyPassword_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestVerifyPassword_AcceptsLegacyHashParams(t *testing.T) {
+	// Hashes produced with stronger legacy parameters must still verify so existing
+	// users aren't locked out after we lower the default cost.
+	legacy := Argon2Params{Memory: 64 * 1024, Time: 3, Threads: 4}
+	h, err := HashPassword("legacy-pwd", legacy)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	if err := VerifyPassword("legacy-pwd", h); err != nil {
+		t.Errorf("verify legacy hash: %v", err)
+	}
+}
+
 func TestVerifyPassword_DifferentSalts(t *testing.T) {
-	h1, _ := HashPassword("same")
-	h2, _ := HashPassword("same")
+	h1, _ := HashPassword("same", DefaultArgon2Params())
+	h2, _ := HashPassword("same", DefaultArgon2Params())
 	if h1 == h2 {
 		t.Errorf("hashes must differ due to random salt")
 	}

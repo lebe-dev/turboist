@@ -3,9 +3,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/lebe-dev/turboist/internal/auth"
 )
 
 type Config struct {
@@ -150,11 +153,12 @@ func validateDayParts(parts map[string]DayPart) error {
 }
 
 type Env struct {
-	Bind      string
-	LogLevel  string
-	BaseURL   string
-	JWTSecret string
-	DataPath  string
+	Bind         string
+	LogLevel     string
+	BaseURL      string
+	JWTSecret    string
+	DataPath     string
+	Argon2Params auth.Argon2Params
 }
 
 func LoadEnv() (*Env, error) {
@@ -183,5 +187,40 @@ func LoadEnv() (*Env, error) {
 	if len(e.JWTSecret) < 32 {
 		return nil, fmt.Errorf("env: JWT_SECRET must be at least 32 bytes")
 	}
+
+	argon2Params, err := loadArgon2Params()
+	if err != nil {
+		return nil, err
+	}
+	e.Argon2Params = argon2Params
+
 	return e, nil
+}
+
+func loadArgon2Params() (auth.Argon2Params, error) {
+	p := auth.DefaultArgon2Params()
+
+	if v := os.Getenv("ARGON2_MEMORY_KIB"); v != "" {
+		n, err := strconv.ParseUint(v, 10, 32)
+		if err != nil || n == 0 {
+			return p, fmt.Errorf("env: ARGON2_MEMORY_KIB must be a positive integer")
+		}
+		p.Memory = uint32(n)
+	}
+	if v := os.Getenv("ARGON2_TIME"); v != "" {
+		n, err := strconv.ParseUint(v, 10, 32)
+		if err != nil || n == 0 {
+			return p, fmt.Errorf("env: ARGON2_TIME must be a positive integer")
+		}
+		p.Time = uint32(n)
+	}
+	if v := os.Getenv("ARGON2_THREADS"); v != "" {
+		n, err := strconv.ParseUint(v, 10, 8)
+		if err != nil || n == 0 {
+			return p, fmt.Errorf("env: ARGON2_THREADS must be a positive integer (1-255)")
+		}
+		p.Threads = uint8(n)
+	}
+
+	return p, nil
 }

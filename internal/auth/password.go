@@ -12,28 +12,50 @@ import (
 )
 
 const (
-	argonTime    = 3
-	argonMemory  = 64 * 1024 // 64 MB in KiB
-	argonThreads = 4
 	argonKeyLen  = 32
 	argonSaltLen = 16
 )
+
+// Argon2Params controls the cost of password hashing.
+//
+// VerifyPassword reads parameters from the encoded hash itself, so changing
+// these values affects only newly hashed passwords; existing hashes keep
+// verifying against the parameters they were created with.
+type Argon2Params struct {
+	// Memory in KiB.
+	Memory uint32
+	// Number of iterations.
+	Time uint32
+	// Parallelism (number of lanes).
+	Threads uint8
+}
+
+// DefaultArgon2Params returns the OWASP recommended minimum profile for
+// argon2id (m=19 MiB, t=2, p=1). See:
+// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
+func DefaultArgon2Params() Argon2Params {
+	return Argon2Params{
+		Memory:  19 * 1024,
+		Time:    2,
+		Threads: 1,
+	}
+}
 
 var (
 	ErrInvalidHash         = errors.New("auth: invalid argon2 hash format")
 	ErrUnsupportedHashAlgo = errors.New("auth: unsupported hash algorithm")
 )
 
-// HashPassword returns a PHC-formatted argon2id hash.
-func HashPassword(password string) (string, error) {
+// HashPassword returns a PHC-formatted argon2id hash using the given parameters.
+func HashPassword(password string, p Argon2Params) (string, error) {
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("read salt: %w", err)
 	}
-	hash := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	hash := argon2.IDKey([]byte(password), salt, p.Time, p.Memory, p.Threads, argonKeyLen)
 	b64 := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		argon2.Version, argonMemory, argonTime, argonThreads,
+		argon2.Version, p.Memory, p.Time, p.Threads,
 		b64.EncodeToString(salt), b64.EncodeToString(hash)), nil
 }
 

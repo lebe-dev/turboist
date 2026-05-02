@@ -23,11 +23,12 @@ const (
 
 // AuthHandler implements all /auth/* endpoints.
 type AuthHandler struct {
-	users    *repo.UserRepo
-	sessions *repo.SessionRepo
-	jwt      *auth.JWTIssuer
-	limiter  *auth.IPLimiter
-	theft    *theftCache
+	users        *repo.UserRepo
+	sessions     *repo.SessionRepo
+	jwt          *auth.JWTIssuer
+	limiter      *auth.IPLimiter
+	theft        *theftCache
+	argon2Params auth.Argon2Params
 }
 
 // NewAuthHandler constructs an AuthHandler.
@@ -36,13 +37,15 @@ func NewAuthHandler(
 	sessions *repo.SessionRepo,
 	jwt *auth.JWTIssuer,
 	limiter *auth.IPLimiter,
+	argon2Params auth.Argon2Params,
 ) *AuthHandler {
 	return &AuthHandler{
-		users:    users,
-		sessions: sessions,
-		jwt:      jwt,
-		limiter:  limiter,
-		theft:    newTheftCache(),
+		users:        users,
+		sessions:     sessions,
+		jwt:          jwt,
+		limiter:      limiter,
+		theft:        newTheftCache(),
+		argon2Params: argon2Params,
 	}
 }
 
@@ -89,7 +92,7 @@ func (h *AuthHandler) setup(c fiber.Ctx) error {
 		return err
 	}
 
-	hash, err := auth.HashPassword(req.Password)
+	hash, err := auth.HashPassword(req.Password, h.argon2Params)
 	if err != nil {
 		return httpapi.ErrInternal("hash password")
 	}

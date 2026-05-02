@@ -228,7 +228,7 @@
 					<span>On days of week</span>
 				</div>
 				<div class="ml-6 flex gap-0.5">
-					{#each WEEKDAY_ORDER as day}
+					{#each WEEKDAY_ORDER as day (day)}
 						<button
 							type="button"
 							onclick={(e) => {

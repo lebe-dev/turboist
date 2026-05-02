@@ -49,7 +49,7 @@ func setupAuthTest(t *testing.T) *testEnv {
 	limiter := auth.NewIPLimiter(rate.Every(time.Millisecond), 1000, 10*time.Minute)
 	t.Cleanup(limiter.Stop)
 
-	handler := handlers.NewAuthHandler(users, sessions, issuer, limiter)
+	handler := handlers.NewAuthHandler(users, sessions, issuer, limiter, auth.DefaultArgon2Params())
 	t.Cleanup(handler.Stop)
 
 	deps := httpapi.Deps{JWTIssuer: issuer}
@@ -248,7 +248,7 @@ func TestSetup_RateLimit(t *testing.T) {
 	tightLimiter := auth.NewIPLimiter(rate.Every(time.Hour), 1, time.Minute)
 	t.Cleanup(tightLimiter.Stop)
 
-	tightHandler := handlers.NewAuthHandler(env.users, env.sessions, env.jwt, tightLimiter)
+	tightHandler := handlers.NewAuthHandler(env.users, env.sessions, env.jwt, tightLimiter, auth.DefaultArgon2Params())
 	app := httpapi.NewApp(httpapi.Deps{JWTIssuer: env.jwt})
 	tightHandler.RegisterAuth(app.Group("/auth"), env.jwt)
 
@@ -355,7 +355,7 @@ func TestLogin_RateLimit(t *testing.T) {
 	tightLimiter := auth.NewIPLimiter(rate.Every(time.Hour), 1, time.Minute)
 	t.Cleanup(tightLimiter.Stop)
 
-	tightHandler := handlers.NewAuthHandler(env.users, env.sessions, env.jwt, tightLimiter)
+	tightHandler := handlers.NewAuthHandler(env.users, env.sessions, env.jwt, tightLimiter, auth.DefaultArgon2Params())
 	app := httpapi.NewApp(httpapi.Deps{JWTIssuer: env.jwt})
 	tightHandler.RegisterAuth(app.Group("/auth"), env.jwt)
 

@@ -9,3 +9,9 @@ services:
       - ./config.yml:/app/config.yml:ro
       - ./data:/app/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          # Required only for aragon hashing
+          memory: 128M

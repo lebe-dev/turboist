@@ -63,7 +63,7 @@
 	{#if inboxStatsStore.warnThresholdExceeded && configStore.value}
 		<p class="mt-3 mb-4 px-3 text-sm text-muted-foreground">
 			Inbox is over capacity ({inboxStatsStore.count}/{configStore.value.inbox.warnThreshold}).{#if overflowTask}
-				{' '}<button
+				 <button
 					type="button"
 					class="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
 					disabled={creatingOverflow}

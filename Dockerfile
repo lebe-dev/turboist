@@ -10,7 +10,7 @@ RUN APP_VERSION=$(grep 'Version' /build/main.go | head -1 | cut -d '"' -f 2) && 
     yarn --frozen-lockfile && \
     yarn build
 
-FROM golang:1.25-alpine3.23 AS app-build
+FROM golang:1.26-alpine3.23 AS app-build
 
 WORKDIR /build
 
@@ -30,7 +30,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o turboist ./cmd/turboist && \
 FROM scratch AS binary
 COPY --from=app-build /build/turboist /turboist
 
-FROM alpine:3.23.3
+FROM alpine:3.23
 
 ENV TZ=Europe/Moscow
 

@@ -93,5 +93,8 @@ release-image: build-image && push-image
 release: release-image
 
 # --- Deploy ---
-deploy:
+deploy-old:
     ssh kaiman "cd /opt/turboist && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"
+
+deploy:
+    ssh kaiman "cd /opt/turboist-dev && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"

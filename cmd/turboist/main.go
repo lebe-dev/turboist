@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	turboist "github.com/lebe-dev/turboist"
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/db"
@@ -111,7 +112,7 @@ func main() {
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)
 
-	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter)
+	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
 	authHandler.RegisterAuth(app.Group("/auth"), jwtIssuer)
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, env.BaseURL).Register(api.Group("/labels"))
@@ -125,6 +126,12 @@ func main() {
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
+
+	// embedded SvelteKit SPA (must be registered after API/auth routes)
+	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {
+		log.Error("register SPA", "err", err)
+		os.Exit(1)
+	}
 
 	// graceful shutdown
 	quit := make(chan os.Signal, 1)

@@ -89,7 +89,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)
 
-	handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter).RegisterAuth(app.Group("/auth"), jwtIssuer)
+	handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, auth.DefaultArgon2Params()).RegisterAuth(app.Group("/auth"), jwtIssuer)
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, baseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, baseURL).Register(api.Group("/labels"))
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, baseURL).Register(api.Group("/sections"))
