@@ -14,6 +14,7 @@
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
+	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import type { DayPart, Priority, Task, TaskInput } from '$lib/api/types';
 	import type { ListMutator } from '$lib/utils/taskActions';
@@ -61,6 +62,9 @@
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
+	const project = $derived(
+		task?.projectId ? projectsStore.items.find((p) => p.id === task!.projectId) : null
+	);
 	const autoLabelNames = $derived(
 		new Set((configStore.value?.autoLabels ?? []).map((r) => r.label))
 	);
@@ -244,10 +248,24 @@
 </script>
 
 <header class="flex items-center justify-between gap-3 border-b border-border px-2 py-1 sm:px-5">
-	<Button variant="ghost" size="sm" onclick={back} class="h-7 gap-1 px-2 text-[10px] uppercase tracking-wider">
-		<ArrowLeftIcon class="size-3" />
-		Back
-	</Button>
+	<div class="flex min-w-0 items-center gap-2">
+		<Button variant="ghost" size="sm" onclick={back} class="h-7 shrink-0 gap-1 px-2 text-[10px] uppercase tracking-wider">
+			<ArrowLeftIcon class="size-3" />
+			Back
+		</Button>
+		{#if project}
+			<a
+				href={resolve('/(app)/project/[id]', { id: String(project.id) })}
+				class="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+			>
+				<span
+					class="size-2 shrink-0 rounded-full"
+					style={`background-color: ${project.color}`}
+				></span>
+				<span class="truncate">{project.title}</span>
+			</a>
+		{/if}
+	</div>
 	{#if task}
 		<TaskActionsMenu task={task} mutator={pageMutator} />
 	{/if}

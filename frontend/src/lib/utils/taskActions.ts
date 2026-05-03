@@ -174,6 +174,24 @@ export async function setTroikiCategory(
 	}
 }
 
+export async function moveTaskToProject(
+	task: Task,
+	contextId: number,
+	projectId: number,
+	mutator: ListMutator,
+	options: BelongsOption = {}
+): Promise<void> {
+	if (task.projectId === projectId) return;
+	const client = getApiClient();
+	try {
+		const updated = await tasksApi.move(client, task.id, { contextId, projectId });
+		applyUpdate(updated, mutator, options.belongs);
+		toast.success('Moved');
+	} catch (err) {
+		toast.error(describeError(err, 'Failed to move task'));
+	}
+}
+
 export async function copyTaskTitle(task: Task): Promise<void> {
 	try {
 		await navigator.clipboard.writeText(task.title);

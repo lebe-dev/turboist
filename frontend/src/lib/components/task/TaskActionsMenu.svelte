@@ -18,7 +18,9 @@
 		updateTaskFields,
 		type ListMutator
 	} from '$lib/utils/taskActions';
+	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
+	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
@@ -99,6 +101,8 @@
 	function chooseTroiki(category: TroikiCategory | null) {
 		void setTroikiCategory(task, category, mutator, { belongs });
 	}
+
+	let moveOpen = $state(false);
 </script>
 
 <DropdownMenu.Root>
@@ -132,6 +136,9 @@
 		<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>
 			<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />
 			{task.isPinned ? 'Unpin' : 'Pin'}
+		</DropdownMenu.Item>
+		<DropdownMenu.Item onclick={() => (moveOpen = true)}>
+			<FolderIcon class="size-4" /> Move to project…
 		</DropdownMenu.Item>
 		{#if task.planState === 'backlog'}
 			<DropdownMenu.Item onclick={() => void removeFromBacklog(task, mutator, { belongs })}>
@@ -286,3 +293,5 @@
 		</DropdownMenu.Item>
 	</DropdownMenu.Content>
 </DropdownMenu.Root>
+
+<MoveTaskDialog bind:open={moveOpen} {task} {mutator} {belongs} />

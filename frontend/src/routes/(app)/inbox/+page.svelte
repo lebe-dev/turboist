@@ -95,7 +95,7 @@
 			showProject={false}
 			{mutator}
 			belongs={(t) => t.inboxId !== null}
-			onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
+			onToggle={(t) => toggleComplete(t, mutator)}
 		/>
 	</ViewContent>
 </div>

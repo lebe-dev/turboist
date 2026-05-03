@@ -10,6 +10,7 @@
 	import DayPartPicker from './DayPartPicker.svelte';
 	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { clickOutside } from '$lib/actions/clickOutside';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -327,7 +328,10 @@
 						<RecurrencePicker bind:value={recurrenceRule} />
 
 						{#if allLabels.length > 0}
-							<div class="relative">
+							<div
+								class="relative"
+								use:clickOutside={() => (labelMenuOpen = false)}
+							>
 								<button
 									type="button"
 									onclick={() => (labelMenuOpen = !labelMenuOpen)}
