@@ -28,14 +28,15 @@ func duplicateTitle(title string) string {
 
 // TaskHandler implements GET/PATCH/DELETE /tasks/:id and POST /tasks/:id/subtasks.
 type TaskHandler struct {
-	tasks   *repo.TaskRepo
-	taskSvc *service.TaskService
-	baseURL string
+	tasks    *repo.TaskRepo
+	projects *repo.ProjectRepo
+	taskSvc  *service.TaskService
+	baseURL  string
 }
 
 // NewTaskHandler constructs a TaskHandler.
-func NewTaskHandler(tasks *repo.TaskRepo, taskSvc *service.TaskService, baseURL string) *TaskHandler {
-	return &TaskHandler{tasks: tasks, taskSvc: taskSvc, baseURL: baseURL}
+func NewTaskHandler(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskSvc *service.TaskService, baseURL string) *TaskHandler {
+	return &TaskHandler{tasks: tasks, projects: projects, taskSvc: taskSvc, baseURL: baseURL}
 }
 
 // Register wires task routes onto r (the /api/v1 group).
@@ -95,10 +96,17 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		if !p.IsValid() {
 			return httpapi.ErrValidation("invalid priority")
 		}
-		// Tasks placed in Troiki have priority pinned by their category — reject
-		// direct priority edits so a stale client or CLI can't desync the two.
-		if t.TroikiCategory != nil && p != service.PriorityForCategory(*t.TroikiCategory) {
-			return httpapi.ErrValidation("priority is managed by Troiki category")
+		// Tasks in a Troiki-bound project have priority pinned by the project's
+		// category — reject direct priority edits so a stale client or CLI can't
+		// desync the two.
+		if t.ProjectID != nil {
+			proj, err := h.projects.Get(c.Context(), *t.ProjectID)
+			if err != nil && !errors.Is(err, repo.ErrNotFound) {
+				return httpapi.ErrInternal("get project")
+			}
+			if proj != nil && proj.TroikiCategory != nil && p != service.PriorityForCategory(*proj.TroikiCategory) {
+				return httpapi.ErrValidation("priority is managed by Troiki category")
+			}
 		}
 		u.Priority = &p
 	}

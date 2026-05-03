@@ -88,7 +88,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewTaskActionHandler(tasks, completeSvc, planSvc, pinSvc, moveSvc, testBaseURL).Register(api)
 	troikiSvc := service.NewTroikiService(tasks, projs, users)
 	handlers.NewTroikiHandler(troikiSvc, testBaseURL).Register(api)
-	handlers.NewTaskHandler(tasks, taskSvc, testBaseURL).Register(api)
+	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
 

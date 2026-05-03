@@ -124,7 +124,7 @@ func main() {
 	handlers.NewTaskViewHandler(taskRepo, cfg, env.BaseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
 	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
-	handlers.NewTaskHandler(taskRepo, taskSvc, env.BaseURL).Register(api)
+	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)

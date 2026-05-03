@@ -100,7 +100,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, baseURL).Register(api)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
 	handlers.NewTroikiHandler(troikiSvc, baseURL).Register(api)
-	handlers.NewTaskHandler(taskRepo, taskSvc, baseURL).Register(api)
+	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, baseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, baseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
