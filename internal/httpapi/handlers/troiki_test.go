@@ -140,6 +140,10 @@ func TestTroikiSetCategory_Subtask(t *testing.T) {
 	if resp2.StatusCode != 422 {
 		t.Fatalf("subtask: got %d, want 422; body: %s", resp2.StatusCode, body2)
 	}
+	er := parseErr(t, body2)
+	if er.Error.Code != httpapi.CodeForbiddenPlacement {
+		t.Errorf("code: got %q, want %q", er.Error.Code, httpapi.CodeForbiddenPlacement)
+	}
 }
 
 func TestTroikiSetCategory_InvalidCategory(t *testing.T) {

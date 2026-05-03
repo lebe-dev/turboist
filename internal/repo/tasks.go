@@ -402,11 +402,14 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 
 	now := model.FormatUTC(time.Now())
 	// Move the task itself: it adopts new inbox/context/project/section/parent.
+	// When becoming a subtask, drop any Troiki category — only root tasks may carry one.
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE tasks SET inbox_id = ?, context_id = ?, project_id = ?, section_id = ?, parent_id = ?, updated_at = ?
+		`UPDATE tasks SET inbox_id = ?, context_id = ?, project_id = ?, section_id = ?, parent_id = ?,
+			troiki_category = CASE WHEN ? IS NULL THEN troiki_category ELSE NULL END,
+			updated_at = ?
 		 WHERE id = ?`,
 		nullInt(target.InboxID), nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID),
-		nullInt(target.ParentID), now, taskID,
+		nullInt(target.ParentID), nullInt(target.ParentID), now, taskID,
 	); err != nil {
 		return fmt.Errorf("move task: %w", err)
 	}
@@ -432,7 +435,7 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 // taskID, the move would create a cycle.
 func assertNoCycle(ctx context.Context, tx *sql.Tx, taskID, candidateParent int64) error {
 	cur := candidateParent
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		if cur == taskID {
 			return ErrCycle
 		}

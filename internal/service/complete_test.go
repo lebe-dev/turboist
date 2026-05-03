@@ -132,7 +132,9 @@ func TestCompleteService_Uncomplete(t *testing.T) {
 		Title:     "Task",
 	})
 
-	svc.Complete(ctx, task.ID) //nolint
+	if _, err := svc.Complete(ctx, task.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
 	result, err := svc.Uncomplete(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("uncomplete: %v", err)
@@ -301,6 +303,33 @@ func TestCompleteService_TroikiHook_RecurringTerminalBumps(t *testing.T) {
 	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 1 {
 		t.Errorf("medium capacity: got %d, want 1 (recurring terminal)", cap.Medium)
+	}
+}
+
+func TestCompleteService_TroikiHook_DoubleCompleteNoBump(t *testing.T) {
+	// Re-completing an already-completed task must not re-grant capacity.
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete 1: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete 2: %v", err)
+	}
+	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 1 {
+		t.Errorf("medium capacity: got %d, want 1 (no double-bump)", cap.Medium)
 	}
 }
 

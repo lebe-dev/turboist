@@ -40,6 +40,11 @@ func (s *CompleteService) Complete(ctx context.Context, taskID int64) (*model.Ta
 	if err != nil {
 		return nil, err
 	}
+	// Already-completed non-recurring tasks are a no-op — re-completing must not
+	// re-grant Troiki capacity.
+	if t.RecurrenceRule == nil && t.Status == model.TaskStatusCompleted {
+		return t, nil
+	}
 	if t.RecurrenceRule == nil {
 		status := model.TaskStatusCompleted
 		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})

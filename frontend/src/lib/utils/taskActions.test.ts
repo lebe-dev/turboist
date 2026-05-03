@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Task } from '$lib/api/types';
 import { ApiClient, setApiClient } from '$lib/api/client';
-import { ApiError } from '$lib/api/errors';
 
 vi.mock('svelte-sonner', () => ({
 	toast: { error: vi.fn(), success: vi.fn() }
@@ -160,9 +159,5 @@ describe('setTroikiCategory', () => {
 
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(troikiStore.applyTaskUpdate).not.toHaveBeenCalled();
-	});
-
-	it('exports ApiError for downstream code', () => {
-		expect(ApiError).toBeTruthy();
 	});
 });

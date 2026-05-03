@@ -437,6 +437,68 @@ func TestTaskRepo_ListByTroikiCategory(t *testing.T) {
 	}
 }
 
+func TestTaskRepo_Move_ClearsTroikiCategoryWhenBecomingSubtask(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	parent, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "parent"})
+	tk, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "categorised"})
+
+	imp := model.TroikiCategoryImportant
+	if _, err := f.tasks.Update(ctx, tk.ID, TaskUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+
+	if err := f.tasks.Move(ctx, tk.ID, Placement{ContextID: &f.contextID, ParentID: &parent.ID}); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+
+	got, err := f.tasks.Get(ctx, tk.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.TroikiCategory != nil {
+		t.Errorf("category after reparenting: got %v, want nil", *got.TroikiCategory)
+	}
+	if got.ParentID == nil || *got.ParentID != parent.ID {
+		t.Errorf("parent_id: got %v, want %d", got.ParentID, parent.ID)
+	}
+
+	// Counter must reflect that the slot is now free.
+	count, _ := f.tasks.CountOpenByTroikiCategory(ctx, model.TroikiCategoryImportant)
+	if count != 0 {
+		t.Errorf("important count after reparent: got %d, want 0", count)
+	}
+}
+
+func TestTaskRepo_Move_KeepsTroikiCategoryWhenStayingRoot(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	other, err := f.contexts.Create(ctx, "other", "red", false)
+	if err != nil {
+		t.Fatalf("create other context: %v", err)
+	}
+	tk, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "categorised"})
+
+	imp := model.TroikiCategoryImportant
+	if _, err := f.tasks.Update(ctx, tk.ID, TaskUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+
+	if err := f.tasks.Move(ctx, tk.ID, Placement{ContextID: &other.ID}); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+
+	got, err := f.tasks.Get(ctx, tk.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.TroikiCategory == nil || *got.TroikiCategory != model.TroikiCategoryImportant {
+		t.Errorf("category after lateral move: got %v, want important", got.TroikiCategory)
+	}
+}
+
 func TestTaskRepo_Sort_PinnedAndPriority(t *testing.T) {
 	f := newTaskFixture(t)
 	ctx := context.Background()
