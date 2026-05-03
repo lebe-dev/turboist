@@ -64,6 +64,20 @@ func TestPlanStateIsValid(t *testing.T) {
 	}
 }
 
+func Test_TroikiCategory_IsValid(t *testing.T) {
+	for _, c := range []TroikiCategory{TroikiCategoryImportant, TroikiCategoryMedium, TroikiCategoryRest} {
+		if !c.IsValid() {
+			t.Errorf("expected %q valid", c)
+		}
+	}
+	if TroikiCategory("urgent").IsValid() {
+		t.Error("unexpected valid")
+	}
+	if TroikiCategory("").IsValid() {
+		t.Error("empty must be invalid")
+	}
+}
+
 func TestClientKindIsValid(t *testing.T) {
 	for _, c := range []ClientKind{ClientWeb, ClientIOS, ClientCLI} {
 		if !c.IsValid() {

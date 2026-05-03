@@ -76,6 +76,8 @@ type Task struct {
 
 	PostponeCount int
 
+	TroikiCategory *TroikiCategory
+
 	Labels []Label
 
 	CreatedAt time.Time
@@ -87,11 +89,13 @@ func (t *Task) URL(baseURL string) string {
 }
 
 type User struct {
-	ID           int64
-	Username     string
-	PasswordHash string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                   int64
+	Username             string
+	PasswordHash         string
+	TroikiMediumCapacity int
+	TroikiRestCapacity   int
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type Session struct {

@@ -135,6 +135,17 @@ func (r *TaskRepo) ListPinned(ctx context.Context, filter TaskFilter) ([]model.T
 	return r.listWithBase(ctx, base, filter, Page{Limit: 200}, true)
 }
 
+func (r *TaskRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCategory) ([]model.Task, int, error) {
+	base := "FROM tasks t WHERE t.troiki_category = ? AND t.status = 'open'"
+	return r.listWithBaseArgs(ctx, base, []any{string(cat)}, TaskFilter{}, Page{Limit: 200}, true)
+}
+
+func (r *TaskRepo) CountOpenByTroikiCategory(ctx context.Context, cat model.TroikiCategory) (int, error) {
+	return r.scalarCount(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open'`,
+		string(cat))
+}
+
 func (r *TaskRepo) listWithBase(ctx context.Context, base string, filter TaskFilter, page Page, hydrate bool) ([]model.Task, int, error) {
 	return r.listWithBaseArgs(ctx, base, nil, filter, page, hydrate)
 }

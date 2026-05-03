@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/lebe-dev/turboist/internal/model"
 )
 
 func TestUserRepo_CreateAndGet(t *testing.T) {
@@ -93,6 +95,68 @@ func TestUserRepo_GetByUsername(t *testing.T) {
 	_, err = r.GetByUsername(ctx, "missing")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("missing user: got %v, want ErrNotFound", err)
+	}
+}
+
+func TestUserRepo_TroikiCapacity_DefaultsToZero(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	c, err := r.GetTroikiCapacity(ctx, 1)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if c.Medium != 0 || c.Rest != 0 {
+		t.Errorf("defaults: got %+v, want {0,0}", c)
+	}
+}
+
+func TestUserRepo_IncTroikiCapacity_Medium(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := r.IncTroikiCapacity(ctx, 1, model.TroikiCategoryMedium); err != nil {
+		t.Fatalf("inc: %v", err)
+	}
+	if err := r.IncTroikiCapacity(ctx, 1, model.TroikiCategoryMedium); err != nil {
+		t.Fatalf("inc2: %v", err)
+	}
+	if err := r.IncTroikiCapacity(ctx, 1, model.TroikiCategoryRest); err != nil {
+		t.Fatalf("inc rest: %v", err)
+	}
+	c, _ := r.GetTroikiCapacity(ctx, 1)
+	if c.Medium != 2 {
+		t.Errorf("medium: got %d, want 2", c.Medium)
+	}
+	if c.Rest != 1 {
+		t.Errorf("rest: got %d, want 1", c.Rest)
+	}
+}
+
+func TestUserRepo_IncTroikiCapacity_RejectsImportant(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := r.IncTroikiCapacity(ctx, 1, model.TroikiCategoryImportant); err == nil {
+		t.Error("expected error for important")
+	}
+}
+
+func TestUserRepo_GetTroikiCapacity_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.GetTroikiCapacity(ctx, 99); !errors.Is(err, ErrNotFound) {
+		t.Errorf("got %v, want ErrNotFound", err)
 	}
 }
 

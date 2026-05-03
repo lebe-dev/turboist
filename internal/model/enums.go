@@ -83,6 +83,22 @@ func (p PlanState) IsValid() bool {
 	return false
 }
 
+type TroikiCategory string
+
+const (
+	TroikiCategoryImportant TroikiCategory = "important"
+	TroikiCategoryMedium    TroikiCategory = "medium"
+	TroikiCategoryRest      TroikiCategory = "rest"
+)
+
+func (c TroikiCategory) IsValid() bool {
+	switch c {
+	case TroikiCategoryImportant, TroikiCategoryMedium, TroikiCategoryRest:
+		return true
+	}
+	return false
+}
+
 type ClientKind string
 
 const (

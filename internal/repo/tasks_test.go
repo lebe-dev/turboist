@@ -346,6 +346,97 @@ func TestTaskRepo_Counters(t *testing.T) {
 	}
 }
 
+func TestTaskRepo_TroikiCategory_RoundTrip(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	task, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID},
+		Title:     "t",
+	})
+	if task.TroikiCategory != nil {
+		t.Errorf("default troiki: got %v, want nil", task.TroikiCategory)
+	}
+
+	imp := model.TroikiCategoryImportant
+	updated, err := f.tasks.Update(ctx, task.ID, TaskUpdate{TroikiCategory: &imp})
+	if err != nil {
+		t.Fatalf("set important: %v", err)
+	}
+	if updated.TroikiCategory == nil || *updated.TroikiCategory != model.TroikiCategoryImportant {
+		t.Errorf("after set: got %v, want important", updated.TroikiCategory)
+	}
+
+	got, err := f.tasks.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.TroikiCategory == nil || *got.TroikiCategory != model.TroikiCategoryImportant {
+		t.Errorf("after refetch: got %v, want important", got.TroikiCategory)
+	}
+
+	cleared, err := f.tasks.Update(ctx, task.ID, TaskUpdate{TroikiCategoryClear: true})
+	if err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if cleared.TroikiCategory != nil {
+		t.Errorf("after clear: got %v, want nil", cleared.TroikiCategory)
+	}
+}
+
+func TestTaskRepo_ListByTroikiCategory(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	imp := model.TroikiCategoryImportant
+	med := model.TroikiCategoryMedium
+
+	a, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "a"})
+	b, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "b"})
+	c, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "c"})
+
+	if _, err := f.tasks.Update(ctx, a.ID, TaskUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("a: %v", err)
+	}
+	if _, err := f.tasks.Update(ctx, b.ID, TaskUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("b: %v", err)
+	}
+	if _, err := f.tasks.Update(ctx, c.ID, TaskUpdate{TroikiCategory: &med}); err != nil {
+		t.Fatalf("c: %v", err)
+	}
+
+	items, total, err := f.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryImportant)
+	if err != nil {
+		t.Fatalf("list important: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("total: got %d, want 2", total)
+	}
+	if len(items) != 2 {
+		t.Errorf("len: got %d, want 2", len(items))
+	}
+	for _, it := range items {
+		if it.TroikiCategory == nil || *it.TroikiCategory != model.TroikiCategoryImportant {
+			t.Errorf("filter: got %v", it.TroikiCategory)
+		}
+	}
+
+	count, err := f.tasks.CountOpenByTroikiCategory(ctx, model.TroikiCategoryImportant)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("count: got %d, want 2", count)
+	}
+
+	completed := model.TaskStatusCompleted
+	if _, err := f.tasks.Update(ctx, a.ID, TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	count, _ = f.tasks.CountOpenByTroikiCategory(ctx, model.TroikiCategoryImportant)
+	if count != 1 {
+		t.Errorf("count after complete: got %d, want 1", count)
+	}
+}
+
 func TestTaskRepo_Sort_PinnedAndPriority(t *testing.T) {
 	f := newTaskFixture(t)
 	ctx := context.Background()

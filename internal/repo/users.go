@@ -21,7 +21,9 @@ func NewUserRepo(db *sql.DB) *UserRepo {
 func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 	var u model.User
 	var createdAt, updatedAt string
-	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash,
+		&u.TroikiMediumCapacity, &u.TroikiRestCapacity,
+		&createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	t, err := model.ParseUTC(createdAt)
@@ -61,7 +63,7 @@ func (r *UserRepo) Create(ctx context.Context, username, passwordHash string) (*
 
 func (r *UserRepo) Get(ctx context.Context, id int64) (*model.User, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, created_at, updated_at FROM users WHERE id = ?`, id)
+		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, created_at, updated_at FROM users WHERE id = ?`, id)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -74,7 +76,7 @@ func (r *UserRepo) Get(ctx context.Context, id int64) (*model.User, error) {
 
 func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, created_at, updated_at FROM users WHERE username = ?`, username)
+		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, created_at, updated_at FROM users WHERE username = ?`, username)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -103,6 +105,53 @@ func (r *UserRepo) SetState(ctx context.Context, id int64, state string) error {
 		`UPDATE users SET state = ?, updated_at = ? WHERE id = ?`, state, now, id)
 	if err != nil {
 		return fmt.Errorf("set user state: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+type TroikiCapacity struct {
+	Medium int
+	Rest   int
+}
+
+func (r *UserRepo) GetTroikiCapacity(ctx context.Context, id int64) (TroikiCapacity, error) {
+	var c TroikiCapacity
+	err := r.db.QueryRowContext(ctx,
+		`SELECT troiki_medium_capacity, troiki_rest_capacity FROM users WHERE id = ?`, id).
+		Scan(&c.Medium, &c.Rest)
+	if errors.Is(err, sql.ErrNoRows) {
+		return TroikiCapacity{}, ErrNotFound
+	}
+	if err != nil {
+		return TroikiCapacity{}, fmt.Errorf("get troiki capacity: %w", err)
+	}
+	return c, nil
+}
+
+// IncTroikiCapacity bumps the capacity counter for the given target category
+// by 1. Only medium and rest are stored; important is a fixed constant.
+func (r *UserRepo) IncTroikiCapacity(ctx context.Context, id int64, target model.TroikiCategory) error {
+	var col string
+	switch target {
+	case model.TroikiCategoryMedium:
+		col = "troiki_medium_capacity"
+	case model.TroikiCategoryRest:
+		col = "troiki_rest_capacity"
+	default:
+		return fmt.Errorf("inc troiki capacity: unsupported target %q", target)
+	}
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET `+col+` = `+col+` + 1, updated_at = ? WHERE id = ?`, now, id)
+	if err != nil {
+		return fmt.Errorf("inc troiki capacity: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
