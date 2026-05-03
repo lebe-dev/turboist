@@ -26,7 +26,6 @@ type TaskDTO struct {
 	CompletedAt     *string    `json:"completedAt"`
 	RecurrenceRule  *string    `json:"recurrenceRule"`
 	PostponeCount   int        `json:"postponeCount"`
-	TroikiCategory  *string    `json:"troikiCategory"`
 	Labels          []LabelDTO `json:"labels"`
 	URL             string     `json:"url"`
 	CreatedAt       string     `json:"createdAt"`
@@ -37,11 +36,6 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 	labels := make([]LabelDTO, len(t.Labels))
 	for i, l := range t.Labels {
 		labels[i] = LabelFromModel(l)
-	}
-	var troikiCat *string
-	if t.TroikiCategory != nil {
-		s := string(*t.TroikiCategory)
-		troikiCat = &s
 	}
 	return TaskDTO{
 		ID:              t.ID,
@@ -65,7 +59,6 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		CompletedAt:     FormatTimePtr(t.CompletedAt),
 		RecurrenceRule:  t.RecurrenceRule,
 		PostponeCount:   t.PostponeCount,
-		TroikiCategory:  troikiCat,
 		Labels:          labels,
 		URL:             t.URL(baseURL),
 		CreatedAt:       FormatTime(t.CreatedAt),

@@ -170,6 +170,48 @@ func TestCompleteService_Uncomplete(t *testing.T) {
 	}
 }
 
+// Reopening a task whose priority drifted from the project's category-derived
+// priority (because the task was completed before the category was assigned, or
+// moved into a categorised project while completed) must re-pin priority on
+// uncomplete — otherwise the frontend locks priority editing on a task that
+// shows the wrong value.
+func TestCompleteService_Uncomplete_RepinsPriorityFromProjectCategory(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	p, err := f.projects.Create(ctx, repo.CreateProject{ContextID: c.ID, Title: "p", Color: "blue"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	tk, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID},
+		Title:     "task",
+		Priority:  model.PriorityLow,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	completed := model.TaskStatusCompleted
+	if _, err := f.tasks.Update(ctx, tk.ID, repo.TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	cat := model.TroikiCategoryImportant
+	if _, err := f.projects.Update(ctx, p.ID, repo.ProjectUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set project cat: %v", err)
+	}
+
+	result, err := f.svc.Uncomplete(ctx, tk.ID)
+	if err != nil {
+		t.Fatalf("uncomplete: %v", err)
+	}
+	if result.Status != model.TaskStatusOpen {
+		t.Errorf("status: got %q, want open", result.Status)
+	}
+	if result.Priority != model.PriorityHigh {
+		t.Errorf("priority: got %q, want high (Important-derived)", result.Priority)
+	}
+}
+
 func TestCompleteService_TroikiHook_ImportantProject_GrantsMedium(t *testing.T) {
 	f := setupCompleteService(t)
 	ctx := context.Background()

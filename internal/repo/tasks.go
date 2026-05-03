@@ -357,6 +357,52 @@ func (r *TaskRepo) ResetTroikiGrantedByProject(ctx context.Context, projectID in
 	return nil
 }
 
+// ReopenAndPinProjectPriority transitions a task back to 'open' and, when its
+// parent project carries a troiki_category, pins priority to the
+// category-derived priority — all in a single statement. The atomic read of
+// projects.troiki_category alongside the task UPDATE eliminates the race where
+// a concurrent SetCategory commits between a service-side project read and
+// the task write, leaving the reopened task with a stale priority. When the
+// project has no category (or the task has no project) the existing priority
+// is preserved.
+//
+// Returns ErrNotFound if the task id does not exist.
+func (r *TaskRepo) ReopenAndPinProjectPriority(ctx context.Context, id int64) (*model.Task, error) {
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE tasks SET
+		   status = 'open',
+		   completed_at = NULL,
+		   priority = COALESCE(
+		     (SELECT CASE p.troiki_category
+		        WHEN 'important' THEN 'high'
+		        WHEN 'medium' THEN 'medium'
+		        WHEN 'rest' THEN 'low'
+		      END
+		      FROM projects p
+		      WHERE p.id = tasks.project_id AND p.troiki_category IS NOT NULL),
+		     priority),
+		   updated_at = ?
+		 WHERE id = ?`, now, id)
+	if err != nil {
+		return nil, fmt.Errorf("reopen task: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		var exists int
+		if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, id).Scan(&exists); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			return nil, fmt.Errorf("reopen task: %w", err)
+		}
+	}
+	return r.Get(ctx, id)
+}
+
 // UpdatePriorityByProject pins every open task of the project to `priority`
 // in a single UPDATE — the Troiki service uses this to enforce the
 // category-derived priority across all root tasks and subtasks of a project.

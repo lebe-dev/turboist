@@ -87,9 +87,16 @@ func (r *TaskRepo) ListByLabel(ctx context.Context, labelID int64, filter TaskFi
 	return r.listWithBaseArgs(ctx, base, []any{labelID}, filter, page, true)
 }
 
-// ListByProjectIDs batch-loads all open tasks (root + subtasks) for the given
-// project ids and groups them by project_id. Used by the Troiki view to render
-// every task tree of every category-bound project in one query.
+// ListByProjectIDs batch-loads root + subtasks for the given project ids and
+// groups them by project_id. Used by the Troiki view to render every task tree
+// of every category-bound project in one query. Completed tasks stay visible
+// so they don't appear to vanish from the slot the moment a user ticks them
+// off; cancelled tasks and their entire descendant subtree are excluded — the
+// Troiki UI only understands open vs completed, and rendering cancelled rows
+// there would show them unchecked and turn the checkbox into a "complete"
+// action against the user's intent. Excluding descendants prevents orphaned
+// children of a cancelled parent from being rendered as detached top-level
+// items by the tree builder when their parent row is filtered out.
 func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64][]model.Task, error) {
 	if len(ids) == 0 {
 		return map[int64][]model.Task{}, nil
@@ -101,8 +108,14 @@ func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64
 		args[i] = v
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT `+taskColumns+` FROM tasks
-		 WHERE project_id IN (`+strings.Join(placeholders, ",")+`) AND status = 'open'
+		`WITH RECURSIVE cancelled_subtree(id) AS (
+		     SELECT id FROM tasks WHERE status = 'cancelled'
+		     UNION ALL
+		     SELECT t.id FROM tasks t JOIN cancelled_subtree cs ON t.parent_id = cs.id
+		 )
+		 SELECT `+taskColumns+` FROM tasks
+		 WHERE project_id IN (`+strings.Join(placeholders, ",")+`)
+		   AND id NOT IN (SELECT id FROM cancelled_subtree)
 		 ORDER BY `+taskOrderBy, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks by project ids: %w", err)

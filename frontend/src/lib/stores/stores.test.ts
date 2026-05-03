@@ -173,13 +173,14 @@ describe('troikiStore', () => {
 		expect(troikiStore.value.medium.projects[0].tasks.map((x) => x.id)).toEqual([1]);
 	});
 
-	it('applyTaskUpdate drops the task when status is no longer open', () => {
+	it('applyTaskUpdate keeps completed tasks under their project', () => {
 		const open = makeTask(1, 10);
 		hydrate({
 			important: { capacity: 3, projects: [makeTroikiProject(10, 'important', [open])] }
 		});
-		troikiStore.applyTaskUpdate(makeTask(1, 10, { status: 'completed' }));
-		expect(troikiStore.value.important.projects[0].tasks).toEqual([]);
+		const completed = makeTask(1, 10, { status: 'completed' });
+		troikiStore.applyTaskUpdate(completed);
+		expect(troikiStore.value.important.projects[0].tasks).toEqual([completed]);
 	});
 
 	it('applyTaskUpdate ignores tasks whose project is not in any slot', () => {

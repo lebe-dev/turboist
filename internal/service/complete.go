@@ -142,7 +142,17 @@ func (s *CompleteService) bumpTroikiCapacity(ctx context.Context, t *model.Task)
 
 // Uncomplete reopens a completed/cancelled task. Project-level Troiki
 // categorisation means reopening a task does not affect any slot capacity, so
-// no slot guard is needed here.
+// no slot guard is needed here. If the parent project carries a category, the
+// task's priority is re-pinned to the category-derived priority — without this,
+// a task completed before the category was assigned (or moved into a
+// categorised project while completed) would come back open with a stale
+// priority that the frontend then locks against edits.
+//
+// The status transition and priority pin are performed in a single SQL
+// statement that reads projects.troiki_category atomically with the UPDATE,
+// eliminating a race with a concurrent SetCategory that would otherwise let
+// the task come back open with a priority derived from the project's previous
+// category.
 func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.Task, error) {
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
@@ -151,8 +161,7 @@ func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.
 	if t.Status == model.TaskStatusOpen {
 		return t, nil
 	}
-	status := model.TaskStatusOpen
-	return s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
+	return s.tasks.ReopenAndPinProjectPriority(ctx, taskID)
 }
 
 // Cancel marks a task cancelled. With project-owned Troiki categories, cancelling

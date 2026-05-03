@@ -680,13 +680,21 @@ func TestTaskRepo_ListByProjectIDs(t *testing.T) {
 	if _, err := f.tasks.Update(ctx, done.ID, TaskUpdate{Status: &completed}); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
+	cancelled := model.TaskStatusCancelled
+	skipped, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &f.projectID},
+		Title:     "skipped",
+	})
+	if _, err := f.tasks.Update(ctx, skipped.ID, TaskUpdate{Status: &cancelled}); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
 
 	got, err := f.tasks.ListByProjectIDs(ctx, []int64{f.projectID, p2.ID})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(got[f.projectID]) != 2 {
-		t.Errorf("p1 task count: got %d, want 2 (root+sub, completed excluded)", len(got[f.projectID]))
+	if len(got[f.projectID]) != 3 {
+		t.Errorf("p1 task count: got %d, want 3 (root+sub+completed; cancelled excluded)", len(got[f.projectID]))
 	}
 	if len(got[p2.ID]) != 1 || got[p2.ID][0].ID != t2.ID {
 		t.Errorf("p2 tasks: got %+v, want [%d]", got[p2.ID], t2.ID)
@@ -696,8 +704,45 @@ func TestTaskRepo_ListByProjectIDs(t *testing.T) {
 	for _, it := range got[f.projectID] {
 		ids[it.ID] = true
 	}
-	if !ids[t1.ID] || !ids[sub.ID] {
-		t.Errorf("expected root + subtask in p1 result, got %v", ids)
+	if !ids[t1.ID] || !ids[sub.ID] || !ids[done.ID] {
+		t.Errorf("expected root + subtask + completed in p1 result, got %v", ids)
+	}
+	if ids[skipped.ID] {
+		t.Errorf("cancelled task %d should be excluded from troiki listing", skipped.ID)
+	}
+}
+
+func TestTaskRepo_ListByProjectIDs_CancelledSubtreeExcluded(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	root, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &f.projectID},
+		Title:     "root",
+	})
+	rootID := root.ID
+	child, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &f.projectID, ParentID: &rootID},
+		Title:     "child",
+	})
+	childID := child.ID
+	grandchild, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &f.projectID, ParentID: &childID},
+		Title:     "grandchild",
+	})
+	cancelled := model.TaskStatusCancelled
+	if _, err := f.tasks.Update(ctx, root.ID, TaskUpdate{Status: &cancelled}); err != nil {
+		t.Fatalf("cancel root: %v", err)
+	}
+
+	got, err := f.tasks.ListByProjectIDs(ctx, []int64{f.projectID})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, it := range got[f.projectID] {
+		if it.ID == root.ID || it.ID == child.ID || it.ID == grandchild.ID {
+			t.Errorf("descendant of cancelled root leaked into listing: id=%d", it.ID)
+		}
 	}
 }
 

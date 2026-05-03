@@ -52,8 +52,9 @@ class TroikiStore {
 
 	// applyTaskUpdate mutates the task within whatever Troiki project currently owns it.
 	// If the task moved to a different project, it is removed from the old project and
-	// inserted into the new one (when that project sits in any slot). Closed tasks are
-	// dropped from project lists.
+	// inserted into the new one (when that project sits in any slot). Completed tasks
+	// stay visible under their project — the backend view includes them so users can
+	// see what they finished in the current cycle.
 	applyTaskUpdate(task: Task): void {
 		const next = clone(this.value);
 		for (const cat of CATEGORIES) {
@@ -63,7 +64,7 @@ class TroikiStore {
 				tasks: p.tasks.filter((t) => t.id !== task.id)
 			}));
 		}
-		if (task.status !== 'open' || task.projectId === null) {
+		if (task.projectId === null) {
 			this.value = next;
 			return;
 		}
