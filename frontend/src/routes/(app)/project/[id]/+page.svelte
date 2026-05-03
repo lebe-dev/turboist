@@ -33,6 +33,7 @@
 	let notFound = $state(false);
 	let sectionList = $state<ProjectSection[]>([]);
 	let confirmDeleteOpen = $state(false);
+	let confirmCompleteOpen = $state(false);
 	let confirmSectionOpen = $state(false);
 	let pendingSectionDelete = $state<ProjectSection | null>(null);
 	let editProjectOpen = $state(false);
@@ -141,6 +142,16 @@
 		if (Number.isFinite(projectId)) void loader.refetch();
 	});
 
+	$effect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent<{ task: Task; projectId: number | null }>).detail;
+			if (!detail || detail.projectId !== projectId) return;
+			taskList.items = [...taskList.items, detail.task];
+		};
+		window.addEventListener('turboist:task-created', handler);
+		return () => window.removeEventListener('turboist:task-created', handler);
+	});
+
 	onMount(() => {
 		if (!projectsStore.loaded) projectsStore.load().catch(() => undefined);
 	});
@@ -155,7 +166,7 @@
 {:else}
 	<ProjectHeader
 		{project}
-		onComplete={() => action('complete')}
+		onComplete={() => (confirmCompleteOpen = true)}
 		onUncomplete={() => action('uncomplete')}
 		onCancel={() => action('cancel')}
 		onArchive={() => action('archive')}
@@ -217,6 +228,15 @@
 		initial={editingSection}
 		projectId={project.id}
 		onSaved={onSectionSaved}
+	/>
+	<ConfirmDestructiveDialog
+		bind:open={confirmCompleteOpen}
+		title="Complete project?"
+		description="The project will be marked as completed."
+		confirmLabel="Complete"
+		busyLabel="Completing…"
+		variant="default"
+		onConfirm={() => action('complete')}
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}

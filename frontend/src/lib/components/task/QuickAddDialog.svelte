@@ -18,11 +18,15 @@
 	let {
 		open = $bindable(false),
 		defaultProjectId = null,
+		defaultLabelIds = [],
+		defaultDueDate = '',
 		emptyProjectLabel = 'Inbox',
 		onSubmit
 	}: {
 		open?: boolean;
 		defaultProjectId?: number | null;
+		defaultLabelIds?: Array<string | number>;
+		defaultDueDate?: string;
 		emptyProjectLabel?: string;
 		onSubmit?: (
 			payload: TaskInput,
@@ -34,10 +38,12 @@
 	let description = $state('');
 	let priority = $state<Priority>('no-priority');
 	let dayPart = $state<DayPart>('none');
-	let dueDate = $state('');
+	// svelte-ignore state_referenced_locally
+	let dueDate = $state<string>(defaultDueDate ?? '');
 	// svelte-ignore state_referenced_locally
 	let projectId = $state<string>(defaultProjectId ? String(defaultProjectId) : '');
-	let labelIds = $state<string[]>([]);
+	// svelte-ignore state_referenced_locally
+	let labelIds = $state<string[]>(defaultLabelIds.map(String));
 	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
 	let labelMenuOpen = $state(false);
@@ -82,6 +88,7 @@
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
 
 	let dateInputEl: HTMLInputElement | undefined = $state();
+	let descriptionEl: HTMLTextAreaElement | undefined = $state();
 
 	function setDate(value: string) {
 		dueDate = dueDate === value ? '' : value;
@@ -90,22 +97,53 @@
 	function openDatePicker() {
 		const el = dateInputEl;
 		if (!el) return;
-		if (typeof el.showPicker === 'function') el.showPicker();
-		else el.focus();
+		try {
+			if (typeof el.showPicker === 'function') el.showPicker();
+			else el.click();
+		} catch {
+			el.click();
+		}
 	}
+
+	function autoGrow(el: HTMLTextAreaElement | undefined) {
+		if (!el) return;
+		el.style.height = 'auto';
+		el.style.height = `${el.scrollHeight}px`;
+	}
+
+	$effect(() => {
+		void description;
+		autoGrow(descriptionEl);
+	});
+
+	$effect(() => {
+		if (open) {
+			queueMicrotask(() => autoGrow(descriptionEl));
+		}
+	});
 
 	function reset() {
 		title = '';
 		description = '';
 		priority = 'no-priority';
 		dayPart = 'none';
-		dueDate = '';
+		dueDate = defaultDueDate ?? '';
 		recurrenceRule = null;
 		projectId = defaultProjectId ? String(defaultProjectId) : '';
-		labelIds = [];
+		labelIds = defaultLabelIds.map(String);
 		labelMenuOpen = false;
 		dismissedAutoLabels = [];
 	}
+
+	let prevOpen = false;
+	$effect(() => {
+		if (open && !prevOpen) {
+			dueDate = defaultDueDate ?? '';
+			projectId = defaultProjectId ? String(defaultProjectId) : '';
+			labelIds = defaultLabelIds.map(String);
+		}
+		prevOpen = open;
+	});
 
 	function toggleLabel(id: string) {
 		labelIds = labelIds.includes(id)
@@ -175,11 +213,13 @@
 						autofocus
 					/>
 					<textarea
+						bind:this={descriptionEl}
 						bind:value={description}
 						placeholder="Description"
 						aria-label="Description"
-						rows="2"
-						class="mt-2 w-full resize-none bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
+						rows="1"
+						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
+						class="mt-2 block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
 					></textarea>
 
 					{#if selectedLabels.length > 0 || detectedAutoLabels.length > 0}
@@ -252,13 +292,8 @@
 							>
 								Tomorrow
 							</button>
-							<button
-								type="button"
-								onclick={openDatePicker}
-								aria-pressed={isCustomDate}
-								aria-label="Custom date"
-								title={isCustomDate ? dueDate : 'Pick a date'}
-								class="relative inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
+							<div
+								class="relative inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-within:ring-[2px] focus-within:ring-ring/50"
 								class:bg-accent={isCustomDate}
 								class:text-foreground={isCustomDate}
 								class:text-muted-foreground={!isCustomDate}
@@ -274,11 +309,15 @@
 									bind:this={dateInputEl}
 									bind:value={dueDate}
 									type="date"
-									tabindex="-1"
-									aria-hidden="true"
-									class="pointer-events-none absolute inset-0 size-full opacity-0"
+									aria-label="Custom date"
+									title={isCustomDate ? dueDate : 'Pick a date'}
+									onclick={(e) => {
+										e.stopPropagation();
+										openDatePicker();
+									}}
+									class="absolute inset-0 size-full cursor-pointer opacity-0"
 								/>
-							</button>
+							</div>
 						</div>
 
 						<PriorityPicker bind:value={priority} />

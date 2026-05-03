@@ -95,7 +95,7 @@
 		<div class="flex items-center gap-2">
 			<a
 				href={taskHref}
-				class="min-w-0 flex-1 truncate text-sm leading-snug"
+				class="min-w-0 flex-1 break-words text-sm leading-snug md:truncate"
 				class:font-medium={!checked}
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
@@ -105,7 +105,7 @@
 		</div>
 
 		{#if description}
-			<p class="truncate text-xs text-muted-foreground/70">{description}</p>
+			<p class="break-words text-xs text-muted-foreground/70 md:truncate">{description}</p>
 		{/if}
 
 		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}

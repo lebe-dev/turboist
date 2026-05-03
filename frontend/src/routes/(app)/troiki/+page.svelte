@@ -5,14 +5,41 @@
 	import { getApiClient } from '$lib/api/client';
 	import type { Task, TroikiCategory, TroikiSlot } from '$lib/api/types';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
-	import TaskItem from '$lib/components/task/TaskItem.svelte';
-	import { describeError } from '$lib/utils/taskActions';
+	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import type { ListMutator } from '$lib/utils/taskActions';
 
-	const loader = usePageLoad(async () => {
+	let subtasksByParent = $state<Record<number, Task[]>>({});
+
+	async function loadSubtasksFor(parentIds: number[]): Promise<void> {
+		if (parentIds.length === 0) {
+			subtasksByParent = {};
+			return;
+		}
+		const client = getApiClient();
+		const results = await Promise.all(
+			parentIds.map(async (id) => {
+				const page = await tasksApi.listSubtasks(client, id);
+				return [id, page.items] as const;
+			})
+		);
+		const next: Record<number, Task[]> = {};
+		for (const [id, items] of results) next[id] = items;
+		subtasksByParent = next;
+	}
+
+	function parentIdsFromView(): number[] {
+		const v = troikiStore.value;
+		return [...v.important.tasks, ...v.medium.tasks, ...v.rest.tasks].map((t) => t.id);
+	}
+
+	async function loadAll(): Promise<void> {
 		await troikiStore.load();
-	}, { errorMessage: 'Failed to load Troiki' });
+		await loadSubtasksFor(parentIdsFromView());
+	}
+
+	const loader = usePageLoad(loadAll, { errorMessage: 'Failed to load Troiki' });
 
 	const view = $derived(troikiStore.value);
 
@@ -26,16 +53,37 @@
 		return view[key];
 	}
 
-	const mutator: ListMutator = {
-		replace(_t: Task) {
-			void troikiStore.load();
-		},
-		remove(_id: number) {
-			void troikiStore.load();
-		}
-	};
+	// One mutator per parent row: parent-level changes refetch the whole view
+	// (capacity / ordering / subtree all need to be re-derived); subtask changes
+	// patch the local subtasksByParent map surgically.
+	function treeMutator(parent: Task): ListMutator {
+		return {
+			replace(t: Task) {
+				if (t.id === parent.id) {
+					void loadAll();
+					return;
+				}
+				const list = subtasksByParent[parent.id] ?? [];
+				subtasksByParent = {
+					...subtasksByParent,
+					[parent.id]: list.map((x) => (x.id === t.id ? t : x))
+				};
+			},
+			remove(id: number) {
+				if (id === parent.id) {
+					void loadAll();
+					return;
+				}
+				const list = subtasksByParent[parent.id] ?? [];
+				subtasksByParent = {
+					...subtasksByParent,
+					[parent.id]: list.filter((x) => x.id !== id)
+				};
+			}
+		};
+	}
 
-	async function onToggle(task: Task): Promise<void> {
+	async function onParentToggle(task: Task): Promise<void> {
 		const client = getApiClient();
 		try {
 			if (task.status === 'completed') {
@@ -43,10 +91,23 @@
 			} else {
 				await tasksApi.complete(client, task.id);
 			}
-			await troikiStore.load();
+			await loadAll();
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to update task'));
 		}
+	}
+
+	function tasksFor(parent: Task): Task[] {
+		const subs = subtasksByParent[parent.id] ?? [];
+		return [parent, ...subs];
+	}
+
+	function onTreeToggle(parent: Task, t: Task): void {
+		if (t.id === parent.id) {
+			void onParentToggle(t);
+			return;
+		}
+		void toggleComplete(t, treeMutator(parent), { removeWhenCompleted: false });
 	}
 </script>
 
@@ -100,12 +161,12 @@
 					{:else}
 						<div class="flex flex-col divide-y divide-border/40">
 							{#each slot.tasks as task (task.id)}
-								<TaskItem
-									{task}
+								<TaskTree
+									tasks={tasksFor(task)}
 									showProject={false}
 									hideDue
-									{mutator}
-									onToggle={(t) => onToggle(t)}
+									mutator={treeMutator(task)}
+									onToggle={(t) => onTreeToggle(task, t)}
 								/>
 							{/each}
 							{#each Array.from({ length: emptySlots }) as _, i (i)}

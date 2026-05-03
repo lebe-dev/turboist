@@ -34,6 +34,17 @@
 		inboxStatsStore.set(res.count, res.warnThresholdExceeded);
 	}, { errorMessage: 'Failed to load inbox' });
 
+	$effect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent<{ task: Task; projectId: number | null }>).detail;
+			if (!detail || detail.projectId !== null) return;
+			list.items = [...list.items, detail.task];
+			applyCount(inboxStatsStore.count + 1);
+		};
+		window.addEventListener('turboist:task-created', handler);
+		return () => window.removeEventListener('turboist:task-created', handler);
+	});
+
 	async function createOverflowTask(): Promise<void> {
 		if (!overflowTask || creatingOverflow) return;
 		creatingOverflow = true;

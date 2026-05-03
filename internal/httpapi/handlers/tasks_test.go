@@ -485,6 +485,72 @@ func TestSubtasksList_ParentNotFound(t *testing.T) {
 	}
 }
 
+// When the request omits "labels", the subtask inherits the parent's set so
+// users adding subtasks via inline UIs don't lose the categorisation.
+func TestSubtaskCreate_InheritsParentLabels_WhenLabelsOmitted(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	createTestLabel(t, e, "alpha")
+	createTestLabel(t, e, "beta")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/tasks/%d", parent.ID),
+		map[string]any{"labels": []string{"alpha", "beta"}}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("attach parent labels: got %d; body: %s", resp.StatusCode, body)
+	}
+
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID),
+		map[string]any{"title": "Child"}))
+	if resp2.StatusCode != 201 {
+		t.Fatalf("create subtask: got %d; body: %s", resp2.StatusCode, body2)
+	}
+	var child dto.TaskDTO
+	if err := json.Unmarshal(body2, &child); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(child.Labels) != 2 {
+		t.Fatalf("labels: got %d, want 2; body: %s", len(child.Labels), body2)
+	}
+	got := map[string]bool{}
+	for _, l := range child.Labels {
+		got[l.Name] = true
+	}
+	if !got["alpha"] || !got["beta"] {
+		t.Errorf("labels: got %v, want [alpha beta]", got)
+	}
+}
+
+// Explicit empty labels array means "no labels", overriding inheritance.
+func TestSubtaskCreate_ExplicitEmptyLabels_NoInheritance(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	createTestLabel(t, e, "alpha")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/tasks/%d", parent.ID),
+		map[string]any{"labels": []string{"alpha"}}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("attach parent label: got %d", resp.StatusCode)
+	}
+
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID),
+		map[string]any{"title": "Child", "labels": []string{}}))
+	if resp2.StatusCode != 201 {
+		t.Fatalf("create subtask: got %d; body: %s", resp2.StatusCode, body2)
+	}
+	var child dto.TaskDTO
+	if err := json.Unmarshal(body2, &child); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(child.Labels) != 0 {
+		t.Errorf("labels: got %d, want 0 (explicit empty must override inheritance)", len(child.Labels))
+	}
+}
+
 // --- task creation in all containers ---
 
 func TestCreateTask_InAllContainers(t *testing.T) {

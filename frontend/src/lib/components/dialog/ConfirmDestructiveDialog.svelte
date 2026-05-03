@@ -7,12 +7,16 @@
 		title,
 		description,
 		confirmLabel = 'Delete',
+		busyLabel,
+		variant = 'destructive',
 		onConfirm
 	}: {
 		open?: boolean;
 		title: string;
 		description: string;
 		confirmLabel?: string;
+		busyLabel?: string;
+		variant?: 'destructive' | 'default';
 		onConfirm: () => void | Promise<void>;
 	} = $props();
 
@@ -38,8 +42,8 @@
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel disabled={busy}>Cancel</AlertDialog.Cancel>
-			<Button variant="destructive" onclick={confirm} disabled={busy}>
-				{busy ? 'Deleting…' : confirmLabel}
+			<Button {variant} onclick={confirm} disabled={busy}>
+				{busy ? (busyLabel ?? `${confirmLabel}…`) : confirmLabel}
 			</Button>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

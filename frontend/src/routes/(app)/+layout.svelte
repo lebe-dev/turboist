@@ -24,7 +24,9 @@
 	import { getApiClient } from '$lib/api/client';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
+	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
 	import { describeError } from '$lib/utils/taskActions';
+	import { dayKeyInTz, shiftDayKey } from '$lib/utils/format';
 	import type { TaskInput } from '$lib/api/types';
 
 	let { children } = $props();
@@ -103,6 +105,35 @@
 		quickOpen = true;
 	}
 
+	const quickAddDefaults = $derived.by(() => {
+		const path = page.url.pathname;
+		const tz = configStore.value?.timezone ?? null;
+		const todayKey = dayKeyInTz(new Date(), tz);
+		const tomorrowKey = shiftDayKey(todayKey, 1);
+
+		let projectId: number | null = null;
+		let contextId: number | null = null;
+		let labelIds: number[] = [];
+		let dueDate = '';
+
+		if (path === '/today') {
+			dueDate = todayKey;
+		} else if (path === '/tomorrow') {
+			dueDate = tomorrowKey;
+		} else if (path.startsWith('/project/')) {
+			const id = Number(page.params.id);
+			if (Number.isFinite(id)) projectId = id;
+		} else if (path.startsWith('/label/')) {
+			const id = Number(page.params.id);
+			if (Number.isFinite(id)) labelIds = [id];
+		} else if (path.startsWith('/context/')) {
+			const id = Number(page.params.id);
+			if (Number.isFinite(id)) contextId = id;
+		}
+
+		return { projectId, contextId, labelIds, dueDate };
+	});
+
 	async function onQuickSubmit(
 		payload: TaskInput,
 		target: { projectId: number | null }
@@ -110,15 +141,47 @@
 		try {
 			const client = getApiClient();
 			if (target.projectId !== null) {
-				await projectsApi.createTask(client, target.projectId, payload);
+				const created = await projectsApi.createTask(client, target.projectId, payload);
 				toast.success('Task added to project');
-				void goto(resolve(`/project/${target.projectId}`));
+				const projectPath = resolve(`/project/${target.projectId}`);
+				if (page.url.pathname === projectPath) {
+					window.dispatchEvent(
+						new CustomEvent('turboist:task-created', {
+							detail: { task: created, projectId: target.projectId }
+						})
+					);
+				} else {
+					void goto(projectPath);
+				}
 				return;
 			}
-			await tasksApi.createInbox(client, payload);
+			const ctxId = quickAddDefaults.contextId;
+			if (ctxId !== null) {
+				const created = await contextsApi.createTask(client, ctxId, payload);
+				toast.success('Task added to context');
+				const contextPath = resolve(`/context/${ctxId}`);
+				if (page.url.pathname === contextPath) {
+					window.dispatchEvent(
+						new CustomEvent('turboist:task-created', {
+							detail: { task: created, projectId: null, contextId: ctxId }
+						})
+					);
+				}
+				return;
+			}
+			const created = await tasksApi.createInbox(client, payload);
 			toast.success('Task added to inbox');
 			void inboxStatsStore.load().catch(() => {});
-			void goto(resolve('/inbox'));
+			const inboxPath = resolve('/inbox');
+			if (page.url.pathname === inboxPath) {
+				window.dispatchEvent(
+					new CustomEvent('turboist:task-created', {
+						detail: { task: created, projectId: null }
+					})
+				);
+			} else {
+				void goto(inboxPath);
+			}
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
 		}
@@ -182,5 +245,11 @@
 			<Sidebar />
 		</Sheet.Content>
 	</Sheet.Root>
-	<QuickAddDialog bind:open={quickOpen} onSubmit={onQuickSubmit} />
+	<QuickAddDialog
+		bind:open={quickOpen}
+		defaultProjectId={quickAddDefaults.projectId}
+		defaultLabelIds={quickAddDefaults.labelIds}
+		defaultDueDate={quickAddDefaults.dueDate}
+		onSubmit={onQuickSubmit}
+	/>
 {/if}

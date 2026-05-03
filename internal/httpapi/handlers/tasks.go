@@ -255,7 +255,17 @@ func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
 	if appErr != nil {
 		return appErr
 	}
-	t, err := h.taskSvc.Create(c.Context(), in, req.Labels, req.RemovedAutoLabels)
+	// Inherit parent's labels when caller omits the field. Explicit empty array
+	// (req.Labels == []) decodes to non-nil empty slice and is treated as
+	// "no labels", so users can still create unlabelled subtasks.
+	labels := req.Labels
+	if labels == nil && len(parent.Labels) > 0 {
+		labels = make([]string, len(parent.Labels))
+		for i, l := range parent.Labels {
+			labels[i] = l.Name
+		}
+	}
+	t, err := h.taskSvc.Create(c.Context(), in, labels, req.RemovedAutoLabels)
 	if err != nil {
 		return handleTaskCreateErr(err)
 	}
