@@ -52,7 +52,10 @@
 		}
 		submitting = true;
 		try {
-			await moveTaskToProject(task, project.contextId, project.id, mutator, { belongs });
+			await moveTaskToProject(task, project.contextId, project.id, mutator, {
+				belongs,
+				projectCompleted: project.status === 'completed'
+			});
 			open = false;
 		} finally {
 			submitting = false;

@@ -84,7 +84,7 @@
 					label={group.label}
 					interval={group.interval}
 					count={group.tasks.length}
-					active={group.part === active}
+					active={group.part === active || groups.length === 1}
 					onBulkMove={(targetPart) => bulkMove(group, targetPart)}
 				>
 					<TaskTree

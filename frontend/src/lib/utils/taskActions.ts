@@ -179,14 +179,17 @@ export async function moveTaskToProject(
 	contextId: number,
 	projectId: number,
 	mutator: ListMutator,
-	options: BelongsOption = {}
+	options: BelongsOption & { projectCompleted?: boolean } = {}
 ): Promise<void> {
 	if (task.projectId === projectId) return;
 	const client = getApiClient();
 	try {
-		const updated = await tasksApi.move(client, task.id, { contextId, projectId });
+		let updated = await tasksApi.move(client, task.id, { contextId, projectId });
+		if (options.projectCompleted && updated.status !== 'completed') {
+			updated = await tasksApi.complete(client, updated.id);
+		}
 		applyUpdate(updated, mutator, options.belongs);
-		toast.success('Moved');
+		toast.success(options.projectCompleted ? 'Moved and completed' : 'Moved');
 	} catch (err) {
 		toast.error(describeError(err, 'Failed to move task'));
 	}
