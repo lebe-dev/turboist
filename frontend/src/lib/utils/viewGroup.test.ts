@@ -25,6 +25,7 @@ function makeTask(overrides: Partial<Task>): Task {
 		completedAt: null,
 		recurrenceRule: null,
 		postponeCount: 0,
+		troikiCategory: null,
 		labels: [],
 		url: '',
 		createdAt: '2026-01-01T00:00:00.000Z',

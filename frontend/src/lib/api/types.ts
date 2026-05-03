@@ -6,6 +6,7 @@ export type ProjectStatus = 'open' | 'completed' | 'archived' | 'cancelled';
 export type DayPart = 'none' | 'morning' | 'afternoon' | 'evening';
 export type PlanState = 'none' | 'week' | 'backlog';
 export type ClientKind = 'web' | 'ios' | 'cli';
+export type TroikiCategory = 'important' | 'medium' | 'rest';
 
 // Color palette is open-ended on the backend; alias for clarity.
 export type ColorToken = string;
@@ -100,6 +101,8 @@ export interface Task {
 
 	postponeCount: number;
 
+	troikiCategory: TroikiCategory | null;
+
 	labels: Label[];
 
 	url: string;
@@ -133,6 +136,17 @@ export interface SearchResponse {
 export interface PlanStatsResponse {
 	week: number;
 	backlog: number;
+}
+
+export interface TroikiSlot {
+	capacity: number;
+	tasks: Task[];
+}
+
+export interface TroikiViewResponse {
+	important: TroikiSlot;
+	medium: TroikiSlot;
+	rest: TroikiSlot;
 }
 
 export interface UserState {

@@ -5,7 +5,8 @@ import type {
 	Task,
 	TaskInput,
 	TaskMoveInput,
-	TaskPlanInput
+	TaskPlanInput,
+	TroikiCategory
 } from '../types';
 
 export const tasks = {
@@ -34,6 +35,17 @@ export const tasks = {
 
 	plan(client: ApiClient, id: number, input: TaskPlanInput): Promise<Task> {
 		return client.fetch(`/api/v1/tasks/${id}/plan`, { method: 'POST', body: input });
+	},
+
+	setTroikiCategory(
+		client: ApiClient,
+		id: number,
+		category: TroikiCategory | null
+	): Promise<Task> {
+		return client.fetch(`/api/v1/tasks/${id}/troiki`, {
+			method: 'POST',
+			body: { category }
+		});
 	},
 
 	createSubtask(client: ApiClient, parentId: number, input: TaskInput): Promise<Task> {
