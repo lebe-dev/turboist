@@ -11,6 +11,7 @@
 	import { ApiError } from '$lib/api/errors';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { sections as sectionsApi } from '$lib/api/endpoints/sections';
+	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import type { Project, ProjectSection, Task } from '$lib/api/types';
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
@@ -80,11 +81,30 @@
 	});
 
 	const actionLabels: Record<string, string> = {
-		complete: 'completed', uncomplete: 'uncompleted', cancel: 'cancelled',
+		uncomplete: 'uncompleted', cancel: 'cancelled',
 		archive: 'archived', unarchive: 'unarchived', pin: 'pinned', unpin: 'unpinned'
 	};
 
-	async function action(name: 'complete' | 'uncomplete' | 'cancel' | 'archive' | 'unarchive' | 'pin' | 'unpin') {
+	async function completeProject() {
+		if (!project) return;
+		const openIds = taskList.items.filter((t) => t.status !== 'completed').map((t) => t.id);
+		try {
+			const client = getApiClient();
+			if (openIds.length > 0) {
+				await tasksApi.bulkComplete(client, openIds);
+				const ts = await projectsApi.listTasks(client, project.id, { limit: 500 });
+				taskList.items = ts.items;
+			}
+			const updated = await projectsApi.complete(client, project.id);
+			project = updated;
+			projectsStore.upsert(updated);
+			toast.success('Project completed');
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to complete'));
+		}
+	}
+
+	async function action(name: 'uncomplete' | 'cancel' | 'archive' | 'unarchive' | 'pin' | 'unpin') {
 		if (!project) return;
 		try {
 			const client = getApiClient();
@@ -232,11 +252,11 @@
 	<ConfirmDestructiveDialog
 		bind:open={confirmCompleteOpen}
 		title="Complete project?"
-		description="The project will be marked as completed."
+		description="The project will be marked as completed and all its tasks will be marked as done."
 		confirmLabel="Complete"
 		busyLabel="Completing…"
 		variant="default"
-		onConfirm={() => action('complete')}
+		onConfirm={completeProject}
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}
