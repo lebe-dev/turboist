@@ -50,12 +50,7 @@
 			{/if}
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
-			{#if project.status === 'open'}
-				<Button size="sm" variant="outline" onclick={onComplete}>
-					<CheckIcon class="size-4" />
-					Complete
-				</Button>
-			{:else if project.status === 'completed'}
+			{#if project.status === 'completed'}
 				<Button size="sm" variant="outline" onclick={onUncomplete}>
 					<ArrowCounterClockwiseIcon class="size-4" />
 					Reopen
@@ -70,6 +65,11 @@
 					{/snippet}
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end">
+					{#if project.status === 'open'}
+						<DropdownMenu.Item onclick={onComplete}>
+							<CheckIcon class="size-4" /> Complete
+						</DropdownMenu.Item>
+					{/if}
 					{#if onEdit}
 						<DropdownMenu.Item onclick={onEdit}>Edit</DropdownMenu.Item>
 					{/if}
