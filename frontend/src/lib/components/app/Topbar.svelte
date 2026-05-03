@@ -15,6 +15,7 @@
 	import { toast } from 'svelte-sonner';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
+	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
 
 	const STATIC_TITLES: Record<string, string> = {
 		'/today': 'Today',
@@ -24,6 +25,7 @@
 		'/backlog': 'Backlog',
 		'/next-week': 'Next week',
 		'/search': 'Search',
+		'/troiki': 'Troiki',
 	};
 
 	let {
@@ -38,6 +40,7 @@
 
 	const pageTitle = $derived(STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title);
 	const contextsLocked = $derived(page.url.pathname === '/inbox');
+	const troikiActive = $derived(page.url.pathname === '/troiki');
 
 	function handleSearch(): void {
 		void goto(resolve('/search'));
@@ -154,6 +157,18 @@
 			<Kbd.Kbd class="ml-1 hidden sm:inline-flex">Q</Kbd.Kbd>
 		</Button>
 		<ThemeToggle />
+		<a
+			href={resolve('/troiki')}
+			aria-label="Troiki System"
+			title="Troiki System"
+			aria-current={troikiActive ? 'page' : undefined}
+			class="inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+			class:text-muted-foreground={!troikiActive}
+			class:hover:text-primary={!troikiActive}
+			class:text-primary={troikiActive}
+		>
+			<TroikiTriggerIcon class="size-4" />
+		</a>
 	</div>
 </header>
 

@@ -16,6 +16,7 @@
 	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -36,7 +37,8 @@
 		'/backlog': 'Backlog',
 		'/next-week': 'Next week',
 		'/completed': 'Completed',
-		'/search': 'Search'
+		'/search': 'Search',
+		'/troiki': 'Troiki'
 	};
 
 	const documentTitle = $derived.by(() => {
@@ -70,7 +72,8 @@
 					planStatsStore.load(),
 					inboxStatsStore.load(),
 					pinnedTasksStore.load(),
-					userStateStore.load()
+					userStateStore.load(),
+					troikiStore.load()
 				]);
 				dataReady = true;
 			} catch (err) {
