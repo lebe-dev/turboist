@@ -3,7 +3,6 @@ package service_test
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -28,24 +27,53 @@ func setupTestDB(t *testing.T) *sql.DB {
 	return d
 }
 
-func setupCompleteService(t *testing.T) (*service.CompleteService, *repo.TaskRepo, *repo.ContextRepo, *repo.UserRepo) {
+type completeFixtures struct {
+	svc      *service.CompleteService
+	tasks    *repo.TaskRepo
+	projects *repo.ProjectRepo
+	ctxs     *repo.ContextRepo
+	users    *repo.UserRepo
+}
+
+func setupCompleteService(t *testing.T) *completeFixtures {
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
+	plabels := repo.NewProjectLabelsRepo(d)
 	tasks := repo.NewTaskRepo(d, tlabels)
+	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)
 	users := repo.NewUserRepo(d)
-	svc := service.NewCompleteService(tasks, users)
-	return svc, tasks, ctxs, users
+	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	svc := service.NewCompleteService(tasks, projects, users)
+	return &completeFixtures{svc: svc, tasks: tasks, projects: projects, ctxs: ctxs, users: users}
+}
+
+// projectInCategory creates an open project bound to ctxID with the given
+// Troiki category set directly (bypassing capacity checks — these tests only
+// exercise CompleteService behaviour).
+func projectInCategory(t *testing.T, f *completeFixtures, ctxID int64, cat *model.TroikiCategory) *model.Project {
+	t.Helper()
+	p, err := f.projects.Create(context.Background(), repo.CreateProject{ContextID: ctxID, Title: "p", Color: "blue"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if cat != nil {
+		if _, err := f.projects.Update(context.Background(), p.ID, repo.ProjectUpdate{TroikiCategory: cat}); err != nil {
+			t.Fatalf("set project cat: %v", err)
+		}
+	}
+	return p
 }
 
 func TestCompleteService_SimpleTask(t *testing.T) {
-	svc, tasks, ctxs, _ := setupCompleteService(t)
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cid := c.ID
-	task, err := tasks.Create(ctx, repo.CreateTask{
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
 		Placement: repo.Placement{ContextID: &cid},
 		Title:     "Simple task",
 	})
@@ -53,7 +81,7 @@ func TestCompleteService_SimpleTask(t *testing.T) {
 		t.Fatalf("create task: %v", err)
 	}
 
-	result, err := svc.Complete(ctx, task.ID)
+	result, err := f.svc.Complete(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("complete: %v", err)
 	}
@@ -63,14 +91,13 @@ func TestCompleteService_SimpleTask(t *testing.T) {
 }
 
 func TestCompleteService_Recurring_AdvancesDueAt(t *testing.T) {
-	svc, tasks, ctxs, _ := setupCompleteService(t)
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cid := c.ID
 	due := time.Now().Add(24 * time.Hour)
 	rruleStr := "FREQ=DAILY;INTERVAL=1"
-	task, err := tasks.Create(ctx, repo.CreateTask{
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
 		Placement:      repo.Placement{ContextID: &cid},
 		Title:          "Daily task",
 		DueAt:          &due,
@@ -80,7 +107,7 @@ func TestCompleteService_Recurring_AdvancesDueAt(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	result, err := svc.Complete(ctx, task.ID)
+	result, err := f.svc.Complete(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("complete: %v", err)
 	}
@@ -96,14 +123,13 @@ func TestCompleteService_Recurring_AdvancesDueAt(t *testing.T) {
 }
 
 func TestCompleteService_Recurring_CountExhausted(t *testing.T) {
-	svc, tasks, ctxs, _ := setupCompleteService(t)
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cid := c.ID
 	due := time.Now().Add(24 * time.Hour)
 	rruleStr := "FREQ=DAILY;COUNT=1"
-	task, err := tasks.Create(ctx, repo.CreateTask{
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
 		Placement:      repo.Placement{ContextID: &cid},
 		Title:          "Once task",
 		DueAt:          &due,
@@ -113,7 +139,7 @@ func TestCompleteService_Recurring_CountExhausted(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	result, err := svc.Complete(ctx, task.ID)
+	result, err := f.svc.Complete(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("complete: %v", err)
 	}
@@ -123,20 +149,19 @@ func TestCompleteService_Recurring_CountExhausted(t *testing.T) {
 }
 
 func TestCompleteService_Uncomplete(t *testing.T) {
-	svc, tasks, ctxs, _ := setupCompleteService(t)
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cid := c.ID
-	task, _ := tasks.Create(ctx, repo.CreateTask{
+	task, _ := f.tasks.Create(ctx, repo.CreateTask{
 		Placement: repo.Placement{ContextID: &cid},
 		Title:     "Task",
 	})
 
-	if _, err := svc.Complete(ctx, task.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, task.ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
-	result, err := svc.Uncomplete(ctx, task.ID)
+	result, err := f.svc.Uncomplete(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("uncomplete: %v", err)
 	}
@@ -145,25 +170,18 @@ func TestCompleteService_Uncomplete(t *testing.T) {
 	}
 }
 
-func TestCompleteService_TroikiHook_ImportantGrantsMedium(t *testing.T) {
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_ImportantProject_GrantsMedium(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cat := model.TroikiCategoryImportant
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
+	p := projectInCategory(t, f, c.ID, &cat)
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "imp"})
 
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
-	cap, err := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, err := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if err != nil {
 		t.Fatalf("get capacity: %v", err)
 	}
@@ -175,27 +193,18 @@ func TestCompleteService_TroikiHook_ImportantGrantsMedium(t *testing.T) {
 	}
 }
 
-func TestCompleteService_TroikiHook_MediumGrantsRest(t *testing.T) {
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_MediumProject_GrantsRest(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cat := model.TroikiCategoryMedium
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "med"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	p := projectInCategory(t, f, c.ID, &cat)
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "med"})
+
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
-	cap, err := users.GetTroikiCapacity(ctx, service.SingleUserID)
-	if err != nil {
-		t.Fatalf("get capacity: %v", err)
-	}
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 0 {
 		t.Errorf("medium capacity: got %d, want 0", cap.Medium)
 	}
@@ -204,337 +213,192 @@ func TestCompleteService_TroikiHook_MediumGrantsRest(t *testing.T) {
 	}
 }
 
-func TestCompleteService_TroikiHook_RestNoCapacity(t *testing.T) {
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_RestProject_NoBump(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cat := model.TroikiCategoryRest
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "rest"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	p := projectInCategory(t, f, c.ID, &cat)
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "rest"})
+
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
-	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 0 || cap.Rest != 0 {
 		t.Errorf("capacity: got %+v, want all zero", cap)
 	}
 }
 
-func TestCompleteService_TroikiHook_NoCategoryNoEffect(t *testing.T) {
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_NoProjectNoEffect(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cid := c.ID
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "plain"})
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "plain"})
 
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
-	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 0 || cap.Rest != 0 {
 		t.Errorf("capacity: got %+v, want all zero", cap)
 	}
 }
 
-func TestCompleteService_TroikiHook_RecurringNonTerminalNoBump(t *testing.T) {
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_UncategorisedProject_NoBump(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	p := projectInCategory(t, f, c.ID, nil)
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "x"})
 
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
 	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 0 || cap.Rest != 0 {
+		t.Errorf("capacity: got %+v, want all zero", cap)
+	}
+}
+
+func TestCompleteService_TroikiHook_RecurringNonTerminal_NoBump(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cat := model.TroikiCategoryImportant
+	p := projectInCategory(t, f, c.ID, &cat)
 	due := time.Now().Add(24 * time.Hour)
 	rruleStr := "FREQ=DAILY;INTERVAL=1"
-	cat := model.TroikiCategoryImportant
-	tk, _ := tasks.Create(ctx, repo.CreateTask{
-		Placement:      repo.Placement{ContextID: &cid},
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &c.ID, ProjectID: &p.ID},
 		Title:          "daily imp",
 		DueAt:          &due,
 		RecurrenceRule: &rruleStr,
 	})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
-	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 0 {
 		t.Errorf("medium capacity: got %d, want 0 (recurring non-terminal)", cap.Medium)
 	}
 }
 
-func TestCompleteService_TroikiHook_RecurringTerminalBumps(t *testing.T) {
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_RecurringTerminal_Bumps(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cat := model.TroikiCategoryImportant
+	p := projectInCategory(t, f, c.ID, &cat)
 	due := time.Now().Add(24 * time.Hour)
 	rruleStr := "FREQ=DAILY;COUNT=1"
-	cat := model.TroikiCategoryImportant
-	tk, _ := tasks.Create(ctx, repo.CreateTask{
-		Placement:      repo.Placement{ContextID: &cid},
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &c.ID, ProjectID: &p.ID},
 		Title:          "once imp",
 		DueAt:          &due,
 		RecurrenceRule: &rruleStr,
 	})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete: %v", err)
 	}
-	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 1 {
 		t.Errorf("medium capacity: got %d, want 1 (recurring terminal)", cap.Medium)
 	}
 }
 
-func TestCompleteService_TroikiHook_DoubleCompleteNoBump(t *testing.T) {
-	// Re-completing an already-completed task must not re-grant capacity.
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_DoubleComplete_NoDoubleBump(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cat := model.TroikiCategoryImportant
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	p := projectInCategory(t, f, c.ID, &cat)
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "imp"})
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete 1: %v", err)
 	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete 2: %v", err)
 	}
-	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 1 {
 		t.Errorf("medium capacity: got %d, want 1 (no double-bump)", cap.Medium)
 	}
 }
 
-func TestCompleteService_TroikiHook_UncompleteRecompleteNoBump(t *testing.T) {
-	// Completing then uncompleting then re-completing the same Important task
-	// must not grant Medium capacity twice — the grant is bound to the current
-	// categorisation, not to each status transition.
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_UncompleteRecomplete_NoDoubleBump(t *testing.T) {
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cat := model.TroikiCategoryImportant
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	p := projectInCategory(t, f, c.ID, &cat)
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "imp"})
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete 1: %v", err)
 	}
-	if _, err := svc.Uncomplete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Uncomplete(ctx, tk.ID); err != nil {
 		t.Fatalf("uncomplete: %v", err)
 	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete 2: %v", err)
 	}
-	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 1 {
 		t.Errorf("medium capacity: got %d, want 1 (no double-bump on uncomplete/recomplete)", cap.Medium)
 	}
 }
 
-func TestCompleteService_TroikiHook_RecategoriseGrantsAgain(t *testing.T) {
-	// Clearing the category and re-assigning should reset the grant flag, so
-	// the next completion grants capacity again. This preserves the spec:
-	// each (task, current-categorisation) earns one bump.
-	svc, tasks, ctxs, users := setupCompleteService(t)
+func TestCompleteService_TroikiHook_ProjectRecategorise_GrantsAgain(t *testing.T) {
+	// Clearing the project's category and re-assigning should reset every task's
+	// grant flag, so a subsequent completion grants capacity again.
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cat := model.TroikiCategoryImportant
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	p := projectInCategory(t, f, c.ID, &cat)
+	tk, _ := f.tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "imp"})
+
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete 1: %v", err)
 	}
-	if _, err := svc.Uncomplete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Uncomplete(ctx, tk.ID); err != nil {
 		t.Fatalf("uncomplete: %v", err)
 	}
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategoryClear: true}); err != nil {
-		t.Fatalf("clear cat: %v", err)
+	// Reset the task's grant flag via re-categorising at the task level (the
+	// repo.TaskUpdate API still resets troiki_capacity_granted on category
+	// changes, which mirrors the project-recategorisation flow that Task 4 will
+	// add as an explicit project-side reset).
+	if _, err := f.tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategoryClear: true}); err != nil {
+		t.Fatalf("clear task cat: %v", err)
 	}
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("re-set cat: %v", err)
+	if _, err := f.tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("re-set task cat: %v", err)
 	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+	if _, err := f.svc.Complete(ctx, tk.ID); err != nil {
 		t.Fatalf("complete 2: %v", err)
 	}
-	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	cap, _ := f.users.GetTroikiCapacity(ctx, service.SingleUserID)
 	if cap.Medium != 2 {
 		t.Errorf("medium capacity: got %d, want 2 (recategorisation grants again)", cap.Medium)
 	}
 }
 
 func TestCompleteService_Cancel(t *testing.T) {
-	svc, tasks, ctxs, _ := setupCompleteService(t)
+	f := setupCompleteService(t)
 	ctx := context.Background()
-
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
 	cid := c.ID
-	task, _ := tasks.Create(ctx, repo.CreateTask{
+	task, _ := f.tasks.Create(ctx, repo.CreateTask{
 		Placement: repo.Placement{ContextID: &cid},
 		Title:     "Task",
 	})
 
-	result, err := svc.Cancel(ctx, task.ID)
+	result, err := f.svc.Cancel(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	if result.Status != model.TaskStatusCancelled {
 		t.Errorf("status: got %q, want cancelled", result.Status)
-	}
-}
-
-func TestCompleteService_Cancel_ClearsTroikiCategory(t *testing.T) {
-	// Cancelling a categorised task must release its slot — otherwise a later
-	// uncomplete would push the slot over capacity.
-	svc, tasks, ctxs, users := setupCompleteService(t)
-	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
-	cat := model.TroikiCategoryImportant
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-
-	result, err := svc.Cancel(ctx, tk.ID)
-	if err != nil {
-		t.Fatalf("cancel: %v", err)
-	}
-	if result.TroikiCategory != nil {
-		t.Errorf("troiki category after cancel: got %v, want nil", result.TroikiCategory)
-	}
-}
-
-func TestCompleteService_Uncomplete_RejectsWhenSlotFull(t *testing.T) {
-	// After Complete, the slot frees and may be refilled by other tasks. If we
-	// then Uncomplete the original, the slot would exceed capacity unless we
-	// guard the transition.
-	svc, tasks, ctxs, users := setupCompleteService(t)
-	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
-	cat := model.TroikiCategoryImportant
-
-	original, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "orig"})
-	if _, err := tasks.Update(ctx, original.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, original.ID); err != nil {
-		t.Fatalf("complete: %v", err)
-	}
-	// Refill the slot to capacity with three new important tasks.
-	for range service.TroikiImportantCap {
-		t2, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "fill"})
-		if _, err := tasks.Update(ctx, t2.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-			t.Fatalf("fill cat: %v", err)
-		}
-	}
-
-	if _, err := svc.Uncomplete(ctx, original.ID); err == nil || !errors.Is(err, service.ErrTroikiSlotFull) {
-		t.Fatalf("uncomplete: got %v, want ErrTroikiSlotFull", err)
-	}
-}
-
-func TestCompleteService_Uncomplete_IdempotentOnAlreadyOpen(t *testing.T) {
-	// A duplicate /uncomplete on a still-open categorised task must be a no-op
-	// rather than surfacing ErrTroikiSlotFull. ReopenIfTroikiRoom's status !=
-	// 'open' filter would otherwise fail and look identical to a slot conflict.
-	svc, tasks, ctxs, users := setupCompleteService(t)
-	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
-	cat := model.TroikiCategoryImportant
-
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "x"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-
-	result, err := svc.Uncomplete(ctx, tk.ID)
-	if err != nil {
-		t.Fatalf("uncomplete (already open): %v", err)
-	}
-	if result.Status != model.TaskStatusOpen {
-		t.Errorf("status: got %q, want open", result.Status)
-	}
-}
-
-func TestCompleteService_Uncomplete_AllowsWhenSlotHasRoom(t *testing.T) {
-	svc, tasks, ctxs, users := setupCompleteService(t)
-	ctx := context.Background()
-
-	if _, err := users.Create(ctx, "admin", "h"); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-	c, _ := ctxs.Create(ctx, "Work", "blue", false)
-	cid := c.ID
-	cat := model.TroikiCategoryImportant
-
-	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "x"})
-	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
-		t.Fatalf("set cat: %v", err)
-	}
-	if _, err := svc.Complete(ctx, tk.ID); err != nil {
-		t.Fatalf("complete: %v", err)
-	}
-	result, err := svc.Uncomplete(ctx, tk.ID)
-	if err != nil {
-		t.Fatalf("uncomplete: %v", err)
-	}
-	if result.Status != model.TaskStatusOpen {
-		t.Errorf("status: got %q, want open", result.Status)
 	}
 }

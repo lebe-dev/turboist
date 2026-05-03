@@ -68,7 +68,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
 	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, cfg)
 	taskSvc := service.NewTaskService(taskRepo, tlabels, autoLabelsSvc)
-	completeSvc := service.NewCompleteService(taskRepo, userRepo)
+	completeSvc := service.NewCompleteService(taskRepo, projectRepo, userRepo)
 	moveSvc := service.NewMoveService(taskRepo)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 
@@ -98,7 +98,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewTaskBulkHandler(completeSvc, moveSvc, baseURL).Register(api)
 	handlers.NewTaskViewHandler(taskRepo, cfg, baseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, baseURL).Register(api)
-	troikiSvc := service.NewTroikiService(taskRepo, userRepo)
+	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
 	handlers.NewTroikiHandler(troikiSvc, baseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, taskSvc, baseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, baseURL).Register(api)

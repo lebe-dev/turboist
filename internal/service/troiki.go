@@ -14,8 +14,8 @@ import (
 const TroikiImportantCap = 3
 
 // PriorityForCategory returns the task priority that a Troiki category enforces.
-// Tasks with a category are pinned to this priority; direct priority edits are
-// rejected by the task update handler.
+// Tasks belonging to a project with a category are pinned to this priority;
+// direct priority edits are rejected by the task update handler.
 func PriorityForCategory(cat model.TroikiCategory) model.Priority {
 	switch cat {
 	case model.TroikiCategoryImportant:
@@ -32,61 +32,73 @@ func PriorityForCategory(cat model.TroikiCategory) model.Priority {
 const SingleUserID int64 = 1
 
 var (
-	ErrTroikiSlotFull    = errors.New("service: troiki slot full")
-	ErrTroikiNotRootTask = errors.New("service: troiki category requires a root open task")
+	ErrTroikiSlotFull       = errors.New("service: troiki slot full")
+	ErrTroikiInvalidProject = errors.New("service: troiki category requires an open non-inbox project")
 )
 
-// TroikiSlot is one of the three Troiki sections returned by View.
-type TroikiSlot struct {
+// TroikiSlotProject is one of the three Troiki sections returned by View, scoped
+// to projects (the Troiki unit of work). Tasks groups every open task of every
+// project in Projects by project_id (root + subtasks), so the UI renders the
+// full task tree without further fetches.
+type TroikiSlotProject struct {
 	Capacity int
-	Tasks    []model.Task
+	Projects []model.Project
+	Tasks    map[int64][]model.Task
 }
 
 // TroikiView is the aggregate snapshot of all three Troiki slots.
 //
 // Started signals whether the user has confirmed the start of a Troiki cycle.
-// Until Started is true, Medium and Rest accept tasks without capacity checks
-// (initial fill mode); once started, the methodology rules apply (capacity
-// grows only by completing tasks in the previous category).
+// Until Started is true, Medium and Rest accept projects without capacity
+// checks (initial fill mode); once started, the methodology rules apply
+// (capacity grows only by completing tasks in the previous category).
 type TroikiView struct {
-	Important TroikiSlot
-	Medium    TroikiSlot
-	Rest      TroikiSlot
+	Important TroikiSlotProject
+	Medium    TroikiSlotProject
+	Rest      TroikiSlotProject
 	Started   bool
 }
 
-// TroikiService manages Troiki category assignment and view aggregation.
+// TroikiService manages Troiki category assignment (per project) and view
+// aggregation.
 type TroikiService struct {
-	tasks *repo.TaskRepo
-	users *repo.UserRepo
+	tasks    *repo.TaskRepo
+	projects *repo.ProjectRepo
+	users    *repo.UserRepo
 }
 
-func NewTroikiService(tasks *repo.TaskRepo, users *repo.UserRepo) *TroikiService {
-	return &TroikiService{tasks: tasks, users: users}
+func NewTroikiService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, users *repo.UserRepo) *TroikiService {
+	return &TroikiService{tasks: tasks, projects: projects, users: users}
 }
 
-// SetCategory assigns or clears the Troiki category for a root open task.
-// Passing nil clears the category. Re-assigning the same category is a no-op.
-func (s *TroikiService) SetCategory(ctx context.Context, taskID int64, cat *model.TroikiCategory) (*model.Task, error) {
-	t, err := s.tasks.Get(ctx, taskID)
+// SetCategory assigns or clears the Troiki category for an open project.
+// Passing nil clears the category (open task priorities are left untouched —
+// the user explicitly chose to drop the project from a slot, not to rewrite
+// every task's priority). Re-assigning the same category is a no-op.
+//
+// On success, EnforceProjectPriority is invoked so every open task in the
+// project (root + subtasks) is pinned to the category-derived priority.
+func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *model.TroikiCategory) (*model.Project, error) {
+	p, err := s.projects.Get(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	if t.ParentID != nil {
-		return nil, ErrTroikiNotRootTask
-	}
-	if t.Status != model.TaskStatusOpen {
-		return nil, ErrTroikiNotRootTask
+	if p.Status != model.ProjectStatusOpen {
+		return nil, ErrTroikiInvalidProject
 	}
 
 	if cat == nil {
-		return s.tasks.Update(ctx, taskID, repo.TaskUpdate{TroikiCategoryClear: true})
+		updated, err := s.projects.Update(ctx, projectID, repo.ProjectUpdate{TroikiCategoryClear: true})
+		if err != nil {
+			return nil, err
+		}
+		return updated, nil
 	}
 	if !cat.IsValid() {
 		return nil, fmt.Errorf("troiki: invalid category %q", *cat)
 	}
-	if t.TroikiCategory != nil && *t.TroikiCategory == *cat {
-		return t, nil
+	if p.TroikiCategory != nil && *p.TroikiCategory == *cat {
+		return p, nil
 	}
 
 	cap, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
@@ -94,15 +106,14 @@ func (s *TroikiService) SetCategory(ctx context.Context, taskID int64, cat *mode
 		return nil, err
 	}
 	// Initial-fill mode: before the user presses "Start the system", Medium and
-	// Rest accept tasks without capacity checks. Important always honors its
+	// Rest accept projects without capacity checks. Important always honors its
 	// fixed cap of 3 — that's a core methodology rule, not a soft limit.
-	derivedPriority := PriorityForCategory(*cat)
 	if !cap.Started && (*cat == model.TroikiCategoryMedium || *cat == model.TroikiCategoryRest) {
-		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{
-			TroikiCategory: cat,
-			Priority:       &derivedPriority,
-		})
+		updated, err := s.projects.Update(ctx, projectID, repo.ProjectUpdate{TroikiCategory: cat})
 		if err != nil {
+			return nil, err
+		}
+		if err := s.EnforceProjectPriority(ctx, projectID, PriorityForCategory(*cat)); err != nil {
 			return nil, err
 		}
 		return updated, nil
@@ -113,74 +124,101 @@ func (s *TroikiService) SetCategory(ctx context.Context, taskID int64, cat *mode
 	}
 	// Atomic capacity-checked assignment — a separate read+write would race with
 	// a concurrent SetCategory and let both requests exceed the slot cap.
-	ok, err := s.tasks.SetTroikiCategoryIfRoom(ctx, taskID, *cat, capacity)
+	ok, err := s.projects.SetTroikiCategoryIfRoom(ctx, projectID, *cat, capacity)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
 		// Disambiguate: SetTroikiCategoryIfRoom returns false when the slot is
-		// full, the task stopped being root+open between our Get and the atomic
-		// UPDATE (concurrent move/complete), or a concurrent request already
-		// assigned the same category (the WHERE-clause COUNT then sees the task
-		// itself in the slot and rejects the redundant write). Re-read to
-		// surface the actual cause.
-		cur, err := s.tasks.Get(ctx, taskID)
+		// full, the project stopped being open between our Get and the atomic
+		// UPDATE, or a concurrent request already assigned the same category
+		// (the WHERE-clause COUNT then sees the project itself in the slot and
+		// rejects the redundant write). Re-read to surface the actual cause.
+		cur, err := s.projects.Get(ctx, projectID)
 		if err != nil {
 			return nil, err
 		}
-		if cur.ParentID != nil || cur.Status != model.TaskStatusOpen {
-			return nil, ErrTroikiNotRootTask
+		if cur.Status != model.ProjectStatusOpen {
+			return nil, ErrTroikiInvalidProject
 		}
 		if cur.TroikiCategory != nil && *cur.TroikiCategory == *cat {
 			return cur, nil
 		}
 		return nil, ErrTroikiSlotFull
 	}
-	// Pin priority to the category-derived value. The atomic UPDATE above only
-	// touches troiki_category; a separate UPDATE keeps SetTroikiCategoryIfRoom's
-	// capacity-checking SQL focused.
-	if _, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Priority: &derivedPriority}); err != nil {
+	if err := s.EnforceProjectPriority(ctx, projectID, PriorityForCategory(*cat)); err != nil {
 		return nil, err
 	}
-	return s.tasks.Get(ctx, taskID)
+	return s.projects.Get(ctx, projectID)
 }
 
-// View returns capacities and open tasks for all three Troiki slots.
+// EnforceProjectPriority pins all open tasks of the project (root + subtasks)
+// to the given priority via a single bulk UPDATE.
+func (s *TroikiService) EnforceProjectPriority(ctx context.Context, projectID int64, priority model.Priority) error {
+	return s.tasks.UpdatePriorityByProject(ctx, projectID, priority)
+}
+
+// View returns capacities, projects, and grouped tasks for all three Troiki slots.
 func (s *TroikiService) View(ctx context.Context) (TroikiView, error) {
 	cap, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
 	if err != nil {
 		return TroikiView{}, err
 	}
-	important, _, err := s.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryImportant)
-	if err != nil {
-		return TroikiView{}, err
-	}
-	medium, _, err := s.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryMedium)
-	if err != nil {
-		return TroikiView{}, err
-	}
-	rest, _, err := s.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryRest)
+	important, err := s.buildSlot(ctx, model.TroikiCategoryImportant, TroikiImportantCap)
 	if err != nil {
 		return TroikiView{}, err
 	}
 	mediumCap, restCap := cap.Medium, cap.Rest
-	// Before start, Medium/Rest capacity reported as the current task count so
-	// the UI doesn't render bogus empty-slot placeholders against a zero cap.
 	if !cap.Started {
-		mediumCap = len(medium)
-		restCap = len(rest)
+		// Before start, Medium/Rest capacity reported as the current project
+		// count so the UI doesn't render bogus empty-slot placeholders against
+		// a zero cap.
+		n, err := s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryMedium)
+		if err != nil {
+			return TroikiView{}, err
+		}
+		mediumCap = n
+		n, err = s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryRest)
+		if err != nil {
+			return TroikiView{}, err
+		}
+		restCap = n
+	}
+	medium, err := s.buildSlot(ctx, model.TroikiCategoryMedium, mediumCap)
+	if err != nil {
+		return TroikiView{}, err
+	}
+	rest, err := s.buildSlot(ctx, model.TroikiCategoryRest, restCap)
+	if err != nil {
+		return TroikiView{}, err
 	}
 	return TroikiView{
-		Important: TroikiSlot{Capacity: TroikiImportantCap, Tasks: important},
-		Medium:    TroikiSlot{Capacity: mediumCap, Tasks: medium},
-		Rest:      TroikiSlot{Capacity: restCap, Tasks: rest},
+		Important: important,
+		Medium:    medium,
+		Rest:      rest,
 		Started:   cap.Started,
 	}, nil
 }
 
+func (s *TroikiService) buildSlot(ctx context.Context, cat model.TroikiCategory, capacity int) (TroikiSlotProject, error) {
+	projects, _, err := s.projects.ListByTroikiCategory(ctx, cat)
+	if err != nil {
+		return TroikiSlotProject{}, err
+	}
+	ids := make([]int64, len(projects))
+	for i, p := range projects {
+		ids[i] = p.ID
+	}
+	tasks, err := s.tasks.ListByProjectIDs(ctx, ids)
+	if err != nil {
+		return TroikiSlotProject{}, err
+	}
+	return TroikiSlotProject{Capacity: capacity, Projects: projects, Tasks: tasks}, nil
+}
+
 // Start confirms the start of a Troiki cycle: snapshots current Medium/Rest
-// task counts as capacity and flips troiki_started=1. Idempotent — calling on
-// an already-started user is a no-op.
+// project counts as capacity and flips troiki_started=1. Idempotent — calling
+// on an already-started user is a no-op.
 func (s *TroikiService) Start(ctx context.Context) error {
 	cap, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
 	if err != nil {
@@ -189,15 +227,15 @@ func (s *TroikiService) Start(ctx context.Context) error {
 	if cap.Started {
 		return nil
 	}
-	medium, _, err := s.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryMedium)
+	medium, err := s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryMedium)
 	if err != nil {
 		return err
 	}
-	rest, _, err := s.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryRest)
+	rest, err := s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryRest)
 	if err != nil {
 		return err
 	}
-	return s.users.StartTroiki(ctx, SingleUserID, len(medium), len(rest))
+	return s.users.StartTroiki(ctx, SingleUserID, medium, rest)
 }
 
 func (s *TroikiService) capacityForWith(cat model.TroikiCategory, cap repo.TroikiCapacity) (int, error) {

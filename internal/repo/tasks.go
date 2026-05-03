@@ -342,6 +342,21 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	return r.Get(ctx, id)
 }
 
+// UpdatePriorityByProject pins every open task of the project to `priority`
+// in a single UPDATE — the Troiki service uses this to enforce the
+// category-derived priority across all root tasks and subtasks of a project.
+func (r *TaskRepo) UpdatePriorityByProject(ctx context.Context, projectID int64, priority model.Priority) error {
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE tasks SET priority = ?, updated_at = ?
+		 WHERE project_id = ? AND status = 'open'`,
+		string(priority), now, projectID)
+	if err != nil {
+		return fmt.Errorf("update priority by project: %w", err)
+	}
+	return nil
+}
+
 // SetTroikiCategoryIfRoom atomically assigns the troiki_category to the task
 // iff the task is still a root open task and the count of currently-open tasks
 // in that category is below `capacity`. On success, troiki_capacity_granted is
