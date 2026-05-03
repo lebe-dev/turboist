@@ -13,6 +13,7 @@
 		hideTodayBadge = false,
 		hideTomorrowBadge = false,
 		hideDue = false,
+		draggable = false,
 		mutator,
 		belongs,
 		onToggle
@@ -24,6 +25,7 @@
 		hideTodayBadge?: boolean;
 		hideTomorrowBadge?: boolean;
 		hideDue?: boolean;
+		draggable?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -41,6 +43,7 @@
 			{hideTodayBadge}
 			{hideTomorrowBadge}
 			{hideDue}
+			{draggable}
 			{mutator}
 			{belongs}
 			{onToggle}
@@ -53,6 +56,7 @@
 				{hideTodayBadge}
 				{hideTomorrowBadge}
 				{hideDue}
+				{draggable}
 				{mutator}
 				{belongs}
 				{onToggle}

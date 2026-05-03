@@ -15,6 +15,7 @@
 	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import SidebarSimpleIcon from 'phosphor-svelte/lib/SidebarSimple';
 	import SignOutIcon from 'phosphor-svelte/lib/SignOut';
+	import GearIcon from 'phosphor-svelte/lib/Gear';
 	import UserIcon from 'phosphor-svelte/lib/User';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import { toast } from 'svelte-sonner';
@@ -102,8 +103,8 @@
 	const filteredProjects = $derived.by(() => {
 		const active = userStateStore.activeContextId;
 		const all = projectsStore.items ?? [];
-		if (active == null) return all;
-		return all.filter((p) => p.contextId === active);
+		const scoped = active == null ? all : all.filter((p) => p.contextId === active);
+		return [...scoped].sort((a, b) => a.title.localeCompare(b.title));
 	});
 
 	function isActive(href: string): boolean {
@@ -351,6 +352,10 @@
 			<DropdownMenu.Content align="start" side="top" class="w-48">
 				<DropdownMenu.Label>{auth.user?.username ?? ''}</DropdownMenu.Label>
 				<DropdownMenu.Separator />
+				<DropdownMenu.Item onclick={() => goto(resolve('/settings'))}>
+					<GearIcon class="size-4" />
+					Settings
+				</DropdownMenu.Item>
 				<DropdownMenu.Item onclick={onLogoutAll}>Log out everywhere</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>

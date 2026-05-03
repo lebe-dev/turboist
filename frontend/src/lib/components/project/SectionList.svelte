@@ -10,7 +10,9 @@
 		belongs,
 		onToggle,
 		onRenameSection,
-		onRemoveSection
+		onRemoveSection,
+		onSectionDrop,
+		onTaskDrop
 	}: {
 		sections: ProjectSection[];
 		tasksBySection: Record<number, Task[]>;
@@ -19,6 +21,8 @@
 		onToggle?: (task: Task) => void;
 		onRenameSection?: (section: ProjectSection) => void;
 		onRemoveSection?: (section: ProjectSection) => void;
+		onSectionDrop?: (draggedId: number, targetId: number, before: boolean) => void;
+		onTaskDrop?: (taskId: number, targetSectionId: number) => void;
 	} = $props();
 </script>
 
@@ -32,6 +36,8 @@
 			{onToggle}
 			onRename={onRenameSection}
 			onRemove={onRemoveSection}
+			{onSectionDrop}
+			{onTaskDrop}
 		/>
 	{/each}
 </div>

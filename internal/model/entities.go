@@ -41,6 +41,7 @@ type ProjectSection struct {
 	ID        int64
 	ProjectID int64
 	Title     string
+	Position  int
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

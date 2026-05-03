@@ -32,6 +32,29 @@ func (h *SectionHandler) Register(r fiber.Router) {
 	r.Delete("/:id", h.delete)
 	r.Get("/:id/tasks", h.listTasks)
 	r.Post("/:id/tasks", h.createTask)
+	r.Post("/:id/reorder", h.reorder)
+}
+
+func (h *SectionHandler) reorder(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+	var req dto.ReorderSectionRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return httpapi.ErrValidation("invalid request body")
+	}
+	if req.Position < 0 {
+		return httpapi.ErrValidation("position must be non-negative")
+	}
+	s, err := h.sections.Reorder(c.Context(), id, req.Position)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("section not found")
+		}
+		return httpapi.ErrInternal("reorder section")
+	}
+	return c.JSON(dto.SectionFromModel(*s))
 }
 
 func (h *SectionHandler) get(c fiber.Ctx) error {

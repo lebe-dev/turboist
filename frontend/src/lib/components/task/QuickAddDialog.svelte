@@ -89,6 +89,7 @@
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
 
 	let dateInputEl: HTMLInputElement | undefined = $state();
+	let titleEl: HTMLTextAreaElement | undefined = $state();
 	let descriptionEl: HTMLTextAreaElement | undefined = $state();
 
 	function setDate(value: string) {
@@ -118,10 +119,25 @@
 	});
 
 	$effect(() => {
+		void title;
+		autoGrow(titleEl);
+	});
+
+	$effect(() => {
 		if (open) {
-			queueMicrotask(() => autoGrow(descriptionEl));
+			queueMicrotask(() => {
+				autoGrow(titleEl);
+				autoGrow(descriptionEl);
+			});
 		}
 	});
+
+	function onTitleKeydown(e: KeyboardEvent): void {
+		if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+			e.preventDefault();
+			void submit(e);
+		}
+	}
 
 	function reset() {
 		title = '';
@@ -206,13 +222,17 @@
 			<form onsubmit={submit} class="flex flex-col">
 				<div class="px-5 pt-5 pb-3">
 					<!-- svelte-ignore a11y_autofocus -->
-					<input
+					<textarea
+						bind:this={titleEl}
 						bind:value={title}
 						placeholder="Task name"
 						aria-label="Task name"
-						class="w-full bg-transparent text-lg font-medium leading-tight outline-none placeholder:text-muted-foreground/70"
+						rows="1"
+						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
+						onkeydown={onTitleKeydown}
+						class="block w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium leading-tight outline-none placeholder:text-muted-foreground/70"
 						autofocus
-					/>
+					></textarea>
 					<textarea
 						bind:this={descriptionEl}
 						bind:value={description}
@@ -387,7 +407,9 @@
 						</Select.Trigger>
 						<Select.Content>
 							<Select.Item value="">{emptyProjectLabel}</Select.Item>
-							{#each projectsStore.items as project (project.id)}
+							{#each projectsStore.items
+								.filter((p) => p.status !== 'completed')
+								.sort((a, b) => a.title.localeCompare(b.title)) as project (project.id)}
 								<Select.Item value={String(project.id)}>{project.title}</Select.Item>
 							{/each}
 						</Select.Content>

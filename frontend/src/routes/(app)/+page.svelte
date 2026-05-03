@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 
 	onMount(() => {
-		void goto(resolve('/inbox'), { replaceState: true });
+		void goto(resolve('/today'), { replaceState: true });
 	});
 </script>
 

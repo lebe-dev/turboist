@@ -40,7 +40,8 @@
 		'/next-week': 'Next week',
 		'/completed': 'Completed',
 		'/search': 'Search',
-		'/troiki': 'Troiki'
+		'/troiki': 'Troiki',
+		'/settings': 'Settings'
 	};
 
 	const documentTitle = $derived.by(() => {

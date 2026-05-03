@@ -14,7 +14,6 @@
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { toast } from 'svelte-sonner';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
-	import ThemeToggle from './ThemeToggle.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
 
 	const STATIC_TITLES: Record<string, string> = {
@@ -26,6 +25,7 @@
 		'/next-week': 'Next week',
 		'/search': 'Search',
 		'/troiki': 'Troiki',
+		'/settings': 'Settings',
 	};
 
 	let {
@@ -157,7 +157,6 @@
 		>
 			<PlusIcon class="size-4" />
 		</Button>
-		<ThemeToggle />
 		<a
 			href={resolve('/troiki')}
 			aria-label="Troiki System"

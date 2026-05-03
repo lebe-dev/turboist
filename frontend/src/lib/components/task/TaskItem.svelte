@@ -13,6 +13,7 @@
 	import DateBadge from './DateBadge.svelte';
 	import PostponeBadge from './PostponeBadge.svelte';
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
+	import { setTaskDrag } from '$lib/utils/dnd';
 
 	let {
 		task,
@@ -21,6 +22,7 @@
 		hideTodayBadge = false,
 		hideTomorrowBadge = false,
 		hideDue = false,
+		draggable = false,
 		mutator,
 		belongs,
 		onToggle
@@ -31,10 +33,15 @@
 		hideTodayBadge?: boolean;
 		hideTomorrowBadge?: boolean;
 		hideDue?: boolean;
+		draggable?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
 	} = $props();
+
+	function onTaskDragStart(e: DragEvent) {
+		setTaskDrag(e, task.id);
+	}
 
 	const getDayPartActive = getContext<(() => boolean) | undefined>('dayPartActive');
 	const phaseActive = $derived(getDayPartActive ? getDayPartActive() : true);
@@ -67,6 +74,9 @@
 	class:py-1.5={!hasMeta}
 	style:padding-left={`${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
+	draggable={draggable}
+	ondragstart={draggable ? onTaskDragStart : undefined}
+	role={draggable ? 'listitem' : undefined}
 >
 	<button
 		type="button"

@@ -22,6 +22,7 @@
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
@@ -153,6 +154,77 @@
 		sectionDialogOpen = true;
 	}
 
+	let rootDropActive = $state(false);
+
+	function onRootDragOver(e: DragEvent) {
+		if (!hasDragKind(e, 'task')) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		rootDropActive = true;
+	}
+
+	function onRootDragLeave(e: DragEvent) {
+		const target = e.currentTarget as HTMLElement;
+		const related = e.relatedTarget as Node | null;
+		if (related && target.contains(related)) return;
+		rootDropActive = false;
+	}
+
+	function onRootDrop(e: DragEvent) {
+		const taskId = readDraggedTask(e);
+		rootDropActive = false;
+		if (taskId === null) return;
+		e.preventDefault();
+		void moveTask(taskId, null);
+	}
+
+	async function moveTask(taskId: number, targetSectionId: number | null) {
+		if (!project) return;
+		const task = taskList.items.find((t) => t.id === taskId);
+		if (!task) return;
+		if (task.sectionId === targetSectionId) return;
+		const oldItems = taskList.items;
+		taskList.items = taskList.items.map((t) =>
+			t.id === taskId ? { ...t, sectionId: targetSectionId } : t
+		);
+		try {
+			const target =
+				targetSectionId !== null
+					? { contextId: project.contextId, projectId: project.id, sectionId: targetSectionId }
+					: { contextId: project.contextId, projectId: project.id };
+			const updated = await tasksApi.move(getApiClient(), taskId, target);
+			taskList.items = taskList.items.map((t) => (t.id === taskId ? updated : t));
+		} catch (err) {
+			taskList.items = oldItems;
+			toast.error(describeError(err, 'Failed to move task'));
+		}
+	}
+
+	async function reorderSection(draggedId: number, targetId: number, before: boolean) {
+		if (draggedId === targetId) return;
+		const arr = [...sectionList];
+		const fromIdx = arr.findIndex((s) => s.id === draggedId);
+		if (fromIdx < 0) return;
+		const [dragged] = arr.splice(fromIdx, 1);
+		let insertIdx = arr.findIndex((s) => s.id === targetId);
+		if (insertIdx < 0) {
+			sectionList = [...sectionList];
+			return;
+		}
+		if (!before) insertIdx += 1;
+		arr.splice(insertIdx, 0, dragged);
+		if (arr.every((s, i) => s.id === sectionList[i]?.id)) return;
+		const oldList = sectionList;
+		sectionList = arr;
+		try {
+			const updated = await sectionsApi.reorder(getApiClient(), draggedId, insertIdx);
+			sectionList = sectionList.map((s) => (s.id === updated.id ? updated : s));
+		} catch (err) {
+			sectionList = oldList;
+			toast.error(describeError(err, 'Failed to reorder section'));
+		}
+	}
+
 	function onSectionSaved(saved: ProjectSection) {
 		const i = sectionList.findIndex((s) => s.id === saved.id);
 		sectionList = i >= 0 ? sectionList.map((s) => (s.id === saved.id ? saved : s)) : [...sectionList, saved];
@@ -212,16 +284,33 @@
 			emptyTitle="No tasks yet"
 			emptyDescription="Add a task or section to start organising this project."
 		>
-			{#if tasksWithoutSection.length > 0}
-				<div class="px-1 py-2">
-					<TaskTree
-						tasks={tasksWithoutSection}
-						showProject={false}
-						{mutator}
-						onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-					/>
-				</div>
-			{/if}
+			<div
+				class={[
+					'rounded-md transition-colors',
+					rootDropActive && 'bg-accent/40',
+					tasksWithoutSection.length === 0 && sectionList.length > 0 && 'min-h-12'
+				]}
+				ondragover={onRootDragOver}
+				ondragleave={onRootDragLeave}
+				ondrop={onRootDrop}
+				role="list"
+			>
+				{#if tasksWithoutSection.length > 0}
+					<div class="px-1 py-2">
+						<TaskTree
+							tasks={tasksWithoutSection}
+							showProject={false}
+							draggable
+							{mutator}
+							onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
+						/>
+					</div>
+				{:else if sectionList.length > 0}
+					<div class="px-3 py-2 text-xs text-muted-foreground/60">
+						Drop a task here to move it out of any section
+					</div>
+				{/if}
+			</div>
 			{#if sectionList.length > 0}
 				<SectionList
 					sections={sectionList}
@@ -233,6 +322,8 @@
 						pendingSectionDelete = sec;
 						confirmSectionOpen = true;
 					}}
+					onSectionDrop={reorderSection}
+					onTaskDrop={(taskId, targetSectionId) => moveTask(taskId, targetSectionId)}
 				/>
 			{/if}
 		</ViewContent>

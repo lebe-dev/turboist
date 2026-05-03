@@ -28,6 +28,10 @@
 	});
 	const { mutator } = list;
 
+	const sortedTasks = $derived(
+		[...list.items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+	);
+
 	const loader = usePageLoad(async () => {
 		const res = await tasksApi.inbox(getApiClient());
 		list.items = res.tasks;
@@ -91,7 +95,7 @@
 		emptyDescription="Tasks captured without a project land here. Press Q to add one."
 	>
 		<TaskTree
-			tasks={list.items}
+			tasks={sortedTasks}
 			showProject={false}
 			{mutator}
 			belongs={(t) => t.inboxId !== null}

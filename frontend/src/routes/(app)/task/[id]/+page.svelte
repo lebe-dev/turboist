@@ -8,7 +8,10 @@
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
+	import { Popover as PopoverPrimitive } from 'bits-ui';
+	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
+	import { Calendar } from '$lib/components/ui/calendar';
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
@@ -42,6 +45,24 @@
 	let title = $state('');
 	let description = $state('');
 	let descriptionFocused = $state(false);
+	let descriptionEl = $state<HTMLTextAreaElement | undefined>();
+	let titleEl = $state<HTMLTextAreaElement | undefined>();
+
+	function autoGrow(el: HTMLTextAreaElement | undefined): void {
+		if (!el) return;
+		el.style.height = 'auto';
+		el.style.height = `${el.scrollHeight}px`;
+	}
+
+	$effect(() => {
+		void description;
+		autoGrow(descriptionEl);
+	});
+
+	$effect(() => {
+		void title;
+		autoGrow(titleEl);
+	});
 	let priority = $state<Priority>('no-priority');
 	let dayPart = $state<DayPart>('none');
 	let dueDate = $state('');
@@ -49,7 +70,25 @@
 	let labelIds = $state<string[]>([]);
 	let removedAuto = $state<string[]>([]);
 
-	let dateInputEl = $state<HTMLInputElement | undefined>();
+	let datePopoverOpen = $state(false);
+
+	const calendarValue = $derived<DateValue | undefined>(
+		dueDate ? parseDate(dueDate) : undefined
+	);
+
+	function pad(n: number): string {
+		return n < 10 ? `0${n}` : String(n);
+	}
+
+	function setCalendarValue(v: DateValue | undefined): void {
+		if (!v) {
+			dueDate = '';
+		} else {
+			dueDate = `${v.year}-${pad(v.month)}-${pad(v.day)}`;
+		}
+		datePopoverOpen = false;
+		scheduleSave();
+	}
 
 	const todayKey = $derived(dayKeyInTz(new Date(), configStore.value?.timezone ?? null));
 	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
@@ -210,14 +249,7 @@
 		scheduleSave();
 	}
 
-	function openDatePicker(): void {
-		const el = dateInputEl;
-		if (!el) return;
-		if (typeof el.showPicker === 'function') el.showPicker();
-		else el.focus();
-	}
-
-	async function save(): Promise<void> {
+async function save(): Promise<void> {
 		if (!task || saving || !title.trim()) return;
 		saving = true;
 		try {
@@ -294,26 +326,41 @@
 		class="grid gap-8 p-6 sm:grid-cols-[1fr_16rem] sm:p-8"
 	>
 		<div class="flex min-w-0 flex-col gap-4">
-			<input
+			<textarea
+				bind:this={titleEl}
 				bind:value={title}
 				aria-label="Title"
 				placeholder="Task name"
-				oninput={scheduleSave}
-				class="w-full bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
-			/>
+				rows="1"
+				oninput={(e) => {
+					autoGrow(e.currentTarget as HTMLTextAreaElement);
+					scheduleSave();
+				}}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						(e.currentTarget as HTMLTextAreaElement).blur();
+					}
+				}}
+				class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
+			></textarea>
 			<div class="relative">
 				{#if !description && !descriptionFocused}
 					<TextAlignStartIcon class="pointer-events-none absolute left-0 top-[2px] size-3.5 text-muted-foreground/40" />
 				{/if}
 				<textarea
+					bind:this={descriptionEl}
 					bind:value={description}
 					aria-label="Description"
 					placeholder="Description"
-					rows="10"
-					oninput={scheduleSave}
+					rows="1"
+					oninput={(e) => {
+						autoGrow(e.currentTarget as HTMLTextAreaElement);
+						scheduleSave();
+					}}
 					onfocus={() => (descriptionFocused = true)}
 					onblur={() => (descriptionFocused = false)}
-					class="w-full resize-y rounded-md border border-transparent bg-transparent text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-border focus:bg-muted/30 focus:p-3"
+					class="block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
 					class:pl-5={!description && !descriptionFocused}
 				></textarea>
 			</div>
@@ -401,34 +448,36 @@
 					>
 						Tomorrow
 					</button>
-					<button
-						type="button"
-						onclick={openDatePicker}
-						aria-pressed={isCustomDate}
-						aria-label="Custom date"
-						title={isCustomDate ? dueDate : 'Pick a date'}
-						class="relative inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
-						class:bg-accent={isCustomDate}
-						class:text-foreground={isCustomDate}
-						class:text-muted-foreground={!isCustomDate}
-						class:hover:bg-accent={!isCustomDate}
-						class:hover:text-foreground={!isCustomDate}
-					>
-						{#if isCustomDate}
-							<span class="font-mono text-[11px]">{dueDate}</span>
-						{:else}
-							<DotsThreeIcon class="size-4" weight="bold" />
-						{/if}
-						<input
-							bind:this={dateInputEl}
-							bind:value={dueDate}
-							type="date"
-							tabindex="-1"
-							aria-hidden="true"
-							onchange={scheduleSave}
-							class="pointer-events-none absolute inset-0 size-full opacity-0"
-						/>
-					</button>
+					<PopoverPrimitive.Root bind:open={datePopoverOpen}>
+						<PopoverPrimitive.Trigger
+							aria-pressed={isCustomDate}
+							aria-label="Custom date"
+							title={isCustomDate ? dueDate : 'Pick a date'}
+							class="relative inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 {isCustomDate
+								? 'bg-accent text-foreground'
+								: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+						>
+							{#if isCustomDate}
+								<span class="font-mono text-[11px]">{dueDate}</span>
+							{:else}
+								<DotsThreeIcon class="size-4" weight="bold" />
+							{/if}
+						</PopoverPrimitive.Trigger>
+						<PopoverPrimitive.Portal>
+							<PopoverPrimitive.Content
+								align="end"
+								sideOffset={6}
+								class="z-50 rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+							>
+								<Calendar
+									type="single"
+									value={calendarValue}
+									onValueChange={setCalendarValue}
+									captionLayout="dropdown"
+								/>
+							</PopoverPrimitive.Content>
+						</PopoverPrimitive.Portal>
+					</PopoverPrimitive.Root>
 				</div>
 			</div>
 

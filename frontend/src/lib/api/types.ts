@@ -67,6 +67,7 @@ export interface ProjectSection {
 	id: number;
 	projectId: number;
 	title: string;
+	position: number;
 	createdAt: string;
 	updatedAt: string;
 }
