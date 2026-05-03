@@ -15,6 +15,7 @@
 	import DateBadge from './DateBadge.svelte';
 	import PostponeBadge from './PostponeBadge.svelte';
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
+	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { setTaskDrag } from '$lib/utils/dnd';
 
 	let {
@@ -118,12 +119,12 @@
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
 			>
-				{task.title}
+				<MarkdownText text={task.title} />
 			</a>
 		</div>
 
 		{#if description}
-			<p class="break-words text-xs text-muted-foreground/70 md:truncate">{description}</p>
+			<p class="break-words text-xs text-muted-foreground/70 md:truncate"><MarkdownText text={description} /></p>
 		{/if}
 
 		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showTroikiBadge}

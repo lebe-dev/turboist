@@ -30,6 +30,9 @@
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import MarkdownText from '$lib/components/MarkdownText.svelte';
+	import { hasMarkdownLink } from '$lib/utils/markdown';
+	import { tick } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
 
@@ -45,8 +48,32 @@
 	let title = $state('');
 	let description = $state('');
 	let descriptionFocused = $state(false);
+	let titleFocused = $state(false);
 	let descriptionEl = $state<HTMLTextAreaElement | undefined>();
 	let titleEl = $state<HTMLTextAreaElement | undefined>();
+
+	const titleHasLink = $derived(hasMarkdownLink(title));
+	const descriptionHasLink = $derived(hasMarkdownLink(description));
+	const showTitleRendered = $derived(titleHasLink && !titleFocused);
+	const showDescriptionRendered = $derived(descriptionHasLink && !descriptionFocused);
+
+	async function focusTitle(): Promise<void> {
+		titleFocused = true;
+		await tick();
+		titleEl?.focus();
+		const len = title.length;
+		titleEl?.setSelectionRange(len, len);
+		autoGrow(titleEl);
+	}
+
+	async function focusDescription(): Promise<void> {
+		descriptionFocused = true;
+		await tick();
+		descriptionEl?.focus();
+		const len = description.length;
+		descriptionEl?.setSelectionRange(len, len);
+		autoGrow(descriptionEl);
+	}
 
 	function autoGrow(el: HTMLTextAreaElement | undefined): void {
 		if (!el) return;
@@ -349,43 +376,81 @@ async function save(): Promise<void> {
 		class="grid gap-8 p-6 sm:grid-cols-[1fr_16rem] sm:p-8"
 	>
 		<div class="flex min-w-0 flex-col gap-4">
-			<textarea
-				bind:this={titleEl}
-				bind:value={title}
-				aria-label="Title"
-				placeholder="Task name"
-				rows="1"
-				oninput={(e) => {
-					autoGrow(e.currentTarget as HTMLTextAreaElement);
-					scheduleSave();
-				}}
-				onkeydown={(e) => {
-					if (e.key === 'Enter') {
-						e.preventDefault();
-						(e.currentTarget as HTMLTextAreaElement).blur();
-					}
-				}}
-				class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
-			></textarea>
-			<div class="relative">
-				{#if !description && !descriptionFocused}
-					<TextAlignStartIcon class="pointer-events-none absolute left-0 top-[2px] size-3.5 text-muted-foreground/40" />
-				{/if}
+			{#if showTitleRendered}
+				<div
+					role="textbox"
+					tabindex="0"
+					aria-label="Title"
+					onclick={() => void focusTitle()}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							void focusTitle();
+						}
+					}}
+					class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none"
+				>
+					<MarkdownText text={title} />
+				</div>
+			{:else}
 				<textarea
-					bind:this={descriptionEl}
-					bind:value={description}
-					aria-label="Description"
-					placeholder="Description"
+					bind:this={titleEl}
+					bind:value={title}
+					aria-label="Title"
+					placeholder="Task name"
 					rows="1"
 					oninput={(e) => {
 						autoGrow(e.currentTarget as HTMLTextAreaElement);
 						scheduleSave();
 					}}
-					onfocus={() => (descriptionFocused = true)}
-					onblur={() => (descriptionFocused = false)}
-					class="block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
-					class:pl-5={!description && !descriptionFocused}
+					onfocus={() => (titleFocused = true)}
+					onblur={() => (titleFocused = false)}
+					onkeydown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault();
+							(e.currentTarget as HTMLTextAreaElement).blur();
+						}
+					}}
+					class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
 				></textarea>
+			{/if}
+			<div class="relative">
+				{#if !description && !descriptionFocused}
+					<TextAlignStartIcon class="pointer-events-none absolute left-0 top-[2px] size-3.5 text-muted-foreground/40" />
+				{/if}
+				{#if showDescriptionRendered}
+					<div
+						role="textbox"
+						tabindex="0"
+						aria-label="Description"
+						onclick={() => void focusDescription()}
+						onkeydown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								void focusDescription();
+							}
+						}}
+						class="block w-full cursor-text whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
+					>
+						<MarkdownText text={description} />
+					</div>
+				{:else}
+					<textarea
+						bind:this={descriptionEl}
+						bind:value={description}
+						aria-label="Description"
+						placeholder="Description"
+						rows="1"
+						oninput={(e) => {
+							autoGrow(e.currentTarget as HTMLTextAreaElement);
+							scheduleSave();
+						}}
+						onfocus={() => (descriptionFocused = true)}
+						onblur={() => (descriptionFocused = false)}
+						class="block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
+						class:pl-5={!description && !descriptionFocused}
+					></textarea>
+				{/if}
 			</div>
 
 			{#if task.inboxId === null}
