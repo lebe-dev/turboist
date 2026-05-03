@@ -6,70 +6,17 @@
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
-	import type { Task, TaskInput, TroikiCategory, TroikiSlot } from '$lib/api/types';
+	import type { Task, TaskInput, TroikiCategory, TroikiProject, TroikiSlot } from '$lib/api/types';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
-	import { describeError, toggleComplete } from '$lib/utils/taskActions';
+	import { describeError } from '$lib/utils/taskActions';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import type { ListMutator } from '$lib/utils/taskActions';
 
-	let subtasksByParent = $state<Record<number, Task[]>>({});
-
-	async function loadSubtasksFor(parentIds: number[]): Promise<void> {
-		if (parentIds.length === 0) {
-			subtasksByParent = {};
-			return;
-		}
-		const client = getApiClient();
-		const results = await Promise.all(
-			parentIds.map(async (id) => {
-				const page = await tasksApi.listSubtasks(client, id);
-				return [id, page.items] as const;
-			})
-		);
-		const next: Record<number, Task[]> = {};
-		for (const [id, items] of results) next[id] = items;
-		subtasksByParent = next;
-	}
-
-	function parentIdsFromView(): number[] {
-		const v = troikiStore.value;
-		return [...v.important.tasks, ...v.medium.tasks, ...v.rest.tasks].map((t) => t.id);
-	}
-
 	async function loadAll(): Promise<void> {
 		await troikiStore.load();
-		await loadSubtasksFor(parentIdsFromView());
-		await syncSubtaskPriorities();
-	}
-
-	async function syncSubtaskPriorities(): Promise<void> {
-		const client = getApiClient();
-		const v = troikiStore.value;
-		const parents = [...v.important.tasks, ...v.medium.tasks, ...v.rest.tasks];
-		const updates: Array<Promise<Task>> = [];
-		const patched: Record<number, Task[]> = { ...subtasksByParent };
-		for (const parent of parents) {
-			const subs = patched[parent.id];
-			if (!subs?.length) continue;
-			let changed = false;
-			const next = subs.map((s) => {
-				if (s.priority === parent.priority) return s;
-				updates.push(tasksApi.update(client, s.id, { priority: parent.priority }));
-				changed = true;
-				return { ...s, priority: parent.priority };
-			});
-			if (changed) patched[parent.id] = next;
-		}
-		if (updates.length === 0) return;
-		subtasksByParent = patched;
-		try {
-			await Promise.all(updates);
-		} catch {
-			// best effort: UI already shows synced priority; refresh on next load
-		}
 	}
 
 	const loader = usePageLoad(loadAll, { errorMessage: 'Failed to load Troiki' });
@@ -77,7 +24,7 @@
 	const view = $derived(troikiStore.value);
 
 	const sections: Array<{ key: TroikiCategory; label: string; description: string }> = [
-		{ key: 'important', label: 'Important', description: 'Top three tasks that demand focus.' },
+		{ key: 'important', label: 'Important', description: 'Top three projects that demand focus.' },
 		{ key: 'medium', label: 'Medium', description: 'Earned by completing Important tasks.' },
 		{ key: 'rest', label: 'Rest', description: 'Earned by completing Medium tasks.' }
 	];
@@ -86,71 +33,46 @@
 		return view[key];
 	}
 
-	// One mutator per parent row: parent-level changes refetch the whole view
-	// (capacity / ordering / subtree all need to be re-derived); subtask changes
-	// patch the local subtasksByParent map surgically.
-	function treeMutator(parent: Task): ListMutator {
+	function projectMutator(project: TroikiProject): ListMutator {
 		return {
 			replace(t: Task) {
-				if (t.id === parent.id) {
-					void loadAll();
-					return;
-				}
-				const list = subtasksByParent[parent.id] ?? [];
-				subtasksByParent = {
-					...subtasksByParent,
-					[parent.id]: list.map((x) => (x.id === t.id ? t : x))
-				};
+				troikiStore.applyTaskUpdate(t);
 			},
 			remove(id: number) {
-				if (id === parent.id) {
-					void loadAll();
-					return;
-				}
-				const list = subtasksByParent[parent.id] ?? [];
-				subtasksByParent = {
-					...subtasksByParent,
-					[parent.id]: list.filter((x) => x.id !== id)
-				};
+				troikiStore.removeTask(id);
+				void project;
 			}
 		};
 	}
 
-	async function onParentToggle(task: Task): Promise<void> {
+	async function onTaskToggle(t: Task): Promise<void> {
 		const client = getApiClient();
 		try {
-			if (task.status === 'completed') {
-				await tasksApi.uncomplete(client, task.id);
+			const updated =
+				t.status === 'completed'
+					? await tasksApi.uncomplete(client, t.id)
+					: await tasksApi.complete(client, t.id);
+			// Completing a task can grow Medium/Rest capacity; refetch to get fresh slots.
+			if (updated.status === 'completed' || t.status === 'completed') {
+				await troikiStore.load();
 			} else {
-				await tasksApi.complete(client, task.id);
+				troikiStore.applyTaskUpdate(updated);
 			}
-			await loadAll();
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to update task'));
 		}
 	}
 
-	function tasksFor(parent: Task): Task[] {
-		const subs = subtasksByParent[parent.id] ?? [];
-		return [parent, ...subs];
-	}
-
-	function onTreeToggle(parent: Task, t: Task): void {
-		if (t.id === parent.id) {
-			void onParentToggle(t);
-			return;
-		}
-		void toggleComplete(t, treeMutator(parent), { removeWhenCompleted: false });
-	}
-
 	let starting = $state(false);
-	const canStart = $derived(!view.started && view.important.tasks.length > 0);
+	const canStart = $derived(!view.started && view.important.projects.length > 0);
 
 	let addOpen = $state(false);
 	let addCategory = $state<TroikiCategory>('important');
+	let addProjectId = $state<number | null>(null);
 
-	function openAdd(category: TroikiCategory): void {
+	function openAdd(category: TroikiCategory, projectId: number): void {
 		addCategory = category;
+		addProjectId = projectId;
 		addOpen = true;
 	}
 
@@ -158,24 +80,19 @@
 		payload: TaskInput,
 		target: { projectId: number | null }
 	): Promise<void> {
+		if (target.projectId === null) {
+			toast.error('Pick a project in this Troiki section');
+			return;
+		}
 		const client = getApiClient();
-		let created: Task;
 		try {
-			created =
-				target.projectId !== null
-					? await projectsApi.createTask(client, target.projectId, payload)
-					: await tasksApi.createInbox(client, payload);
+			await projectsApi.createTask(client, target.projectId, payload);
+			toast.success(`Task added to ${addCategory}`);
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to create task'));
 			return;
 		}
-		try {
-			await tasksApi.setTroikiCategory(client, created.id, addCategory);
-			toast.success(`Task added to ${addCategory}`);
-		} catch (err) {
-			toast.error(describeError(err, 'Created, but failed to assign Troiki category'));
-		}
-		await loadAll();
+		await troikiStore.load();
 	}
 
 	async function startSystem(): Promise<void> {
@@ -183,7 +100,6 @@
 		starting = true;
 		try {
 			await troikiStore.start();
-			await loadSubtasksFor(parentIdsFromView());
 			toast.success('Troiki started');
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to start Troiki'));
@@ -202,7 +118,7 @@
 				{#if view.started}
 					Cycle in progress — Medium and Rest unlock as you complete the previous category.
 				{:else}
-					Initial fill — pick your three Important tasks, then optionally seed Medium and Rest. Press
+					Initial fill — assign projects to Important, then optionally seed Medium and Rest. Press
 					Start to lock in the cycle.
 				{/if}
 			</div>
@@ -212,7 +128,9 @@
 					variant="default"
 					disabled={!canStart || starting}
 					onclick={startSystem}
-					title={canStart ? 'Start the Troiki cycle' : 'Add at least one Important task first'}
+					title={canStart
+						? 'Start the Troiki cycle'
+						: 'Assign at least one project to Important first'}
 				>
 					<PlayIcon class="size-4" weight="fill" />
 					{starting ? 'Starting…' : 'Start the system'}
@@ -222,14 +140,11 @@
 		<div class="flex flex-col gap-6 py-2">
 			{#each sections as section (section.key)}
 				{@const slot = slotFor(section.key)}
-				{@const initialMode =
-					!view.started &&
-					(section.key === 'medium' || section.key === 'rest')}
+				{@const initialMode = !view.started && (section.key === 'medium' || section.key === 'rest')}
 				{@const locked = !initialMode && slot.capacity === 0}
-				{@const open = slot.tasks.length}
+				{@const open = slot.projects.length}
 				{@const cap = slot.capacity}
 				{@const emptySlots = Math.max(0, cap - open)}
-				{@const canAdd = !locked && (initialMode || open < cap)}
 				<section>
 					<header class="flex items-baseline justify-between px-3 pb-2">
 						<div class="flex items-center gap-2">
@@ -262,18 +177,6 @@
 						</div>
 						<div class="flex items-center gap-2">
 							<p class="hidden text-xs text-muted-foreground sm:block">{section.description}</p>
-							{#if canAdd}
-								<Button
-									size="sm"
-									variant="ghost"
-									class="h-7 px-2 text-xs"
-									onclick={() => openAdd(section.key)}
-									aria-label={`Add task to ${section.label}`}
-								>
-									<PlusIcon class="size-3.5" />
-									Add task
-								</Button>
-							{/if}
 						</div>
 					</header>
 
@@ -287,30 +190,68 @@
 								Complete a Medium task to unlock a Rest slot.
 							{/if}
 						</div>
-					{:else if initialMode && open === 0}
+					{:else if open === 0 && initialMode}
 						<div
 							class="mx-3 rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-xs text-muted-foreground"
 						>
-							Use the task actions menu (⋯ → Troiki System) to assign tasks to this section before
-							starting the cycle.
+							Use the project actions menu (⋯ → Assign to Troiki) to assign projects to this
+							section before starting the cycle.
 						</div>
 					{:else}
-						<div class="flex flex-col divide-y divide-border/40">
-							{#each slot.tasks as task (task.id)}
-								<TaskTree
-									tasks={tasksFor(task)}
-									showProject={false}
-									hideDue
-									mutator={treeMutator(task)}
-									onToggle={(t) => onTreeToggle(task, t)}
-								/>
+						<div class="flex flex-col gap-3">
+							{#each slot.projects as project (project.id)}
+								<div class="rounded-md border border-border/60 bg-muted/10">
+									<div
+										class="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2"
+									>
+										<div class="flex min-w-0 items-center gap-2">
+											<span
+												class="inline-block size-2.5 shrink-0 rounded-full"
+												style={`background-color: ${project.color}`}
+												aria-hidden="true"
+											></span>
+											<span class="truncate text-sm font-medium">{project.title}</span>
+											<span
+												class="text-[11px] tabular-nums text-muted-foreground"
+												title="Open tasks in this project"
+											>
+												{project.tasks.filter((t) => t.status === 'open').length}
+											</span>
+										</div>
+										<Button
+											size="sm"
+											variant="ghost"
+											class="h-7 px-2 text-xs"
+											onclick={() => openAdd(section.key, project.id)}
+											aria-label={`Add task to ${project.title}`}
+										>
+											<PlusIcon class="size-3.5" />
+											Add task
+										</Button>
+									</div>
+									{#if project.tasks.length > 0}
+										<TaskTree
+											tasks={project.tasks}
+											showProject={false}
+											hideDue
+											mutator={projectMutator(project)}
+											onToggle={(t) => void onTaskToggle(t)}
+										/>
+									{:else}
+										<div class="px-3 py-3 text-xs text-muted-foreground">
+											No tasks yet — add one to get started.
+										</div>
+									{/if}
+								</div>
 							{/each}
 							{#each Array.from({ length: emptySlots }) as _, i (i)}
 								<div
-									class="flex items-center gap-3 rounded-lg border border-dashed border-border/40 px-3 py-2.5 text-xs text-muted-foreground/70"
+									class="flex items-center gap-3 rounded-lg border border-dashed border-border/40 px-3 py-3 text-xs text-muted-foreground/70"
 								>
-									<span class="inline-block size-4 shrink-0 rounded-full border border-dashed border-border/70"></span>
-									<span>Empty slot</span>
+									<span
+										class="inline-block size-3 shrink-0 rounded-full border border-dashed border-border/70"
+									></span>
+									<span>Empty slot — assign a project</span>
 								</div>
 							{/each}
 						</div>
@@ -321,4 +262,8 @@
 	{/if}
 </div>
 
-<QuickAddDialog bind:open={addOpen} onSubmit={onAddSubmit} />
+<QuickAddDialog
+	bind:open={addOpen}
+	defaultProjectId={addProjectId}
+	onSubmit={onAddSubmit}
+/>

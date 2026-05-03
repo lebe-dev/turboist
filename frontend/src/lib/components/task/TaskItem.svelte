@@ -26,7 +26,6 @@
 		hideTomorrowBadge = false,
 		hideDue = false,
 		draggable = false,
-		inheritedTroiki = false,
 		mutator,
 		belongs,
 		onToggle
@@ -38,7 +37,6 @@
 		hideTomorrowBadge?: boolean;
 		hideDue?: boolean;
 		draggable?: boolean;
-		inheritedTroiki?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -62,7 +60,7 @@
 	const description = $derived(task.description?.trim() ?? '');
 	const isRecurring = $derived(!!task.recurrenceRule);
 	const showTroikiBadge = $derived(
-		(task.troikiCategory !== null || inheritedTroiki) && page.url.pathname !== '/troiki'
+		!!project?.troikiCategory && page.url.pathname !== '/troiki'
 	);
 	const hasMeta = $derived(
 		description.length > 0 ||
@@ -172,7 +170,7 @@
 
 	{#if mutator}
 		<div class="flex items-center self-center">
-			<TaskActionsMenu {task} {mutator} {belongs} {inheritedTroiki} />
+			<TaskActionsMenu {task} {mutator} {belongs} />
 		</div>
 	{/if}
 </div>

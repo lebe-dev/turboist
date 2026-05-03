@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { DayPart, Priority, Task, TroikiCategory } from '$lib/api/types';
+	import type { DayPart, Priority, Task } from '$lib/api/types';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_ORDER } from '$lib/utils/priority';
 	import {
@@ -13,7 +14,6 @@
 		duplicateTask,
 		moveToBacklog,
 		removeFromBacklog,
-		setTroikiCategory,
 		togglePin,
 		updateTaskFields,
 		type ListMutator
@@ -22,7 +22,6 @@
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
-	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import CopySimpleIcon from 'phosphor-svelte/lib/CopySimple';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -33,7 +32,6 @@
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
-	import TriangleIcon from 'phosphor-svelte/lib/Triangle';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import type { Component } from 'svelte';
 
@@ -41,17 +39,18 @@
 		task,
 		mutator,
 		belongs,
-		inheritedTroiki = false,
 		onEdit
 	}: {
 		task: Task;
 		mutator: ListMutator;
 		belongs?: (task: Task) => boolean;
-		inheritedTroiki?: boolean;
 		onEdit?: (task: Task) => void;
 	} = $props();
 
-	const priorityLocked = $derived(task.troikiCategory !== null || inheritedTroiki);
+	const parentProject = $derived(
+		task.projectId !== null ? projectsStore.items.find((p) => p.id === task.projectId) : null
+	);
+	const priorityLocked = $derived(!!parentProject?.troikiCategory);
 
 	const tz = $derived(configStore.value?.timezone ?? null);
 	const todayKey = $derived(dayKeyInTz(new Date(), tz));
@@ -93,18 +92,6 @@
 		{ part: 'afternoon', label: 'Afternoon', icon: SunIcon as unknown as Component },
 		{ part: 'evening', label: 'Evening', icon: MoonIcon as unknown as Component }
 	];
-
-	const TROIKI_OPTIONS: Array<{ category: TroikiCategory; label: string }> = [
-		{ category: 'important', label: 'Important' },
-		{ category: 'medium', label: 'Medium' },
-		{ category: 'rest', label: 'Rest' }
-	];
-
-	const isRoot = $derived(task.parentId === null);
-
-	function chooseTroiki(category: TroikiCategory | null) {
-		void setTroikiCategory(task, category, mutator, { belongs });
-	}
 
 	let moveOpen = $state(false);
 </script>
@@ -269,34 +256,6 @@
 				</div>
 			{/if}
 		</div>
-
-		{#if isRoot}
-			<DropdownMenu.Separator />
-			<DropdownMenu.Sub>
-				<DropdownMenu.SubTrigger>
-					<TriangleIcon class="size-4" /> Troiki System
-				</DropdownMenu.SubTrigger>
-				<DropdownMenu.SubContent class="min-w-[12rem]">
-					{#each TROIKI_OPTIONS as opt (opt.category)}
-						{@const active = task.troikiCategory === opt.category}
-						<DropdownMenu.Item onclick={() => chooseTroiki(opt.category)}>
-							{#if active}
-								<CheckIcon class="size-4" weight="bold" />
-							{:else}
-								<span class="size-4"></span>
-							{/if}
-							{opt.label}
-						</DropdownMenu.Item>
-					{/each}
-					{#if task.troikiCategory !== null}
-						<DropdownMenu.Separator />
-						<DropdownMenu.Item onclick={() => chooseTroiki(null)}>
-							<XIcon class="size-4" /> Remove from Troiki
-						</DropdownMenu.Item>
-					{/if}
-				</DropdownMenu.SubContent>
-			</DropdownMenu.Sub>
-		{/if}
 
 		<DropdownMenu.Separator />
 

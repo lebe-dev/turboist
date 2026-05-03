@@ -10,7 +10,8 @@
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
-	import type { Project } from '$lib/api/types';
+	import TriangleIcon from 'phosphor-svelte/lib/Triangle';
+	import type { Project, TroikiCategory } from '$lib/api/types';
 
 	let {
 		project,
@@ -23,7 +24,8 @@
 		onPin,
 		onUnpin,
 		onEdit,
-		onDelete
+		onDelete,
+		onSetTroiki
 	}: {
 		project: Project;
 		onAddSection?: () => void;
@@ -36,7 +38,14 @@
 		onUnpin?: () => void;
 		onEdit?: () => void;
 		onDelete?: () => void;
+		onSetTroiki?: (category: TroikiCategory | null) => void;
 	} = $props();
+
+	const TROIKI_OPTIONS: Array<{ category: TroikiCategory; label: string }> = [
+		{ category: 'important', label: 'Important' },
+		{ category: 'medium', label: 'Medium' },
+		{ category: 'rest', label: 'Rest' }
+	];
 </script>
 
 <header class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
@@ -89,6 +98,32 @@
 						<DropdownMenu.Item onclick={onPin}>
 							<PushPinIcon class="size-4" /> Pin
 						</DropdownMenu.Item>
+					{/if}
+					{#if onSetTroiki}
+						<DropdownMenu.Sub>
+							<DropdownMenu.SubTrigger>
+								<TriangleIcon class="size-4" /> Assign to Troiki
+							</DropdownMenu.SubTrigger>
+							<DropdownMenu.SubContent class="min-w-[12rem]">
+								{#each TROIKI_OPTIONS as opt (opt.category)}
+									{@const active = project.troikiCategory === opt.category}
+									<DropdownMenu.Item onclick={() => onSetTroiki(opt.category)}>
+										{#if active}
+											<CheckIcon class="size-4" weight="bold" />
+										{:else}
+											<span class="size-4"></span>
+										{/if}
+										{opt.label}
+									</DropdownMenu.Item>
+								{/each}
+								{#if project.troikiCategory !== null}
+									<DropdownMenu.Separator />
+									<DropdownMenu.Item onclick={() => onSetTroiki(null)}>
+										<XIcon class="size-4" /> Remove from Troiki
+									</DropdownMenu.Item>
+								{/if}
+							</DropdownMenu.SubContent>
+						</DropdownMenu.Sub>
 					{/if}
 					<DropdownMenu.Separator />
 					{#if project.status === 'archived'}

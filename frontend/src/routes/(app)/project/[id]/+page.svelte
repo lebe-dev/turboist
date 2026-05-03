@@ -11,7 +11,7 @@
 	import { sections as sectionsApi } from '$lib/api/endpoints/sections';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projectsStore } from '$lib/stores/projects.svelte';
-	import type { Project, ProjectSection, Task } from '$lib/api/types';
+	import type { Project, ProjectSection, Task, TroikiCategory } from '$lib/api/types';
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
 	import SectionList from '$lib/components/project/SectionList.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
@@ -116,6 +116,18 @@
 			toast.success(`Project ${actionLabels[name]}`);
 		} catch (err) {
 			toast.error(describeError(err, `Failed to ${name}`));
+		}
+	}
+
+	async function setTroiki(category: TroikiCategory | null) {
+		if (!project) return;
+		try {
+			const updated = await projectsApi.setTroikiCategory(getApiClient(), project.id, category);
+			project = updated;
+			projectsStore.upsert(updated);
+			toast.success(category ? `Assigned to ${category}` : 'Removed from Troiki');
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to set Troiki category'));
 		}
 	}
 
@@ -269,6 +281,7 @@
 		onUnpin={() => action('unpin')}
 		onEdit={() => (editProjectOpen = true)}
 		onDelete={() => (confirmDeleteOpen = true)}
+		onSetTroiki={setTroiki}
 	/>
 
 	<div class="px-2">
