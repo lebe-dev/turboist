@@ -2,12 +2,15 @@
 	import { toast } from 'svelte-sonner';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import PlayIcon from 'phosphor-svelte/lib/Play';
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
+	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
-	import type { Task, TroikiCategory, TroikiSlot } from '$lib/api/types';
+	import type { Task, TaskInput, TroikiCategory, TroikiSlot } from '$lib/api/types';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import type { ListMutator } from '$lib/utils/taskActions';
@@ -115,6 +118,38 @@
 	let starting = $state(false);
 	const canStart = $derived(!view.started && view.important.tasks.length > 0);
 
+	let addOpen = $state(false);
+	let addCategory = $state<TroikiCategory>('important');
+
+	function openAdd(category: TroikiCategory): void {
+		addCategory = category;
+		addOpen = true;
+	}
+
+	async function onAddSubmit(
+		payload: TaskInput,
+		target: { projectId: number | null }
+	): Promise<void> {
+		const client = getApiClient();
+		let created: Task;
+		try {
+			created =
+				target.projectId !== null
+					? await projectsApi.createTask(client, target.projectId, payload)
+					: await tasksApi.createInbox(client, payload);
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to create task'));
+			return;
+		}
+		try {
+			await tasksApi.setTroikiCategory(client, created.id, addCategory);
+			toast.success(`Task added to ${addCategory}`);
+		} catch (err) {
+			toast.error(describeError(err, 'Created, but failed to assign Troiki category'));
+		}
+		await loadAll();
+	}
+
 	async function startSystem(): Promise<void> {
 		if (!canStart || starting) return;
 		starting = true;
@@ -166,6 +201,7 @@
 				{@const open = slot.tasks.length}
 				{@const cap = slot.capacity}
 				{@const emptySlots = Math.max(0, cap - open)}
+				{@const canAdd = !locked && (initialMode || open < cap)}
 				<section>
 					<header class="flex items-baseline justify-between px-3 pb-2">
 						<div class="flex items-center gap-2">
@@ -196,7 +232,21 @@
 								</span>
 							{/if}
 						</div>
-						<p class="hidden text-xs text-muted-foreground sm:block">{section.description}</p>
+						<div class="flex items-center gap-2">
+							<p class="hidden text-xs text-muted-foreground sm:block">{section.description}</p>
+							{#if canAdd}
+								<Button
+									size="sm"
+									variant="ghost"
+									class="h-7 px-2 text-xs"
+									onclick={() => openAdd(section.key)}
+									aria-label={`Add task to ${section.label}`}
+								>
+									<PlusIcon class="size-3.5" />
+									Add task
+								</Button>
+							{/if}
+						</div>
 					</header>
 
 					{#if locked}
@@ -242,3 +292,5 @@
 		</div>
 	{/if}
 </div>
+
+<QuickAddDialog bind:open={addOpen} onSubmit={onAddSubmit} />
