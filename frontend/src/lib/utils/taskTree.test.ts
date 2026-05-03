@@ -25,7 +25,6 @@ function task(id: number, parentId: number | null = null, title = `t${id}`): Tas
 		completedAt: null,
 		recurrenceRule: null,
 		postponeCount: 0,
-		troikiCategory: null,
 		labels: [],
 		url: '',
 		createdAt: '',

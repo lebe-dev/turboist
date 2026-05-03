@@ -1,10 +1,9 @@
-import type { Task, TaskInput, TroikiCategory } from '$lib/api/types';
+import type { Task, TaskInput } from '$lib/api/types';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
 import { planStatsStore } from '$lib/stores/planStats.svelte';
 import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
-import { troikiStore } from '$lib/stores/troiki.svelte';
 import { toast } from 'svelte-sonner';
 
 export function describeError(err: unknown, fallback: string): string {
@@ -143,34 +142,6 @@ export async function duplicateTask(task: Task, mutator: ListMutator): Promise<v
 		toast.success('Duplicated');
 	} catch (err) {
 		toast.error(describeError(err, 'Failed to duplicate task'));
-	}
-}
-
-const TROIKI_LABEL: Record<TroikiCategory, string> = {
-	important: 'Important',
-	medium: 'Medium',
-	rest: 'Rest'
-};
-
-export async function setTroikiCategory(
-	task: Task,
-	category: TroikiCategory | null,
-	mutator: ListMutator,
-	options: BelongsOption = {}
-): Promise<void> {
-	if (task.troikiCategory === category) return;
-	const client = getApiClient();
-	try {
-		const updated = await tasksApi.setTroikiCategory(client, task.id, category);
-		applyUpdate(updated, mutator, options.belongs);
-		troikiStore.applyTaskUpdate(updated);
-	} catch (err) {
-		if (err instanceof ApiError && err.code === 'troiki_slot_full') {
-			const label = category ? TROIKI_LABEL[category] : 'Troiki';
-			toast.error(err.message || `${label} slot is full`);
-			return;
-		}
-		toast.error(describeError(err, 'Failed to update Troiki category'));
 	}
 }
 

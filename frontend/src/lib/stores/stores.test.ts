@@ -4,6 +4,7 @@ import { projectsStore } from './projects.svelte';
 import { labelsStore } from './labels.svelte';
 import { troikiStore } from './troiki.svelte';
 import type { Context, Label, Project, Task, TroikiCategory } from '$lib/api/types';
+import type { TroikiViewResponse } from '$lib/api/types';
 
 function makeContext(over: Partial<Context> = {}): Context {
 	return {
@@ -27,6 +28,7 @@ function makeProject(over: Partial<Project> = {}): Project {
 		isPinned: false,
 		pinnedAt: null,
 		labels: [],
+		troikiCategory: null,
 		createdAt: '',
 		updatedAt: '',
 		...over
@@ -34,7 +36,7 @@ function makeProject(over: Partial<Project> = {}): Project {
 }
 function makeTask(
 	id: number,
-	category: TroikiCategory | null,
+	projectId: number | null = null,
 	over: Partial<Task> = {}
 ): Task {
 	return {
@@ -43,7 +45,7 @@ function makeTask(
 		description: '',
 		inboxId: null,
 		contextId: null,
-		projectId: null,
+		projectId,
 		sectionId: null,
 		parentId: null,
 		priority: 'no-priority',
@@ -59,7 +61,6 @@ function makeTask(
 		completedAt: null,
 		recurrenceRule: null,
 		postponeCount: 0,
-		troikiCategory: category,
 		labels: [],
 		url: '',
 		createdAt: '',
@@ -122,46 +123,109 @@ describe('labelsStore', () => {
 	});
 });
 
+function hydrate(view: Partial<TroikiViewResponse>): void {
+	const merged: TroikiViewResponse = {
+		important: { capacity: 3, projects: [] },
+		medium: { capacity: 0, projects: [] },
+		rest: { capacity: 0, projects: [] },
+		started: false,
+		...view
+	};
+	troikiStore.value = merged;
+}
+
+function makeTroikiProject(
+	id: number,
+	category: TroikiCategory,
+	tasks: Task[] = []
+): Project & { tasks: Task[] } {
+	return { ...makeProject({ id, troikiCategory: category }), tasks };
+}
+
 describe('troikiStore', () => {
 	it('clear resets to empty default state', () => {
-		troikiStore.applyTaskUpdate(makeTask(1, 'important'));
+		hydrate({ important: { capacity: 3, projects: [makeTroikiProject(10, 'important')] } });
 		troikiStore.clear();
-		expect(troikiStore.value.important.tasks).toEqual([]);
-		expect(troikiStore.value.medium.tasks).toEqual([]);
-		expect(troikiStore.value.rest.tasks).toEqual([]);
+		expect(troikiStore.value.important.projects).toEqual([]);
+		expect(troikiStore.value.medium.projects).toEqual([]);
+		expect(troikiStore.value.rest.projects).toEqual([]);
 		expect(troikiStore.value.important.capacity).toBe(3);
 	});
 
-	it('applyTaskUpdate places task in matching category slot', () => {
-		troikiStore.applyTaskUpdate(makeTask(1, 'important'));
-		expect(troikiStore.value.important.tasks.map((t) => t.id)).toEqual([1]);
-		expect(troikiStore.value.medium.tasks).toEqual([]);
+	it('applyTaskUpdate replaces a task within its owning project', () => {
+		const original = makeTask(1, 10, { title: 'old' });
+		hydrate({
+			important: { capacity: 3, projects: [makeTroikiProject(10, 'important', [original])] }
+		});
+		const updated = makeTask(1, 10, { title: 'new' });
+		troikiStore.applyTaskUpdate(updated);
+		expect(troikiStore.value.important.projects[0].tasks).toEqual([updated]);
 	});
 
-	it('applyTaskUpdate moves task between slots when category changes', () => {
-		troikiStore.applyTaskUpdate(makeTask(1, 'important'));
-		troikiStore.applyTaskUpdate(makeTask(1, 'medium'));
-		expect(troikiStore.value.important.tasks).toEqual([]);
-		expect(troikiStore.value.medium.tasks.map((t) => t.id)).toEqual([1]);
+	it('applyTaskUpdate moves a task between projects across slots', () => {
+		const t = makeTask(1, 10);
+		hydrate({
+			important: { capacity: 3, projects: [makeTroikiProject(10, 'important', [t])] },
+			medium: { capacity: 1, projects: [makeTroikiProject(20, 'medium')] }
+		});
+		troikiStore.applyTaskUpdate(makeTask(1, 20));
+		expect(troikiStore.value.important.projects[0].tasks).toEqual([]);
+		expect(troikiStore.value.medium.projects[0].tasks.map((x) => x.id)).toEqual([1]);
 	});
 
-	it('applyTaskUpdate removes task from all slots when category cleared', () => {
-		troikiStore.applyTaskUpdate(makeTask(1, 'important'));
-		troikiStore.applyTaskUpdate(makeTask(1, null));
-		expect(troikiStore.value.important.tasks).toEqual([]);
+	it('applyTaskUpdate drops the task when status is no longer open', () => {
+		const open = makeTask(1, 10);
+		hydrate({
+			important: { capacity: 3, projects: [makeTroikiProject(10, 'important', [open])] }
+		});
+		troikiStore.applyTaskUpdate(makeTask(1, 10, { status: 'completed' }));
+		expect(troikiStore.value.important.projects[0].tasks).toEqual([]);
 	});
 
-	it('applyTaskUpdate removes task from slot when status is no longer open', () => {
-		troikiStore.applyTaskUpdate(makeTask(1, 'important'));
-		troikiStore.applyTaskUpdate(makeTask(1, 'important', { status: 'completed' }));
-		expect(troikiStore.value.important.tasks).toEqual([]);
+	it('applyTaskUpdate ignores tasks whose project is not in any slot', () => {
+		hydrate({
+			important: { capacity: 3, projects: [makeTroikiProject(10, 'important')] }
+		});
+		troikiStore.applyTaskUpdate(makeTask(99, 999));
+		expect(troikiStore.value.important.projects[0].tasks).toEqual([]);
 	});
 
-	it('removeTask drops task from all slots', () => {
-		troikiStore.applyTaskUpdate(makeTask(1, 'important'));
-		troikiStore.applyTaskUpdate(makeTask(2, 'medium'));
+	it('applyProjectUpdate moves a project to its new category and preserves its tasks', () => {
+		const t = makeTask(1, 10);
+		hydrate({
+			important: { capacity: 3, projects: [makeTroikiProject(10, 'important', [t])] }
+		});
+		troikiStore.applyProjectUpdate(makeProject({ id: 10, troikiCategory: 'rest' }));
+		expect(troikiStore.value.important.projects).toEqual([]);
+		expect(troikiStore.value.rest.projects[0].id).toBe(10);
+		expect(troikiStore.value.rest.projects[0].tasks).toEqual([t]);
+	});
+
+	it('applyProjectUpdate drops the project when its category is cleared', () => {
+		hydrate({
+			medium: { capacity: 1, projects: [makeTroikiProject(20, 'medium')] }
+		});
+		troikiStore.applyProjectUpdate(makeProject({ id: 20, troikiCategory: null }));
+		expect(troikiStore.value.medium.projects).toEqual([]);
+	});
+
+	it('applyProjectUpdate adds a new project to a slot when it gains a category', () => {
+		hydrate({});
+		troikiStore.applyProjectUpdate(makeProject({ id: 30, troikiCategory: 'important' }));
+		expect(troikiStore.value.important.projects.map((p) => p.id)).toEqual([30]);
+		expect(troikiStore.value.important.projects[0].tasks).toEqual([]);
+	});
+
+	it('removeTask drops the task from every project across slots', () => {
+		hydrate({
+			important: {
+				capacity: 3,
+				projects: [makeTroikiProject(10, 'important', [makeTask(1, 10), makeTask(2, 10)])]
+			},
+			medium: { capacity: 1, projects: [makeTroikiProject(20, 'medium', [makeTask(3, 20)])] }
+		});
 		troikiStore.removeTask(1);
-		expect(troikiStore.value.important.tasks).toEqual([]);
-		expect(troikiStore.value.medium.tasks.map((t) => t.id)).toEqual([2]);
+		expect(troikiStore.value.important.projects[0].tasks.map((t) => t.id)).toEqual([2]);
+		expect(troikiStore.value.medium.projects[0].tasks.map((t) => t.id)).toEqual([3]);
 	});
 });

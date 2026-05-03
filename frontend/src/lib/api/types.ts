@@ -59,6 +59,7 @@ export interface Project {
 	isPinned: boolean;
 	pinnedAt: string | null;
 	labels: Label[];
+	troikiCategory: TroikiCategory | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -102,8 +103,6 @@ export interface Task {
 
 	postponeCount: number;
 
-	troikiCategory: TroikiCategory | null;
-
 	labels: Label[];
 
 	url: string;
@@ -139,9 +138,13 @@ export interface PlanStatsResponse {
 	backlog: number;
 }
 
+export interface TroikiProject extends Project {
+	tasks: Task[];
+}
+
 export interface TroikiSlot {
 	capacity: number;
-	tasks: Task[];
+	projects: TroikiProject[];
 }
 
 export interface TroikiViewResponse {

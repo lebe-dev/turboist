@@ -9,7 +9,8 @@ import type {
 	SectionInput,
 	Task,
 	TaskInput,
-	TasksQuery
+	TasksQuery,
+	TroikiCategory
 } from '../types';
 
 export const projects = {
@@ -51,6 +52,17 @@ export const projects = {
 
 	createTask(client: ApiClient, id: number, input: TaskInput): Promise<Task> {
 		return client.fetch(`/api/v1/projects/${id}/tasks`, { method: 'POST', body: input });
+	},
+
+	setTroikiCategory(
+		client: ApiClient,
+		id: number,
+		category: TroikiCategory | null
+	): Promise<Project> {
+		return client.fetch(`/api/v1/projects/${id}/troiki`, {
+			method: 'POST',
+			body: { category }
+		});
 	}
 };
 
