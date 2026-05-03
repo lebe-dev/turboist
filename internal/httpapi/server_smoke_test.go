@@ -68,7 +68,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
 	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, cfg)
 	taskSvc := service.NewTaskService(taskRepo, tlabels, autoLabelsSvc)
-	completeSvc := service.NewCompleteService(taskRepo)
+	completeSvc := service.NewCompleteService(taskRepo, userRepo)
 	moveSvc := service.NewMoveService(taskRepo)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 

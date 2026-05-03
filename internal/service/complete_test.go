@@ -27,18 +27,19 @@ func setupTestDB(t *testing.T) *sql.DB {
 	return d
 }
 
-func setupCompleteService(t *testing.T) (*service.CompleteService, *repo.TaskRepo, *repo.ContextRepo) {
+func setupCompleteService(t *testing.T) (*service.CompleteService, *repo.TaskRepo, *repo.ContextRepo, *repo.UserRepo) {
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
 	tasks := repo.NewTaskRepo(d, tlabels)
 	ctxs := repo.NewContextRepo(d)
-	svc := service.NewCompleteService(tasks)
-	return svc, tasks, ctxs
+	users := repo.NewUserRepo(d)
+	svc := service.NewCompleteService(tasks, users)
+	return svc, tasks, ctxs, users
 }
 
 func TestCompleteService_SimpleTask(t *testing.T) {
-	svc, tasks, ctxs := setupCompleteService(t)
+	svc, tasks, ctxs, _ := setupCompleteService(t)
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
@@ -61,7 +62,7 @@ func TestCompleteService_SimpleTask(t *testing.T) {
 }
 
 func TestCompleteService_Recurring_AdvancesDueAt(t *testing.T) {
-	svc, tasks, ctxs := setupCompleteService(t)
+	svc, tasks, ctxs, _ := setupCompleteService(t)
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
@@ -94,7 +95,7 @@ func TestCompleteService_Recurring_AdvancesDueAt(t *testing.T) {
 }
 
 func TestCompleteService_Recurring_CountExhausted(t *testing.T) {
-	svc, tasks, ctxs := setupCompleteService(t)
+	svc, tasks, ctxs, _ := setupCompleteService(t)
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
@@ -121,7 +122,7 @@ func TestCompleteService_Recurring_CountExhausted(t *testing.T) {
 }
 
 func TestCompleteService_Uncomplete(t *testing.T) {
-	svc, tasks, ctxs := setupCompleteService(t)
+	svc, tasks, ctxs, _ := setupCompleteService(t)
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
@@ -141,8 +142,170 @@ func TestCompleteService_Uncomplete(t *testing.T) {
 	}
 }
 
+func TestCompleteService_TroikiHook_ImportantGrantsMedium(t *testing.T) {
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	cap, err := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if err != nil {
+		t.Fatalf("get capacity: %v", err)
+	}
+	if cap.Medium != 1 {
+		t.Errorf("medium capacity: got %d, want 1", cap.Medium)
+	}
+	if cap.Rest != 0 {
+		t.Errorf("rest capacity: got %d, want 0", cap.Rest)
+	}
+}
+
+func TestCompleteService_TroikiHook_MediumGrantsRest(t *testing.T) {
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryMedium
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "med"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	cap, err := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if err != nil {
+		t.Fatalf("get capacity: %v", err)
+	}
+	if cap.Medium != 0 {
+		t.Errorf("medium capacity: got %d, want 0", cap.Medium)
+	}
+	if cap.Rest != 1 {
+		t.Errorf("rest capacity: got %d, want 1", cap.Rest)
+	}
+}
+
+func TestCompleteService_TroikiHook_RestNoCapacity(t *testing.T) {
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryRest
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "rest"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 0 || cap.Rest != 0 {
+		t.Errorf("capacity: got %+v, want all zero", cap)
+	}
+}
+
+func TestCompleteService_TroikiHook_NoCategoryNoEffect(t *testing.T) {
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "plain"})
+
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 0 || cap.Rest != 0 {
+		t.Errorf("capacity: got %+v, want all zero", cap)
+	}
+}
+
+func TestCompleteService_TroikiHook_RecurringNonTerminalNoBump(t *testing.T) {
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	rruleStr := "FREQ=DAILY;INTERVAL=1"
+	cat := model.TroikiCategoryImportant
+	tk, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "daily imp",
+		DueAt:          &due,
+		RecurrenceRule: &rruleStr,
+	})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 0 {
+		t.Errorf("medium capacity: got %d, want 0 (recurring non-terminal)", cap.Medium)
+	}
+}
+
+func TestCompleteService_TroikiHook_RecurringTerminalBumps(t *testing.T) {
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	rruleStr := "FREQ=DAILY;COUNT=1"
+	cat := model.TroikiCategoryImportant
+	tk, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "once imp",
+		DueAt:          &due,
+		RecurrenceRule: &rruleStr,
+	})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 1 {
+		t.Errorf("medium capacity: got %d, want 1 (recurring terminal)", cap.Medium)
+	}
+}
+
 func TestCompleteService_Cancel(t *testing.T) {
-	svc, tasks, ctxs := setupCompleteService(t)
+	svc, tasks, ctxs, _ := setupCompleteService(t)
 	ctx := context.Background()
 
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)

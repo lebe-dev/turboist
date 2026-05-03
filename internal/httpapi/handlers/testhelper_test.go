@@ -62,6 +62,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	secs := repo.NewProjectSectionRepo(d)
 	projs := repo.NewProjectRepo(d, plabels)
 	tasks := repo.NewTaskRepo(d, tlabels)
+	users := repo.NewUserRepo(d)
 
 	deps := httpapi.Deps{JWTIssuer: issuer}
 	app := httpapi.NewApp(deps)
@@ -70,7 +71,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	pinSvc := service.NewPinService(tasks, projs, cfg.MaxPinned)
 	autoLabelsSvc := service.NewAutoLabelsService(lbls, cfg)
 	taskSvc := service.NewTaskService(tasks, tlabels, autoLabelsSvc)
-	completeSvc := service.NewCompleteService(tasks)
+	completeSvc := service.NewCompleteService(tasks, users)
 	moveSvc := service.NewMoveService(tasks)
 	planSvc := service.NewPlanService(tasks, ctxs, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	searchRepo := repo.NewSearchRepo(tasks, projs)
