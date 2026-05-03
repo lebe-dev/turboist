@@ -43,6 +43,7 @@ func (h *TaskHandler) Register(r fiber.Router) {
 	r.Get("/tasks/:id", h.get)
 	r.Patch("/tasks/:id", h.patch)
 	r.Delete("/tasks/:id", h.delete)
+	r.Get("/tasks/:id/subtasks", h.listSubtasks)
 	r.Post("/tasks/:id/subtasks", h.createSubtask)
 	r.Post("/tasks/:id/duplicate", h.duplicate)
 }
@@ -198,6 +199,28 @@ func (h *TaskHandler) delete(c fiber.Ctx) error {
 		return httpapi.ErrInternal("delete task")
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *TaskHandler) listSubtasks(c fiber.Ctx) error {
+	parentID, err := parseID(c)
+	if err != nil {
+		return err
+	}
+	if _, err := h.tasks.Get(c.Context(), parentID); err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("task not found")
+		}
+		return httpapi.ErrInternal("get task")
+	}
+	items, err := h.tasks.ListSubtasks(c.Context(), parentID)
+	if err != nil {
+		return httpapi.ErrInternal("list subtasks")
+	}
+	dtos := make([]dto.TaskDTO, len(items))
+	for i, t := range items {
+		dtos[i] = dto.TaskFromModel(t, h.baseURL)
+	}
+	return c.JSON(dto.NewPagedResponse(dtos, len(dtos), len(dtos), 0))
 }
 
 func (h *TaskHandler) createSubtask(c fiber.Ctx) error {

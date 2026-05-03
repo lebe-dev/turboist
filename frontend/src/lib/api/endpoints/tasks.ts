@@ -2,6 +2,7 @@ import type { ApiClient } from '../client';
 import type {
 	BulkResult,
 	InboxResponse,
+	Page,
 	Task,
 	TaskInput,
 	TaskMoveInput,
@@ -46,6 +47,10 @@ export const tasks = {
 			method: 'POST',
 			body: { category }
 		});
+	},
+
+	listSubtasks(client: ApiClient, parentId: number): Promise<Page<Task>> {
+		return client.fetch(`/api/v1/tasks/${parentId}/subtasks`);
 	},
 
 	createSubtask(client: ApiClient, parentId: number, input: TaskInput): Promise<Task> {

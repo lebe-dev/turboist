@@ -7,6 +7,7 @@
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { Button } from '$lib/components/ui/button';
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
@@ -20,8 +21,10 @@
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
 	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
+	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
-	import { describeError } from '$lib/utils/taskActions';
+	import { describeError, toggleComplete } from '$lib/utils/taskActions';
+	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
 	const taskId = $derived(Number(page.params.id));
@@ -29,6 +32,11 @@
 	let task = $state<Task | null>(null);
 	let notFound = $state(false);
 	let saving = $state(false);
+
+	const subtasks = useListMutator<Task>();
+	let newSubtaskTitle = $state('');
+	let creatingSubtask = $state(false);
+	let subtaskInputEl = $state<HTMLInputElement | undefined>();
 
 	let title = $state('');
 	let description = $state('');
@@ -111,13 +119,22 @@
 		async (isValid) => {
 			notFound = false;
 			task = null;
+			subtasks.items = [];
 			if (!Number.isFinite(taskId)) {
 				notFound = true;
 				return;
 			}
-			const t = await tasksApi.get(getApiClient(), taskId);
+			const client = getApiClient();
+			const [t, subs] = await Promise.all([
+				tasksApi.get(client, taskId),
+				tasksApi.listSubtasks(client, taskId).catch((err) => {
+					if (err instanceof ApiError && err.code === 'not_found') return null;
+					throw err;
+				})
+			]);
 			if (!isValid()) return;
 			hydrate(t);
+			if (subs) subtasks.items = subs.items;
 		},
 		{
 			autoLoad: false,
@@ -140,6 +157,29 @@
 			void goto(resolve('/inbox'));
 		}
 	};
+
+	async function addSubtask(): Promise<void> {
+		const trimmed = newSubtaskTitle.trim();
+		if (!trimmed || !task || creatingSubtask) return;
+		creatingSubtask = true;
+		try {
+			const created = await tasksApi.createSubtask(getApiClient(), task.id, { title: trimmed });
+			subtasks.items = [...subtasks.items, created];
+			newSubtaskTitle = '';
+			subtaskInputEl?.focus();
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to add subtask'));
+		} finally {
+			creatingSubtask = false;
+		}
+	}
+
+	function onSubtaskKeydown(e: KeyboardEvent): void {
+		if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			void addSubtask();
+		}
+	}
 
 	function toggleLabel(id: string, name: string, isAuto: boolean): void {
 		if (labelIds.includes(id)) {
@@ -250,6 +290,52 @@
 					class:pl-5={!description && !descriptionFocused}
 				></textarea>
 			</div>
+
+			{#if task.inboxId === null}
+				<section class="flex flex-col gap-2">
+					<div class="flex items-baseline justify-between gap-2">
+						<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+							Subtasks
+						</span>
+						{#if subtasks.items.length > 0}
+							<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
+						{/if}
+					</div>
+					{#if subtasks.items.length > 0}
+						<div class="rounded-md border border-border/60">
+							<TaskTree
+								tasks={subtasks.items}
+								showProject={false}
+								mutator={subtasks.mutator}
+								onToggle={(t) => toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+							/>
+						</div>
+					{/if}
+					<div class="flex items-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/20 px-2.5 py-1.5 transition-colors focus-within:border-border focus-within:bg-muted/40">
+						<PlusIcon class="size-3.5 shrink-0 text-muted-foreground" />
+						<input
+							bind:this={subtaskInputEl}
+							bind:value={newSubtaskTitle}
+							onkeydown={onSubtaskKeydown}
+							disabled={creatingSubtask}
+							placeholder="Add subtask"
+							aria-label="Add subtask"
+							class="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+						/>
+						{#if newSubtaskTitle.trim()}
+							<Button
+								type="button"
+								size="xs"
+								variant="secondary"
+								onclick={() => void addSubtask()}
+								disabled={creatingSubtask}
+							>
+								Add
+							</Button>
+						{/if}
+					</div>
+				</section>
+			{/if}
 		</div>
 
 		<aside class="flex flex-col gap-5 sm:border-l sm:border-border sm:pl-6">

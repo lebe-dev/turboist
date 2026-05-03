@@ -38,7 +38,10 @@
 
 	let contextDialogOpen = $state(false);
 
-	const pageTitle = $derived(STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title);
+	const isTaskPage = $derived(page.url.pathname.startsWith('/task/'));
+	const pageTitle = $derived(
+		isTaskPage ? null : (STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title)
+	);
 	const contextsLocked = $derived(page.url.pathname === '/inbox');
 	const troikiActive = $derived(page.url.pathname === '/troiki');
 
@@ -145,16 +148,14 @@
 	</div>
 	<div class="flex shrink-0 items-center gap-1 sm:gap-1.5">
 		<Button
-			variant="ghost"
-			size="sm"
+			variant="secondary"
+			size="icon-sm"
 			onclick={() => onQuickAdd?.()}
-			class="gap-1.5"
-			aria-label="Quick add"
-			title="Quick add"
+			class="bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
+			aria-label="Quick add (Q)"
+			title="Quick add (Q)"
 		>
 			<PlusIcon class="size-4" />
-			<span class="hidden sm:inline">Quick add</span>
-			<Kbd.Kbd class="ml-1 hidden sm:inline-flex">Q</Kbd.Kbd>
 		</Button>
 		<ThemeToggle />
 		<a

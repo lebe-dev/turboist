@@ -418,6 +418,73 @@ func TestSubtaskCreate_MissingTitle(t *testing.T) {
 	}
 }
 
+// --- GET /tasks/:id/subtasks ---
+
+func TestSubtasksList_Success(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+
+	for _, title := range []string{"Child A", "Child B"} {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID),
+			map[string]any{"title": title}))
+		if resp.StatusCode != 201 {
+			t.Fatalf("create %q: got %d; body: %s", title, resp.StatusCode, body)
+		}
+	}
+	// Sibling task in same context, NOT a subtask — must not appear in result.
+	createTestTask(t, e, ctx.ID, "Sibling")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("list subtasks: got %d; body: %s", resp.StatusCode, body)
+	}
+	var pr dto.PagedResponse[dto.TaskDTO]
+	if err := json.Unmarshal(body, &pr); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(pr.Items) != 2 {
+		t.Fatalf("items: got %d, want 2", len(pr.Items))
+	}
+	for _, item := range pr.Items {
+		if item.ParentID == nil || *item.ParentID != parent.ID {
+			t.Errorf("parentId: got %v, want %d", item.ParentID, parent.ID)
+		}
+	}
+}
+
+func TestSubtasksList_Empty(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Lonely parent")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d; body: %s", resp.StatusCode, body)
+	}
+	var pr dto.PagedResponse[dto.TaskDTO]
+	if err := json.Unmarshal(body, &pr); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if pr.Items == nil {
+		t.Errorf("items: must be non-nil empty slice")
+	}
+	if len(pr.Items) != 0 {
+		t.Errorf("len: got %d, want 0", len(pr.Items))
+	}
+}
+
+func TestSubtasksList_ParentNotFound(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/9999/subtasks", nil))
+	if resp.StatusCode != 404 {
+		t.Fatalf("got %d, want 404", resp.StatusCode)
+	}
+}
+
 // --- task creation in all containers ---
 
 func TestCreateTask_InAllContainers(t *testing.T) {
