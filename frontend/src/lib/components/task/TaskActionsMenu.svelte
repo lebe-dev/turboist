@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { DayPart, Priority, Task } from '$lib/api/types';
+	import type { DayPart, Priority, Task, TroikiCategory } from '$lib/api/types';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -13,12 +13,14 @@
 		duplicateTask,
 		moveToBacklog,
 		removeFromBacklog,
+		setTroikiCategory,
 		togglePin,
 		updateTaskFields,
 		type ListMutator
 	} from '$lib/utils/taskActions';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
+	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import CopySimpleIcon from 'phosphor-svelte/lib/CopySimple';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -29,6 +31,7 @@
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
+	import TriangleIcon from 'phosphor-svelte/lib/Triangle';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import type { Component } from 'svelte';
 
@@ -84,6 +87,18 @@
 		{ part: 'afternoon', label: 'Afternoon', icon: SunIcon as unknown as Component },
 		{ part: 'evening', label: 'Evening', icon: MoonIcon as unknown as Component }
 	];
+
+	const TROIKI_OPTIONS: Array<{ category: TroikiCategory; label: string }> = [
+		{ category: 'important', label: 'Important' },
+		{ category: 'medium', label: 'Medium' },
+		{ category: 'rest', label: 'Rest' }
+	];
+
+	const isRoot = $derived(task.parentId === null);
+
+	function chooseTroiki(category: TroikiCategory | null) {
+		void setTroikiCategory(task, category, mutator, { belongs });
+	}
 </script>
 
 <DropdownMenu.Root>
@@ -235,6 +250,34 @@
 				{/each}
 			</div>
 		</div>
+
+		{#if isRoot}
+			<DropdownMenu.Separator />
+			<DropdownMenu.Sub>
+				<DropdownMenu.SubTrigger>
+					<TriangleIcon class="size-4" /> Troiki System
+				</DropdownMenu.SubTrigger>
+				<DropdownMenu.SubContent class="min-w-[12rem]">
+					{#each TROIKI_OPTIONS as opt (opt.category)}
+						{@const active = task.troikiCategory === opt.category}
+						<DropdownMenu.Item onclick={() => chooseTroiki(opt.category)}>
+							{#if active}
+								<CheckIcon class="size-4" weight="bold" />
+							{:else}
+								<span class="size-4"></span>
+							{/if}
+							{opt.label}
+						</DropdownMenu.Item>
+					{/each}
+					{#if task.troikiCategory !== null}
+						<DropdownMenu.Separator />
+						<DropdownMenu.Item onclick={() => chooseTroiki(null)}>
+							<XIcon class="size-4" /> Remove from Troiki
+						</DropdownMenu.Item>
+					{/if}
+				</DropdownMenu.SubContent>
+			</DropdownMenu.Sub>
+		{/if}
 
 		<DropdownMenu.Separator />
 
