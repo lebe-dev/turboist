@@ -15,6 +15,7 @@ const (
 	CodeLimitExceeded      = "limit_exceeded"
 	CodeForbiddenPlacement = "forbidden_placement"
 	CodeRecurrenceInvalid  = "recurrence_invalid"
+	CodeTroikiSlotFull     = "troiki_slot_full"
 	CodeInternalError      = "internal_error"
 )
 
@@ -80,6 +81,10 @@ func ErrForbiddenPlacement(msg string) *AppError {
 
 func ErrRecurrenceInvalid(msg string) *AppError {
 	return newErr(422, CodeRecurrenceInvalid, msg)
+}
+
+func ErrTroikiSlotFull(msg string) *AppError {
+	return newErr(409, CodeTroikiSlotFull, msg)
 }
 
 func ErrInternal(msg string) *AppError {

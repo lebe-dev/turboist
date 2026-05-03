@@ -63,6 +63,9 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	projs := repo.NewProjectRepo(d, plabels)
 	tasks := repo.NewTaskRepo(d, tlabels)
 	users := repo.NewUserRepo(d)
+	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
 
 	deps := httpapi.Deps{JWTIssuer: issuer}
 	app := httpapi.NewApp(deps)
@@ -83,6 +86,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewTaskBulkHandler(completeSvc, moveSvc, testBaseURL).Register(api)
 	handlers.NewTaskViewHandler(tasks, cfg, testBaseURL).Register(api)
 	handlers.NewTaskActionHandler(tasks, completeSvc, planSvc, pinSvc, moveSvc, testBaseURL).Register(api)
+	troikiSvc := service.NewTroikiService(tasks, users)
+	handlers.NewTroikiHandler(troikiSvc, testBaseURL).Register(api)
 	handlers.NewTaskHandler(tasks, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)

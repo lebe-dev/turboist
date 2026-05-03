@@ -86,6 +86,7 @@ func main() {
 	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, userRepo, cfg.Location)
 	moveSvc := service.NewMoveService(taskRepo)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
+	troikiSvc := service.NewTroikiService(taskRepo, userRepo)
 
 	// session cleanup
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
@@ -122,6 +123,7 @@ func main() {
 	handlers.NewTaskBulkHandler(completeSvc, moveSvc, env.BaseURL).Register(api)
 	handlers.NewTaskViewHandler(taskRepo, cfg, env.BaseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
+	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, taskSvc, env.BaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
