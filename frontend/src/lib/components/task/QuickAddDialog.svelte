@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Dialog as DialogPrimitive } from 'bits-ui';
+	import { tick } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
-	import * as Select from '$lib/components/ui/select';
 	import type { DayPart, Priority, TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -15,6 +15,8 @@
 	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
+	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
+	import CheckIcon from 'phosphor-svelte/lib/Check';
 
 	let {
 		open = $bindable(false),
@@ -48,7 +50,40 @@
 	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
 	let labelMenuOpen = $state(false);
+	let projectMenuOpen = $state(false);
+	let projectQuery = $state('');
+	let projectSearchInput = $state<HTMLInputElement | null>(null);
 	let dismissedAutoLabels = $state<string[]>([]);
+
+	const visibleProjects = $derived(
+		projectsStore.items
+			.filter((p) => p.status !== 'completed')
+			.sort((a, b) => a.title.localeCompare(b.title))
+	);
+	const filteredProjects = $derived.by(() => {
+		const q = projectQuery.trim().toLowerCase();
+		if (!q) return visibleProjects;
+		return visibleProjects.filter((p) => p.title.toLowerCase().includes(q));
+	});
+	const inboxMatchesQuery = $derived.by(() => {
+		const q = projectQuery.trim().toLowerCase();
+		if (!q) return true;
+		return emptyProjectLabel.toLowerCase().includes(q);
+	});
+
+	async function openProjectMenu(): Promise<void> {
+		projectMenuOpen = !projectMenuOpen;
+		if (projectMenuOpen) {
+			projectQuery = '';
+			await tick();
+			projectSearchInput?.focus();
+		}
+	}
+
+	function selectProject(id: string): void {
+		projectId = id;
+		projectMenuOpen = false;
+	}
 
 	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
 	const selectedLabels = $derived(
@@ -399,21 +434,79 @@
 				<div
 					class="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-5 py-3"
 				>
-					<Select.Root type="single" bind:value={projectId}>
-						<Select.Trigger
-							class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+					<div class="relative" use:clickOutside={() => (projectMenuOpen = false)}>
+						<button
+							type="button"
+							onclick={openProjectMenu}
+							aria-expanded={projectMenuOpen}
+							class="inline-flex h-8 max-w-[14rem] items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent"
 						>
 							<span class="truncate">{projectName}</span>
-						</Select.Trigger>
-						<Select.Content>
-							<Select.Item value="">{emptyProjectLabel}</Select.Item>
-							{#each projectsStore.items
-								.filter((p) => p.status !== 'completed')
-								.sort((a, b) => a.title.localeCompare(b.title)) as project (project.id)}
-								<Select.Item value={String(project.id)}>{project.title}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
+						</button>
+						{#if projectMenuOpen}
+							<div
+								class="absolute bottom-9 left-0 z-10 flex w-64 flex-col rounded-md border border-border bg-popover shadow-lg"
+								role="menu"
+							>
+								<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
+									<MagnifyingGlassIcon class="size-3.5 text-muted-foreground" />
+									<input
+										bind:this={projectSearchInput}
+										bind:value={projectQuery}
+										type="text"
+										placeholder="Search projects..."
+										class="h-6 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+										onkeydown={(e) => {
+											if (e.key === 'Escape') {
+												e.stopPropagation();
+												projectMenuOpen = false;
+											}
+										}}
+									/>
+								</div>
+								<div class="flex max-h-56 flex-col gap-0.5 overflow-y-auto p-1">
+									{#if inboxMatchesQuery}
+										{@const active = projectId === ''}
+										<button
+											type="button"
+											onclick={() => selectProject('')}
+											class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
+											class:bg-accent={active}
+											class:text-accent-foreground={active}
+											class:hover:bg-accent={!active}
+										>
+											<span class="flex-1 truncate">{emptyProjectLabel}</span>
+											{#if active}
+												<CheckIcon class="size-3.5 opacity-70" />
+											{/if}
+										</button>
+									{/if}
+									{#each filteredProjects as project (project.id)}
+										{@const id = String(project.id)}
+										{@const active = projectId === id}
+										<button
+											type="button"
+											onclick={() => selectProject(id)}
+											class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
+											class:bg-accent={active}
+											class:text-accent-foreground={active}
+											class:hover:bg-accent={!active}
+										>
+											<span class="flex-1 truncate">{project.title}</span>
+											{#if active}
+												<CheckIcon class="size-3.5 opacity-70" />
+											{/if}
+										</button>
+									{/each}
+									{#if !inboxMatchesQuery && filteredProjects.length === 0}
+										<div class="px-2 py-3 text-center text-xs text-muted-foreground">
+											No matches
+										</div>
+									{/if}
+								</div>
+							</div>
+						{/if}
+					</div>
 
 					<div class="flex items-center gap-2">
 						<DialogPrimitive.Close>
