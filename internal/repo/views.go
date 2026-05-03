@@ -87,6 +87,58 @@ func (r *TaskRepo) ListByLabel(ctx context.Context, labelID int64, filter TaskFi
 	return r.listWithBaseArgs(ctx, base, []any{labelID}, filter, page, true)
 }
 
+// ListByProjectIDs batch-loads all open tasks (root + subtasks) for the given
+// project ids and groups them by project_id. Used by the Troiki view to render
+// every task tree of every category-bound project in one query.
+func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64][]model.Task, error) {
+	if len(ids) == 0 {
+		return map[int64][]model.Task{}, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, v := range ids {
+		placeholders[i] = "?"
+		args[i] = v
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT `+taskColumns+` FROM tasks
+		 WHERE project_id IN (`+strings.Join(placeholders, ",")+`) AND status = 'open'
+		 ORDER BY `+taskOrderBy, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list tasks by project ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := map[int64][]model.Task{}
+	allIDs := make([]int64, 0)
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		if t.ProjectID != nil {
+			out[*t.ProjectID] = append(out[*t.ProjectID], *t)
+			allIDs = append(allIDs, t.ID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if r.labels != nil && len(allIDs) > 0 {
+		hydrated, err := r.labels.LabelsByTaskIDs(ctx, allIDs)
+		if err != nil {
+			return nil, err
+		}
+		for pid, list := range out {
+			for i := range list {
+				list[i].Labels = hydrated[list[i].ID]
+			}
+			out[pid] = list
+		}
+	}
+	return out, nil
+}
+
 func (r *TaskRepo) ListSubtasks(ctx context.Context, parentID int64) ([]model.Task, error) {
 	base := "FROM tasks t WHERE t.parent_id = ?"
 	out, _, err := r.listWithBaseArgs(ctx, base, []any{parentID}, TaskFilter{}, Page{Limit: 200}, false)

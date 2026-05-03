@@ -23,9 +23,9 @@ func NewProjectRepo(db *sql.DB, labels *ProjectLabelsRepo) *ProjectRepo {
 func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	var p model.Project
 	var pinned int
-	var pinnedAt sql.NullString
+	var pinnedAt, troikiCategory sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &pinned, &pinnedAt, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &pinned, &pinnedAt, &troikiCategory, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	p.IsPinned = pinned == 1
@@ -35,6 +35,10 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 			return nil, fmt.Errorf("parse pinned_at: %w", err)
 		}
 		p.PinnedAt = &t
+	}
+	if troikiCategory.Valid {
+		c := model.TroikiCategory(troikiCategory.String)
+		p.TroikiCategory = &c
 	}
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
@@ -49,7 +53,7 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	return &p, nil
 }
 
-const projectColumns = `id, context_id, title, description, color, status, is_pinned, pinned_at, created_at, updated_at`
+const projectColumns = `id, context_id, title, description, color, status, is_pinned, pinned_at, troiki_category, created_at, updated_at`
 
 type CreateProject struct {
 	ContextID   int64
@@ -164,6 +168,9 @@ type ProjectUpdate struct {
 	Description *string
 	Color       *string
 	ContextID   *int64
+
+	TroikiCategory      *model.TroikiCategory
+	TroikiCategoryClear bool
 }
 
 func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*model.Project, error) {
@@ -184,6 +191,12 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 	if u.ContextID != nil {
 		sets = append(sets, "context_id = ?")
 		args = append(args, *u.ContextID)
+	}
+	if u.TroikiCategoryClear {
+		sets = append(sets, "troiki_category = NULL")
+	} else if u.TroikiCategory != nil {
+		sets = append(sets, "troiki_category = ?")
+		args = append(args, string(*u.TroikiCategory))
 	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
@@ -269,6 +282,97 @@ func (r *ProjectRepo) SetLabels(ctx context.Context, projectID int64, labelIDs [
 	return r.labels.SetForProject(ctx, projectID, labelIDs)
 }
 
+// SetTroikiCategoryIfRoom atomically assigns the troiki_category to the project
+// iff the project is open and the count of currently-open projects in that
+// category is below `capacity`. Returns:
+//   - (true, nil)   when the assignment succeeded
+//   - (false, nil)  when the slot is full or the project is no longer open
+//   - (false, ErrNotFound) when the project id does not exist
+func (r *ProjectRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat model.TroikiCategory, capacity int) (bool, error) {
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE projects
+		 SET troiki_category = ?, updated_at = ?
+		 WHERE id = ?
+		   AND status = 'open'
+		   AND (SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open') < ?`,
+		string(cat), now, id, string(cat), capacity)
+	if err != nil {
+		return false, fmt.Errorf("set project troiki category: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return true, nil
+	}
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM projects WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		return false, fmt.Errorf("set project troiki category: %w", err)
+	}
+	return false, nil
+}
+
+// ListByTroikiCategory returns all open projects for the given Troiki category
+// along with their total count. Slot counts and the rendered list must agree,
+// so this listing is intentionally not paginated.
+func (r *ProjectRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCategory) ([]model.Project, int, error) {
+	var total int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open'`,
+		string(cat)).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count troiki projects: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT `+projectColumns+` FROM projects
+		 WHERE troiki_category = ? AND status = 'open'
+		 ORDER BY is_pinned DESC, pinned_at DESC, created_at DESC`,
+		string(cat))
+	if err != nil {
+		return nil, 0, fmt.Errorf("list troiki projects: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]model.Project, 0, total)
+	ids := make([]int64, 0, total)
+	for rows.Next() {
+		p, err := scanProject(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *p)
+		ids = append(ids, p.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if r.labels != nil && len(ids) > 0 {
+		hydrated, err := r.labels.LabelsByProjectIDs(ctx, ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range out {
+			out[i].Labels = hydrated[out[i].ID]
+		}
+	}
+	return out, total, nil
+}
+
+func (r *ProjectRepo) CountOpenByTroikiCategory(ctx context.Context, cat model.TroikiCategory) (int, error) {
+	var n int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open'`,
+		string(cat)).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page) ([]model.Project, int, error) {
 	page = page.Normalize()
 	var total int
@@ -280,7 +384,7 @@ func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page)
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status,
-		        p.is_pinned, p.pinned_at, p.created_at, p.updated_at
+		        p.is_pinned, p.pinned_at, p.troiki_category, p.created_at, p.updated_at
 		 FROM projects p
 		 JOIN project_labels pl ON pl.project_id = p.id
 		 WHERE pl.label_id = ?

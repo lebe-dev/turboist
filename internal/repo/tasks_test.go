@@ -649,3 +649,65 @@ func TestTaskRepo_Sort_PinnedAndPriority(t *testing.T) {
 		t.Errorf("third should be c, got %d", items[2].ID)
 	}
 }
+
+func TestTaskRepo_ListByProjectIDs(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	p2, err := f.projects.Create(ctx, CreateProject{ContextID: f.contextID, Title: "p2", Color: "blue"})
+	if err != nil {
+		t.Fatalf("create p2: %v", err)
+	}
+
+	t1, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &f.projectID},
+		Title:     "t1",
+	})
+	t1id := t1.ID
+	sub, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &f.projectID, ParentID: &t1id},
+		Title:     "sub",
+	})
+	t2, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &p2.ID},
+		Title:     "t2",
+	})
+	completed := model.TaskStatusCompleted
+	done, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ProjectID: &f.projectID},
+		Title:     "done",
+	})
+	if _, err := f.tasks.Update(ctx, done.ID, TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+
+	got, err := f.tasks.ListByProjectIDs(ctx, []int64{f.projectID, p2.ID})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got[f.projectID]) != 2 {
+		t.Errorf("p1 task count: got %d, want 2 (root+sub, completed excluded)", len(got[f.projectID]))
+	}
+	if len(got[p2.ID]) != 1 || got[p2.ID][0].ID != t2.ID {
+		t.Errorf("p2 tasks: got %+v, want [%d]", got[p2.ID], t2.ID)
+	}
+
+	ids := map[int64]bool{}
+	for _, it := range got[f.projectID] {
+		ids[it.ID] = true
+	}
+	if !ids[t1.ID] || !ids[sub.ID] {
+		t.Errorf("expected root + subtask in p1 result, got %v", ids)
+	}
+}
+
+func TestTaskRepo_ListByProjectIDs_Empty(t *testing.T) {
+	f := newTaskFixture(t)
+	got, err := f.tasks.ListByProjectIDs(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("empty input: got %d entries, want 0", len(got))
+	}
+}

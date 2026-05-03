@@ -24,17 +24,18 @@ type Label struct {
 }
 
 type Project struct {
-	ID          int64
-	ContextID   int64
-	Title       string
-	Description string
-	Color       string
-	Status      ProjectStatus
-	IsPinned    bool
-	PinnedAt    *time.Time
-	Labels      []Label
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID             int64
+	ContextID      int64
+	Title          string
+	Description    string
+	Color          string
+	Status         ProjectStatus
+	IsPinned       bool
+	PinnedAt       *time.Time
+	TroikiCategory *TroikiCategory
+	Labels         []Label
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type ProjectSection struct {

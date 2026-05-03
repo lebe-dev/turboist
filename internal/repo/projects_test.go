@@ -178,3 +178,129 @@ func TestProjectRepo_Get_NotFound(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
+
+func TestProjectRepo_Update_TroikiCategoryAndClear(t *testing.T) {
+	_, pr, _, _, ctxID := newProjectFixtures(t)
+	ctx := context.Background()
+
+	p, err := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "a", Color: "blue"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	cat := model.TroikiCategoryImportant
+	got, err := pr.Update(ctx, p.ID, ProjectUpdate{TroikiCategory: &cat})
+	if err != nil {
+		t.Fatalf("update set: %v", err)
+	}
+	if got.TroikiCategory == nil || *got.TroikiCategory != cat {
+		t.Errorf("set: got %v, want %v", got.TroikiCategory, cat)
+	}
+
+	cleared, err := pr.Update(ctx, p.ID, ProjectUpdate{TroikiCategoryClear: true})
+	if err != nil {
+		t.Fatalf("update clear: %v", err)
+	}
+	if cleared.TroikiCategory != nil {
+		t.Errorf("clear: got %v, want nil", cleared.TroikiCategory)
+	}
+}
+
+func TestProjectRepo_SetTroikiCategoryIfRoom_AtomicCap(t *testing.T) {
+	_, pr, _, _, ctxID := newProjectFixtures(t)
+	ctx := context.Background()
+
+	p1, _ := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "a", Color: "blue"})
+	p2, _ := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "b", Color: "blue"})
+	p3, _ := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "c", Color: "blue"})
+
+	cat := model.TroikiCategoryImportant
+	ok, err := pr.SetTroikiCategoryIfRoom(ctx, p1.ID, cat, 2)
+	if err != nil || !ok {
+		t.Fatalf("p1: ok=%v err=%v", ok, err)
+	}
+	ok, err = pr.SetTroikiCategoryIfRoom(ctx, p2.ID, cat, 2)
+	if err != nil || !ok {
+		t.Fatalf("p2: ok=%v err=%v", ok, err)
+	}
+	ok, err = pr.SetTroikiCategoryIfRoom(ctx, p3.ID, cat, 2)
+	if err != nil {
+		t.Fatalf("p3: err=%v", err)
+	}
+	if ok {
+		t.Fatal("p3 should be rejected by capacity guard")
+	}
+}
+
+func TestProjectRepo_SetTroikiCategoryIfRoom_NotFound(t *testing.T) {
+	_, pr, _, _, _ := newProjectFixtures(t)
+	_, err := pr.SetTroikiCategoryIfRoom(context.Background(), 9999, model.TroikiCategoryImportant, 3)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestProjectRepo_SetTroikiCategoryIfRoom_RejectsCompleted(t *testing.T) {
+	_, pr, _, _, ctxID := newProjectFixtures(t)
+	ctx := context.Background()
+	p, _ := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "a", Color: "blue"})
+	if err := pr.UpdateStatus(ctx, p.ID, model.ProjectStatusCompleted); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	ok, err := pr.SetTroikiCategoryIfRoom(ctx, p.ID, model.TroikiCategoryImportant, 3)
+	if err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if ok {
+		t.Fatal("completed project should not accept troiki category")
+	}
+}
+
+func TestProjectRepo_ListByTroikiCategory(t *testing.T) {
+	_, pr, _, _, ctxID := newProjectFixtures(t)
+	ctx := context.Background()
+
+	a, _ := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "a", Color: "blue"})
+	b, _ := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "b", Color: "blue"})
+	c, _ := pr.Create(ctx, CreateProject{ContextID: ctxID, Title: "c", Color: "blue"})
+
+	imp := model.TroikiCategoryImportant
+	med := model.TroikiCategoryMedium
+	if _, err := pr.Update(ctx, a.ID, ProjectUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("a: %v", err)
+	}
+	if _, err := pr.Update(ctx, b.ID, ProjectUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("b: %v", err)
+	}
+	if _, err := pr.Update(ctx, c.ID, ProjectUpdate{TroikiCategory: &med}); err != nil {
+		t.Fatalf("c: %v", err)
+	}
+
+	items, total, err := pr.ListByTroikiCategory(ctx, imp)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if total != 2 || len(items) != 2 {
+		t.Errorf("len/total: got %d/%d, want 2/2", len(items), total)
+	}
+	for _, it := range items {
+		if it.TroikiCategory == nil || *it.TroikiCategory != imp {
+			t.Errorf("filter: got %v", it.TroikiCategory)
+		}
+	}
+
+	n, err := pr.CountOpenByTroikiCategory(ctx, imp)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("count: got %d, want 2", n)
+	}
+
+	if err := pr.UpdateStatus(ctx, a.ID, model.ProjectStatusCompleted); err != nil {
+		t.Fatalf("complete a: %v", err)
+	}
+	n, _ = pr.CountOpenByTroikiCategory(ctx, imp)
+	if n != 1 {
+		t.Errorf("count after complete: got %d, want 1", n)
+	}
+}

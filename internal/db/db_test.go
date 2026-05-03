@@ -114,6 +114,44 @@ func TestMigrationsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMigration010_ProjectsTroikiCategory(t *testing.T) {
+	d := mustOpenMigrated(t)
+
+	var col int
+	err := d.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info('projects') WHERE name = 'troiki_category'`,
+	).Scan(&col)
+	if err != nil {
+		t.Fatalf("query column: %v", err)
+	}
+	if col != 1 {
+		t.Errorf("projects.troiki_category column: got %d, want 1", col)
+	}
+
+	var idx int
+	err = d.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_projects_troiki'`,
+	).Scan(&idx)
+	if err != nil {
+		t.Fatalf("query index: %v", err)
+	}
+	if idx != 1 {
+		t.Errorf("idx_projects_troiki: got %d, want 1", idx)
+	}
+
+	if _, err := d.Exec(
+		`INSERT INTO contexts (id, name, color, created_at, updated_at) VALUES (1, 'c', 'blue', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')`,
+	); err != nil {
+		t.Fatalf("insert context: %v", err)
+	}
+	if _, err := d.Exec(
+		`INSERT INTO projects (context_id, title, description, color, status, is_pinned, troiki_category, created_at, updated_at)
+		 VALUES (1, 't', '', 'blue', 'open', 0, 'bogus', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')`,
+	); err == nil {
+		t.Errorf("expected CHECK constraint to reject 'bogus' troiki_category")
+	}
+}
+
 func TestWithTxCommit(t *testing.T) {
 	d := mustOpenMigrated(t)
 
