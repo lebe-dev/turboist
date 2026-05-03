@@ -92,6 +92,11 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 		if err != nil {
 			return nil, err
 		}
+		// Reset per-task grant flags so a future re-categorisation can grant
+		// capacity again on the same tasks.
+		if err := s.tasks.ResetTroikiGrantedByProject(ctx, projectID); err != nil {
+			return nil, err
+		}
 		return updated, nil
 	}
 	if !cat.IsValid() {
@@ -111,6 +116,9 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 	if !cap.Started && (*cat == model.TroikiCategoryMedium || *cat == model.TroikiCategoryRest) {
 		updated, err := s.projects.Update(ctx, projectID, repo.ProjectUpdate{TroikiCategory: cat})
 		if err != nil {
+			return nil, err
+		}
+		if err := s.tasks.ResetTroikiGrantedByProject(ctx, projectID); err != nil {
 			return nil, err
 		}
 		if err := s.EnforceProjectPriority(ctx, projectID, PriorityForCategory(*cat)); err != nil {
@@ -145,6 +153,9 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 			return cur, nil
 		}
 		return nil, ErrTroikiSlotFull
+	}
+	if err := s.tasks.ResetTroikiGrantedByProject(ctx, projectID); err != nil {
+		return nil, err
 	}
 	if err := s.EnforceProjectPriority(ctx, projectID, PriorityForCategory(*cat)); err != nil {
 		return nil, err

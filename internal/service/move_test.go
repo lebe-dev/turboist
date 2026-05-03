@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
@@ -16,7 +17,7 @@ func setupMoveService(t *testing.T) (*service.MoveService, *repo.TaskRepo, *repo
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)
-	return service.NewMoveService(tasks), tasks, ctxs, projects
+	return service.NewMoveService(tasks, projects), tasks, ctxs, projects
 }
 
 func TestMoveService_BetweenContexts(t *testing.T) {
@@ -78,5 +79,35 @@ func TestMoveService_InvalidPlacement(t *testing.T) {
 	_, err := svc.Move(ctx, task.ID, repo.Placement{})
 	if err == nil {
 		t.Error("expected error for invalid placement")
+	}
+}
+
+func TestMoveService_IntoTroikiProject_PinsPriority(t *testing.T) {
+	svc, tasks, ctxs, projects := setupMoveService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	src := newProjectInCtx(t, projects, c.ID, "src")
+	dst := newProjectInCtx(t, projects, c.ID, "dst")
+
+	// Manually set destination's troiki_category via repo so this test does not
+	// depend on TroikiService wiring (capacity/users state).
+	cat := model.TroikiCategoryRest
+	if _, err := projects.Update(ctx, dst.ID, repo.ProjectUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set dst category: %v", err)
+	}
+
+	root, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ProjectID: &src.ID},
+		Title:     "t", Priority: model.PriorityHigh,
+	})
+
+	moved, err := svc.Move(ctx, root.ID, repo.Placement{ContextID: &cid, ProjectID: &dst.ID})
+	if err != nil {
+		t.Fatalf("move: %v", err)
+	}
+	if moved.Priority != model.PriorityLow {
+		t.Errorf("priority after move into Rest project: got %s, want low", moved.Priority)
 	}
 }

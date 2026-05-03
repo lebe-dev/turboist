@@ -219,10 +219,23 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 	return r.Get(ctx, id)
 }
 
+// UpdateStatus changes the project status. Transitioning out of 'open' also
+// clears troiki_category — a non-open project no longer occupies a Troiki slot,
+// and reopening it must require an explicit re-assignment so capacity is
+// re-checked against the current state of the slot.
 func (r *ProjectRepo) UpdateStatus(ctx context.Context, id int64, status model.ProjectStatus) error {
-	res, err := r.db.ExecContext(ctx,
-		`UPDATE projects SET status = ?, updated_at = ? WHERE id = ?`,
-		string(status), model.FormatUTC(time.Now()), id)
+	now := model.FormatUTC(time.Now())
+	var res sql.Result
+	var err error
+	if status == model.ProjectStatusOpen {
+		res, err = r.db.ExecContext(ctx,
+			`UPDATE projects SET status = ?, updated_at = ? WHERE id = ?`,
+			string(status), now, id)
+	} else {
+		res, err = r.db.ExecContext(ctx,
+			`UPDATE projects SET status = ?, troiki_category = NULL, updated_at = ? WHERE id = ?`,
+			string(status), now, id)
+	}
 	if err != nil {
 		return fmt.Errorf("update project status: %w", err)
 	}

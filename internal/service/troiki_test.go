@@ -384,3 +384,42 @@ func TestTroikiService_EnforceProjectPriority(t *testing.T) {
 		t.Errorf("sub: got %s, want high", s.Priority)
 	}
 }
+
+func TestTroikiService_SetCategory_ResetsGrantFlagOnRecategorise(t *testing.T) {
+	svc, tasks, projects, ctxs, _ := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+
+	p := newProjectInCtx(t, projects, c.ID, "p")
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &p.ID}, Title: "t"})
+
+	if _, err := svc.SetCategory(ctx, p.ID, ptrCat(model.TroikiCategoryImportant)); err != nil {
+		t.Fatalf("set important: %v", err)
+	}
+	// Mark the task as having received its capacity grant (mirrors what a
+	// successful Complete would set).
+	granted, err := tasks.GrantAndBumpTroikiCapacity(ctx, tk.ID, service.SingleUserID, "troiki_medium_capacity")
+	if err != nil || !granted {
+		t.Fatalf("first grant: granted=%v err=%v", granted, err)
+	}
+	// Re-calling without a reset must return false (already granted) — proves
+	// the flag persists across calls.
+	if g, _ := tasks.GrantAndBumpTroikiCapacity(ctx, tk.ID, service.SingleUserID, "troiki_medium_capacity"); g {
+		t.Fatal("second grant should be a no-op without recategorisation")
+	}
+
+	if _, err := svc.SetCategory(ctx, p.ID, nil); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if _, err := svc.SetCategory(ctx, p.ID, ptrCat(model.TroikiCategoryImportant)); err != nil {
+		t.Fatalf("re-set important: %v", err)
+	}
+	// After recategorisation the flag must be reset, so a new grant succeeds.
+	g, err := tasks.GrantAndBumpTroikiCapacity(ctx, tk.ID, service.SingleUserID, "troiki_medium_capacity")
+	if err != nil {
+		t.Fatalf("grant after recategorise: %v", err)
+	}
+	if !g {
+		t.Errorf("grant after recategorise: got false, want true (flag must be reset)")
+	}
+}

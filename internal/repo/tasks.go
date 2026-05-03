@@ -342,6 +342,21 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	return r.Get(ctx, id)
 }
 
+// ResetTroikiGrantedByProject clears the troiki_capacity_granted flag on every
+// task of the given project. Used when the project's Troiki category changes
+// (or is cleared) so a future complete in a new category grants capacity again.
+func (r *TaskRepo) ResetTroikiGrantedByProject(ctx context.Context, projectID int64) error {
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE tasks SET troiki_capacity_granted = 0, updated_at = ?
+		 WHERE project_id = ? AND troiki_capacity_granted = 1`,
+		now, projectID)
+	if err != nil {
+		return fmt.Errorf("reset troiki granted by project: %w", err)
+	}
+	return nil
+}
+
 // UpdatePriorityByProject pins every open task of the project to `priority`
 // in a single UPDATE — the Troiki service uses this to enforce the
 // category-derived priority across all root tasks and subtasks of a project.

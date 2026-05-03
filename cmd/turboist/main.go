@@ -82,9 +82,9 @@ func main() {
 	// services
 	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
 	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, cfg)
-	taskSvc := service.NewTaskService(taskRepo, tlabels, autoLabelsSvc)
+	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, projectRepo, userRepo, cfg.Location)
-	moveSvc := service.NewMoveService(taskRepo)
+	moveSvc := service.NewMoveService(taskRepo, projectRepo)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
 

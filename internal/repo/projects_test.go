@@ -304,3 +304,35 @@ func TestProjectRepo_ListByTroikiCategory(t *testing.T) {
 		t.Errorf("count after complete: got %d, want 1", n)
 	}
 }
+
+func TestProjectRepo_UpdateStatus_ClearsTroikiCategoryWhenLeavingOpen(t *testing.T) {
+	_, projects, _, _, ctxID := newProjectFixtures(t)
+	ctx := context.Background()
+
+	p, _ := projects.Create(ctx, CreateProject{ContextID: ctxID, Title: "p", Color: "blue"})
+	cat := model.TroikiCategoryImportant
+	if _, err := projects.Update(ctx, p.ID, ProjectUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set category: %v", err)
+	}
+
+	if err := projects.UpdateStatus(ctx, p.ID, model.ProjectStatusArchived); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	got, err := projects.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.TroikiCategory != nil {
+		t.Errorf("category after archive: got %v, want nil", got.TroikiCategory)
+	}
+
+	// Reopening should leave the category cleared (re-assignment must go through
+	// the capacity check).
+	if err := projects.UpdateStatus(ctx, p.ID, model.ProjectStatusOpen); err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	got, _ = projects.Get(ctx, p.ID)
+	if got.TroikiCategory != nil {
+		t.Errorf("category after reopen: got %v, want nil", got.TroikiCategory)
+	}
+}

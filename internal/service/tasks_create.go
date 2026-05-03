@@ -10,17 +10,30 @@ import (
 // TaskService orchestrates task creation and label management.
 type TaskService struct {
 	tasks      *repo.TaskRepo
+	projects   *repo.ProjectRepo
 	taskLabels *repo.TaskLabelsRepo
 	autoLabels *AutoLabelsService
 }
 
 // NewTaskService constructs a TaskService.
-func NewTaskService(tasks *repo.TaskRepo, taskLabels *repo.TaskLabelsRepo, autoLabels *AutoLabelsService) *TaskService {
-	return &TaskService{tasks: tasks, taskLabels: taskLabels, autoLabels: autoLabels}
+func NewTaskService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskLabels *repo.TaskLabelsRepo, autoLabels *AutoLabelsService) *TaskService {
+	return &TaskService{tasks: tasks, projects: projects, taskLabels: taskLabels, autoLabels: autoLabels}
 }
 
 // Create creates a task and applies explicit labels and auto-label rules.
+// If the task is created in a project with a Troiki category, the task's
+// priority is coerced to the category-derived priority — the same invariant
+// PATCH /tasks enforces at the handler layer.
 func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLabels []string, removedAutoLabels []string) (*model.Task, error) {
+	if in.ProjectID != nil && s.projects != nil {
+		p, err := s.projects.Get(ctx, *in.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+		if p.TroikiCategory != nil {
+			in.Priority = PriorityForCategory(*p.TroikiCategory)
+		}
+	}
 	t, err := s.tasks.Create(ctx, in)
 	if err != nil {
 		return nil, err
