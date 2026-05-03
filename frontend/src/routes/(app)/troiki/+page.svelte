@@ -42,6 +42,34 @@
 	async function loadAll(): Promise<void> {
 		await troikiStore.load();
 		await loadSubtasksFor(parentIdsFromView());
+		await syncSubtaskPriorities();
+	}
+
+	async function syncSubtaskPriorities(): Promise<void> {
+		const client = getApiClient();
+		const v = troikiStore.value;
+		const parents = [...v.important.tasks, ...v.medium.tasks, ...v.rest.tasks];
+		const updates: Array<Promise<Task>> = [];
+		const patched: Record<number, Task[]> = { ...subtasksByParent };
+		for (const parent of parents) {
+			const subs = patched[parent.id];
+			if (!subs?.length) continue;
+			let changed = false;
+			const next = subs.map((s) => {
+				if (s.priority === parent.priority) return s;
+				updates.push(tasksApi.update(client, s.id, { priority: parent.priority }));
+				changed = true;
+				return { ...s, priority: parent.priority };
+			});
+			if (changed) patched[parent.id] = next;
+		}
+		if (updates.length === 0) return;
+		subtasksByParent = patched;
+		try {
+			await Promise.all(updates);
+		} catch {
+			// best effort: UI already shows synced priority; refresh on next load
+		}
 	}
 
 	const loader = usePageLoad(loadAll, { errorMessage: 'Failed to load Troiki' });

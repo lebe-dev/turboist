@@ -14,6 +14,7 @@
 		hideTomorrowBadge = false,
 		hideDue = false,
 		draggable = false,
+		inheritedTroiki = false,
 		mutator,
 		belongs,
 		onToggle
@@ -26,6 +27,7 @@
 		hideTomorrowBadge?: boolean;
 		hideDue?: boolean;
 		draggable?: boolean;
+		inheritedTroiki?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -44,6 +46,7 @@
 			{hideTomorrowBadge}
 			{hideDue}
 			{draggable}
+			{inheritedTroiki}
 			{mutator}
 			{belongs}
 			{onToggle}
@@ -57,6 +60,7 @@
 				{hideTomorrowBadge}
 				{hideDue}
 				{draggable}
+				inheritedTroiki={inheritedTroiki || node.task.troikiCategory !== null}
 				{mutator}
 				{belongs}
 				{onToggle}

@@ -12,7 +12,7 @@
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
 	import { Calendar } from '$lib/components/ui/calendar';
-	import { getApiClient } from '$lib/api/client';
+	import { getApiClient, type ApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -69,6 +69,7 @@
 	let recurrence = $state<string | null>(null);
 	let labelIds = $state<string[]>([]);
 	let removedAuto = $state<string[]>([]);
+	let ancestorTroiki = $state(false);
 
 	let datePopoverOpen = $state(false);
 
@@ -163,6 +164,7 @@
 			notFound = false;
 			task = null;
 			subtasks.items = [];
+			ancestorTroiki = false;
 			if (!Number.isFinite(taskId)) {
 				notFound = true;
 				return;
@@ -178,6 +180,9 @@
 			if (!isValid()) return;
 			hydrate(t);
 			if (subs) subtasks.items = subs.items;
+			if (t.parentId !== null && t.troikiCategory === null) {
+				ancestorTroiki = await hasTroikiAncestor(client, t.parentId);
+			}
 		},
 		{
 			autoLoad: false,
@@ -191,6 +196,20 @@
 			}
 		}
 	);
+
+	async function hasTroikiAncestor(client: ApiClient, parentId: number): Promise<boolean> {
+		let id: number | null = parentId;
+		while (id !== null) {
+			try {
+				const t: Task = await tasksApi.get(client, id);
+				if (t.troikiCategory !== null) return true;
+				id = t.parentId;
+			} catch {
+				return false;
+			}
+		}
+		return false;
+	}
 
 	const pageMutator: ListMutator = {
 		replace(updated: Task) {
@@ -206,7 +225,11 @@
 		if (!trimmed || !task || creatingSubtask) return;
 		creatingSubtask = true;
 		try {
-			const created = await tasksApi.createSubtask(getApiClient(), task.id, { title: trimmed });
+			const input: TaskInput = { title: trimmed };
+			if (task.troikiCategory !== null || ancestorTroiki) {
+				input.priority = task.priority;
+			}
+			const created = await tasksApi.createSubtask(getApiClient(), task.id, input);
 			subtasks.items = [...subtasks.items, created];
 			window.dispatchEvent(
 				new CustomEvent('turboist:task-created', {
@@ -485,10 +508,17 @@ async function save(): Promise<void> {
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					Priority
 				</span>
-				<PriorityPicker bind:value={priority} disabled={task.troikiCategory !== null} />
+				<PriorityPicker
+					bind:value={priority}
+					disabled={task.troikiCategory !== null || ancestorTroiki}
+				/>
 				{#if task.troikiCategory !== null}
 					<span class="text-[10px] text-muted-foreground">
 						Locked by Troiki category — priority follows the section.
+					</span>
+				{:else if ancestorTroiki}
+					<span class="text-[10px] text-muted-foreground">
+						Locked — priority is inherited from a Troiki parent task.
 					</span>
 				{/if}
 			</div>
