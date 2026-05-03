@@ -169,6 +169,15 @@
 		try {
 			const created = await tasksApi.createSubtask(getApiClient(), task.id, { title: trimmed });
 			subtasks.items = [...subtasks.items, created];
+			window.dispatchEvent(
+				new CustomEvent('turboist:task-created', {
+					detail: {
+						task: created,
+						projectId: created.projectId,
+						contextId: created.contextId
+					}
+				})
+			);
 			newSubtaskTitle = '';
 			subtaskInputEl?.focus();
 		} catch (err) {
