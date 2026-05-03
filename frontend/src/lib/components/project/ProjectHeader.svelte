@@ -99,7 +99,7 @@
 							<PushPinIcon class="size-4" /> Pin
 						</DropdownMenu.Item>
 					{/if}
-					{#if onSetTroiki}
+					{#if onSetTroiki && project.status === 'open'}
 						<DropdownMenu.Sub>
 							<DropdownMenu.SubTrigger>
 								<TriangleIcon class="size-4" /> Assign to Troiki

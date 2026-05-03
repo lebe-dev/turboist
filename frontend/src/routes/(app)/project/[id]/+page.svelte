@@ -122,9 +122,14 @@
 	async function setTroiki(category: TroikiCategory | null) {
 		if (!project) return;
 		try {
-			const updated = await projectsApi.setTroikiCategory(getApiClient(), project.id, category);
+			const client = getApiClient();
+			const updated = await projectsApi.setTroikiCategory(client, project.id, category);
 			project = updated;
 			projectsStore.upsert(updated);
+			if (category) {
+				const ts = await projectsApi.listTasks(client, project.id, { limit: 500 });
+				taskList.items = ts.items;
+			}
 			toast.success(category ? `Assigned to ${category}` : 'Removed from Troiki');
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to set Troiki category'));
