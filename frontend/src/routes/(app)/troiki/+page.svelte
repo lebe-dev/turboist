@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import PlayIcon from 'phosphor-svelte/lib/Play';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task, TroikiCategory, TroikiSlot } from '$lib/api/types';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -109,16 +111,58 @@
 		}
 		void toggleComplete(t, treeMutator(parent), { removeWhenCompleted: false });
 	}
+
+	let starting = $state(false);
+	const canStart = $derived(!view.started && view.important.tasks.length > 0);
+
+	async function startSystem(): Promise<void> {
+		if (!canStart || starting) return;
+		starting = true;
+		try {
+			await troikiStore.start();
+			await loadSubtasksFor(parentIdsFromView());
+			toast.success('Troiki started');
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to start Troiki'));
+		} finally {
+			starting = false;
+		}
+	}
 </script>
 
 <div class="px-2 py-2">
 	{#if loader.loading}
 		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
 	{:else}
+		<header class="flex items-center justify-between px-3 pb-1">
+			<div class="text-xs text-muted-foreground">
+				{#if view.started}
+					Cycle in progress — Medium and Rest unlock as you complete the previous category.
+				{:else}
+					Initial fill — pick your three Important tasks, then optionally seed Medium and Rest. Press
+					Start to lock in the cycle.
+				{/if}
+			</div>
+			{#if !view.started}
+				<Button
+					size="sm"
+					variant="default"
+					disabled={!canStart || starting}
+					onclick={startSystem}
+					title={canStart ? 'Start the Troiki cycle' : 'Add at least one Important task first'}
+				>
+					<PlayIcon class="size-4" weight="fill" />
+					{starting ? 'Starting…' : 'Start the system'}
+				</Button>
+			{/if}
+		</header>
 		<div class="flex flex-col gap-6 py-2">
 			{#each sections as section (section.key)}
 				{@const slot = slotFor(section.key)}
-				{@const locked = slot.capacity === 0}
+				{@const initialMode =
+					!view.started &&
+					(section.key === 'medium' || section.key === 'rest')}
+				{@const locked = !initialMode && slot.capacity === 0}
 				{@const open = slot.tasks.length}
 				{@const cap = slot.capacity}
 				{@const emptySlots = Math.max(0, cap - open)}
@@ -136,6 +180,13 @@
 								>
 									<LockSimpleIcon class="size-3" />
 									<span>Locked</span>
+								</span>
+							{:else if initialMode}
+								<span
+									class="rounded-full border border-dashed border-border bg-muted/20 px-2 py-0.5 text-[11px] uppercase tracking-wide text-muted-foreground"
+									title="Open during initial fill — capacity is locked in when you press Start"
+								>
+									Open · {open}
 								</span>
 							{:else}
 								<span
@@ -157,6 +208,13 @@
 							{:else}
 								Complete a Medium task to unlock a Rest slot.
 							{/if}
+						</div>
+					{:else if initialMode && open === 0}
+						<div
+							class="mx-3 rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-xs text-muted-foreground"
+						>
+							Use the task actions menu (⋯ → Troiki System) to assign tasks to this section before
+							starting the cycle.
 						</div>
 					{:else}
 						<div class="flex flex-col divide-y divide-border/40">

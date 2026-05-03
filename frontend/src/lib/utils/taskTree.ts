@@ -30,6 +30,27 @@ export function buildTree(tasks: Task[]): TaskNode[] {
 	return roots;
 }
 
+/**
+ * Split a flat task list into two buckets based on the completion status of
+ * each task's top-most ancestor in the same list. Descendants of a completed
+ * root go to `done`; everything else stays in `open` (so completed children
+ * under an open parent are still rendered inline by their parent's tree).
+ */
+export function splitByRootCompletion(items: Task[]): { open: Task[]; done: Task[] } {
+	const byId = new Map(items.map((t) => [t.id, t] as const));
+	const open: Task[] = [];
+	const done: Task[] = [];
+	for (const task of items) {
+		let root = task;
+		while (root.parentId !== null && byId.has(root.parentId)) {
+			root = byId.get(root.parentId)!;
+		}
+		if (root.status === 'completed') done.push(task);
+		else open.push(task);
+	}
+	return { open, done };
+}
+
 export function flattenTree(nodes: TaskNode[]): Task[] {
 	const out: Task[] = [];
 	const walk = (list: TaskNode[]) => {

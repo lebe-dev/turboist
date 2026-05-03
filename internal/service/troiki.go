@@ -28,10 +28,16 @@ type TroikiSlot struct {
 }
 
 // TroikiView is the aggregate snapshot of all three Troiki slots.
+//
+// Started signals whether the user has confirmed the start of a Troiki cycle.
+// Until Started is true, Medium and Rest accept tasks without capacity checks
+// (initial fill mode); once started, the methodology rules apply (capacity
+// grows only by completing tasks in the previous category).
 type TroikiView struct {
 	Important TroikiSlot
 	Medium    TroikiSlot
 	Rest      TroikiSlot
+	Started   bool
 }
 
 // TroikiService manages Troiki category assignment and view aggregation.
@@ -68,7 +74,21 @@ func (s *TroikiService) SetCategory(ctx context.Context, taskID int64, cat *mode
 		return t, nil
 	}
 
-	capacity, err := s.capacityFor(ctx, *cat)
+	cap, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
+	if err != nil {
+		return nil, err
+	}
+	// Initial-fill mode: before the user presses "Start the system", Medium and
+	// Rest accept tasks without capacity checks. Important always honors its
+	// fixed cap of 3 — that's a core methodology rule, not a soft limit.
+	if !cap.Started && (*cat == model.TroikiCategoryMedium || *cat == model.TroikiCategoryRest) {
+		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{TroikiCategory: cat})
+		if err != nil {
+			return nil, err
+		}
+		return updated, nil
+	}
+	capacity, err := s.capacityForWith(*cat, cap)
 	if err != nil {
 		return nil, err
 	}
@@ -118,22 +138,47 @@ func (s *TroikiService) View(ctx context.Context) (TroikiView, error) {
 	if err != nil {
 		return TroikiView{}, err
 	}
+	mediumCap, restCap := cap.Medium, cap.Rest
+	// Before start, Medium/Rest capacity reported as the current task count so
+	// the UI doesn't render bogus empty-slot placeholders against a zero cap.
+	if !cap.Started {
+		mediumCap = len(medium)
+		restCap = len(rest)
+	}
 	return TroikiView{
 		Important: TroikiSlot{Capacity: TroikiImportantCap, Tasks: important},
-		Medium:    TroikiSlot{Capacity: cap.Medium, Tasks: medium},
-		Rest:      TroikiSlot{Capacity: cap.Rest, Tasks: rest},
+		Medium:    TroikiSlot{Capacity: mediumCap, Tasks: medium},
+		Rest:      TroikiSlot{Capacity: restCap, Tasks: rest},
+		Started:   cap.Started,
 	}, nil
 }
 
-func (s *TroikiService) capacityFor(ctx context.Context, cat model.TroikiCategory) (int, error) {
-	if cat == model.TroikiCategoryImportant {
-		return TroikiImportantCap, nil
-	}
+// Start confirms the start of a Troiki cycle: snapshots current Medium/Rest
+// task counts as capacity and flips troiki_started=1. Idempotent — calling on
+// an already-started user is a no-op.
+func (s *TroikiService) Start(ctx context.Context) error {
 	cap, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
 	if err != nil {
-		return 0, err
+		return err
 	}
+	if cap.Started {
+		return nil
+	}
+	medium, _, err := s.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryMedium)
+	if err != nil {
+		return err
+	}
+	rest, _, err := s.tasks.ListByTroikiCategory(ctx, model.TroikiCategoryRest)
+	if err != nil {
+		return err
+	}
+	return s.users.StartTroiki(ctx, SingleUserID, len(medium), len(rest))
+}
+
+func (s *TroikiService) capacityForWith(cat model.TroikiCategory, cap repo.TroikiCapacity) (int, error) {
 	switch cat {
+	case model.TroikiCategoryImportant:
+		return TroikiImportantCap, nil
 	case model.TroikiCategoryMedium:
 		return cap.Medium, nil
 	case model.TroikiCategoryRest:

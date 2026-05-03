@@ -21,11 +21,13 @@ func NewUserRepo(db *sql.DB) *UserRepo {
 func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 	var u model.User
 	var createdAt, updatedAt string
+	var startedInt int64
 	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash,
-		&u.TroikiMediumCapacity, &u.TroikiRestCapacity,
+		&u.TroikiMediumCapacity, &u.TroikiRestCapacity, &startedInt,
 		&createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
+	u.TroikiStarted = startedInt != 0
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
@@ -63,7 +65,7 @@ func (r *UserRepo) Create(ctx context.Context, username, passwordHash string) (*
 
 func (r *UserRepo) Get(ctx context.Context, id int64) (*model.User, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, created_at, updated_at FROM users WHERE id = ?`, id)
+		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, created_at, updated_at FROM users WHERE id = ?`, id)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -76,7 +78,7 @@ func (r *UserRepo) Get(ctx context.Context, id int64) (*model.User, error) {
 
 func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, created_at, updated_at FROM users WHERE username = ?`, username)
+		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, created_at, updated_at FROM users WHERE username = ?`, username)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -117,22 +119,42 @@ func (r *UserRepo) SetState(ctx context.Context, id int64, state string) error {
 }
 
 type TroikiCapacity struct {
-	Medium int
-	Rest   int
+	Medium  int
+	Rest    int
+	Started bool
 }
 
 func (r *UserRepo) GetTroikiCapacity(ctx context.Context, id int64) (TroikiCapacity, error) {
 	var c TroikiCapacity
+	var startedInt int64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT troiki_medium_capacity, troiki_rest_capacity FROM users WHERE id = ?`, id).
-		Scan(&c.Medium, &c.Rest)
+		`SELECT troiki_medium_capacity, troiki_rest_capacity, troiki_started FROM users WHERE id = ?`, id).
+		Scan(&c.Medium, &c.Rest, &startedInt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return TroikiCapacity{}, ErrNotFound
 	}
 	if err != nil {
 		return TroikiCapacity{}, fmt.Errorf("get troiki capacity: %w", err)
 	}
+	c.Started = startedInt != 0
 	return c, nil
+}
+
+// StartTroiki snapshots medium/rest capacities to the given counts and flips
+// troiki_started=1 in a single UPDATE. Idempotent: re-calling on an already
+// started user is a no-op (WHERE troiki_started = 0 guards against re-snapshot
+// that would clobber capacities earned by completions after start).
+func (r *UserRepo) StartTroiki(ctx context.Context, id int64, mediumCap, restCap int) error {
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET troiki_medium_capacity = ?, troiki_rest_capacity = ?,
+		    troiki_started = 1, updated_at = ?
+		 WHERE id = ? AND troiki_started = 0`,
+		mediumCap, restCap, now, id)
+	if err != nil {
+		return fmt.Errorf("start troiki: %w", err)
+	}
+	return nil
 }
 
 // IncTroikiCapacity bumps the capacity counter for the given target category

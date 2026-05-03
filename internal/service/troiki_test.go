@@ -64,16 +64,100 @@ func TestTroikiService_SetCategory_Important_FullSlot(t *testing.T) {
 	}
 }
 
-func TestTroikiService_SetCategory_Medium_NoCapacity(t *testing.T) {
+func TestTroikiService_SetCategory_Medium_NoCapacity_AfterStart(t *testing.T) {
+	svc, tasks, ctxs, _ := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "m"})
+	_, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryMedium))
+	if !errors.Is(err, service.ErrTroikiSlotFull) {
+		t.Fatalf("err: got %v, want ErrTroikiSlotFull", err)
+	}
+}
+
+func TestTroikiService_SetCategory_Medium_BeforeStart_NoCap(t *testing.T) {
 	svc, tasks, ctxs, _ := setupTroikiService(t)
 	ctx := context.Background()
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
 	cid := c.ID
 
 	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "m"})
-	_, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryMedium))
-	if !errors.Is(err, service.ErrTroikiSlotFull) {
-		t.Fatalf("err: got %v, want ErrTroikiSlotFull", err)
+	got, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryMedium))
+	if err != nil {
+		t.Fatalf("set medium before start: %v", err)
+	}
+	if got.TroikiCategory == nil || *got.TroikiCategory != model.TroikiCategoryMedium {
+		t.Errorf("category: got %v, want medium", got.TroikiCategory)
+	}
+}
+
+func TestTroikiService_SetCategory_Important_BeforeStart_StillCapped(t *testing.T) {
+	svc, tasks, ctxs, _ := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	for i := 0; i < service.TroikiImportantCap; i++ {
+		tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
+		if _, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryImportant)); err != nil {
+			t.Fatalf("seed important %d: %v", i, err)
+		}
+	}
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "extra"})
+	if _, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryImportant)); !errors.Is(err, service.ErrTroikiSlotFull) {
+		t.Fatalf("important cap honored before start: got %v, want ErrTroikiSlotFull", err)
+	}
+}
+
+func TestTroikiService_Start_SnapshotsCapacity(t *testing.T) {
+	svc, tasks, ctxs, users := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	for i := range 4 {
+		tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "m"})
+		if _, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryMedium)); err != nil {
+			t.Fatalf("seed medium %d: %v", i, err)
+		}
+	}
+	for i := range 2 {
+		tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "r"})
+		if _, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryRest)); err != nil {
+			t.Fatalf("seed rest %d: %v", i, err)
+		}
+	}
+
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	cap, err := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if err != nil {
+		t.Fatalf("get cap: %v", err)
+	}
+	if !cap.Started {
+		t.Errorf("started: got false, want true")
+	}
+	if cap.Medium != 4 {
+		t.Errorf("medium cap: got %d, want 4", cap.Medium)
+	}
+	if cap.Rest != 2 {
+		t.Errorf("rest cap: got %d, want 2", cap.Rest)
+	}
+
+	// Idempotent: second Start does not re-snapshot if completions in between
+	// changed counts (here, deletion of a medium would otherwise pull cap down).
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("start (idempotent): %v", err)
+	}
+	cap2, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap2.Medium != 4 || cap2.Rest != 2 {
+		t.Errorf("cap after second start: got medium=%d rest=%d, want 4/2", cap2.Medium, cap2.Rest)
 	}
 }
 

@@ -148,6 +148,7 @@ export interface TroikiViewResponse {
 	important: TroikiSlot;
 	medium: TroikiSlot;
 	rest: TroikiSlot;
+	started: boolean;
 }
 
 export interface UserState {

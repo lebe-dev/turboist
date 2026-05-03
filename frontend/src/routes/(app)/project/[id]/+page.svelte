@@ -5,8 +5,6 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
-	import PlusIcon from 'phosphor-svelte/lib/Plus';
-	import { Button } from '$lib/components/ui/button';
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
@@ -16,7 +14,9 @@
 	import type { Project, ProjectSection, Task } from '$lib/api/types';
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
 	import SectionList from '$lib/components/project/SectionList.svelte';
+	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import { splitByRootCompletion } from '$lib/utils/taskTree';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
@@ -46,6 +46,7 @@
 	const mutator = taskList.mutator;
 
 	const tasksWithoutSection = $derived(taskList.items.filter((t) => t.sectionId === null));
+	const tasksWithoutSectionSplit = $derived(splitByRootCompletion(tasksWithoutSection));
 	const tasksBySection = $derived.by(() => {
 		const map: Record<number, Task[]> = {};
 		for (const t of taskList.items) {
@@ -258,6 +259,7 @@
 {:else}
 	<ProjectHeader
 		{project}
+		onAddSection={addSection}
 		onComplete={() => (confirmCompleteOpen = true)}
 		onUncomplete={() => action('uncomplete')}
 		onCancel={() => action('cancel')}
@@ -268,13 +270,6 @@
 		onEdit={() => (editProjectOpen = true)}
 		onDelete={() => (confirmDeleteOpen = true)}
 	/>
-
-	<div class="flex items-center px-6 py-2">
-		<Button size="sm" variant="ghost" onclick={addSection}>
-			<PlusIcon class="size-4" />
-			Add section
-		</Button>
-	</div>
 
 	<div class="px-2">
 		<ViewContent
@@ -296,15 +291,24 @@
 				role="list"
 			>
 				{#if tasksWithoutSection.length > 0}
-					<div class="px-1 py-2">
-						<TaskTree
-							tasks={tasksWithoutSection}
-							showProject={false}
-							draggable
+					{#if tasksWithoutSectionSplit.open.length > 0}
+						<div class="px-1 py-2">
+							<TaskTree
+								tasks={tasksWithoutSectionSplit.open}
+								showProject={false}
+								draggable
+								{mutator}
+								onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
+							/>
+						</div>
+					{/if}
+					{#if tasksWithoutSectionSplit.done.length > 0}
+						<CompletedTasksGroup
+							tasks={tasksWithoutSectionSplit.done}
 							{mutator}
 							onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 						/>
-					</div>
+					{/if}
 				{:else if sectionList.length > 0}
 					<div class="px-3 py-2 text-xs text-muted-foreground/60">
 						Drop a task here to move it out of any section

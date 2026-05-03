@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { ProjectSection, Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import CompletedTasksGroup from './CompletedTasksGroup.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import { splitByRootCompletion } from '$lib/utils/taskTree';
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import {
 		hasDragKind,
@@ -41,6 +43,7 @@
 	} = $props();
 
 	let open = $state(true);
+	const split = $derived(splitByRootCompletion(tasks));
 	let dragIndicator = $state<'none' | 'top' | 'bottom' | 'task'>('none');
 	let sectionEl = $state<HTMLElement | null>(null);
 	let dragging = $state(false);
@@ -165,14 +168,25 @@
 		{#if tasks.length === 0}
 			<div class="px-6 py-2 text-xs text-muted-foreground">No tasks</div>
 		{:else}
-			<TaskTree
-				{tasks}
-				showProject={false}
-				draggable={taskDraggable}
-				{mutator}
-				{belongs}
-				{onToggle}
-			/>
+			{#if split.open.length > 0}
+				<TaskTree
+					tasks={split.open}
+					showProject={false}
+					draggable={taskDraggable}
+					{mutator}
+					{belongs}
+					{onToggle}
+				/>
+			{/if}
+			{#if split.done.length > 0}
+				<CompletedTasksGroup
+					tasks={split.done}
+					draggable={taskDraggable}
+					{mutator}
+					{belongs}
+					{onToggle}
+				/>
+			{/if}
 		{/if}
 	{/if}
 </section>

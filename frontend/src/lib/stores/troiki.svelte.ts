@@ -5,7 +5,8 @@ import type { Task, TroikiCategory, TroikiViewResponse } from '../api/types';
 const EMPTY: TroikiViewResponse = {
 	important: { capacity: 3, tasks: [] },
 	medium: { capacity: 0, tasks: [] },
-	rest: { capacity: 0, tasks: [] }
+	rest: { capacity: 0, tasks: [] },
+	started: false
 };
 
 const CATEGORIES: TroikiCategory[] = ['important', 'medium', 'rest'];
@@ -15,6 +16,12 @@ class TroikiStore {
 
 	async load(): Promise<TroikiViewResponse> {
 		const v = await troikiApi.view(getApiClient());
+		this.value = v;
+		return v;
+	}
+
+	async start(): Promise<TroikiViewResponse> {
+		const v = await troikiApi.start(getApiClient());
 		this.value = v;
 		return v;
 	}
@@ -36,7 +43,8 @@ class TroikiStore {
 			rest: {
 				capacity: this.value.rest.capacity,
 				tasks: this.value.rest.tasks.filter((t) => t.id !== task.id)
-			}
+			},
+			started: this.value.started
 		};
 		if (task.troikiCategory && task.status === 'open' && CATEGORIES.includes(task.troikiCategory)) {
 			next[task.troikiCategory].tasks = [...next[task.troikiCategory].tasks, task];
@@ -57,7 +65,8 @@ class TroikiStore {
 			rest: {
 				capacity: this.value.rest.capacity,
 				tasks: this.value.rest.tasks.filter((t) => t.id !== id)
-			}
+			},
+			started: this.value.started
 		};
 	}
 }

@@ -24,6 +24,7 @@ func NewTroikiHandler(svc *service.TroikiService, baseURL string) *TroikiHandler
 // Register wires routes onto the authenticated /api/v1 group.
 func (h *TroikiHandler) Register(r fiber.Router) {
 	r.Get("/troiki", h.view)
+	r.Post("/troiki/start", h.start)
 	r.Post("/tasks/:id/troiki", h.setCategory)
 }
 
@@ -36,6 +37,7 @@ type troikiViewDTO struct {
 	Important troikiSlotDTO `json:"important"`
 	Medium    troikiSlotDTO `json:"medium"`
 	Rest      troikiSlotDTO `json:"rest"`
+	Started   bool          `json:"started"`
 }
 
 func (h *TroikiHandler) toSlot(s service.TroikiSlot) troikiSlotDTO {
@@ -55,6 +57,23 @@ func (h *TroikiHandler) view(c fiber.Ctx) error {
 		Important: h.toSlot(v.Important),
 		Medium:    h.toSlot(v.Medium),
 		Rest:      h.toSlot(v.Rest),
+		Started:   v.Started,
+	})
+}
+
+func (h *TroikiHandler) start(c fiber.Ctx) error {
+	if err := h.svc.Start(c.Context()); err != nil {
+		return httpapi.ErrInternal("troiki start")
+	}
+	v, err := h.svc.View(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("troiki view")
+	}
+	return c.JSON(troikiViewDTO{
+		Important: h.toSlot(v.Important),
+		Medium:    h.toSlot(v.Medium),
+		Rest:      h.toSlot(v.Rest),
+		Started:   v.Started,
 	})
 }
 

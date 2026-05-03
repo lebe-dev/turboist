@@ -95,6 +95,7 @@ type User struct {
 	PasswordHash         string
 	TroikiMediumCapacity int
 	TroikiRestCapacity   int
+	TroikiStarted        bool
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }

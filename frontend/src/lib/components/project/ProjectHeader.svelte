@@ -9,10 +9,12 @@
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import type { Project } from '$lib/api/types';
 
 	let {
 		project,
+		onAddSection,
 		onComplete,
 		onUncomplete,
 		onCancel,
@@ -24,6 +26,7 @@
 		onDelete
 	}: {
 		project: Project;
+		onAddSection?: () => void;
 		onComplete?: () => void;
 		onUncomplete?: () => void;
 		onCancel?: () => void;
@@ -70,6 +73,11 @@
 							<CheckIcon class="size-4" /> Complete
 						</DropdownMenu.Item>
 					{/if}
+					{#if onAddSection && project.status === 'open'}
+						<DropdownMenu.Item onclick={onAddSection}>
+							<PlusIcon class="size-4" /> Add section
+						</DropdownMenu.Item>
+					{/if}
 					{#if onEdit}
 						<DropdownMenu.Item onclick={onEdit}>Edit</DropdownMenu.Item>
 					{/if}
@@ -82,6 +90,7 @@
 							<PushPinIcon class="size-4" /> Pin
 						</DropdownMenu.Item>
 					{/if}
+					<DropdownMenu.Separator />
 					{#if project.status === 'archived'}
 						<DropdownMenu.Item onclick={onUnarchive}>
 							<ArchiveIcon class="size-4" /> Unarchive

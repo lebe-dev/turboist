@@ -21,6 +21,7 @@ type troikiViewResp struct {
 	Important troikiSlotResp `json:"important"`
 	Medium    troikiSlotResp `json:"medium"`
 	Rest      troikiSlotResp `json:"rest"`
+	Started   bool           `json:"started"`
 }
 
 func TestTroikiView_Empty(t *testing.T) {
@@ -45,6 +46,48 @@ func TestTroikiView_Empty(t *testing.T) {
 	}
 	if v.Rest.Capacity != 0 {
 		t.Errorf("rest capacity: got %d, want 0", v.Rest.Capacity)
+	}
+	if v.Started {
+		t.Errorf("started: got true, want false on fresh user")
+	}
+}
+
+func TestTroikiStart_SnapshotsAndFlips(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctxObj := createTestContext(t, e, "Work")
+
+	// Pre-fill Medium with 2 tasks while still in initial mode.
+	for i := 0; i < 2; i++ {
+		task := createTestTask(t, e, ctxObj.ID, fmt.Sprintf("m-%d", i))
+		if r, b := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/troiki", task.ID),
+			map[string]any{"category": "medium"})); r.StatusCode != 200 {
+			t.Fatalf("seed medium %d: got %d; body: %s", i, r.StatusCode, b)
+		}
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/troiki/start", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("start: got %d; body: %s", resp.StatusCode, body)
+	}
+	var v troikiViewResp
+	if err := json.Unmarshal(body, &v); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !v.Started {
+		t.Errorf("started: got false, want true")
+	}
+	if v.Medium.Capacity != 2 {
+		t.Errorf("medium cap snapshot: got %d, want 2", v.Medium.Capacity)
+	}
+
+	// After start, adding a third Medium without earned capacity fails.
+	extra := createTestTask(t, e, ctxObj.ID, "extra-m")
+	r2, b2 := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/troiki", extra.ID),
+		map[string]any{"category": "medium"}))
+	if r2.StatusCode != 409 {
+		t.Fatalf("post-start medium overflow: got %d, want 409; body: %s", r2.StatusCode, b2)
 	}
 }
 
