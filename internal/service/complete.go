@@ -51,7 +51,7 @@ func (s *CompleteService) Complete(ctx context.Context, taskID int64) (*model.Ta
 		if err != nil {
 			return nil, err
 		}
-		if err := s.bumpTroikiCapacity(ctx, t.TroikiCategory); err != nil {
+		if err := s.bumpTroikiCapacity(ctx, taskID, t.TroikiCategory); err != nil {
 			return nil, err
 		}
 		return updated, nil
@@ -90,7 +90,7 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task) (
 		return nil, err
 	}
 	if terminal {
-		if err := s.bumpTroikiCapacity(ctx, t.TroikiCategory); err != nil {
+		if err := s.bumpTroikiCapacity(ctx, t.ID, t.TroikiCategory); err != nil {
 			return nil, err
 		}
 	}
@@ -99,18 +99,30 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task) (
 
 // bumpTroikiCapacity grants +1 capacity to the next-tier slot when a categorised
 // task is completed: important → +medium, medium → +rest. Rest and uncategorised
-// completions have no effect.
-func (s *CompleteService) bumpTroikiCapacity(ctx context.Context, cat *model.TroikiCategory) error {
+// completions have no effect. The grant flag on the task makes the operation
+// idempotent across uncomplete/recomplete cycles — capacity is granted only
+// once per (task, category-assignment) until the category is cleared or changed.
+func (s *CompleteService) bumpTroikiCapacity(ctx context.Context, taskID int64, cat *model.TroikiCategory) error {
 	if cat == nil || s.users == nil {
 		return nil
 	}
+	var target model.TroikiCategory
 	switch *cat {
 	case model.TroikiCategoryImportant:
-		return s.users.IncTroikiCapacity(ctx, SingleUserID, model.TroikiCategoryMedium)
+		target = model.TroikiCategoryMedium
 	case model.TroikiCategoryMedium:
-		return s.users.IncTroikiCapacity(ctx, SingleUserID, model.TroikiCategoryRest)
+		target = model.TroikiCategoryRest
+	default:
+		return nil
 	}
-	return nil
+	granted, err := s.tasks.TryGrantTroikiCapacity(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if !granted {
+		return nil
+	}
+	return s.users.IncTroikiCapacity(ctx, SingleUserID, target)
 }
 
 func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.Task, error) {

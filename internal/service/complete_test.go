@@ -333,6 +333,76 @@ func TestCompleteService_TroikiHook_DoubleCompleteNoBump(t *testing.T) {
 	}
 }
 
+func TestCompleteService_TroikiHook_UncompleteRecompleteNoBump(t *testing.T) {
+	// Completing then uncompleting then re-completing the same Important task
+	// must not grant Medium capacity twice — the grant is bound to the current
+	// categorisation, not to each status transition.
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete 1: %v", err)
+	}
+	if _, err := svc.Uncomplete(ctx, tk.ID); err != nil {
+		t.Fatalf("uncomplete: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete 2: %v", err)
+	}
+	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 1 {
+		t.Errorf("medium capacity: got %d, want 1 (no double-bump on uncomplete/recomplete)", cap.Medium)
+	}
+}
+
+func TestCompleteService_TroikiHook_RecategoriseGrantsAgain(t *testing.T) {
+	// Clearing the category and re-assigning should reset the grant flag, so
+	// the next completion grants capacity again. This preserves the spec:
+	// each (task, current-categorisation) earns one bump.
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete 1: %v", err)
+	}
+	if _, err := svc.Uncomplete(ctx, tk.ID); err != nil {
+		t.Fatalf("uncomplete: %v", err)
+	}
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategoryClear: true}); err != nil {
+		t.Fatalf("clear cat: %v", err)
+	}
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("re-set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete 2: %v", err)
+	}
+	cap, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if cap.Medium != 2 {
+		t.Errorf("medium capacity: got %d, want 2 (recategorisation grants again)", cap.Medium)
+	}
+}
+
 func TestCompleteService_Cancel(t *testing.T) {
 	svc, tasks, ctxs, _ := setupCompleteService(t)
 	ctx := context.Background()

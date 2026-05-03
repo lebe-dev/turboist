@@ -316,9 +316,9 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 		sets = append(sets, "postpone_count = postpone_count + 1")
 	}
 	if u.TroikiCategoryClear {
-		sets = append(sets, "troiki_category = NULL")
+		sets = append(sets, "troiki_category = NULL", "troiki_capacity_granted = 0")
 	} else if u.TroikiCategory != nil {
-		sets = append(sets, "troiki_category = ?")
+		sets = append(sets, "troiki_category = ?", "troiki_capacity_granted = 0")
 		args = append(args, string(*u.TroikiCategory))
 	}
 	if len(sets) == 0 {
@@ -340,6 +340,23 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 		return nil, ErrNotFound
 	}
 	return r.Get(ctx, id)
+}
+
+// TryGrantTroikiCapacity flips the troiki_capacity_granted flag from 0 to 1 atomically.
+// Returns true iff this call performed the transition (i.e. capacity has not been
+// granted before for the current categorisation). Used to make the
+// complete→bump-capacity hook idempotent across uncomplete/recomplete cycles.
+func (r *TaskRepo) TryGrantTroikiCapacity(ctx context.Context, id int64) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE tasks SET troiki_capacity_granted = 1 WHERE id = ? AND troiki_capacity_granted = 0`, id)
+	if err != nil {
+		return false, fmt.Errorf("grant troiki capacity: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (r *TaskRepo) SetPinned(ctx context.Context, id int64, pinned bool) error {
@@ -402,14 +419,16 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 
 	now := model.FormatUTC(time.Now())
 	// Move the task itself: it adopts new inbox/context/project/section/parent.
-	// When becoming a subtask, drop any Troiki category — only root tasks may carry one.
+	// When becoming a subtask, drop any Troiki category and reset its grant flag —
+	// only root tasks may carry a category.
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE tasks SET inbox_id = ?, context_id = ?, project_id = ?, section_id = ?, parent_id = ?,
 			troiki_category = CASE WHEN ? IS NULL THEN troiki_category ELSE NULL END,
+			troiki_capacity_granted = CASE WHEN ? IS NULL THEN troiki_capacity_granted ELSE 0 END,
 			updated_at = ?
 		 WHERE id = ?`,
 		nullInt(target.InboxID), nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID),
-		nullInt(target.ParentID), nullInt(target.ParentID), now, taskID,
+		nullInt(target.ParentID), nullInt(target.ParentID), nullInt(target.ParentID), now, taskID,
 	); err != nil {
 		return fmt.Errorf("move task: %w", err)
 	}
