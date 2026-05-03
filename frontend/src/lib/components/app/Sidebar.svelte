@@ -304,16 +304,16 @@
 				{@const active = isActive(href)}
 				<a
 					{href}
-					class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+					class="flex items-start gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 					class:bg-sidebar-accent={active}
 					class:text-foreground={active}
 				>
 					<FolderIcon
-						class="size-3.5 shrink-0 opacity-90"
+						class="mt-0.5 size-3.5 shrink-0 opacity-90"
 						style={`color: ${project.color}`}
 						weight="fill"
 					/>
-					<span class="truncate">{project.title}</span>
+					<span class="min-w-0 break-words">{project.title}</span>
 				</a>
 			{/each}
 		</SidebarSection>
