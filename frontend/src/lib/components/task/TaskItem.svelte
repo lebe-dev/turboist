@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import type { Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
+	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { isOverdue } from '$lib/utils/format';
@@ -56,13 +58,17 @@
 	const taskHref = $derived(resolve('/(app)/task/[id]', { id: String(task.id) }));
 	const description = $derived(task.description?.trim() ?? '');
 	const isRecurring = $derived(!!task.recurrenceRule);
+	const showTroikiBadge = $derived(
+		task.troikiCategory !== null && page.url.pathname !== '/troiki'
+	);
 	const hasMeta = $derived(
 		description.length > 0 ||
 			(!hideDue && !!task.dueAt) ||
 			(showProject && !!project) ||
 			task.labels.length > 0 ||
 			task.postponeCount >= 2 ||
-			isRecurring
+			isRecurring ||
+			showTroikiBadge
 	);
 </script>
 
@@ -118,7 +124,7 @@
 			<p class="break-words text-xs text-muted-foreground/70 md:truncate">{description}</p>
 		{/if}
 
-		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showTroikiBadge}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -147,6 +153,15 @@
 				{/if}
 				{#if task.labels.length > 0}
 					<LabelChips labels={task.labels} />
+				{/if}
+				{#if showTroikiBadge}
+					<span
+						class="inline-flex items-center text-red-500"
+						title="In Troiki system"
+						aria-label="In Troiki system"
+					>
+						<TroikiTriggerIcon class="size-3.5 shrink-0" />
+					</span>
 				{/if}
 			</div>
 		{/if}

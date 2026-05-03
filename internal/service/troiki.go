@@ -13,6 +13,21 @@ import (
 // Medium and Rest capacities accumulate per user (see User.TroikiMediumCapacity / TroikiRestCapacity).
 const TroikiImportantCap = 3
 
+// PriorityForCategory returns the task priority that a Troiki category enforces.
+// Tasks with a category are pinned to this priority; direct priority edits are
+// rejected by the task update handler.
+func PriorityForCategory(cat model.TroikiCategory) model.Priority {
+	switch cat {
+	case model.TroikiCategoryImportant:
+		return model.PriorityHigh
+	case model.TroikiCategoryMedium:
+		return model.PriorityMedium
+	case model.TroikiCategoryRest:
+		return model.PriorityLow
+	}
+	return model.PriorityNone
+}
+
 // SingleUserID is the id of the only user (single-user app, see migration 002).
 const SingleUserID int64 = 1
 
@@ -81,8 +96,12 @@ func (s *TroikiService) SetCategory(ctx context.Context, taskID int64, cat *mode
 	// Initial-fill mode: before the user presses "Start the system", Medium and
 	// Rest accept tasks without capacity checks. Important always honors its
 	// fixed cap of 3 — that's a core methodology rule, not a soft limit.
+	derivedPriority := PriorityForCategory(*cat)
 	if !cap.Started && (*cat == model.TroikiCategoryMedium || *cat == model.TroikiCategoryRest) {
-		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{TroikiCategory: cat})
+		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{
+			TroikiCategory: cat,
+			Priority:       &derivedPriority,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -116,6 +135,12 @@ func (s *TroikiService) SetCategory(ctx context.Context, taskID int64, cat *mode
 			return cur, nil
 		}
 		return nil, ErrTroikiSlotFull
+	}
+	// Pin priority to the category-derived value. The atomic UPDATE above only
+	// touches troiki_category; a separate UPDATE keeps SetTroikiCategoryIfRoom's
+	// capacity-checking SQL focused.
+	if _, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Priority: &derivedPriority}); err != nil {
+		return nil, err
 	}
 	return s.tasks.Get(ctx, taskID)
 }

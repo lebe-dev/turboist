@@ -26,6 +26,32 @@ func setupTroikiService(t *testing.T) (*service.TroikiService, *repo.TaskRepo, *
 
 func ptrCat(c model.TroikiCategory) *model.TroikiCategory { return &c }
 
+func TestTroikiService_SetCategory_PinsPriority(t *testing.T) {
+	svc, tasks, ctxs, _ := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	cases := []struct {
+		cat  model.TroikiCategory
+		want model.Priority
+	}{
+		{model.TroikiCategoryImportant, model.PriorityHigh},
+		{model.TroikiCategoryMedium, model.PriorityMedium},
+		{model.TroikiCategoryRest, model.PriorityLow},
+	}
+	for _, tc := range cases {
+		tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: string(tc.cat)})
+		got, err := svc.SetCategory(ctx, tk.ID, ptrCat(tc.cat))
+		if err != nil {
+			t.Fatalf("set %s: %v", tc.cat, err)
+		}
+		if got.Priority != tc.want {
+			t.Errorf("priority for %s: got %s, want %s", tc.cat, got.Priority, tc.want)
+		}
+	}
+}
+
 func TestTroikiService_SetCategory_Important_HasCapacity(t *testing.T) {
 	svc, tasks, ctxs, _ := setupTroikiService(t)
 	ctx := context.Background()

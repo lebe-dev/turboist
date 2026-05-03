@@ -242,11 +242,14 @@
 					{@const active = task.priority === p}
 					<button
 						type="button"
-						title={PRIORITY_LABEL[p]}
+						title={task.troikiCategory !== null
+							? 'Priority is managed by Troiki category'
+							: PRIORITY_LABEL[p]}
 						aria-label={PRIORITY_LABEL[p]}
 						aria-pressed={active}
+						disabled={task.troikiCategory !== null}
 						onclick={() => setPriority(p)}
-						class="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
+						class="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
 						class:bg-accent={active}
 					>
 						<FlagIcon
@@ -256,6 +259,11 @@
 					</button>
 				{/each}
 			</div>
+			{#if task.troikiCategory !== null}
+				<div class="mt-1 text-[10px] text-muted-foreground">
+					Locked by Troiki category.
+				</div>
+			{/if}
 		</div>
 
 		{#if isRoot}

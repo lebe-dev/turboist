@@ -95,6 +95,11 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		if !p.IsValid() {
 			return httpapi.ErrValidation("invalid priority")
 		}
+		// Tasks placed in Troiki have priority pinned by their category — reject
+		// direct priority edits so a stale client or CLI can't desync the two.
+		if t.TroikiCategory != nil && p != service.PriorityForCategory(*t.TroikiCategory) {
+			return httpapi.ErrValidation("priority is managed by Troiki category")
+		}
 		u.Priority = &p
 	}
 	if req.DueAt.IsNull() {

@@ -485,7 +485,12 @@ async function save(): Promise<void> {
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					Priority
 				</span>
-				<PriorityPicker bind:value={priority} />
+				<PriorityPicker bind:value={priority} disabled={task.troikiCategory !== null} />
+				{#if task.troikiCategory !== null}
+					<span class="text-[10px] text-muted-foreground">
+						Locked by Troiki category — priority follows the section.
+					</span>
+				{/if}
 			</div>
 
 			<div class="flex flex-col gap-1.5">
