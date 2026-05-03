@@ -72,14 +72,32 @@ func (s *TroikiService) SetCategory(ctx context.Context, taskID int64, cat *mode
 	if err != nil {
 		return nil, err
 	}
-	count, err := s.tasks.CountOpenByTroikiCategory(ctx, *cat)
+	// Atomic capacity-checked assignment — a separate read+write would race with
+	// a concurrent SetCategory and let both requests exceed the slot cap.
+	ok, err := s.tasks.SetTroikiCategoryIfRoom(ctx, taskID, *cat, capacity)
 	if err != nil {
 		return nil, err
 	}
-	if count >= capacity {
+	if !ok {
+		// Disambiguate: SetTroikiCategoryIfRoom returns false when the slot is
+		// full, the task stopped being root+open between our Get and the atomic
+		// UPDATE (concurrent move/complete), or a concurrent request already
+		// assigned the same category (the WHERE-clause COUNT then sees the task
+		// itself in the slot and rejects the redundant write). Re-read to
+		// surface the actual cause.
+		cur, err := s.tasks.Get(ctx, taskID)
+		if err != nil {
+			return nil, err
+		}
+		if cur.ParentID != nil || cur.Status != model.TaskStatusOpen {
+			return nil, ErrTroikiNotRootTask
+		}
+		if cur.TroikiCategory != nil && *cur.TroikiCategory == *cat {
+			return cur, nil
+		}
 		return nil, ErrTroikiSlotFull
 	}
-	return s.tasks.Update(ctx, taskID, repo.TaskUpdate{TroikiCategory: cat})
+	return s.tasks.Get(ctx, taskID)
 }
 
 // View returns capacities and open tasks for all three Troiki slots.

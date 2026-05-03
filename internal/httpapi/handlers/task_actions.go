@@ -78,6 +78,9 @@ func (h *TaskActionHandler) uncomplete(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
+		if errors.Is(err, service.ErrTroikiSlotFull) {
+			return httpapi.ErrTroikiSlotFull("troiki slot is full")
+		}
 		return httpapi.ErrInternal("uncomplete task")
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))

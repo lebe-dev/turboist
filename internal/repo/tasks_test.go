@@ -437,6 +437,124 @@ func TestTaskRepo_ListByTroikiCategory(t *testing.T) {
 	}
 }
 
+func TestTaskRepo_SetTroikiCategoryIfRoom_RejectsSubtask(t *testing.T) {
+	// The atomic helper must guard against a concurrent Move reparenting the
+	// task between the service-level read and the write. Without parent_id in
+	// WHERE, a subtask could be silently categorised.
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	parent, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "parent"})
+	pid := parent.ID
+	child, _ := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ParentID: &pid},
+		Title:     "child",
+	})
+
+	ok, err := f.tasks.SetTroikiCategoryIfRoom(ctx, child.ID, model.TroikiCategoryImportant, 3)
+	if err != nil {
+		t.Fatalf("set if room: %v", err)
+	}
+	if ok {
+		t.Fatal("set if room: should reject subtasks")
+	}
+	got, _ := f.tasks.Get(ctx, child.ID)
+	if got.TroikiCategory != nil {
+		t.Errorf("category leaked onto subtask: got %v", got.TroikiCategory)
+	}
+}
+
+func TestTaskRepo_SetTroikiCategoryIfRoom_RejectsNonOpen(t *testing.T) {
+	// A task whose status flipped to completed/cancelled between read and write
+	// must not be (re)categorised — it's not eligible for a slot.
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	tk, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "x"})
+	completed := model.TaskStatusCompleted
+	if _, err := f.tasks.Update(ctx, tk.ID, TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	ok, err := f.tasks.SetTroikiCategoryIfRoom(ctx, tk.ID, model.TroikiCategoryImportant, 3)
+	if err != nil {
+		t.Fatalf("set if room: %v", err)
+	}
+	if ok {
+		t.Fatal("set if room: should reject non-open tasks")
+	}
+}
+
+func TestTaskRepo_ReopenIfTroikiRoom(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	imp := model.TroikiCategoryImportant
+	tk, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "x"})
+	if _, err := f.tasks.Update(ctx, tk.ID, TaskUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	completed := model.TaskStatusCompleted
+	if _, err := f.tasks.Update(ctx, tk.ID, TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+
+	ok, err := f.tasks.ReopenIfTroikiRoom(ctx, tk.ID, model.TroikiCategoryImportant, 3)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	if !ok {
+		t.Fatal("reopen: should succeed when capacity is available")
+	}
+	got, _ := f.tasks.Get(ctx, tk.ID)
+	if got.Status != model.TaskStatusOpen {
+		t.Errorf("status: got %q, want open", got.Status)
+	}
+}
+
+func TestTaskRepo_ReopenIfTroikiRoom_RejectsWhenFull(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	imp := model.TroikiCategoryImportant
+	tk, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "orig"})
+	if _, err := f.tasks.Update(ctx, tk.ID, TaskUpdate{TroikiCategory: &imp}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	completed := model.TaskStatusCompleted
+	if _, err := f.tasks.Update(ctx, tk.ID, TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	// Refill the slot.
+	for range 3 {
+		t2, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "fill"})
+		if _, err := f.tasks.Update(ctx, t2.ID, TaskUpdate{TroikiCategory: &imp}); err != nil {
+			t.Fatalf("fill cat: %v", err)
+		}
+	}
+
+	ok, err := f.tasks.ReopenIfTroikiRoom(ctx, tk.ID, model.TroikiCategoryImportant, 3)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	if ok {
+		t.Fatal("reopen: should fail when slot is at capacity")
+	}
+	got, _ := f.tasks.Get(ctx, tk.ID)
+	if got.Status != model.TaskStatusCompleted {
+		t.Errorf("status after rejected reopen: got %q, want completed", got.Status)
+	}
+}
+
+func TestTaskRepo_ReopenIfTroikiRoom_NotFound(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	_, err := f.tasks.ReopenIfTroikiRoom(ctx, 9999, model.TroikiCategoryImportant, 3)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("err: got %v, want ErrNotFound", err)
+	}
+}
+
 func TestTaskRepo_Move_ClearsTroikiCategoryWhenBecomingSubtask(t *testing.T) {
 	f := newTaskFixture(t)
 	ctx := context.Background()

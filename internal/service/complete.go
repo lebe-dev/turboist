@@ -40,23 +40,26 @@ func (s *CompleteService) Complete(ctx context.Context, taskID int64) (*model.Ta
 	if err != nil {
 		return nil, err
 	}
-	// Already-completed non-recurring tasks are a no-op — re-completing must not
-	// re-grant Troiki capacity.
-	if t.RecurrenceRule == nil && t.Status == model.TaskStatusCompleted {
-		return t, nil
+	if t.RecurrenceRule != nil {
+		return s.advanceRecurring(ctx, t)
 	}
-	if t.RecurrenceRule == nil {
+	// Always attempt the capacity bump even when the task is already completed:
+	// if a previous Complete crashed between Update and bumpTroikiCapacity, the
+	// task sits completed with an unset grant flag, and only a retry can recover
+	// the lost grant. The flag-flip inside bumpTroikiCapacity is idempotent, so a
+	// no-op when capacity was already granted.
+	if t.Status != model.TaskStatusCompleted {
 		status := model.TaskStatusCompleted
 		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
 		if err != nil {
 			return nil, err
 		}
-		if err := s.bumpTroikiCapacity(ctx, taskID, t.TroikiCategory); err != nil {
-			return nil, err
-		}
-		return updated, nil
+		t = updated
 	}
-	return s.advanceRecurring(ctx, t)
+	if err := s.bumpTroikiCapacity(ctx, taskID, t.TroikiCategory); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task) (*model.Task, error) {
@@ -106,31 +109,106 @@ func (s *CompleteService) bumpTroikiCapacity(ctx context.Context, taskID int64, 
 	if cat == nil || s.users == nil {
 		return nil
 	}
-	var target model.TroikiCategory
+	var col string
 	switch *cat {
 	case model.TroikiCategoryImportant:
-		target = model.TroikiCategoryMedium
+		col = "troiki_medium_capacity"
 	case model.TroikiCategoryMedium:
-		target = model.TroikiCategoryRest
+		col = "troiki_rest_capacity"
 	default:
 		return nil
 	}
-	granted, err := s.tasks.TryGrantTroikiCapacity(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	if !granted {
-		return nil
-	}
-	return s.users.IncTroikiCapacity(ctx, SingleUserID, target)
+	// Single transaction: flag flip + counter bump must succeed or both roll back.
+	// Otherwise a failure between them strands the grant — the flag blocks retries.
+	_, err := s.tasks.GrantAndBumpTroikiCapacity(ctx, taskID, SingleUserID, col)
+	return err
 }
 
 func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.Task, error) {
+	t, err := s.tasks.Get(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	// Already open: nothing to do. Without this guard a duplicate /uncomplete
+	// on a categorised task would hit ReopenIfTroikiRoom's status != 'open'
+	// filter, get (false, nil), and surface as a spurious ErrTroikiSlotFull.
+	if t.Status == model.TaskStatusOpen {
+		return t, nil
+	}
+	// Reopening a categorised task must respect the slot cap — its slot may have
+	// been refilled while the task sat in completed/cancelled state. The cap
+	// check has to be atomic with the status flip: a separate read+write lets
+	// two concurrent uncompletes (or an uncomplete racing a SetCategory) both
+	// observe room and both commit, leaving the slot over capacity.
+	if t.TroikiCategory != nil {
+		capacity, err := s.troikiCapacityFor(ctx, *t.TroikiCategory)
+		if err != nil {
+			return nil, err
+		}
+		ok, err := s.tasks.ReopenIfTroikiRoom(ctx, taskID, *t.TroikiCategory, capacity)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			// Disambiguate: a concurrent /uncomplete may have already reopened
+			// the task between our Get and the atomic UPDATE — that's success,
+			// not a slot-full conflict.
+			cur, err := s.tasks.Get(ctx, taskID)
+			if err != nil {
+				return nil, err
+			}
+			if cur.Status == model.TaskStatusOpen {
+				return cur, nil
+			}
+			// Category may have changed concurrently (e.g., a racing Cancel
+			// cleared it). The slot-full conclusion was based on a stale
+			// category — retry against the current state instead of surfacing
+			// a spurious 409. Recursion is bounded: each retry observes the
+			// committed category, and only a fresh concurrent change would
+			// trigger another retry.
+			if !sameTroikiCategory(cur.TroikiCategory, t.TroikiCategory) {
+				return s.Uncomplete(ctx, taskID)
+			}
+			return nil, ErrTroikiSlotFull
+		}
+		return s.tasks.Get(ctx, taskID)
+	}
 	status := model.TaskStatusOpen
 	return s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
 }
 
+// Cancel marks a task cancelled and frees its Troiki slot, if any. Cancellation
+// is a terminal user action — the slot is released definitively, and a later
+// Uncomplete reopens the task without a category (the user must re-categorise
+// explicitly if they want it back in a slot).
 func (s *CompleteService) Cancel(ctx context.Context, taskID int64) (*model.Task, error) {
 	status := model.TaskStatusCancelled
-	return s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
+	return s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status, TroikiCategoryClear: true})
+}
+
+func sameTroikiCategory(a, b *model.TroikiCategory) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func (s *CompleteService) troikiCapacityFor(ctx context.Context, cat model.TroikiCategory) (int, error) {
+	if cat == model.TroikiCategoryImportant {
+		return TroikiImportantCap, nil
+	}
+	if s.users == nil {
+		return 0, nil
+	}
+	c, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
+	if err != nil {
+		return 0, err
+	}
+	switch cat {
+	case model.TroikiCategoryMedium:
+		return c.Medium, nil
+	case model.TroikiCategoryRest:
+		return c.Rest, nil
+	}
+	return 0, nil
 }

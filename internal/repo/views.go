@@ -135,9 +135,49 @@ func (r *TaskRepo) ListPinned(ctx context.Context, filter TaskFilter) ([]model.T
 	return r.listWithBase(ctx, base, filter, Page{Limit: 200}, true)
 }
 
+// ListByTroikiCategory returns all open tasks for the given Troiki category along
+// with their total count. Troiki capacity for medium/rest is unbounded (grows
+// with completions), so this listing is intentionally not paginated — slot
+// counts and the rendered list must agree, otherwise the UI shows phantom
+// "empty slot" placeholders.
 func (r *TaskRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCategory) ([]model.Task, int, error) {
 	base := "FROM tasks t WHERE t.troiki_category = ? AND t.status = 'open'"
-	return r.listWithBaseArgs(ctx, base, []any{string(cat)}, TaskFilter{}, Page{Limit: 200}, true)
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+base, string(cat)).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count troiki tasks: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT `+taskColumns+` `+base+` ORDER BY `+taskOrderBy, string(cat))
+	if err != nil {
+		return nil, 0, fmt.Errorf("list troiki tasks: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]model.Task, 0, total)
+	ids := make([]int64, 0, total)
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *t)
+		ids = append(ids, t.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if r.labels != nil && len(ids) > 0 {
+		hydrated, err := r.labels.LabelsByTaskIDs(ctx, ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range out {
+			out[i].Labels = hydrated[out[i].ID]
+		}
+	}
+	return out, total, nil
 }
 
 func (r *TaskRepo) CountOpenByTroikiCategory(ctx context.Context, cat model.TroikiCategory) (int, error) {

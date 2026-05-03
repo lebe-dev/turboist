@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/lebe-dev/turboist/internal/model"
@@ -168,6 +169,59 @@ func TestTroikiService_SetCategory_SameCategoryNoop(t *testing.T) {
 	}
 	if _, err := svc.SetCategory(ctx, first[0].ID, ptrCat(model.TroikiCategoryImportant)); err != nil {
 		t.Errorf("re-set same: %v", err)
+	}
+}
+
+// Regression: with two near-simultaneous SetCategory calls for the same task
+// and same target category, both should return success — the final state
+// matches both requests. Before the fix, the loser's UPDATE saw the slot count
+// inflated by its own just-assigned row and rejected the redundant write,
+// surfacing as a false ErrTroikiSlotFull because the disambiguation reread
+// only checked parent_id/status.
+func TestTroikiService_SetCategory_ConcurrentSameCategory_NoFalseSlotFull(t *testing.T) {
+	svc, tasks, ctxs, _ := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	// Pre-fill capacity-1 slots so the racing pair targets the last slot.
+	for i := 0; i < service.TroikiImportantCap-1; i++ {
+		tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
+		if _, err := svc.SetCategory(ctx, tk.ID, ptrCat(model.TroikiCategoryImportant)); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	target, err := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "target"})
+	if err != nil {
+		t.Fatalf("create target: %v", err)
+	}
+
+	const goroutines = 16
+	var wg sync.WaitGroup
+	errs := make([]error, goroutines)
+	start := make(chan struct{})
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			<-start
+			_, errs[idx] = svc.SetCategory(ctx, target.ID, ptrCat(model.TroikiCategoryImportant))
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("goroutine %d: got %v, want nil (final state matches request)", i, err)
+		}
+	}
+	got, err := tasks.Get(ctx, target.ID)
+	if err != nil {
+		t.Fatalf("re-read target: %v", err)
+	}
+	if got.TroikiCategory == nil || *got.TroikiCategory != model.TroikiCategoryImportant {
+		t.Errorf("final category: got %v, want important", got.TroikiCategory)
 	}
 }
 

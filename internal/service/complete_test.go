@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -420,5 +421,120 @@ func TestCompleteService_Cancel(t *testing.T) {
 	}
 	if result.Status != model.TaskStatusCancelled {
 		t.Errorf("status: got %q, want cancelled", result.Status)
+	}
+}
+
+func TestCompleteService_Cancel_ClearsTroikiCategory(t *testing.T) {
+	// Cancelling a categorised task must release its slot — otherwise a later
+	// uncomplete would push the slot over capacity.
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "imp"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+
+	result, err := svc.Cancel(ctx, tk.ID)
+	if err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if result.TroikiCategory != nil {
+		t.Errorf("troiki category after cancel: got %v, want nil", result.TroikiCategory)
+	}
+}
+
+func TestCompleteService_Uncomplete_RejectsWhenSlotFull(t *testing.T) {
+	// After Complete, the slot frees and may be refilled by other tasks. If we
+	// then Uncomplete the original, the slot would exceed capacity unless we
+	// guard the transition.
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+
+	original, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "orig"})
+	if _, err := tasks.Update(ctx, original.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, original.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	// Refill the slot to capacity with three new important tasks.
+	for range service.TroikiImportantCap {
+		t2, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "fill"})
+		if _, err := tasks.Update(ctx, t2.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+			t.Fatalf("fill cat: %v", err)
+		}
+	}
+
+	if _, err := svc.Uncomplete(ctx, original.ID); err == nil || !errors.Is(err, service.ErrTroikiSlotFull) {
+		t.Fatalf("uncomplete: got %v, want ErrTroikiSlotFull", err)
+	}
+}
+
+func TestCompleteService_Uncomplete_IdempotentOnAlreadyOpen(t *testing.T) {
+	// A duplicate /uncomplete on a still-open categorised task must be a no-op
+	// rather than surfacing ErrTroikiSlotFull. ReopenIfTroikiRoom's status !=
+	// 'open' filter would otherwise fail and look identical to a slot conflict.
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "x"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+
+	result, err := svc.Uncomplete(ctx, tk.ID)
+	if err != nil {
+		t.Fatalf("uncomplete (already open): %v", err)
+	}
+	if result.Status != model.TaskStatusOpen {
+		t.Errorf("status: got %q, want open", result.Status)
+	}
+}
+
+func TestCompleteService_Uncomplete_AllowsWhenSlotHasRoom(t *testing.T) {
+	svc, tasks, ctxs, users := setupCompleteService(t)
+	ctx := context.Background()
+
+	if _, err := users.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	cat := model.TroikiCategoryImportant
+
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cid}, Title: "x"})
+	if _, err := tasks.Update(ctx, tk.ID, repo.TaskUpdate{TroikiCategory: &cat}); err != nil {
+		t.Fatalf("set cat: %v", err)
+	}
+	if _, err := svc.Complete(ctx, tk.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	result, err := svc.Uncomplete(ctx, tk.ID)
+	if err != nil {
+		t.Fatalf("uncomplete: %v", err)
+	}
+	if result.Status != model.TaskStatusOpen {
+		t.Errorf("status: got %q, want open", result.Status)
 	}
 }

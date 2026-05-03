@@ -342,21 +342,135 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	return r.Get(ctx, id)
 }
 
-// TryGrantTroikiCapacity flips the troiki_capacity_granted flag from 0 to 1 atomically.
-// Returns true iff this call performed the transition (i.e. capacity has not been
-// granted before for the current categorisation). Used to make the
-// complete→bump-capacity hook idempotent across uncomplete/recomplete cycles.
-func (r *TaskRepo) TryGrantTroikiCapacity(ctx context.Context, id int64) (bool, error) {
+// SetTroikiCategoryIfRoom atomically assigns the troiki_category to the task
+// iff the task is still a root open task and the count of currently-open tasks
+// in that category is below `capacity`. On success, troiki_capacity_granted is
+// reset to 0 (consistent with Update's re-categorisation semantics). Returns:
+//   - (true, nil)   when the assignment succeeded
+//   - (false, nil)  when the slot is full or the task is no longer root+open
+//     (caller surfaces ErrTroikiSlotFull / ErrTroikiNotRootTask after re-read)
+//   - (false, ErrNotFound) when the task id does not exist
+//
+// The atomicity matters: a separate count + update pair lets two concurrent
+// requests both observe room and both write, exceeding the cap; likewise a
+// concurrent Move that reparents the task between read and write would leak a
+// category onto a subtask without the parent_id guard in WHERE.
+func (r *TaskRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat model.TroikiCategory, capacity int) (bool, error) {
+	now := model.FormatUTC(time.Now())
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE tasks SET troiki_capacity_granted = 1 WHERE id = ? AND troiki_capacity_granted = 0`, id)
+		`UPDATE tasks
+		 SET troiki_category = ?, troiki_capacity_granted = 0, updated_at = ?
+		 WHERE id = ?
+		   AND parent_id IS NULL
+		   AND status = 'open'
+		   AND (SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open') < ?`,
+		string(cat), now, id, string(cat), capacity)
 	if err != nil {
-		return false, fmt.Errorf("grant troiki capacity: %w", err)
+		return false, fmt.Errorf("set troiki category: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
 		return false, err
 	}
-	return n > 0, nil
+	if n > 0 {
+		return true, nil
+	}
+	// Either the task is missing or one of the guards (root+open or count <
+	// capacity) rejected the write. The caller is expected to re-read via Get
+	// to disambiguate — slot-full vs. concurrent state change look identical
+	// from here.
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		return false, fmt.Errorf("set troiki category: %w", err)
+	}
+	return false, nil
+}
+
+// ReopenIfTroikiRoom atomically transitions a non-open task back to 'open'
+// iff the count of currently-open tasks in `cat` is below `capacity`. Without
+// this, two concurrent uncompletes (or an uncomplete racing a SetCategory) can
+// both observe room and both commit, leaving the slot over capacity.
+//
+// Returns:
+//   - (true, nil)   when the reopen succeeded
+//   - (false, nil)  when the slot is at capacity
+//   - (false, ErrNotFound) when the task id does not exist
+func (r *TaskRepo) ReopenIfTroikiRoom(ctx context.Context, id int64, cat model.TroikiCategory, capacity int) (bool, error) {
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE tasks
+		 SET status = 'open', completed_at = NULL, updated_at = ?
+		 WHERE id = ?
+		   AND status != 'open'
+		   AND (SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open') < ?`,
+		now, id, string(cat), capacity)
+	if err != nil {
+		return false, fmt.Errorf("reopen if troiki room: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return true, nil
+	}
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		return false, fmt.Errorf("reopen if troiki room: %w", err)
+	}
+	return false, nil
+}
+
+// GrantAndBumpTroikiCapacity atomically flips the task's capacity-granted flag
+// and bumps the user's capacity counter for the target category in a single
+// transaction. Without this, a crash between flag flip and counter bump would
+// permanently lose the grant (the flag blocks any retry).
+//
+// targetCol must be "troiki_medium_capacity" or "troiki_rest_capacity".
+// Returns true iff the grant was performed (flag transitioned 0→1).
+func (r *TaskRepo) GrantAndBumpTroikiCapacity(ctx context.Context, taskID, userID int64, targetCol string) (bool, error) {
+	if targetCol != "troiki_medium_capacity" && targetCol != "troiki_rest_capacity" {
+		return false, fmt.Errorf("grant+bump troiki capacity: unsupported target column %q", targetCol)
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("grant+bump troiki capacity: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET troiki_capacity_granted = 1 WHERE id = ? AND troiki_capacity_granted = 0`, taskID)
+	if err != nil {
+		return false, fmt.Errorf("grant+bump troiki capacity: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, tx.Commit()
+	}
+
+	now := model.FormatUTC(time.Now())
+	ures, err := tx.ExecContext(ctx,
+		`UPDATE users SET `+targetCol+` = `+targetCol+` + 1, updated_at = ? WHERE id = ?`, now, userID)
+	if err != nil {
+		return false, fmt.Errorf("grant+bump troiki capacity: %w", err)
+	}
+	un, err := ures.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if un == 0 {
+		return false, ErrNotFound
+	}
+	return true, tx.Commit()
 }
 
 func (r *TaskRepo) SetPinned(ctx context.Context, id int64, pinned bool) error {

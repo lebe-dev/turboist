@@ -8,6 +8,7 @@ import (
 
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/service"
 )
 
 // --- complete / uncomplete / cancel ---
@@ -136,6 +137,42 @@ func TestTaskUncomplete(t *testing.T) {
 	}
 	if result.Status != "open" {
 		t.Errorf("status: got %q, want %q", result.Status, "open")
+	}
+}
+
+func TestTaskUncomplete_SlotFull(t *testing.T) {
+	// A previously-completed Important task whose slot was refilled while it
+	// was completed must surface the slot-full conflict (409) instead of 500.
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	original := createTestTask(t, e, ctx.ID, "orig")
+
+	if resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/troiki", original.ID),
+		map[string]any{"category": "important"})); resp.StatusCode != 200 {
+		t.Fatalf("seed cat: got %d; body: %s", resp.StatusCode, body)
+	}
+	if resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", original.ID), nil)); resp.StatusCode != 200 {
+		t.Fatalf("complete: got %d; body: %s", resp.StatusCode, body)
+	}
+	for i := range service.TroikiImportantCap {
+		fill := createTestTask(t, e, ctx.ID, fmt.Sprintf("fill-%d", i))
+		if resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/troiki", fill.ID),
+			map[string]any{"category": "important"})); resp.StatusCode != 200 {
+			t.Fatalf("fill %d: got %d; body: %s", i, resp.StatusCode, body)
+		}
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/uncomplete", original.ID), nil))
+	if resp.StatusCode != 409 {
+		t.Fatalf("uncomplete overflow: got %d, want 409; body: %s", resp.StatusCode, body)
+	}
+	er := parseErr(t, body)
+	if er.Error.Code != httpapi.CodeTroikiSlotFull {
+		t.Errorf("code: got %q, want %q", er.Error.Code, httpapi.CodeTroikiSlotFull)
 	}
 }
 
