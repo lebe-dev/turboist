@@ -182,8 +182,6 @@
 						detail: { task: created, projectId: null }
 					})
 				);
-			} else {
-				void goto(inboxPath);
 			}
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add task'));
