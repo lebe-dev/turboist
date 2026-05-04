@@ -45,7 +45,7 @@
 <div
 	class="flex items-center gap-2 px-3 pb-1 font-semibold uppercase tracking-wide transition-all"
 	class:text-xs={!active}
-	class:text-md={active}
+	class:text-sm={active}
 	class:pb-3={active}
 >
 	<Icon class="text-muted-foreground {active ? 'size-5' : 'size-3.5'}" />
