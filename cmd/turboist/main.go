@@ -128,6 +128,7 @@ func main() {
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
+	handlers.NewSettingsHandler(userRepo).Register(api)
 
 	// embedded SvelteKit SPA (must be registered after API/auth routes)
 	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {

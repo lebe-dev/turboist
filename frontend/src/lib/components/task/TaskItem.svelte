@@ -6,9 +6,11 @@
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
+	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { isOverdue } from '$lib/utils/format';
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import LabelChips from './LabelChips.svelte';
@@ -26,6 +28,7 @@
 		hideTomorrowBadge = false,
 		hideDue = false,
 		draggable = false,
+		showUnplannedBadge = false,
 		mutator,
 		belongs,
 		onToggle
@@ -37,6 +40,7 @@
 		hideTomorrowBadge?: boolean;
 		hideDue?: boolean;
 		draggable?: boolean;
+		showUnplannedBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
@@ -62,6 +66,12 @@
 	const showTroikiBadge = $derived(
 		!!project?.troikiCategory && page.url.pathname !== '/troiki'
 	);
+	const showCalendarSlash = $derived(
+		showUnplannedBadge &&
+			task.planState !== 'week' &&
+			!project?.troikiCategory &&
+			!task.labels.some((l) => settingsStore.weeklyUnplannedExcludedLabelIds.includes(l.id))
+	);
 	const hasMeta = $derived(
 		description.length > 0 ||
 			(!hideDue && !!task.dueAt) ||
@@ -69,7 +79,8 @@
 			task.labels.length > 0 ||
 			task.postponeCount >= 2 ||
 			isRecurring ||
-			showTroikiBadge
+			showTroikiBadge ||
+			showCalendarSlash
 	);
 </script>
 
@@ -162,6 +173,15 @@
 						aria-label="In Troiki system"
 					>
 						<TroikiTriggerIcon class="size-3.5 shrink-0" />
+					</span>
+				{/if}
+				{#if showCalendarSlash}
+					<span
+						class="inline-flex items-center text-red-500"
+						title="Added outside of planning"
+						aria-label="Added outside of planning"
+					>
+						<CalendarSlashIcon class="size-3.5 shrink-0" />
 					</span>
 				{/if}
 			</div>

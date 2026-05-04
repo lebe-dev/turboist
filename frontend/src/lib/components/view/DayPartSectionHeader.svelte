@@ -15,12 +15,14 @@
 		label,
 		interval,
 		count,
+		active = false,
 		onBulkMove
 	}: {
 		part: DayPart;
 		label: string;
 		interval: DayPartInterval | null;
 		count: number;
+		active?: boolean;
 		onBulkMove?: (targetPart: DayPart) => void;
 	} = $props();
 
@@ -40,8 +42,13 @@
 	const targetParts = $derived(ALL_PARTS.filter((p) => p.part !== part));
 </script>
 
-<div class="flex items-center gap-2 px-3 pb-1 text-xs font-semibold uppercase tracking-wide">
-	<Icon class="size-3.5 text-muted-foreground" />
+<div
+	class="flex items-center gap-2 px-3 pb-1 font-semibold uppercase tracking-wide transition-all"
+	class:text-xs={!active}
+	class:text-md={active}
+	class:pb-3={active}
+>
+	<Icon class="text-muted-foreground {active ? 'size-5' : 'size-3.5'}" />
 	<span class="text-muted-foreground">{label}</span>
 	{#if interval}
 		<span class="font-normal normal-case text-muted-foreground/70">

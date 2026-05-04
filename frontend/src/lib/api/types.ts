@@ -158,6 +158,10 @@ export interface UserState {
 	activeContextId?: number | null;
 }
 
+export interface UserSettings {
+	weeklyUnplannedExcludedLabelIds: number[];
+}
+
 export interface ConfigResponse {
 	timezone: string;
 	maxPinned: number;

@@ -20,7 +20,7 @@ class UserStateStore {
 		await stateApi.patch(getApiClient(), { activeContextId: id });
 	}
 
-	clear(): void {
+clear(): void {
 		this.value = {};
 	}
 }

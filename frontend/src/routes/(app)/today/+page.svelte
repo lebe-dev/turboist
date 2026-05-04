@@ -90,6 +90,7 @@
 					<TaskTree
 						tasks={group.tasks}
 						hideTodayBadge
+						showUnplannedBadge
 						{mutator}
 						belongs={isToday}
 						onToggle={(t) => toggleComplete(t, mutator, { belongs: isToday })}

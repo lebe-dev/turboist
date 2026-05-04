@@ -173,7 +173,7 @@
 	{@const showBadge = item.current != null || item.limit != null}
 	<a
 		href={item.href as ReturnType<typeof resolve>}
-		class="group/nav flex items-center justify-between gap-2 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors"
+		class="group/nav flex items-center justify-between gap-2 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors md:py-1 md:text-[13px]"
 		class:bg-sidebar-accent={active}
 		class:text-foreground={active && !item.accent && !item.danger}
 		class:text-primary={item.accent && !item.danger}
@@ -185,14 +185,14 @@
 	>
 		<span class="flex min-w-0 items-center gap-2.5">
 			<Icon
-				class={item.danger ? 'size-[16px] shrink-0' : 'size-[16px] shrink-0 opacity-80'}
+				class={item.danger ? 'size-[18px] shrink-0 md:size-[16px]' : 'size-[18px] shrink-0 opacity-80 md:size-[16px]'}
 				weight={active || item.danger ? 'fill' : 'regular'}
 			/>
 			<span class="truncate">{item.label}</span>
 		</span>
 		{#if showBadge}
 			<span
-				class="font-mono text-[10px] tabular-nums"
+				class="font-mono text-[12px] tabular-nums md:text-[10px]"
 				class:text-muted-foreground={!item.danger}
 				class:text-red-600={item.danger}
 				class:dark:text-red-400={item.danger}
@@ -257,10 +257,10 @@
 					>
 						<a
 							{href}
-							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="mt-0.5 size-3.5 shrink-0 text-amber-500/80" weight="fill" />
+							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="fill" />
 							<span class="break-words">{project.title}</span>
 						</a>
 						{@render unpinButton(() => unpinProject(project.id), `Unpin ${project.title}`)}
@@ -275,10 +275,10 @@
 					>
 						<a
 							{href}
-							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="mt-0.5 size-3.5 shrink-0 text-amber-500/80" weight="regular" />
+							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="regular" />
 							<span class="break-words">{task.title}</span>
 						</a>
 						{@render unpinButton(() => unpinTask(task.id), `Unpin ${task.title}`)}
@@ -304,12 +304,12 @@
 				{@const active = isActive(href)}
 				<a
 					{href}
-					class="flex items-start gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+					class="flex items-start gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
 					class:bg-sidebar-accent={active}
 					class:text-foreground={active}
 				>
 					<FolderIcon
-						class="mt-0.5 size-3.5 shrink-0 opacity-90"
+						class="mt-0.5 size-4 shrink-0 opacity-90 md:size-3.5"
 						style={`color: ${project.color}`}
 						weight="fill"
 					/>
@@ -324,11 +324,11 @@
 				{@const active = isActive(href)}
 				<a
 					{href}
-					class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+					class="flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
 					class:bg-sidebar-accent={active}
 					class:text-foreground={active}
 				>
-					<TagIcon class="size-3.5 shrink-0 opacity-90" style={`color: ${label.color}`} weight="fill" />
+					<TagIcon class="size-4 shrink-0 opacity-90 md:size-3.5" style={`color: ${label.color}`} weight="fill" />
 					<span class="truncate">{label.name}</span>
 				</a>
 			{/each}
@@ -342,9 +342,9 @@
 					<button
 						{...props}
 						type="button"
-						class="flex items-center gap-2.5 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+						class="flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
 					>
-						<UserIcon class="size-[16px] shrink-0 opacity-80" />
+						<UserIcon class="size-[18px] shrink-0 opacity-80 md:size-[16px]" />
 						<span class="truncate">{auth.user?.username ?? ''}</span>
 					</button>
 				{/snippet}
@@ -362,13 +362,13 @@
 		<button
 			type="button"
 			onclick={onLogout}
-			class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+			class="flex items-center justify-between gap-2 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
 		>
 			<span class="flex min-w-0 items-center gap-2.5">
-				<SignOutIcon class="size-[16px] shrink-0 opacity-80" />
+				<SignOutIcon class="size-[18px] shrink-0 opacity-80 md:size-[16px]" />
 				<span class="truncate">Log out</span>
 			</span>
-			<span class="font-mono text-[10px] tabular-nums text-muted-foreground/70">v{appVersion}</span>
+			<span class="font-mono text-[12px] tabular-nums text-muted-foreground/70 md:text-[10px]">v{appVersion}</span>
 		</button>
 	</div>
 </aside>

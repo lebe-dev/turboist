@@ -31,6 +31,6 @@
 	class:border-border={active}
 	class:border-transparent={!active}
 >
-	<DayPartSectionHeader {part} {label} {interval} {count} {onBulkMove} />
+	<DayPartSectionHeader {part} {label} {interval} {count} {active} {onBulkMove} />
 	{@render children()}
 </section>

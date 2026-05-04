@@ -82,7 +82,7 @@
 	}
 </script>
 
-<div class="grid grid-cols-2 gap-4 px-2 py-3 sm:px-4">
+<div class="grid grid-cols-1 gap-4 px-2 py-3 sm:grid-cols-2 sm:px-4">
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">
 		<header
 			class="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2"

@@ -16,6 +16,7 @@
 	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { goto } from '$app/navigation';
@@ -76,7 +77,8 @@
 					inboxStatsStore.load(),
 					pinnedTasksStore.load(),
 					userStateStore.load(),
-					troikiStore.load()
+					troikiStore.load(),
+					settingsStore.load()
 				]);
 				dataReady = true;
 			} catch (err) {
@@ -238,7 +240,7 @@
 	<Sheet.Root bind:open={mobileSidebarOpen}>
 		<Sheet.Content
 			side="left"
-			class="w-64 max-w-[85vw] border-sidebar-border bg-sidebar p-0 sm:max-w-[85vw] md:hidden"
+			class="w-[82vw] border-sidebar-border bg-sidebar p-0 md:hidden"
 			showCloseButton={false}
 		>
 			<Sheet.Title class="sr-only">Navigation</Sheet.Title>

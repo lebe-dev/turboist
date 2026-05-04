@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -87,6 +88,51 @@ func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.U
 		return nil, err
 	}
 	return u, nil
+}
+
+func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettings, error) {
+	var raw string
+	err := r.db.QueryRowContext(ctx, `SELECT settings FROM users WHERE id = ?`, id).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get user settings: %w", err)
+	}
+	var s model.UserSettings
+	if raw != "" && raw != "{}" {
+		if err := json.Unmarshal([]byte(raw), &s); err != nil {
+			return &model.UserSettings{}, nil
+		}
+	}
+	if s.WeeklyUnplannedExcludedLabelIDs == nil {
+		s.WeeklyUnplannedExcludedLabelIDs = []int64{}
+	}
+	return &s, nil
+}
+
+func (r *UserRepo) SetSettings(ctx context.Context, id int64, s *model.UserSettings) error {
+	if s.WeeklyUnplannedExcludedLabelIDs == nil {
+		s.WeeklyUnplannedExcludedLabelIDs = []int64{}
+	}
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("encode user settings: %w", err)
+	}
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET settings = ?, updated_at = ? WHERE id = ?`, string(raw), now, id)
+	if err != nil {
+		return fmt.Errorf("set user settings: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *UserRepo) GetState(ctx context.Context, id int64) (string, error) {

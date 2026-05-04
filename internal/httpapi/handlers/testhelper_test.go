@@ -91,6 +91,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
+	handlers.NewSettingsHandler(users).Register(api)
 
 	return &apiEnv{
 		app:      app,
