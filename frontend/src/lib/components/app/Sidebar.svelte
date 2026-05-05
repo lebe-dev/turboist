@@ -302,6 +302,7 @@
 		<SidebarSection
 			title="Projects"
 			collapsible
+			storageKey="sidebar:projects:open"
 			onAdd={() => {
 				if (contextsStore.items.length === 0) {
 					toast.error('Create a context first');
@@ -334,7 +335,7 @@
 			{/each}
 		</SidebarSection>
 
-		<SidebarSection title="Labels" collapsible onAdd={() => (labelDialogOpen = true)}>
+		<SidebarSection title="Labels" collapsible storageKey="sidebar:labels:open" onAdd={() => (labelDialogOpen = true)}>
 			{#each labelsOrdered as label (label.id)}
 				{@const href = resolve('/(app)/label/[id]', { id: String(label.id) })}
 				{@const active = isActive(href)}

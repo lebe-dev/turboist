@@ -8,18 +8,41 @@
 		title,
 		collapsible = false,
 		defaultOpen = true,
+		storageKey,
 		onAdd,
 		children
 	}: {
 		title: string;
 		collapsible?: boolean;
 		defaultOpen?: boolean;
+		storageKey?: string;
 		onAdd?: () => void;
 		children: Snippet;
 	} = $props();
 
+	function readStorage(): boolean {
+		if (!storageKey) return defaultOpen;
+		try {
+			const v = localStorage.getItem(storageKey);
+			return v === null ? defaultOpen : v === 'true';
+		} catch {
+			return defaultOpen;
+		}
+	}
+
 	// svelte-ignore state_referenced_locally
-	let open = $state(defaultOpen);
+	let open = $state(readStorage());
+
+	function toggle() {
+		open = !open;
+		if (storageKey) {
+			try {
+				localStorage.setItem(storageKey, String(open));
+			} catch {
+				// ignore
+			}
+		}
+	}
 </script>
 
 <div class="px-2 pb-1 pt-3">
@@ -28,7 +51,7 @@
 			<button
 				type="button"
 				class="group flex flex-1 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
-				onclick={() => (open = !open)}
+				onclick={toggle}
 				aria-expanded={open}
 			>
 				{#if open}
