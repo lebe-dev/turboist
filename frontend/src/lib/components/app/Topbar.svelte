@@ -109,7 +109,7 @@
 					aria-label="Expand sidebar"
 					title="Expand sidebar"
 				>
-					<SidebarSimpleIcon class="size-5" />
+					<SidebarSimpleIcon class="size-4" />
 				</Button>
 			{/if}
 			<div
