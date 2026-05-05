@@ -110,7 +110,6 @@ applied; HTTP handlers are exercised via Fiber's `app.Test`.
 
 ## RoadMap
 
-- Feature: Troiki System support
 - Offline-first
 - iOS Native App
 - Feature: Constraints
