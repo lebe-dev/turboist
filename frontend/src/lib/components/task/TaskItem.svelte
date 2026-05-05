@@ -82,6 +82,27 @@
 			showTroikiBadge ||
 			showCalendarSlash
 	);
+
+	const checkboxClass = $derived.by(() => {
+		const base =
+			'inline-flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+		if (!checked) {
+			if (task.priority === 'high' && phaseActive) return `${base} border-red-500`;
+			if (task.priority === 'medium' && phaseActive) return `${base} border-amber-500`;
+			if (task.priority === 'low' && phaseActive) return `${base} border-blue-500`;
+			if (task.priority === 'no-priority' && phaseActive) return `${base} border-border hover:border-primary`;
+			return `${base} border-border`;
+		}
+		const hoverBorder =
+			task.priority === 'high'
+				? 'group-hover/task:border-red-500 group-hover/task:bg-red-500'
+				: task.priority === 'medium'
+					? 'group-hover/task:border-amber-500 group-hover/task:bg-amber-500'
+					: task.priority === 'low'
+						? 'group-hover/task:border-blue-500 group-hover/task:bg-blue-500'
+						: '';
+		return `${base} bg-zinc-500 border-zinc-500 dark:bg-zinc-600 dark:border-zinc-600 text-white ${hoverBorder}`.trimEnd();
+	});
 </script>
 
 <div
@@ -99,18 +120,8 @@
 	<button
 		type="button"
 		onclick={() => onToggle?.(task)}
-		class="inline-flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+		class={checkboxClass}
 		class:mt-0.5={hasMeta}
-		class:border-red-500={!checked && task.priority === 'high' && phaseActive}
-		class:border-amber-500={!checked && task.priority === 'medium' && phaseActive}
-		class:border-blue-500={!checked && task.priority === 'low' && phaseActive}
-		class:border-border={!checked && (task.priority === 'no-priority' || !phaseActive)}
-		class:hover:border-primary={!checked && task.priority === 'no-priority' && phaseActive}
-		class:bg-zinc-500={checked}
-		class:border-zinc-500={checked}
-		class:dark:bg-zinc-600={checked}
-		class:dark:border-zinc-600={checked}
-		class:text-white={checked}
 		aria-pressed={checked}
 		aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
 	>
@@ -140,7 +151,9 @@
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
-						class="inline-flex items-center text-emerald-600 dark:text-emerald-400"
+						class="inline-flex items-center {checked
+							? 'text-muted-foreground group-hover/task:text-emerald-600 dark:group-hover/task:text-emerald-400'
+							: 'text-emerald-600 dark:text-emerald-400'}"
 						title="Recurring task"
 						aria-label="Recurring task"
 					>
@@ -154,9 +167,10 @@
 						{overdue}
 						{hideTodayBadge}
 						{hideTomorrowBadge}
+						completed={checked}
 					/>
 				{/if}
-				<PostponeBadge count={task.postponeCount} />
+				<PostponeBadge count={task.postponeCount} completed={checked} />
 				{#if showProject && project}
 					<span class="inline-flex items-center gap-1 text-muted-foreground">
 						<FolderIcon class="size-3.5" />
@@ -168,7 +182,9 @@
 				{/if}
 				{#if showTroikiBadge}
 					<span
-						class="inline-flex items-center text-red-500"
+						class="inline-flex items-center {checked
+							? 'text-muted-foreground group-hover/task:text-red-500'
+							: 'text-red-500'}"
 						title="In Troiki system"
 						aria-label="In Troiki system"
 					>
@@ -177,7 +193,9 @@
 				{/if}
 				{#if showCalendarSlash}
 					<span
-						class="inline-flex items-center text-red-500"
+						class="inline-flex items-center {checked
+							? 'text-muted-foreground group-hover/task:text-red-500'
+							: 'text-red-500'}"
 						title="Added outside of planning"
 						aria-label="Added outside of planning"
 					>

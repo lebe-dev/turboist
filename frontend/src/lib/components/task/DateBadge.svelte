@@ -8,13 +8,15 @@
 		hasTime = false,
 		overdue = false,
 		hideTodayBadge = false,
-		hideTomorrowBadge = false
+		hideTomorrowBadge = false,
+		completed = false
 	}: {
 		value: string | null;
 		hasTime?: boolean;
 		overdue?: boolean;
 		hideTodayBadge?: boolean;
 		hideTomorrowBadge?: boolean;
+		completed?: boolean;
 	} = $props();
 
 	const tz = $derived(configStore.value?.timezone ?? null);
@@ -31,17 +33,23 @@
 		if (!hasTime) return '';
 		return fullText.slice(dayOnly.length).trim();
 	});
+
+	const spanClass = $derived.by(() => {
+		const base = 'inline-flex items-center gap-1.5 text-xs';
+		if (completed) {
+			const hover = isToday
+				? ' group-hover/task:text-foreground group-hover/task:font-medium'
+				: '';
+			return `${base} text-muted-foreground${hover}`;
+		}
+		if (overdue) return `${base} text-destructive font-medium`;
+		if (isToday) return `${base} text-foreground font-medium`;
+		return `${base} text-muted-foreground`;
+	});
 </script>
 
 {#if displayText}
-	<span
-		class="inline-flex items-center gap-1.5 text-xs"
-		class:text-destructive={overdue}
-		class:font-medium={overdue || isToday}
-		class:text-foreground={!overdue && isToday}
-		class:text-muted-foreground={!overdue && !isToday}
-		title={value ?? ''}
-	>
+	<span class={spanClass} title={value ?? ''}>
 		<CalendarIcon class="size-3.5 shrink-0" />
 		<span>{displayText}</span>
 	</span>
