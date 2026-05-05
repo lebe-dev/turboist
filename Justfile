@@ -47,6 +47,9 @@ test-frontend name="":
 frontend-test name="":
     cd frontend && yarn vitest run {{ if name != "" { name } else { "" } }}
 
+frontend-test-watch:
+    cd frontend && yarn vitest
+
 test-all: test && test-frontend
 
 # --- Coverage ---
@@ -93,8 +96,5 @@ release-image: build-image && push-image
 release: release-image
 
 # --- Deploy ---
-deploy-old:
-    ssh kaiman "cd /opt/turboist && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"
-
 deploy:
     ssh kaiman "cd /opt/turboist-dev && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"

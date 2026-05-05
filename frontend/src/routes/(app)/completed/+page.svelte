@@ -7,6 +7,7 @@
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
+	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import { groupByCompletedDay } from '$lib/utils/viewGroup';
 	import { toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
@@ -52,9 +53,7 @@
 					<hr class="my-4 border-t border-border" />
 				{/if}
 				<section>
-					<h2 class="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-						{group.label}
-					</h2>
+					<GroupHeader label={group.label} />
 					<TaskTree
 						tasks={group.tasks}
 						hideDue

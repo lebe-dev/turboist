@@ -9,6 +9,7 @@
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import LimitBadge from '$lib/components/view/LimitBadge.svelte';
+	import LimitReachedBanner from '$lib/components/view/LimitReachedBanner.svelte';
 	import { toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -45,12 +46,9 @@
 	{/snippet}
 	{#snippet banner()}
 		{#if exceeded && limit !== null}
-			<div
-				class="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-			>
-				Backlog limit reached ({total}/{limit}). Move tasks to a week or complete them before
-				adding more.
-			</div>
+			<LimitReachedBanner
+				message={`Backlog limit reached (${total}/${limit}). Move tasks to a week or complete them before adding more.`}
+			/>
 		{/if}
 	{/snippet}
 </ViewHeader>

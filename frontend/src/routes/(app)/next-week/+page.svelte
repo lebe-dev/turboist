@@ -10,6 +10,7 @@
 	import type { Task } from '$lib/api/types';
 	import TaskItem from '$lib/components/task/TaskItem.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
+	import PlanSectionHeader from '$lib/components/view/PlanSectionHeader.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
@@ -84,33 +85,11 @@
 
 <div class="grid grid-cols-1 gap-4 px-2 py-3 sm:grid-cols-2 sm:px-4">
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">
-		<header
-			class="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2"
-		>
-			<h2
-				class="text-sm font-semibold uppercase tracking-wide"
-				class:text-muted-foreground={!backlogFull}
-				class:text-red-600={backlogFull}
-				class:dark:text-red-400={backlogFull}
-			>
-				Backlog
-			</h2>
-			{#if backlogLimit !== null}
-				<span
-					class="font-mono text-[11px] tabular-nums"
-					class:text-muted-foreground={!backlogFull}
-					class:text-red-600={backlogFull}
-					class:dark:text-red-400={backlogFull}
-					class:font-semibold={backlogFull}
-				>
-					{backlogCount} / {backlogLimit}
-				</span>
-			{:else}
-				<span class="font-mono text-[11px] tabular-nums text-muted-foreground">
-					{backlog.items.length}
-				</span>
-			{/if}
-		</header>
+		<PlanSectionHeader
+			title="Backlog"
+			count={backlogLimit !== null ? backlogCount : backlog.items.length}
+			limit={backlogLimit}
+		/>
 		<div class="min-h-[200px]">
 			<ViewContent
 				loading={loader.loading}
@@ -150,29 +129,11 @@
 	</section>
 
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">
-		<header
-			class="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2"
-		>
-			<h2
-				class="text-sm font-semibold uppercase tracking-wide"
-				class:text-muted-foreground={!weekFull}
-				class:text-red-600={weekFull}
-				class:dark:text-red-400={weekFull}
-			>
-				Next week
-			</h2>
-			{#if weeklyLimit !== null}
-				<span
-					class="font-mono text-[11px] tabular-nums"
-					class:text-muted-foreground={!weekFull}
-					class:text-red-600={weekFull}
-					class:dark:text-red-400={weekFull}
-					class:font-semibold={weekFull}
-				>
-					{weekCount} / {weeklyLimit}
-				</span>
-			{/if}
-		</header>
+		<PlanSectionHeader
+			title="Next week"
+			count={weeklyLimit !== null ? weekCount : null}
+			limit={weeklyLimit}
+		/>
 		<div class="min-h-[200px]">
 			<ViewContent
 				loading={loader.loading}
