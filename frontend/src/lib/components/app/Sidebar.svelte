@@ -170,7 +170,7 @@
 {#snippet unpinButton(action: () => void, label: string)}
 	<button
 		type="button"
-		class="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-all hover:bg-sidebar-border hover:text-foreground focus:opacity-100 group-hover/pin:opacity-100"
+		class="mr-1 flex size-5 shrink-0 self-center items-center justify-center rounded text-muted-foreground opacity-0 transition-all hover:bg-sidebar-border hover:text-foreground focus:opacity-100 group-hover/pin:opacity-100"
 		onclick={action}
 		aria-label={label}
 		title={label}
