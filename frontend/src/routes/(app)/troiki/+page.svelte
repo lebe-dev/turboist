@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import PlayIcon from 'phosphor-svelte/lib/Play';
@@ -117,6 +118,7 @@
 </script>
 
 <div class="px-2 py-2">
+	<h1 class="px-3 pt-2 pb-4 text-2xl font-bold tracking-tight">Troiki System</h1>
 	{#if loader.loading}
 		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
 	{:else}
@@ -217,7 +219,10 @@
 												style={`background-color: ${project.color}`}
 												aria-hidden="true"
 											></span>
-											<span class="truncate text-sm font-medium">{project.title}</span>
+											<a
+												href={resolve(`/project/${project.id}`)}
+												class="truncate text-sm font-medium hover:underline"
+											>{project.title}</a>
 											<span
 												class="text-[11px] tabular-nums text-muted-foreground"
 												title="Open tasks in this project"

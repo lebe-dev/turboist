@@ -25,7 +25,6 @@
 		'/backlog': 'Backlog',
 		'/next-week': 'Next week',
 		'/search': 'Search',
-		'/troiki': 'Troiki',
 		'/settings': 'Settings',
 	};
 
