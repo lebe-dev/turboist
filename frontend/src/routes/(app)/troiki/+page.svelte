@@ -4,6 +4,8 @@
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import PlayIcon from 'phosphor-svelte/lib/Play';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
+	import InfoIcon from 'phosphor-svelte/lib/Info';
+	import * as HoverCard from '$lib/components/ui/hover-card';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
@@ -118,7 +120,39 @@
 </script>
 
 <div class="px-2 py-2">
-	<h1 class="px-3 pt-2 pb-4 text-2xl font-bold tracking-tight">Troiki System</h1>
+	<div class="flex items-center justify-between px-3 pt-2 pb-4">
+		<h1 class="text-2xl font-bold tracking-tight">Troiki System</h1>
+		<HoverCard.Root>
+			<HoverCard.Trigger>
+				<button
+					type="button"
+					class="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+					aria-label="How Troiki works"
+				>
+					<InfoIcon class="size-3.5" />
+					How it works
+				</button>
+			</HoverCard.Trigger>
+			<HoverCard.Content align="end" class="w-96 text-xs/relaxed">
+				<p class="mb-2 font-semibold text-foreground">Troiki System Rules</p>
+				<p class="mb-2 text-muted-foreground">Three categories, max 3 projects each. Capacity in Medium and Rest is earned by completing tasks in the category above.</p>
+				<div class="mb-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
+					<span class="font-medium text-foreground">Important</span>
+					<span class="text-muted-foreground">Always available, up to 3 projects.</span>
+					<span class="font-medium text-foreground">Medium</span>
+					<span class="text-muted-foreground">+1 slot per completed task in Important.</span>
+					<span class="font-medium text-foreground">Rest</span>
+					<span class="text-muted-foreground">+1 slot per completed task in Medium.</span>
+				</div>
+				<ul class="space-y-0.5 text-muted-foreground">
+					<li>• Removing a project frees its slot but does <em>not</em> unlock the next category.</li>
+					<li>• Earned capacity accumulates and never expires.</li>
+					<li>• Re-completing a task does not yield extra capacity.</li>
+					<li>• All tasks in an assigned project inherit the category priority.</li>
+				</ul>
+			</HoverCard.Content>
+		</HoverCard.Root>
+	</div>
 	{#if loader.loading}
 		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
 	{:else}
