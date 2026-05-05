@@ -27,9 +27,7 @@
 </script>
 
 <section
-	class="rounded-lg border px-1 py-2 transition-colors"
-	class:border-border={active}
-	class:border-transparent={!active}
+	class="rounded-lg border px-1 py-2 transition-colors {active ? 'border-foreground/25' : 'border-transparent'}"
 >
 	<DayPartSectionHeader {part} {label} {interval} {count} {active} {onBulkMove} />
 	{@render children()}
