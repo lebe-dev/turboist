@@ -47,7 +47,7 @@ func (h *InboxHandler) get(c fiber.Ctx) error {
 	}
 	return c.JSON(inboxResponse{
 		Count:                 total,
-		WarnThresholdExceeded: total >= h.cfg.Inbox.WarnThreshold,
+		WarnThresholdExceeded: total > h.cfg.Inbox.WarnThreshold,
 		Tasks:                 dtos,
 	})
 }

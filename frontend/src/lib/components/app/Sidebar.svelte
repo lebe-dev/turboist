@@ -38,6 +38,8 @@
 	import SidebarSection from './SidebarSection.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
+	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
+	import type { TroikiCategory } from '$lib/api/types';
 
 	let labelDialogOpen = $state(false);
 	let projectDialogOpen = $state(false);
@@ -59,7 +61,8 @@
 		danger?: boolean;
 	};
 
-	const inboxOverflow = $derived(inboxStatsStore.warnThresholdExceeded);
+	const inboxWarnThreshold = $derived(configStore.value?.inbox.warnThreshold ?? 0);
+	const inboxOverflow = $derived(inboxWarnThreshold > 0 && inboxStatsStore.count > inboxWarnThreshold);
 
 	const primaryNav = $derived<NavItem[]>([
 		{
@@ -100,11 +103,20 @@
 		{ href: resolve('/search'), label: 'Search', icon: MagnifyingGlassIcon }
 	]);
 
+	const TROIKI_ORDER: Record<TroikiCategory, number> = { important: 0, medium: 1, rest: 2 };
+
 	const filteredProjects = $derived.by(() => {
 		const active = userStateStore.activeContextId;
 		const all = projectsStore.items ?? [];
 		const scoped = active == null ? all : all.filter((p) => p.contextId === active);
-		return [...scoped].sort((a, b) => a.title.localeCompare(b.title));
+		return [...scoped].sort((a, b) => {
+			const ta = a.troikiCategory;
+			const tb = b.troikiCategory;
+			if (ta && !tb) return -1;
+			if (!ta && tb) return 1;
+			if (ta && tb && ta !== tb) return TROIKI_ORDER[ta] - TROIKI_ORDER[tb];
+			return a.title.localeCompare(b.title);
+		});
 	});
 
 	function isActive(href: string): boolean {
@@ -314,6 +326,9 @@
 						weight="fill"
 					/>
 					<span class="min-w-0 break-words">{project.title}</span>
+					{#if project.troikiCategory}
+						<TroikiTriggerIcon class="mt-0.5 size-3.5 shrink-0 text-primary md:size-3" />
+					{/if}
 				</a>
 			{/each}
 		</SidebarSection>

@@ -20,7 +20,7 @@
 	const overflowTask = $derived(configStore.value?.inbox.overflowTask ?? null);
 
 	function applyCount(count: number): void {
-		inboxStatsStore.set(count, warnThreshold > 0 && count >= warnThreshold);
+		inboxStatsStore.set(count, warnThreshold > 0 && count > warnThreshold);
 	}
 
 	const list = useListMutator<Task>({

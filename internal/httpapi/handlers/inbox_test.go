@@ -68,9 +68,8 @@ func TestInboxCreateTask_Validation(t *testing.T) {
 
 func TestInboxGet_WarnThreshold(t *testing.T) {
 	e := setupAPIEnv(t)
-	// Create tasks up to warn threshold (5 in test config).
-	for i := range 5 {
-		_ = i
+	// Threshold is 5 in test config; need strictly more than 5 to exceed it.
+	for range 6 {
 		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/inbox/tasks", map[string]any{
 			"title": "Inbox task",
 		}))
@@ -89,7 +88,31 @@ func TestInboxGet_WarnThreshold(t *testing.T) {
 	if !result.WarnThresholdExceeded {
 		t.Error("warnThresholdExceeded: got false, want true")
 	}
-	if result.Count != 5 {
-		t.Errorf("count: got %d, want 5", result.Count)
+	if result.Count != 6 {
+		t.Errorf("count: got %d, want 6", result.Count)
+	}
+}
+
+func TestInboxGet_WarnThreshold_AtThresholdNotExceeded(t *testing.T) {
+	e := setupAPIEnv(t)
+	// Exactly at threshold (5) should NOT trigger warning.
+	for range 5 {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/inbox/tasks", map[string]any{
+			"title": "Inbox task",
+		}))
+		if resp.StatusCode != 201 {
+			t.Fatalf("create task: got %d; body: %s", resp.StatusCode, body)
+		}
+	}
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/inbox/", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result inboxResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.WarnThresholdExceeded {
+		t.Error("warnThresholdExceeded: got true, want false (at threshold, not exceeded)")
 	}
 }
