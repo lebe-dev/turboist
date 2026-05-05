@@ -30,7 +30,6 @@
 		}
 	}
 
-	// svelte-ignore state_referenced_locally
 	let open = $state(readStorage());
 
 	function toggle() {

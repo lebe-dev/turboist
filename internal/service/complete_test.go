@@ -426,6 +426,33 @@ func TestCompleteService_TroikiHook_ProjectRecategorise_GrantsAgain(t *testing.T
 	}
 }
 
+func TestCompleteService_Recurring_PreservesDayPart(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	rruleStr := "FREQ=DAILY;INTERVAL=1"
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Daily morning task",
+		DueAt:          &due,
+		RecurrenceRule: &rruleStr,
+		DayPart:        model.DayPartMorning,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	result, err := f.svc.Complete(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if result.DayPart != model.DayPartMorning {
+		t.Errorf("day_part: got %q, want %q (recurring advance must preserve day part)", result.DayPart, model.DayPartMorning)
+	}
+}
+
 func TestCompleteService_Cancel(t *testing.T) {
 	f := setupCompleteService(t)
 	ctx := context.Background()
