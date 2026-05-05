@@ -1,8 +1,6 @@
 # Turboist
 
-Turboist is a task management app with multiple advanced features.
-
-**Status:** work in progress
+Turboist is a task management app for the rest of us.
 
 ## Features
 
@@ -13,6 +11,7 @@ Turboist is a task management app with multiple advanced features.
 - Pinned tasks and pinned projects (separate caps)
 - Recurring tasks (RRULE, advanced on completion)
 - Single-user JWT auth with refresh-token rotation
+- Troiki System support
 
 ## Nginx Configuration
 
@@ -110,6 +109,7 @@ applied; HTTP handlers are exercised via Fiber's `app.Test`.
 
 ## RoadMap
 
+- Locales support
 - Offline-first
 - iOS Native App
 - Feature: Constraints
