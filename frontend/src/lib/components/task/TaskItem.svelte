@@ -79,7 +79,6 @@
 			task.labels.length > 0 ||
 			task.postponeCount >= 2 ||
 			isRecurring ||
-			showTroikiBadge ||
 			showCalendarSlash
 	);
 
@@ -139,7 +138,7 @@
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
 			>
-				<MarkdownText text={task.title} />
+				<MarkdownText text={task.title} />{#if showTroikiBadge}<span title="In Troiki system" class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}
 			</a>
 		</div>
 
@@ -147,7 +146,7 @@
 			<p class="break-words text-xs text-muted-foreground/70 md:truncate"><MarkdownText text={description} /></p>
 		{/if}
 
-		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showTroikiBadge}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -179,17 +178,6 @@
 				{/if}
 				{#if task.labels.length > 0}
 					<LabelChips labels={task.labels} />
-				{/if}
-				{#if showTroikiBadge}
-					<span
-						class="inline-flex items-center {checked
-							? 'text-muted-foreground group-hover/task:text-red-500'
-							: 'text-red-500'}"
-						title="In Troiki system"
-						aria-label="In Troiki system"
-					>
-						<TroikiTriggerIcon class="size-3.5 shrink-0" />
-					</span>
 				{/if}
 				{#if showCalendarSlash}
 					<span
