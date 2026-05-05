@@ -17,6 +17,9 @@ bump-deps: bump-backend-deps && bump-frontend-deps
 build-frontend:
     cd frontend && yarn && yarn build
 
+frontend-build:
+    cd frontend && yarn && yarn build
+
 build: build-frontend && format
     go build -o turboist ./cmd/turboist
 
@@ -25,7 +28,10 @@ lint-backend: format
     golangci-lint run ./...
 
 lint-frontend:
-    cd frontend && yarn run check
+    cd frontend && yarn run check && yarn run lint
+
+frontend-lint:
+    cd frontend && yarn run check && yarn run lint
 
 lint: format
     just lint-backend
@@ -37,6 +43,12 @@ test name="":
 
 test-frontend name="":
     cd frontend && yarn vitest run {{ if name != "" { name } else { "" } }}
+
+frontend-test name="":
+    cd frontend && yarn vitest run {{ if name != "" { name } else { "" } }}
+
+frontend-test-watch:
+    cd frontend && yarn vitest
 
 test-all: test && test-frontend
 
@@ -56,6 +68,9 @@ run-backend:
     go run ./cmd/turboist
 
 run-frontend:
+    cd frontend && yarn dev -- --port=4200
+
+frontend-dev:
     cd frontend && yarn dev -- --port=4200
 
 dev:
@@ -82,4 +97,4 @@ release: release-image
 
 # --- Deploy ---
 deploy:
-    ssh kaiman "cd /opt/turboist && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"
+    ssh kaiman "cd /opt/turboist-dev && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"

@@ -1,59 +1,32 @@
-import { logger } from '$lib/stores/logger';
-import { patchState } from '$lib/api/client';
-import type { Context } from '$lib/api/types';
-import { labelFilterStore } from './label-filter.svelte';
+import { contexts as contextsApi } from '../api/endpoints/contexts';
+import { getApiClient } from '../api/client';
+import type { Context } from '../api/types';
 
-export type View = 'all' | 'inbox' | 'weekly' | 'backlog' | 'today' | 'tomorrow' | 'completed';
+class ContextsStore {
+	items = $state<Context[]>([]);
+	loaded = $state<boolean>(false);
 
-function createContextsStore() {
-	let contexts = $state<Context[]>([]);
-	let activeContextId = $state<string | null>(null);
-	let activeView = $state<View>('all');
-
-	function init(items: Context[], contextId: string, view: View): void {
-		contexts = items;
-		activeContextId = contextId || null;
-		activeView = view;
-		// Validate saved context still exists
-		if (activeContextId && !contexts.some((c) => c.id === activeContextId)) {
-			activeContextId = null;
-			logger.log('contexts', 'invalid saved context, resetting');
-			patchState({ active_context_id: '' }).catch((e) => logger.error('contexts', String(e)));
-		}
+	async load(): Promise<Context[]> {
+		const page = await contextsApi.list(getApiClient(), { limit: 200 });
+		this.items = page.items;
+		this.loaded = true;
+		return page.items;
 	}
 
-	function setContext(id: string | null): void {
-		logger.log('contexts', `setContext: ${id}`);
-		activeContextId = id;
-		labelFilterStore.clear();
-		patchState({ active_context_id: id ?? '' }).catch((err) =>
-			logger.error('contexts', `setContext save failed: ${err}`)
-		);
+	upsert(ctx: Context): void {
+		const i = this.items.findIndex((c) => c.id === ctx.id);
+		if (i >= 0) this.items[i] = ctx;
+		else this.items = [...this.items, ctx];
 	}
 
-	function setView(view: View): void {
-		logger.log('contexts', `setView: ${view}`);
-		activeView = view;
-		labelFilterStore.clear();
-		patchState({ active_view: view }).catch((err) =>
-			logger.error('contexts', `setView save failed: ${err}`)
-		);
+	remove(id: number): void {
+		this.items = this.items.filter((c) => c.id !== id);
 	}
 
-	return {
-		get contexts() {
-			return contexts;
-		},
-		get activeContextId() {
-			return activeContextId;
-		},
-		get activeView() {
-			return activeView;
-		},
-		init,
-		setContext,
-		setView
-	};
+	clear(): void {
+		this.items = [];
+		this.loaded = false;
+	}
 }
 
-export const contextsStore = createContextsStore();
+export const contextsStore = new ContextsStore();

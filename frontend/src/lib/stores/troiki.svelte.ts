@@ -1,124 +1,119 @@
-import { logger } from '$lib/stores/logger';
-import { createTroikiTask, getTroikiCompleted } from '$lib/api/client';
-import type { Task, TroikiCompletedSection, TroikiSectionState, SectionClass, CreateTroikiTaskRequest } from '$lib/api/types';
-import {
-	wsClient,
-	type SnapshotTroikiData,
-	type DeltaTroikiData
-} from '$lib/ws/client.svelte';
+import { troiki as troikiApi } from '../api/endpoints/troiki';
+import { getApiClient } from '../api/client';
+import type {
+	Project,
+	Task,
+	TroikiCategory,
+	TroikiProject,
+	TroikiSlot,
+	TroikiViewResponse
+} from '../api/types';
 
-function buildSectionTree(tasks: Task[]): Task[] {
-	const byId = new Map<string, Task>();
-	for (const t of tasks) {
-		byId.set(t.id, { ...t, children: [] });
-	}
-	const roots: Task[] = [];
-	for (const t of tasks) {
-		const node = byId.get(t.id)!;
-		if (t.parent_id && byId.has(t.parent_id)) {
-			byId.get(t.parent_id)!.children.push(node);
-		} else {
-			roots.push(node);
-		}
-	}
-	return roots;
-}
+const EMPTY: TroikiViewResponse = {
+	important: { capacity: 3, projects: [] },
+	medium: { capacity: 0, projects: [] },
+	rest: { capacity: 0, projects: [] },
+	started: false
+};
 
-function processSection(section: TroikiSectionState): TroikiSectionState {
-	return { ...section, tasks: buildSectionTree(section.tasks) };
-}
+const CATEGORIES: TroikiCategory[] = ['important', 'medium', 'rest'];
 
-function createTroikiStore() {
-	let active = $state(false);
-	let sections = $state<TroikiSectionState[]>([]);
-	let loading = $state(false);
-	let completedSections = $state<TroikiCompletedSection[]>([]);
-
-	let cleanups: (() => void)[] = [];
-
-	function handleSnapshot(data: unknown, _seq?: number): void {
-		const d = data as SnapshotTroikiData;
-		sections = d.sections.map(processSection);
-		loading = false;
-	}
-
-	function handleDelta(data: unknown, _seq?: number): void {
-		const d = data as DeltaTroikiData;
-		sections = sections.map((existing) => {
-			const updated = d.sections.find((s) => s.class === existing.class);
-			return updated ? processSection(updated) : existing;
-		});
-	}
-
-	function enter(): void {
-		active = true;
-		loading = true;
-		logger.log('troiki', 'entering troiki view');
-
-		cleanups.push(wsClient.onMessage('snapshot', 'troiki', handleSnapshot));
-		cleanups.push(wsClient.onMessage('delta', 'troiki', handleDelta));
-
-		wsClient.subscribe('troiki', {});
-
-		getTroikiCompleted()
-			.then((data) => { completedSections = data.sections; })
-			.catch((err) => { logger.error('troiki', `fetch completed failed: ${err}`); });
-	}
-
-	function exit(): void {
-		active = false;
-		logger.log('troiki', 'exiting troiki view');
-
-		for (const cleanup of cleanups) cleanup();
-		cleanups = [];
-		wsClient.unsubscribe('troiki');
-
-		sections = [];
-		completedSections = [];
-	}
-
-	function refresh(): void {
-		wsClient.subscribe('troiki', {});
-	}
-
-	async function addTask(
-		sectionClass: SectionClass,
-		content: string,
-		description: string
-	): Promise<void> {
-		const req: CreateTroikiTaskRequest = {
-			section_class: sectionClass,
-			content,
-			description
-		};
-
-		try {
-			await createTroikiTask(req);
-		} catch (err) {
-			logger.error('troiki', `addTask failed: ${err}`);
-			refresh();
-			throw err;
-		}
-	}
-
+function clone(v: TroikiViewResponse): TroikiViewResponse {
 	return {
-		get active() {
-			return active;
-		},
-		get sections() {
-			return sections;
-		},
-		get loading() {
-			return loading;
-		},
-		get completedSections() {
-			return completedSections;
-		},
-		enter,
-		exit,
-		refresh,
-		addTask
+		important: { capacity: v.important.capacity, projects: v.important.projects.slice() },
+		medium: { capacity: v.medium.capacity, projects: v.medium.projects.slice() },
+		rest: { capacity: v.rest.capacity, projects: v.rest.projects.slice() },
+		started: v.started
 	};
 }
 
-export const troikiStore = createTroikiStore();
+function slotOf(v: TroikiViewResponse, cat: TroikiCategory): TroikiSlot {
+	return v[cat];
+}
+
+class TroikiStore {
+	value = $state<TroikiViewResponse>(EMPTY);
+
+	async load(): Promise<TroikiViewResponse> {
+		const v = await troikiApi.view(getApiClient());
+		this.value = v;
+		return v;
+	}
+
+	async start(): Promise<TroikiViewResponse> {
+		const v = await troikiApi.start(getApiClient());
+		this.value = v;
+		return v;
+	}
+
+	clear(): void {
+		this.value = EMPTY;
+	}
+
+	// applyTaskUpdate mutates the task within whatever Troiki project currently owns it.
+	// If the task moved to a different project, it is removed from the old project and
+	// inserted into the new one (when that project sits in any slot). Completed tasks
+	// stay visible under their project — the backend view includes them so users can
+	// see what they finished in the current cycle.
+	applyTaskUpdate(task: Task): void {
+		const next = clone(this.value);
+		for (const cat of CATEGORIES) {
+			const slot = slotOf(next, cat);
+			slot.projects = slot.projects.map((p) => ({
+				...p,
+				tasks: p.tasks.filter((t) => t.id !== task.id)
+			}));
+		}
+		if (task.projectId === null) {
+			this.value = next;
+			return;
+		}
+		for (const cat of CATEGORIES) {
+			const slot = slotOf(next, cat);
+			const idx = slot.projects.findIndex((p) => p.id === task.projectId);
+			if (idx !== -1) {
+				const target = slot.projects[idx];
+				slot.projects[idx] = { ...target, tasks: [...target.tasks, task] };
+				break;
+			}
+		}
+		this.value = next;
+	}
+
+	// applyProjectUpdate moves a project between slots when its category changes,
+	// drops it when category is cleared, and refreshes its metadata in place. Tasks
+	// already attached to the project are preserved across moves.
+	applyProjectUpdate(project: Project): void {
+		const next = clone(this.value);
+		let existingTasks: Task[] = [];
+		for (const cat of CATEGORIES) {
+			const slot = slotOf(next, cat);
+			const idx = slot.projects.findIndex((p) => p.id === project.id);
+			if (idx !== -1) {
+				existingTasks = slot.projects[idx].tasks;
+				slot.projects = slot.projects.filter((p) => p.id !== project.id);
+			}
+		}
+		const targetCat = project.troikiCategory;
+		if (targetCat && CATEGORIES.includes(targetCat)) {
+			const slot = slotOf(next, targetCat);
+			const merged: TroikiProject = { ...project, tasks: existingTasks };
+			slot.projects = [...slot.projects, merged];
+		}
+		this.value = next;
+	}
+
+	removeTask(id: number): void {
+		const next = clone(this.value);
+		for (const cat of CATEGORIES) {
+			const slot = slotOf(next, cat);
+			slot.projects = slot.projects.map((p) => ({
+				...p,
+				tasks: p.tasks.filter((t) => t.id !== id)
+			}));
+		}
+		this.value = next;
+	}
+}
+
+export const troikiStore = new TroikiStore();

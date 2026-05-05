@@ -1,0 +1,7 @@
+src/lib/components/ui/**
+build/**
+.svelte-kit/**
+node_modules/**
+static/**
+yarn.lock
+package-lock.json

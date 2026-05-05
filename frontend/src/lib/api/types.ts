@@ -1,252 +1,266 @@
-export interface Due {
-	date: string;
-	recurring: boolean;
+// DTO types mirroring backend (camelCase JSON, ISO-8601 UTC strings).
+
+export type Priority = 'high' | 'medium' | 'low' | 'no-priority';
+export type TaskStatus = 'open' | 'completed' | 'cancelled';
+export type ProjectStatus = 'open' | 'completed' | 'archived' | 'cancelled';
+export type DayPart = 'none' | 'morning' | 'afternoon' | 'evening';
+export type PlanState = 'none' | 'week' | 'backlog';
+export type ClientKind = 'web' | 'ios' | 'cli';
+export type TroikiCategory = 'important' | 'medium' | 'rest';
+
+// Color palette is open-ended on the backend; alias for clarity.
+export type ColorToken = string;
+
+export interface User {
+	id: number;
+	username: string;
 }
 
-export interface Task {
-	id: string;
-	content: string;
-	description: string;
-	project_id: string;
-	section_id: string | null;
-	parent_id: string | null;
-	labels: string[];
-	priority: number;
-	due: Due | null;
-	sub_task_count: number;
-	completed_sub_task_count: number;
-	completed_at: string | null;
-	added_at: string;
-	is_project_task: boolean;
-	postpone_count: number;
-	expires_at?: string;
-	children: Task[];
+export interface AuthSetupRequiredResponse {
+	required: boolean;
 }
 
-export interface Meta {
-	context: string;
-	weekly_limit: number;
-	weekly_count: number;
-	backlog_limit: number;
-	backlog_count: number;
-	inbox_count?: number;
-	last_synced_at?: string;
+export interface AuthLoginResponse {
+	access: string;
+	refresh: string;
+	user: User;
 }
 
-export interface TasksResponse {
-	tasks: Task[];
-	meta: Meta;
-}
-
-export interface Section {
-	id: string;
-	name: string;
-	project_id: string;
-	order: number;
-}
-
-export interface Project {
-	id: string;
-	name: string;
-	color: string;
-	sections: Section[];
+export interface AuthRefreshResponse {
+	access: string;
+	refresh: string;
 }
 
 export interface Label {
-	id: string;
+	id: number;
 	name: string;
-	color: string;
-	order: number;
-}
-
-export interface ContextFilters {
-	projects: string[];
-	sections: string[];
-	labels: string[];
+	color: ColorToken;
+	isFavourite: boolean;
+	createdAt: string;
+	updatedAt: string;
 }
 
 export interface Context {
-	id: string;
-	display_name: string;
-	color?: string;
-	inherit_labels: boolean;
-	filters: ContextFilters;
+	id: number;
+	name: string;
+	color: ColorToken;
+	isFavourite: boolean;
+	createdAt: string;
+	updatedAt: string;
 }
 
-export interface CreateTaskRequest {
-	content: string;
+export interface Project {
+	id: number;
+	contextId: number;
+	title: string;
 	description: string;
-	labels: string[];
-	priority: number;
-	parent_id?: string;
-	due_date?: string;
-	project_id?: string;
-	section_id?: string;
+	color: ColorToken;
+	status: ProjectStatus;
+	isPinned: boolean;
+	pinnedAt: string | null;
+	labels: Label[];
+	troikiCategory: TroikiCategory | null;
+	createdAt: string;
+	updatedAt: string;
 }
 
-export interface UpdateTaskRequest {
-	content?: string;
-	description?: string;
-	labels?: string[];
-	priority?: number;
-	due_date?: string;
-	due_string?: string;
+export interface ProjectSection {
+	id: number;
+	projectId: number;
+	title: string;
+	position: number;
+	createdAt: string;
+	updatedAt: string;
 }
 
-export interface DecomposeTaskRequest {
-	tasks: string[];
+export interface Task {
+	id: number;
+	title: string;
+	description: string;
+
+	inboxId: number | null;
+	contextId: number | null;
+	projectId: number | null;
+	sectionId: number | null;
+	parentId: number | null;
+
+	priority: Priority;
+	status: TaskStatus;
+
+	dueAt: string | null;
+	dueHasTime: boolean;
+	deadlineAt: string | null;
+	deadlineHasTime: boolean;
+
+	dayPart: DayPart;
+	planState: PlanState;
+
+	isPinned: boolean;
+	pinnedAt: string | null;
+	completedAt: string | null;
+
+	recurrenceRule: string | null;
+
+	postponeCount: number;
+
+	labels: Label[];
+
+	url: string;
+	createdAt: string;
+	updatedAt: string;
 }
 
-export interface DayPart {
-	label: string;
-	start: number; // hour 0-23
-	end: number; // hour 0-23
+export interface Page<T> {
+	items: T[];
+	total: number;
+	limit: number;
+	offset: number;
 }
 
-export interface PinnedTask {
-	id: string;
-	content: string;
-	priority?: number;
+export interface ViewList<T> {
+	items: T[];
+	total: number;
 }
 
-export type View = 'all' | 'inbox' | 'today' | 'tomorrow' | 'weekly' | 'backlog' | 'completed';
+export interface InboxResponse {
+	count: number;
+	warnThresholdExceeded: boolean;
+	tasks: Task[];
+}
 
-export interface AllFiltersState {
-	selected_priorities: number[];
-	selected_labels: string[];
-	links_only: boolean;
-	filters_expanded: boolean;
+export interface SearchResponse {
+	tasks?: ViewList<Task>;
+	projects?: ViewList<Project>;
+}
+
+export interface PlanStatsResponse {
+	week: number;
+	backlog: number;
+}
+
+export interface TroikiProject extends Project {
+	tasks: Task[];
+}
+
+export interface TroikiSlot {
+	capacity: number;
+	projects: TroikiProject[];
+}
+
+export interface TroikiViewResponse {
+	important: TroikiSlot;
+	medium: TroikiSlot;
+	rest: TroikiSlot;
+	started: boolean;
 }
 
 export interface UserState {
-	pinned_tasks: PinnedTask[];
-	active_context_id: string;
-	active_view: View;
-	collapsed_ids: string[];
-	sidebar_collapsed: boolean;
-	planning_open: boolean;
-	day_part_notes: Record<string, string>;
-	locale: string;
-	all_filters: AllFiltersState | null;
-	banner_text: string;
-	banner_dismissed_text: string;
+	activeContextId?: number | null;
 }
 
-export interface Settings {
-	poll_interval: number; // seconds
-	sync_interval: number; // seconds — how often the frontend flushes queued mutations
-	timezone: string; // IANA timezone (e.g. "Europe/Moscow")
-	weekly_label: string;
-	backlog_label: string;
-	project_label: string;
-	projects_label: string;
-	weekly_limit: number;
-	backlog_limit: number;
-	completed_days: number;
-	max_pinned: number;
-	last_synced_at: string | null; // ISO 8601
-	day_parts: DayPart[];
-	max_day_part_note_length: number;
-	inbox_project_id: string;
-	inbox_limit: number;
-	inbox_overflow_task_content: string;
+export interface UserSettings {
+	weeklyUnplannedExcludedLabelIds: number[];
 }
 
-export interface ProjectTask {
-	id: string;
-	content: string;
+export interface ConfigResponse {
+	timezone: string;
+	maxPinned: number;
+	weekly: { limit: number };
+	backlog: { limit: number };
+	inbox: {
+		warnThreshold: number;
+		overflowTask: { title: string; priority: Priority };
+	};
+	dayParts: {
+		morning: { start: number; end: number };
+		afternoon: { start: number; end: number };
+		evening: { start: number; end: number };
+	};
+	autoLabels: Array<{ mask: string; label: string; ignoreCase: boolean }>;
 }
 
-export interface QuickCaptureConfig {
-	parent_task_id: string;
+// Request payloads
+
+export interface ContextInput {
+	name?: string;
+	color?: ColorToken;
+	isFavourite?: boolean;
 }
 
-export interface LabelConfig {
-	name: string;
-	inherit_to_subtasks: boolean;
+export interface ProjectInput {
+	title?: string;
+	description?: string | null;
+	color?: ColorToken;
+	contextId?: number;
+	labels?: string[];
 }
 
-export interface AutoLabelMapping {
-	mask: string;
-	label: string;
-	ignore_case: boolean;
+export interface SectionInput {
+	title?: string;
 }
 
-export interface LabelProjectMapping {
-	label: string;
-	project: string;
-	section?: string;
+export interface LabelInput {
+	name?: string;
+	color?: ColorToken;
+	isFavourite?: boolean;
 }
 
-export interface LabelProjectMap {
-	enabled: boolean;
-	mappings: LabelProjectMapping[];
+export interface TaskInput {
+	title?: string;
+	description?: string | null;
+	priority?: Priority;
+	dueAt?: string | null;
+	dueHasTime?: boolean;
+	deadlineAt?: string | null;
+	deadlineHasTime?: boolean;
+	dayPart?: DayPart;
+	planState?: PlanState;
+	recurrenceRule?: string | null;
+	labels?: string[];
+	removedAutoLabels?: string[];
 }
 
-export interface AutoRemoveRule {
-	label: string;
-	ttl: number; // seconds
+export type TaskMoveInput =
+	| { inboxId: number }
+	| { contextId: number; projectId?: number; sectionId?: number }
+	| { parentId: number };
+
+export interface TaskPlanInput {
+	state: PlanState;
 }
 
-export interface AutoRemoveStatus {
-	rules: AutoRemoveRule[];
-	paused: boolean;
+export interface BulkResult {
+	succeeded: number[];
+	failed: Array<{ id: number; error: { code: string; message: string } }>;
 }
 
-export interface AppConfig {
-	settings: Settings;
-	contexts: Context[];
-	projects: Project[];
-	labels: Label[];
-	label_configs: LabelConfig[];
-	auto_labels: AutoLabelMapping[];
-	quick_capture: QuickCaptureConfig | null;
-	project_tasks: ProjectTask[];
-	label_project_map: LabelProjectMap;
-	auto_remove: AutoRemoveStatus;
-	troiki: TroikiConfig;
-	state: UserState;
+export interface ListQuery {
+	limit?: number;
+	offset?: number;
 }
 
-export type SectionClass = 'important' | 'medium' | 'rest';
-
-export interface TroikiSectionState {
-	class: SectionClass;
-	section_id: string;
-	name: string;
-	tasks: Task[];
-	root_count: number;
-	max_tasks: number;
-	capacity: number;
-	can_add: boolean;
+export interface TasksQuery extends ListQuery {
+	status?: TaskStatus;
+	priority?: Priority;
+	labelId?: number;
+	q?: string;
 }
 
-export interface TroikiState {
-	project_id: string;
-	sections: TroikiSectionState[];
+export interface ViewQuery {
+	contextId?: number;
+	projectId?: number;
+	labelId?: number;
+	priority?: Priority;
 }
 
-export interface TroikiConfig {
-	enabled: boolean;
-	project_id?: string;
-	project_name?: string;
-	max_tasks_per_section?: number;
+export interface ViewPageQuery extends ViewQuery, ListQuery {}
+
+export interface ProjectsQuery extends ListQuery {
+	contextId?: number;
+	status?: ProjectStatus;
 }
 
-export interface CreateTroikiTaskRequest {
-	section_class: SectionClass;
-	content: string;
-	description: string;
+export interface SearchQuery extends ListQuery {
+	q: string;
+	type?: 'tasks' | 'projects' | 'all';
 }
-
-export interface TroikiCompletedSection {
-	class: SectionClass;
-	tasks: Task[];
-}
-
-export interface TroikiCompletedState {
-	sections: TroikiCompletedSection[];
-}
-
-// Legacy alias for backward compatibility within tasks/planning stores
-export type Config = Settings;

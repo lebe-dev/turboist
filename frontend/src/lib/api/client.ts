@@ -1,122 +1,207 @@
-import { backend } from './backend';
-import type { AppConfig, CreateTaskRequest, CreateTroikiTaskRequest, DecomposeTaskRequest, Task, TasksResponse, TroikiCompletedState, TroikiState, UpdateTaskRequest, UserState } from './types';
+import { ApiError, isApiErrorEnvelope } from './errors';
 
-// Thin wrapper layer: each function delegates to the active BackendConnector.
-// All existing imports from '$lib/api/client' continue to work unchanged.
-
-export async function login(password: string): Promise<void> {
-	return backend.login(password);
+export interface ApiClientOptions {
+	baseUrl?: string;
+	getAccessToken: () => string | null;
+	setAccessToken: (token: string | null) => void;
+	onRefreshFailure: () => void;
+	fetchImpl?: typeof fetch;
 }
 
-export async function logout(): Promise<void> {
-	return backend.logout();
+export type QueryValue = string | number | boolean | undefined | null;
+
+interface ApiFetchInit extends Omit<RequestInit, 'body'> {
+	body?: unknown;
+	query?: Record<string, QueryValue> | object;
+	skipAuth?: boolean;
+	skipRefresh?: boolean;
 }
 
-export async function me(): Promise<void> {
-	return backend.me();
+interface RefreshResponseBody {
+	access: string;
+	refresh?: string;
 }
 
-export async function getTasks(context?: string): Promise<TasksResponse> {
-	return backend.getTasks(context);
+export class ApiClient {
+	readonly baseUrl: string;
+	private readonly getAccessToken: () => string | null;
+	private readonly setAccessToken: (token: string | null) => void;
+	private readonly onRefreshFailure: () => void;
+	private readonly fetchImpl: typeof fetch;
+	private refreshInflight: Promise<string | null> | null = null;
+
+	constructor(options: ApiClientOptions) {
+		this.baseUrl = options.baseUrl ?? '';
+		this.getAccessToken = options.getAccessToken;
+		this.setAccessToken = options.setAccessToken;
+		this.onRefreshFailure = options.onRefreshFailure;
+		this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+	}
+
+	async fetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
+		const url = this.buildUrl(path, init.query);
+		const response = await this.doRequest(url, init, /*isRetry*/ false);
+		return this.parseResponse<T>(response);
+	}
+
+	private buildUrl(
+		path: string,
+		query: ApiFetchInit['query']
+	): string {
+		const base = this.baseUrl + path;
+		if (!query) return base;
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(query as Record<string, unknown>)) {
+			if (value === undefined || value === null) continue;
+			params.append(key, String(value));
+		}
+		const qs = params.toString();
+		return qs ? `${base}?${qs}` : base;
+	}
+
+	private async doRequest(
+		url: string,
+		init: ApiFetchInit,
+		isRetry: boolean
+	): Promise<Response> {
+		const headers = new Headers(init.headers ?? {});
+		let body: BodyInit | undefined;
+		if (init.body !== undefined && init.body !== null) {
+			if (
+				init.body instanceof FormData ||
+				init.body instanceof Blob ||
+				typeof init.body === 'string'
+			) {
+				body = init.body as BodyInit;
+			} else {
+				headers.set('Content-Type', 'application/json');
+				body = JSON.stringify(init.body);
+			}
+		}
+
+		if (!init.skipAuth) {
+			const token = this.getAccessToken();
+			if (token) headers.set('Authorization', `Bearer ${token}`);
+		}
+
+		let response: Response;
+		try {
+			response = await this.fetchImpl(url, {
+				...init,
+				headers,
+				body,
+				credentials: init.credentials ?? 'same-origin'
+			});
+		} catch (err) {
+			throw new ApiError(
+				'network_error',
+				err instanceof Error ? err.message : 'network error',
+				0
+			);
+		}
+
+		if (response.status !== 401 || init.skipRefresh || isRetry) {
+			return response;
+		}
+
+		const errorPayload = await this.peekErrorCode(response);
+		if (errorPayload !== 'auth_expired') {
+			return response;
+		}
+
+		const newToken = await this.refreshAccessToken();
+		if (newToken === null) {
+			return response;
+		}
+		return this.doRequest(url, init, true);
+	}
+
+	private async peekErrorCode(response: Response): Promise<string | null> {
+		try {
+			const cloned = response.clone();
+			const data = await cloned.json();
+			if (isApiErrorEnvelope(data)) return data.error.code;
+		} catch {
+			return null;
+		}
+		return null;
+	}
+
+	private refreshAccessToken(): Promise<string | null> {
+		if (this.refreshInflight) return this.refreshInflight;
+		this.refreshInflight = this.performRefresh().finally(() => {
+			this.refreshInflight = null;
+		});
+		return this.refreshInflight;
+	}
+
+	private async performRefresh(): Promise<string | null> {
+		let response: Response;
+		try {
+			response = await this.fetchImpl(this.baseUrl + '/auth/refresh', {
+				method: 'POST',
+				credentials: 'include'
+			});
+		} catch {
+			// Network error: leave session intact; caller will see the original 401 and surface it.
+			return null;
+		}
+		if (!response.ok) {
+			// Only treat actual auth rejection as a forced logout; transient 5xx must not log the user out.
+			if (response.status === 401 || response.status === 403) {
+				this.setAccessToken(null);
+				this.onRefreshFailure();
+			}
+			return null;
+		}
+		const data = (await response.json()) as RefreshResponseBody;
+		this.setAccessToken(data.access);
+		return data.access;
+	}
+
+	private async parseResponse<T>(response: Response): Promise<T> {
+		if (response.status === 204) {
+			return undefined as T;
+		}
+		const text = await response.text();
+		const data = text ? safeJsonParse(text) : null;
+
+		if (!response.ok) {
+			if (isApiErrorEnvelope(data)) {
+				throw new ApiError(
+					data.error.code,
+					data.error.message,
+					response.status,
+					data.error.details
+				);
+			}
+			throw new ApiError(
+				'unknown_error',
+				`HTTP ${response.status}`,
+				response.status
+			);
+		}
+		return data as T;
+	}
 }
 
-export async function getTask(id: string): Promise<Task> {
-	return backend.getTask(id);
+function safeJsonParse(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
 }
 
-export async function getInboxTasks(context?: string): Promise<TasksResponse> {
-	return backend.getInboxTasks(context);
+let clientInstance: ApiClient | null = null;
+
+export function setApiClient(client: ApiClient): void {
+	clientInstance = client;
 }
 
-export async function getWeeklyTasks(context?: string): Promise<TasksResponse> {
-	return backend.getWeeklyTasks(context);
-}
-
-export async function getNextWeekTasks(context?: string): Promise<TasksResponse> {
-	return backend.getNextWeekTasks(context);
-}
-
-export async function getTodayTasks(context?: string): Promise<TasksResponse> {
-	return backend.getTodayTasks(context);
-}
-
-export async function getTomorrowTasks(context?: string): Promise<TasksResponse> {
-	return backend.getTomorrowTasks(context);
-}
-
-export async function getCompletedTasks(_context?: string): Promise<TasksResponse> {
-	return backend.getCompletedTasks(_context);
-}
-
-export async function getBacklogTasks(context?: string): Promise<TasksResponse> {
-	return backend.getBacklogTasks(context);
-}
-
-export async function resetWeeklyLabel(): Promise<void> {
-	return backend.resetWeeklyLabel();
-}
-
-export async function getAppConfig(): Promise<AppConfig> {
-	return backend.getAppConfig();
-}
-
-export async function patchState(update: Partial<UserState>): Promise<void> {
-	return backend.patchState(update);
-}
-
-export async function createTask(data: CreateTaskRequest, context?: string, tempId?: string): Promise<string> {
-	return backend.createTask(data, context, tempId);
-}
-
-export async function updateTask(id: string, data: UpdateTaskRequest): Promise<void> {
-	return backend.updateTask(id, data);
-}
-
-export async function batchUpdateLabels(updates: Record<string, string[]>): Promise<void> {
-	return backend.batchUpdateLabels(updates);
-}
-
-export async function moveTask(id: string, parentId: string): Promise<void> {
-	return backend.moveTask(id, parentId);
-}
-
-export async function completeTask(id: string): Promise<void> {
-	return backend.completeTask(id);
-}
-
-export async function duplicateTask(id: string): Promise<void> {
-	return backend.duplicateTask(id);
-}
-
-export async function deleteTask(id: string): Promise<void> {
-	return backend.deleteTask(id);
-}
-
-export async function decomposeTask(id: string, data: DecomposeTaskRequest): Promise<void> {
-	return backend.decomposeTask(id, data);
-}
-
-export async function getProjectTasks(projectId: string): Promise<Task[]> {
-	return backend.getProjectTasks(projectId);
-}
-
-export async function getCompletedSubtasks(id: string): Promise<Task[]> {
-	return backend.getCompletedSubtasks(id);
-}
-
-export async function getTroikiState(): Promise<TroikiState> {
-	return backend.getTroikiState();
-}
-
-export async function createTroikiTask(data: CreateTroikiTaskRequest): Promise<string> {
-	return backend.createTroikiTask(data);
-}
-
-export async function getTroikiCompleted(): Promise<TroikiCompletedState> {
-	return backend.getTroikiCompleted();
-}
-
-export async function resetCache(): Promise<void> {
-	const res = await fetch('/api/cache/reset', { method: 'POST' });
-	if (!res.ok) throw new Error(`resetCache: ${res.status}`);
+export function getApiClient(): ApiClient {
+	if (!clientInstance) {
+		throw new Error('ApiClient is not initialised. Call setApiClient first.');
+	}
+	return clientInstance;
 }

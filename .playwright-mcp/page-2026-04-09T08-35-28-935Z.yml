@@ -1,5 +1,0 @@
-- generic [ref=e2]:
-  - region "Notifications alt+T"
-  - banner [ref=e4]:
-    - img [ref=e5]
-    - heading "Troiki" [level=1] [ref=e6]

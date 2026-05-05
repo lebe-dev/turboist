@@ -1,19 +1,15 @@
+import { sveltekit } from '@sveltejs/kit/vite';
+import { svelteTesting } from '@testing-library/svelte/vite';
 import { defineConfig } from 'vitest/config';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
-import path from 'path';
 
 export default defineConfig({
-	plugins: [svelte({ hot: false })],
-	resolve: {
-		conditions: ['browser'],
-		alias: {
-			$lib: path.resolve('./src/lib'),
-			'$app': path.resolve('./src/lib/__mocks__/$app')
-		}
-	},
+	plugins: [sveltekit(), svelteTesting()],
 	test: {
-		include: ['src/**/*.test.ts'],
 		environment: 'jsdom',
-		setupFiles: ['./src/setup-test.ts']
+		globals: true,
+		setupFiles: ['./vitest.setup.ts'],
+		passWithNoTests: true,
+		include: ['src/**/*.{test,spec}.{ts,js}'],
+		exclude: ['src/lib/components/ui/**', 'node_modules/**', 'build/**', '.svelte-kit/**']
 	}
 });

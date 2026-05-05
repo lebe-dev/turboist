@@ -1,26 +1,27 @@
-import { logger } from '$lib/stores/logger';
-import { patchState } from '$lib/api/client';
+const STORAGE_KEY = 'turboist:sidebar-collapsed';
 
-function createSidebarStore() {
-	let collapsed = $state(false);
-
-	function init(initialCollapsed: boolean): void {
-		collapsed = initialCollapsed;
-	}
-
-	return {
-		get collapsed(): boolean {
-			return collapsed;
-		},
-		toggle(): void {
-			collapsed = !collapsed;
-			logger.log('sidebar', `toggle: ${collapsed}`);
-			patchState({ sidebar_collapsed: collapsed }).catch((err) =>
-				logger.error('sidebar', `toggle save failed: ${err}`)
-			);
-		},
-		init
-	};
+function loadInitial(): boolean {
+	if (typeof localStorage === 'undefined') return false;
+	return localStorage.getItem(STORAGE_KEY) === '1';
 }
 
-export const sidebarStore = createSidebarStore();
+class SidebarStore {
+	collapsed = $state<boolean>(loadInitial());
+
+	toggle(): void {
+		this.collapsed = !this.collapsed;
+		this.persist();
+	}
+
+	set(value: boolean): void {
+		this.collapsed = value;
+		this.persist();
+	}
+
+	private persist(): void {
+		if (typeof localStorage === 'undefined') return;
+		localStorage.setItem(STORAGE_KEY, this.collapsed ? '1' : '0');
+	}
+}
+
+export const sidebarStore = new SidebarStore();

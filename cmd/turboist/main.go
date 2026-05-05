@@ -2,154 +2,157 @@ package main
 
 import (
 	"context"
+	"flag"
+	"os"
 	"os/signal"
-	"slices"
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
+	turboist "github.com/lebe-dev/turboist"
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
-	"github.com/lebe-dev/turboist/internal/scheduler"
-	"github.com/lebe-dev/turboist/internal/server"
-	"github.com/lebe-dev/turboist/internal/storage"
-	"github.com/lebe-dev/turboist/internal/todoist"
-	"github.com/lebe-dev/turboist/internal/troiki"
-	"github.com/lebe-dev/turboist/internal/ws"
+	"github.com/lebe-dev/turboist/internal/db"
+	"github.com/lebe-dev/turboist/internal/httpapi"
+	"github.com/lebe-dev/turboist/internal/httpapi/handlers"
+	"github.com/lebe-dev/turboist/internal/logging"
+	"github.com/lebe-dev/turboist/internal/repo"
+	"github.com/lebe-dev/turboist/internal/service"
+	"golang.org/x/time/rate"
 )
 
-const Version = "0.20.0"
+const Version = "1.0.0"
 
 func main() {
-	log.Info("starting turboist", "version", Version)
+	configPath := flag.String("config", "config.yml", "path to config.yml")
+	flag.Parse()
 
-	cfg, err := config.Load()
+	_ = godotenv.Load()
+
+	env, err := config.LoadEnv()
 	if err != nil {
-		log.Fatal("failed to load config", "err", err)
+		_, _ = os.Stderr.WriteString("env error: " + err.Error() + "\n")
+		os.Exit(1)
 	}
 
-	if level, err := log.ParseLevel(cfg.Env.LogLevel); err != nil {
-		log.Warn("invalid LOG_LEVEL, defaulting to info", "value", cfg.Env.LogLevel)
-	} else {
-		log.SetLevel(level)
+	log := logging.New(env.LogLevel)
+
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Error("config error", "err", err)
+		os.Exit(1)
 	}
 
-	log.Info("config loaded",
-		"bind", cfg.Env.Bind,
-		"base_url", cfg.Env.BaseURL,
-		"dev", cfg.Env.Dev,
-		"poll_interval", cfg.App.PollInterval,
-		"contexts", len(cfg.App.Contexts),
-		"weekly_label", cfg.App.Weekly.Label,
-		"weekly_max_tasks", cfg.App.Weekly.MaxTasks,
-		"auto_remove_rules", len(cfg.App.AutoRemove.Rules),
+	log.Info("starting turboist",
+		"version", Version,
+		"bind", env.Bind,
+		"baseUrl", env.BaseURL,
+		"timezone", cfg.Timezone,
 	)
 
-	client := todoist.NewClient(cfg.Env.TodoistAPIKey)
-
-	log.Info("warming cache...")
-	cache := todoist.NewCache(client)
-	log.Info("cache warmed")
-
-	hub := ws.NewHub(cache, &cfg.App)
-	cache.SetOnRefresh(hub.Broadcast)
-	log.Info("websocket hub initialized")
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-
-	cache.StartPolling(ctx, cfg.App.PollInterval)
-	log.Info("cache polling started", "interval", cfg.App.PollInterval)
-
-	store, err := storage.New("./data/turboist.db")
+	sqlDB, err := db.Open(env.DataPath)
 	if err != nil {
-		log.Fatal("failed to init storage", "err", err)
+		log.Error("open db", "err", err)
+		os.Exit(1)
 	}
-	defer func() { _ = store.Close() }()
-	log.Info("storage initialized")
+	defer func() { _ = sqlDB.Close() }()
 
-	var troikiService *troiki.Service
-	if cfg.App.TroikiSystem.Enabled {
-		troikiService = troiki.NewService(cache, cfg.App.TroikiSystem, store)
-		if err := troikiService.Init(ctx); err != nil {
-			log.Fatal("troiki init failed", "err", err)
-		}
-		hub.SetTroikiService(troikiService)
-		log.Info("troiki system enabled", "project", cfg.App.TroikiSystem.ProjectName)
+	if err := db.RunMigrations(context.Background(), sqlDB); err != nil {
+		log.Error("run migrations", "err", err)
+		os.Exit(1)
 	}
 
-	cache.SetTaskEnricher(func(tasks []*todoist.Task) {
-		counts, err := store.GetPostponeCounts()
-		if err != nil {
-			log.Error("load postpone counts failed", "err", err)
-		} else {
-			for _, t := range tasks {
-				if c, ok := counts[t.ID]; ok {
-					t.PostponeCount = c
-				}
-			}
-		}
+	// repos
+	plabels := repo.NewProjectLabelsRepo(sqlDB)
+	tlabels := repo.NewTaskLabelsRepo(sqlDB)
+	userRepo := repo.NewUserRepo(sqlDB)
+	sessionRepo := repo.NewSessionRepo(sqlDB)
+	ctxRepo := repo.NewContextRepo(sqlDB)
+	labelRepo := repo.NewLabelRepo(sqlDB)
+	sectionRepo := repo.NewProjectSectionRepo(sqlDB)
+	projectRepo := repo.NewProjectRepo(sqlDB, plabels)
+	taskRepo := repo.NewTaskRepo(sqlDB, tlabels)
+	searchRepo := repo.NewSearchRepo(taskRepo, projectRepo)
 
-		if cfg.App.AutoRemove.Enabled && len(cfg.App.AutoRemove.Rules) > 0 {
-			firstSeenMap, err := store.GetAutoRemoveFirstSeen()
-			if err != nil {
-				log.Error("load auto_remove first_seen failed", "err", err)
-			} else {
-				for _, t := range tasks {
-					for _, rule := range cfg.App.AutoRemove.Rules {
-						if slices.Contains(t.Labels, rule.Label) {
-							key := t.ID + ":" + rule.Label
-							if seen, ok := firstSeenMap[key]; ok {
-								expiresAt := seen.Add(rule.TTL).Format(time.RFC3339)
-								t.ExpiresAt = &expiresAt
-								break // first matching rule wins
-							}
-						}
-					}
-				}
-			}
-		}
-	})
-	if err := cache.Refresh(ctx); err != nil {
-		log.Warn("initial enrichment refresh failed", "err", err)
+	// auth
+	jwtIssuer := auth.NewJWTIssuer([]byte(env.JWTSecret))
+	// 10 requests per minute per IP for auth endpoints
+	ipLimiter := auth.NewIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
+
+	// services
+	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
+	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, cfg)
+	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
+	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, projectRepo, userRepo, cfg.Location)
+	moveSvc := service.NewMoveService(taskRepo, projectRepo)
+	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
+	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
+
+	// session cleanup
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+	auth.StartSessionCleanup(cleanupCtx, sessionRepo, log)
+
+	// HTTP app
+	deps := httpapi.Deps{
+		Log:         log,
+		JWTIssuer:   jwtIssuer,
+		UserRepo:    userRepo,
+		SessionRepo: sessionRepo,
+		IPLimiter:   ipLimiter,
+		ContextRepo: ctxRepo,
+		LabelRepo:   labelRepo,
+		SectionRepo: sectionRepo,
+		ProjectRepo: projectRepo,
+		TaskRepo:    taskRepo,
+		PinService:  pinSvc,
+		Cfg:         cfg,
+		BaseURL:     env.BaseURL,
+		Version:     Version,
+	}
+	app := httpapi.NewApp(deps)
+	api := httpapi.RegisterRoutes(app, deps)
+
+	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
+	authHandler.RegisterAuth(app.Group("/auth"), jwtIssuer)
+	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/contexts"))
+	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, env.BaseURL).Register(api.Group("/labels"))
+	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))
+	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).Register(api)
+	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL).Register(api.Group("/inbox"))
+	handlers.NewTaskBulkHandler(completeSvc, moveSvc, env.BaseURL).Register(api)
+	handlers.NewTaskViewHandler(taskRepo, cfg, env.BaseURL).Register(api)
+	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
+	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
+	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)
+	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
+	handlers.NewMetaHandler(cfg).Register(api)
+	handlers.NewStateHandler(userRepo).Register(api)
+	handlers.NewSettingsHandler(userRepo).Register(api)
+
+	// embedded SvelteKit SPA (must be registered after API/auth routes)
+	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {
+		log.Error("register SPA", "err", err)
+		os.Exit(1)
 	}
 
-	sched := scheduler.New(cfg.App.PollInterval)
-	var autoRemove *scheduler.AutoRemove
-	if cfg.App.AutoRemove.Enabled && len(cfg.App.AutoRemove.Rules) > 0 {
-		autoRemove = scheduler.NewAutoRemove(cache, cfg.App.AutoRemove, store)
-		sched.Register("auto-remove", autoRemove.Job)
-		log.Info("auto-remove rules registered", "count", len(cfg.App.AutoRemove.Rules))
-	}
-	if cfg.App.Weekly.MaxTasks > 0 {
-		wl := scheduler.NewWeeklyLimit(cache, cfg.App.Weekly)
-		sched.Register("weekly-limit", wl.Job)
-		log.Info("weekly-limit check registered", "max_tasks", cfg.App.Weekly.MaxTasks)
-	}
-	if cfg.App.LabelProjectMap.Enabled && len(cfg.App.LabelProjectMap.Mappings) > 0 {
-		lp := scheduler.NewLabelProjectSync(cache, cfg.App.LabelProjectMap.Mappings)
-		if troikiService != nil {
-			lp.ExcludeProjects(troikiService.ProjectID())
-		}
-		sched.Register("label-project", lp.Job)
-		log.Info("label-project sync registered", "mappings", len(cfg.App.LabelProjectMap.Mappings))
-	}
-	sched.Start(ctx)
-	log.Info("scheduler started", "interval", cfg.App.PollInterval)
-
-	var autoRemovePauser server.AutoRemovePauser
-	if autoRemove != nil {
-		autoRemovePauser = autoRemove
-	}
-	app := server.New(cfg, cache, store, hub, autoRemovePauser, troikiService)
+	// graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		<-ctx.Done()
-		log.Info("shutting down server")
-		_ = app.Shutdown()
+		<-quit
+		log.Info("shutting down")
+		cleanupCancel()
+		authHandler.Stop()
+		if err := app.ShutdownWithTimeout(5 * time.Second); err != nil {
+			log.Error("shutdown error", "err", err)
+		}
 	}()
 
-	log.Info("listening", "bind", cfg.Env.Bind)
-	if err := app.Listen(cfg.Env.Bind); err != nil {
-		log.Fatal("server error", "err", err)
+	log.Info("listening", "bind", env.Bind)
+	if err := app.Listen(env.Bind); err != nil {
+		log.Error("server error", "err", err)
+		os.Exit(1)
 	}
 }
