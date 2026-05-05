@@ -325,10 +325,11 @@
 						style={`color: ${project.color}`}
 						weight="fill"
 					/>
-					<span class="min-w-0 break-words">{project.title}</span>
-					{#if project.troikiCategory}
-						<TroikiTriggerIcon class="mt-[5px] size-3 shrink-0 text-primary md:mt-1 md:size-2.5" />
-					{/if}
+					<span class="min-w-0 break-words">
+						{project.title}{#if project.troikiCategory}<TroikiTriggerIcon
+								class="ml-1.5 inline-block size-3 align-middle text-primary md:size-2.5"
+							/>{/if}
+					</span>
 				</a>
 			{/each}
 		</SidebarSection>
