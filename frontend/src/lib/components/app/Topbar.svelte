@@ -205,7 +205,7 @@
 			class="inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 			class:text-muted-foreground={!troikiActive}
 			class:hover:text-primary={!troikiActive}
-			class:text-primary={troikiActive}
+			class:text-foreground={troikiActive}
 		>
 			<TroikiTriggerIcon class="size-4" />
 		</a>
