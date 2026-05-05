@@ -3,6 +3,9 @@
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import FollowUpToasts from '$lib/components/task/FollowUpToasts.svelte';
+	import type { FollowUpItem } from '$lib/stores/followUp.svelte';
+	import type { DayPart, Priority } from '$lib/api/types';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { getAuthStore } from '$lib/auth/store.svelte';
@@ -57,10 +60,22 @@
 	let loadFailed = $state(false);
 	let quickOpen = $state(false);
 	let mobileSidebarOpen = $state(false);
+	let followUpOverride = $state<{
+		projectId: number | null;
+		labelIds: number[];
+		priority: Priority;
+		dayPart: DayPart;
+		parentId: number | null;
+		sectionId: number | null;
+	} | null>(null);
 
 	$effect(() => {
 		void page.url.pathname;
 		mobileSidebarOpen = false;
+	});
+
+	$effect(() => {
+		if (!quickOpen) followUpOverride = null;
 	});
 
 	function startLoad(): void {
@@ -105,6 +120,20 @@
 	}
 
 	function onQuickAdd(): void {
+		followUpOverride = null;
+		quickOpen = true;
+	}
+
+	function onFollowUpNext(item: FollowUpItem): void {
+		const t = item.task;
+		followUpOverride = {
+			projectId: t.projectId,
+			labelIds: t.labels.map((l) => l.id),
+			priority: t.priority,
+			dayPart: t.dayPart,
+			parentId: t.parentId,
+			sectionId: t.sectionId
+		};
 		quickOpen = true;
 	}
 
@@ -137,14 +166,55 @@
 		return { projectId, contextId, labelIds, dueDate };
 	});
 
+	async function applySectionMove(
+		client: ReturnType<typeof getApiClient>,
+		taskId: number,
+		contextId: number | null,
+		projectId: number,
+		sectionId: number | null
+	): Promise<void> {
+		if (sectionId === null || contextId === null) return;
+		try {
+			await tasksApi.move(client, taskId, { contextId, projectId, sectionId });
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to set section'));
+		}
+	}
+
 	async function onQuickSubmit(
 		payload: TaskInput,
-		target: { projectId: number | null }
+		target: {
+			projectId: number | null;
+			labels: string[];
+			parentId: number | null;
+			sectionId: number | null;
+		}
 	): Promise<void> {
 		try {
 			const client = getApiClient();
+			if (target.parentId !== null) {
+				const created = await tasksApi.createSubtask(client, target.parentId, payload);
+				toast.success('Subtask added');
+				window.dispatchEvent(
+					new CustomEvent('turboist:task-created', {
+						detail: {
+							task: created,
+							projectId: created.projectId,
+							contextId: created.contextId
+						}
+					})
+				);
+				return;
+			}
 			if (target.projectId !== null) {
 				const created = await projectsApi.createTask(client, target.projectId, payload);
+				await applySectionMove(
+					client,
+					created.id,
+					created.contextId,
+					target.projectId,
+					target.sectionId
+				);
 				toast.success('Task added to project');
 				const projectPath = resolve(`/project/${target.projectId}`);
 				if (page.url.pathname === projectPath) {
@@ -153,8 +223,6 @@
 							detail: { task: created, projectId: target.projectId }
 						})
 					);
-				} else {
-					void goto(projectPath);
 				}
 				return;
 			}
@@ -248,9 +316,14 @@
 	</Sheet.Root>
 	<QuickAddDialog
 		bind:open={quickOpen}
-		defaultProjectId={quickAddDefaults.projectId}
-		defaultLabelIds={quickAddDefaults.labelIds}
-		defaultDueDate={quickAddDefaults.dueDate}
+		defaultProjectId={followUpOverride ? followUpOverride.projectId : quickAddDefaults.projectId}
+		defaultLabelIds={followUpOverride ? followUpOverride.labelIds : quickAddDefaults.labelIds}
+		defaultDueDate={followUpOverride ? '' : quickAddDefaults.dueDate}
+		defaultPriority={followUpOverride?.priority ?? 'no-priority'}
+		defaultDayPart={followUpOverride?.dayPart ?? 'none'}
+		defaultParentId={followUpOverride?.parentId ?? null}
+		defaultSectionId={followUpOverride?.sectionId ?? null}
 		onSubmit={onQuickSubmit}
 	/>
+	<FollowUpToasts onNext={onFollowUpNext} />
 {/if}

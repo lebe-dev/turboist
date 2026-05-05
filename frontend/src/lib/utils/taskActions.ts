@@ -4,6 +4,7 @@ import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
 import { planStatsStore } from '$lib/stores/planStats.svelte';
 import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
+import { followUpStore } from '$lib/stores/followUp.svelte';
 import { toast } from 'svelte-sonner';
 
 export function describeError(err: unknown, fallback: string): string {
@@ -16,6 +17,7 @@ export interface ListMutator {
 	replace(task: Task): void;
 	remove(id: number): void;
 	insertAfter?: (id: number, task: Task) => void;
+	add?: (task: Task) => void;
 }
 
 export interface ToggleCompleteOptions {
@@ -38,14 +40,27 @@ export async function toggleComplete(
 ): Promise<void> {
 	const { removeWhenCompleted = true, belongs } = options;
 	const client = getApiClient();
+	const wasOpen = task.status !== 'completed';
 	try {
-		const updated =
-			task.status === 'completed'
-				? await tasksApi.uncomplete(client, task.id)
-				: await tasksApi.complete(client, task.id);
+		const updated = wasOpen
+			? await tasksApi.complete(client, task.id)
+			: await tasksApi.uncomplete(client, task.id);
 		if (updated.status === 'completed' && removeWhenCompleted) mutator.remove(task.id);
 		else if (updated.status !== 'completed' && belongs && !belongs(updated)) mutator.remove(task.id);
 		else mutator.replace(updated);
+
+		if (wasOpen && updated.status === 'completed' && !updated.recurrenceRule) {
+			const undoFn = async () => {
+				const restored = await tasksApi.uncomplete(client, task.id);
+				if (removeWhenCompleted) {
+					if (mutator.add) mutator.add(restored);
+					else mutator.replace(restored);
+				} else {
+					mutator.replace(restored);
+				}
+			};
+			followUpStore.push(updated, undoFn);
+		}
 	} catch (err) {
 		toast.error(describeError(err, 'Failed to update task'));
 	}

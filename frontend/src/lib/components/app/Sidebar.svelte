@@ -327,7 +327,7 @@
 					/>
 					<span class="min-w-0 break-words">{project.title}</span>
 					{#if project.troikiCategory}
-						<TroikiTriggerIcon class="mt-0.5 size-3.5 shrink-0 text-primary md:size-3" />
+						<TroikiTriggerIcon class="mt-[5px] size-3 shrink-0 text-primary md:mt-1 md:size-2.5" />
 					{/if}
 				</a>
 			{/each}

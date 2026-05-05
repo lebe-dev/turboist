@@ -16,6 +16,10 @@ export function useListMutator<T extends { id: number }>(opts?: { onRemove?: () 
 			} else {
 				items = [...items.slice(0, idx + 1), t, ...items.slice(idx + 1)];
 			}
+		},
+		add(t: T) {
+			if (items.some((x) => x.id === t.id)) return;
+			items = [...items, t];
 		}
 	};
 

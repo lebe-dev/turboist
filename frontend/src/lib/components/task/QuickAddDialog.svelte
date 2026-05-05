@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { Dialog as DialogPrimitive } from 'bits-ui';
+	import { Dialog as DialogPrimitive, Popover as PopoverPrimitive } from 'bits-ui';
 	import { tick } from 'svelte';
+	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
+	import { Calendar } from '$lib/components/ui/calendar';
 	import type { DayPart, Priority, TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -23,6 +25,10 @@
 		defaultProjectId = null,
 		defaultLabelIds = [],
 		defaultDueDate = '',
+		defaultPriority = 'no-priority',
+		defaultDayPart = 'none',
+		defaultParentId = null,
+		defaultSectionId = null,
 		emptyProjectLabel = 'Inbox',
 		onSubmit
 	}: {
@@ -30,23 +36,38 @@
 		defaultProjectId?: number | null;
 		defaultLabelIds?: Array<string | number>;
 		defaultDueDate?: string;
+		defaultPriority?: Priority;
+		defaultDayPart?: DayPart;
+		defaultParentId?: number | null;
+		defaultSectionId?: number | null;
 		emptyProjectLabel?: string;
 		onSubmit?: (
 			payload: TaskInput,
-			target: { projectId: number | null; labels: string[] }
+			target: {
+				projectId: number | null;
+				labels: string[];
+				parentId: number | null;
+				sectionId: number | null;
+			}
 		) => void | Promise<void>;
 	} = $props();
 
 	let titles = $state('');
 	let description = $state('');
-	let priority = $state<Priority>('no-priority');
-	let dayPart = $state<DayPart>('none');
+	// svelte-ignore state_referenced_locally
+	let priority = $state<Priority>(defaultPriority);
+	// svelte-ignore state_referenced_locally
+	let dayPart = $state<DayPart>(defaultDayPart);
 	// svelte-ignore state_referenced_locally
 	let dueDate = $state<string>(defaultDueDate ?? '');
 	// svelte-ignore state_referenced_locally
 	let projectId = $state<string>(defaultProjectId ? String(defaultProjectId) : '');
 	// svelte-ignore state_referenced_locally
 	let labelIds = $state<string[]>(defaultLabelIds.map(String));
+	// svelte-ignore state_referenced_locally
+	let parentId = $state<number | null>(defaultParentId);
+	// svelte-ignore state_referenced_locally
+	let sectionId = $state<number | null>(defaultSectionId);
 	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
 	let labelMenuOpen = $state(false);
@@ -126,23 +147,29 @@
 	const isTomorrow = $derived(dueDate === tomorrowKey);
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
 
-	let dateInputEl: HTMLInputElement | undefined = $state();
+	let datePopoverOpen = $state(false);
 	let titlesEl: HTMLTextAreaElement | undefined = $state();
 	let descriptionEl: HTMLTextAreaElement | undefined = $state();
+
+	const calendarValue = $derived<DateValue | undefined>(
+		dueDate ? parseDate(dueDate) : undefined
+	);
+
+	function pad(n: number): string {
+		return n < 10 ? `0${n}` : String(n);
+	}
 
 	function setDate(value: string) {
 		dueDate = dueDate === value ? '' : value;
 	}
 
-	function openDatePicker() {
-		const el = dateInputEl;
-		if (!el) return;
-		try {
-			if (typeof el.showPicker === 'function') el.showPicker();
-			else el.click();
-		} catch {
-			el.click();
+	function setCalendarValue(v: DateValue | undefined): void {
+		if (!v) {
+			dueDate = '';
+		} else {
+			dueDate = `${v.year}-${pad(v.month)}-${pad(v.day)}`;
 		}
+		datePopoverOpen = false;
 	}
 
 	function autoGrow(el: HTMLTextAreaElement | undefined) {
@@ -173,12 +200,14 @@
 	function reset() {
 		titles = '';
 		description = '';
-		priority = 'no-priority';
-		dayPart = 'none';
+		priority = defaultPriority;
+		dayPart = defaultDayPart;
 		dueDate = defaultDueDate ?? '';
 		recurrenceRule = null;
 		projectId = defaultProjectId ? String(defaultProjectId) : '';
 		labelIds = defaultLabelIds.map(String);
+		parentId = defaultParentId;
+		sectionId = defaultSectionId;
 		labelMenuOpen = false;
 		dismissedAutoLabels = [];
 	}
@@ -189,6 +218,10 @@
 			dueDate = defaultDueDate ?? '';
 			projectId = defaultProjectId ? String(defaultProjectId) : '';
 			labelIds = defaultLabelIds.map(String);
+			priority = defaultPriority;
+			dayPart = defaultDayPart;
+			parentId = defaultParentId;
+			sectionId = defaultSectionId;
 		}
 		prevOpen = open;
 	});
@@ -221,7 +254,9 @@
 			};
 			const target = {
 				projectId: projectId ? Number(projectId) : null,
-				labels: resolvedLabels
+				labels: resolvedLabels,
+				parentId,
+				sectionId
 			};
 			for (const line of titleLines) {
 				const payload: TaskInput = { ...commonPayload, title: line };
@@ -346,32 +381,36 @@
 							>
 								Tomorrow
 							</button>
-							<div
-								class="relative inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-within:ring-[2px] focus-within:ring-ring/50"
-								class:bg-accent={isCustomDate}
-								class:text-foreground={isCustomDate}
-								class:text-muted-foreground={!isCustomDate}
-								class:hover:bg-accent={!isCustomDate}
-								class:hover:text-foreground={!isCustomDate}
-							>
-								{#if isCustomDate}
-									<span class="font-mono text-[11px]">{dueDate}</span>
-								{:else}
-									<DotsThreeIcon class="size-4" weight="bold" />
-								{/if}
-								<input
-									bind:this={dateInputEl}
-									bind:value={dueDate}
-									type="date"
+							<PopoverPrimitive.Root bind:open={datePopoverOpen}>
+								<PopoverPrimitive.Trigger
+									aria-pressed={isCustomDate}
 									aria-label="Custom date"
 									title={isCustomDate ? dueDate : 'Pick a date'}
-									onclick={(e) => {
-										e.stopPropagation();
-										openDatePicker();
-									}}
-									class="absolute inset-0 size-full cursor-pointer opacity-0"
-								/>
-							</div>
+									class="inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 {isCustomDate
+										? 'bg-accent text-foreground'
+										: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+								>
+									{#if isCustomDate}
+										<span class="font-mono text-[11px]">{dueDate}</span>
+									{:else}
+										<DotsThreeIcon class="size-4" weight="bold" />
+									{/if}
+								</PopoverPrimitive.Trigger>
+								<PopoverPrimitive.Portal>
+									<PopoverPrimitive.Content
+										align="start"
+										sideOffset={6}
+										class="z-[60] rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+									>
+										<Calendar
+											type="single"
+											value={calendarValue}
+											onValueChange={setCalendarValue}
+											captionLayout="dropdown"
+										/>
+									</PopoverPrimitive.Content>
+								</PopoverPrimitive.Portal>
+							</PopoverPrimitive.Root>
 						</div>
 
 						<PriorityPicker bind:value={priority} />

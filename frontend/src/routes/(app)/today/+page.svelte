@@ -31,7 +31,8 @@
 	const dayParts = $derived(configStore.value?.dayParts);
 	const tz = $derived(configStore.value?.timezone ?? null);
 	const groups = $derived(groupByDayPart(list.items, dayParts));
-	const active = $derived(activeDayPart(new Date(), dayParts, tz));
+	let now = $state(new Date());
+	const active = $derived(activeDayPart(now, dayParts, tz));
 
 
 	const loader = usePageLoad(async (isValid) => {
@@ -49,6 +50,20 @@
 	$effect(() => {
 		void userStateStore.activeContextId;
 		void loader.refetch();
+	});
+
+	$effect(() => {
+		function onVisible(): void {
+			if (document.visibilityState !== 'visible') return;
+			now = new Date();
+			void loader.refetch();
+		}
+		document.addEventListener('visibilitychange', onVisible);
+		window.addEventListener('focus', onVisible);
+		return () => {
+			document.removeEventListener('visibilitychange', onVisible);
+			window.removeEventListener('focus', onVisible);
+		};
 	});
 
 	function isToday(t: Task): boolean {

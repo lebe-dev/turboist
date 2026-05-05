@@ -12,6 +12,7 @@
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import { describeError } from '$lib/utils/taskActions';
+	import { followUpStore } from '$lib/stores/followUp.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import type { ListMutator } from '$lib/utils/taskActions';
 
@@ -47,16 +48,22 @@
 
 	async function onTaskToggle(t: Task): Promise<void> {
 		const client = getApiClient();
+		const wasOpen = t.status !== 'completed';
 		try {
-			const updated =
-				t.status === 'completed'
-					? await tasksApi.uncomplete(client, t.id)
-					: await tasksApi.complete(client, t.id);
+			const updated = wasOpen
+				? await tasksApi.complete(client, t.id)
+				: await tasksApi.uncomplete(client, t.id);
 			// Completing a task can grow Medium/Rest capacity; refetch to get fresh slots.
 			if (updated.status === 'completed' || t.status === 'completed') {
 				await troikiStore.load();
 			} else {
 				troikiStore.applyTaskUpdate(updated);
+			}
+			if (wasOpen && updated.status === 'completed' && !updated.recurrenceRule) {
+				followUpStore.push(updated, async () => {
+					await tasksApi.uncomplete(client, t.id);
+					await troikiStore.load();
+				});
 			}
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to update task'));

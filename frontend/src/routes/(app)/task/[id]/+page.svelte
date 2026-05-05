@@ -493,6 +493,7 @@ async function save(): Promise<void> {
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					Date
 				</span>
+				<div class="flex items-center gap-1.5">
 				<div
 					class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 					role="group"
@@ -554,6 +555,18 @@ async function save(): Promise<void> {
 							</PopoverPrimitive.Content>
 						</PopoverPrimitive.Portal>
 					</PopoverPrimitive.Root>
+				</div>
+				{#if dueDate}
+					<button
+						type="button"
+						onclick={() => { dueDate = ''; scheduleSave(); }}
+						aria-label="Clear date"
+						title="Clear date"
+						class="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					>
+						<XIcon class="size-3.5" />
+					</button>
+				{/if}
 				</div>
 			</div>
 
