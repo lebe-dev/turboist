@@ -37,7 +37,7 @@
 		) => void | Promise<void>;
 	} = $props();
 
-	let title = $state('');
+	let titles = $state('');
 	let description = $state('');
 	let priority = $state<Priority>('no-priority');
 	let dayPart = $state<DayPart>('none');
@@ -91,14 +91,17 @@
 			.map((id) => allLabels.find((l) => String(l.id) === id))
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
+	const titleLines = $derived(titles.split('\n').map((l) => l.trim()).filter(Boolean));
+	const isMultiTask = $derived(titleLines.length > 1);
+
 	const autoLabelRules = $derived(configStore.value?.autoLabels ?? []);
 	const detectedAutoLabels = $derived.by(() => {
 		const matched: string[] = [];
 		const explicitNames = selectedLabels.map((l) => l.name);
-		const lowerTitle = title.toLowerCase();
+		const lowerTitles = titles.toLowerCase();
 		for (const rule of autoLabelRules) {
 			if (!rule.mask) continue;
-			const hay = rule.ignoreCase === false ? title : lowerTitle;
+			const hay = rule.ignoreCase === false ? titles : lowerTitles;
 			const needle = rule.ignoreCase === false ? rule.mask : rule.mask.toLowerCase();
 			if (!hay.includes(needle)) continue;
 			if (matched.includes(rule.label)) continue;
@@ -124,7 +127,7 @@
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
 
 	let dateInputEl: HTMLInputElement | undefined = $state();
-	let titleEl: HTMLTextAreaElement | undefined = $state();
+	let titlesEl: HTMLTextAreaElement | undefined = $state();
 	let descriptionEl: HTMLTextAreaElement | undefined = $state();
 
 	function setDate(value: string) {
@@ -154,28 +157,21 @@
 	});
 
 	$effect(() => {
-		void title;
-		autoGrow(titleEl);
+		void titles;
+		autoGrow(titlesEl);
 	});
 
 	$effect(() => {
 		if (open) {
 			queueMicrotask(() => {
-				autoGrow(titleEl);
+				autoGrow(titlesEl);
 				autoGrow(descriptionEl);
 			});
 		}
 	});
 
-	function onTitleKeydown(e: KeyboardEvent): void {
-		if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-			e.preventDefault();
-			void submit(e);
-		}
-	}
-
 	function reset() {
-		title = '';
+		titles = '';
 		description = '';
 		priority = 'no-priority';
 		dayPart = 'none';
@@ -205,29 +201,32 @@
 
 	async function submit(e: Event) {
 		e.preventDefault();
-		if (!title.trim() || submitting) return;
+		if (titleLines.length === 0 || submitting) return;
 		submitting = true;
 		try {
-			const payload: TaskInput = {
-				title: title.trim(),
+			const resolvedLabels = labelIds
+				.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
+				.filter((n): n is string => !!n);
+			const commonPayload = {
 				description: description.trim() || undefined,
 				priority,
 				dayPart,
 				dueAt: dueDate
 					? toIsoUtc(dayStartUtcInTz(dueDate, configStore.value?.timezone ?? null))
 					: null,
-				dueHasTime: false,
+				dueHasTime: false as const,
 				recurrenceRule,
-				labels: labelIds
-					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
-					.filter((n): n is string => !!n),
+				labels: resolvedLabels,
 				removedAutoLabels: dismissedAutoLabels.length > 0 ? [...dismissedAutoLabels] : undefined
 			};
 			const target = {
 				projectId: projectId ? Number(projectId) : null,
-				labels: payload.labels ?? []
+				labels: resolvedLabels
 			};
-			await onSubmit?.(payload, target);
+			for (const line of titleLines) {
+				const payload: TaskInput = { ...commonPayload, title: line };
+				await onSubmit?.(payload, target);
+			}
 			reset();
 			open = false;
 		} finally {
@@ -258,13 +257,12 @@
 				<div class="px-5 pt-5 pb-3">
 					<!-- svelte-ignore a11y_autofocus -->
 					<textarea
-						bind:this={titleEl}
-						bind:value={title}
-						placeholder="Task name"
-						aria-label="Task name"
+						bind:this={titlesEl}
+						bind:value={titles}
+						placeholder="Task name (one per line)"
+						aria-label="Task names"
 						rows="1"
 						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
-						onkeydown={onTitleKeydown}
 						class="block w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium leading-tight outline-none placeholder:text-muted-foreground/70"
 						autofocus
 					></textarea>
@@ -514,8 +512,8 @@
 								<Button {...props} variant="ghost" size="sm" type="button">Cancel</Button>
 							{/snippet}
 						</DialogPrimitive.Close>
-						<Button type="submit" size="sm" disabled={!title.trim() || submitting}>
-							Add task
+						<Button type="submit" size="sm" disabled={titleLines.length === 0 || submitting}>
+							{isMultiTask ? `Add ${titleLines.length} tasks` : 'Add task'}
 						</Button>
 					</div>
 				</div>
