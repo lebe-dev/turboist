@@ -17,6 +17,7 @@
 	import DotsSixVerticalIcon from 'phosphor-svelte/lib/DotsSixVertical';
 	import PencilIcon from 'phosphor-svelte/lib/Pencil';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
 
 	let {
 		section,
@@ -26,6 +27,7 @@
 		onToggle,
 		onRename,
 		onRemove,
+		onAddTask,
 		onSectionDrop,
 		onTaskDrop,
 		taskDraggable = true
@@ -37,6 +39,7 @@
 		onToggle?: (task: Task) => void;
 		onRename?: (section: ProjectSection) => void;
 		onRemove?: (section: ProjectSection) => void;
+		onAddTask?: (section: ProjectSection) => void;
 		onSectionDrop?: (draggedId: number, targetId: number, before: boolean) => void;
 		onTaskDrop?: (taskId: number, targetSectionId: number) => void;
 		taskDraggable?: boolean;
@@ -140,6 +143,17 @@
 			<span class="text-xs text-muted-foreground">{tasks.length}</span>
 		</button>
 		<div class="flex items-center gap-1">
+			{#if onAddTask}
+				<Button
+					variant="ghost"
+					size="icon"
+					class="size-7"
+					onclick={() => onAddTask?.(section)}
+					aria-label="Add task to section"
+				>
+					<PlusIcon class="size-3.5" />
+				</Button>
+			{/if}
 			{#if onRename}
 				<Button
 					variant="ghost"

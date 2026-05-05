@@ -10,6 +10,8 @@
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { sections as sectionsApi } from '$lib/api/endpoints/sections';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
+	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import type { TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import type { Project, ProjectSection, Task, TroikiCategory } from '$lib/api/types';
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
@@ -41,6 +43,8 @@
 	let editProjectOpen = $state(false);
 	let sectionDialogOpen = $state(false);
 	let editingSection = $state<ProjectSection | null>(null);
+	let sectionQuickAddOpen = $state(false);
+	let sectionQuickAddTarget = $state<ProjectSection | null>(null);
 
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
@@ -170,6 +174,26 @@
 	function addSection() {
 		editingSection = null;
 		sectionDialogOpen = true;
+	}
+
+	function openSectionQuickAdd(sec: ProjectSection) {
+		sectionQuickAddTarget = sec;
+		sectionQuickAddOpen = true;
+	}
+
+	async function onSectionTaskSubmit(
+		payload: TaskInput,
+		_target: { projectId: number | null; labels: string[]; parentId: number | null; sectionId: number | null }
+	): Promise<void> {
+		const sec = sectionQuickAddTarget;
+		if (!sec) return;
+		try {
+			const created = await sectionsApi.createTask(getApiClient(), sec.id, payload);
+			taskList.items = [...taskList.items, created];
+			toast.success('Task added');
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to add task'));
+		}
 	}
 
 	let rootDropActive = $state(false);
@@ -344,6 +368,7 @@
 						pendingSectionDelete = sec;
 						confirmSectionOpen = true;
 					}}
+					onAddSection={openSectionQuickAdd}
 					onSectionDrop={reorderSection}
 					onTaskDrop={(taskId, targetSectionId) => moveTask(taskId, targetSectionId)}
 				/>
@@ -351,6 +376,11 @@
 		</ViewContent>
 	</div>
 
+	<QuickAddDialog
+		bind:open={sectionQuickAddOpen}
+		defaultProjectId={projectId}
+		onSubmit={onSectionTaskSubmit}
+	/>
 	<ProjectDialog
 		bind:open={editProjectOpen}
 		initial={project}

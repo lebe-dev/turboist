@@ -11,6 +11,7 @@
 		onToggle,
 		onRenameSection,
 		onRemoveSection,
+		onAddSection,
 		onSectionDrop,
 		onTaskDrop
 	}: {
@@ -21,6 +22,7 @@
 		onToggle?: (task: Task) => void;
 		onRenameSection?: (section: ProjectSection) => void;
 		onRemoveSection?: (section: ProjectSection) => void;
+		onAddSection?: (section: ProjectSection) => void;
 		onSectionDrop?: (draggedId: number, targetId: number, before: boolean) => void;
 		onTaskDrop?: (taskId: number, targetSectionId: number) => void;
 	} = $props();
@@ -36,6 +38,7 @@
 			{onToggle}
 			onRename={onRenameSection}
 			onRemove={onRemoveSection}
+			onAddTask={onAddSection}
 			{onSectionDrop}
 			{onTaskDrop}
 		/>
