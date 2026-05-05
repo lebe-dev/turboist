@@ -191,6 +191,7 @@
 	});
 	$effect(() => {
 		if (task) viewFilterStore.setTitle(task.title);
+		return () => viewFilterStore.clear();
 	});
 
 	const loader = usePageLoad(
