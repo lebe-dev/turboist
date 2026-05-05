@@ -31,6 +31,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
+	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownLink } from '$lib/utils/markdown';
 	import { tick } from 'svelte';
 
@@ -256,11 +257,12 @@
 				})
 			);
 			newSubtaskTitle = '';
-			subtaskInputEl?.focus();
 		} catch (err) {
 			toast.error(describeError(err, 'Failed to add subtask'));
 		} finally {
 			creatingSubtask = false;
+			await tick();
+			subtaskInputEl?.focus();
 		}
 	}
 
@@ -341,7 +343,7 @@ async function save(): Promise<void> {
 					class="size-2 shrink-0 rounded-full"
 					style={`background-color: ${project.color}`}
 				></span>
-				<span class="truncate">{project.title}</span>
+				<span class="truncate">{project.title}{#if project.troikiCategory}<TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50" />{/if}</span>
 			</a>
 		{/if}
 	</div>
