@@ -52,6 +52,19 @@
 		) => void | Promise<void>;
 	} = $props();
 
+	function initialLabelIds(): string[] {
+		const base = defaultLabelIds.map(String);
+		if (!defaultProjectId || defaultParentId !== null) return base;
+		const project = projectsStore.items.find((p) => p.id === defaultProjectId);
+		if (!project || project.labels.length === 0) return base;
+		const result = [...base];
+		for (const l of project.labels) {
+			const id = String(l.id);
+			if (!result.includes(id)) result.push(id);
+		}
+		return result;
+	}
+
 	let titles = $state('');
 	let description = $state('');
 	// svelte-ignore state_referenced_locally
@@ -62,8 +75,7 @@
 	let dueDate = $state<string>(defaultDueDate ?? '');
 	// svelte-ignore state_referenced_locally
 	let projectId = $state<string>(defaultProjectId ? String(defaultProjectId) : '');
-	// svelte-ignore state_referenced_locally
-	let labelIds = $state<string[]>(defaultLabelIds.map(String));
+	let labelIds = $state<string[]>(initialLabelIds());
 	// svelte-ignore state_referenced_locally
 	let parentId = $state<number | null>(defaultParentId);
 	// svelte-ignore state_referenced_locally
@@ -205,7 +217,7 @@
 		dueDate = defaultDueDate ?? '';
 		recurrenceRule = null;
 		projectId = defaultProjectId ? String(defaultProjectId) : '';
-		labelIds = defaultLabelIds.map(String);
+		labelIds = initialLabelIds();
 		parentId = defaultParentId;
 		sectionId = defaultSectionId;
 		labelMenuOpen = false;
@@ -217,7 +229,7 @@
 		if (open && !prevOpen) {
 			dueDate = defaultDueDate ?? '';
 			projectId = defaultProjectId ? String(defaultProjectId) : '';
-			labelIds = defaultLabelIds.map(String);
+			labelIds = initialLabelIds();
 			priority = defaultPriority;
 			dayPart = defaultDayPart;
 			parentId = defaultParentId;
