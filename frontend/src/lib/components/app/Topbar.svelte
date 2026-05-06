@@ -25,8 +25,7 @@
 		'/week': 'nav.thisWeek',
 		'/backlog': 'nav.backlog',
 		'/next-week': 'nav.nextWeek',
-		'/search': 'nav.search',
-		'/settings': 'nav.settings'
+		'/search': 'nav.search'
 	};
 
 	let {
