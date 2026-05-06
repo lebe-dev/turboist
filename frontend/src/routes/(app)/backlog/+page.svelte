@@ -31,7 +31,7 @@
 		if (!isValid()) return;
 		list.items = res.items;
 		total = res.total;
-	}, { errorMessage: 'Failed to load backlog', autoLoad: false, initialLoading: true });
+	}, { errorMessage: $t('page.backlog.errorLoading'), autoLoad: false, initialLoading: true });
 
 	$effect(() => {
 		void userStateStore.activeContextId;
@@ -48,7 +48,7 @@
 	{#snippet banner()}
 		{#if exceeded && limit !== null}
 			<LimitReachedBanner
-				message={`Backlog limit reached (${total}/${limit}). Move tasks to a week or complete them before adding more.`}
+				message={$t('page.backlog.limitReached', { values: { total, limit } })}
 			/>
 		{/if}
 	{/snippet}

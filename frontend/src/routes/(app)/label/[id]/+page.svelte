@@ -47,7 +47,7 @@
 		label = l;
 		taskList.items = ts.items;
 	}, {
-		errorMessage: 'Failed to load label',
+		errorMessage: $t('page.label.errorLoading'),
 		autoLoad: false,
 		initialLoading: true,
 		onError(err) {
@@ -64,7 +64,7 @@
 			label = updated;
 			labelsStore.upsert(updated);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to update label'));
+			toast.error(describeError(err, $t('page.label.failedUpdate')));
 		}
 	}
 
@@ -78,7 +78,7 @@
 			labelsStore.upsert(updated);
 			toast.success($t('common.privacyUpdated'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to update privacy'));
+			toast.error(describeError(err, $t('page.label.failedUpdatePrivacy')));
 		}
 	}
 
@@ -94,10 +94,10 @@
 		try {
 			await labelsApi.remove(getApiClient(), label.id);
 			labelsStore.remove(label.id);
-			toast.success('Label deleted');
+			toast.success($t('page.label.deleted'));
 			void goto(resolve('/inbox'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to delete label'));
+			toast.error(describeError(err, $t('page.label.failedDelete')));
 		}
 	}
 
@@ -107,11 +107,11 @@
 </script>
 
 {#if loader.loading}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('app.loading')}</div>
 {:else if loader.error && !notFound}
 	<div class="px-6 py-8 text-sm text-muted-foreground">{loader.error}</div>
 {:else if notFound || !label}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Label not found</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('page.label.notFound')}</div>
 {:else}
 	<LabelHeader
 		{label}
@@ -126,8 +126,8 @@
 			loading={false}
 			isEmpty={taskList.items.length === 0}
 			emptyIcon={TagIcon}
-			emptyTitle="No tasks with this label"
-			emptyDescription="Tag tasks with this label to see them here."
+			emptyTitle={$t('page.label.emptyTitle')}
+			emptyDescription={$t('page.label.emptyDescription')}
 		>
 			<TaskTree
 				tasks={taskList.items}
@@ -144,8 +144,8 @@
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}
-		title="Delete label?"
-		description="The label will be removed from all tasks. This cannot be undone."
+		title={$t('page.label.confirmDeleteTitle')}
+		description={$t('page.label.confirmDeleteDesc')}
 		onConfirm={deleteLabel}
 	/>
 {/if}

@@ -31,7 +31,7 @@
 			if (!isValid()) return;
 			list.items = res.items;
 		},
-		{ errorMessage: 'Failed to load completed', autoLoad: false, initialLoading: true }
+		{ errorMessage: $t('page.completed.errorLoading'), autoLoad: false, initialLoading: true }
 	);
 
 	$effect(() => {

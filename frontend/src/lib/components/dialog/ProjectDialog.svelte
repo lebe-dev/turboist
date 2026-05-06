@@ -16,6 +16,7 @@
 	import ColorPicker from './ColorPicker.svelte';
 	import { DEFAULT_COLOR } from './colorPalette';
 	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
+	import { t } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
@@ -56,7 +57,7 @@
 		if (!title.trim()) return;
 		const ctxIdNum = Number(contextId);
 		if (!Number.isFinite(ctxIdNum) || ctxIdNum <= 0) {
-			toast.error('Pick a context');
+			toast.error($t('dialog.project.pickContextError'));
 			return;
 		}
 		const saved = await form.submit(
@@ -83,7 +84,10 @@
 					});
 				}
 			},
-			{ success: initial ? 'Project updated' : 'Project created', error: 'Failed to save project' }
+			{
+				success: initial ? $t('dialog.project.updated') : $t('dialog.project.created'),
+				error: $t('dialog.project.failedSave')
+			}
 		);
 		if (saved) {
 			projectsStore.upsert(saved);
@@ -93,30 +97,30 @@
 	}
 
 	const ctxLabel = $derived(
-		allContexts.find((c) => String(c.id) === contextId)?.name ?? 'Pick context'
+		allContexts.find((c) => String(c.id) === contextId)?.name ?? $t('dialog.project.pickContext')
 	);
 </script>
 
 <Sheet.Root bind:open>
 	<Sheet.Content side="right" class="w-full sm:max-w-lg">
 		<Sheet.Header>
-			<Sheet.Title>{initial ? 'Edit project' : 'New project'}</Sheet.Title>
-			<Sheet.Description>Projects live inside a context.</Sheet.Description>
+			<Sheet.Title>{initial ? $t('dialog.project.editTitle') : $t('dialog.project.newTitle')}</Sheet.Title>
+			<Sheet.Description>{$t('dialog.project.description')}</Sheet.Description>
 		</Sheet.Header>
 
 		<form class="flex flex-col gap-3 overflow-y-auto px-4 py-2" onsubmit={submit}>
 			<div class="flex flex-col gap-1">
-				<Label for="prj-title">Title</Label>
-				<Input id="prj-title" bind:value={title} placeholder="Website redesign" autofocus />
+				<Label for="prj-title">{$t('common.title')}</Label>
+				<Input id="prj-title" bind:value={title} placeholder={$t('dialog.project.titlePlaceholder')} autofocus />
 			</div>
 
 			<div class="flex flex-col gap-1">
-				<Label for="prj-desc">Description</Label>
+				<Label for="prj-desc">{$t('common.description')}</Label>
 				<Textarea id="prj-desc" rows={3} bind:value={description} />
 			</div>
 
 			<div class="flex flex-col gap-1">
-				<Label>Context</Label>
+				<Label>{$t('dialog.project.contextLabel')}</Label>
 				<Select.Root type="single" bind:value={contextId}>
 					<Select.Trigger>{ctxLabel}</Select.Trigger>
 					<Select.Content>
@@ -128,13 +132,13 @@
 			</div>
 
 			<div class="flex flex-col gap-1">
-				<Label>Color</Label>
+				<Label>{$t('common.color')}</Label>
 				<ColorPicker bind:value={color} />
 			</div>
 
 			{#if allLabels.length > 0}
 				<div class="flex flex-col gap-1">
-					<Label>Labels</Label>
+					<Label>{$t('common.labels')}</Label>
 					<div class="flex flex-wrap gap-1">
 						{#each allLabels as label (label.id)}
 							{@const id = String(label.id)}
@@ -158,9 +162,9 @@
 
 			<Sheet.Footer class="px-0">
 				<Button type="submit" disabled={!title.trim() || form.submitting}>
-					{form.submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
+					{form.submitting ? $t('common.saving') : initial ? $t('common.save') : $t('common.create')}
 				</Button>
-				<Sheet.Close>Cancel</Sheet.Close>
+				<Sheet.Close>{$t('common.cancel')}</Sheet.Close>
 			</Sheet.Footer>
 		</form>
 	</Sheet.Content>

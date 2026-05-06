@@ -1,12 +1,13 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
+	import { t } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
 		title,
 		description,
-		confirmLabel = 'Delete',
+		confirmLabel,
 		busyLabel,
 		variant = 'destructive',
 		onConfirm
@@ -19,6 +20,8 @@
 		variant?: 'destructive' | 'default';
 		onConfirm: () => void | Promise<void>;
 	} = $props();
+
+	const resolvedConfirm = $derived(confirmLabel ?? $t('common.delete'));
 
 	let busy = $state(false);
 
@@ -41,9 +44,9 @@
 			<AlertDialog.Description>{description}</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<AlertDialog.Cancel disabled={busy}>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Cancel disabled={busy}>{$t('common.cancel')}</AlertDialog.Cancel>
 			<Button {variant} onclick={confirm} disabled={busy}>
-				{busy ? (busyLabel ?? `${confirmLabel}…`) : confirmLabel}
+				{busy ? (busyLabel ?? `${resolvedConfirm}…`) : resolvedConfirm}
 			</Button>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

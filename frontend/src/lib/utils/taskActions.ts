@@ -6,6 +6,12 @@ import { planStatsStore } from '$lib/stores/planStats.svelte';
 import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 import { followUpStore } from '$lib/stores/followUp.svelte';
 import { toast } from 'svelte-sonner';
+import { get } from 'svelte/store';
+import { t } from '$lib/i18n';
+
+function tr(key: string, values?: Record<string, string | number | Date>): string {
+	return get(t)(key, values ? { values } : undefined);
+}
 
 export function describeError(err: unknown, fallback: string): string {
 	if (err instanceof ApiError) return err.message || fallback;
@@ -62,7 +68,7 @@ export async function toggleComplete(
 			followUpStore.push(updated, undoFn);
 		}
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to update task'));
+		toast.error(describeError(err, tr('task.toast.failedUpdate')));
 	}
 }
 
@@ -77,18 +83,18 @@ export async function togglePin(task: Task, mutator: ListMutator): Promise<void>
 		if (wasPin) pinnedTasksStore.removeItem(task.id);
 		else pinnedTasksStore.addItem(updated);
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to pin task'));
+		toast.error(describeError(err, tr('task.toast.failedPin')));
 	}
 }
 
 export async function deleteTask(task: Task, mutator: ListMutator): Promise<void> {
 	const client = getApiClient();
-	if (!confirm(`Delete "${task.title}"? Subtasks will also be removed.`)) return;
+	if (!confirm(tr('task.toast.confirmDelete', { title: task.title }))) return;
 	try {
 		await tasksApi.remove(client, task.id);
 		mutator.remove(task.id);
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to delete task'));
+		toast.error(describeError(err, tr('task.toast.failedDelete')));
 	}
 }
 
@@ -112,7 +118,7 @@ export async function updateTaskFields(
 		const updated = await tasksApi.update(client, task.id, patch);
 		applyUpdate(updated, mutator, options.belongs);
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to update task'));
+		toast.error(describeError(err, tr('task.toast.failedUpdate')));
 	}
 }
 
@@ -130,7 +136,7 @@ export async function moveToBacklog(
 		applyUpdate(updated, mutator, options.belongs);
 		void planStatsStore.load().catch(() => {});
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to move to backlog'));
+		toast.error(describeError(err, tr('task.toast.failedMoveToBacklog')));
 	}
 }
 
@@ -145,7 +151,7 @@ export async function removeFromBacklog(
 		applyUpdate(updated, mutator, options.belongs);
 		void planStatsStore.load().catch(() => {});
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to remove from backlog'));
+		toast.error(describeError(err, tr('task.toast.failedRemoveFromBacklog')));
 	}
 }
 
@@ -154,9 +160,9 @@ export async function duplicateTask(task: Task, mutator: ListMutator): Promise<v
 	try {
 		const created = await tasksApi.duplicate(client, task.id);
 		mutator.insertAfter?.(task.id, created);
-		toast.success('Duplicated');
+		toast.success(tr('task.toast.duplicated'));
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to duplicate task'));
+		toast.error(describeError(err, tr('task.toast.failedDuplicate')));
 	}
 }
 
@@ -175,17 +181,19 @@ export async function moveTaskToProject(
 			updated = await tasksApi.complete(client, updated.id);
 		}
 		applyUpdate(updated, mutator, options.belongs);
-		toast.success(options.projectCompleted ? 'Moved and completed' : 'Moved');
+		toast.success(
+			options.projectCompleted ? tr('task.toast.movedAndCompleted') : tr('task.toast.moved')
+		);
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to move task'));
+		toast.error(describeError(err, tr('task.toast.failedMove')));
 	}
 }
 
 export async function copyTaskTitle(task: Task): Promise<void> {
 	try {
 		await navigator.clipboard.writeText(task.title);
-		toast.success('Copied');
+		toast.success(tr('task.toast.copied'));
 	} catch (err) {
-		toast.error(describeError(err, 'Failed to copy'));
+		toast.error(describeError(err, tr('task.toast.failedCopy')));
 	}
 }

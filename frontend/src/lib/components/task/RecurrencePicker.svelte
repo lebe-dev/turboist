@@ -1,6 +1,7 @@
 <script lang="ts">
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import XIcon from 'phosphor-svelte/lib/X';
+	import { t } from '$lib/i18n';
 
 	type RecurrenceMode = 'none' | 'daily' | 'interval' | 'weekly' | 'monthly';
 
@@ -14,14 +15,14 @@
 		day?: number;
 	}
 
-	const WEEKDAY_LABEL: Record<Weekday, string> = {
-		MO: 'Mo',
-		TU: 'Tu',
-		WE: 'We',
-		TH: 'Th',
-		FR: 'Fr',
-		SA: 'Sa',
-		SU: 'Su'
+	const WEEKDAY_KEY: Record<Weekday, string> = {
+		MO: 'task.recurrence.weekday.mo',
+		TU: 'task.recurrence.weekday.tu',
+		WE: 'task.recurrence.weekday.we',
+		TH: 'task.recurrence.weekday.th',
+		FR: 'task.recurrence.weekday.fr',
+		SA: 'task.recurrence.weekday.sa',
+		SU: 'task.recurrence.weekday.su'
 	};
 
 	let { value = $bindable<string | null>(null) }: { value?: string | null } = $props();
@@ -58,18 +59,18 @@
 	function getSummary(p: ParsedRule): string {
 		switch (p.mode) {
 			case 'daily':
-				return 'Every day';
+				return $t('task.recurrence.daily');
 			case 'interval':
-				return `Every ${p.interval} days`;
+				return $t('task.recurrence.intervalDays', { values: { count: p.interval ?? 0 } });
 			case 'weekly': {
 				const days = p.days ?? [];
-				if (!days.length) return 'Weekly';
-				return days.map((d) => WEEKDAY_LABEL[d]).join(', ');
+				if (!days.length) return $t('task.recurrence.weekly');
+				return days.map((d) => $t(WEEKDAY_KEY[d])).join(', ');
 			}
 			case 'monthly':
-				return `Day ${p.day} monthly`;
+				return $t('task.recurrence.monthlyDay', { values: { day: p.day ?? 0 } });
 			default:
-				return 'Repeat';
+				return $t('task.recurrence.repeat');
 		}
 	}
 
@@ -140,12 +141,12 @@
 			class={`inline-flex h-full items-center gap-1.5 px-2.5 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 ${hasRepeat ? 'rounded-l-md' : 'rounded-md'}`}
 		>
 			<RepeatIcon class="size-3.5" />
-			<span>{hasRepeat ? summary : 'Repeat'}</span>
+			<span>{hasRepeat ? summary : $t('task.recurrence.repeat')}</span>
 		</button>
 		{#if hasRepeat}
 			<button
 				type="button"
-				aria-label="Clear repeat"
+				aria-label={$t('task.recurrence.clearRepeat')}
 				onclick={clearRepeat}
 				class="inline-flex h-full items-center rounded-r-md border-l border-border px-1.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
 			>
@@ -171,7 +172,7 @@
 				class={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent ${currentMode === 'none' ? 'bg-accent' : ''}`}
 			>
 				<span class={dot('none')}></span>
-				<span>No repeat</span>
+				<span>{$t('task.recurrence.noRepeat')}</span>
 			</button>
 
 			<!-- Every day -->
@@ -181,7 +182,7 @@
 				class={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent ${currentMode === 'daily' ? 'bg-accent' : ''}`}
 			>
 				<span class={dot('daily')}></span>
-				<span>Every day</span>
+				<span>{$t('task.recurrence.daily')}</span>
 			</button>
 
 			<!-- Every N days -->
@@ -193,7 +194,7 @@
 				class={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs transition-colors hover:bg-accent ${currentMode === 'interval' ? 'bg-accent' : ''}`}
 			>
 				<span class={dot('interval')}></span>
-				<span class="flex-shrink-0">Every</span>
+				<span class="flex-shrink-0">{$t('task.recurrence.every')}</span>
 				<input
 					type="number"
 					min="2"
@@ -212,7 +213,7 @@
 					}}
 					class="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-center text-xs focus:outline-none focus:ring-[2px] focus:ring-ring/50"
 				/>
-				<span class="flex-shrink-0">days</span>
+				<span class="flex-shrink-0">{$t('task.recurrence.days')}</span>
 			</div>
 
 			<!-- Weekly -->
@@ -225,7 +226,7 @@
 			>
 				<div class="flex items-center gap-2.5">
 					<span class={dot('weekly')}></span>
-					<span>On days of week</span>
+					<span>{$t('task.recurrence.onDaysOfWeek')}</span>
 				</div>
 				<div class="ml-6 flex gap-0.5">
 					{#each WEEKDAY_ORDER as day (day)}
@@ -237,7 +238,7 @@
 							}}
 							class={`flex h-6 w-[26px] items-center justify-center rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 ${weekdays.includes(day) ? 'bg-foreground/20 text-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
 						>
-							{WEEKDAY_LABEL[day]}
+							{$t(WEEKDAY_KEY[day])}
 						</button>
 					{/each}
 				</div>
@@ -252,7 +253,7 @@
 				onkeydown={(e) => e.key === 'Enter' && applyMonthly()}
 			>
 				<span class={dot('monthly')}></span>
-				<span class="flex-shrink-0">Monthly, day</span>
+				<span class="flex-shrink-0">{$t('task.recurrence.monthlyDayLabel')}</span>
 				<input
 					type="number"
 					min="1"

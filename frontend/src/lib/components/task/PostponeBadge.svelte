@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ClockClockwiseIcon from 'phosphor-svelte/lib/ClockClockwise';
+	import { t } from '$lib/i18n';
 
 	let { count, completed = false }: { count: number; completed?: boolean } = $props();
 
@@ -16,7 +17,7 @@
 </script>
 
 {#if count >= 2}
-	<span class={spanClass} title="Postponed {count} times">
+	<span class={spanClass} title={$t('task.postponedTimes', { values: { count } })}>
 		<ClockClockwiseIcon class="size-3.5 shrink-0" />
 		<span>{count}</span>
 	</span>

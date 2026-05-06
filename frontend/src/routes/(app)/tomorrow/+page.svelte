@@ -33,7 +33,7 @@
 		if (!isValid()) return;
 		list.items = res.items;
 		total = res.total;
-	}, { errorMessage: 'Failed to load tomorrow', autoLoad: false, initialLoading: true });
+	}, { errorMessage: $t('page.tomorrow.errorLoading'), autoLoad: false, initialLoading: true });
 
 	$effect(() => {
 		void userStateStore.activeContextId;

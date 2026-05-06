@@ -6,6 +6,7 @@
 	import type { Task } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
+	import { t } from '$lib/i18n';
 
 	let {
 		count,
@@ -28,7 +29,7 @@
 			items = res.items;
 			loaded = true;
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to load completed tasks'));
+			toast.error(describeError(err, $t('view.failedLoadCompleted')));
 		} finally {
 			loading = false;
 		}
@@ -65,7 +66,7 @@
 			onclick={toggle}
 			aria-expanded={expanded}
 		>
-			<span>Completed today</span>
+			<span>{$t('view.completedToday')}</span>
 			<span
 				class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground"
 			>
@@ -79,9 +80,9 @@
 		{#if expanded}
 			<div class="px-1">
 				{#if loading}
-					<div class="px-4 py-4 text-sm text-muted-foreground">Loading…</div>
+					<div class="px-4 py-4 text-sm text-muted-foreground">{$t('app.loading')}</div>
 				{:else if items.length === 0}
-					<div class="px-4 py-4 text-sm text-muted-foreground">No tasks completed today.</div>
+					<div class="px-4 py-4 text-sm text-muted-foreground">{$t('view.noTasksCompleted')}</div>
 				{:else}
 					<TaskTree tasks={items} hideDue onToggle={onItemToggle} />
 				{/if}

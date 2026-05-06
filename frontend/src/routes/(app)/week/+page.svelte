@@ -34,7 +34,7 @@
 		if (!isValid()) return;
 		list.items = res.items;
 		total = res.total;
-	}, { errorMessage: 'Failed to load week', autoLoad: false, initialLoading: true });
+	}, { errorMessage: $t('page.week.errorLoading'), autoLoad: false, initialLoading: true });
 
 	$effect(() => {
 		void userStateStore.activeContextId;
@@ -51,7 +51,7 @@
 	{#snippet banner()}
 		{#if exceeded && limit !== null}
 			<LimitReachedBanner
-				message={`Weekly limit reached (${total}/${limit}). Adding more tasks to the week will be rejected.`}
+				message={$t('page.week.limitReached', { values: { total, limit } })}
 			/>
 		{/if}
 	{/snippet}

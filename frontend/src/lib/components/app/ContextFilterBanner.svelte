@@ -4,6 +4,7 @@
 	import { toast } from 'svelte-sonner';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { t } from '$lib/i18n';
 
 	const activeId = $derived(userStateStore.activeContextId);
 	const activeContext = $derived(
@@ -14,7 +15,7 @@
 		try {
 			await userStateStore.setActiveContextId(null);
 		} catch (err) {
-			const message = err instanceof Error ? err.message : 'Failed to clear context';
+			const message = err instanceof Error ? err.message : $t('context.failedClear');
 			toast.error(message);
 		}
 	}
@@ -28,7 +29,7 @@
 		<div class="flex min-w-0 items-center gap-2">
 			<FunnelIcon class="size-3.5 shrink-0" weight="fill" />
 			<span class="min-w-0 truncate">
-				Context <span class="font-semibold">{activeContext.name}</span> is selected, so not all tasks are shown.
+				{$t('context.filterBannerText', { values: { name: activeContext.name } })}
 			</span>
 		</div>
 		<button
@@ -37,7 +38,7 @@
 			class="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/20 px-2 py-0.5 font-medium transition-colors hover:bg-amber-500/10"
 		>
 			<XIcon class="size-3" />
-			Clear filter
+			{$t('context.clearFilter')}
 		</button>
 	</div>
 {/if}

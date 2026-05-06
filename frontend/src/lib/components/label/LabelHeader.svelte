@@ -33,7 +33,7 @@
 		<TagIcon class="size-4 shrink-0" style={`color: ${label.color}`} />
 		<h1 class="truncate text-xl font-semibold">{label.name}</h1>
 		{#if label.isFavourite}
-			<StarFilledIcon class="size-4 text-amber-500" aria-label="Favourite" />
+			<StarFilledIcon class="size-4 text-amber-500" aria-label={$t('common.favourite')} />
 		{/if}
 		{#if label.isPrivate && !settingsStore.publicView}
 			<span
@@ -49,13 +49,13 @@
 		{#if onToggleFavourite}
 			<Button size="sm" variant="ghost" onclick={onToggleFavourite}>
 				<StarIcon class="size-4" />
-				{label.isFavourite ? 'Unfavourite' : 'Favourite'}
+				{label.isFavourite ? $t('common.unfavourite') : $t('common.favourite')}
 			</Button>
 		{/if}
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}
-					<Button {...props} size="sm" variant="ghost" aria-label="Label actions">
+					<Button {...props} size="sm" variant="ghost" aria-label={$t('label.actionsAriaLabel')}>
 						<DotsThreeIcon class="size-4" />
 					</Button>
 				{/snippet}
@@ -63,7 +63,7 @@
 			<DropdownMenu.Content align="end">
 				{#if onEdit}
 					<DropdownMenu.Item onclick={onEdit}>
-						<PencilIcon class="size-4" /> Edit
+						<PencilIcon class="size-4" /> {$t('common.edit')}
 					</DropdownMenu.Item>
 				{/if}
 				{#if onTogglePrivate}
@@ -78,7 +78,7 @@
 				{#if onDelete}
 					<DropdownMenu.Separator />
 					<DropdownMenu.Item variant="destructive" onclick={onDelete}>
-						<TrashIcon class="size-4" /> Delete
+						<TrashIcon class="size-4" /> {$t('common.delete')}
 					</DropdownMenu.Item>
 				{/if}
 			</DropdownMenu.Content>

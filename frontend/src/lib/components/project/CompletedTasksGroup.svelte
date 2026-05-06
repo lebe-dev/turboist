@@ -6,6 +6,7 @@
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircle';
+	import { t } from '$lib/i18n';
 
 	let {
 		tasks,
@@ -40,7 +41,7 @@
 			<CaretRightIcon class="size-3" />
 		{/if}
 		<CheckCircleIcon class="size-3.5" weight="fill" />
-		<span>Completed</span>
+		<span>{$t('nav.completed')}</span>
 		<span class="text-muted-foreground/70">{rootCount}</span>
 	</button>
 	{#if open}

@@ -3,6 +3,7 @@
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
+	import { t } from '$lib/i18n';
 
 	let {
 		title,
@@ -70,8 +71,8 @@
 				type="button"
 				class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 				onclick={onAdd}
-				aria-label={`Add to ${title}`}
-				title={`Add to ${title}`}
+				aria-label={$t('sidebar.addToAriaLabel', { values: { section: title } })}
+				title={$t('sidebar.addToAriaLabel', { values: { section: title } })}
 			>
 				<PlusIcon class="size-3.5" />
 			</button>

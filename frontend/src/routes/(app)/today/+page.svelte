@@ -46,7 +46,7 @@
 		list.items = open.items;
 		total = open.total;
 		completedCount = completed.total;
-	}, { errorMessage: 'Failed to load today', autoLoad: false, initialLoading: true });
+	}, { errorMessage: $t('page.today.errorLoading'), autoLoad: false, initialLoading: true });
 
 	$effect(() => {
 		void userStateStore.activeContextId;

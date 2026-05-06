@@ -4,7 +4,8 @@
 		"loading": "Loading…",
 		"loadingWorkspace": "Loading workspace…",
 		"workspaceFailed": "Failed to load workspace.",
-		"retry": "Retry"
+		"retry": "Retry",
+		"redirecting": "Redirecting…"
 	},
 	"common": {
 		"markPrivate": "Mark as private",
@@ -12,7 +13,25 @@
 		"privacyUpdated": "Privacy updated",
 		"privateHidden": "Hidden in Public view mode",
 		"privateMarker": "Private",
-		"privateTooltip": "Not shown in Public view mode"
+		"privateTooltip": "Not shown in Public view mode",
+		"edit": "Edit",
+		"delete": "Delete",
+		"cancel": "Cancel",
+		"save": "Save",
+		"saving": "Saving…",
+		"create": "Create",
+		"creating": "Creating…",
+		"add": "Add",
+		"back": "Back",
+		"today": "Today",
+		"tomorrow": "Tomorrow",
+		"name": "Name",
+		"title": "Title",
+		"description": "Description",
+		"color": "Color",
+		"favourite": "Favourite",
+		"unfavourite": "Unfavourite",
+		"labels": "Labels"
 	},
 	"nav": {
 		"today": "Today",
@@ -41,7 +60,8 @@
 		"logOutEverywhere": "Log out everywhere",
 		"unpinAria": "Unpin {name}",
 		"createContextFirst": "Create a context first",
-		"failedUnpin": "Failed to unpin"
+		"failedUnpin": "Failed to unpin",
+		"addToAriaLabel": "Add to {section}"
 	},
 	"topbar": {
 		"search": "Search",
@@ -123,14 +143,187 @@
 	},
 	"task": {
 		"addTask": "Add task",
+		"markComplete": "Mark complete",
+		"markIncomplete": "Mark incomplete",
+		"postponedTimes": "Postponed {count} times",
+		"inTroikiTitle": "In Troiki system",
+		"recurringLabel": "Recurring task",
+		"unplannedLabel": "Added outside of planning",
+		"actions": {
+			"ariaLabel": "Task actions",
+			"copy": "Copy",
+			"duplicate": "Duplicate",
+			"pin": "Pin",
+			"unpin": "Unpin",
+			"moveToProject": "Move to project…",
+			"removeFromBacklog": "Remove from backlog",
+			"toBacklog": "To backlog",
+			"dateLabel": "Date",
+			"dayPartLabel": "Day part",
+			"priorityLabel": "Priority",
+			"clearDate": "Clear date",
+			"clearDayPart": "Clear day part",
+			"priorityLockedTooltip": "Priority is managed by Troiki category",
+			"lockedByTroiki": "Locked by Troiki category."
+		},
+		"dayPart": {
+			"morning": "Morning",
+			"afternoon": "Afternoon",
+			"evening": "Evening",
+			"anytime": "Anytime",
+			"ariaLabel": "Day part"
+		},
+		"recurrence": {
+			"daily": "Every day",
+			"intervalDays": "Every {count} days",
+			"weekly": "Weekly",
+			"monthlyDay": "Day {day} monthly",
+			"repeat": "Repeat",
+			"noRepeat": "No repeat",
+			"every": "Every",
+			"days": "days",
+			"onDaysOfWeek": "On days of week",
+			"monthlyDayLabel": "Monthly, day",
+			"clearRepeat": "Clear repeat",
+			"weekday": {
+				"mo": "Mo",
+				"tu": "Tu",
+				"we": "We",
+				"th": "Th",
+				"fr": "Fr",
+				"sa": "Sa",
+				"su": "Su"
+			}
+		},
 		"toast": {
 			"subtaskAdded": "Subtask added",
 			"addedToProject": "Task added to project",
 			"addedToContext": "Task added to context",
 			"addedToInbox": "Task added to inbox",
 			"failedAdd": "Failed to add task",
-			"failedSetSection": "Failed to set section"
+			"failedSetSection": "Failed to set section",
+			"failedUpdate": "Failed to update task",
+			"failedPin": "Failed to pin task",
+			"failedDelete": "Failed to delete task",
+			"failedMoveToBacklog": "Failed to move to backlog",
+			"failedRemoveFromBacklog": "Failed to remove from backlog",
+			"duplicated": "Duplicated",
+			"failedDuplicate": "Failed to duplicate task",
+			"moved": "Moved",
+			"movedAndCompleted": "Moved and completed",
+			"failedMove": "Failed to move task",
+			"copied": "Copied",
+			"failedCopy": "Failed to copy",
+			"failedUndo": "Failed to undo",
+			"confirmDelete": "Delete \"{title}\"? Subtasks will also be removed."
 		}
+	},
+	"dialog": {
+		"context": {
+			"editTitle": "Edit context",
+			"newTitle": "New context",
+			"description": "Group related projects under a context.",
+			"namePlaceholder": "Personal",
+			"updated": "Context updated",
+			"created": "Context created",
+			"failedSave": "Failed to save context"
+		},
+		"label": {
+			"editTitle": "Edit label",
+			"newTitle": "New label",
+			"description": "Tag tasks across projects.",
+			"namePlaceholder": "urgent",
+			"updated": "Label updated",
+			"created": "Label created",
+			"failedSave": "Failed to save label"
+		},
+		"project": {
+			"editTitle": "Edit project",
+			"newTitle": "New project",
+			"description": "Projects live inside a context.",
+			"titlePlaceholder": "Website redesign",
+			"contextLabel": "Context",
+			"pickContext": "Pick context",
+			"pickContextError": "Pick a context",
+			"updated": "Project updated",
+			"created": "Project created",
+			"failedSave": "Failed to save project"
+		},
+		"section": {
+			"renameTitle": "Rename section",
+			"newTitle": "New section",
+			"description": "Sections group tasks within a project.",
+			"titlePlaceholder": "Backlog",
+			"updated": "Section updated",
+			"created": "Section created",
+			"failedSave": "Failed to save section"
+		},
+		"moveTask": {
+			"title": "Move to project",
+			"description": "Pick a project for \"{title}\"",
+			"searchPlaceholder": "Search projects…",
+			"noProjects": "No projects found."
+		},
+		"quickAdd": {
+			"title": "Quick add task",
+			"description": "Title plus optional description, project, priority, due date, day part, and labels.",
+			"titlePlaceholder": "Task name (one per line)",
+			"titleAriaLabel": "Task names",
+			"descriptionPlaceholder": "Description",
+			"descriptionAriaLabel": "Description",
+			"autoLabelHint": "Auto-detected from title — will be applied on save",
+			"rejectAutoLabel": "Reject auto-label {name}",
+			"dueDateAriaLabel": "Due date",
+			"customDateAriaLabel": "Custom date",
+			"pickDateTitle": "Pick a date",
+			"searchProjectsPlaceholder": "Search projects...",
+			"noMatches": "No matches",
+			"submitMulti": "Add {count} tasks",
+			"submitSingle": "Add task"
+		}
+	},
+	"project": {
+		"reopen": "Reopen",
+		"complete": "Complete",
+		"addSection": "Add section",
+		"pin": "Pin",
+		"unpin": "Unpin",
+		"archive": "Archive",
+		"unarchive": "Unarchive",
+		"cancel": "Cancel",
+		"assignToTroiki": "Assign to Troiki",
+		"removeFromTroiki": "Remove from Troiki",
+		"actionsAriaLabel": "Project actions",
+		"statusOpen": "Open",
+		"statusCompleted": "Completed",
+		"statusArchived": "Archived",
+		"statusCancelled": "Cancelled"
+	},
+	"section": {
+		"noTasks": "No tasks",
+		"addTaskAriaLabel": "Add task to section",
+		"renameAriaLabel": "Rename section",
+		"deleteAriaLabel": "Delete section"
+	},
+	"label": {
+		"actionsAriaLabel": "Label actions"
+	},
+	"context": {
+		"actionsAriaLabel": "Context actions",
+		"filterBannerText": "Context {name} is selected, so not all tasks are shown.",
+		"clearFilter": "Clear filter",
+		"failedClear": "Failed to clear context"
+	},
+	"view": {
+		"completedToday": "Completed today",
+		"noTasksCompleted": "No tasks completed today.",
+		"failedLoadCompleted": "Failed to load completed tasks",
+		"taskCompleted": "Task completed",
+		"dismiss": "Dismiss",
+		"nextTask": "Next task",
+		"undo": "Undo",
+		"moveAllTasksTitle": "Move all tasks to another phase",
+		"moveAllTo": "Move all to {label}"
 	},
 	"troiki": {
 		"howAria": "How Troiki works",
@@ -185,27 +378,151 @@
 	"page": {
 		"today": {
 			"emptyTitle": "Nothing for today",
-			"emptyDescription": "No tasks are scheduled for today. Enjoy the calm."
+			"emptyDescription": "No tasks are scheduled for today. Enjoy the calm.",
+			"errorLoading": "Failed to load today"
 		},
 		"tomorrow": {
 			"emptyTitle": "Nothing for tomorrow",
-			"emptyDescription": "Schedule tasks ahead to see them here."
+			"emptyDescription": "Schedule tasks ahead to see them here.",
+			"errorLoading": "Failed to load tomorrow"
 		},
 		"inbox": {
 			"emptyTitle": "Inbox is empty",
-			"emptyDescription": "Tasks captured without a project land here. Press Q to add one."
+			"emptyDescription": "Tasks captured without a project land here. Press Q to add one.",
+			"errorLoading": "Failed to load inbox",
+			"cleanupTaskCreated": "Cleanup task created for today",
+			"failedCreateCleanup": "Failed to create cleanup task",
+			"overCapacity": "Inbox is over capacity ({count}/{limit})",
+			"createCleanupButton": "Create «{title}» task for today"
 		},
 		"week": {
 			"emptyTitle": "Week is empty",
-			"emptyDescription": "Plan tasks for this week from Backlog or by setting a due date."
+			"emptyDescription": "Plan tasks for this week from Backlog or by setting a due date.",
+			"errorLoading": "Failed to load week",
+			"limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected."
 		},
 		"backlog": {
 			"emptyTitle": "Backlog is empty",
-			"emptyDescription": "Park tasks here when they're not actionable yet."
+			"emptyDescription": "Park tasks here when they're not actionable yet.",
+			"errorLoading": "Failed to load backlog",
+			"limitReached": "Backlog limit reached ({total}/{limit}). Move tasks to a week or complete them before adding more."
+		},
+		"nextWeek": {
+			"errorLoading": "Failed to load planning view",
+			"weeklyLimitReached": "Weekly limit reached ({weekCount}/{weeklyLimit})",
+			"weeklyLimitReachedShort": "Weekly limit reached ({limit})",
+			"backlogLimitReached": "Backlog limit reached ({backlogCount}/{backlogLimit})",
+			"backlogLimitReachedShort": "Backlog limit reached ({limit})",
+			"failedMove": "Failed to move to backlog",
+			"failedPlan": "Failed to plan task",
+			"backlogTitle": "Backlog",
+			"nextWeekTitle": "Next week",
+			"backlogEmptyTitle": "Backlog is empty",
+			"backlogEmptyDesc": "Park tasks here when they're not ready yet.",
+			"weekEmptyTitle": "Nothing planned",
+			"weekEmptyDesc": "Move tasks here from the backlog with the arrow.",
+			"planForWeek": "Plan for next week",
+			"returnToBacklog": "Return to backlog"
 		},
 		"completed": {
 			"emptyTitle": "Nothing completed yet",
-			"emptyDescription": "Tasks you complete will show up here, grouped by day."
+			"emptyDescription": "Tasks you complete will show up here, grouped by day.",
+			"errorLoading": "Failed to load completed"
+		},
+		"search": {
+			"searchFailed": "Search failed",
+			"placeholder": "Type at least 2 characters…",
+			"tasksTab": "Tasks",
+			"projectsTab": "Projects",
+			"searching": "Searching…",
+			"emptyTitle": "Search the workspace",
+			"emptyDescription": "Type at least 2 characters to find matching tasks or projects.",
+			"noTasksMatch": "No tasks match",
+			"noProjectsMatch": "No projects match"
+		},
+		"project": {
+			"errorLoading": "Failed to load project",
+			"loading": "Loading…",
+			"notFound": "Project not found",
+			"completed": "Project completed",
+			"failedComplete": "Failed to complete",
+			"failedAction": "Failed to {action}",
+			"reopened": "Project reopened",
+			"actionPin": "Project pinned",
+			"actionUnpin": "Project unpinned",
+			"actionUncomplete": "Project uncompleted",
+			"actionCancel": "Project cancelled",
+			"actionArchive": "Project archived",
+			"actionUnarchive": "Project unarchived",
+			"failedReorder": "Failed to reorder section",
+			"failedUpdatePrivacy": "Failed to update privacy",
+			"assignedToTroiki": "Assigned to {category}",
+			"removedFromTroiki": "Removed from Troiki",
+			"failedSetTroiki": "Failed to set Troiki category",
+			"deleted": "Project deleted",
+			"failedDelete": "Failed to delete project",
+			"sectionDeleted": "Section deleted",
+			"failedDeleteSection": "Failed to delete section",
+			"taskAdded": "Task added",
+			"failedAddTask": "Failed to add task",
+			"failedMove": "Failed to move task",
+			"emptyTitle": "No tasks yet",
+			"emptyDescription": "Add a task or section to start organising this project.",
+			"dropZoneHint": "Drop a task here to move it out of any section",
+			"confirmCompleteTitle": "Complete project?",
+			"confirmCompleteDesc": "The project will be marked as completed and all its tasks will be marked as done.",
+			"confirmCompleteButton": "Complete",
+			"completing": "Completing…",
+			"confirmDeleteTitle": "Delete project?",
+			"confirmDeleteDesc": "All sections and tasks under this project will be permanently deleted (cascade). This cannot be undone.",
+			"confirmDeleteSectionTitle": "Delete section?",
+			"confirmDeleteSectionDesc": "The section will be deleted; tasks in it will be kept and moved to the project root."
+		},
+		"task": {
+			"errorLoading": "Failed to load task",
+			"failedAddSubtask": "Failed to add subtask",
+			"failedSave": "Failed to save task",
+			"notFound": "Task not found",
+			"namePlaceholder": "Task name",
+			"descriptionPlaceholder": "Description",
+			"subtasks": "Subtasks",
+			"addSubtaskPlaceholder": "Add subtask",
+			"date": "Date",
+			"clearDate": "Clear date",
+			"priority": "Priority",
+			"priorityLockedByTroiki": "Locked by Troiki category — priority follows the project.",
+			"dayPart": "Day part",
+			"repeat": "Repeat",
+			"labels": "Labels",
+			"editLabels": "Edit labels"
+		},
+		"context": {
+			"errorLoading": "Failed to load context",
+			"failedUpdate": "Failed to update context",
+			"deleted": "Context deleted",
+			"failedDelete": "Failed to delete context",
+			"taskAdded": "Task added",
+			"failedAddTask": "Failed to add task",
+			"notFound": "Context not found",
+			"all": "All ({count})",
+			"addTask": "Add task",
+			"emptyTitle": "No tasks",
+			"emptyDescription": "No tasks yet for this filter.",
+			"noProject": "No project",
+			"confirmDeleteTitle": "Delete context?",
+			"confirmDeleteDesc": "All projects, sections, and tasks under this context will be permanently deleted (cascade). This cannot be undone."
+		},
+		"label": {
+			"errorLoading": "Failed to load label",
+			"failedUpdate": "Failed to update label",
+			"failedUpdatePrivacy": "Failed to update privacy",
+			"deleted": "Label deleted",
+			"failedDelete": "Failed to delete label",
+			"notFound": "Label not found",
+			"emptyTitle": "No tasks with this label",
+			"emptyDescription": "Tag tasks with this label to see them here.",
+			"confirmDeleteTitle": "Delete label?",
+			"confirmDeleteDesc": "The label will be removed from all tasks. This cannot be undone."
 		}
 	}
 }

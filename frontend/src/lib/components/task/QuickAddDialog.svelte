@@ -19,6 +19,7 @@
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import { t } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
@@ -29,7 +30,7 @@
 		defaultDayPart = 'none',
 		defaultParentId = null,
 		defaultSectionId = null,
-		emptyProjectLabel = 'Inbox',
+		emptyProjectLabel: emptyProjectLabelProp = null,
 		onSubmit
 	}: {
 		open?: boolean;
@@ -40,7 +41,7 @@
 		defaultDayPart?: DayPart;
 		defaultParentId?: number | null;
 		defaultSectionId?: number | null;
-		emptyProjectLabel?: string;
+		emptyProjectLabel?: string | null;
 		onSubmit?: (
 			payload: TaskInput,
 			target: {
@@ -87,6 +88,8 @@
 	let projectQuery = $state('');
 	let projectSearchInput = $state<HTMLInputElement | null>(null);
 	let dismissedAutoLabels = $state<string[]>([]);
+
+	const emptyProjectLabel = $derived(emptyProjectLabelProp ?? $t('nav.inbox'));
 
 	const visibleProjects = $derived(
 		projectsStore.items
@@ -295,9 +298,9 @@
 		<DialogPrimitive.Content
 			class="fixed left-1/2 top-[15%] z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
 		>
-			<DialogPrimitive.Title class="sr-only">Quick add task</DialogPrimitive.Title>
+			<DialogPrimitive.Title class="sr-only">{$t('dialog.quickAdd.title')}</DialogPrimitive.Title>
 			<DialogPrimitive.Description class="sr-only">
-				Title plus optional description, project, priority, due date, day part, and labels.
+				{$t('dialog.quickAdd.description')}
 			</DialogPrimitive.Description>
 
 			<form onsubmit={submit} class="flex flex-col">
@@ -306,8 +309,8 @@
 					<textarea
 						bind:this={titlesEl}
 						bind:value={titles}
-						placeholder="Task name (one per line)"
-						aria-label="Task names"
+						placeholder={$t('dialog.quickAdd.titlePlaceholder')}
+						aria-label={$t('dialog.quickAdd.titleAriaLabel')}
 						rows="1"
 						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
 						class="block w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium leading-tight outline-none placeholder:text-muted-foreground/70"
@@ -316,8 +319,8 @@
 					<textarea
 						bind:this={descriptionEl}
 						bind:value={description}
-						placeholder="Description"
-						aria-label="Description"
+						placeholder={$t('dialog.quickAdd.descriptionPlaceholder')}
+						aria-label={$t('dialog.quickAdd.descriptionAriaLabel')}
 						rows="1"
 						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
 						class="mt-2 block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
@@ -344,14 +347,14 @@
 							{#each detectedAutoLabels as name (name)}
 								<span
 									class="group/auto inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
-									title="Auto-detected from title — will be applied on save"
+									title={$t('dialog.quickAdd.autoLabelHint')}
 								>
 									<SparkleIcon class="size-3" weight="fill" />
 									<span>{name}</span>
 									<button
 										type="button"
 										onclick={() => dismissAutoLabel(name)}
-										aria-label={`Reject auto-label ${name}`}
+										aria-label={$t('dialog.quickAdd.rejectAutoLabel', { values: { name } })}
 										class="opacity-60 transition-opacity hover:opacity-100"
 									>
 										<XIcon class="size-3" />
@@ -365,7 +368,7 @@
 						<div
 							class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 							role="group"
-							aria-label="Due date"
+							aria-label={$t('dialog.quickAdd.dueDateAriaLabel')}
 						>
 							<button
 								type="button"
@@ -378,7 +381,7 @@
 								class:hover:bg-accent={!isToday}
 								class:hover:text-foreground={!isToday}
 							>
-								Today
+								{$t('common.today')}
 							</button>
 							<button
 								type="button"
@@ -391,13 +394,13 @@
 								class:hover:bg-accent={!isTomorrow}
 								class:hover:text-foreground={!isTomorrow}
 							>
-								Tomorrow
+								{$t('common.tomorrow')}
 							</button>
 							<PopoverPrimitive.Root bind:open={datePopoverOpen}>
 								<PopoverPrimitive.Trigger
 									aria-pressed={isCustomDate}
-									aria-label="Custom date"
-									title={isCustomDate ? dueDate : 'Pick a date'}
+									aria-label={$t('dialog.quickAdd.customDateAriaLabel')}
+									title={isCustomDate ? dueDate : $t('dialog.quickAdd.pickDateTitle')}
 									class="inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 {isCustomDate
 										? 'bg-accent text-foreground'
 										: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
@@ -443,7 +446,7 @@
 									class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent"
 								>
 									<TagIcon class="size-3.5" />
-									<span>Labels</span>
+									<span>{$t('common.labels')}</span>
 								</button>
 								{#if labelMenuOpen}
 									<div
@@ -503,7 +506,7 @@
 										bind:this={projectSearchInput}
 										bind:value={projectQuery}
 										type="text"
-										placeholder="Search projects..."
+										placeholder={$t('dialog.quickAdd.searchProjectsPlaceholder')}
 										class="h-6 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
 										onkeydown={(e) => {
 											if (e.key === 'Escape') {
@@ -549,7 +552,7 @@
 									{/each}
 									{#if !inboxMatchesQuery && filteredProjects.length === 0}
 										<div class="px-2 py-3 text-center text-xs text-muted-foreground">
-											No matches
+											{$t('dialog.quickAdd.noMatches')}
 										</div>
 									{/if}
 								</div>
@@ -560,11 +563,13 @@
 					<div class="flex items-center gap-2">
 						<DialogPrimitive.Close>
 							{#snippet child({ props })}
-								<Button {...props} variant="ghost" size="sm" type="button">Cancel</Button>
+								<Button {...props} variant="ghost" size="sm" type="button">{$t('common.cancel')}</Button>
 							{/snippet}
 						</DialogPrimitive.Close>
 						<Button type="submit" size="sm" disabled={titleLines.length === 0 || submitting}>
-							{isMultiTask ? `Add ${titleLines.length} tasks` : 'Add task'}
+							{isMultiTask
+								? $t('dialog.quickAdd.submitMulti', { values: { count: titleLines.length } })
+								: $t('dialog.quickAdd.submitSingle')}
 						</Button>
 					</div>
 				</div>

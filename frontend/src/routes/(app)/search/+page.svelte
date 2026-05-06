@@ -17,6 +17,7 @@
 	import { onDestroy } from 'svelte';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { t } from '$lib/i18n';
 	let q = $state('');
 	let active = $state<'tasks' | 'projects'>('tasks');
 	let projects = $state<Project[]>([]);
@@ -61,7 +62,7 @@
 				reset();
 				return;
 			}
-			toast.error(describeError(err, 'Search failed'));
+			toast.error(describeError(err, $t('page.search.searchFailed')));
 		}
 	});
 
@@ -88,7 +89,7 @@
 		<Input
 			value={q}
 			oninput={onInput}
-			placeholder="Type at least 2 characters…"
+			placeholder={$t('page.search.placeholder')}
 			class="pl-9"
 			autofocus
 		/>
@@ -101,7 +102,7 @@
 		variant={active === 'tasks' ? 'secondary' : 'ghost'}
 		onclick={() => (active = 'tasks')}
 	>
-		Tasks
+		{$t('page.search.tasksTab')}
 		<Badge variant="outline" class="ml-1 h-4 text-[10px]">{total.tasks}</Badge>
 	</Button>
 	<Button
@@ -109,26 +110,26 @@
 		variant={active === 'projects' ? 'secondary' : 'ghost'}
 		onclick={() => (active = 'projects')}
 	>
-		Projects
+		{$t('page.search.projectsTab')}
 		<Badge variant="outline" class="ml-1 h-4 text-[10px]">{total.projects}</Badge>
 	</Button>
 </div>
 
 <div class="px-2 py-2">
 	{#if loader.loading}
-		<div class="px-4 py-8 text-sm text-muted-foreground">Searching…</div>
+		<div class="px-4 py-8 text-sm text-muted-foreground">{$t('page.search.searching')}</div>
 	{:else if !lastQuery}
 		<EmptyState
 			icon={MagnifyingGlassIcon}
-			title="Search the workspace"
-			description="Type at least 2 characters to find matching tasks or projects."
+			title={$t('page.search.emptyTitle')}
+			description={$t('page.search.emptyDescription')}
 		/>
 	{:else if active === 'tasks'}
 		<ViewContent
 			loading={false}
 			isEmpty={taskList.items.length === 0}
 			emptyIcon={MagnifyingGlassIcon}
-			emptyTitle="No tasks match"
+			emptyTitle={$t('page.search.noTasksMatch')}
 		>
 			<TaskTree
 				tasks={taskList.items}
@@ -141,7 +142,7 @@
 			loading={false}
 			isEmpty={projects.length === 0}
 			emptyIcon={FolderIcon}
-			emptyTitle="No projects match"
+			emptyTitle={$t('page.search.noProjectsMatch')}
 		>
 			<ul class="flex flex-col divide-y divide-border/50">
 				{#each projects as p (p.id)}
@@ -156,7 +157,7 @@
 							></span>
 							<span class="min-w-0 flex-1 truncate text-sm">{p.title}</span>
 							{#if p.status !== 'open'}
-								<Badge variant="outline" class="capitalize">{p.status}</Badge>
+								<Badge variant="outline">{$t(`project.status${p.status[0].toUpperCase()}${p.status.slice(1)}`)}</Badge>
 							{/if}
 						</a>
 					</li>

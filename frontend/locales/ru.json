@@ -4,7 +4,8 @@
 		"loading": "Загрузка…",
 		"loadingWorkspace": "Загрузка рабочего пространства…",
 		"workspaceFailed": "Не удалось загрузить рабочее пространство.",
-		"retry": "Повторить"
+		"retry": "Повторить",
+		"redirecting": "Перенаправление…"
 	},
 	"common": {
 		"markPrivate": "Сделать приватным",
@@ -12,7 +13,25 @@
 		"privacyUpdated": "Приватность обновлена",
 		"privateHidden": "Скрыто в режиме Public view",
 		"privateMarker": "Приватно",
-		"privateTooltip": "Не отображается в публичном режиме просмотра"
+		"privateTooltip": "Не отображается в публичном режиме просмотра",
+		"edit": "Редактировать",
+		"delete": "Удалить",
+		"cancel": "Отмена",
+		"save": "Сохранить",
+		"saving": "Сохранение…",
+		"create": "Создать",
+		"creating": "Создание…",
+		"add": "Добавить",
+		"back": "Назад",
+		"today": "Сегодня",
+		"tomorrow": "Завтра",
+		"name": "Название",
+		"title": "Заголовок",
+		"description": "Описание",
+		"color": "Цвет",
+		"favourite": "В избранное",
+		"unfavourite": "Убрать из избранного",
+		"labels": "Метки"
 	},
 	"nav": {
 		"today": "Сегодня",
@@ -41,7 +60,8 @@
 		"logOutEverywhere": "Выйти со всех устройств",
 		"unpinAria": "Открепить {name}",
 		"createContextFirst": "Сначала создайте контекст",
-		"failedUnpin": "Не удалось открепить"
+		"failedUnpin": "Не удалось открепить",
+		"addToAriaLabel": "Добавить в раздел {section}"
 	},
 	"topbar": {
 		"search": "Поиск",
@@ -123,14 +143,187 @@
 	},
 	"task": {
 		"addTask": "Добавить задачу",
+		"markComplete": "Отметить выполненной",
+		"markIncomplete": "Снять отметку",
+		"postponedTimes": "Откладывалась {count} раз(а)",
+		"inTroikiTitle": "В системе Тройки",
+		"recurringLabel": "Повторяющаяся задача",
+		"unplannedLabel": "Добавлено вне планирования",
+		"actions": {
+			"ariaLabel": "Действия с задачей",
+			"copy": "Копировать",
+			"duplicate": "Дублировать",
+			"pin": "Закрепить",
+			"unpin": "Открепить",
+			"moveToProject": "Переместить в проект…",
+			"removeFromBacklog": "Убрать из бэклога",
+			"toBacklog": "В бэклог",
+			"dateLabel": "Дата",
+			"dayPartLabel": "Часть дня",
+			"priorityLabel": "Приоритет",
+			"clearDate": "Очистить дату",
+			"clearDayPart": "Очистить часть дня",
+			"priorityLockedTooltip": "Приоритет управляется категорией Тройки",
+			"lockedByTroiki": "Заблокировано категорией Тройки."
+		},
+		"dayPart": {
+			"morning": "Утро",
+			"afternoon": "День",
+			"evening": "Вечер",
+			"anytime": "В любое время",
+			"ariaLabel": "Часть дня"
+		},
+		"recurrence": {
+			"daily": "Каждый день",
+			"intervalDays": "Каждые {count} дн.",
+			"weekly": "Еженедельно",
+			"monthlyDay": "{day} числа каждого месяца",
+			"repeat": "Повтор",
+			"noRepeat": "Без повтора",
+			"every": "Каждые",
+			"days": "дн.",
+			"onDaysOfWeek": "По дням недели",
+			"monthlyDayLabel": "Ежемесячно, день",
+			"clearRepeat": "Сбросить повтор",
+			"weekday": {
+				"mo": "Пн",
+				"tu": "Вт",
+				"we": "Ср",
+				"th": "Чт",
+				"fr": "Пт",
+				"sa": "Сб",
+				"su": "Вс"
+			}
+		},
 		"toast": {
 			"subtaskAdded": "Подзадача добавлена",
 			"addedToProject": "Задача добавлена в проект",
 			"addedToContext": "Задача добавлена в контекст",
 			"addedToInbox": "Задача добавлена во входящие",
 			"failedAdd": "Не удалось добавить задачу",
-			"failedSetSection": "Не удалось установить раздел"
+			"failedSetSection": "Не удалось установить раздел",
+			"failedUpdate": "Не удалось обновить задачу",
+			"failedPin": "Не удалось закрепить задачу",
+			"failedDelete": "Не удалось удалить задачу",
+			"failedMoveToBacklog": "Не удалось переместить в бэклог",
+			"failedRemoveFromBacklog": "Не удалось убрать из бэклога",
+			"duplicated": "Задача дублирована",
+			"failedDuplicate": "Не удалось дублировать задачу",
+			"moved": "Перемещено",
+			"movedAndCompleted": "Перемещено и завершено",
+			"failedMove": "Не удалось переместить задачу",
+			"copied": "Скопировано",
+			"failedCopy": "Не удалось скопировать",
+			"failedUndo": "Не удалось отменить",
+			"confirmDelete": "Удалить «{title}»? Подзадачи также будут удалены."
 		}
+	},
+	"dialog": {
+		"context": {
+			"editTitle": "Редактировать контекст",
+			"newTitle": "Новый контекст",
+			"description": "Группируйте связанные проекты в контекст.",
+			"namePlaceholder": "Личное",
+			"updated": "Контекст обновлён",
+			"created": "Контекст создан",
+			"failedSave": "Не удалось сохранить контекст"
+		},
+		"label": {
+			"editTitle": "Редактировать метку",
+			"newTitle": "Новая метка",
+			"description": "Помечайте задачи в разных проектах.",
+			"namePlaceholder": "срочно",
+			"updated": "Метка обновлена",
+			"created": "Метка создана",
+			"failedSave": "Не удалось сохранить метку"
+		},
+		"project": {
+			"editTitle": "Редактировать проект",
+			"newTitle": "Новый проект",
+			"description": "Проекты живут внутри контекста.",
+			"titlePlaceholder": "Редизайн сайта",
+			"contextLabel": "Контекст",
+			"pickContext": "Выберите контекст",
+			"pickContextError": "Выберите контекст",
+			"updated": "Проект обновлён",
+			"created": "Проект создан",
+			"failedSave": "Не удалось сохранить проект"
+		},
+		"section": {
+			"renameTitle": "Переименовать раздел",
+			"newTitle": "Новый раздел",
+			"description": "Разделы группируют задачи внутри проекта.",
+			"titlePlaceholder": "Бэклог",
+			"updated": "Раздел обновлён",
+			"created": "Раздел создан",
+			"failedSave": "Не удалось сохранить раздел"
+		},
+		"moveTask": {
+			"title": "Переместить в проект",
+			"description": "Выберите проект для «{title}»",
+			"searchPlaceholder": "Поиск проектов…",
+			"noProjects": "Проекты не найдены."
+		},
+		"quickAdd": {
+			"title": "Быстрое добавление задачи",
+			"description": "Заголовок плюс необязательное описание, проект, приоритет, дата, часть дня и метки.",
+			"titlePlaceholder": "Название задачи (по одной на строку)",
+			"titleAriaLabel": "Названия задач",
+			"descriptionPlaceholder": "Описание",
+			"descriptionAriaLabel": "Описание",
+			"autoLabelHint": "Определено по заголовку — будет применено при сохранении",
+			"rejectAutoLabel": "Отклонить автометку {name}",
+			"dueDateAriaLabel": "Дата выполнения",
+			"customDateAriaLabel": "Произвольная дата",
+			"pickDateTitle": "Выберите дату",
+			"searchProjectsPlaceholder": "Поиск проектов...",
+			"noMatches": "Совпадений нет",
+			"submitMulti": "Добавить {count} задач",
+			"submitSingle": "Добавить задачу"
+		}
+	},
+	"project": {
+		"reopen": "Возобновить",
+		"complete": "Завершить",
+		"addSection": "Добавить раздел",
+		"pin": "Закрепить",
+		"unpin": "Открепить",
+		"archive": "В архив",
+		"unarchive": "Из архива",
+		"cancel": "Отменить",
+		"assignToTroiki": "Назначить в Тройку",
+		"removeFromTroiki": "Удалить из Тройки",
+		"actionsAriaLabel": "Действия с проектом",
+		"statusOpen": "Открыт",
+		"statusCompleted": "Завершён",
+		"statusArchived": "В архиве",
+		"statusCancelled": "Отменён"
+	},
+	"section": {
+		"noTasks": "Задач нет",
+		"addTaskAriaLabel": "Добавить задачу в раздел",
+		"renameAriaLabel": "Переименовать раздел",
+		"deleteAriaLabel": "Удалить раздел"
+	},
+	"label": {
+		"actionsAriaLabel": "Действия с меткой"
+	},
+	"context": {
+		"actionsAriaLabel": "Действия с контекстом",
+		"filterBannerText": "Выбран контекст {name}, поэтому показаны не все задачи.",
+		"clearFilter": "Снять фильтр",
+		"failedClear": "Не удалось снять контекст"
+	},
+	"view": {
+		"completedToday": "Завершено сегодня",
+		"noTasksCompleted": "Сегодня нет завершённых задач.",
+		"failedLoadCompleted": "Не удалось загрузить завершённые задачи",
+		"taskCompleted": "Задача завершена",
+		"dismiss": "Закрыть",
+		"nextTask": "Следующая задача",
+		"undo": "Отменить",
+		"moveAllTasksTitle": "Переместить все задачи в другую часть дня",
+		"moveAllTo": "Переместить все в «{label}»"
 	},
 	"troiki": {
 		"howAria": "Как работают Тройки",
@@ -185,27 +378,151 @@
 	"page": {
 		"today": {
 			"emptyTitle": "На сегодня ничего нет",
-			"emptyDescription": "На сегодня задач не запланировано. Наслаждайтесь спокойствием."
+			"emptyDescription": "На сегодня задач не запланировано. Наслаждайтесь спокойствием.",
+			"errorLoading": "Не удалось загрузить раздел «Сегодня»"
 		},
 		"tomorrow": {
 			"emptyTitle": "На завтра ничего нет",
-			"emptyDescription": "Запланируйте задачи заранее, чтобы увидеть их здесь."
+			"emptyDescription": "Запланируйте задачи заранее, чтобы увидеть их здесь.",
+			"errorLoading": "Не удалось загрузить раздел «Завтра»"
 		},
 		"inbox": {
 			"emptyTitle": "Входящие пусты",
-			"emptyDescription": "Задачи без проекта попадают сюда. Нажмите Q, чтобы добавить."
+			"emptyDescription": "Задачи без проекта попадают сюда. Нажмите Q, чтобы добавить.",
+			"errorLoading": "Не удалось загрузить входящие",
+			"cleanupTaskCreated": "Создана задача на сегодня для разбора",
+			"failedCreateCleanup": "Не удалось создать задачу для разбора",
+			"overCapacity": "Входящие переполнены ({count}/{limit})",
+			"createCleanupButton": "Создать задачу «{title}» на сегодня"
 		},
 		"week": {
 			"emptyTitle": "На неделю ничего не запланировано",
-			"emptyDescription": "Запланируйте задачи на эту неделю из бэклога или установив дату."
+			"emptyDescription": "Запланируйте задачи на эту неделю из бэклога или установив дату.",
+			"errorLoading": "Не удалось загрузить неделю",
+			"limitReached": "Достигнут лимит недели ({total}/{limit}). Дальнейшее добавление будет отклоняться."
 		},
 		"backlog": {
 			"emptyTitle": "Бэклог пуст",
-			"emptyDescription": "Складывайте сюда задачи, которыми пока нельзя заняться."
+			"emptyDescription": "Складывайте сюда задачи, которыми пока нельзя заняться.",
+			"errorLoading": "Не удалось загрузить бэклог",
+			"limitReached": "Достигнут лимит бэклога ({total}/{limit}). Перенесите задачи в неделю или завершите их перед добавлением новых."
+		},
+		"nextWeek": {
+			"errorLoading": "Не удалось загрузить планирование",
+			"weeklyLimitReached": "Достигнут лимит недели ({weekCount}/{weeklyLimit})",
+			"weeklyLimitReachedShort": "Достигнут лимит недели ({limit})",
+			"backlogLimitReached": "Достигнут лимит бэклога ({backlogCount}/{backlogLimit})",
+			"backlogLimitReachedShort": "Достигнут лимит бэклога ({limit})",
+			"failedMove": "Не удалось переместить в бэклог",
+			"failedPlan": "Не удалось запланировать задачу",
+			"backlogTitle": "Бэклог",
+			"nextWeekTitle": "Следующая неделя",
+			"backlogEmptyTitle": "Бэклог пуст",
+			"backlogEmptyDesc": "Складывайте сюда задачи, которыми пока нельзя заняться.",
+			"weekEmptyTitle": "Ничего не запланировано",
+			"weekEmptyDesc": "Перенесите задачи сюда из бэклога стрелкой.",
+			"planForWeek": "Запланировать на следующую неделю",
+			"returnToBacklog": "Вернуть в бэклог"
 		},
 		"completed": {
 			"emptyTitle": "Пока ничего не завершено",
-			"emptyDescription": "Завершённые задачи появятся здесь, сгруппированные по дням."
+			"emptyDescription": "Завершённые задачи появятся здесь, сгруппированные по дням.",
+			"errorLoading": "Не удалось загрузить завершённые"
+		},
+		"search": {
+			"searchFailed": "Поиск не выполнен",
+			"placeholder": "Введите минимум 2 символа…",
+			"tasksTab": "Задачи",
+			"projectsTab": "Проекты",
+			"searching": "Поиск…",
+			"emptyTitle": "Поиск по рабочему пространству",
+			"emptyDescription": "Введите минимум 2 символа, чтобы найти задачи или проекты.",
+			"noTasksMatch": "Задачи не найдены",
+			"noProjectsMatch": "Проекты не найдены"
+		},
+		"project": {
+			"errorLoading": "Не удалось загрузить проект",
+			"loading": "Загрузка…",
+			"notFound": "Проект не найден",
+			"completed": "Проект завершён",
+			"failedComplete": "Не удалось завершить",
+			"failedAction": "Не удалось выполнить действие «{action}»",
+			"reopened": "Проект возобновлён",
+			"actionPin": "Проект закреплён",
+			"actionUnpin": "Проект откреплён",
+			"actionUncomplete": "Проект возобновлён",
+			"actionCancel": "Проект отменён",
+			"actionArchive": "Проект архивирован",
+			"actionUnarchive": "Проект разархивирован",
+			"failedReorder": "Не удалось изменить порядок разделов",
+			"failedUpdatePrivacy": "Не удалось обновить приватность",
+			"assignedToTroiki": "Назначено в категорию {category}",
+			"removedFromTroiki": "Удалено из Тройки",
+			"failedSetTroiki": "Не удалось задать категорию Тройки",
+			"deleted": "Проект удалён",
+			"failedDelete": "Не удалось удалить проект",
+			"sectionDeleted": "Раздел удалён",
+			"failedDeleteSection": "Не удалось удалить раздел",
+			"taskAdded": "Задача добавлена",
+			"failedAddTask": "Не удалось добавить задачу",
+			"failedMove": "Не удалось переместить задачу",
+			"emptyTitle": "Задач пока нет",
+			"emptyDescription": "Добавьте задачу или раздел, чтобы начать организацию проекта.",
+			"dropZoneHint": "Перетащите сюда задачу, чтобы вынести её из любого раздела",
+			"confirmCompleteTitle": "Завершить проект?",
+			"confirmCompleteDesc": "Проект будет помечен как завершённый, а все его задачи — как выполненные.",
+			"confirmCompleteButton": "Завершить",
+			"completing": "Завершение…",
+			"confirmDeleteTitle": "Удалить проект?",
+			"confirmDeleteDesc": "Все разделы и задачи внутри этого проекта будут удалены безвозвратно (каскадно). Это действие нельзя отменить.",
+			"confirmDeleteSectionTitle": "Удалить раздел?",
+			"confirmDeleteSectionDesc": "Раздел будет удалён, а его задачи перенесены в корень проекта."
+		},
+		"task": {
+			"errorLoading": "Не удалось загрузить задачу",
+			"failedAddSubtask": "Не удалось добавить подзадачу",
+			"failedSave": "Не удалось сохранить задачу",
+			"notFound": "Задача не найдена",
+			"namePlaceholder": "Название задачи",
+			"descriptionPlaceholder": "Описание",
+			"subtasks": "Подзадачи",
+			"addSubtaskPlaceholder": "Добавить подзадачу",
+			"date": "Дата",
+			"clearDate": "Очистить дату",
+			"priority": "Приоритет",
+			"priorityLockedByTroiki": "Заблокировано категорией Тройки — приоритет следует за проектом.",
+			"dayPart": "Часть дня",
+			"repeat": "Повтор",
+			"labels": "Метки",
+			"editLabels": "Редактировать метки"
+		},
+		"context": {
+			"errorLoading": "Не удалось загрузить контекст",
+			"failedUpdate": "Не удалось обновить контекст",
+			"deleted": "Контекст удалён",
+			"failedDelete": "Не удалось удалить контекст",
+			"taskAdded": "Задача добавлена",
+			"failedAddTask": "Не удалось добавить задачу",
+			"notFound": "Контекст не найден",
+			"all": "Все ({count})",
+			"addTask": "Добавить задачу",
+			"emptyTitle": "Задач нет",
+			"emptyDescription": "Под этот фильтр пока нет задач.",
+			"noProject": "Без проекта",
+			"confirmDeleteTitle": "Удалить контекст?",
+			"confirmDeleteDesc": "Все проекты, разделы и задачи внутри этого контекста будут удалены безвозвратно (каскадно). Это действие нельзя отменить."
+		},
+		"label": {
+			"errorLoading": "Не удалось загрузить метку",
+			"failedUpdate": "Не удалось обновить метку",
+			"failedUpdatePrivacy": "Не удалось обновить приватность",
+			"deleted": "Метка удалена",
+			"failedDelete": "Не удалось удалить метку",
+			"notFound": "Метка не найдена",
+			"emptyTitle": "Нет задач с этой меткой",
+			"emptyDescription": "Помечайте задачи этой меткой, чтобы видеть их здесь.",
+			"confirmDeleteTitle": "Удалить метку?",
+			"confirmDeleteDesc": "Метка будет снята со всех задач. Это действие нельзя отменить."
 		}
 	}
 }

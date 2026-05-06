@@ -124,7 +124,7 @@
 		class={checkboxClass}
 		class:mt-0.5={hasMeta}
 		aria-pressed={checked}
-		aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
+		aria-label={checked ? $t('task.markIncomplete') : $t('task.markComplete')}
 	>
 		{#if checked}
 			<CheckIcon class="size-2.5" weight="bold" />
@@ -140,7 +140,7 @@
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
 			>
-				<MarkdownText text={task.title} />{#if showTroikiBadge}<span title="In Troiki system" class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
+				<MarkdownText text={task.title} />{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
 		</div>
 
@@ -155,8 +155,8 @@
 						class="inline-flex items-center {checked
 							? 'text-muted-foreground group-hover/task:text-emerald-600 dark:group-hover/task:text-emerald-400'
 							: 'text-emerald-600 dark:text-emerald-400'}"
-						title="Recurring task"
-						aria-label="Recurring task"
+						title={$t('task.recurringLabel')}
+						aria-label={$t('task.recurringLabel')}
 					>
 						<RepeatIcon class="size-3.5 shrink-0" weight="bold" />
 					</span>
@@ -186,8 +186,8 @@
 						class="inline-flex items-center {checked
 							? 'text-muted-foreground group-hover/task:text-red-500'
 							: 'text-red-500'}"
-						title="Added outside of planning"
-						aria-label="Added outside of planning"
+						title={$t('task.unplannedLabel')}
+						aria-label={$t('task.unplannedLabel')}
 					>
 						<CalendarSlashIcon class="size-3.5 shrink-0" />
 					</span>

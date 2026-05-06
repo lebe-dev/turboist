@@ -91,10 +91,10 @@
 		void goto(resolve('/(app)/task/[id]', { id: String(task.id) }));
 	}
 
-	const DAY_PARTS: Array<{ part: DayPart; label: string; icon: Component }> = [
-		{ part: 'morning', label: 'Morning', icon: SunHorizonIcon as unknown as Component },
-		{ part: 'afternoon', label: 'Afternoon', icon: SunIcon as unknown as Component },
-		{ part: 'evening', label: 'Evening', icon: MoonIcon as unknown as Component }
+	const DAY_PARTS: Array<{ part: DayPart; labelKey: string; icon: Component }> = [
+		{ part: 'morning', labelKey: 'task.dayPart.morning', icon: SunHorizonIcon as unknown as Component },
+		{ part: 'afternoon', labelKey: 'task.dayPart.afternoon', icon: SunIcon as unknown as Component },
+		{ part: 'evening', labelKey: 'task.dayPart.evening', icon: MoonIcon as unknown as Component }
 	];
 
 	let moveOpen = $state(false);
@@ -108,7 +108,7 @@
 				size="sm"
 				variant="ghost"
 				class="size-8 p-0 text-muted-foreground hover:text-foreground"
-				aria-label="Task actions"
+				aria-label={$t('task.actions.ariaLabel')}
 				onclick={(e: MouseEvent) => {
 					e.stopPropagation();
 					(props as { onclick?: (e: MouseEvent) => void }).onclick?.(e);
@@ -120,17 +120,17 @@
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end" class="min-w-[15rem]">
 		<DropdownMenu.Item onclick={handleEdit}>
-			<PencilIcon class="size-4" /> Edit
+			<PencilIcon class="size-4" /> {$t('common.edit')}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void copyTaskTitle(task)}>
-			<CopyIcon class="size-4" /> Copy
+			<CopyIcon class="size-4" /> {$t('task.actions.copy')}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void duplicateTask(task, mutator)}>
-			<CopySimpleIcon class="size-4" /> Duplicate
+			<CopySimpleIcon class="size-4" /> {$t('task.actions.duplicate')}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>
 			<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />
-			{task.isPinned ? 'Unpin' : 'Pin'}
+			{task.isPinned ? $t('task.actions.unpin') : $t('task.actions.pin')}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item
 			onclick={async () => {
@@ -146,27 +146,27 @@
 			{/if}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => (moveOpen = true)}>
-			<FolderIcon class="size-4" /> Move to project…
+			<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
 		</DropdownMenu.Item>
 		{#if task.planState === 'backlog'}
 			<DropdownMenu.Item onclick={() => void removeFromBacklog(task, mutator, { belongs })}>
-				<ArchiveIcon class="size-4" /> Remove from backlog
+				<ArchiveIcon class="size-4" /> {$t('task.actions.removeFromBacklog')}
 			</DropdownMenu.Item>
 		{:else}
 			<DropdownMenu.Item onclick={() => void moveToBacklog(task, mutator, { belongs })}>
-				<ArchiveIcon class="size-4" /> To backlog
+				<ArchiveIcon class="size-4" /> {$t('task.actions.toBacklog')}
 			</DropdownMenu.Item>
 		{/if}
 
 		<DropdownMenu.Separator />
 
 		<div class="px-2 py-1.5">
-			<div class="mb-1.5 text-xs font-medium text-muted-foreground">Date</div>
+			<div class="mb-1.5 text-xs font-medium text-muted-foreground">{$t('task.actions.dateLabel')}</div>
 			<div class="flex items-center gap-1">
 				<button
 					type="button"
-					title="Today"
-					aria-label="Today"
+					title={$t('common.today')}
+					aria-label={$t('common.today')}
 					aria-pressed={isToday}
 					onclick={() => setDate(todayKey)}
 					class="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -176,8 +176,8 @@
 				</button>
 				<button
 					type="button"
-					title="Tomorrow"
-					aria-label="Tomorrow"
+					title={$t('common.tomorrow')}
+					aria-label={$t('common.tomorrow')}
 					aria-pressed={isTomorrow}
 					onclick={() => setDate(shiftDayKey(todayKey, 1))}
 					class="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -187,8 +187,8 @@
 				</button>
 				<button
 					type="button"
-					title={inBacklog ? 'Remove from backlog' : 'To backlog'}
-					aria-label={inBacklog ? 'Remove from backlog' : 'To backlog'}
+					title={inBacklog ? $t('task.actions.removeFromBacklog') : $t('task.actions.toBacklog')}
+					aria-label={inBacklog ? $t('task.actions.removeFromBacklog') : $t('task.actions.toBacklog')}
 					aria-pressed={inBacklog}
 					onclick={() =>
 						inBacklog
@@ -201,8 +201,8 @@
 				</button>
 				<button
 					type="button"
-					title="Clear date"
-					aria-label="Clear date"
+					title={$t('task.actions.clearDate')}
+					aria-label={$t('task.actions.clearDate')}
 					disabled={task.dueAt === null}
 					onclick={() => setDate(null)}
 					class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -213,15 +213,16 @@
 		</div>
 
 		<div class="px-2 py-1.5">
-			<div class="mb-1.5 text-xs font-medium text-muted-foreground">Day part</div>
+			<div class="mb-1.5 text-xs font-medium text-muted-foreground">{$t('task.actions.dayPartLabel')}</div>
 			<div class="flex items-center gap-1">
 				{#each DAY_PARTS as opt (opt.part)}
 					{@const Icon = opt.icon}
 					{@const active = task.dayPart === opt.part}
+					{@const label = $t(opt.labelKey)}
 					<button
 						type="button"
-						title={opt.label}
-						aria-label={opt.label}
+						title={label}
+						aria-label={label}
 						aria-pressed={active}
 						onclick={() => setDayPart(opt.part)}
 						class="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -232,8 +233,8 @@
 				{/each}
 				<button
 					type="button"
-					title="Clear day part"
-					aria-label="Clear day part"
+					title={$t('task.actions.clearDayPart')}
+					aria-label={$t('task.actions.clearDayPart')}
 					disabled={task.dayPart === 'none'}
 					onclick={() => setDayPart('none')}
 					class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -244,14 +245,14 @@
 		</div>
 
 		<div class="px-2 py-1.5">
-			<div class="mb-1.5 text-xs font-medium text-muted-foreground">Priority</div>
+			<div class="mb-1.5 text-xs font-medium text-muted-foreground">{$t('task.actions.priorityLabel')}</div>
 			<div class="flex items-center gap-1">
 				{#each PRIORITY_ORDER as p (p)}
 					{@const active = task.priority === p}
 					<button
 						type="button"
 						title={priorityLocked
-							? 'Priority is managed by Troiki category'
+							? $t('task.actions.priorityLockedTooltip')
 							: PRIORITY_LABEL[p]}
 						aria-label={PRIORITY_LABEL[p]}
 						aria-pressed={active}
@@ -269,7 +270,7 @@
 			</div>
 			{#if priorityLocked}
 				<div class="mt-1 text-[10px] text-muted-foreground">
-					Locked by Troiki category.
+					{$t('task.actions.lockedByTroiki')}
 				</div>
 			{/if}
 		</div>
@@ -277,7 +278,7 @@
 		<DropdownMenu.Separator />
 
 		<DropdownMenu.Item variant="destructive" onclick={() => void deleteTask(task, mutator)}>
-			<TrashIcon class="size-4" /> Delete
+			<TrashIcon class="size-4" /> {$t('common.delete')}
 		</DropdownMenu.Item>
 	</DropdownMenu.Content>
 </DropdownMenu.Root>
