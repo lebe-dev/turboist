@@ -13,6 +13,7 @@
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import type { Context, Project, Task, TaskInput } from '$lib/api/types';
 	import ContextHeader from '$lib/components/context/ContextHeader.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
@@ -33,6 +34,9 @@
 	let notFound = $state(false);
 	let projects = $state<Project[]>([]);
 	let activeProjectId = $state<number | 'all'>('all');
+	const visibleProjects = $derived(
+		settingsStore.publicView ? projects.filter((p) => !p.isPrivate) : projects
+	);
 	let quickOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let editOpen = $state(false);
@@ -156,7 +160,7 @@
 			>
 				All ({taskList.items.length})
 			</Button>
-			{#each projects as p (p.id)}
+			{#each visibleProjects as p (p.id)}
 				{@const count = taskList.items.filter((t) => t.projectId === p.id).length}
 				<Button
 					size="sm"

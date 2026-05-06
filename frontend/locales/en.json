@@ -6,6 +6,14 @@
 		"workspaceFailed": "Failed to load workspace.",
 		"retry": "Retry"
 	},
+	"common": {
+		"markPrivate": "Mark as private",
+		"unmarkPrivate": "Mark as public",
+		"privacyUpdated": "Privacy updated",
+		"privateHidden": "Hidden in Public view mode",
+		"privateMarker": "Private",
+		"privateTooltip": "Not shown in Public view mode"
+	},
 	"nav": {
 		"today": "Today",
 		"tomorrow": "Tomorrow",
@@ -52,6 +60,7 @@
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
+			"privacy": "Privacy",
 			"session": "Session"
 		},
 		"theme": {
@@ -87,6 +96,15 @@
 			"logoutAll": "Log out everywhere",
 			"loggingOut": "Logging out…",
 			"logoutAllFailed": "Failed to log out"
+		},
+		"privacy": {
+			"heading": "Public view",
+			"description": "Hide everything you've marked as private from the UI.",
+			"toggle": "Public view",
+			"hint": "Use Public view when sharing screenshots. Mark sensitive projects, tasks, or labels as private from their action menu, then enable this toggle — they vanish from the sidebar, all task views, and pinned items. Marking a project private also hides its tasks; marking a parent task private hides its subtasks. Turn this off to bring everything back; nothing is deleted.",
+			"hintAria": "About Public view",
+			"updated": "Public view updated",
+			"updateFailed": "Failed to update Public view"
 		}
 	},
 	"auth": {

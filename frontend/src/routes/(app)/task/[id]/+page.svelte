@@ -30,6 +30,8 @@
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownLink } from '$lib/utils/markdown';
@@ -85,6 +87,19 @@
 	$effect(() => {
 		void description;
 		autoGrow(descriptionEl);
+	});
+
+	const privateHiddenMsg = $derived($t('common.privateHidden'));
+	$effect(() => {
+		const cur = task;
+		if (!cur || !settingsStore.publicView) return;
+		const projectPrivate =
+			cur.projectId !== null &&
+			(projectsStore.items.find((p) => p.id === cur.projectId)?.isPrivate ?? false);
+		if (cur.isPrivate || projectPrivate) {
+			toast.info(privateHiddenMsg);
+			void goto(resolve('/today'));
+		}
 	});
 
 	$effect(() => {

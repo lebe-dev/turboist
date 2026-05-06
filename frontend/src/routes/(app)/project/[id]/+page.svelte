@@ -24,6 +24,8 @@
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { t } from '$lib/i18n';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -120,6 +122,19 @@
 			toast.success(`Project ${actionLabels[name]}`);
 		} catch (err) {
 			toast.error(describeError(err, `Failed to ${name}`));
+		}
+	}
+
+	async function togglePrivate() {
+		if (!project) return;
+		try {
+			const client = getApiClient();
+			const updated = await projectsApi.update(client, project.id, { isPrivate: !project.isPrivate });
+			project = updated;
+			projectsStore.upsert(updated);
+			toast.success($t('common.privacyUpdated'));
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to update privacy'));
 		}
 	}
 
@@ -277,6 +292,13 @@
 	});
 
 	$effect(() => {
+		if (project && project.isPrivate && settingsStore.publicView) {
+			toast.info($t('common.privateHidden'));
+			void goto(resolve('/today'));
+		}
+	});
+
+	$effect(() => {
 		const handler = (e: Event) => {
 			const detail = (e as CustomEvent<{ task: Task; projectId: number | null }>).detail;
 			if (!detail || detail.projectId !== projectId) return;
@@ -311,6 +333,7 @@
 		onEdit={() => (editProjectOpen = true)}
 		onDelete={() => (confirmDeleteOpen = true)}
 		onSetTroiki={setTroiki}
+		onTogglePrivate={togglePrivate}
 	/>
 
 	<div class="px-2">

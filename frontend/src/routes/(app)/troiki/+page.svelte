@@ -11,6 +11,7 @@
 	import { getApiClient } from '$lib/api/client';
 	import type { Task, TaskInput, TroikiCategory, TroikiProject, TroikiSlot } from '$lib/api/types';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
@@ -47,7 +48,12 @@
 	];
 
 	function slotFor(key: TroikiCategory): TroikiSlot {
-		return view[key];
+		const slot = view[key];
+		if (!settingsStore.publicView) return slot;
+		return {
+			...slot,
+			projects: slot.projects.filter((p) => !p.isPrivate)
+		};
 	}
 
 	function projectMutator(project: TroikiProject): ListMutator {

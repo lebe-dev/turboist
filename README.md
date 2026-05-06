@@ -13,6 +13,7 @@ Turboist is a task management app for the rest of us.
 - Single-user JWT auth with refresh-token rotation
 - Troiki System support
 - Localized UI (English / Russian) — see [docs/locales.md](docs/locales.md)
+- Public View — hide private projects, tasks, and labels for screenshot-friendly sharing — see [docs/public-mode.md](docs/public-mode.md)
 
 ## Nginx Configuration
 

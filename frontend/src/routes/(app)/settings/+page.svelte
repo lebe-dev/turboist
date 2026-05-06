@@ -5,7 +5,10 @@
 	import MonitorIcon from 'phosphor-svelte/lib/Monitor';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import SignOutIcon from 'phosphor-svelte/lib/SignOut';
+	import QuestionIcon from 'phosphor-svelte/lib/Question';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as HoverCard from '$lib/components/ui/hover-card';
+	import { Switch } from '$lib/components/ui/switch';
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
@@ -76,6 +79,16 @@
 		settingsStore.setWeeklyUnplannedExcludedLabelIds(next).catch(console.error);
 	}
 
+	async function setPublicView(v: boolean): Promise<void> {
+		try {
+			await settingsStore.setPublicView(v);
+			toast.success($t('settings.privacy.updated'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.privacy.updateFailed');
+			toast.error(message);
+		}
+	}
+
 	async function selectLocale(loc: SupportedLocale): Promise<void> {
 		if (loc === currentLocale || localeBusy !== null) return;
 		localeBusy = loc;
@@ -101,6 +114,7 @@
 		<Tabs.List variant="line">
 			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
+			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
 			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
 		</Tabs.List>
 
@@ -199,6 +213,35 @@
 						{/each}
 					</div>
 				{/if}
+			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="privacy" class="flex flex-col gap-4">
+			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+				<div class="flex items-start justify-between gap-3">
+					<div class="flex flex-col gap-0.5">
+						<div class="flex items-center gap-1.5">
+							<h2 class="text-sm font-semibold">{$t('settings.privacy.heading')}</h2>
+							<HoverCard.Root>
+								<HoverCard.Trigger>
+									<QuestionIcon
+										class="size-4 cursor-help text-muted-foreground transition-colors hover:text-foreground"
+										aria-label={$t('settings.privacy.hintAria')}
+									/>
+								</HoverCard.Trigger>
+								<HoverCard.Content class="w-80 text-xs leading-relaxed">
+									{$t('settings.privacy.hint')}
+								</HoverCard.Content>
+							</HoverCard.Root>
+						</div>
+						<p class="text-xs text-muted-foreground">{$t('settings.privacy.description')}</p>
+					</div>
+					<Switch
+						checked={settingsStore.publicView}
+						onCheckedChange={setPublicView}
+						aria-label={$t('settings.privacy.toggle')}
+					/>
+				</div>
 			</section>
 		</Tabs.Content>
 

@@ -11,6 +11,10 @@
 	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import TriangleIcon from 'phosphor-svelte/lib/Triangle';
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
+	import { t } from '$lib/i18n';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import type { Project, TroikiCategory } from '$lib/api/types';
 
 	let {
@@ -25,7 +29,8 @@
 		onUnpin,
 		onEdit,
 		onDelete,
-		onSetTroiki
+		onSetTroiki,
+		onTogglePrivate
 	}: {
 		project: Project;
 		onAddSection?: () => void;
@@ -39,6 +44,7 @@
 		onEdit?: () => void;
 		onDelete?: () => void;
 		onSetTroiki?: (category: TroikiCategory | null) => void;
+		onTogglePrivate?: () => void;
 	} = $props();
 
 	const TROIKI_OPTIONS: Array<{ category: TroikiCategory; label: string }> = [
@@ -57,6 +63,15 @@
 				aria-hidden="true"
 			></span>
 			<h1 class="truncate text-xl font-semibold">{project.title}</h1>
+			{#if project.isPrivate && !settingsStore.publicView}
+				<span
+					class="inline-flex"
+					title={$t('common.privateTooltip')}
+					aria-label={$t('common.privateMarker')}
+				>
+					<LockSimpleIcon class="size-3 text-muted-foreground/40" />
+				</span>
+			{/if}
 			{#if project.status !== 'open'}
 				<Badge variant="outline" class="capitalize">{project.status}</Badge>
 			{/if}
@@ -97,6 +112,15 @@
 					{:else}
 						<DropdownMenu.Item onclick={onPin}>
 							<PushPinIcon class="size-4" /> Pin
+						</DropdownMenu.Item>
+					{/if}
+					{#if onTogglePrivate}
+						<DropdownMenu.Item onclick={onTogglePrivate}>
+							{#if project.isPrivate}
+								<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
+							{:else}
+								<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
+							{/if}
 						</DropdownMenu.Item>
 					{/if}
 					{#if onSetTroiki && project.status === 'open'}

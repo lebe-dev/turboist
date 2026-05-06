@@ -7,6 +7,8 @@
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -138,7 +140,7 @@
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
 			>
-				<MarkdownText text={task.title} />{#if showTroikiBadge}<span title="In Troiki system" class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}
+				<MarkdownText text={task.title} />{#if showTroikiBadge}<span title="In Troiki system" class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
 		</div>
 

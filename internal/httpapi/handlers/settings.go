@@ -27,11 +27,13 @@ func (h *SettingsHandler) Register(r fiber.Router) {
 type settingsResp struct {
 	WeeklyUnplannedExcludedLabelIDs []int64 `json:"weeklyUnplannedExcludedLabelIds"`
 	Locale                          string  `json:"locale"`
+	PublicView                      bool    `json:"publicView"`
 }
 
 type settingsPatchReq struct {
 	WeeklyUnplannedExcludedLabelIDs *[]int64 `json:"weeklyUnplannedExcludedLabelIds"`
 	Locale                          *string  `json:"locale"`
+	PublicView                      *bool    `json:"publicView"`
 }
 
 // supportedLocales is the whitelist accepted by PATCH /settings. Empty string
@@ -47,7 +49,7 @@ func toResp(s *model.UserSettings) settingsResp {
 	if ids == nil {
 		ids = []int64{}
 	}
-	return settingsResp{WeeklyUnplannedExcludedLabelIDs: ids, Locale: s.Locale}
+	return settingsResp{WeeklyUnplannedExcludedLabelIDs: ids, Locale: s.Locale, PublicView: s.PublicView}
 }
 
 func (h *SettingsHandler) get(c fiber.Ctx) error {
@@ -85,6 +87,9 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	if req.Locale != nil {
 		current.Locale = *req.Locale
+	}
+	if req.PublicView != nil {
+		current.PublicView = *req.PublicView
 	}
 	if err := h.users.SetSettings(c.Context(), claims.UserID, current); err != nil {
 		return httpapi.ErrInternal("save settings")

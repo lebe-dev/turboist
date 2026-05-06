@@ -23,6 +23,7 @@ type TaskDTO struct {
 	PlanState       string     `json:"planState"`
 	IsPinned        bool       `json:"isPinned"`
 	PinnedAt        *string    `json:"pinnedAt"`
+	IsPrivate       bool       `json:"isPrivate"`
 	CompletedAt     *string    `json:"completedAt"`
 	RecurrenceRule  *string    `json:"recurrenceRule"`
 	PostponeCount   int        `json:"postponeCount"`
@@ -56,6 +57,7 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		PlanState:       string(t.PlanState),
 		IsPinned:        t.IsPinned,
 		PinnedAt:        FormatTimePtr(t.PinnedAt),
+		IsPrivate:       t.IsPrivate,
 		CompletedAt:     FormatTimePtr(t.CompletedAt),
 		RecurrenceRule:  t.RecurrenceRule,
 		PostponeCount:   t.PostponeCount,
@@ -98,4 +100,5 @@ type PatchTaskRequest struct {
 	RecurrenceRule    Optional[string] `json:"recurrenceRule"`
 	Labels            *[]string        `json:"labels"`
 	RemovedAutoLabels []string         `json:"removedAutoLabels"`
+	IsPrivate         *bool            `json:"isPrivate"`
 }

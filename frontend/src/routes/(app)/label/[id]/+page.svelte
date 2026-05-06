@@ -18,6 +18,8 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { t } from '$lib/i18n';
 
 
 	const labelId = $derived(Number(page.params.id));
@@ -66,6 +68,27 @@
 		}
 	}
 
+	async function togglePrivate() {
+		if (!label) return;
+		try {
+			const updated = await labelsApi.update(getApiClient(), label.id, {
+				isPrivate: !label.isPrivate
+			});
+			label = updated;
+			labelsStore.upsert(updated);
+			toast.success($t('common.privacyUpdated'));
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to update privacy'));
+		}
+	}
+
+	$effect(() => {
+		if (label && label.isPrivate && settingsStore.publicView) {
+			toast.info($t('common.privateHidden'));
+			void goto(resolve('/today'));
+		}
+	});
+
 	async function deleteLabel() {
 		if (!label) return;
 		try {
@@ -94,6 +117,7 @@
 		{label}
 		onEdit={() => (editOpen = true)}
 		onToggleFavourite={toggleFavourite}
+		onTogglePrivate={togglePrivate}
 		onDelete={() => (confirmDeleteOpen = true)}
 	/>
 

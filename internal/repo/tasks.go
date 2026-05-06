@@ -27,7 +27,7 @@ func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, recurrence_rule, completed_at, postpone_count, troiki_category, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -45,7 +45,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var inboxID, contextID, projectID, sectionID, parentID sql.NullInt64
 	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
 	var recurrenceRule, troikiCategory sql.NullString
-	var dueHasTime, deadlineHasTime, isPinned int
+	var dueHasTime, deadlineHasTime, isPinned, isPrivate int
 	var createdAt, updatedAt string
 	if err := row.Scan(
 		&t.ID, &t.Title, &t.Description,
@@ -53,13 +53,14 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&t.Priority, &t.Status,
 		&dueAt, &dueHasTime, &deadlineAt, &deadlineHasTime,
 		&t.DayPart, &t.PlanState,
-		&isPinned, &pinnedAt, &recurrenceRule, &completedAt,
+		&isPinned, &pinnedAt, &isPrivate, &recurrenceRule, &completedAt,
 		&t.PostponeCount,
 		&troikiCategory,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
 	}
+	t.IsPrivate = isPrivate == 1
 	if inboxID.Valid {
 		v := inboxID.Int64
 		t.InboxID = &v
@@ -243,6 +244,8 @@ type TaskUpdate struct {
 	RecurrenceClear bool
 	Status          *model.TaskStatus
 
+	IsPrivate *bool
+
 	TroikiCategory      *model.TroikiCategory
 	TroikiCategoryClear bool
 
@@ -314,6 +317,14 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	}
 	if u.IncPostponeCount {
 		sets = append(sets, "postpone_count = postpone_count + 1")
+	}
+	if u.IsPrivate != nil {
+		sets = append(sets, "is_private = ?")
+		pv := 0
+		if *u.IsPrivate {
+			pv = 1
+		}
+		args = append(args, pv)
 	}
 	if u.TroikiCategoryClear {
 		sets = append(sets, "troiki_category = NULL", "troiki_capacity_granted = 0")

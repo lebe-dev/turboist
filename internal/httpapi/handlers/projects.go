@@ -173,6 +173,7 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 		Title:       req.Title,
 		Description: req.Description,
 		Color:       req.Color,
+		IsPrivate:   req.IsPrivate,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {

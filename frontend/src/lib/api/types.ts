@@ -36,6 +36,7 @@ export interface Label {
 	name: string;
 	color: ColorToken;
 	isFavourite: boolean;
+	isPrivate: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -58,6 +59,7 @@ export interface Project {
 	status: ProjectStatus;
 	isPinned: boolean;
 	pinnedAt: string | null;
+	isPrivate: boolean;
 	labels: Label[];
 	troikiCategory: TroikiCategory | null;
 	createdAt: string;
@@ -97,6 +99,7 @@ export interface Task {
 
 	isPinned: boolean;
 	pinnedAt: string | null;
+	isPrivate: boolean;
 	completedAt: string | null;
 
 	recurrenceRule: string | null;
@@ -161,6 +164,7 @@ export interface UserState {
 export interface UserSettings {
 	weeklyUnplannedExcludedLabelIds: number[];
 	locale: string;
+	publicView: boolean;
 }
 
 export interface ConfigResponse {
@@ -194,6 +198,7 @@ export interface ProjectInput {
 	color?: ColorToken;
 	contextId?: number;
 	labels?: string[];
+	isPrivate?: boolean;
 }
 
 export interface SectionInput {
@@ -204,6 +209,7 @@ export interface LabelInput {
 	name?: string;
 	color?: ColorToken;
 	isFavourite?: boolean;
+	isPrivate?: boolean;
 }
 
 export interface TaskInput {
@@ -219,6 +225,7 @@ export interface TaskInput {
 	recurrenceRule?: string | null;
 	labels?: string[];
 	removedAutoLabels?: string[];
+	isPrivate?: boolean;
 }
 
 export type TaskMoveInput =

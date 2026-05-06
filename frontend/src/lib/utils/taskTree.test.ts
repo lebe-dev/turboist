@@ -27,6 +27,7 @@ function task(
 		planState: 'none',
 		isPinned: false,
 		pinnedAt: null,
+		isPrivate: false,
 		completedAt: null,
 		recurrenceRule: null,
 		postponeCount: 0,

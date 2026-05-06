@@ -27,6 +27,7 @@ function makeProject(over: Partial<Project> = {}): Project {
 		status: 'open',
 		isPinned: false,
 		pinnedAt: null,
+		isPrivate: false,
 		labels: [],
 		troikiCategory: null,
 		createdAt: '',
@@ -58,6 +59,7 @@ function makeTask(
 		planState: 'none',
 		isPinned: false,
 		pinnedAt: null,
+		isPrivate: false,
 		completedAt: null,
 		recurrenceRule: null,
 		postponeCount: 0,
@@ -75,6 +77,7 @@ function makeLabel(over: Partial<Label> = {}): Label {
 		name: 'work',
 		color: '#fff',
 		isFavourite: false,
+		isPrivate: false,
 		createdAt: '',
 		updatedAt: '',
 		...over

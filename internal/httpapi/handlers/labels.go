@@ -99,6 +99,7 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 		Name:        req.Name,
 		Color:       req.Color,
 		IsFavourite: req.IsFavourite,
+		IsPrivate:   req.IsPrivate,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {

@@ -3,7 +3,7 @@ import { getApiClient } from '../api/client';
 import type { UserSettings } from '../api/types';
 import { setLocale, type SupportedLocale } from '../i18n';
 
-const EMPTY: UserSettings = { weeklyUnplannedExcludedLabelIds: [], locale: '' };
+const EMPTY: UserSettings = { weeklyUnplannedExcludedLabelIds: [], locale: '', publicView: false };
 
 class SettingsStore {
 	value = $state<UserSettings>({ ...EMPTY });
@@ -22,6 +22,10 @@ class SettingsStore {
 		return this.value.locale ?? '';
 	}
 
+	get publicView(): boolean {
+		return this.value.publicView ?? false;
+	}
+
 	async setWeeklyUnplannedExcludedLabelIds(ids: number[]): Promise<void> {
 		this.value = { ...this.value, weeklyUnplannedExcludedLabelIds: ids };
 		await settingsApi.patch(getApiClient(), { weeklyUnplannedExcludedLabelIds: ids });
@@ -31,6 +35,11 @@ class SettingsStore {
 		const updated = await settingsApi.patch(getApiClient(), { locale: loc });
 		this.value = updated;
 		setLocale(loc);
+	}
+
+	async setPublicView(v: boolean): Promise<void> {
+		this.value = { ...this.value, publicView: v };
+		await settingsApi.patch(getApiClient(), { publicView: v });
 	}
 
 	clear(): void {

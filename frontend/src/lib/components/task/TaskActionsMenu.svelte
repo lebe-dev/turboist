@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { t } from '$lib/i18n';
 	import type { DayPart, Priority, Task } from '$lib/api/types';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { toast } from 'svelte-sonner';
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
 	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_ORDER } from '$lib/utils/priority';
 	import {
@@ -127,6 +131,19 @@
 		<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>
 			<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />
 			{task.isPinned ? 'Unpin' : 'Pin'}
+		</DropdownMenu.Item>
+		<DropdownMenu.Item
+			onclick={async () => {
+				const next = !task.isPrivate;
+				await updateTaskFields(task, mutator, { isPrivate: next }, { belongs });
+				toast.success($t('common.privacyUpdated'));
+			}}
+		>
+			{#if task.isPrivate}
+				<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
+			{:else}
+				<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
+			{/if}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => (moveOpen = true)}>
 			<FolderIcon class="size-4" /> Move to project…

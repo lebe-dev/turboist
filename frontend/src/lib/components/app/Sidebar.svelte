@@ -32,6 +32,9 @@
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { isLabelVisible, isProjectVisible } from '$lib/utils/visibility';
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { goto } from '$app/navigation';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -109,7 +112,8 @@
 		const active = userStateStore.activeContextId;
 		const all = projectsStore.items ?? [];
 		const scoped = active == null ? all : all.filter((p) => p.contextId === active);
-		return [...scoped].sort((a, b) => {
+		const visible = scoped.filter((p) => isProjectVisible(p, settingsStore.publicView));
+		return [...visible].sort((a, b) => {
 			const ta = a.troikiCategory;
 			const tb = b.troikiCategory;
 			if (ta && !tb) return -1;
@@ -123,7 +127,26 @@
 		return page.url.pathname === href;
 	}
 
-	const labelsOrdered = $derived([...labelsStore.favourites, ...labelsStore.rest]);
+	const labelsOrdered = $derived(
+		[...labelsStore.favourites, ...labelsStore.rest].filter((l) =>
+			isLabelVisible(l, settingsStore.publicView)
+		)
+	);
+
+	const sidebarPinnedProjects = $derived(
+		projectsStore.pinned.filter((p) => isProjectVisible(p, settingsStore.publicView))
+	);
+	const sidebarPinnedTasks = $derived(
+		pinnedTasksStore.items.filter((task) => {
+			if (!settingsStore.publicView) return true;
+			if (task.isPrivate) return false;
+			if (task.projectId !== null) {
+				const project = projectsStore.items.find((p) => p.id === task.projectId);
+				if (project && project.isPrivate) return false;
+			}
+			return true;
+		})
+	);
 
 	function clearStores(): void {
 		contextsStore.clear();
@@ -258,9 +281,9 @@
 			{/each}
 		</SidebarSection>
 
-		{#if projectsStore.pinned.length > 0 || pinnedTasksStore.items.length > 0}
+		{#if sidebarPinnedProjects.length > 0 || sidebarPinnedTasks.length > 0}
 			<SidebarSection title={$t('nav.pinned')}>
-				{#each projectsStore.pinned as project (`p-${project.id}`)}
+				{#each sidebarPinnedProjects as project (`p-${project.id}`)}
 					{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 					{@const active = isActive(href)}
 					<div
@@ -278,7 +301,7 @@
 						{@render unpinButton(() => unpinProject(project.id), $t('sidebar.unpinAria', { values: { name: project.title } }))}
 					</div>
 				{/each}
-				{#each pinnedTasksStore.items as task (`t-${task.id}`)}
+				{#each sidebarPinnedTasks as task (`t-${task.id}`)}
 					{@const href = resolve('/(app)/task/[id]', { id: String(task.id) })}
 					{@const active = isActive(href)}
 					<div
@@ -329,7 +352,11 @@
 					<span class="min-w-0 break-words">
 						{project.title}{#if project.troikiCategory}<TroikiTriggerIcon
 								class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 md:size-2.5"
-							/>{/if}
+							/>{/if}{#if project.isPrivate && !settingsStore.publicView}<span
+								class="inline-flex align-middle"
+								title={$t('common.privateTooltip')}
+								aria-label={$t('common.privateMarker')}
+							><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 					</span>
 				</a>
 			{/each}
@@ -347,6 +374,15 @@
 				>
 					<TagIcon class="size-4 shrink-0 opacity-90 md:size-3.5" style={`color: ${label.color}`} weight="fill" />
 					<span class="truncate">{label.name}</span>
+					{#if label.isPrivate && !settingsStore.publicView}
+						<span
+							class="inline-flex shrink-0"
+							title={$t('common.privateTooltip')}
+							aria-label={$t('common.privateMarker')}
+						>
+							<LockSimpleIcon class="ml-1 size-2.5 text-muted-foreground/40" />
+						</span>
+					{/if}
 				</a>
 			{/each}
 		</SidebarSection>

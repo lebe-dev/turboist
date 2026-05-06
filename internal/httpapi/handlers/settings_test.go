@@ -180,6 +180,63 @@ func TestSettingsHandler_Patch(t *testing.T) {
 	}
 }
 
+func TestSettingsHandler_PatchPublicView(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"publicView": true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	pv, _ := body["publicView"].(bool)
+	if !pv {
+		t.Errorf("publicView: got %v, want true", body["publicView"])
+	}
+}
+
+func TestSettingsHandler_PatchPublicViewPreservesOtherFields(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "ru",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"publicView": true,
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if loc, _ := body["locale"].(string); loc != "ru" {
+		t.Errorf("locale: got %q, want %q", loc, "ru")
+	}
+	if pv, _ := body["publicView"].(bool); !pv {
+		t.Errorf("publicView: got %v, want true", body["publicView"])
+	}
+}
+
 func TestSettingsHandler_PatchClear(t *testing.T) {
 	env := setupAPIEnv(t)
 

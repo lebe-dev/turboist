@@ -172,6 +172,10 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		}
 	}
 
+	if req.IsPrivate != nil {
+		u.IsPrivate = req.IsPrivate
+	}
+
 	u.IncPostponeCount = shouldIncPostpone(t, u, time.Now())
 
 	updated, err := h.tasks.Update(c.Context(), id, u)

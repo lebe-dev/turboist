@@ -4,4 +4,5 @@ package model
 type UserSettings struct {
 	WeeklyUnplannedExcludedLabelIDs []int64 `json:"weeklyUnplannedExcludedLabelIds"`
 	Locale                          string  `json:"locale"`
+	PublicView                      bool    `json:"publicView"`
 }

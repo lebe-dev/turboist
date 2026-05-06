@@ -216,6 +216,29 @@ func TestProjectPatch_Success(t *testing.T) {
 	}
 }
 
+func TestProjectPatch_IsPrivate(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	proj := createTestProject(t, e, ctx.ID, "Alpha")
+	if proj.IsPrivate {
+		t.Fatalf("created project should default to isPrivate=false")
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/projects/%d", proj.ID),
+		map[string]any{"isPrivate": true}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.ProjectDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !result.IsPrivate {
+		t.Errorf("isPrivate: got %v, want true", result.IsPrivate)
+	}
+}
+
 func TestProjectPatch_IgnoresStatusAndPin(t *testing.T) {
 	e := setupAPIEnv(t)
 	ctx := createTestContext(t, e, "Work")

@@ -2,6 +2,13 @@
 	import type { Task } from '$lib/api/types';
 	import { buildTree, type TaskNode } from '$lib/utils/taskTree';
 	import type { ListMutator } from '$lib/utils/taskActions';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { projectsStore } from '$lib/stores/projects.svelte';
+	import {
+		buildProjectsById,
+		buildTasksById,
+		isTaskVisible
+	} from '$lib/utils/visibility';
 	import TaskItem from './TaskItem.svelte';
 	import Self from './TaskTree.svelte';
 
@@ -33,7 +40,14 @@
 		onToggle?: (task: Task) => void;
 	} = $props();
 
-	const resolved = $derived<TaskNode[]>(nodes ?? (tasks ? buildTree(tasks) : []));
+	const visibleTasks = $derived.by(() => {
+		if (!tasks) return undefined;
+		if (!settingsStore.publicView) return tasks;
+		const tasksById = buildTasksById(tasks);
+		const projectsById = buildProjectsById(projectsStore.items ?? []);
+		return tasks.filter((t) => isTaskVisible(t, true, projectsById, tasksById));
+	});
+	const resolved = $derived<TaskNode[]>(nodes ?? (visibleTasks ? buildTree(visibleTasks) : []));
 </script>
 
 <div class="flex flex-col divide-y divide-border/40">
