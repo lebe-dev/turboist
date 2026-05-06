@@ -21,7 +21,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const Version = "1.0.0"
+const Version = "1.1.0"
 
 func main() {
 	configPath := flag.String("config", "config.yml", "path to config.yml")
