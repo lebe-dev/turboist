@@ -10,6 +10,8 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { t, locale, SUPPORTED_LOCALES, localeLabel, type SupportedLocale } from '$lib/i18n';
 
+	const appVersion = __APP_VERSION__;
+
 	type ThemeMode = 'light' | 'dark' | 'system';
 
 	type ThemeOption = {
@@ -96,10 +98,7 @@
 							role="radio"
 							aria-checked={active}
 							onclick={() => setMode(option.value)}
-							class="flex flex-col items-start gap-2 rounded-md border p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-							class:border-primary={active}
-							class:bg-muted={active}
-							class:border-border={!active}
+							class="flex flex-col items-start gap-2 rounded-md border p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 {active ? 'border-foreground/30 bg-muted' : 'border-border'}"
 						>
 							<span class="flex items-center gap-2">
 								<Icon class="size-4" weight={active ? 'fill' : 'regular'} />
@@ -129,18 +128,22 @@
 							aria-checked={active}
 							onclick={() => selectLocale(loc)}
 							disabled={localeBusy !== null}
-							class="flex items-center justify-between gap-2 rounded-md border p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-							class:border-primary={active}
-							class:bg-muted={active}
-							class:border-border={!active}
+							class="flex items-center justify-between gap-2 rounded-md border p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 {active ? 'border-foreground/30 bg-muted' : 'border-border'}"
 						>
 							<span class="text-sm font-medium">{localeLabel(loc)}</span>
 							{#if active}
-								<CheckIcon class="size-4 text-primary" weight="bold" />
+								<CheckIcon class="size-4 text-foreground/50" weight="bold" />
 							{/if}
 						</button>
 					{/each}
 				</div>
+			</section>
+			<section class="flex items-center justify-between rounded-lg border border-border bg-card px-5 py-4 shadow-sm">
+				<div class="flex flex-col gap-0.5">
+					<h2 class="text-sm font-semibold">{$t('settings.version.heading')}</h2>
+					<p class="text-xs text-muted-foreground">{$t('settings.version.description')}</p>
+				</div>
+				<span class="font-mono text-sm text-muted-foreground">v{appVersion}</span>
 			</section>
 		</Tabs.Content>
 
@@ -169,7 +172,7 @@
 									{label.name}
 								</span>
 								{#if excluded}
-									<CheckIcon class="size-4 text-primary" weight="bold" />
+									<CheckIcon class="size-4 text-foreground/50" weight="bold" />
 								{/if}
 							</button>
 						{/each}

@@ -47,7 +47,6 @@
 	let projectDialogContextId = $state<number | null>(null);
 
 	const auth = getAuthStore();
-	const appVersion = __APP_VERSION__;
 
 	const weekLimit = $derived(configStore.value?.weekly.limit);
 	const backlogLimit = $derived(configStore.value?.backlog.limit);
@@ -353,21 +352,21 @@
 		</SidebarSection>
 	</div>
 
-	<div class="mt-auto flex flex-col gap-0.5 border-t border-sidebar-border px-2 py-2">
+	<div class="mt-auto border-t border-sidebar-border px-2 py-2">
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}
 					<button
 						{...props}
 						type="button"
-						class="flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
+						class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
 					>
 						<UserIcon class="size-[18px] shrink-0 opacity-80 md:size-[16px]" />
 						<span class="truncate">{auth.user?.username ?? ''}</span>
 					</button>
 				{/snippet}
 			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="start" side="top" class="w-48">
+			<DropdownMenu.Content align="start" side="top" class="w-48 rounded-md">
 				<DropdownMenu.Label>{auth.user?.username ?? ''}</DropdownMenu.Label>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item onclick={() => goto(resolve('/settings'))}>
@@ -375,19 +374,13 @@
 					{$t('nav.settings')}
 				</DropdownMenu.Item>
 				<DropdownMenu.Item onclick={onLogoutAll}>{$t('sidebar.logOutEverywhere')}</DropdownMenu.Item>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Item onclick={onLogout}>
+					<SignOutIcon class="size-4" />
+					{$t('sidebar.logOut')}
+				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
-		<button
-			type="button"
-			onclick={onLogout}
-			class="flex items-center justify-between gap-2 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
-		>
-			<span class="flex min-w-0 items-center gap-2.5">
-				<SignOutIcon class="size-[18px] shrink-0 opacity-80 md:size-[16px]" />
-				<span class="truncate">{$t('sidebar.logOut')}</span>
-			</span>
-			<span class="font-mono text-[12px] tabular-nums text-muted-foreground/70 md:text-[10px]">v{appVersion}</span>
-		</button>
 	</div>
 </aside>
 
