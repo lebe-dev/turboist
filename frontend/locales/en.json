@@ -51,7 +51,8 @@
 		"subtitle": "Personalise how Turboist looks and behaves.",
 		"tabs": {
 			"general": "General",
-			"labels": "Labels"
+			"labels": "Labels",
+			"session": "Session"
 		},
 		"theme": {
 			"heading": "Theme",
@@ -75,6 +76,17 @@
 			"heading": "Weekly unplanned exclusions",
 			"description": "Tasks with these labels will not show the unplanned badge even if not scheduled for the week.",
 			"empty": "No labels yet."
+		},
+		"version": {
+			"heading": "App version",
+			"description": "The currently running version of Turboist."
+		},
+		"session": {
+			"heading": "Active sessions",
+			"description": "Sign out from all devices and browsers, including this one.",
+			"logoutAll": "Log out everywhere",
+			"loggingOut": "Logging out…",
+			"logoutAllFailed": "Failed to log out"
 		}
 	},
 	"auth": {
@@ -99,6 +111,56 @@
 			"addedToInbox": "Task added to inbox",
 			"failedAdd": "Failed to add task",
 			"failedSetSection": "Failed to set section"
+		}
+	},
+	"troiki": {
+		"howAria": "How Troiki works",
+		"howIt": "How it works",
+		"rulesTitle": "Troiki System Rules",
+		"rulesIntro": "Three categories, max 3 projects each. Capacity in Medium and Rest is earned by completing tasks in the category above.",
+		"rules": {
+			"importantHint": "Always available, up to 3 projects.",
+			"mediumHint": "+1 slot per completed task in Important.",
+			"restHint": "+1 slot per completed task in Medium.",
+			"bullet1": "Removing a project frees its slot but does not unlock the next category.",
+			"bullet2": "Earned capacity accumulates and never expires.",
+			"bullet3": "Re-completing a task does not yield extra capacity.",
+			"bullet4": "All tasks in an assigned project inherit the category priority."
+		},
+		"section": {
+			"important": "Important",
+			"importantDescription": "Top three projects that demand focus.",
+			"medium": "Medium",
+			"mediumDescription": "Earned by completing Important tasks.",
+			"rest": "Rest",
+			"restDescription": "Earned by completing Medium tasks."
+		},
+		"cycleInProgress": "Cycle in progress — Medium and Rest unlock as you complete the previous category.",
+		"initialFill": "Initial fill — assign projects to Important, then optionally seed Medium and Rest. Press Start to lock in the cycle.",
+		"startEnabled": "Start the Troiki cycle",
+		"startDisabled": "Assign at least one project to Important first",
+		"starting": "Starting…",
+		"start": "Start the system",
+		"locked": "Locked",
+		"lockedTitle": "Locked — earn capacity by completing the previous category",
+		"openInitialTitle": "Open during initial fill — capacity is locked in when you press Start",
+		"openInitial": "Open · {count}",
+		"unlockMedium": "Complete an Important task to unlock a Medium slot.",
+		"unlockRest": "Complete a Medium task to unlock a Rest slot.",
+		"assignHint": "Use the project actions menu (⋯ → Assign to Troiki) to assign projects to this section before starting the cycle.",
+		"openTasksTitle": "Open tasks in this project",
+		"addTaskAria": "Add task to {name}",
+		"addTask": "Add task",
+		"noTasks": "No tasks yet — add one to get started.",
+		"emptySlot": "Empty slot — assign a project",
+		"toast": {
+			"loadFailed": "Failed to load Troiki",
+			"pickProject": "Pick a project in this Troiki section",
+			"addedTo": "Task added to {section}",
+			"createFailed": "Failed to create task",
+			"started": "Troiki started",
+			"startFailed": "Failed to start Troiki",
+			"updateFailed": "Failed to update task"
 		}
 	},
 	"page": {

@@ -4,13 +4,33 @@
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import MonitorIcon from 'phosphor-svelte/lib/Monitor';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import SignOutIcon from 'phosphor-svelte/lib/SignOut';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { t, locale, SUPPORTED_LOCALES, localeLabel, type SupportedLocale } from '$lib/i18n';
+	import { getAuthStore } from '$lib/auth/store.svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	const appVersion = __APP_VERSION__;
+	const auth = getAuthStore();
+
+	let logoutAllBusy = $state(false);
+
+	async function onLogoutAll(): Promise<void> {
+		if (logoutAllBusy) return;
+		logoutAllBusy = true;
+		try {
+			await auth.logoutAll();
+			await goto(resolve('/login'));
+		} catch {
+			toast.error($t('settings.session.logoutAllFailed'));
+		} finally {
+			logoutAllBusy = false;
+		}
+	}
 
 	type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -81,6 +101,7 @@
 		<Tabs.List variant="line">
 			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
+			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
 		</Tabs.List>
 
 		<Tabs.Content value="general" class="flex flex-col gap-4">
@@ -178,6 +199,26 @@
 						{/each}
 					</div>
 				{/if}
+			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="session" class="flex flex-col gap-4">
+			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+				<div class="flex flex-col gap-0.5">
+					<h2 class="text-sm font-semibold">{$t('settings.session.heading')}</h2>
+					<p class="text-xs text-muted-foreground">{$t('settings.session.description')}</p>
+				</div>
+				<div>
+					<button
+						type="button"
+						onclick={onLogoutAll}
+						disabled={logoutAllBusy}
+						class="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						<SignOutIcon class="size-4 shrink-0" />
+						{logoutAllBusy ? $t('settings.session.loggingOut') : $t('settings.session.logoutAll')}
+					</button>
+				</div>
 			</section>
 		</Tabs.Content>
 	</Tabs.Root>

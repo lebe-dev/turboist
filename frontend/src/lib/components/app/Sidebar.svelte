@@ -373,7 +373,6 @@
 					<GearIcon class="size-4" />
 					{$t('nav.settings')}
 				</DropdownMenu.Item>
-				<DropdownMenu.Item onclick={onLogoutAll}>{$t('sidebar.logOutEverywhere')}</DropdownMenu.Item>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item onclick={onLogout}>
 					<SignOutIcon class="size-4" />
