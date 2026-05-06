@@ -25,6 +25,8 @@
 		"back": "Назад",
 		"today": "Сегодня",
 		"tomorrow": "Завтра",
+		"yesterday": "Вчера",
+		"noDate": "Без даты",
 		"name": "Название",
 		"title": "Заголовок",
 		"description": "Описание",

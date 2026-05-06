@@ -25,6 +25,8 @@
 		"back": "Back",
 		"today": "Today",
 		"tomorrow": "Tomorrow",
+		"yesterday": "Yesterday",
+		"noDate": "No date",
 		"name": "Name",
 		"title": "Title",
 		"description": "Description",
