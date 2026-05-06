@@ -5,6 +5,7 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
@@ -29,13 +30,12 @@
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
-	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+
 
 
 	const projectId = $derived(Number(page.params.id));
 
 	let project = $state<Project | null>(null);
-	$effect(() => { if (project) viewFilterStore.setTitle(project.title); });
 	let notFound = $state(false);
 	let sectionList = $state<ProjectSection[]>([]);
 	let confirmDeleteOpen = $state(false);
@@ -47,6 +47,7 @@
 	let editingSection = $state<ProjectSection | null>(null);
 	let sectionQuickAddOpen = $state(false);
 	let sectionQuickAddTarget = $state<ProjectSection | null>(null);
+	let rootQuickAddOpen = $state(false);
 
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
@@ -204,6 +205,19 @@
 		if (!sec) return;
 		try {
 			const created = await sectionsApi.createTask(getApiClient(), sec.id, payload);
+			taskList.items = [...taskList.items, created];
+			toast.success('Task added');
+		} catch (err) {
+			toast.error(describeError(err, 'Failed to add task'));
+		}
+	}
+
+	async function onRootTaskSubmit(
+		payload: TaskInput,
+		_target: { projectId: number | null; labels: string[]; parentId: number | null; sectionId: number | null }
+	): Promise<void> {
+		try {
+			const created = await projectsApi.createTask(getApiClient(), projectId, payload);
 			taskList.items = [...taskList.items, created];
 			toast.success('Task added');
 		} catch (err) {
@@ -397,12 +411,26 @@
 				/>
 			{/if}
 		</ViewContent>
+		{#if project.status === 'open' && !settingsStore.publicView}
+			<button
+				class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+				onclick={() => (rootQuickAddOpen = true)}
+			>
+				<PlusIcon class="size-4" />
+				{$t('task.addTask')}
+			</button>
+		{/if}
 	</div>
 
 	<QuickAddDialog
 		bind:open={sectionQuickAddOpen}
 		defaultProjectId={projectId}
 		onSubmit={onSectionTaskSubmit}
+	/>
+	<QuickAddDialog
+		bind:open={rootQuickAddOpen}
+		defaultProjectId={projectId}
+		onSubmit={onRootTaskSubmit}
 	/>
 	<ProjectDialog
 		bind:open={editProjectOpen}

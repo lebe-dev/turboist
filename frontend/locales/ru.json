@@ -122,6 +122,7 @@
 		"passwordsMismatch": "Пароли не совпадают"
 	},
 	"task": {
+		"addTask": "Добавить задачу",
 		"toast": {
 			"subtaskAdded": "Подзадача добавлена",
 			"addedToProject": "Задача добавлена в проект",

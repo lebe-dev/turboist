@@ -122,6 +122,7 @@
 		"passwordsMismatch": "Passwords do not match"
 	},
 	"task": {
+		"addTask": "Add task",
 		"toast": {
 			"subtaskAdded": "Subtask added",
 			"addedToProject": "Task added to project",
