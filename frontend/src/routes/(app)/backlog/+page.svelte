@@ -1,5 +1,6 @@
 <script lang="ts">
 	import StackIcon from 'phosphor-svelte/lib/Stack';
+	import { t } from '$lib/i18n';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -58,8 +59,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0}
 		emptyIcon={StackIcon}
-		emptyTitle="Backlog is empty"
-		emptyDescription="Park tasks here when they're not actionable yet."
+		emptyTitle={$t('page.backlog.emptyTitle')}
+		emptyDescription={$t('page.backlog.emptyDescription')}
 	>
 		<TaskTree
 			tasks={list.items}

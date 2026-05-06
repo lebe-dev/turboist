@@ -40,6 +40,7 @@
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
 	import type { TroikiCategory } from '$lib/api/types';
+	import { t } from '$lib/i18n';
 
 	let labelDialogOpen = $state(false);
 	let projectDialogOpen = $state(false);
@@ -67,40 +68,40 @@
 	const primaryNav = $derived<NavItem[]>([
 		{
 			href: resolve('/inbox'),
-			label: 'Inbox',
+			label: $t('nav.inbox'),
 			icon: InboxIcon,
 			accent: !inboxOverflow,
 			danger: inboxOverflow,
 			current: inboxOverflow ? inboxStatsStore.count : undefined
 		},
-		{ href: resolve('/today'), label: 'Today', icon: SunIcon },
-		{ href: resolve('/tomorrow'), label: 'Tomorrow', icon: SunHorizonIcon },
+		{ href: resolve('/today'), label: $t('nav.today'), icon: SunIcon },
+		{ href: resolve('/tomorrow'), label: $t('nav.tomorrow'), icon: SunHorizonIcon },
 		{
 			href: resolve('/week'),
-			label: 'Week',
+			label: $t('nav.week'),
 			icon: CalendarIcon,
 			current: planStatsStore.value?.week,
 			limit: weekLimit
 		},
-		{ href: resolve('/completed'), label: 'Completed', icon: CheckCircleIcon }
+		{ href: resolve('/completed'), label: $t('nav.completed'), icon: CheckCircleIcon }
 	]);
 
 	const planningNav = $derived<NavItem[]>([
 		{
 			href: resolve('/backlog'),
-			label: 'Backlog',
+			label: $t('nav.backlog'),
 			icon: StackIcon,
 			current: planStatsStore.value?.backlog,
 			limit: backlogLimit
 		},
 		{
 			href: resolve('/next-week'),
-			label: 'Next week',
+			label: $t('nav.nextWeek'),
 			icon: CalendarCheckIcon,
 			current: planStatsStore.value?.week,
 			limit: weekLimit
 		},
-		{ href: resolve('/search'), label: 'Search', icon: MagnifyingGlassIcon }
+		{ href: resolve('/search'), label: $t('nav.search'), icon: MagnifyingGlassIcon }
 	]);
 
 	const TROIKI_ORDER: Record<TroikiCategory, number> = { important: 0, medium: 1, rest: 2 };
@@ -153,7 +154,7 @@
 			const updated = await projectsApi.unpin(getApiClient(), id);
 			projectsStore.upsert(updated);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to unpin'));
+			toast.error(describeError(err, $t('sidebar.failedUnpin')));
 		}
 	}
 
@@ -162,7 +163,7 @@
 			await tasksApi.unpin(getApiClient(), id);
 			pinnedTasksStore.removeItem(id);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to unpin'));
+			toast.error(describeError(err, $t('sidebar.failedUnpin')));
 		}
 	}
 </script>
@@ -238,28 +239,28 @@
 			type="button"
 			class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 			onclick={() => sidebarStore.toggle()}
-			aria-label="Collapse sidebar"
-			title="Collapse sidebar"
+			aria-label={$t('sidebar.collapse')}
+			title={$t('sidebar.collapse')}
 		>
 			<SidebarSimpleIcon class="size-4" />
 		</button>
 	</div>
 
 	<div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-		<nav class="flex flex-col gap-0.5 px-2 pb-2" aria-label="Main">
+		<nav class="flex flex-col gap-0.5 px-2 pb-2" aria-label={$t('nav.main')}>
 			{#each primaryNav as item (item.href)}
 				{@render navLink(item)}
 			{/each}
 		</nav>
 
-		<SidebarSection title="Planning">
+		<SidebarSection title={$t('nav.planning')}>
 			{#each planningNav as item (item.href)}
 				{@render navLink(item)}
 			{/each}
 		</SidebarSection>
 
 		{#if projectsStore.pinned.length > 0 || pinnedTasksStore.items.length > 0}
-			<SidebarSection title="Pinned">
+			<SidebarSection title={$t('nav.pinned')}>
 				{#each projectsStore.pinned as project (`p-${project.id}`)}
 					{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 					{@const active = isActive(href)}
@@ -275,7 +276,7 @@
 							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="fill" />
 							<span class="break-words">{project.title}</span>
 						</a>
-						{@render unpinButton(() => unpinProject(project.id), `Unpin ${project.title}`)}
+						{@render unpinButton(() => unpinProject(project.id), $t('sidebar.unpinAria', { values: { name: project.title } }))}
 					</div>
 				{/each}
 				{#each pinnedTasksStore.items as task (`t-${task.id}`)}
@@ -293,19 +294,19 @@
 							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="regular" />
 							<span class="break-words">{task.title}</span>
 						</a>
-						{@render unpinButton(() => unpinTask(task.id), `Unpin ${task.title}`)}
+						{@render unpinButton(() => unpinTask(task.id), $t('sidebar.unpinAria', { values: { name: task.title } }))}
 					</div>
 				{/each}
 			</SidebarSection>
 		{/if}
 
 		<SidebarSection
-			title="Projects"
+			title={$t('nav.projects')}
 			collapsible
 			storageKey="sidebar:projects:open"
 			onAdd={() => {
 				if (contextsStore.items.length === 0) {
-					toast.error('Create a context first');
+					toast.error($t('sidebar.createContextFirst'));
 					return;
 				}
 				projectDialogContextId = userStateStore.activeContextId;
@@ -335,7 +336,7 @@
 			{/each}
 		</SidebarSection>
 
-		<SidebarSection title="Labels" collapsible storageKey="sidebar:labels:open" onAdd={() => (labelDialogOpen = true)}>
+		<SidebarSection title={$t('nav.labels')} collapsible storageKey="sidebar:labels:open" onAdd={() => (labelDialogOpen = true)}>
 			{#each labelsOrdered as label (label.id)}
 				{@const href = resolve('/(app)/label/[id]', { id: String(label.id) })}
 				{@const active = isActive(href)}
@@ -371,9 +372,9 @@
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item onclick={() => goto(resolve('/settings'))}>
 					<GearIcon class="size-4" />
-					Settings
+					{$t('nav.settings')}
 				</DropdownMenu.Item>
-				<DropdownMenu.Item onclick={onLogoutAll}>Log out everywhere</DropdownMenu.Item>
+				<DropdownMenu.Item onclick={onLogoutAll}>{$t('sidebar.logOutEverywhere')}</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 		<button
@@ -383,7 +384,7 @@
 		>
 			<span class="flex min-w-0 items-center gap-2.5">
 				<SignOutIcon class="size-[18px] shrink-0 opacity-80 md:size-[16px]" />
-				<span class="truncate">Log out</span>
+				<span class="truncate">{$t('sidebar.logOut')}</span>
 			</span>
 			<span class="font-mono text-[12px] tabular-nums text-muted-foreground/70 md:text-[10px]">v{appVersion}</span>
 		</button>

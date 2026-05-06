@@ -160,6 +160,7 @@ export interface UserState {
 
 export interface UserSettings {
 	weeklyUnplannedExcludedLabelIds: number[];
+	locale: string;
 }
 
 export interface ConfigResponse {

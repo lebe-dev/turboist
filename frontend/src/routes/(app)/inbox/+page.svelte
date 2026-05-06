@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import InboxIcon from 'phosphor-svelte/lib/Tray';
+	import { t } from '$lib/i18n';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { getApiClient } from '$lib/api/client';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -90,8 +91,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0}
 		emptyIcon={InboxIcon}
-		emptyTitle="Inbox is empty"
-		emptyDescription="Tasks captured without a project land here. Press Q to add one."
+		emptyTitle={$t('page.inbox.emptyTitle')}
+		emptyDescription={$t('page.inbox.emptyDescription')}
 	>
 		<TaskTree
 			tasks={sortedTasks}

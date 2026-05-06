@@ -5,70 +5,92 @@
 	import MonitorIcon from 'phosphor-svelte/lib/Monitor';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { t, locale, SUPPORTED_LOCALES, localeLabel, type SupportedLocale } from '$lib/i18n';
 
 	type ThemeMode = 'light' | 'dark' | 'system';
 
 	type ThemeOption = {
 		value: ThemeMode;
-		label: string;
-		description: string;
+		labelKey: string;
+		descKey: string;
 		icon: typeof SunIcon;
 	};
 
 	const themeOptions: ThemeOption[] = [
 		{
 			value: 'light',
-			label: 'Light',
-			description: 'Always use the light theme',
+			labelKey: 'settings.theme.light',
+			descKey: 'settings.theme.lightDescription',
 			icon: SunIcon
 		},
 		{
 			value: 'dark',
-			label: 'Dark',
-			description: 'Always use the dark theme',
+			labelKey: 'settings.theme.dark',
+			descKey: 'settings.theme.darkDescription',
 			icon: MoonIcon
 		},
 		{
 			value: 'system',
-			label: 'System',
-			description: 'Match your operating system preference',
+			labelKey: 'settings.theme.system',
+			descKey: 'settings.theme.systemDescription',
 			icon: MonitorIcon
 		}
 	];
 
-	const current = $derived(userPrefersMode.current);
+	const currentTheme = $derived(userPrefersMode.current);
+
+	const currentLocale = $derived(
+		(settingsStore.locale || $locale || 'en') as SupportedLocale
+	);
+
+	let localeBusy = $state<SupportedLocale | null>(null);
 
 	function toggleLabel(id: number) {
 		const excluded = settingsStore.weeklyUnplannedExcludedLabelIds;
 		const next = excluded.includes(id) ? excluded.filter((x) => x !== id) : [...excluded, id];
 		settingsStore.setWeeklyUnplannedExcludedLabelIds(next).catch(console.error);
 	}
+
+	async function selectLocale(loc: SupportedLocale): Promise<void> {
+		if (loc === currentLocale || localeBusy !== null) return;
+		localeBusy = loc;
+		try {
+			await settingsStore.setLocale(loc);
+			toast.success($t('settings.language.updated'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.language.updateFailed');
+			toast.error(message);
+		} finally {
+			localeBusy = null;
+		}
+	}
 </script>
 
 <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
 	<header class="flex flex-col gap-1">
-		<h1 class="text-xl font-semibold tracking-tight">Settings</h1>
-		<p class="text-sm text-muted-foreground">Personalise how Turboist looks and behaves.</p>
+		<h1 class="text-xl font-semibold tracking-tight">{$t('settings.title')}</h1>
+		<p class="text-sm text-muted-foreground">{$t('settings.subtitle')}</p>
 	</header>
 
-	<Tabs.Root value="appearance" class="flex flex-col gap-4">
+	<Tabs.Root value="general" class="flex flex-col gap-4">
 		<Tabs.List variant="line">
-			<Tabs.Trigger value="appearance">Appearance</Tabs.Trigger>
-			<Tabs.Trigger value="labels">Labels</Tabs.Trigger>
+			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
+			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
 		</Tabs.List>
 
-		<Tabs.Content value="appearance">
+		<Tabs.Content value="general" class="flex flex-col gap-4">
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
 				<div class="flex flex-col gap-0.5">
-					<h2 class="text-sm font-semibold">Theme</h2>
-					<p class="text-xs text-muted-foreground">Choose between light, dark, or matching your system.</p>
+					<h2 class="text-sm font-semibold">{$t('settings.theme.heading')}</h2>
+					<p class="text-xs text-muted-foreground">{$t('settings.theme.description')}</p>
 				</div>
-				<div class="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Theme">
+				<div class="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={$t('settings.theme.ariaLabel')}>
 					{#each themeOptions as option (option.value)}
 						{@const Icon = option.icon}
-						{@const active = current === option.value}
+						{@const active = currentTheme === option.value}
 						<button
 							type="button"
 							role="radio"
@@ -81,9 +103,41 @@
 						>
 							<span class="flex items-center gap-2">
 								<Icon class="size-4" weight={active ? 'fill' : 'regular'} />
-								<span class="text-sm font-medium">{option.label}</span>
+								<span class="text-sm font-medium">{$t(option.labelKey)}</span>
 							</span>
-							<span class="text-xs text-muted-foreground">{option.description}</span>
+							<span class="text-xs text-muted-foreground">{$t(option.descKey)}</span>
+						</button>
+					{/each}
+				</div>
+			</section>
+
+			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+				<div class="flex flex-col gap-0.5">
+					<h2 class="text-sm font-semibold">{$t('settings.language.heading')}</h2>
+					<p class="text-xs text-muted-foreground">{$t('settings.language.description')}</p>
+				</div>
+				<div
+					class="grid gap-2 sm:grid-cols-2"
+					role="radiogroup"
+					aria-label={$t('settings.language.ariaLabel')}
+				>
+					{#each SUPPORTED_LOCALES as loc (loc)}
+						{@const active = currentLocale === loc}
+						<button
+							type="button"
+							role="radio"
+							aria-checked={active}
+							onclick={() => selectLocale(loc)}
+							disabled={localeBusy !== null}
+							class="flex items-center justify-between gap-2 rounded-md border p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+							class:border-primary={active}
+							class:bg-muted={active}
+							class:border-border={!active}
+						>
+							<span class="text-sm font-medium">{localeLabel(loc)}</span>
+							{#if active}
+								<CheckIcon class="size-4 text-primary" weight="bold" />
+							{/if}
 						</button>
 					{/each}
 				</div>
@@ -93,14 +147,11 @@
 		<Tabs.Content value="labels">
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
 				<div class="flex flex-col gap-0.5">
-					<h2 class="text-sm font-semibold">Weekly unplanned exclusions</h2>
-					<p class="text-xs text-muted-foreground">
-						Tasks with these labels will not show the unplanned badge even if not scheduled for the
-						week.
-					</p>
+					<h2 class="text-sm font-semibold">{$t('settings.weekly.heading')}</h2>
+					<p class="text-xs text-muted-foreground">{$t('settings.weekly.description')}</p>
 				</div>
 				{#if labelsStore.items.length === 0}
-					<p class="text-sm text-muted-foreground">No labels yet.</p>
+					<p class="text-sm text-muted-foreground">{$t('settings.weekly.empty')}</p>
 				{:else}
 					<div class="flex flex-col gap-1">
 						{#each labelsStore.items as label (label.id)}

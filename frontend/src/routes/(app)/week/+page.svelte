@@ -1,5 +1,6 @@
 <script lang="ts">
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
+	import { t } from '$lib/i18n';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -61,8 +62,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0}
 		emptyIcon={CalendarIcon}
-		emptyTitle="Week is empty"
-		emptyDescription="Plan tasks for this week from Backlog or by setting a due date."
+		emptyTitle={$t('page.week.emptyTitle')}
+		emptyDescription={$t('page.week.emptyDescription')}
 	>
 		<div class="flex flex-col gap-4 py-2">
 			{#each groups as group (group.dayKey)}

@@ -1,0 +1,130 @@
+{
+	"app": {
+		"name": "Turboist",
+		"loading": "Loading…",
+		"loadingWorkspace": "Loading workspace…",
+		"workspaceFailed": "Failed to load workspace.",
+		"retry": "Retry"
+	},
+	"nav": {
+		"today": "Today",
+		"tomorrow": "Tomorrow",
+		"inbox": "Inbox",
+		"week": "Week",
+		"thisWeek": "This week",
+		"backlog": "Backlog",
+		"nextWeek": "Next week",
+		"completed": "Completed",
+		"search": "Search",
+		"troiki": "Troiki",
+		"settings": "Settings",
+		"main": "Main",
+		"planning": "Planning",
+		"pinned": "Pinned",
+		"projects": "Projects",
+		"labels": "Labels"
+	},
+	"sidebar": {
+		"collapse": "Collapse sidebar",
+		"expand": "Expand sidebar",
+		"navigation": "Navigation",
+		"navigationDesc": "Workspace navigation menu",
+		"logOut": "Log out",
+		"logOutEverywhere": "Log out everywhere",
+		"unpinAria": "Unpin {name}",
+		"createContextFirst": "Create a context first",
+		"failedUnpin": "Failed to unpin"
+	},
+	"topbar": {
+		"search": "Search",
+		"closeSearch": "Close search",
+		"openMenu": "Open menu",
+		"quickAdd": "Quick add (Q)",
+		"troikiSystem": "Troiki System",
+		"activeContextFilter": "Active context filter",
+		"all": "All",
+		"addContext": "Add context",
+		"failedSetContext": "Failed to set context"
+	},
+	"settings": {
+		"title": "Settings",
+		"subtitle": "Personalise how Turboist looks and behaves.",
+		"tabs": {
+			"general": "General",
+			"labels": "Labels"
+		},
+		"theme": {
+			"heading": "Theme",
+			"description": "Choose between light, dark, or matching your system.",
+			"ariaLabel": "Theme",
+			"light": "Light",
+			"lightDescription": "Always use the light theme",
+			"dark": "Dark",
+			"darkDescription": "Always use the dark theme",
+			"system": "System",
+			"systemDescription": "Match your operating system preference"
+		},
+		"language": {
+			"heading": "Language",
+			"description": "Pick the interface language. Your choice is saved on the server.",
+			"ariaLabel": "Language",
+			"updated": "Language updated",
+			"updateFailed": "Failed to update language"
+		},
+		"weekly": {
+			"heading": "Weekly unplanned exclusions",
+			"description": "Tasks with these labels will not show the unplanned badge even if not scheduled for the week.",
+			"empty": "No labels yet."
+		}
+	},
+	"auth": {
+		"signIn": "Sign in",
+		"signingIn": "Signing in…",
+		"loginFailed": "Login failed",
+		"setupTitle": "Create the first account",
+		"setupSubtitle": "Turboist runs single-user. Pick a username and password.",
+		"creating": "Creating…",
+		"createAccount": "Create account",
+		"setupFailed": "Setup failed",
+		"username": "Username",
+		"password": "Password",
+		"confirmPassword": "Confirm password",
+		"passwordsMismatch": "Passwords do not match"
+	},
+	"task": {
+		"toast": {
+			"subtaskAdded": "Subtask added",
+			"addedToProject": "Task added to project",
+			"addedToContext": "Task added to context",
+			"addedToInbox": "Task added to inbox",
+			"failedAdd": "Failed to add task",
+			"failedSetSection": "Failed to set section"
+		}
+	},
+	"page": {
+		"today": {
+			"emptyTitle": "Nothing for today",
+			"emptyDescription": "No tasks are scheduled for today. Enjoy the calm."
+		},
+		"tomorrow": {
+			"emptyTitle": "Nothing for tomorrow",
+			"emptyDescription": "Schedule tasks ahead to see them here."
+		},
+		"inbox": {
+			"emptyTitle": "Inbox is empty",
+			"emptyDescription": "Tasks captured without a project land here. Press Q to add one."
+		},
+		"week": {
+			"emptyTitle": "Week is empty",
+			"emptyDescription": "Plan tasks for this week from Backlog or by setting a due date."
+		},
+		"backlog": {
+			"emptyTitle": "Backlog is empty",
+			"emptyDescription": "Park tasks here when they're not actionable yet."
+		},
+		"completed": {
+			"emptyTitle": "Nothing completed yet",
+			"emptyDescription": "Tasks you complete will show up here, grouped by day."
+		}
+	}
+}

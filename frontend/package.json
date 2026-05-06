@@ -51,5 +51,10 @@
 		"vite": "^8.0.7",
 		"vitest": "^3.0.0"
 	},
-	"dependencies": {}
+	"dependencies": {
+		"svelte-intl-precompile": "^0.12.3"
+	},
+	"resolutions": {
+		"precompile-intl-runtime/svelte": "^5.0.0"
+	}
 }

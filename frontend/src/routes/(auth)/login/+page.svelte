@@ -6,6 +6,7 @@
 	import { ApiError } from '$lib/api/errors';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { t } from '$lib/i18n';
 
 	const auth = getAuthStore();
 
@@ -29,7 +30,7 @@
 			await goto(resolve('/'));
 		} catch (err) {
 			error =
-				err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Login failed';
+				err instanceof ApiError ? err.message : err instanceof Error ? err.message : $t('auth.loginFailed');
 		} finally {
 			submitting = false;
 		}
@@ -37,13 +38,13 @@
 </script>
 
 <form class="flex flex-col gap-4" onsubmit={onSubmit}>
-	<h1 class="text-lg font-semibold">Sign in</h1>
+	<h1 class="text-lg font-semibold">{$t('auth.signIn')}</h1>
 	<div class="flex flex-col gap-1.5">
-		<Label for="username">Username</Label>
+		<Label for="username">{$t('auth.username')}</Label>
 		<Input id="username" bind:value={username} autocomplete="username" required />
 	</div>
 	<div class="flex flex-col gap-1.5">
-		<Label for="password">Password</Label>
+		<Label for="password">{$t('auth.password')}</Label>
 		<Input
 			id="password"
 			type="password"
@@ -56,6 +57,6 @@
 		<p class="text-xs text-destructive">{error}</p>
 	{/if}
 	<Button type="submit" disabled={submitting}>
-		{submitting ? 'Signing in…' : 'Sign in'}
+		{submitting ? $t('auth.signingIn') : $t('auth.signIn')}
 	</Button>
 </form>

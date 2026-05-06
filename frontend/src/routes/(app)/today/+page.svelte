@@ -3,6 +3,7 @@
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
+	import { t } from '$lib/i18n';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import DayPartSection from '$lib/components/view/DayPartSection.svelte';
@@ -89,8 +90,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0 && completedCount === 0}
 		emptyIcon={SunIcon}
-		emptyTitle="Nothing for today"
-		emptyDescription="No tasks are scheduled for today. Enjoy the calm."
+		emptyTitle={$t('page.today.emptyTitle')}
+		emptyDescription={$t('page.today.emptyDescription')}
 	>
 		<div class="flex flex-col gap-4 py-2">
 			{#each groups as group (group.part)}

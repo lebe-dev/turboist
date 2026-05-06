@@ -16,16 +16,17 @@
 	import { toast } from 'svelte-sonner';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
+	import { t } from '$lib/i18n';
 
-	const STATIC_TITLES: Record<string, string> = {
-		'/today': 'Today',
-		'/tomorrow': 'Tomorrow',
-		'/inbox': 'Inbox',
-		'/week': 'This week',
-		'/backlog': 'Backlog',
-		'/next-week': 'Next week',
-		'/search': 'Search',
-		'/settings': 'Settings',
+	const TITLE_KEYS: Record<string, string> = {
+		'/today': 'nav.today',
+		'/tomorrow': 'nav.tomorrow',
+		'/inbox': 'nav.inbox',
+		'/week': 'nav.thisWeek',
+		'/backlog': 'nav.backlog',
+		'/next-week': 'nav.nextWeek',
+		'/search': 'nav.search',
+		'/settings': 'nav.settings'
 	};
 
 	let {
@@ -40,9 +41,11 @@
 	let mobileSearchOpen = $state(false);
 
 	const isTaskPage = $derived(page.url.pathname.startsWith('/task/'));
-	const pageTitle = $derived(
-		isTaskPage ? null : (STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title)
-	);
+	const pageTitle = $derived.by(() => {
+		if (isTaskPage) return null;
+		const key = TITLE_KEYS[page.url.pathname];
+		return key ? $t(key) : viewFilterStore.title;
+	});
 	const contextsLocked = $derived(page.url.pathname === '/inbox');
 	const troikiActive = $derived(page.url.pathname === '/troiki');
 
@@ -56,7 +59,7 @@
 		try {
 			await userStateStore.setActiveContextId(id);
 		} catch (err) {
-			const message = err instanceof Error ? err.message : 'Failed to set context';
+			const message = err instanceof Error ? err.message : $t('topbar.failedSetContext');
 			toast.error(message);
 		}
 	}
@@ -72,17 +75,17 @@
 				type="button"
 				onclick={handleSearch}
 				class="group/search inline-flex h-9 w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:hidden"
-				aria-label="Search"
+				aria-label={$t('topbar.search')}
 			>
 				<MagnifyingGlassIcon class="size-4 shrink-0" />
-				<span class="flex-1 text-left">Search</span>
+				<span class="flex-1 text-left">{$t('topbar.search')}</span>
 			</button>
 			<Button
 				variant="ghost"
 				size="icon-sm"
 				class="shrink-0 md:hidden"
 				onclick={() => (mobileSearchOpen = false)}
-				aria-label="Close search"
+				aria-label={$t('topbar.closeSearch')}
 			>
 				<XIcon class="size-4" />
 			</Button>
@@ -95,7 +98,7 @@
 					size="icon-sm"
 					class="shrink-0 md:hidden"
 					onclick={() => onMenuClick?.()}
-					aria-label="Open menu"
+					aria-label={$t('topbar.openMenu')}
 				>
 					<ListIcon class="size-5" />
 				</Button>
@@ -106,8 +109,8 @@
 					size="icon-sm"
 					class="hidden shrink-0 md:inline-flex"
 					onclick={() => sidebarStore.toggle()}
-					aria-label="Expand sidebar"
-					title="Expand sidebar"
+					aria-label={$t('sidebar.expand')}
+					title={$t('sidebar.expand')}
 				>
 					<SidebarSimpleIcon class="size-4" />
 				</Button>
@@ -115,7 +118,7 @@
 			<div
 				class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex-wrap"
 				role="group"
-				aria-label="Active context filter"
+				aria-label={$t('topbar.activeContextFilter')}
 			>
 				{#snippet chip(id: number | null, label: string, color?: string)}
 					{@const active = userStateStore.activeContextId === id}
@@ -145,7 +148,7 @@
 				{#if pageTitle}
 					<span class="mr-1 shrink-0 text-[13px] font-semibold text-foreground">{pageTitle}</span>
 				{/if}
-				{@render chip(null, 'All')}
+				{@render chip(null, $t('topbar.all'))}
 				{#each contextsStore.items as ctx (ctx.id)}
 					{@render chip(ctx.id, ctx.name, ctx.color)}
 				{/each}
@@ -154,8 +157,8 @@
 					onclick={() => (contextDialogOpen = true)}
 					disabled={contextsLocked}
 					class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-					aria-label="Add context"
-					title="Add context"
+					aria-label={$t('topbar.addContext')}
+					title={$t('topbar.addContext')}
 				>
 					<PlusIcon class="size-3.5" />
 				</button>
@@ -165,10 +168,10 @@
 				type="button"
 				onclick={handleSearch}
 				class="group/search hidden h-9 w-full max-w-xs items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:inline-flex"
-				aria-label="Search"
+				aria-label={$t('topbar.search')}
 			>
 				<MagnifyingGlassIcon class="size-4 shrink-0" />
-				<span class="flex-1 text-left">Search</span>
+				<span class="flex-1 text-left">{$t('topbar.search')}</span>
 				<Kbd.Kbd>/</Kbd.Kbd>
 			</button>
 		</div>
@@ -181,8 +184,8 @@
 				size="icon-sm"
 				class="md:hidden"
 				onclick={() => (mobileSearchOpen = true)}
-				aria-label="Search"
-				title="Search"
+				aria-label={$t('topbar.search')}
+				title={$t('topbar.search')}
 			>
 				<MagnifyingGlassIcon class="size-4" />
 			</Button>
@@ -192,15 +195,15 @@
 			size="icon-sm"
 			onclick={() => onQuickAdd?.()}
 			class="bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
-			aria-label="Quick add (Q)"
-			title="Quick add (Q)"
+			aria-label={$t('topbar.quickAdd')}
+			title={$t('topbar.quickAdd')}
 		>
 			<PlusIcon class="size-4" />
 		</Button>
 		<a
 			href={resolve('/troiki')}
-			aria-label="Troiki System"
-			title="Troiki System"
+			aria-label={$t('topbar.troikiSystem')}
+			title={$t('topbar.troikiSystem')}
 			aria-current={troikiActive ? 'page' : undefined}
 			class="inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 			class:text-muted-foreground={!troikiActive}

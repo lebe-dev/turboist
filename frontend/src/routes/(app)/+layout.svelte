@@ -32,25 +32,28 @@
 	import { describeError } from '$lib/utils/taskActions';
 	import { dayKeyInTz, shiftDayKey } from '$lib/utils/format';
 	import type { TaskInput } from '$lib/api/types';
+	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 
 	let { children } = $props();
 
-	const STATIC_TITLES: Record<string, string> = {
-		'/today': 'Today',
-		'/tomorrow': 'Tomorrow',
-		'/inbox': 'Inbox',
-		'/week': 'This week',
-		'/backlog': 'Backlog',
-		'/next-week': 'Next week',
-		'/completed': 'Completed',
-		'/search': 'Search',
-		'/troiki': 'Troiki',
-		'/settings': 'Settings'
+	const TITLE_KEYS: Record<string, string> = {
+		'/today': 'nav.today',
+		'/tomorrow': 'nav.tomorrow',
+		'/inbox': 'nav.inbox',
+		'/week': 'nav.thisWeek',
+		'/backlog': 'nav.backlog',
+		'/next-week': 'nav.nextWeek',
+		'/completed': 'nav.completed',
+		'/search': 'nav.search',
+		'/troiki': 'nav.troiki',
+		'/settings': 'nav.settings'
 	};
 
 	const documentTitle = $derived.by(() => {
-		const pageName = STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title;
-		return pageName ? `${pageName} — Turboist` : 'Turboist';
+		const key = TITLE_KEYS[page.url.pathname];
+		const pageName = key ? $t(key) : viewFilterStore.title;
+		const appName = $t('app.name');
+		return pageName ? `${pageName} — ${appName}` : appName;
 	});
 
 	const auth = getAuthStore();
@@ -95,9 +98,12 @@
 					troikiStore.load(),
 					settingsStore.load()
 				]);
+				if (isSupportedLocale(settingsStore.locale)) {
+					setLocale(settingsStore.locale);
+				}
 				dataReady = true;
 			} catch (err) {
-				const message = err instanceof Error ? err.message : 'Failed to load workspace';
+				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
 				toast.error(message);
 				loadFailed = true;
 			}
@@ -177,7 +183,7 @@
 		try {
 			await tasksApi.move(client, taskId, { contextId, projectId, sectionId });
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to set section'));
+			toast.error(describeError(err, $t('task.toast.failedSetSection')));
 		}
 	}
 
@@ -194,7 +200,7 @@
 			const client = getApiClient();
 			if (target.parentId !== null) {
 				const created = await tasksApi.createSubtask(client, target.parentId, payload);
-				toast.success('Subtask added');
+				toast.success($t('task.toast.subtaskAdded'));
 				window.dispatchEvent(
 					new CustomEvent('turboist:task-created', {
 						detail: {
@@ -215,7 +221,7 @@
 					target.projectId,
 					target.sectionId
 				);
-				toast.success('Task added to project');
+				toast.success($t('task.toast.addedToProject'));
 				const projectPath = resolve(`/project/${target.projectId}`);
 				if (page.url.pathname === projectPath) {
 					window.dispatchEvent(
@@ -229,7 +235,7 @@
 			const ctxId = quickAddDefaults.contextId;
 			if (ctxId !== null) {
 				const created = await contextsApi.createTask(client, ctxId, payload);
-				toast.success('Task added to context');
+				toast.success($t('task.toast.addedToContext'));
 				const contextPath = resolve(`/context/${ctxId}`);
 				if (page.url.pathname === contextPath) {
 					window.dispatchEvent(
@@ -241,7 +247,7 @@
 				return;
 			}
 			const created = await tasksApi.createInbox(client, payload);
-			toast.success('Task added to inbox');
+			toast.success($t('task.toast.addedToInbox'));
 			void inboxStatsStore.load().catch(() => {});
 			const inboxPath = resolve('/inbox');
 			if (page.url.pathname === inboxPath) {
@@ -252,7 +258,7 @@
 				);
 			}
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to add task'));
+			toast.error(describeError(err, $t('task.toast.failedAdd')));
 		}
 	}
 
@@ -280,12 +286,12 @@
 
 {#if auth.status !== 'authenticated' || (!dataReady && !loadFailed)}
 	<div class="flex h-screen items-center justify-center text-sm text-muted-foreground">
-		Loading workspace…
+		{$t('app.loadingWorkspace')}
 	</div>
 {:else if loadFailed && !dataReady}
 	<div class="flex h-screen flex-col items-center justify-center gap-3 text-sm">
-		<p class="text-muted-foreground">Failed to load workspace.</p>
-		<button class="rounded-md border px-3 py-1 hover:bg-muted" onclick={retryLoad}>Retry</button>
+		<p class="text-muted-foreground">{$t('app.workspaceFailed')}</p>
+		<button class="rounded-md border px-3 py-1 hover:bg-muted" onclick={retryLoad}>{$t('app.retry')}</button>
 	</div>
 {:else}
 	<div class="flex h-screen overflow-hidden bg-background">
@@ -309,8 +315,8 @@
 			class="w-[82vw] border-sidebar-border bg-sidebar p-0 md:hidden"
 			showCloseButton={false}
 		>
-			<Sheet.Title class="sr-only">Navigation</Sheet.Title>
-			<Sheet.Description class="sr-only">Workspace navigation menu</Sheet.Description>
+			<Sheet.Title class="sr-only">{$t('sidebar.navigation')}</Sheet.Title>
+			<Sheet.Description class="sr-only">{$t('sidebar.navigationDesc')}</Sheet.Description>
 			<Sidebar />
 		</Sheet.Content>
 	</Sheet.Root>
