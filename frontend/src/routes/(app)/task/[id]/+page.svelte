@@ -26,6 +26,8 @@
 	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
+	import { comparePriority } from '$lib/utils/priority';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
@@ -47,6 +49,12 @@
 	let newSubtaskTitle = $state('');
 	let creatingSubtask = $state(false);
 	let subtaskInputEl = $state<HTMLInputElement | undefined>();
+
+	const sortedSubtasks = $derived(
+		[...subtasks.items].sort((a, b) => comparePriority(a.priority, b.priority))
+	);
+	const openSubtasks = $derived(sortedSubtasks.filter((t) => t.status !== 'completed'));
+	const completedSubtasks = $derived(sortedSubtasks.filter((t) => t.status === 'completed'));
 
 	let title = $state('');
 	let description = $state('');
@@ -273,6 +281,10 @@
 				})
 			);
 			newSubtaskTitle = '';
+			const subs = await tasksApi
+				.listSubtasks(getApiClient(), task.id)
+				.catch(() => null);
+			if (subs) subtasks.items = subs.items;
 		} catch (err) {
 			toast.error(describeError(err, $t('page.task.failedAddSubtask')));
 		} finally {
@@ -470,13 +482,25 @@ async function save(): Promise<void> {
 						{/if}
 					</div>
 					{#if subtasks.items.length > 0}
-						<div class="rounded-md border border-border/60">
-							<TaskTree
-								tasks={subtasks.items}
-								showProject={false}
-								mutator={subtasks.mutator}
-								onToggle={(t) => toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
-							/>
+						<div class="overflow-hidden rounded-md border border-border/60">
+							{#if openSubtasks.length > 0}
+								<TaskTree
+									tasks={openSubtasks}
+									showProject={false}
+									mutator={subtasks.mutator}
+									onToggle={(t) =>
+										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+								/>
+							{/if}
+							{#if completedSubtasks.length > 0}
+								<CompletedTasksGroup
+									tasks={completedSubtasks}
+									draggable={false}
+									mutator={subtasks.mutator}
+									onToggle={(t) =>
+										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+								/>
+							{/if}
 						</div>
 					{/if}
 					<div class="flex items-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/20 px-2.5 py-1.5 transition-colors focus-within:border-border focus-within:bg-muted/40">
@@ -588,23 +612,25 @@ async function save(): Promise<void> {
 				</div>
 			</div>
 
-			<div class="flex flex-col gap-1.5">
-				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-					{$t('page.task.priority')}
-				</span>
-				<PriorityPicker bind:value={priority} disabled={projectTroikiLocked} />
-				{#if projectTroikiLocked}
-					<span class="text-[10px] text-muted-foreground">
-						{$t('page.task.priorityLockedByTroiki')}
+			<div class="grid grid-cols-2 gap-5 sm:contents">
+				<div class="flex flex-col gap-1.5">
+					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+						{$t('page.task.priority')}
 					</span>
-				{/if}
-			</div>
+					<PriorityPicker bind:value={priority} disabled={projectTroikiLocked} />
+					{#if projectTroikiLocked}
+						<span class="text-[10px] text-muted-foreground">
+							{$t('page.task.priorityLockedByTroiki')}
+						</span>
+					{/if}
+				</div>
 
-			<div class="flex flex-col gap-1.5">
-				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-					{$t('page.task.dayPart')}
-				</span>
-				<DayPartPicker bind:value={dayPart} />
+				<div class="flex flex-col gap-1.5">
+					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+						{$t('page.task.dayPart')}
+					</span>
+					<DayPartPicker bind:value={dayPart} />
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-1.5">

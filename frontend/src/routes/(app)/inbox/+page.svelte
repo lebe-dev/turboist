@@ -41,8 +41,9 @@
 
 	$effect(() => {
 		const handler = (e: Event) => {
-			const detail = (e as CustomEvent<{ task: Task; projectId: number | null }>).detail;
-			if (!detail || detail.projectId !== null) return;
+			const detail = (e as CustomEvent<{ task: Task }>).detail;
+			if (!detail?.task || detail.task.inboxId === null) return;
+			if (list.items.some((x) => x.id === detail.task.id)) return;
 			list.items = [...list.items, detail.task];
 			applyCount(inboxStatsStore.count + 1);
 		};

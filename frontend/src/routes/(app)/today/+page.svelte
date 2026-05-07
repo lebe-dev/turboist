@@ -27,7 +27,29 @@
 			completedCount += 1;
 		}
 	});
-	const { mutator } = list;
+
+	// When a parent task is removed (completed), cascade-remove its subtasks so
+	// they don't linger as orphaned roots in day-part sections.
+	const baseMutator = list.mutator;
+	const mutator = {
+		replace: (t: Task) => baseMutator.replace(t),
+		remove(id: number) {
+			const toRemove: number[] = [];
+			const collect = (parentId: number) => {
+				for (const t of list.items) {
+					if (t.parentId === parentId) {
+						toRemove.push(t.id);
+						collect(t.id);
+					}
+				}
+			};
+			collect(id);
+			baseMutator.remove(id);
+			for (const subId of toRemove) baseMutator.remove(subId);
+		},
+		insertAfter: (id: number, t: Task) => baseMutator.insertAfter(id, t),
+		add: (t: Task) => baseMutator.add(t)
+	};
 
 	const dayParts = $derived(configStore.value?.dayParts);
 	const tz = $derived(configStore.value?.timezone ?? null);
@@ -65,6 +87,21 @@
 			document.removeEventListener('visibilitychange', onVisible);
 			window.removeEventListener('focus', onVisible);
 		};
+	});
+
+	$effect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent<{ task: Task }>).detail;
+			const t = detail?.task;
+			if (!t || t.status !== 'open' || !isToday(t)) return;
+			const ctxId = userStateStore.activeContextId ?? null;
+			if (ctxId !== null && t.contextId !== ctxId) return;
+			if (list.items.some((x) => x.id === t.id)) return;
+			list.items = [...list.items, t];
+			total += 1;
+		};
+		window.addEventListener('turboist:task-created', handler);
+		return () => window.removeEventListener('turboist:task-created', handler);
 	});
 
 	function isToday(t: Task): boolean {

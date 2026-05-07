@@ -222,41 +222,44 @@
 					target.sectionId
 				);
 				toast.success($t('task.toast.addedToProject'));
-				const projectPath = resolve(`/project/${target.projectId}`);
-				if (page.url.pathname === projectPath) {
-					window.dispatchEvent(
-						new CustomEvent('turboist:task-created', {
-							detail: { task: created, projectId: target.projectId }
-						})
-					);
-				}
+				window.dispatchEvent(
+					new CustomEvent('turboist:task-created', {
+						detail: {
+							task: created,
+							projectId: created.projectId,
+							contextId: created.contextId
+						}
+					})
+				);
 				return;
 			}
 			const ctxId = quickAddDefaults.contextId;
 			if (ctxId !== null) {
 				const created = await contextsApi.createTask(client, ctxId, payload);
 				toast.success($t('task.toast.addedToContext'));
-				const contextPath = resolve(`/context/${ctxId}`);
-				if (page.url.pathname === contextPath) {
-					window.dispatchEvent(
-						new CustomEvent('turboist:task-created', {
-							detail: { task: created, projectId: null, contextId: ctxId }
-						})
-					);
-				}
+				window.dispatchEvent(
+					new CustomEvent('turboist:task-created', {
+						detail: {
+							task: created,
+							projectId: created.projectId,
+							contextId: created.contextId
+						}
+					})
+				);
 				return;
 			}
 			const created = await tasksApi.createInbox(client, payload);
 			toast.success($t('task.toast.addedToInbox'));
 			void inboxStatsStore.load().catch(() => {});
-			const inboxPath = resolve('/inbox');
-			if (page.url.pathname === inboxPath) {
-				window.dispatchEvent(
-					new CustomEvent('turboist:task-created', {
-						detail: { task: created, projectId: null }
-					})
-				);
-			}
+			window.dispatchEvent(
+				new CustomEvent('turboist:task-created', {
+					detail: {
+						task: created,
+						projectId: created.projectId,
+						contextId: created.contextId
+					}
+				})
+			);
 		} catch (err) {
 			toast.error(describeError(err, $t('task.toast.failedAdd')));
 		}
