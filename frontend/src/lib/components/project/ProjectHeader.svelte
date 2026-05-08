@@ -15,6 +15,7 @@
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
 	import { t } from '$lib/i18n';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import type { Project, TroikiCategory } from '$lib/api/types';
 
 	let {
@@ -53,6 +54,34 @@
 		{ category: 'rest', labelKey: 'troiki.section.rest' }
 	];
 
+	// Load Troiki slot fills lazily: needed only when the user opens the
+	// "Assign to Troika" submenu, so we trigger on first interaction with the
+	// outer dropdown rather than on mount.
+	let troikiLoaded = $state(false);
+	let troikiLoading = $state(false);
+	async function ensureTroikiLoaded(): Promise<void> {
+		if (troikiLoaded || troikiLoading) return;
+		troikiLoading = true;
+		try {
+			await troikiStore.load();
+			troikiLoaded = true;
+		} catch {
+			// Silent — submenu will fall back to no counts and the backend will
+			// reject over-cap assignments with a toast.
+		} finally {
+			troikiLoading = false;
+		}
+	}
+
+	const troikiFills = $derived.by(() => {
+		const v = troikiStore.value;
+		return {
+			important: { count: v.important.projects.length, cap: v.important.capacity },
+			medium: { count: v.medium.projects.length, cap: v.medium.capacity },
+			rest: { count: v.rest.projects.length, cap: v.rest.capacity }
+		};
+	});
+
 	const STATUS_KEY: Record<Project['status'], string> = {
 		open: 'project.statusOpen',
 		completed: 'project.statusCompleted',
@@ -90,7 +119,7 @@
 					{$t('project.reopen')}
 				</Button>
 			{/if}
-			<DropdownMenu.Root>
+			<DropdownMenu.Root onOpenChange={(o) => o && void ensureTroikiLoaded()}>
 				<DropdownMenu.Trigger>
 					{#snippet child({ props })}
 						<Button {...props} size="sm" variant="ghost" aria-label={$t('project.actionsAriaLabel')}>
@@ -135,16 +164,26 @@
 							<DropdownMenu.SubTrigger>
 								<TriangleIcon class="size-4" /> {$t('project.assignToTroiki')}
 							</DropdownMenu.SubTrigger>
-							<DropdownMenu.SubContent class="min-w-[12rem]">
+							<DropdownMenu.SubContent class="min-w-[14rem]">
 								{#each TROIKI_OPTIONS as opt (opt.category)}
 									{@const active = project.troikiCategory === opt.category}
-									<DropdownMenu.Item onclick={() => onSetTroiki(opt.category)}>
+									{@const fill = troikiFills[opt.category]}
+									{@const full = troikiLoaded && !active && fill.count >= fill.cap}
+									<DropdownMenu.Item
+										disabled={full}
+										onclick={() => !full && onSetTroiki(opt.category)}
+									>
 										{#if active}
 											<CheckIcon class="size-4" weight="bold" />
 										{:else}
 											<span class="size-4"></span>
 										{/if}
-										{$t(opt.labelKey)}
+										<span class="flex-1">{$t(opt.labelKey)}</span>
+										{#if troikiLoaded}
+											<span class="ml-2 text-[11px] tabular-nums text-muted-foreground">
+												{fill.count}/{fill.cap}
+											</span>
+										{/if}
 									</DropdownMenu.Item>
 								{/each}
 								{#if project.troikiCategory !== null}

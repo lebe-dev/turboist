@@ -24,12 +24,27 @@ When a project is assigned to a category, the priority of all its open tasks (ro
 6. Earned capacity accumulates and never expires.
 7. Capacity grants are idempotent per task (`tasks.troiki_capacity_granted`) — re-completing a task does not yield extra capacity.
 
-## Initial State
+## Initial State (initial fill)
 
-- Important: available immediately (capacity = 3).
-- Medium and Rest: locked (capacity = 0). Complete tasks in higher categories to unlock.
+Before pressing **Start the system**, all three categories accept projects for pre-fill, subject to the universal "≤ 3 projects per category" rule.
+
+- Important: capacity = 3.
+- Medium and Rest: capacity = 3 (initial-fill).
+
+Once started, Medium/Rest switch to accumulation mode: capacity is snapshotted from the current project count in the category and grows further only through task completions in the higher category.
 
 ## Recommendations
 
 - Phrase tasks as concrete actionable items following GTD principles.
 - After completing a task, add the next one to keep the project moving.
+
+## Reset
+
+Pressing **Reset the system** (visible in place of Start once a cycle is running) returns Troiki to its initial state. With confirmation, it:
+
+- Unassigns every project from its category (`projects.troiki_category = NULL`).
+- Clears the per-task capacity-grant flag (`tasks.troiki_capacity_granted = 0`) so the same tasks may grant capacity again in a future cycle.
+- Zeroes earned Medium and Rest capacity (`users.troiki_medium_capacity = 0`, `troiki_rest_capacity = 0`).
+- Flips the cycle flag back (`users.troiki_started = 0`).
+
+Task priorities are intentionally left untouched — a reset clears the *cycle*, not the user's backlog. The operation is idempotent: calling Reset on an already-reset system is a no-op.

@@ -368,6 +368,20 @@ func (r *TaskRepo) ResetTroikiGrantedByProject(ctx context.Context, projectID in
 	return nil
 }
 
+// ResetAllTroikiGranted clears the troiki_capacity_granted flag on every task
+// in a single UPDATE. Used by Troiki Reset.
+func (r *TaskRepo) ResetAllTroikiGranted(ctx context.Context) error {
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE tasks SET troiki_capacity_granted = 0, updated_at = ?
+		 WHERE troiki_capacity_granted = 1`,
+		now)
+	if err != nil {
+		return fmt.Errorf("reset all troiki granted: %w", err)
+	}
+	return nil
+}
+
 // ReopenAndPinProjectPriority transitions a task back to 'open' and, when its
 // parent project carries a troiki_category, pins priority to the
 // category-derived priority — all in a single statement. The atomic read of

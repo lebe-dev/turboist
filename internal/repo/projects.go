@@ -283,6 +283,19 @@ func (r *ProjectRepo) SetPinned(ctx context.Context, id int64, pinned bool) erro
 	return nil
 }
 
+// ClearAllTroikiCategories unassigns every project from its Troiki category in
+// a single UPDATE. Used by Troiki Reset.
+func (r *ProjectRepo) ClearAllTroikiCategories(ctx context.Context) error {
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE projects SET troiki_category = NULL, updated_at = ? WHERE troiki_category IS NOT NULL`,
+		now)
+	if err != nil {
+		return fmt.Errorf("clear all troiki categories: %w", err)
+	}
+	return nil
+}
+
 func (r *ProjectRepo) Delete(ctx context.Context, id int64) error {
 	res, err := r.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
 	if err != nil {

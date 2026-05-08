@@ -46,6 +46,12 @@ class TroikiStore {
 		return v;
 	}
 
+	async reset(): Promise<TroikiViewResponse> {
+		const v = await troikiApi.reset(getApiClient());
+		this.value = v;
+		return v;
+	}
+
 	clear(): void {
 		this.value = EMPTY;
 	}

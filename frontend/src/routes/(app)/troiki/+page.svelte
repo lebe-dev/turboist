@@ -5,6 +5,7 @@
 	import PlayIcon from 'phosphor-svelte/lib/Play';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import InfoIcon from 'phosphor-svelte/lib/Info';
+	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
@@ -15,6 +16,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
+	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { describeError } from '$lib/utils/taskActions';
 	import { followUpStore } from '$lib/stores/followUp.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -47,13 +50,25 @@
 		}
 	];
 
+	function sortTasks(tasks: Task[]): Task[] {
+		return tasks
+			.map((t, i) => ({ t, i }))
+			.sort((a, b) => {
+				const ac = a.t.status === 'completed' ? 1 : 0;
+				const bc = b.t.status === 'completed' ? 1 : 0;
+				if (ac !== bc) return ac - bc;
+				return a.i - b.i;
+			})
+			.map(({ t }) => t);
+	}
+
 	function slotFor(key: TroikiCategory): TroikiSlot {
 		const slot = view[key];
-		if (!settingsStore.publicView) return slot;
-		return {
-			...slot,
-			projects: slot.projects.filter((p) => !p.isPrivate)
-		};
+		const projects = (settingsStore.publicView
+			? slot.projects.filter((p) => !p.isPrivate)
+			: slot.projects
+		).map((p) => ({ ...p, tasks: sortTasks(p.tasks) }));
+		return { ...slot, projects };
 	}
 
 	function projectMutator(project: TroikiProject): ListMutator {
@@ -92,7 +107,10 @@
 		}
 	}
 
+	let howOpen = $state(false);
 	let starting = $state(false);
+	let resetting = $state(false);
+	let resetConfirmOpen = $state(false);
 	const canStart = $derived(!view.started && view.important.projects.length > 0);
 
 	let addOpen = $state(false);
@@ -130,6 +148,20 @@
 		await troikiStore.load();
 	}
 
+	async function resetSystem(): Promise<void> {
+		if (resetting) return;
+		resetting = true;
+		try {
+			await troikiStore.reset();
+			await projectsStore.load();
+			toast.success($t('troiki.toast.reset'));
+		} catch (err) {
+			toast.error(describeError(err, $t('troiki.toast.resetFailed')));
+		} finally {
+			resetting = false;
+		}
+	}
+
 	async function startSystem(): Promise<void> {
 		if (!canStart || starting) return;
 		starting = true;
@@ -147,12 +179,13 @@
 <div class="px-2 py-2">
 	<div class="flex items-center justify-between px-3 pt-2 pb-4">
 		<h1 class="text-2xl font-bold tracking-tight">{$t('topbar.troikiSystem')}</h1>
-		<HoverCard.Root>
+		<HoverCard.Root bind:open={howOpen}>
 			<HoverCard.Trigger>
 				<button
 					type="button"
 					class="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
 					aria-label={$t('troiki.howAria')}
+					onclick={() => (howOpen = !howOpen)}
 				>
 					<InfoIcon class="size-3.5" />
 					{$t('troiki.howIt')}
@@ -200,9 +233,20 @@
 					<PlayIcon class="size-4" weight="fill" />
 					{starting ? $t('troiki.starting') : $t('troiki.start')}
 				</Button>
+			{:else}
+				<Button
+					size="sm"
+					variant="secondary"
+					disabled={resetting}
+					onclick={() => (resetConfirmOpen = true)}
+					title={$t('troiki.resetTitle')}
+				>
+					<ArrowCounterClockwiseIcon class="size-4" />
+					{resetting ? $t('troiki.resetting') : $t('troiki.reset')}
+				</Button>
 			{/if}
 		</header>
-		<div class="flex flex-col gap-6 py-2">
+		<div class="flex flex-col gap-10 py-2">
 			{#each sections as section (section.key)}
 				{@const slot = slotFor(section.key)}
 				{@const initialMode = !view.started && (section.key === 'medium' || section.key === 'rest')}
@@ -266,26 +310,31 @@
 					{:else}
 						<div class="flex flex-col gap-3">
 							{#each slot.projects as project (project.id)}
-								<div class="rounded-md border border-border/60 bg-muted/10">
+								<div class="overflow-hidden rounded-md border border-border/60 bg-card">
 									<div
-										class="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2"
+										class="flex items-center justify-between gap-2 border-b border-border/40 bg-muted/50 px-3 py-2"
 									>
-										<div class="flex min-w-0 items-center gap-2">
-											<span
-												class="inline-block size-2.5 shrink-0 rounded-full"
-												style={`background-color: ${project.color}`}
-												aria-hidden="true"
-											></span>
-											<a
-												href={resolve(`/project/${project.id}`)}
-												class="truncate text-sm font-medium hover:underline">{project.title}</a
-											>
-											<span
-												class="text-[11px] tabular-nums text-muted-foreground"
-												title={$t('troiki.openTasksTitle')}
-											>
-												{project.tasks.filter((tk) => tk.status === 'open').length}
+										<div class="flex min-w-0 flex-col gap-0.5">
+											<span class="text-[10px] uppercase tracking-wide text-muted-foreground/70 leading-none">
+												{$t('troiki.projectLabel')}
 											</span>
+											<div class="flex min-w-0 items-center gap-2">
+												<span
+													class="inline-block size-2.5 shrink-0 rounded-full"
+													style={`background-color: ${project.color}`}
+													aria-hidden="true"
+												></span>
+												<a
+													href={resolve(`/project/${project.id}`)}
+													class="truncate text-base font-semibold hover:underline">{project.title}</a
+												>
+												<span
+													class="text-[11px] tabular-nums text-muted-foreground"
+													title={$t('troiki.openTasksTitle')}
+												>
+													{project.tasks.filter((tk) => tk.status === 'open').length}
+												</span>
+											</div>
 										</div>
 										<Button
 											size="sm"
@@ -332,3 +381,12 @@
 </div>
 
 <QuickAddDialog bind:open={addOpen} defaultProjectId={addProjectId} onSubmit={onAddSubmit} />
+
+<ConfirmDestructiveDialog
+	bind:open={resetConfirmOpen}
+	title={$t('troiki.resetTitle')}
+	description={$t('troiki.resetDescription')}
+	confirmLabel={$t('troiki.resetConfirm')}
+	busyLabel={$t('troiki.resetting')}
+	onConfirm={resetSystem}
+/>

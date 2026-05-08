@@ -377,6 +377,11 @@
 		"startDisabled": "Assign at least one project to Important first",
 		"starting": "Starting…",
 		"start": "Start the system",
+		"reset": "Reset the system",
+		"resetting": "Resetting…",
+		"resetTitle": "Reset Troiki cycle",
+		"resetDescription": "All projects will be unassigned from their categories, earned capacity will be reset to zero, and the cycle will stop. Task priorities are kept as-is. This cannot be undone.",
+		"resetConfirm": "Reset",
 		"locked": "Locked",
 		"lockedTitle": "Locked — earn capacity by completing the previous category",
 		"openInitialTitle": "Open during initial fill — capacity is locked in when you press Start",
@@ -389,6 +394,7 @@
 		"addTask": "Add task",
 		"noTasks": "No tasks yet — add one to get started.",
 		"emptySlot": "Empty slot — assign a project",
+		"projectLabel": "project",
 		"toast": {
 			"loadFailed": "Failed to load Troiki",
 			"pickProject": "Pick a project in this Troiki section",
@@ -396,6 +402,8 @@
 			"createFailed": "Failed to create task",
 			"started": "Troiki started",
 			"startFailed": "Failed to start Troiki",
+			"reset": "Troiki reset",
+			"resetFailed": "Failed to reset Troiki",
 			"updateFailed": "Failed to update task"
 		}
 	},
