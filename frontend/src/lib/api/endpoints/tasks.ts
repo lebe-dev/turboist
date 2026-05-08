@@ -1,6 +1,7 @@
 import type { ApiClient } from '../client';
 import type {
 	BulkResult,
+	GroupResult,
 	InboxResponse,
 	Page,
 	Task,
@@ -60,6 +61,18 @@ export const tasks = {
 			method: 'POST',
 			body: { ids, ...target }
 		});
+	},
+
+	group(
+		client: ApiClient,
+		body: TaskInput & {
+			projectId: number | null;
+			sectionId: number | null;
+			contextId: number | null;
+			childIds: number[];
+		}
+	): Promise<GroupResult> {
+		return client.fetch('/api/v1/tasks/group', { method: 'POST', body });
 	},
 
 	inbox(client: ApiClient): Promise<InboxResponse> {

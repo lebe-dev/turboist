@@ -85,6 +85,7 @@ func main() {
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, projectRepo, userRepo, cfg.Location)
 	moveSvc := service.NewMoveService(taskRepo, projectRepo)
+	groupSvc := service.NewGroupService(taskSvc, moveSvc, taskRepo, tlabels)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
 
@@ -120,7 +121,7 @@ func main() {
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).Register(api)
 	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL).Register(api.Group("/inbox"))
-	handlers.NewTaskBulkHandler(completeSvc, moveSvc, env.BaseURL).Register(api)
+	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, env.BaseURL).Register(api)
 	handlers.NewTaskViewHandler(taskRepo, cfg, env.BaseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
 	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)

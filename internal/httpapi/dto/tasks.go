@@ -84,6 +84,17 @@ type CreateTaskRequest struct {
 	RemovedAutoLabels []string `json:"removedAutoLabels"`
 }
 
+// GroupTasksRequest is the body for POST /tasks/group: it creates a new parent
+// task in the given scope and re-parents the listed child tasks under it,
+// overwriting their labels and priority with the new parent's values.
+type GroupTasksRequest struct {
+	CreateTaskRequest
+	ProjectID *int64  `json:"projectId"`
+	SectionID *int64  `json:"sectionId"`
+	ContextID *int64  `json:"contextId"`
+	ChildIDs  []int64 `json:"childIds"`
+}
+
 // PatchTaskRequest is the body for PATCH /tasks/:id.
 // Only editable fields are accepted; placement, status, and pin are managed via action endpoints.
 // Optional[string] distinguishes absent, null (clear), and set value.

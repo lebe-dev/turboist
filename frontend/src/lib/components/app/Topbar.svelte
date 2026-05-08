@@ -13,6 +13,8 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
+	import CheckSquareIcon from 'phosphor-svelte/lib/CheckSquare';
 	import { toast } from 'svelte-sonner';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
@@ -189,6 +191,17 @@
 				<MagnifyingGlassIcon class="size-4" />
 			</Button>
 		{/if}
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			onclick={() => (taskSelectionStore.mode ? taskSelectionStore.disable() : taskSelectionStore.enable())}
+			aria-pressed={taskSelectionStore.mode}
+			aria-label={$t('topbar.toggleSelect')}
+			title={$t('topbar.toggleSelect')}
+			class={taskSelectionStore.mode ? 'bg-accent text-foreground' : ''}
+		>
+			<CheckSquareIcon class="size-4" />
+		</Button>
 		<Button
 			variant="secondary"
 			size="icon-sm"

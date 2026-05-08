@@ -19,6 +19,8 @@
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import StackIcon from 'phosphor-svelte/lib/Stack';
+	import WarningIcon from 'phosphor-svelte/lib/Warning';
 	import { t } from '$lib/i18n';
 
 	let {
@@ -31,6 +33,7 @@
 		defaultParentId = null,
 		defaultSectionId = null,
 		emptyProjectLabel: emptyProjectLabelProp = null,
+		wrap = null,
 		onSubmit
 	}: {
 		open?: boolean;
@@ -42,6 +45,7 @@
 		defaultParentId?: number | null;
 		defaultSectionId?: number | null;
 		emptyProjectLabel?: string | null;
+		wrap?: { tasks: Array<{ id: number; title: string }>; warning?: string | null } | null;
 		onSubmit?: (
 			payload: TaskInput,
 			target: {
@@ -52,6 +56,8 @@
 			}
 		) => void | Promise<void>;
 	} = $props();
+
+	const isWrap = $derived(wrap !== null);
 
 	function initialLabelIds(): string[] {
 		const base = defaultLabelIds.map(String);
@@ -117,6 +123,7 @@
 	}
 
 	function selectProject(id: string): void {
+		if (isWrap && id === '') return;
 		projectId = id;
 		projectMenuOpen = false;
 	}
@@ -273,7 +280,8 @@
 				parentId,
 				sectionId
 			};
-			for (const line of titleLines) {
+			const lines = isWrap ? titleLines.slice(0, 1) : titleLines;
+			for (const line of lines) {
 				const payload: TaskInput = { ...commonPayload, title: line };
 				await onSubmit?.(payload, target);
 			}
@@ -304,6 +312,27 @@
 			</DialogPrimitive.Description>
 
 			<form onsubmit={submit} class="flex flex-col">
+				{#if wrap}
+					<div class="border-b border-border bg-muted/40 px-5 py-3">
+						<div class="flex items-center gap-2 text-sm font-medium text-foreground">
+							<StackIcon class="size-4 text-primary" weight="bold" />
+							<span>{$t('dialog.quickAdd.wrap.title', { values: { count: wrap.tasks.length } })}</span>
+						</div>
+						{#if wrap.tasks.length > 0}
+							<ul class="mt-2 max-h-24 overflow-y-auto pl-6 text-xs text-muted-foreground">
+								{#each wrap.tasks as item (item.id)}
+									<li class="truncate">• {item.title}</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if wrap.warning}
+							<div class="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200">
+								<WarningIcon class="size-3.5 shrink-0" weight="fill" />
+								<span>{wrap.warning}</span>
+							</div>
+						{/if}
+					</div>
+				{/if}
 				<div class="px-5 pt-5 pb-3">
 					<!-- svelte-ignore a11y_autofocus -->
 					<textarea
@@ -522,16 +551,26 @@
 										<button
 											type="button"
 											onclick={() => selectProject('')}
+											disabled={isWrap}
+											aria-disabled={isWrap}
+											title={isWrap ? $t('dialog.quickAdd.wrap.inboxDisabled') : undefined}
 											class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
-											class:bg-accent={active}
-											class:text-accent-foreground={active}
-											class:hover:bg-accent={!active}
+											class:bg-accent={active && !isWrap}
+											class:text-accent-foreground={active && !isWrap}
+											class:hover:bg-accent={!active && !isWrap}
+											class:opacity-50={isWrap}
+											class:cursor-not-allowed={isWrap}
 										>
 											<span class="flex-1 truncate">{emptyProjectLabel}</span>
-											{#if active}
+											{#if active && !isWrap}
 												<CheckIcon class="size-3.5 opacity-70" />
 											{/if}
 										</button>
+										{#if isWrap}
+											<div class="px-2 pb-1.5 pt-0.5 text-[11px] leading-snug text-muted-foreground">
+												{$t('dialog.quickAdd.wrap.inboxDisabled')}
+											</div>
+										{/if}
 									{/if}
 									{#each filteredProjects as project (project.id)}
 										{@const id = String(project.id)}
@@ -566,10 +605,18 @@
 								<Button {...props} variant="ghost" size="sm" type="button">{$t('common.cancel')}</Button>
 							{/snippet}
 						</DialogPrimitive.Close>
-						<Button type="submit" size="sm" disabled={titleLines.length === 0 || submitting}>
-							{isMultiTask
-								? $t('dialog.quickAdd.submitMulti', { values: { count: titleLines.length } })
-								: $t('dialog.quickAdd.submitSingle')}
+						<Button
+							type="submit"
+							size="sm"
+							disabled={titleLines.length === 0 || submitting || (isWrap && !projectId)}
+						>
+							{#if isWrap}
+								{$t('dialog.quickAdd.wrap.submit')}
+							{:else if isMultiTask}
+								{$t('dialog.quickAdd.submitMulti', { values: { count: titleLines.length } })}
+							{:else}
+								{$t('dialog.quickAdd.submitSingle')}
+							{/if}
 						</Button>
 					</div>
 				</div>

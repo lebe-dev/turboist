@@ -74,7 +74,8 @@
 		"activeContextFilter": "Active context filter",
 		"all": "All",
 		"addContext": "Add context",
-		"failedSetContext": "Failed to set context"
+		"failedSetContext": "Failed to set context",
+		"toggleSelect": "Toggle multi-select"
 	},
 	"settings": {
 		"title": "Settings",
@@ -199,6 +200,9 @@
 		},
 		"toast": {
 			"subtaskAdded": "Subtask added",
+			"grouped": "Grouped {count} tasks under the new task",
+			"groupedPartial": "Grouped {ok} tasks; {failed} failed",
+			"failedGroup": "Failed to group tasks",
 			"addedToProject": "Task added to project",
 			"addedToContext": "Task added to context",
 			"addedToInbox": "Task added to inbox",
@@ -281,7 +285,13 @@
 			"searchProjectsPlaceholder": "Search projects...",
 			"noMatches": "No matches",
 			"submitMulti": "Add {count} tasks",
-			"submitSingle": "Add task"
+			"submitSingle": "Add task",
+			"wrap": {
+				"title": "Grouping {count} tasks",
+				"warningMixed": "Selected tasks span different projects, sections, or contexts — they will all move into the new task's location, and their labels and priority will be replaced.",
+				"inboxDisabled": "Inbox can't host a grouped parent — pick a project",
+				"submit": "Create and group"
+			}
 		}
 	},
 	"project": {
@@ -525,6 +535,16 @@
 			"emptyDescription": "Tag tasks with this label to see them here.",
 			"confirmDeleteTitle": "Delete label?",
 			"confirmDeleteDesc": "The label will be removed from all tasks. This cannot be undone."
+		}
+	},
+	"selection": {
+		"selectTask": "Select task",
+		"unselectTask": "Unselect task",
+		"bar": {
+			"aria": "Selected tasks actions",
+			"count": "{count} selected",
+			"group": "Group into task",
+			"cancel": "Clear selection"
 		}
 	}
 }

@@ -165,12 +165,6 @@
 		await goto(resolve('/login'));
 	}
 
-	async function onLogoutAll(): Promise<void> {
-		await auth.logoutAll();
-		clearStores();
-		await goto(resolve('/login'));
-	}
-
 	async function unpinProject(id: number): Promise<void> {
 		try {
 			const updated = await projectsApi.unpin(getApiClient(), id);

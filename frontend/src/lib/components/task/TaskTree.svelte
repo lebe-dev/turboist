@@ -24,7 +24,8 @@
 		showUnplannedBadge = false,
 		mutator,
 		belongs,
-		onToggle
+		onToggle,
+		visibleIds
 	}: {
 		tasks?: Task[];
 		nodes?: TaskNode[];
@@ -38,6 +39,7 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		visibleIds?: number[];
 	} = $props();
 
 	const visibleTasks = $derived.by(() => {
@@ -48,6 +50,19 @@
 		return tasks.filter((t) => isTaskVisible(t, true, projectsById, tasksById));
 	});
 	const resolved = $derived<TaskNode[]>(nodes ?? (visibleTasks ? buildTree(visibleTasks) : []));
+
+	function flattenIds(ns: TaskNode[], out: number[]): void {
+		for (const n of ns) {
+			out.push(n.task.id);
+			if (n.children.length > 0) flattenIds(n.children, out);
+		}
+	}
+	const effectiveVisibleIds = $derived.by<number[]>(() => {
+		if (visibleIds) return visibleIds;
+		const flat: number[] = [];
+		flattenIds(resolved, flat);
+		return flat;
+	});
 </script>
 
 <div class="flex flex-col divide-y divide-border/40">
@@ -64,6 +79,7 @@
 			{mutator}
 			{belongs}
 			{onToggle}
+			visibleIds={effectiveVisibleIds}
 		/>
 		{#if node.children.length > 0}
 			<Self
@@ -78,6 +94,7 @@
 				{mutator}
 				{belongs}
 				{onToggle}
+				visibleIds={effectiveVisibleIds}
 			/>
 		{/if}
 	{/each}

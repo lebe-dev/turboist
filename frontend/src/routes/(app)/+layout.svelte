@@ -3,7 +3,9 @@
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
 	import FollowUpToasts from '$lib/components/task/FollowUpToasts.svelte';
+	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import type { FollowUpItem } from '$lib/stores/followUp.svelte';
 	import type { DayPart, Priority } from '$lib/api/types';
 	import * as Sheet from '$lib/components/ui/sheet';
@@ -71,6 +73,16 @@
 		parentId: number | null;
 		sectionId: number | null;
 	} | null>(null);
+	let groupOpen = $state(false);
+	let groupBusy = $state(false);
+	let groupSnapshot = $state<{
+		tasks: Array<{ id: number; title: string }>;
+		warning: string | null;
+		defaultProjectId: number | null;
+		defaultContextId: number | null;
+		defaultSectionId: number | null;
+		childIds: number[];
+	} | null>(null);
 
 	$effect(() => {
 		void page.url.pathname;
@@ -128,6 +140,89 @@
 	function onQuickAdd(): void {
 		followUpOverride = null;
 		quickOpen = true;
+	}
+
+	async function onGroupRequest(): Promise<void> {
+		const ids = Array.from(taskSelectionStore.ids);
+		if (ids.length < 2) return;
+		groupBusy = true;
+		try {
+			const client = getApiClient();
+			const fetched = await Promise.all(ids.map((id) => tasksApi.get(client, id)));
+			const projectIds = new Set(fetched.map((t) => t.projectId));
+			const sectionIds = new Set(fetched.map((t) => t.sectionId));
+			const contextIds = new Set(fetched.map((t) => t.contextId));
+			const sameScope = projectIds.size === 1 && sectionIds.size === 1 && contextIds.size === 1;
+			const first = fetched[0];
+			groupSnapshot = {
+				tasks: fetched.map((t) => ({ id: t.id, title: t.title })),
+				warning: sameScope ? null : $t('dialog.quickAdd.wrap.warningMixed'),
+				defaultProjectId: sameScope ? first.projectId : null,
+				defaultContextId: sameScope ? first.contextId : null,
+				defaultSectionId: sameScope ? first.sectionId : null,
+				childIds: ids
+			};
+			groupOpen = true;
+		} catch (err) {
+			toast.error(describeError(err, $t('task.toast.failedGroup')));
+		} finally {
+			groupBusy = false;
+		}
+	}
+
+	async function onGroupSubmit(
+		payload: TaskInput,
+		target: { projectId: number | null; sectionId: number | null }
+	): Promise<void> {
+		if (!groupSnapshot) return;
+		try {
+			const client = getApiClient();
+			let contextId = groupSnapshot.defaultContextId;
+			if (target.projectId !== null) {
+				const project = projectsStore.items.find((p) => p.id === target.projectId);
+				if (project) contextId = project.contextId;
+			}
+			const result = await tasksApi.group(client, {
+				...payload,
+				projectId: target.projectId,
+				sectionId: target.sectionId,
+				contextId,
+				childIds: groupSnapshot.childIds
+			});
+			const failedCount = result.failed.length;
+			if (failedCount > 0) {
+				toast.error(
+					$t('task.toast.groupedPartial', {
+						values: { ok: result.succeeded.length, failed: failedCount }
+					})
+				);
+			} else {
+				toast.success(
+					$t('task.toast.grouped', { values: { count: result.succeeded.length } })
+				);
+			}
+			taskSelectionStore.disable();
+			window.dispatchEvent(
+				new CustomEvent('turboist:task-created', {
+					detail: {
+						task: result.parent,
+						projectId: result.parent.projectId,
+						contextId: result.parent.contextId
+					}
+				})
+			);
+			window.dispatchEvent(
+				new CustomEvent('turboist:tasks-grouped', {
+					detail: {
+						parent: result.parent,
+						childIds: result.succeeded
+					}
+				})
+			);
+		} catch (err) {
+			toast.error(describeError(err, $t('task.toast.failedGroup')));
+			throw err;
+		}
 	}
 
 	function onFollowUpNext(item: FollowUpItem): void {
@@ -334,5 +429,15 @@
 		defaultSectionId={followUpOverride?.sectionId ?? null}
 		onSubmit={onQuickSubmit}
 	/>
+	{#if groupSnapshot}
+		<QuickAddDialog
+			bind:open={groupOpen}
+			defaultProjectId={groupSnapshot.defaultProjectId}
+			defaultSectionId={groupSnapshot.defaultSectionId}
+			wrap={{ tasks: groupSnapshot.tasks, warning: groupSnapshot.warning }}
+			onSubmit={onGroupSubmit}
+		/>
+	{/if}
+	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
 	<FollowUpToasts onNext={onFollowUpNext} />
 {/if}

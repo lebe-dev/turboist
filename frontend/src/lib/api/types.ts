@@ -242,6 +242,12 @@ export interface BulkResult {
 	failed: Array<{ id: number; error: { code: string; message: string } }>;
 }
 
+export interface GroupResult {
+	parent: Task;
+	succeeded: number[];
+	failed: Array<{ id: number; error: { code: string; message: string } }>;
+}
+
 export interface ListQuery {
 	limit?: number;
 	offset?: number;

@@ -30,10 +30,11 @@
 		const projectsById = buildProjectsById(projectsStore.items ?? []);
 		return tasks.filter((t) => isTaskVisible(t, true, projectsById, tasksById));
 	});
+	const visibleIds = $derived(visibleTasks.map((t) => t.id));
 </script>
 
 <div class="flex flex-col divide-y divide-border/40">
 	{#each visibleTasks as task (task.id)}
-		<TaskItem {task} {showProject} {mutator} {belongs} {onToggle} />
+		<TaskItem {task} {showProject} {mutator} {belongs} {onToggle} {visibleIds} />
 	{/each}
 </div>
