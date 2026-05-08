@@ -167,7 +167,9 @@
 			"clearDate": "Clear date",
 			"clearDayPart": "Clear day part",
 			"priorityLockedTooltip": "Priority is managed by Troiki category",
-			"lockedByTroiki": "Locked by Troiki category."
+			"lockedByTroiki": "Locked by Troiki category.",
+			"decompose": "Decompose task",
+			"decomposeDisabled": "Cannot decompose: task has subtasks"
 		},
 		"dayPart": {
 			"morning": "Morning",
@@ -221,7 +223,9 @@
 			"copied": "Copied",
 			"failedCopy": "Failed to copy",
 			"failedUndo": "Failed to undo",
-			"confirmDelete": "Delete \"{title}\"? Subtasks will also be removed."
+			"confirmDelete": "Delete \"{title}\"? Subtasks will also be removed.",
+			"decomposed": "Decomposed into {count} task(s)",
+			"failedDecompose": "Failed to decompose task"
 		}
 	},
 	"dialog": {
@@ -269,6 +273,14 @@
 			"description": "Pick a project for \"{title}\"",
 			"searchPlaceholder": "Search projects…",
 			"noProjects": "No projects found."
+		},
+		"decompose": {
+			"title": "Decompose task",
+			"description": "The original task will be deleted and replaced by new sibling tasks inheriting its project, priority, labels, due date, description and other fields.",
+			"label": "New tasks (one per line)",
+			"placeholder": "Draft outline\nReview with team\nPublish",
+			"count": "Tasks: {count}",
+			"submit": "Decompose"
 		},
 		"quickAdd": {
 			"title": "Quick add task",

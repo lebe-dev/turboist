@@ -35,6 +35,7 @@
 		mutator,
 		belongs,
 		onToggle,
+		hasSubtasks = false,
 		visibleIds
 	}: {
 		task: Task;
@@ -48,6 +49,7 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		hasSubtasks?: boolean;
 		visibleIds?: number[];
 	} = $props();
 
@@ -232,7 +234,7 @@
 
 	{#if mutator}
 		<div class="flex items-center self-center">
-			<TaskActionsMenu {task} {mutator} {belongs} />
+			<TaskActionsMenu {task} {mutator} {belongs} {hasSubtasks} />
 		</div>
 	{/if}
 </div>

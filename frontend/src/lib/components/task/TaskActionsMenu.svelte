@@ -23,6 +23,7 @@
 		type ListMutator
 	} from '$lib/utils/taskActions';
 	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
+	import DecomposeTaskDialog from '$lib/components/dialog/DecomposeTaskDialog.svelte';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
@@ -32,6 +33,7 @@
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import PencilIcon from 'phosphor-svelte/lib/Pencil';
+	import ListBulletsIcon from 'phosphor-svelte/lib/ListBullets';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
@@ -43,12 +45,14 @@
 		task,
 		mutator,
 		belongs,
-		onEdit
+		onEdit,
+		hasSubtasks = false
 	}: {
 		task: Task;
 		mutator: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onEdit?: (task: Task) => void;
+		hasSubtasks?: boolean;
 	} = $props();
 
 	const parentProject = $derived(
@@ -98,6 +102,7 @@
 	];
 
 	let moveOpen = $state(false);
+	let decomposeOpen = $state(false);
 </script>
 
 <DropdownMenu.Root>
@@ -147,6 +152,15 @@
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => (moveOpen = true)}>
 			<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
+		</DropdownMenu.Item>
+		<DropdownMenu.Item
+			disabled={hasSubtasks}
+			title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
+			onclick={() => {
+				if (!hasSubtasks) decomposeOpen = true;
+			}}
+		>
+			<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
 		</DropdownMenu.Item>
 		{#if task.planState === 'backlog'}
 			<DropdownMenu.Item onclick={() => void removeFromBacklog(task, mutator, { belongs })}>
@@ -284,3 +298,4 @@
 </DropdownMenu.Root>
 
 <MoveTaskDialog bind:open={moveOpen} {task} {mutator} {belongs} />
+<DecomposeTaskDialog bind:open={decomposeOpen} {task} {mutator} />

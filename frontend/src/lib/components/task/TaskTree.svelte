@@ -79,6 +79,7 @@
 			{mutator}
 			{belongs}
 			{onToggle}
+			hasSubtasks={node.children.length > 0}
 			visibleIds={effectiveVisibleIds}
 		/>
 		{#if node.children.length > 0}

@@ -189,6 +189,27 @@ export async function moveTaskToProject(
 	}
 }
 
+export async function decomposeTask(
+	task: Task,
+	titles: string[],
+	mutator: ListMutator
+): Promise<boolean> {
+	const client = getApiClient();
+	try {
+		const res = await tasksApi.decompose(client, task.id, titles);
+		mutator.remove(task.id);
+		for (const t of res.created) {
+			if (mutator.add) mutator.add(t);
+			else mutator.replace(t);
+		}
+		toast.success(tr('task.toast.decomposed', { count: res.created.length }));
+		return true;
+	} catch (err) {
+		toast.error(describeError(err, tr('task.toast.failedDecompose')));
+		return false;
+	}
+}
+
 export async function copyTaskTitle(task: Task): Promise<void> {
 	try {
 		await navigator.clipboard.writeText(task.title);

@@ -30,6 +30,13 @@ export const tasks = {
 	unpin: (client: ApiClient, id: number) => action(client, id, 'unpin'),
 	duplicate: (client: ApiClient, id: number) => action(client, id, 'duplicate'),
 
+	decompose(client: ApiClient, id: number, titles: string[]): Promise<{ created: Task[] }> {
+		return client.fetch(`/api/v1/tasks/${id}/decompose`, {
+			method: 'POST',
+			body: { titles }
+		});
+	},
+
 	move(client: ApiClient, id: number, input: TaskMoveInput): Promise<Task> {
 		return client.fetch(`/api/v1/tasks/${id}/move`, { method: 'POST', body: input });
 	},

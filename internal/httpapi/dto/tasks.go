@@ -95,6 +95,19 @@ type GroupTasksRequest struct {
 	ChildIDs  []int64 `json:"childIds"`
 }
 
+// DecomposeTaskRequest is the body for POST /tasks/:id/decompose: replaces an
+// existing task with N sibling tasks created from the supplied titles. New
+// tasks inherit the original's placement, priority, due/deadline, labels,
+// description, day part, plan state, recurrence and privacy.
+type DecomposeTaskRequest struct {
+	Titles []string `json:"titles"`
+}
+
+// DecomposeTaskResponse is the body returned by POST /tasks/:id/decompose.
+type DecomposeTaskResponse struct {
+	Created []TaskDTO `json:"created"`
+}
+
 // PatchTaskRequest is the body for PATCH /tasks/:id.
 // Only editable fields are accepted; placement, status, and pin are managed via action endpoints.
 // Optional[string] distinguishes absent, null (clear), and set value.
