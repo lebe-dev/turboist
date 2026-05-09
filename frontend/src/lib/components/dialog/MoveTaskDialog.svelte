@@ -6,6 +6,7 @@
 	import { moveTaskToProject, type ListMutator } from '$lib/utils/taskActions';
 	import type { Project, Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import { t } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
@@ -66,14 +67,14 @@
 <Sheet.Root bind:open>
 	<Sheet.Content side="right" class="w-full sm:max-w-md">
 		<Sheet.Header>
-			<Sheet.Title>Move to project</Sheet.Title>
+			<Sheet.Title>{$t('dialog.moveTask.title')}</Sheet.Title>
 			<Sheet.Description>
-				{task ? `Pick a project for "${task.title}"` : ''}
+				{task ? $t('dialog.moveTask.description', { values: { title: task.title } }) : ''}
 			</Sheet.Description>
 		</Sheet.Header>
 
 		<div class="flex flex-col gap-3 overflow-y-auto px-4 py-2">
-			<Input placeholder="Search projects…" bind:value={query} autofocus />
+			<Input placeholder={$t('dialog.moveTask.searchPlaceholder')} bind:value={query} autofocus />
 
 			<div class="flex flex-col gap-3">
 				{#each grouped as group (group.ctx.id)}
@@ -109,7 +110,7 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="px-1 py-4 text-sm text-muted-foreground">No projects found.</div>
+					<div class="px-1 py-4 text-sm text-muted-foreground">{$t('dialog.moveTask.noProjects')}</div>
 				{/each}
 			</div>
 		</div>

@@ -1,6 +1,6 @@
 # --- Variables ---
 
-version := `cat cmd/turboist/main.go | grep Version | head -1 | cut -d " " -f 4 | tr -d "\""`
+version := `cat VERSION`
 imageName := 'tinyops/turboist'
 
 # --- Dependencies ---
@@ -21,7 +21,7 @@ frontend-build:
     cd frontend && yarn && yarn build
 
 build: build-frontend && format
-    go build -o turboist ./cmd/turboist
+    go build -ldflags="-X main.Version={{ version }}" -o turboist ./cmd/turboist
 
 # --- Lints ---
 lint-backend: format

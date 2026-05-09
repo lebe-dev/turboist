@@ -25,6 +25,7 @@ func NewTroikiHandler(svc *service.TroikiService, baseURL string) *TroikiHandler
 func (h *TroikiHandler) Register(r fiber.Router) {
 	r.Get("/troiki", h.view)
 	r.Post("/troiki/start", h.start)
+	r.Post("/troiki/reset", h.reset)
 	r.Post("/projects/:id/troiki", h.setProjectCategory)
 }
 
@@ -81,6 +82,17 @@ func (h *TroikiHandler) view(c fiber.Ctx) error {
 func (h *TroikiHandler) start(c fiber.Ctx) error {
 	if err := h.svc.Start(c.Context()); err != nil {
 		return httpapi.ErrInternal("troiki start")
+	}
+	v, err := h.svc.View(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("troiki view")
+	}
+	return c.JSON(h.renderView(v))
+}
+
+func (h *TroikiHandler) reset(c fiber.Ctx) error {
+	if err := h.svc.Reset(c.Context()); err != nil {
+		return httpapi.ErrInternal("troiki reset")
 	}
 	v, err := h.svc.View(c.Context())
 	if err != nil {

@@ -47,6 +47,7 @@ func (h *TaskHandler) Register(r fiber.Router) {
 	r.Get("/tasks/:id/subtasks", h.listSubtasks)
 	r.Post("/tasks/:id/subtasks", h.createSubtask)
 	r.Post("/tasks/:id/duplicate", h.duplicate)
+	r.Post("/tasks/:id/decompose", h.decompose)
 }
 
 func (h *TaskHandler) get(c fiber.Ctx) error {
@@ -170,6 +171,10 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		if !hasDeadline {
 			return httpapi.ErrValidation("deadlineHasTime requires deadlineAt")
 		}
+	}
+
+	if req.IsPrivate != nil {
+		u.IsPrivate = req.IsPrivate
 	}
 
 	u.IncPostponeCount = shouldIncPostpone(t, u, time.Now())
@@ -325,6 +330,101 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 		return handleTaskCreateErr(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(dto.TaskFromModel(*t, h.baseURL))
+}
+
+func (h *TaskHandler) decompose(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+	var req dto.DecomposeTaskRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return httpapi.ErrValidation("invalid request body")
+	}
+	titles := make([]string, 0, len(req.Titles))
+	for _, raw := range req.Titles {
+		s := strings.TrimSpace(raw)
+		if s != "" {
+			titles = append(titles, s)
+		}
+	}
+	if len(titles) == 0 {
+		return httpapi.ErrValidation("titles must not be empty")
+	}
+
+	src, err := h.tasks.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("task not found")
+		}
+		return httpapi.ErrInternal("get task")
+	}
+	subs, err := h.tasks.ListSubtasks(c.Context(), id)
+	if err != nil {
+		return httpapi.ErrInternal("list subtasks")
+	}
+	if len(subs) > 0 {
+		return httpapi.ErrConflict("task has subtasks")
+	}
+
+	labelNames := make([]string, len(src.Labels))
+	for i, l := range src.Labels {
+		labelNames[i] = l.Name
+	}
+	placement := repo.Placement{
+		InboxID:   src.InboxID,
+		ContextID: src.ContextID,
+		ProjectID: src.ProjectID,
+		SectionID: src.SectionID,
+		ParentID:  src.ParentID,
+	}
+
+	created := make([]model.Task, 0, len(titles))
+	createdIDs := make([]int64, 0, len(titles))
+	rollback := func() {
+		for _, cid := range createdIDs {
+			_ = h.tasks.Delete(c.Context(), cid)
+		}
+	}
+	for _, title := range titles {
+		in := repo.CreateTask{
+			Placement:       placement,
+			Title:           title,
+			Description:     src.Description,
+			Priority:        src.Priority,
+			DueAt:           src.DueAt,
+			DueHasTime:      src.DueHasTime,
+			DeadlineAt:      src.DeadlineAt,
+			DeadlineHasTime: src.DeadlineHasTime,
+			DayPart:         src.DayPart,
+			PlanState:       src.PlanState,
+			RecurrenceRule:  src.RecurrenceRule,
+		}
+		t, err := h.taskSvc.Create(c.Context(), in, labelNames, nil)
+		if err != nil {
+			rollback()
+			return handleTaskCreateErr(err)
+		}
+		if src.IsPrivate {
+			isPriv := true
+			if updated, uerr := h.tasks.Update(c.Context(), t.ID, repo.TaskUpdate{IsPrivate: &isPriv}); uerr == nil {
+				t = updated
+			}
+		}
+		created = append(created, *t)
+		createdIDs = append(createdIDs, t.ID)
+	}
+
+	if err := h.tasks.Delete(c.Context(), id); err != nil {
+		rollback()
+		return httpapi.ErrInternal("delete original task")
+	}
+
+	out := dto.DecomposeTaskResponse{Created: make([]dto.TaskDTO, len(created))}
+	for i, t := range created {
+		out.Created[i] = dto.TaskFromModel(t, h.baseURL)
+	}
+	return c.Status(fiber.StatusCreated).JSON(out)
 }
 
 // handleTaskCreateErr maps TaskService.Create errors to API errors.

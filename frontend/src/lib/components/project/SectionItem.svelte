@@ -18,6 +18,7 @@
 	import PencilIcon from 'phosphor-svelte/lib/Pencil';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
+	import { t } from '$lib/i18n';
 
 	let {
 		section,
@@ -149,7 +150,7 @@
 					size="icon"
 					class="size-7"
 					onclick={() => onAddTask?.(section)}
-					aria-label="Add task to section"
+					aria-label={$t('section.addTaskAriaLabel')}
 				>
 					<PlusIcon class="size-3.5" />
 				</Button>
@@ -160,7 +161,7 @@
 					size="icon"
 					class="size-7"
 					onclick={() => onRename?.(section)}
-					aria-label="Rename section"
+					aria-label={$t('section.renameAriaLabel')}
 				>
 					<PencilIcon class="size-3.5" />
 				</Button>
@@ -171,7 +172,7 @@
 					size="icon"
 					class="size-7"
 					onclick={() => onRemove?.(section)}
-					aria-label="Delete section"
+					aria-label={$t('section.deleteAriaLabel')}
 				>
 					<TrashIcon class="size-3.5" />
 				</Button>
@@ -180,7 +181,7 @@
 	</header>
 	{#if open}
 		{#if tasks.length === 0}
-			<div class="px-6 py-2 text-xs text-muted-foreground">No tasks</div>
+			<div class="px-6 py-2 text-xs text-muted-foreground">{$t('section.noTasks')}</div>
 		{:else}
 			{#if split.open.length > 0}
 				<TaskTree

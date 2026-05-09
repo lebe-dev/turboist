@@ -7,10 +7,13 @@
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { isOverdue } from '$lib/utils/format';
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import LabelChips from './LabelChips.svelte';
@@ -31,7 +34,9 @@
 		showUnplannedBadge = false,
 		mutator,
 		belongs,
-		onToggle
+		onToggle,
+		hasSubtasks = false,
+		visibleIds
 	}: {
 		task: Task;
 		depth?: number;
@@ -44,7 +49,21 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		hasSubtasks?: boolean;
+		visibleIds?: number[];
 	} = $props();
+
+	const selected = $derived(taskSelectionStore.has(task.id));
+
+	function onSelectionClick(e: MouseEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		if (e.shiftKey && visibleIds && visibleIds.length > 0) {
+			taskSelectionStore.selectRange(visibleIds, task.id);
+			return;
+		}
+		taskSelectionStore.toggle(task.id);
+	}
 
 	function onTaskDragStart(e: DragEvent) {
 		setTaskDrag(e, task.id);
@@ -110,19 +129,38 @@
 	class:items-center={!hasMeta}
 	class:py-2.5={hasMeta}
 	class:py-1.5={!hasMeta}
+	class:bg-accent={taskSelectionStore.mode && selected}
 	style:padding-left={`${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
-	draggable={draggable}
-	ondragstart={draggable ? onTaskDragStart : undefined}
+	draggable={draggable && !taskSelectionStore.mode}
+	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
 	role={draggable ? 'listitem' : undefined}
 >
+	{#if taskSelectionStore.mode}
+		<button
+			type="button"
+			onclick={onSelectionClick}
+			class="inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+			class:mt-0.5={hasMeta}
+			class:border-primary={selected}
+			class:bg-primary={selected}
+			class:text-primary-foreground={selected}
+			class:border-border={!selected}
+			aria-pressed={selected}
+			aria-label={selected ? $t('selection.unselectTask') : $t('selection.selectTask')}
+		>
+			{#if selected}
+				<CheckIcon class="size-2.5" weight="bold" />
+			{/if}
+		</button>
+	{/if}
 	<button
 		type="button"
 		onclick={() => onToggle?.(task)}
 		class={checkboxClass}
 		class:mt-0.5={hasMeta}
 		aria-pressed={checked}
-		aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
+		aria-label={checked ? $t('task.markIncomplete') : $t('task.markComplete')}
 	>
 		{#if checked}
 			<CheckIcon class="size-2.5" weight="bold" />
@@ -138,7 +176,7 @@
 				class:line-through={checked}
 				class:text-muted-foreground={checked}
 			>
-				<MarkdownText text={task.title} />{#if showTroikiBadge}<span title="In Troiki system" class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}
+				<MarkdownText text={task.title} />{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
 		</div>
 
@@ -153,8 +191,8 @@
 						class="inline-flex items-center {checked
 							? 'text-muted-foreground group-hover/task:text-emerald-600 dark:group-hover/task:text-emerald-400'
 							: 'text-emerald-600 dark:text-emerald-400'}"
-						title="Recurring task"
-						aria-label="Recurring task"
+						title={$t('task.recurringLabel')}
+						aria-label={$t('task.recurringLabel')}
 					>
 						<RepeatIcon class="size-3.5 shrink-0" weight="bold" />
 					</span>
@@ -184,8 +222,8 @@
 						class="inline-flex items-center {checked
 							? 'text-muted-foreground group-hover/task:text-red-500'
 							: 'text-red-500'}"
-						title="Added outside of planning"
-						aria-label="Added outside of planning"
+						title={$t('task.unplannedLabel')}
+						aria-label={$t('task.unplannedLabel')}
 					>
 						<CalendarSlashIcon class="size-3.5 shrink-0" />
 					</span>
@@ -196,7 +234,7 @@
 
 	{#if mutator}
 		<div class="flex items-center self-center">
-			<TaskActionsMenu {task} {mutator} {belongs} />
+			<TaskActionsMenu {task} {mutator} {belongs} {hasSubtasks} />
 		</div>
 	{/if}
 </div>

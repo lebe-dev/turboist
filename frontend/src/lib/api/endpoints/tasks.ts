@@ -1,6 +1,7 @@
 import type { ApiClient } from '../client';
 import type {
 	BulkResult,
+	GroupResult,
 	InboxResponse,
 	Page,
 	Task,
@@ -28,6 +29,13 @@ export const tasks = {
 	pin: (client: ApiClient, id: number) => action(client, id, 'pin'),
 	unpin: (client: ApiClient, id: number) => action(client, id, 'unpin'),
 	duplicate: (client: ApiClient, id: number) => action(client, id, 'duplicate'),
+
+	decompose(client: ApiClient, id: number, titles: string[]): Promise<{ created: Task[] }> {
+		return client.fetch(`/api/v1/tasks/${id}/decompose`, {
+			method: 'POST',
+			body: { titles }
+		});
+	},
 
 	move(client: ApiClient, id: number, input: TaskMoveInput): Promise<Task> {
 		return client.fetch(`/api/v1/tasks/${id}/move`, { method: 'POST', body: input });
@@ -60,6 +68,18 @@ export const tasks = {
 			method: 'POST',
 			body: { ids, ...target }
 		});
+	},
+
+	group(
+		client: ApiClient,
+		body: TaskInput & {
+			projectId: number | null;
+			sectionId: number | null;
+			contextId: number | null;
+			childIds: number[];
+		}
+	): Promise<GroupResult> {
+		return client.fetch('/api/v1/tasks/group', { method: 'POST', body });
 	},
 
 	inbox(client: ApiClient): Promise<InboxResponse> {

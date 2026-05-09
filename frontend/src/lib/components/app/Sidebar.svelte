@@ -32,6 +32,9 @@
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { isLabelVisible, isProjectVisible } from '$lib/utils/visibility';
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { goto } from '$app/navigation';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -40,13 +43,13 @@
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
 	import type { TroikiCategory } from '$lib/api/types';
+	import { t } from '$lib/i18n';
 
 	let labelDialogOpen = $state(false);
 	let projectDialogOpen = $state(false);
 	let projectDialogContextId = $state<number | null>(null);
 
 	const auth = getAuthStore();
-	const appVersion = __APP_VERSION__;
 
 	const weekLimit = $derived(configStore.value?.weekly.limit);
 	const backlogLimit = $derived(configStore.value?.backlog.limit);
@@ -67,40 +70,41 @@
 	const primaryNav = $derived<NavItem[]>([
 		{
 			href: resolve('/inbox'),
-			label: 'Inbox',
+			label: $t('nav.inbox'),
 			icon: InboxIcon,
 			accent: !inboxOverflow,
 			danger: inboxOverflow,
 			current: inboxOverflow ? inboxStatsStore.count : undefined
 		},
-		{ href: resolve('/today'), label: 'Today', icon: SunIcon },
-		{ href: resolve('/tomorrow'), label: 'Tomorrow', icon: SunHorizonIcon },
+		{ href: resolve('/today'), label: $t('nav.today'), icon: SunIcon },
+		{ href: resolve('/tomorrow'), label: $t('nav.tomorrow'), icon: SunHorizonIcon },
 		{
 			href: resolve('/week'),
-			label: 'Week',
+			label: $t('nav.week'),
 			icon: CalendarIcon,
 			current: planStatsStore.value?.week,
 			limit: weekLimit
 		},
-		{ href: resolve('/completed'), label: 'Completed', icon: CheckCircleIcon }
+		{ href: resolve('/projects'), label: $t('nav.projects'), icon: FolderIcon },
+		{ href: resolve('/completed'), label: $t('nav.completed'), icon: CheckCircleIcon }
 	]);
 
 	const planningNav = $derived<NavItem[]>([
 		{
 			href: resolve('/backlog'),
-			label: 'Backlog',
+			label: $t('nav.backlog'),
 			icon: StackIcon,
 			current: planStatsStore.value?.backlog,
 			limit: backlogLimit
 		},
 		{
 			href: resolve('/next-week'),
-			label: 'Next week',
+			label: $t('nav.nextWeek'),
 			icon: CalendarCheckIcon,
 			current: planStatsStore.value?.week,
 			limit: weekLimit
 		},
-		{ href: resolve('/search'), label: 'Search', icon: MagnifyingGlassIcon }
+		{ href: resolve('/search'), label: $t('nav.search'), icon: MagnifyingGlassIcon }
 	]);
 
 	const TROIKI_ORDER: Record<TroikiCategory, number> = { important: 0, medium: 1, rest: 2 };
@@ -109,7 +113,10 @@
 		const active = userStateStore.activeContextId;
 		const all = projectsStore.items ?? [];
 		const scoped = active == null ? all : all.filter((p) => p.contextId === active);
-		return [...scoped].sort((a, b) => {
+		const visible = scoped.filter(
+			(p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView)
+		);
+		return [...visible].sort((a, b) => {
 			const ta = a.troikiCategory;
 			const tb = b.troikiCategory;
 			if (ta && !tb) return -1;
@@ -123,7 +130,28 @@
 		return page.url.pathname === href;
 	}
 
-	const labelsOrdered = $derived([...labelsStore.favourites, ...labelsStore.rest]);
+	const labelsOrdered = $derived(
+		[...labelsStore.favourites, ...labelsStore.rest].filter((l) =>
+			isLabelVisible(l, settingsStore.publicView)
+		)
+	);
+
+	const sidebarPinnedProjects = $derived(
+		projectsStore.pinned.filter(
+			(p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView)
+		)
+	);
+	const sidebarPinnedTasks = $derived(
+		pinnedTasksStore.items.filter((task) => {
+			if (!settingsStore.publicView) return true;
+			if (task.isPrivate) return false;
+			if (task.projectId !== null) {
+				const project = projectsStore.items.find((p) => p.id === task.projectId);
+				if (project && project.isPrivate) return false;
+			}
+			return true;
+		})
+	);
 
 	function clearStores(): void {
 		contextsStore.clear();
@@ -142,18 +170,12 @@
 		await goto(resolve('/login'));
 	}
 
-	async function onLogoutAll(): Promise<void> {
-		await auth.logoutAll();
-		clearStores();
-		await goto(resolve('/login'));
-	}
-
 	async function unpinProject(id: number): Promise<void> {
 		try {
 			const updated = await projectsApi.unpin(getApiClient(), id);
 			projectsStore.upsert(updated);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to unpin'));
+			toast.error(describeError(err, $t('sidebar.failedUnpin')));
 		}
 	}
 
@@ -162,7 +184,7 @@
 			await tasksApi.unpin(getApiClient(), id);
 			pinnedTasksStore.removeItem(id);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to unpin'));
+			toast.error(describeError(err, $t('sidebar.failedUnpin')));
 		}
 	}
 </script>
@@ -238,29 +260,29 @@
 			type="button"
 			class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 			onclick={() => sidebarStore.toggle()}
-			aria-label="Collapse sidebar"
-			title="Collapse sidebar"
+			aria-label={$t('sidebar.collapse')}
+			title={$t('sidebar.collapse')}
 		>
 			<SidebarSimpleIcon class="size-4" />
 		</button>
 	</div>
 
 	<div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-		<nav class="flex flex-col gap-0.5 px-2 pb-2" aria-label="Main">
+		<nav class="flex flex-col gap-0.5 px-2 pb-2" aria-label={$t('nav.main')}>
 			{#each primaryNav as item (item.href)}
 				{@render navLink(item)}
 			{/each}
 		</nav>
 
-		<SidebarSection title="Planning">
+		<SidebarSection title={$t('nav.planning')}>
 			{#each planningNav as item (item.href)}
 				{@render navLink(item)}
 			{/each}
 		</SidebarSection>
 
-		{#if projectsStore.pinned.length > 0 || pinnedTasksStore.items.length > 0}
-			<SidebarSection title="Pinned">
-				{#each projectsStore.pinned as project (`p-${project.id}`)}
+		{#if sidebarPinnedProjects.length > 0 || sidebarPinnedTasks.length > 0}
+			<SidebarSection title={$t('nav.pinned')}>
+				{#each sidebarPinnedProjects as project (`p-${project.id}`)}
 					{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 					{@const active = isActive(href)}
 					<div
@@ -275,10 +297,10 @@
 							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="fill" />
 							<span class="break-words">{project.title}</span>
 						</a>
-						{@render unpinButton(() => unpinProject(project.id), `Unpin ${project.title}`)}
+						{@render unpinButton(() => unpinProject(project.id), $t('sidebar.unpinAria', { values: { name: project.title } }))}
 					</div>
 				{/each}
-				{#each pinnedTasksStore.items as task (`t-${task.id}`)}
+				{#each sidebarPinnedTasks as task (`t-${task.id}`)}
 					{@const href = resolve('/(app)/task/[id]', { id: String(task.id) })}
 					{@const active = isActive(href)}
 					<div
@@ -293,19 +315,19 @@
 							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="regular" />
 							<span class="break-words">{task.title}</span>
 						</a>
-						{@render unpinButton(() => unpinTask(task.id), `Unpin ${task.title}`)}
+						{@render unpinButton(() => unpinTask(task.id), $t('sidebar.unpinAria', { values: { name: task.title } }))}
 					</div>
 				{/each}
 			</SidebarSection>
 		{/if}
 
 		<SidebarSection
-			title="Projects"
+			title={$t('nav.projects')}
 			collapsible
 			storageKey="sidebar:projects:open"
 			onAdd={() => {
 				if (contextsStore.items.length === 0) {
-					toast.error('Create a context first');
+					toast.error($t('sidebar.createContextFirst'));
 					return;
 				}
 				projectDialogContextId = userStateStore.activeContextId;
@@ -329,13 +351,17 @@
 					<span class="min-w-0 break-words">
 						{project.title}{#if project.troikiCategory}<TroikiTriggerIcon
 								class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 md:size-2.5"
-							/>{/if}
+							/>{/if}{#if project.isPrivate && !settingsStore.publicView}<span
+								class="inline-flex align-middle"
+								title={$t('common.privateTooltip')}
+								aria-label={$t('common.privateMarker')}
+							><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 					</span>
 				</a>
 			{/each}
 		</SidebarSection>
 
-		<SidebarSection title="Labels" collapsible storageKey="sidebar:labels:open" onAdd={() => (labelDialogOpen = true)}>
+		<SidebarSection title={$t('nav.labels')} collapsible storageKey="sidebar:labels:open" onAdd={() => (labelDialogOpen = true)}>
 			{#each labelsOrdered as label (label.id)}
 				{@const href = resolve('/(app)/label/[id]', { id: String(label.id) })}
 				{@const active = isActive(href)}
@@ -347,46 +373,48 @@
 				>
 					<TagIcon class="size-4 shrink-0 opacity-90 md:size-3.5" style={`color: ${label.color}`} weight="fill" />
 					<span class="truncate">{label.name}</span>
+					{#if label.isPrivate && !settingsStore.publicView}
+						<span
+							class="inline-flex shrink-0"
+							title={$t('common.privateTooltip')}
+							aria-label={$t('common.privateMarker')}
+						>
+							<LockSimpleIcon class="ml-1 size-2.5 text-muted-foreground/40" />
+						</span>
+					{/if}
 				</a>
 			{/each}
 		</SidebarSection>
 	</div>
 
-	<div class="mt-auto flex flex-col gap-0.5 border-t border-sidebar-border px-2 py-2">
+	<div class="mt-auto border-t border-sidebar-border px-2 py-2">
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}
 					<button
 						{...props}
 						type="button"
-						class="flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
+						class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
 					>
 						<UserIcon class="size-[18px] shrink-0 opacity-80 md:size-[16px]" />
 						<span class="truncate">{auth.user?.username ?? ''}</span>
 					</button>
 				{/snippet}
 			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="start" side="top" class="w-48">
+			<DropdownMenu.Content align="start" side="top" class="w-48 rounded-md">
 				<DropdownMenu.Label>{auth.user?.username ?? ''}</DropdownMenu.Label>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item onclick={() => goto(resolve('/settings'))}>
 					<GearIcon class="size-4" />
-					Settings
+					{$t('nav.settings')}
 				</DropdownMenu.Item>
-				<DropdownMenu.Item onclick={onLogoutAll}>Log out everywhere</DropdownMenu.Item>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Item onclick={onLogout}>
+					<SignOutIcon class="size-4" />
+					{$t('sidebar.logOut')}
+				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
-		<button
-			type="button"
-			onclick={onLogout}
-			class="flex items-center justify-between gap-2 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
-		>
-			<span class="flex min-w-0 items-center gap-2.5">
-				<SignOutIcon class="size-[18px] shrink-0 opacity-80 md:size-[16px]" />
-				<span class="truncate">Log out</span>
-			</span>
-			<span class="font-mono text-[12px] tabular-nums text-muted-foreground/70 md:text-[10px]">v{appVersion}</span>
-		</button>
 	</div>
 </aside>
 

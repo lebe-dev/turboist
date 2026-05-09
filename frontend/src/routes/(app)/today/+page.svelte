@@ -3,6 +3,7 @@
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
+	import { t } from '$lib/i18n';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import DayPartSection from '$lib/components/view/DayPartSection.svelte';
@@ -26,7 +27,29 @@
 			completedCount += 1;
 		}
 	});
-	const { mutator } = list;
+
+	// When a parent task is removed (completed), cascade-remove its subtasks so
+	// they don't linger as orphaned roots in day-part sections.
+	const baseMutator = list.mutator;
+	const mutator = {
+		replace: (t: Task) => baseMutator.replace(t),
+		remove(id: number) {
+			const toRemove: number[] = [];
+			const collect = (parentId: number) => {
+				for (const t of list.items) {
+					if (t.parentId === parentId) {
+						toRemove.push(t.id);
+						collect(t.id);
+					}
+				}
+			};
+			collect(id);
+			baseMutator.remove(id);
+			for (const subId of toRemove) baseMutator.remove(subId);
+		},
+		insertAfter: (id: number, t: Task) => baseMutator.insertAfter(id, t),
+		add: (t: Task) => baseMutator.add(t)
+	};
 
 	const dayParts = $derived(configStore.value?.dayParts);
 	const tz = $derived(configStore.value?.timezone ?? null);
@@ -45,7 +68,7 @@
 		list.items = open.items;
 		total = open.total;
 		completedCount = completed.total;
-	}, { errorMessage: 'Failed to load today', autoLoad: false, initialLoading: true });
+	}, { errorMessage: $t('page.today.errorLoading'), autoLoad: false, initialLoading: true });
 
 	$effect(() => {
 		void userStateStore.activeContextId;
@@ -64,6 +87,21 @@
 			document.removeEventListener('visibilitychange', onVisible);
 			window.removeEventListener('focus', onVisible);
 		};
+	});
+
+	$effect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent<{ task: Task }>).detail;
+			const t = detail?.task;
+			if (!t || t.status !== 'open' || !isToday(t)) return;
+			const ctxId = userStateStore.activeContextId ?? null;
+			if (ctxId !== null && t.contextId !== ctxId) return;
+			if (list.items.some((x) => x.id === t.id)) return;
+			list.items = [...list.items, t];
+			total += 1;
+		};
+		window.addEventListener('turboist:task-created', handler);
+		return () => window.removeEventListener('turboist:task-created', handler);
 	});
 
 	function isToday(t: Task): boolean {
@@ -89,8 +127,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0 && completedCount === 0}
 		emptyIcon={SunIcon}
-		emptyTitle="Nothing for today"
-		emptyDescription="No tasks are scheduled for today. Enjoy the calm."
+		emptyTitle={$t('page.today.emptyTitle')}
+		emptyDescription={$t('page.today.emptyDescription')}
 	>
 		<div class="flex flex-col gap-4 py-2">
 			{#each groups as group (group.part)}

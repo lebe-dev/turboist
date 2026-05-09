@@ -13,6 +13,7 @@
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import type { Context, Project, Task, TaskInput } from '$lib/api/types';
 	import ContextHeader from '$lib/components/context/ContextHeader.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
@@ -24,6 +25,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+	import { t } from '$lib/i18n';
 
 
 	const contextId = $derived(Number(page.params.id));
@@ -33,6 +35,9 @@
 	let notFound = $state(false);
 	let projects = $state<Project[]>([]);
 	let activeProjectId = $state<number | 'all'>('all');
+	const visibleProjects = $derived(
+		settingsStore.publicView ? projects.filter((p) => !p.isPrivate) : projects
+	);
 	let quickOpen = $state(false);
 	let confirmDeleteOpen = $state(false);
 	let editOpen = $state(false);
@@ -64,7 +69,7 @@
 		taskList.items = ts.items;
 		activeProjectId = 'all';
 	}, {
-		errorMessage: 'Failed to load context',
+		errorMessage: $t('page.context.errorLoading'),
 		autoLoad: false,
 		initialLoading: true,
 		onError(err) {
@@ -81,7 +86,7 @@
 			context = updated;
 			contextsStore.upsert(updated);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to update context'));
+			toast.error(describeError(err, $t('page.context.failedUpdate')));
 		}
 	}
 
@@ -93,10 +98,10 @@
 			projectsStore.items
 				.filter((p) => p.contextId === context!.id)
 				.forEach((p) => projectsStore.remove(p.id));
-			toast.success('Context deleted');
+			toast.success($t('page.context.deleted'));
 			void goto(resolve('/inbox'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to delete context'));
+			toast.error(describeError(err, $t('page.context.failedDelete')));
 		}
 	}
 
@@ -110,7 +115,7 @@
 			if (target.projectId === null) {
 				const created = await contextsApi.createTask(client, context.id, payload);
 				taskList.items = [...taskList.items, created];
-				toast.success('Task added');
+				toast.success($t('page.context.taskAdded'));
 				return;
 			}
 			const targetInContext = projects.some((p) => p.id === target.projectId);
@@ -120,7 +125,7 @@
 			}
 			toast.success('Task added');
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to add task'));
+			toast.error(describeError(err, $t('page.context.failedAddTask')));
 		}
 	}
 
@@ -134,11 +139,11 @@
 </script>
 
 {#if loader.loading}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('app.loading')}</div>
 {:else if loader.error && !notFound}
 	<div class="px-6 py-8 text-sm text-muted-foreground">{loader.error}</div>
 {:else if notFound || !context}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Context not found</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('page.context.notFound')}</div>
 {:else}
 	<ContextHeader
 		{context}
@@ -154,9 +159,9 @@
 				variant={activeProjectId === 'all' ? 'secondary' : 'ghost'}
 				onclick={() => (activeProjectId = 'all')}
 			>
-				All ({taskList.items.length})
+				{$t('page.context.all', { values: { count: taskList.items.length } })}
 			</Button>
-			{#each projects as p (p.id)}
+			{#each visibleProjects as p (p.id)}
 				{@const count = taskList.items.filter((t) => t.projectId === p.id).length}
 				<Button
 					size="sm"
@@ -173,7 +178,7 @@
 		</div>
 		<Button size="sm" onclick={() => (quickOpen = true)}>
 			<PlusIcon class="size-4" />
-			Add task
+			{$t('task.addTask')}
 		</Button>
 	</div>
 
@@ -182,8 +187,8 @@
 			loading={false}
 			isEmpty={filteredTasks.length === 0}
 			emptyIcon={FolderIcon}
-			emptyTitle="No tasks"
-			emptyDescription="No tasks yet for this filter."
+			emptyTitle={$t('page.context.emptyTitle')}
+			emptyDescription={$t('page.context.emptyDescription')}
 		>
 			<TaskTree
 				tasks={filteredTasks}
@@ -193,7 +198,7 @@
 		</ViewContent>
 	</div>
 
-	<QuickAddDialog bind:open={quickOpen} emptyProjectLabel="No project" onSubmit={onQuickSubmit} />
+	<QuickAddDialog bind:open={quickOpen} emptyProjectLabel={$t('page.context.noProject')} onSubmit={onQuickSubmit} />
 	<ContextDialog
 		bind:open={editOpen}
 		initial={context}
@@ -201,8 +206,8 @@
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}
-		title="Delete context?"
-		description="All projects, sections, and tasks under this context will be permanently deleted (cascade). This cannot be undone."
+		title={$t('page.context.confirmDeleteTitle')}
+		description={$t('page.context.confirmDeleteDesc')}
 		onConfirm={deleteContext}
 	/>
 {/if}

@@ -6,6 +6,7 @@
 	import { ApiError } from '$lib/api/errors';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { t } from '$lib/i18n';
 
 	const auth = getAuthStore();
 
@@ -24,7 +25,7 @@
 		e.preventDefault();
 		if (submitting) return;
 		if (password !== confirm) {
-			error = 'Passwords do not match';
+			error = $t('auth.passwordsMismatch');
 			return;
 		}
 		submitting = true;
@@ -34,7 +35,7 @@
 			await goto(resolve('/'));
 		} catch (err) {
 			error =
-				err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Setup failed';
+				err instanceof ApiError ? err.message : err instanceof Error ? err.message : $t('auth.setupFailed');
 		} finally {
 			submitting = false;
 		}
@@ -42,16 +43,14 @@
 </script>
 
 <form class="flex flex-col gap-4" onsubmit={onSubmit}>
-	<h1 class="text-lg font-semibold">Create the first account</h1>
-	<p class="text-xs text-muted-foreground">
-		Turboist runs single-user. Pick a username and password.
-	</p>
+	<h1 class="text-lg font-semibold">{$t('auth.setupTitle')}</h1>
+	<p class="text-xs text-muted-foreground">{$t('auth.setupSubtitle')}</p>
 	<div class="flex flex-col gap-1.5">
-		<Label for="username">Username</Label>
+		<Label for="username">{$t('auth.username')}</Label>
 		<Input id="username" bind:value={username} autocomplete="username" required />
 	</div>
 	<div class="flex flex-col gap-1.5">
-		<Label for="password">Password</Label>
+		<Label for="password">{$t('auth.password')}</Label>
 		<Input
 			id="password"
 			type="password"
@@ -61,7 +60,7 @@
 		/>
 	</div>
 	<div class="flex flex-col gap-1.5">
-		<Label for="confirm">Confirm password</Label>
+		<Label for="confirm">{$t('auth.confirmPassword')}</Label>
 		<Input
 			id="confirm"
 			type="password"
@@ -74,6 +73,6 @@
 		<p class="text-xs text-destructive">{error}</p>
 	{/if}
 	<Button type="submit" disabled={submitting}>
-		{submitting ? 'Creating…' : 'Create account'}
+		{submitting ? $t('auth.creating') : $t('auth.createAccount')}
 	</Button>
 </form>

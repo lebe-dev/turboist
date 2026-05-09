@@ -12,6 +12,8 @@ Turboist is a task management app for the rest of us.
 - Recurring tasks (RRULE, advanced on completion)
 - Single-user JWT auth with refresh-token rotation
 - Troiki System support
+- Localized UI (English / Russian) — see [docs/locales.md](docs/locales.md)
+- Public View — hide private projects, tasks, and labels for screenshot-friendly sharing — see [docs/public-mode.md](docs/public-mode.md)
 
 ## Nginx Configuration
 
@@ -109,7 +111,6 @@ applied; HTTP handlers are exercised via Fiber's `app.Test`.
 
 ## RoadMap
 
-- Locales support
 - Offline-first
 - iOS Native App
 - Feature: Constraints

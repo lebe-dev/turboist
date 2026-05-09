@@ -121,18 +121,37 @@ func TestTroikiService_SetCategory_Medium_NoCapacity_AfterStart(t *testing.T) {
 	}
 }
 
-func TestTroikiService_SetCategory_Medium_BeforeStart_NoCap(t *testing.T) {
+func TestTroikiService_SetCategory_Medium_BeforeStart_CapsAtThree(t *testing.T) {
 	svc, _, projects, ctxs, _ := setupTroikiService(t)
 	ctx := context.Background()
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
 
-	p := newProjectInCtx(t, projects, c.ID, "m")
-	got, err := svc.SetCategory(ctx, p.ID, ptrCat(model.TroikiCategoryMedium))
-	if err != nil {
-		t.Fatalf("set medium before start: %v", err)
+	for i := 0; i < service.TroikiInitialFillCap; i++ {
+		p := newProjectInCtx(t, projects, c.ID, "m")
+		if _, err := svc.SetCategory(ctx, p.ID, ptrCat(model.TroikiCategoryMedium)); err != nil {
+			t.Fatalf("seed medium %d: %v", i, err)
+		}
 	}
-	if got.TroikiCategory == nil || *got.TroikiCategory != model.TroikiCategoryMedium {
-		t.Errorf("category: got %v, want medium", got.TroikiCategory)
+	extra := newProjectInCtx(t, projects, c.ID, "extra")
+	if _, err := svc.SetCategory(ctx, extra.ID, ptrCat(model.TroikiCategoryMedium)); !errors.Is(err, service.ErrTroikiSlotFull) {
+		t.Fatalf("medium initial-fill cap honored: got %v, want ErrTroikiSlotFull", err)
+	}
+}
+
+func TestTroikiService_SetCategory_Rest_BeforeStart_CapsAtThree(t *testing.T) {
+	svc, _, projects, ctxs, _ := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+
+	for i := 0; i < service.TroikiInitialFillCap; i++ {
+		p := newProjectInCtx(t, projects, c.ID, "r")
+		if _, err := svc.SetCategory(ctx, p.ID, ptrCat(model.TroikiCategoryRest)); err != nil {
+			t.Fatalf("seed rest %d: %v", i, err)
+		}
+	}
+	extra := newProjectInCtx(t, projects, c.ID, "extra")
+	if _, err := svc.SetCategory(ctx, extra.ID, ptrCat(model.TroikiCategoryRest)); !errors.Is(err, service.ErrTroikiSlotFull) {
+		t.Fatalf("rest initial-fill cap honored: got %v, want ErrTroikiSlotFull", err)
 	}
 }
 
@@ -158,7 +177,7 @@ func TestTroikiService_Start_SnapshotsCapacity(t *testing.T) {
 	ctx := context.Background()
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
 
-	for i := range 4 {
+	for i := range 3 {
 		_ = i
 		p := newProjectInCtx(t, projects, c.ID, "m")
 		if _, err := svc.SetCategory(ctx, p.ID, ptrCat(model.TroikiCategoryMedium)); err != nil {
@@ -183,8 +202,8 @@ func TestTroikiService_Start_SnapshotsCapacity(t *testing.T) {
 	if !cap.Started {
 		t.Errorf("started: got false, want true")
 	}
-	if cap.Medium != 4 {
-		t.Errorf("medium cap: got %d, want 4", cap.Medium)
+	if cap.Medium != 3 {
+		t.Errorf("medium cap: got %d, want 3", cap.Medium)
 	}
 	if cap.Rest != 2 {
 		t.Errorf("rest cap: got %d, want 2", cap.Rest)
@@ -195,8 +214,8 @@ func TestTroikiService_Start_SnapshotsCapacity(t *testing.T) {
 		t.Fatalf("start (idempotent): %v", err)
 	}
 	cap2, _ := users.GetTroikiCapacity(ctx, service.SingleUserID)
-	if cap2.Medium != 4 || cap2.Rest != 2 {
-		t.Errorf("cap after second start: got medium=%d rest=%d, want 4/2", cap2.Medium, cap2.Rest)
+	if cap2.Medium != 3 || cap2.Rest != 2 {
+		t.Errorf("cap after second start: got medium=%d rest=%d, want 3/2", cap2.Medium, cap2.Rest)
 	}
 }
 
@@ -318,9 +337,6 @@ func TestTroikiService_View(t *testing.T) {
 	ctx := context.Background()
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)
 
-	if err := users.IncTroikiCapacity(ctx, service.SingleUserID, model.TroikiCategoryMedium); err != nil {
-		t.Fatalf("inc medium: %v", err)
-	}
 	imp := newProjectInCtx(t, projects, c.ID, "i")
 	if _, err := svc.SetCategory(ctx, imp.ID, ptrCat(model.TroikiCategoryImportant)); err != nil {
 		t.Fatalf("set imp: %v", err)
@@ -331,6 +347,15 @@ func TestTroikiService_View(t *testing.T) {
 		t.Fatalf("create sub: %v", err)
 	}
 
+	// Start the cycle so Medium/Rest report their accumulated capacity rather
+	// than the initial-fill cap. After start, grant +1 medium capacity (mirrors
+	// completing a task in an Important project).
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if err := users.IncTroikiCapacity(ctx, service.SingleUserID, model.TroikiCategoryMedium); err != nil {
+		t.Fatalf("inc medium: %v", err)
+	}
 	med := newProjectInCtx(t, projects, c.ID, "m")
 	if _, err := svc.SetCategory(ctx, med.ID, ptrCat(model.TroikiCategoryMedium)); err != nil {
 		t.Fatalf("set med: %v", err)
@@ -421,5 +446,74 @@ func TestTroikiService_SetCategory_ResetsGrantFlagOnRecategorise(t *testing.T) {
 	}
 	if !g {
 		t.Errorf("grant after recategorise: got false, want true (flag must be reset)")
+	}
+}
+
+func TestTroikiService_Reset_ClearsAllAssignmentsAndCapacity(t *testing.T) {
+	svc, tasks, projects, ctxs, users := setupTroikiService(t)
+	ctx := context.Background()
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+
+	imp := newProjectInCtx(t, projects, c.ID, "imp")
+	if _, err := svc.SetCategory(ctx, imp.ID, ptrCat(model.TroikiCategoryImportant)); err != nil {
+		t.Fatalf("set important: %v", err)
+	}
+	med := newProjectInCtx(t, projects, c.ID, "med")
+	if _, err := svc.SetCategory(ctx, med.ID, ptrCat(model.TroikiCategoryMedium)); err != nil {
+		t.Fatalf("set medium: %v", err)
+	}
+	rest := newProjectInCtx(t, projects, c.ID, "rest")
+	if _, err := svc.SetCategory(ctx, rest.ID, ptrCat(model.TroikiCategoryRest)); err != nil {
+		t.Fatalf("set rest: %v", err)
+	}
+	tk, _ := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &c.ID, ProjectID: &imp.ID}, Title: "t"})
+	if g, err := tasks.GrantAndBumpTroikiCapacity(ctx, tk.ID, service.SingleUserID, "troiki_medium_capacity"); err != nil || !g {
+		t.Fatalf("seed grant: granted=%v err=%v", g, err)
+	}
+	if err := svc.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	if err := svc.Reset(ctx); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+
+	cap, err := users.GetTroikiCapacity(ctx, service.SingleUserID)
+	if err != nil {
+		t.Fatalf("get cap: %v", err)
+	}
+	if cap.Started {
+		t.Errorf("started: got true, want false")
+	}
+	if cap.Medium != 0 || cap.Rest != 0 {
+		t.Errorf("capacity: got medium=%d rest=%d, want 0/0", cap.Medium, cap.Rest)
+	}
+	for _, p := range []*model.Project{imp, med, rest} {
+		got, err := projects.Get(ctx, p.ID)
+		if err != nil {
+			t.Fatalf("get project %d: %v", p.ID, err)
+		}
+		if got.TroikiCategory != nil {
+			t.Errorf("project %d category: got %v, want nil", p.ID, *got.TroikiCategory)
+		}
+	}
+	// granted flag cleared → a new grant must succeed.
+	g, err := tasks.GrantAndBumpTroikiCapacity(ctx, tk.ID, service.SingleUserID, "troiki_medium_capacity")
+	if err != nil {
+		t.Fatalf("grant after reset: %v", err)
+	}
+	if !g {
+		t.Errorf("grant after reset: got false, want true")
+	}
+}
+
+func TestTroikiService_Reset_Idempotent(t *testing.T) {
+	svc, _, _, _, _ := setupTroikiService(t)
+	ctx := context.Background()
+	if err := svc.Reset(ctx); err != nil {
+		t.Fatalf("first reset: %v", err)
+	}
+	if err := svc.Reset(ctx); err != nil {
+		t.Fatalf("second reset: %v", err)
 	}
 }

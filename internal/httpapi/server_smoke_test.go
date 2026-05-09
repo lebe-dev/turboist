@@ -70,6 +70,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteService(taskRepo, projectRepo, userRepo)
 	moveSvc := service.NewMoveService(taskRepo, projectRepo)
+	groupSvc := service.NewGroupService(taskSvc, moveSvc, taskRepo, tlabels)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 
 	deps := httpapi.Deps{
@@ -95,7 +96,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, baseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, baseURL).Register(api)
 	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, baseURL).Register(api.Group("/inbox"))
-	handlers.NewTaskBulkHandler(completeSvc, moveSvc, baseURL).Register(api)
+	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, baseURL).Register(api)
 	handlers.NewTaskViewHandler(taskRepo, cfg, baseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, baseURL).Register(api)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)

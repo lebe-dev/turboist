@@ -1,5 +1,6 @@
 <script lang="ts">
 	import StackIcon from 'phosphor-svelte/lib/Stack';
+	import { t } from '$lib/i18n';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -30,7 +31,7 @@
 		if (!isValid()) return;
 		list.items = res.items;
 		total = res.total;
-	}, { errorMessage: 'Failed to load backlog', autoLoad: false, initialLoading: true });
+	}, { errorMessage: $t('page.backlog.errorLoading'), autoLoad: false, initialLoading: true });
 
 	$effect(() => {
 		void userStateStore.activeContextId;
@@ -47,7 +48,7 @@
 	{#snippet banner()}
 		{#if exceeded && limit !== null}
 			<LimitReachedBanner
-				message={`Backlog limit reached (${total}/${limit}). Move tasks to a week or complete them before adding more.`}
+				message={$t('page.backlog.limitReached', { values: { total, limit } })}
 			/>
 		{/if}
 	{/snippet}
@@ -58,8 +59,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0}
 		emptyIcon={StackIcon}
-		emptyTitle="Backlog is empty"
-		emptyDescription="Park tasks here when they're not actionable yet."
+		emptyTitle={$t('page.backlog.emptyTitle')}
+		emptyDescription={$t('page.backlog.emptyDescription')}
 	>
 		<TaskTree
 			tasks={list.items}

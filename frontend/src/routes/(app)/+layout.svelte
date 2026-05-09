@@ -3,7 +3,9 @@
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
 	import FollowUpToasts from '$lib/components/task/FollowUpToasts.svelte';
+	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import type { FollowUpItem } from '$lib/stores/followUp.svelte';
 	import type { DayPart, Priority } from '$lib/api/types';
 	import * as Sheet from '$lib/components/ui/sheet';
@@ -32,25 +34,28 @@
 	import { describeError } from '$lib/utils/taskActions';
 	import { dayKeyInTz, shiftDayKey } from '$lib/utils/format';
 	import type { TaskInput } from '$lib/api/types';
+	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 
 	let { children } = $props();
 
-	const STATIC_TITLES: Record<string, string> = {
-		'/today': 'Today',
-		'/tomorrow': 'Tomorrow',
-		'/inbox': 'Inbox',
-		'/week': 'This week',
-		'/backlog': 'Backlog',
-		'/next-week': 'Next week',
-		'/completed': 'Completed',
-		'/search': 'Search',
-		'/troiki': 'Troiki',
-		'/settings': 'Settings'
+	const TITLE_KEYS: Record<string, string> = {
+		'/today': 'nav.today',
+		'/tomorrow': 'nav.tomorrow',
+		'/inbox': 'nav.inbox',
+		'/week': 'nav.thisWeek',
+		'/backlog': 'nav.backlog',
+		'/next-week': 'nav.nextWeek',
+		'/completed': 'nav.completed',
+		'/search': 'nav.search',
+		'/troiki': 'nav.troiki',
+		'/settings': 'nav.settings'
 	};
 
 	const documentTitle = $derived.by(() => {
-		const pageName = STATIC_TITLES[page.url.pathname] ?? viewFilterStore.title;
-		return pageName ? `${pageName} — Turboist` : 'Turboist';
+		const key = TITLE_KEYS[page.url.pathname];
+		const pageName = key ? $t(key) : viewFilterStore.title;
+		const appName = $t('app.name');
+		return pageName ? `${pageName} — ${appName}` : appName;
 	});
 
 	const auth = getAuthStore();
@@ -67,6 +72,16 @@
 		dayPart: DayPart;
 		parentId: number | null;
 		sectionId: number | null;
+	} | null>(null);
+	let groupOpen = $state(false);
+	let groupBusy = $state(false);
+	let groupSnapshot = $state<{
+		tasks: Array<{ id: number; title: string }>;
+		warning: string | null;
+		defaultProjectId: number | null;
+		defaultContextId: number | null;
+		defaultSectionId: number | null;
+		childIds: number[];
 	} | null>(null);
 
 	$effect(() => {
@@ -95,9 +110,12 @@
 					troikiStore.load(),
 					settingsStore.load()
 				]);
+				if (isSupportedLocale(settingsStore.locale)) {
+					setLocale(settingsStore.locale);
+				}
 				dataReady = true;
 			} catch (err) {
-				const message = err instanceof Error ? err.message : 'Failed to load workspace';
+				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
 				toast.error(message);
 				loadFailed = true;
 			}
@@ -122,6 +140,89 @@
 	function onQuickAdd(): void {
 		followUpOverride = null;
 		quickOpen = true;
+	}
+
+	async function onGroupRequest(): Promise<void> {
+		const ids = Array.from(taskSelectionStore.ids);
+		if (ids.length < 2) return;
+		groupBusy = true;
+		try {
+			const client = getApiClient();
+			const fetched = await Promise.all(ids.map((id) => tasksApi.get(client, id)));
+			const projectIds = new Set(fetched.map((t) => t.projectId));
+			const sectionIds = new Set(fetched.map((t) => t.sectionId));
+			const contextIds = new Set(fetched.map((t) => t.contextId));
+			const sameScope = projectIds.size === 1 && sectionIds.size === 1 && contextIds.size === 1;
+			const first = fetched[0];
+			groupSnapshot = {
+				tasks: fetched.map((t) => ({ id: t.id, title: t.title })),
+				warning: sameScope ? null : $t('dialog.quickAdd.wrap.warningMixed'),
+				defaultProjectId: sameScope ? first.projectId : null,
+				defaultContextId: sameScope ? first.contextId : null,
+				defaultSectionId: sameScope ? first.sectionId : null,
+				childIds: ids
+			};
+			groupOpen = true;
+		} catch (err) {
+			toast.error(describeError(err, $t('task.toast.failedGroup')));
+		} finally {
+			groupBusy = false;
+		}
+	}
+
+	async function onGroupSubmit(
+		payload: TaskInput,
+		target: { projectId: number | null; sectionId: number | null }
+	): Promise<void> {
+		if (!groupSnapshot) return;
+		try {
+			const client = getApiClient();
+			let contextId = groupSnapshot.defaultContextId;
+			if (target.projectId !== null) {
+				const project = projectsStore.items.find((p) => p.id === target.projectId);
+				if (project) contextId = project.contextId;
+			}
+			const result = await tasksApi.group(client, {
+				...payload,
+				projectId: target.projectId,
+				sectionId: target.sectionId,
+				contextId,
+				childIds: groupSnapshot.childIds
+			});
+			const failedCount = result.failed.length;
+			if (failedCount > 0) {
+				toast.error(
+					$t('task.toast.groupedPartial', {
+						values: { ok: result.succeeded.length, failed: failedCount }
+					})
+				);
+			} else {
+				toast.success(
+					$t('task.toast.grouped', { values: { count: result.succeeded.length } })
+				);
+			}
+			taskSelectionStore.disable();
+			window.dispatchEvent(
+				new CustomEvent('turboist:task-created', {
+					detail: {
+						task: result.parent,
+						projectId: result.parent.projectId,
+						contextId: result.parent.contextId
+					}
+				})
+			);
+			window.dispatchEvent(
+				new CustomEvent('turboist:tasks-grouped', {
+					detail: {
+						parent: result.parent,
+						childIds: result.succeeded
+					}
+				})
+			);
+		} catch (err) {
+			toast.error(describeError(err, $t('task.toast.failedGroup')));
+			throw err;
+		}
 	}
 
 	function onFollowUpNext(item: FollowUpItem): void {
@@ -177,7 +278,7 @@
 		try {
 			await tasksApi.move(client, taskId, { contextId, projectId, sectionId });
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to set section'));
+			toast.error(describeError(err, $t('task.toast.failedSetSection')));
 		}
 	}
 
@@ -194,7 +295,7 @@
 			const client = getApiClient();
 			if (target.parentId !== null) {
 				const created = await tasksApi.createSubtask(client, target.parentId, payload);
-				toast.success('Subtask added');
+				toast.success($t('task.toast.subtaskAdded'));
 				window.dispatchEvent(
 					new CustomEvent('turboist:task-created', {
 						detail: {
@@ -215,44 +316,47 @@
 					target.projectId,
 					target.sectionId
 				);
-				toast.success('Task added to project');
-				const projectPath = resolve(`/project/${target.projectId}`);
-				if (page.url.pathname === projectPath) {
-					window.dispatchEvent(
-						new CustomEvent('turboist:task-created', {
-							detail: { task: created, projectId: target.projectId }
-						})
-					);
-				}
+				toast.success($t('task.toast.addedToProject'));
+				window.dispatchEvent(
+					new CustomEvent('turboist:task-created', {
+						detail: {
+							task: created,
+							projectId: created.projectId,
+							contextId: created.contextId
+						}
+					})
+				);
 				return;
 			}
 			const ctxId = quickAddDefaults.contextId;
 			if (ctxId !== null) {
 				const created = await contextsApi.createTask(client, ctxId, payload);
-				toast.success('Task added to context');
-				const contextPath = resolve(`/context/${ctxId}`);
-				if (page.url.pathname === contextPath) {
-					window.dispatchEvent(
-						new CustomEvent('turboist:task-created', {
-							detail: { task: created, projectId: null, contextId: ctxId }
-						})
-					);
-				}
+				toast.success($t('task.toast.addedToContext'));
+				window.dispatchEvent(
+					new CustomEvent('turboist:task-created', {
+						detail: {
+							task: created,
+							projectId: created.projectId,
+							contextId: created.contextId
+						}
+					})
+				);
 				return;
 			}
 			const created = await tasksApi.createInbox(client, payload);
-			toast.success('Task added to inbox');
+			toast.success($t('task.toast.addedToInbox'));
 			void inboxStatsStore.load().catch(() => {});
-			const inboxPath = resolve('/inbox');
-			if (page.url.pathname === inboxPath) {
-				window.dispatchEvent(
-					new CustomEvent('turboist:task-created', {
-						detail: { task: created, projectId: null }
-					})
-				);
-			}
+			window.dispatchEvent(
+				new CustomEvent('turboist:task-created', {
+					detail: {
+						task: created,
+						projectId: created.projectId,
+						contextId: created.contextId
+					}
+				})
+			);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to add task'));
+			toast.error(describeError(err, $t('task.toast.failedAdd')));
 		}
 	}
 
@@ -280,12 +384,12 @@
 
 {#if auth.status !== 'authenticated' || (!dataReady && !loadFailed)}
 	<div class="flex h-screen items-center justify-center text-sm text-muted-foreground">
-		Loading workspace…
+		{$t('app.loadingWorkspace')}
 	</div>
 {:else if loadFailed && !dataReady}
 	<div class="flex h-screen flex-col items-center justify-center gap-3 text-sm">
-		<p class="text-muted-foreground">Failed to load workspace.</p>
-		<button class="rounded-md border px-3 py-1 hover:bg-muted" onclick={retryLoad}>Retry</button>
+		<p class="text-muted-foreground">{$t('app.workspaceFailed')}</p>
+		<button class="rounded-md border px-3 py-1 hover:bg-muted" onclick={retryLoad}>{$t('app.retry')}</button>
 	</div>
 {:else}
 	<div class="flex h-screen overflow-hidden bg-background">
@@ -309,8 +413,8 @@
 			class="w-[82vw] border-sidebar-border bg-sidebar p-0 md:hidden"
 			showCloseButton={false}
 		>
-			<Sheet.Title class="sr-only">Navigation</Sheet.Title>
-			<Sheet.Description class="sr-only">Workspace navigation menu</Sheet.Description>
+			<Sheet.Title class="sr-only">{$t('sidebar.navigation')}</Sheet.Title>
+			<Sheet.Description class="sr-only">{$t('sidebar.navigationDesc')}</Sheet.Description>
 			<Sidebar />
 		</Sheet.Content>
 	</Sheet.Root>
@@ -325,5 +429,15 @@
 		defaultSectionId={followUpOverride?.sectionId ?? null}
 		onSubmit={onQuickSubmit}
 	/>
+	{#if groupSnapshot}
+		<QuickAddDialog
+			bind:open={groupOpen}
+			defaultProjectId={groupSnapshot.defaultProjectId}
+			defaultSectionId={groupSnapshot.defaultSectionId}
+			wrap={{ tasks: groupSnapshot.tasks, warning: groupSnapshot.warning }}
+			onSubmit={onGroupSubmit}
+		/>
+	{/if}
+	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
 	<FollowUpToasts onNext={onFollowUpNext} />
 {/if}

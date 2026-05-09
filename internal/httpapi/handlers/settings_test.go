@@ -31,6 +31,123 @@ func TestSettingsHandler_GetDefault(t *testing.T) {
 	if len(slice) != 0 {
 		t.Errorf("weeklyUnplannedExcludedLabelIds: got %v, want []", slice)
 	}
+	loc, ok := body["locale"].(string)
+	if !ok {
+		t.Fatalf("locale: missing or wrong type: %T", body["locale"])
+	}
+	if loc != "" {
+		t.Errorf("locale: got %q, want \"\"", loc)
+	}
+}
+
+func TestSettingsHandler_PatchLocale(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	req := env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "ru",
+	})
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	req2 := env.authedReq(t, http.MethodGet, "/api/v1/settings", nil)
+	resp2, err := env.app.Test(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := body["locale"].(string)
+	if loc != "ru" {
+		t.Errorf("locale: got %q, want %q", loc, "ru")
+	}
+}
+
+func TestSettingsHandler_PatchLocaleEmpty(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "en",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	req := env.authedReq(t, http.MethodGet, "/api/v1/settings", nil)
+	resp2, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := body["locale"].(string)
+	if loc != "" {
+		t.Errorf("locale: got %q, want \"\"", loc)
+	}
+}
+
+func TestSettingsHandler_PatchLocaleInvalid(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	req := env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "de",
+	})
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestSettingsHandler_PatchLocalePreservesOtherFields(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"weeklyUnplannedExcludedLabelIds": []int{7, 8},
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "ru",
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	req := env.authedReq(t, http.MethodGet, "/api/v1/settings", nil)
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	ids, _ := body["weeklyUnplannedExcludedLabelIds"].([]any)
+	if len(ids) != 2 {
+		t.Errorf("weeklyUnplannedExcludedLabelIds: got %v, want [7 8]", ids)
+	}
+	loc, _ := body["locale"].(string)
+	if loc != "ru" {
+		t.Errorf("locale: got %q, want %q", loc, "ru")
+	}
 }
 
 func TestSettingsHandler_Patch(t *testing.T) {
@@ -60,6 +177,63 @@ func TestSettingsHandler_Patch(t *testing.T) {
 	ids, _ := body["weeklyUnplannedExcludedLabelIds"].([]any)
 	if len(ids) != 2 {
 		t.Fatalf("weeklyUnplannedExcludedLabelIds: got %v, want [10 20]", ids)
+	}
+}
+
+func TestSettingsHandler_PatchPublicView(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"publicView": true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	pv, _ := body["publicView"].(bool)
+	if !pv {
+		t.Errorf("publicView: got %v, want true", body["publicView"])
+	}
+}
+
+func TestSettingsHandler_PatchPublicViewPreservesOtherFields(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "ru",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"publicView": true,
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if loc, _ := body["locale"].(string); loc != "ru" {
+		t.Errorf("locale: got %q, want %q", loc, "ru")
+	}
+	if pv, _ := body["publicView"].(bool); !pv {
+		t.Errorf("publicView: got %v, want true", body["publicView"])
 	}
 }
 

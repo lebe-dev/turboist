@@ -26,10 +26,14 @@
 	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
+	import { comparePriority } from '$lib/utils/priority';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownLink } from '$lib/utils/markdown';
@@ -45,6 +49,12 @@
 	let newSubtaskTitle = $state('');
 	let creatingSubtask = $state(false);
 	let subtaskInputEl = $state<HTMLInputElement | undefined>();
+
+	const sortedSubtasks = $derived(
+		[...subtasks.items].sort((a, b) => comparePriority(a.priority, b.priority))
+	);
+	const openSubtasks = $derived(sortedSubtasks.filter((t) => t.status !== 'completed'));
+	const completedSubtasks = $derived(sortedSubtasks.filter((t) => t.status === 'completed'));
 
 	let title = $state('');
 	let description = $state('');
@@ -85,6 +95,19 @@
 	$effect(() => {
 		void description;
 		autoGrow(descriptionEl);
+	});
+
+	const privateHiddenMsg = $derived($t('common.privateHidden'));
+	$effect(() => {
+		const cur = task;
+		if (!cur || !settingsStore.publicView) return;
+		const projectPrivate =
+			cur.projectId !== null &&
+			(projectsStore.items.find((p) => p.id === cur.projectId)?.isPrivate ?? false);
+		if (cur.isPrivate || projectPrivate) {
+			toast.info(privateHiddenMsg);
+			void goto(resolve('/today'));
+		}
 	});
 
 	$effect(() => {
@@ -223,7 +246,7 @@
 					notFound = true;
 					return;
 				}
-				toast.error(describeError(err, 'Failed to load task'));
+				toast.error(describeError(err, $t('page.task.errorLoading')));
 			}
 		}
 	);
@@ -258,8 +281,12 @@
 				})
 			);
 			newSubtaskTitle = '';
+			const subs = await tasksApi
+				.listSubtasks(getApiClient(), task.id)
+				.catch(() => null);
+			if (subs) subtasks.items = subs.items;
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to add subtask'));
+			toast.error(describeError(err, $t('page.task.failedAddSubtask')));
 		} finally {
 			creatingSubtask = false;
 			await tick();
@@ -313,7 +340,7 @@ async function save(): Promise<void> {
 			const updated = await tasksApi.update(getApiClient(), task.id, payload);
 			hydrate(updated);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to save task'));
+			toast.error(describeError(err, $t('page.task.failedSave')));
 		} finally {
 			saving = false;
 		}
@@ -333,7 +360,7 @@ async function save(): Promise<void> {
 	<div class="flex min-w-0 items-center gap-2">
 		<Button variant="ghost" size="sm" onclick={back} class="h-7 shrink-0 gap-1 px-2 text-[10px] uppercase tracking-wider">
 			<ArrowLeftIcon class="size-3" />
-			Back
+			{$t('common.back')}
 		</Button>
 		{#if project}
 			<a
@@ -354,11 +381,11 @@ async function save(): Promise<void> {
 </header>
 
 {#if loader.loading}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('app.loading')}</div>
 {:else if loader.error && !notFound}
 	<div class="px-6 py-8 text-sm text-muted-foreground">{loader.error}</div>
 {:else if notFound || !task}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Task not found</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('page.task.notFound')}</div>
 {:else}
 	<form
 		onsubmit={(e) => {
@@ -371,7 +398,7 @@ async function save(): Promise<void> {
 				<div
 					role="textbox"
 					tabindex="0"
-					aria-label="Title"
+					aria-label={$t('common.title')}
 					onclick={() => void focusTitle()}
 					onkeydown={(e) => {
 						if (e.key === 'Enter' || e.key === ' ') {
@@ -387,8 +414,8 @@ async function save(): Promise<void> {
 				<textarea
 					bind:this={titleEl}
 					bind:value={title}
-					aria-label="Title"
-					placeholder="Task name"
+					aria-label={$t('common.title')}
+					placeholder={$t('page.task.namePlaceholder')}
 					rows="1"
 					oninput={(e) => {
 						autoGrow(e.currentTarget as HTMLTextAreaElement);
@@ -413,7 +440,7 @@ async function save(): Promise<void> {
 					<div
 						role="textbox"
 						tabindex="0"
-						aria-label="Description"
+						aria-label={$t('common.description')}
 						onclick={() => void focusDescription()}
 						onkeydown={(e) => {
 							if (e.key === 'Enter' || e.key === ' ') {
@@ -429,8 +456,8 @@ async function save(): Promise<void> {
 					<textarea
 						bind:this={descriptionEl}
 						bind:value={description}
-						aria-label="Description"
-						placeholder="Description"
+						aria-label={$t('common.description')}
+						placeholder={$t('page.task.descriptionPlaceholder')}
 						rows="1"
 						oninput={(e) => {
 							autoGrow(e.currentTarget as HTMLTextAreaElement);
@@ -448,20 +475,32 @@ async function save(): Promise<void> {
 				<section class="flex flex-col gap-2">
 					<div class="flex items-baseline justify-between gap-2">
 						<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-							Subtasks
+							{$t('page.task.subtasks')}
 						</span>
 						{#if subtasks.items.length > 0}
 							<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
 						{/if}
 					</div>
 					{#if subtasks.items.length > 0}
-						<div class="rounded-md border border-border/60">
-							<TaskTree
-								tasks={subtasks.items}
-								showProject={false}
-								mutator={subtasks.mutator}
-								onToggle={(t) => toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
-							/>
+						<div class="overflow-hidden rounded-md border border-border/60">
+							{#if openSubtasks.length > 0}
+								<TaskTree
+									tasks={openSubtasks}
+									showProject={false}
+									mutator={subtasks.mutator}
+									onToggle={(t) =>
+										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+								/>
+							{/if}
+							{#if completedSubtasks.length > 0}
+								<CompletedTasksGroup
+									tasks={completedSubtasks}
+									draggable={false}
+									mutator={subtasks.mutator}
+									onToggle={(t) =>
+										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+								/>
+							{/if}
 						</div>
 					{/if}
 					<div class="flex items-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/20 px-2.5 py-1.5 transition-colors focus-within:border-border focus-within:bg-muted/40">
@@ -471,8 +510,8 @@ async function save(): Promise<void> {
 							bind:value={newSubtaskTitle}
 							onkeydown={onSubtaskKeydown}
 							disabled={creatingSubtask}
-							placeholder="Add subtask"
-							aria-label="Add subtask"
+							placeholder={$t('page.task.addSubtaskPlaceholder')}
+							aria-label={$t('page.task.addSubtaskPlaceholder')}
 							class="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
 						/>
 						{#if newSubtaskTitle.trim()}
@@ -483,7 +522,7 @@ async function save(): Promise<void> {
 								onclick={() => void addSubtask()}
 								disabled={creatingSubtask}
 							>
-								Add
+								{$t('common.add')}
 							</Button>
 						{/if}
 					</div>
@@ -494,13 +533,13 @@ async function save(): Promise<void> {
 		<aside class="flex flex-col gap-5 sm:border-l sm:border-border sm:pl-6">
 			<div class="flex flex-col gap-1.5">
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-					Date
+					{$t('page.task.date')}
 				</span>
 				<div class="flex items-center gap-1.5">
 				<div
 					class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 					role="group"
-					aria-label="Due date"
+					aria-label={$t('dialog.quickAdd.dueDateAriaLabel')}
 				>
 					<button
 						type="button"
@@ -513,7 +552,7 @@ async function save(): Promise<void> {
 						class:hover:bg-accent={!isToday}
 						class:hover:text-foreground={!isToday}
 					>
-						Today
+						{$t('common.today')}
 					</button>
 					<button
 						type="button"
@@ -526,13 +565,13 @@ async function save(): Promise<void> {
 						class:hover:bg-accent={!isTomorrow}
 						class:hover:text-foreground={!isTomorrow}
 					>
-						Tomorrow
+						{$t('common.tomorrow')}
 					</button>
 					<PopoverPrimitive.Root bind:open={datePopoverOpen}>
 						<PopoverPrimitive.Trigger
 							aria-pressed={isCustomDate}
-							aria-label="Custom date"
-							title={isCustomDate ? dueDate : 'Pick a date'}
+							aria-label={$t('dialog.quickAdd.customDateAriaLabel')}
+							title={isCustomDate ? dueDate : $t('dialog.quickAdd.pickDateTitle')}
 							class="relative inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 {isCustomDate
 								? 'bg-accent text-foreground'
 								: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
@@ -563,8 +602,8 @@ async function save(): Promise<void> {
 					<button
 						type="button"
 						onclick={() => { dueDate = ''; scheduleSave(); }}
-						aria-label="Clear date"
-						title="Clear date"
+						aria-label={$t('page.task.clearDate')}
+						title={$t('page.task.clearDate')}
 						class="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 					>
 						<XIcon class="size-3.5" />
@@ -573,28 +612,30 @@ async function save(): Promise<void> {
 				</div>
 			</div>
 
-			<div class="flex flex-col gap-1.5">
-				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-					Priority
-				</span>
-				<PriorityPicker bind:value={priority} disabled={projectTroikiLocked} />
-				{#if projectTroikiLocked}
-					<span class="text-[10px] text-muted-foreground">
-						Locked by Troiki category — priority follows the project.
+			<div class="grid grid-cols-2 gap-5 sm:contents">
+				<div class="flex flex-col gap-1.5">
+					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+						{$t('page.task.priority')}
 					</span>
-				{/if}
+					<PriorityPicker bind:value={priority} disabled={projectTroikiLocked} />
+					{#if projectTroikiLocked}
+						<span class="text-[10px] text-muted-foreground">
+							{$t('page.task.priorityLockedByTroiki')}
+						</span>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+						{$t('page.task.dayPart')}
+					</span>
+					<DayPartPicker bind:value={dayPart} />
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-1.5">
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-					Day part
-				</span>
-				<DayPartPicker bind:value={dayPart} />
-			</div>
-
-			<div class="flex flex-col gap-1.5">
-				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-					Repeat
+					{$t('page.task.repeat')}
 				</span>
 				<RecurrencePicker bind:value={recurrence} />
 			</div>
@@ -604,7 +645,7 @@ async function save(): Promise<void> {
 					<span
 						class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
 					>
-						Labels
+						{$t('page.task.labels')}
 					</span>
 					{#if selectedLabels.length > 0}
 						<div class="flex flex-wrap gap-1">
@@ -628,7 +669,7 @@ async function save(): Promise<void> {
 						<summary
 							class="inline-flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
 						>
-							<span>Edit labels</span>
+							<span>{$t('page.task.editLabels')}</span>
 						</summary>
 						<div class="mt-2 flex flex-wrap gap-1">
 							{#each allLabels as label (label.id)}

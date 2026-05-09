@@ -9,6 +9,9 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { initI18n, t } from '$lib/i18n';
+
+	initI18n(null);
 
 	let { children } = $props();
 
@@ -39,7 +42,7 @@
 
 {#if !bootstrapped || authStore.status === 'loading'}
 	<div class="flex h-screen items-center justify-center text-sm text-muted-foreground">
-		Loading…
+		{$t('app.loading')}
 	</div>
 {:else}
 	{@render children()}

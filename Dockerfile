@@ -3,9 +3,9 @@ FROM node:25.9.0-alpine3.23 AS frontend-build
 WORKDIR /build
 
 COPY frontend/ /build
-COPY cmd/turboist/main.go /build/main.go
+COPY VERSION /build/VERSION
 
-RUN APP_VERSION=$(grep 'Version' /build/main.go | head -1 | cut -d '"' -f 2) && \
+RUN APP_VERSION=$(cat /build/VERSION) && \
     sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$APP_VERSION\"/" /build/package.json && \
     yarn --frozen-lockfile && \
     yarn build
@@ -22,7 +22,7 @@ RUN go mod download
 COPY . /build
 COPY --from=frontend-build /build/build/ /build/frontend/build/
 
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o turboist ./cmd/turboist && \
+RUN CGO_ENABLED=0 go build -ldflags="-w -s -X main.Version=$(cat VERSION)" -o turboist ./cmd/turboist && \
     upx -9 --lzma turboist && \
     chmod +x turboist
 

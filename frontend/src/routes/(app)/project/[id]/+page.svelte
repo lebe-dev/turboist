@@ -5,6 +5,7 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
@@ -24,16 +25,17 @@
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { t } from '$lib/i18n';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
-	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+
 
 
 	const projectId = $derived(Number(page.params.id));
 
 	let project = $state<Project | null>(null);
-	$effect(() => { if (project) viewFilterStore.setTitle(project.title); });
 	let notFound = $state(false);
 	let sectionList = $state<ProjectSection[]>([]);
 	let confirmDeleteOpen = $state(false);
@@ -45,6 +47,7 @@
 	let editingSection = $state<ProjectSection | null>(null);
 	let sectionQuickAddOpen = $state(false);
 	let sectionQuickAddTarget = $state<ProjectSection | null>(null);
+	let rootQuickAddOpen = $state(false);
 
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
@@ -78,7 +81,7 @@
 		sectionList = sec.items;
 		taskList.items = ts.items;
 	}, {
-		errorMessage: 'Failed to load project',
+		errorMessage: $t('page.project.errorLoading'),
 		autoLoad: false,
 		initialLoading: true,
 		onError(err) {
@@ -86,9 +89,13 @@
 		}
 	});
 
-	const actionLabels: Record<string, string> = {
-		uncomplete: 'uncompleted', cancel: 'cancelled',
-		archive: 'archived', unarchive: 'unarchived', pin: 'pinned', unpin: 'unpinned'
+	const ACTION_SUCCESS: Record<string, string> = {
+		uncomplete: 'page.project.actionUncomplete',
+		cancel: 'page.project.actionCancel',
+		archive: 'page.project.actionArchive',
+		unarchive: 'page.project.actionUnarchive',
+		pin: 'page.project.actionPin',
+		unpin: 'page.project.actionUnpin'
 	};
 
 	async function completeProject() {
@@ -104,9 +111,9 @@
 			const updated = await projectsApi.complete(client, project.id);
 			project = updated;
 			projectsStore.upsert(updated);
-			toast.success('Project completed');
+			toast.success($t('page.project.completed'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to complete'));
+			toast.error(describeError(err, $t('page.project.failedComplete')));
 		}
 	}
 
@@ -117,9 +124,22 @@
 			const updated = await projectsApi[name](client, project.id);
 			project = updated;
 			projectsStore.upsert(updated);
-			toast.success(`Project ${actionLabels[name]}`);
+			toast.success($t(ACTION_SUCCESS[name]));
 		} catch (err) {
-			toast.error(describeError(err, `Failed to ${name}`));
+			toast.error(describeError(err, $t('page.project.failedAction', { values: { action: name } })));
+		}
+	}
+
+	async function togglePrivate() {
+		if (!project) return;
+		try {
+			const client = getApiClient();
+			const updated = await projectsApi.update(client, project.id, { isPrivate: !project.isPrivate });
+			project = updated;
+			projectsStore.upsert(updated);
+			toast.success($t('common.privacyUpdated'));
+		} catch (err) {
+			toast.error(describeError(err, $t('page.project.failedUpdatePrivacy')));
 		}
 	}
 
@@ -134,9 +154,13 @@
 				const ts = await projectsApi.listTasks(client, project.id, { limit: 500 });
 				taskList.items = ts.items;
 			}
-			toast.success(category ? `Assigned to ${category}` : 'Removed from Troiki');
+			toast.success(
+				category
+					? $t('page.project.assignedToTroiki', { values: { category: $t(`troiki.section.${category}`) } })
+					: $t('page.project.removedFromTroiki')
+			);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to set Troiki category'));
+			toast.error(describeError(err, $t('page.project.failedSetTroiki')));
 		}
 	}
 
@@ -145,10 +169,10 @@
 		try {
 			await projectsApi.remove(getApiClient(), project.id);
 			projectsStore.remove(project.id);
-			toast.success('Project deleted');
+			toast.success($t('page.project.deleted'));
 			void goto(resolve('/inbox'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to delete project'));
+			toast.error(describeError(err, $t('page.project.failedDelete')));
 		}
 	}
 
@@ -159,10 +183,10 @@
 			await sectionsApi.remove(getApiClient(), sec.id);
 			sectionList = sectionList.filter((s) => s.id !== sec.id);
 			taskList.items = taskList.items.map((t) => (t.sectionId === sec.id ? { ...t, sectionId: null } : t));
-			toast.success('Section deleted');
+			toast.success($t('page.project.sectionDeleted'));
 			pendingSectionDelete = null;
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to delete section'));
+			toast.error(describeError(err, $t('page.project.failedDeleteSection')));
 		}
 	}
 
@@ -190,9 +214,22 @@
 		try {
 			const created = await sectionsApi.createTask(getApiClient(), sec.id, payload);
 			taskList.items = [...taskList.items, created];
-			toast.success('Task added');
+			toast.success($t('page.project.taskAdded'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to add task'));
+			toast.error(describeError(err, $t('page.project.failedAddTask')));
+		}
+	}
+
+	async function onRootTaskSubmit(
+		payload: TaskInput,
+		_target: { projectId: number | null; labels: string[]; parentId: number | null; sectionId: number | null }
+	): Promise<void> {
+		try {
+			const created = await projectsApi.createTask(getApiClient(), projectId, payload);
+			taskList.items = [...taskList.items, created];
+			toast.success($t('page.project.taskAdded'));
+		} catch (err) {
+			toast.error(describeError(err, $t('page.project.failedAddTask')));
 		}
 	}
 
@@ -238,7 +275,7 @@
 			taskList.items = taskList.items.map((t) => (t.id === taskId ? updated : t));
 		} catch (err) {
 			taskList.items = oldItems;
-			toast.error(describeError(err, 'Failed to move task'));
+			toast.error(describeError(err, $t('page.project.failedMove')));
 		}
 	}
 
@@ -263,7 +300,7 @@
 			sectionList = sectionList.map((s) => (s.id === updated.id ? updated : s));
 		} catch (err) {
 			sectionList = oldList;
-			toast.error(describeError(err, 'Failed to reorder section'));
+			toast.error(describeError(err, $t('page.project.failedReorder')));
 		}
 	}
 
@@ -274,6 +311,13 @@
 
 	$effect(() => {
 		if (Number.isFinite(projectId)) void loader.refetch();
+	});
+
+	$effect(() => {
+		if (project && project.isPrivate && settingsStore.publicView) {
+			toast.info($t('common.privateHidden'));
+			void goto(resolve('/today'));
+		}
 	});
 
 	$effect(() => {
@@ -292,11 +336,11 @@
 </script>
 
 {#if loader.loading}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Loading…</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('app.loading')}</div>
 {:else if loader.error && !notFound}
 	<div class="px-6 py-8 text-sm text-muted-foreground">{loader.error}</div>
 {:else if notFound || !project}
-	<div class="px-6 py-8 text-sm text-muted-foreground">Project not found</div>
+	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('page.project.notFound')}</div>
 {:else}
 	<ProjectHeader
 		{project}
@@ -311,6 +355,7 @@
 		onEdit={() => (editProjectOpen = true)}
 		onDelete={() => (confirmDeleteOpen = true)}
 		onSetTroiki={setTroiki}
+		onTogglePrivate={togglePrivate}
 	/>
 
 	<div class="px-2">
@@ -318,8 +363,8 @@
 			loading={false}
 			isEmpty={sectionList.length === 0 && taskList.items.length === 0}
 			emptyIcon={FolderIcon}
-			emptyTitle="No tasks yet"
-			emptyDescription="Add a task or section to start organising this project."
+			emptyTitle={$t('page.project.emptyTitle')}
+			emptyDescription={$t('page.project.emptyDescription')}
 		>
 			<div
 				class={[
@@ -353,7 +398,7 @@
 					{/if}
 				{:else if sectionList.length > 0}
 					<div class="px-3 py-2 text-xs text-muted-foreground/60">
-						Drop a task here to move it out of any section
+						{$t('page.project.dropZoneHint')}
 					</div>
 				{/if}
 			</div>
@@ -374,12 +419,26 @@
 				/>
 			{/if}
 		</ViewContent>
+		{#if project.status === 'open' && !settingsStore.publicView}
+			<button
+				class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+				onclick={() => (rootQuickAddOpen = true)}
+			>
+				<PlusIcon class="size-4" />
+				{$t('task.addTask')}
+			</button>
+		{/if}
 	</div>
 
 	<QuickAddDialog
 		bind:open={sectionQuickAddOpen}
 		defaultProjectId={projectId}
 		onSubmit={onSectionTaskSubmit}
+	/>
+	<QuickAddDialog
+		bind:open={rootQuickAddOpen}
+		defaultProjectId={projectId}
+		onSubmit={onRootTaskSubmit}
 	/>
 	<ProjectDialog
 		bind:open={editProjectOpen}
@@ -394,23 +453,23 @@
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmCompleteOpen}
-		title="Complete project?"
-		description="The project will be marked as completed and all its tasks will be marked as done."
-		confirmLabel="Complete"
-		busyLabel="Completing…"
+		title={$t('page.project.confirmCompleteTitle')}
+		description={$t('page.project.confirmCompleteDesc')}
+		confirmLabel={$t('page.project.confirmCompleteButton')}
+		busyLabel={$t('page.project.completing')}
 		variant="default"
 		onConfirm={completeProject}
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmDeleteOpen}
-		title="Delete project?"
-		description="All sections and tasks under this project will be permanently deleted (cascade). This cannot be undone."
+		title={$t('page.project.confirmDeleteTitle')}
+		description={$t('page.project.confirmDeleteDesc')}
 		onConfirm={deleteProject}
 	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmSectionOpen}
-		title="Delete section?"
-		description="The section will be deleted; tasks in it will be kept and moved to the project root."
+		title={$t('page.project.confirmDeleteSectionTitle')}
+		description={$t('page.project.confirmDeleteSectionDesc')}
 		onConfirm={deleteSection}
 	/>
 {/if}

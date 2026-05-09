@@ -27,6 +27,7 @@
 		"@tailwindcss/vite": "^4.2.2",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/svelte": "^5.2.6",
+		"@types/node": "^25.6.1",
 		"bits-ui": "^2.16.3",
 		"clsx": "^2.1.1",
 		"eslint": "^9.18.0",
@@ -51,5 +52,10 @@
 		"vite": "^8.0.7",
 		"vitest": "^3.0.0"
 	},
-	"dependencies": {}
+	"dependencies": {
+		"svelte-intl-precompile": "^0.12.3"
+	},
+	"resolutions": {
+		"precompile-intl-runtime/svelte": "^5.0.0"
+	}
 }

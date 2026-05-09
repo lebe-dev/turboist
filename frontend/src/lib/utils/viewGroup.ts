@@ -1,5 +1,7 @@
 import type { ConfigResponse, DayPart, Task } from '$lib/api/types';
 import { dayKeyInTz, dayStartUtcInTz } from './format';
+import { get } from 'svelte/store';
+import { locale, t } from '$lib/i18n';
 
 export interface DayPartInterval {
 	start: number;
@@ -13,11 +15,11 @@ export interface DayPartGroup {
 	tasks: Task[];
 }
 
-const DAY_PART_ORDER: Array<{ part: DayPart; label: string }> = [
-	{ part: 'morning', label: 'Morning' },
-	{ part: 'afternoon', label: 'Afternoon' },
-	{ part: 'evening', label: 'Evening' },
-	{ part: 'none', label: 'Anytime' }
+const DAY_PART_ORDER: Array<{ part: DayPart; labelKey: string }> = [
+	{ part: 'morning', labelKey: 'task.dayPart.morning' },
+	{ part: 'afternoon', labelKey: 'task.dayPart.afternoon' },
+	{ part: 'evening', labelKey: 'task.dayPart.evening' },
+	{ part: 'none', labelKey: 'task.dayPart.anytime' }
 ];
 
 function intervalFor(
@@ -39,9 +41,10 @@ export function groupByDayPart(
 		if (arr) arr.push(t);
 		else buckets.set(key, [t]);
 	}
+	const tr = get(t);
 	return DAY_PART_ORDER.filter((g) => (buckets.get(g.part)?.length ?? 0) > 0).map((g) => ({
 		part: g.part,
-		label: g.label,
+		label: tr(g.labelKey),
 		interval: intervalFor(g.part, dayParts),
 		tasks: buckets.get(g.part)!
 	}));
@@ -89,10 +92,12 @@ function labelFor(key: string, todayKey: string, tz?: string | null): string {
 	const todayStart = dayStartUtcInTz(todayKey, tz);
 	const target = dayStartUtcInTz(key, tz);
 	const diff = Math.round((target.getTime() - todayStart.getTime()) / DAY_MS);
-	if (diff === 0) return 'Today';
-	if (diff === 1) return 'Tomorrow';
-	if (diff === -1) return 'Yesterday';
-	return target.toLocaleDateString('en-US', {
+	const tr = get(t);
+	if (diff === 0) return tr('common.today');
+	if (diff === 1) return tr('common.tomorrow');
+	if (diff === -1) return tr('common.yesterday');
+	const lc = get(locale) ?? 'en';
+	return target.toLocaleDateString(lc === 'ru' ? 'ru-RU' : 'en-US', {
 		timeZone: tz || undefined,
 		weekday: 'short',
 		month: 'short',
@@ -145,7 +150,7 @@ export function groupByDay(tasks: Task[], tz?: string | null): DayGroup[] {
 			tasks: v.tasks
 		}));
 	if (noDate.length) {
-		groups.push({ dayKey: 'no-date', label: 'No date', date: new Date(0), tasks: noDate });
+		groups.push({ dayKey: 'no-date', label: get(t)('common.noDate'), date: new Date(0), tasks: noDate });
 	}
 	return groups;
 }

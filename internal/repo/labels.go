@@ -21,12 +21,13 @@ func NewLabelRepo(db *sql.DB) *LabelRepo {
 
 func scanLabel(row interface{ Scan(...any) error }) (*model.Label, error) {
 	var l model.Label
-	var fav int
+	var fav, priv int
 	var createdAt, updatedAt string
-	if err := row.Scan(&l.ID, &l.Name, &l.Color, &fav, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&l.ID, &l.Name, &l.Color, &fav, &priv, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	l.IsFavourite = fav == 1
+	l.IsPrivate = priv == 1
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
@@ -64,7 +65,7 @@ func (r *LabelRepo) Create(ctx context.Context, name, color string, isFavourite 
 
 func (r *LabelRepo) Get(ctx context.Context, id int64) (*model.Label, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, color, is_favourite, created_at, updated_at FROM labels WHERE id = ?`, id)
+		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE id = ?`, id)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -77,7 +78,7 @@ func (r *LabelRepo) Get(ctx context.Context, id int64) (*model.Label, error) {
 
 func (r *LabelRepo) GetByName(ctx context.Context, name string) (*model.Label, error) {
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, color, is_favourite, created_at, updated_at FROM labels WHERE name = ?`, name)
+		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE name = ?`, name)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -108,7 +109,7 @@ func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page)
 
 	args = append(args, page.Limit, page.Offset)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, created_at, updated_at FROM labels`+where+
+		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels`+where+
 			` ORDER BY is_favourite DESC, name ASC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list labels: %w", err)
@@ -130,6 +131,7 @@ type LabelUpdate struct {
 	Name        *string
 	Color       *string
 	IsFavourite *bool
+	IsPrivate   *bool
 }
 
 func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model.Label, error) {
@@ -150,6 +152,14 @@ func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model
 			fv = 1
 		}
 		args = append(args, fv)
+	}
+	if u.IsPrivate != nil {
+		sets = append(sets, "is_private = ?")
+		pv := 0
+		if *u.IsPrivate {
+			pv = 1
+		}
+		args = append(args, pv)
 	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
@@ -200,7 +210,7 @@ func (r *LabelRepo) GetByIDs(ctx context.Context, ids []int64) ([]model.Label, e
 		placeholders[i] = "?"
 		args[i] = id
 	}
-	q := `SELECT id, name, color, is_favourite, created_at, updated_at FROM labels WHERE id IN (` +
+	q := `SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE id IN (` +
 		strings.Join(placeholders, ",") + `)`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

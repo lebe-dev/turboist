@@ -121,6 +121,30 @@ func TestLabelPatch_Success(t *testing.T) {
 	}
 }
 
+func TestLabelPatch_IsPrivate(t *testing.T) {
+	e := setupAPIEnv(t)
+	l, err := e.labels.Create(context.Background(), "secret", "red", false)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if l.IsPrivate {
+		t.Fatalf("created label should default to isPrivate=false")
+	}
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch, "/api/v1/labels/"+itoa(l.ID), map[string]any{
+		"isPrivate": true,
+	}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.LabelDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !result.IsPrivate {
+		t.Errorf("isPrivate: got %v, want true", result.IsPrivate)
+	}
+}
+
 func TestLabelDelete_Success(t *testing.T) {
 	e := setupAPIEnv(t)
 	l, err := e.labels.Create(context.Background(), "to-delete", "green", false)

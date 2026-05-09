@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
+	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
@@ -13,16 +14,18 @@ import (
 type TaskBulkHandler struct {
 	completeSvc *service.CompleteService
 	moveSvc     *service.MoveService
+	groupSvc    *service.GroupService
 	baseURL     string
 }
 
-func NewTaskBulkHandler(completeSvc *service.CompleteService, moveSvc *service.MoveService, baseURL string) *TaskBulkHandler {
-	return &TaskBulkHandler{completeSvc: completeSvc, moveSvc: moveSvc, baseURL: baseURL}
+func NewTaskBulkHandler(completeSvc *service.CompleteService, moveSvc *service.MoveService, groupSvc *service.GroupService, baseURL string) *TaskBulkHandler {
+	return &TaskBulkHandler{completeSvc: completeSvc, moveSvc: moveSvc, groupSvc: groupSvc, baseURL: baseURL}
 }
 
 func (h *TaskBulkHandler) Register(r fiber.Router) {
 	r.Post("/tasks/bulk/complete", h.bulkComplete)
 	r.Post("/tasks/bulk/move", h.bulkMove)
+	r.Post("/tasks/group", h.groupTasks)
 }
 
 // BulkIDsRequest is the body for bulk complete.
@@ -112,6 +115,65 @@ func (h *TaskBulkHandler) bulkMove(c fiber.Ctx) error {
 		}
 	}
 	return c.JSON(resp)
+}
+
+// GroupTasksResponse is the body for POST /tasks/group.
+type GroupTasksResponse struct {
+	Parent    dto.TaskDTO      `json:"parent"`
+	Succeeded []int64          `json:"succeeded"`
+	Failed    []bulkFailedItem `json:"failed"`
+}
+
+func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
+	var req dto.GroupTasksRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return httpapi.ErrValidation("invalid request body")
+	}
+
+	placement := repo.Placement{
+		ContextID: req.ContextID,
+		ProjectID: req.ProjectID,
+		SectionID: req.SectionID,
+	}
+	if err := placement.Validate(); err != nil {
+		return httpapi.ErrForbiddenPlacement("invalid task placement")
+	}
+
+	create, appErr := buildTaskCreate(req.CreateTaskRequest, placement)
+	if appErr != nil {
+		return appErr
+	}
+
+	in := service.GroupInput{
+		Parent:            create,
+		ExplicitLabels:    req.Labels,
+		RemovedAutoLabels: req.RemovedAutoLabels,
+		ChildIDs:          req.ChildIDs,
+	}
+	res, err := h.groupSvc.Group(c.Context(), in)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidGroupRequest) {
+			return httpapi.ErrValidation(err.Error())
+		}
+		if errors.Is(err, repo.ErrInvalidPlacement) {
+			return httpapi.ErrForbiddenPlacement("invalid task placement")
+		}
+		var ule *service.UnknownLabelError
+		if errors.As(err, &ule) {
+			return httpapi.ErrValidation("unknown label: " + ule.Name)
+		}
+		return httpapi.ErrInternal("group tasks")
+	}
+
+	resp := GroupTasksResponse{
+		Parent:    dto.TaskFromModel(*res.Parent, h.baseURL),
+		Succeeded: res.SucceededIDs,
+		Failed:    make([]bulkFailedItem, 0, len(res.Failed)),
+	}
+	for _, f := range res.Failed {
+		resp.Failed = append(resp.Failed, bulkFailedItem{ID: f.ID, Error: toErrDetail(f.Err)})
+	}
+	return c.Status(fiber.StatusCreated).JSON(resp)
 }
 
 // toErrDetail converts a service/repo error to a bulk error detail.

@@ -9,6 +9,7 @@
 	import SunIcon from 'phosphor-svelte/lib/Sun';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import ClockIcon from 'phosphor-svelte/lib/Clock';
+	import { t } from '$lib/i18n';
 
 	let {
 		part,
@@ -32,11 +33,11 @@
 		return `${h}:00`;
 	}
 
-	const ALL_PARTS: Array<{ part: DayPart; label: string; icon: Component }> = [
-		{ part: 'morning', label: 'Morning', icon: SunHorizonIcon as unknown as Component },
-		{ part: 'afternoon', label: 'Afternoon', icon: SunIcon as unknown as Component },
-		{ part: 'evening', label: 'Evening', icon: MoonIcon as unknown as Component },
-		{ part: 'none', label: 'Anytime', icon: ClockIcon as unknown as Component }
+	const ALL_PARTS: Array<{ part: DayPart; labelKey: string; icon: Component }> = [
+		{ part: 'morning', labelKey: 'task.dayPart.morning', icon: SunHorizonIcon as unknown as Component },
+		{ part: 'afternoon', labelKey: 'task.dayPart.afternoon', icon: SunIcon as unknown as Component },
+		{ part: 'evening', labelKey: 'task.dayPart.evening', icon: MoonIcon as unknown as Component },
+		{ part: 'none', labelKey: 'task.dayPart.anytime', icon: ClockIcon as unknown as Component }
 	];
 
 	const targetParts = $derived(ALL_PARTS.filter((p) => p.part !== part));
@@ -65,7 +66,7 @@
 						<button
 							{...props}
 							type="button"
-							title="Move all tasks to another phase"
+							title={$t('view.moveAllTasksTitle')}
 							class="inline-flex size-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:text-muted-foreground"
 						>
 							<ArrowRightIcon class="size-3.5" />
@@ -77,7 +78,7 @@
 						{@const TargetIcon = opt.icon}
 						<DropdownMenu.Item onclick={() => onBulkMove(opt.part)}>
 							<TargetIcon class="size-4" />
-							Move all to {opt.label}
+							{$t('view.moveAllTo', { values: { label: $t(opt.labelKey) } })}
 						</DropdownMenu.Item>
 					{/each}
 				</DropdownMenu.Content>

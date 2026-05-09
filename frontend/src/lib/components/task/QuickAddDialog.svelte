@@ -19,6 +19,9 @@
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import StackIcon from 'phosphor-svelte/lib/Stack';
+	import WarningIcon from 'phosphor-svelte/lib/Warning';
+	import { t } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
@@ -29,7 +32,8 @@
 		defaultDayPart = 'none',
 		defaultParentId = null,
 		defaultSectionId = null,
-		emptyProjectLabel = 'Inbox',
+		emptyProjectLabel: emptyProjectLabelProp = null,
+		wrap = null,
 		onSubmit
 	}: {
 		open?: boolean;
@@ -40,7 +44,8 @@
 		defaultDayPart?: DayPart;
 		defaultParentId?: number | null;
 		defaultSectionId?: number | null;
-		emptyProjectLabel?: string;
+		emptyProjectLabel?: string | null;
+		wrap?: { tasks: Array<{ id: number; title: string }>; warning?: string | null } | null;
 		onSubmit?: (
 			payload: TaskInput,
 			target: {
@@ -52,6 +57,21 @@
 		) => void | Promise<void>;
 	} = $props();
 
+	const isWrap = $derived(wrap !== null);
+
+	function initialLabelIds(): string[] {
+		const base = defaultLabelIds.map(String);
+		if (!defaultProjectId || defaultParentId !== null) return base;
+		const project = projectsStore.items.find((p) => p.id === defaultProjectId);
+		if (!project || project.labels.length === 0) return base;
+		const result = [...base];
+		for (const l of project.labels) {
+			const id = String(l.id);
+			if (!result.includes(id)) result.push(id);
+		}
+		return result;
+	}
+
 	let titles = $state('');
 	let description = $state('');
 	// svelte-ignore state_referenced_locally
@@ -62,8 +82,7 @@
 	let dueDate = $state<string>(defaultDueDate ?? '');
 	// svelte-ignore state_referenced_locally
 	let projectId = $state<string>(defaultProjectId ? String(defaultProjectId) : '');
-	// svelte-ignore state_referenced_locally
-	let labelIds = $state<string[]>(defaultLabelIds.map(String));
+	let labelIds = $state<string[]>(initialLabelIds());
 	// svelte-ignore state_referenced_locally
 	let parentId = $state<number | null>(defaultParentId);
 	// svelte-ignore state_referenced_locally
@@ -75,6 +94,8 @@
 	let projectQuery = $state('');
 	let projectSearchInput = $state<HTMLInputElement | null>(null);
 	let dismissedAutoLabels = $state<string[]>([]);
+
+	const emptyProjectLabel = $derived(emptyProjectLabelProp ?? $t('nav.inbox'));
 
 	const visibleProjects = $derived(
 		projectsStore.items
@@ -102,6 +123,7 @@
 	}
 
 	function selectProject(id: string): void {
+		if (isWrap && id === '') return;
 		projectId = id;
 		projectMenuOpen = false;
 	}
@@ -205,7 +227,7 @@
 		dueDate = defaultDueDate ?? '';
 		recurrenceRule = null;
 		projectId = defaultProjectId ? String(defaultProjectId) : '';
-		labelIds = defaultLabelIds.map(String);
+		labelIds = initialLabelIds();
 		parentId = defaultParentId;
 		sectionId = defaultSectionId;
 		labelMenuOpen = false;
@@ -217,7 +239,7 @@
 		if (open && !prevOpen) {
 			dueDate = defaultDueDate ?? '';
 			projectId = defaultProjectId ? String(defaultProjectId) : '';
-			labelIds = defaultLabelIds.map(String);
+			labelIds = initialLabelIds();
 			priority = defaultPriority;
 			dayPart = defaultDayPart;
 			parentId = defaultParentId;
@@ -258,7 +280,8 @@
 				parentId,
 				sectionId
 			};
-			for (const line of titleLines) {
+			const lines = isWrap ? titleLines.slice(0, 1) : titleLines;
+			for (const line of lines) {
 				const payload: TaskInput = { ...commonPayload, title: line };
 				await onSubmit?.(payload, target);
 			}
@@ -283,19 +306,40 @@
 		<DialogPrimitive.Content
 			class="fixed left-1/2 top-[15%] z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
 		>
-			<DialogPrimitive.Title class="sr-only">Quick add task</DialogPrimitive.Title>
+			<DialogPrimitive.Title class="sr-only">{$t('dialog.quickAdd.title')}</DialogPrimitive.Title>
 			<DialogPrimitive.Description class="sr-only">
-				Title plus optional description, project, priority, due date, day part, and labels.
+				{$t('dialog.quickAdd.description')}
 			</DialogPrimitive.Description>
 
 			<form onsubmit={submit} class="flex flex-col">
+				{#if wrap}
+					<div class="border-b border-border bg-muted/40 px-5 py-3">
+						<div class="flex items-center gap-2 text-sm font-medium text-foreground">
+							<StackIcon class="size-4 text-primary" weight="bold" />
+							<span>{$t('dialog.quickAdd.wrap.title', { values: { count: wrap.tasks.length } })}</span>
+						</div>
+						{#if wrap.tasks.length > 0}
+							<ul class="mt-2 max-h-24 overflow-y-auto pl-6 text-xs text-muted-foreground">
+								{#each wrap.tasks as item (item.id)}
+									<li class="truncate">• {item.title}</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if wrap.warning}
+							<div class="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200">
+								<WarningIcon class="size-3.5 shrink-0" weight="fill" />
+								<span>{wrap.warning}</span>
+							</div>
+						{/if}
+					</div>
+				{/if}
 				<div class="px-5 pt-5 pb-3">
 					<!-- svelte-ignore a11y_autofocus -->
 					<textarea
 						bind:this={titlesEl}
 						bind:value={titles}
-						placeholder="Task name (one per line)"
-						aria-label="Task names"
+						placeholder={$t('dialog.quickAdd.titlePlaceholder')}
+						aria-label={$t('dialog.quickAdd.titleAriaLabel')}
 						rows="1"
 						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
 						class="block w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium leading-tight outline-none placeholder:text-muted-foreground/70"
@@ -304,8 +348,8 @@
 					<textarea
 						bind:this={descriptionEl}
 						bind:value={description}
-						placeholder="Description"
-						aria-label="Description"
+						placeholder={$t('dialog.quickAdd.descriptionPlaceholder')}
+						aria-label={$t('dialog.quickAdd.descriptionAriaLabel')}
 						rows="1"
 						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
 						class="mt-2 block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
@@ -332,14 +376,14 @@
 							{#each detectedAutoLabels as name (name)}
 								<span
 									class="group/auto inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
-									title="Auto-detected from title — will be applied on save"
+									title={$t('dialog.quickAdd.autoLabelHint')}
 								>
 									<SparkleIcon class="size-3" weight="fill" />
 									<span>{name}</span>
 									<button
 										type="button"
 										onclick={() => dismissAutoLabel(name)}
-										aria-label={`Reject auto-label ${name}`}
+										aria-label={$t('dialog.quickAdd.rejectAutoLabel', { values: { name } })}
 										class="opacity-60 transition-opacity hover:opacity-100"
 									>
 										<XIcon class="size-3" />
@@ -353,7 +397,7 @@
 						<div
 							class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 							role="group"
-							aria-label="Due date"
+							aria-label={$t('dialog.quickAdd.dueDateAriaLabel')}
 						>
 							<button
 								type="button"
@@ -366,7 +410,7 @@
 								class:hover:bg-accent={!isToday}
 								class:hover:text-foreground={!isToday}
 							>
-								Today
+								{$t('common.today')}
 							</button>
 							<button
 								type="button"
@@ -379,13 +423,13 @@
 								class:hover:bg-accent={!isTomorrow}
 								class:hover:text-foreground={!isTomorrow}
 							>
-								Tomorrow
+								{$t('common.tomorrow')}
 							</button>
 							<PopoverPrimitive.Root bind:open={datePopoverOpen}>
 								<PopoverPrimitive.Trigger
 									aria-pressed={isCustomDate}
-									aria-label="Custom date"
-									title={isCustomDate ? dueDate : 'Pick a date'}
+									aria-label={$t('dialog.quickAdd.customDateAriaLabel')}
+									title={isCustomDate ? dueDate : $t('dialog.quickAdd.pickDateTitle')}
 									class="inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 {isCustomDate
 										? 'bg-accent text-foreground'
 										: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
@@ -431,7 +475,7 @@
 									class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent"
 								>
 									<TagIcon class="size-3.5" />
-									<span>Labels</span>
+									<span>{$t('common.labels')}</span>
 								</button>
 								{#if labelMenuOpen}
 									<div
@@ -491,7 +535,7 @@
 										bind:this={projectSearchInput}
 										bind:value={projectQuery}
 										type="text"
-										placeholder="Search projects..."
+										placeholder={$t('dialog.quickAdd.searchProjectsPlaceholder')}
 										class="h-6 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
 										onkeydown={(e) => {
 											if (e.key === 'Escape') {
@@ -507,16 +551,26 @@
 										<button
 											type="button"
 											onclick={() => selectProject('')}
+											disabled={isWrap}
+											aria-disabled={isWrap}
+											title={isWrap ? $t('dialog.quickAdd.wrap.inboxDisabled') : undefined}
 											class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
-											class:bg-accent={active}
-											class:text-accent-foreground={active}
-											class:hover:bg-accent={!active}
+											class:bg-accent={active && !isWrap}
+											class:text-accent-foreground={active && !isWrap}
+											class:hover:bg-accent={!active && !isWrap}
+											class:opacity-50={isWrap}
+											class:cursor-not-allowed={isWrap}
 										>
 											<span class="flex-1 truncate">{emptyProjectLabel}</span>
-											{#if active}
+											{#if active && !isWrap}
 												<CheckIcon class="size-3.5 opacity-70" />
 											{/if}
 										</button>
+										{#if isWrap}
+											<div class="px-2 pb-1.5 pt-0.5 text-[11px] leading-snug text-muted-foreground">
+												{$t('dialog.quickAdd.wrap.inboxDisabled')}
+											</div>
+										{/if}
 									{/if}
 									{#each filteredProjects as project (project.id)}
 										{@const id = String(project.id)}
@@ -537,7 +591,7 @@
 									{/each}
 									{#if !inboxMatchesQuery && filteredProjects.length === 0}
 										<div class="px-2 py-3 text-center text-xs text-muted-foreground">
-											No matches
+											{$t('dialog.quickAdd.noMatches')}
 										</div>
 									{/if}
 								</div>
@@ -548,11 +602,21 @@
 					<div class="flex items-center gap-2">
 						<DialogPrimitive.Close>
 							{#snippet child({ props })}
-								<Button {...props} variant="ghost" size="sm" type="button">Cancel</Button>
+								<Button {...props} variant="ghost" size="sm" type="button">{$t('common.cancel')}</Button>
 							{/snippet}
 						</DialogPrimitive.Close>
-						<Button type="submit" size="sm" disabled={titleLines.length === 0 || submitting}>
-							{isMultiTask ? `Add ${titleLines.length} tasks` : 'Add task'}
+						<Button
+							type="submit"
+							size="sm"
+							disabled={titleLines.length === 0 || submitting || (isWrap && !projectId)}
+						>
+							{#if isWrap}
+								{$t('dialog.quickAdd.wrap.submit')}
+							{:else if isMultiTask}
+								{$t('dialog.quickAdd.submitMulti', { values: { count: titleLines.length } })}
+							{:else}
+								{$t('dialog.quickAdd.submitSingle')}
+							{/if}
 						</Button>
 					</div>
 				</div>

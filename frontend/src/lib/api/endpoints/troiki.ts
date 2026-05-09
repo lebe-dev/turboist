@@ -7,5 +7,8 @@ export const troiki = {
 	},
 	start(client: ApiClient): Promise<TroikiViewResponse> {
 		return client.fetch('/api/v1/troiki/start', { method: 'POST' });
+	},
+	reset(client: ApiClient): Promise<TroikiViewResponse> {
+		return client.fetch('/api/v1/troiki/reset', { method: 'POST' });
 	}
 };

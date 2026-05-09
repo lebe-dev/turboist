@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Component, Snippet } from 'svelte';
 	import EmptyState from './EmptyState.svelte';
+	import { t } from '$lib/i18n';
 
 	let {
 		loading,
@@ -20,7 +21,7 @@
 </script>
 
 {#if loading}
-	<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
+	<div class="px-4 py-8 text-sm text-muted-foreground">{$t('app.loading')}</div>
 {:else if isEmpty}
 	<EmptyState icon={emptyIcon} title={emptyTitle} description={emptyDescription} />
 {:else}

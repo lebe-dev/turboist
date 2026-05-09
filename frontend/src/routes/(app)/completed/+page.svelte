@@ -1,5 +1,6 @@
 <script lang="ts">
 	import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircle';
+	import { t } from '$lib/i18n';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -30,7 +31,7 @@
 			if (!isValid()) return;
 			list.items = res.items;
 		},
-		{ errorMessage: 'Failed to load completed', autoLoad: false, initialLoading: true }
+		{ errorMessage: $t('page.completed.errorLoading'), autoLoad: false, initialLoading: true }
 	);
 
 	$effect(() => {
@@ -44,8 +45,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0}
 		emptyIcon={CheckCircleIcon}
-		emptyTitle="Nothing completed yet"
-		emptyDescription="Tasks you complete will show up here, grouped by day."
+		emptyTitle={$t('page.completed.emptyTitle')}
+		emptyDescription={$t('page.completed.emptyDescription')}
 	>
 		<div class="flex flex-col py-2">
 			{#each groups as group, i (group.dayKey)}

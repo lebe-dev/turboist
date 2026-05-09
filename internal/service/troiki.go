@@ -13,6 +13,12 @@ import (
 // Medium and Rest capacities accumulate per user (see User.TroikiMediumCapacity / TroikiRestCapacity).
 const TroikiImportantCap = 3
 
+// TroikiInitialFillCap caps Medium/Rest during the initial-fill phase (before
+// the user presses "Start the system"). The methodology rule "≤3 projects per
+// category" applies even before the cycle starts — otherwise users could load
+// arbitrary numbers of projects into Medium/Rest in zero state.
+const TroikiInitialFillCap = 3
+
 // PriorityForCategory returns the task priority that a Troiki category enforces.
 // Tasks belonging to a project with a category are pinned to this priority;
 // direct priority edits are rejected by the task update handler.
@@ -110,22 +116,6 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 	if err != nil {
 		return nil, err
 	}
-	// Initial-fill mode: before the user presses "Start the system", Medium and
-	// Rest accept projects without capacity checks. Important always honors its
-	// fixed cap of 3 — that's a core methodology rule, not a soft limit.
-	if !cap.Started && (*cat == model.TroikiCategoryMedium || *cat == model.TroikiCategoryRest) {
-		updated, err := s.projects.Update(ctx, projectID, repo.ProjectUpdate{TroikiCategory: cat})
-		if err != nil {
-			return nil, err
-		}
-		if err := s.tasks.ResetTroikiGrantedByProject(ctx, projectID); err != nil {
-			return nil, err
-		}
-		if err := s.EnforceProjectPriority(ctx, projectID, PriorityForCategory(*cat)); err != nil {
-			return nil, err
-		}
-		return updated, nil
-	}
 	capacity, err := s.capacityForWith(*cat, cap)
 	if err != nil {
 		return nil, err
@@ -181,19 +171,10 @@ func (s *TroikiService) View(ctx context.Context) (TroikiView, error) {
 	}
 	mediumCap, restCap := cap.Medium, cap.Rest
 	if !cap.Started {
-		// Before start, Medium/Rest capacity reported as the current project
-		// count so the UI doesn't render bogus empty-slot placeholders against
-		// a zero cap.
-		n, err := s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryMedium)
-		if err != nil {
-			return TroikiView{}, err
-		}
-		mediumCap = n
-		n, err = s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryRest)
-		if err != nil {
-			return TroikiView{}, err
-		}
-		restCap = n
+		// Initial-fill phase: Medium/Rest follow the universal "≤3 per slot"
+		// rule, same as Important. Once started, the snapshot becomes the cap.
+		mediumCap = TroikiInitialFillCap
+		restCap = TroikiInitialFillCap
 	}
 	medium, err := s.buildSlot(ctx, model.TroikiCategoryMedium, mediumCap)
 	if err != nil {
@@ -249,13 +230,34 @@ func (s *TroikiService) Start(ctx context.Context) error {
 	return s.users.StartTroiki(ctx, SingleUserID, medium, rest)
 }
 
+// Reset returns the Troiki system to its initial state: every project is
+// unassigned from its category, the troiki_capacity_granted flag is cleared on
+// all tasks, troiki_started is flipped back to 0, and earned Medium/Rest
+// capacity counters are zeroed. Task priorities are intentionally left
+// unchanged — the user resets the cycle, not their backlog. Idempotent.
+func (s *TroikiService) Reset(ctx context.Context) error {
+	if err := s.projects.ClearAllTroikiCategories(ctx); err != nil {
+		return err
+	}
+	if err := s.tasks.ResetAllTroikiGranted(ctx); err != nil {
+		return err
+	}
+	return s.users.ResetTroiki(ctx, SingleUserID)
+}
+
 func (s *TroikiService) capacityForWith(cat model.TroikiCategory, cap repo.TroikiCapacity) (int, error) {
 	switch cat {
 	case model.TroikiCategoryImportant:
 		return TroikiImportantCap, nil
 	case model.TroikiCategoryMedium:
+		if !cap.Started {
+			return TroikiInitialFillCap, nil
+		}
 		return cap.Medium, nil
 	case model.TroikiCategoryRest:
+		if !cap.Started {
+			return TroikiInitialFillCap, nil
+		}
 		return cap.Rest, nil
 	}
 	return 0, fmt.Errorf("troiki: unsupported category %q", cat)

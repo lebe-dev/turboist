@@ -203,6 +203,22 @@ func (r *UserRepo) StartTroiki(ctx context.Context, id int64, mediumCap, restCap
 	return nil
 }
 
+// ResetTroiki flips troiki_started back to 0 and zeros the medium/rest capacity
+// counters in a single UPDATE. Idempotent — safe to call on an already-reset
+// user. Used by Troiki Reset.
+func (r *UserRepo) ResetTroiki(ctx context.Context, id int64) error {
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET troiki_started = 0, troiki_medium_capacity = 0,
+		    troiki_rest_capacity = 0, updated_at = ?
+		 WHERE id = ?`,
+		now, id)
+	if err != nil {
+		return fmt.Errorf("reset troiki: %w", err)
+	}
+	return nil
+}
+
 // IncTroikiCapacity bumps the capacity counter for the given target category
 // by 1. Only medium and rest are stored; important is a fixed constant.
 func (r *UserRepo) IncTroikiCapacity(ctx context.Context, id int64, target model.TroikiCategory) error {

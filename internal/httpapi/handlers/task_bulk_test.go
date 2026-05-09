@@ -102,3 +102,124 @@ func TestBulkMove_AllSucceed(t *testing.T) {
 		t.Errorf("contextId: got %v, want %d", moved.ContextID, ctx2.ID)
 	}
 }
+
+type groupResp struct {
+	Parent    dto.TaskDTO `json:"parent"`
+	Succeeded []int64     `json:"succeeded"`
+	Failed    []struct {
+		ID    int64 `json:"id"`
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	} `json:"failed"`
+}
+
+func TestGroupTasks_HappyPath(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	createTestLabel(t, e, "umbrella")
+	t1 := createTestTask(t, e, ctx.ID, "Task 1")
+	t2 := createTestTask(t, e, ctx.ID, "Task 2")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		"/api/v1/tasks/group",
+		map[string]any{
+			"title":     "Wrap-up",
+			"priority":  "high",
+			"labels":    []string{"umbrella"},
+			"contextId": ctx.ID,
+			"childIds":  []int64{t1.ID, t2.ID},
+		}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("group: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var result groupResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Parent.Title != "Wrap-up" || result.Parent.Priority != "high" {
+		t.Errorf("parent: got %+v", result.Parent)
+	}
+	if len(result.Succeeded) != 2 || len(result.Failed) != 0 {
+		t.Fatalf("outcomes: succeeded=%v failed=%v", result.Succeeded, result.Failed)
+	}
+
+	for _, id := range []int64{t1.ID, t2.ID} {
+		_, b := doReq(t, e.app, e.authedReq(t, http.MethodGet,
+			fmt.Sprintf("/api/v1/tasks/%d", id), nil))
+		var got dto.TaskDTO
+		if err := json.Unmarshal(b, &got); err != nil {
+			t.Fatalf("parse child: %v", err)
+		}
+		if got.ParentID == nil || *got.ParentID != result.Parent.ID {
+			t.Errorf("child %d parentId: got %v, want %d", id, got.ParentID, result.Parent.ID)
+		}
+		if got.Priority != "high" {
+			t.Errorf("child %d priority: got %s, want high", id, got.Priority)
+		}
+		if len(got.Labels) != 1 || got.Labels[0].Name != "umbrella" {
+			t.Errorf("child %d labels: got %v, want [umbrella]", id, got.Labels)
+		}
+	}
+}
+
+func TestGroupTasks_RejectsInboxTarget(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	t1 := createTestTask(t, e, ctx.ID, "Task 1")
+
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		"/api/v1/tasks/group",
+		map[string]any{
+			"title":    "Wrap-up",
+			"inboxId":  2,
+			"childIds": []int64{t1.ID},
+		}))
+	if resp.StatusCode != 403 && resp.StatusCode != 422 {
+		t.Errorf("status: got %d, want 403 or 422", resp.StatusCode)
+	}
+}
+
+func TestGroupTasks_RejectsEmptyChildIDs(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		"/api/v1/tasks/group",
+		map[string]any{
+			"title":     "Wrap-up",
+			"contextId": ctx.ID,
+			"childIds":  []int64{},
+		}))
+	if resp.StatusCode != 400 {
+		t.Errorf("status: got %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestGroupTasks_PartialFailureRecorded(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	t1 := createTestTask(t, e, ctx.ID, "Task 1")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		"/api/v1/tasks/group",
+		map[string]any{
+			"title":     "Wrap-up",
+			"contextId": ctx.ID,
+			"childIds":  []int64{t1.ID, 99999},
+		}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("status: got %d; body: %s", resp.StatusCode, body)
+	}
+	var result groupResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(result.Succeeded) != 1 || result.Succeeded[0] != t1.ID {
+		t.Errorf("succeeded: got %v, want [%d]", result.Succeeded, t1.ID)
+	}
+	if len(result.Failed) != 1 || result.Failed[0].ID != 99999 {
+		t.Errorf("failed: got %v, want one for 99999", result.Failed)
+	}
+}

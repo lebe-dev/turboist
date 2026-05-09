@@ -68,11 +68,11 @@ func TestTroikiView_Empty(t *testing.T) {
 	if len(v.Important.Projects) != 0 {
 		t.Errorf("important projects: got %d, want 0", len(v.Important.Projects))
 	}
-	if v.Medium.Capacity != 0 {
-		t.Errorf("medium capacity: got %d, want 0", v.Medium.Capacity)
+	if v.Medium.Capacity != service.TroikiInitialFillCap {
+		t.Errorf("medium capacity: got %d, want %d (initial fill)", v.Medium.Capacity, service.TroikiInitialFillCap)
 	}
-	if v.Rest.Capacity != 0 {
-		t.Errorf("rest capacity: got %d, want 0", v.Rest.Capacity)
+	if v.Rest.Capacity != service.TroikiInitialFillCap {
+		t.Errorf("rest capacity: got %d, want %d (initial fill)", v.Rest.Capacity, service.TroikiInitialFillCap)
 	}
 	if v.Started {
 		t.Errorf("started: got true, want false on fresh user")
@@ -284,6 +284,11 @@ func TestTroikiView_AfterCompletion(t *testing.T) {
 	if code, body := setProjectTroiki(t, e, med.ID, "medium"); code != 200 {
 		t.Fatalf("set medium: %d; body: %s", code, body)
 	}
+	// Start the cycle so View reports the accumulated Medium capacity rather
+	// than the initial-fill cap.
+	if r, b := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/troiki/start", nil)); r.StatusCode != 200 {
+		t.Fatalf("start: %d; body: %s", r.StatusCode, b)
+	}
 
 	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/troiki", nil))
 	if resp.StatusCode != 200 {
@@ -298,6 +303,54 @@ func TestTroikiView_AfterCompletion(t *testing.T) {
 	}
 	if len(v.Medium.Projects) != 1 {
 		t.Errorf("medium projects: got %d, want 1", len(v.Medium.Projects))
+	}
+}
+
+func TestTroikiReset_ClearsAssignmentsAndCapacity(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	imp := createTestProject(t, e, ctx.ID, "imp")
+	if code, body := setProjectTroiki(t, e, imp.ID, "important"); code != 200 {
+		t.Fatalf("set important: %d; body: %s", code, body)
+	}
+	med := createTestProject(t, e, ctx.ID, "med")
+	if code, body := setProjectTroiki(t, e, med.ID, "medium"); code != 200 {
+		t.Fatalf("set medium: %d; body: %s", code, body)
+	}
+	if r, b := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/troiki/start", nil)); r.StatusCode != 200 {
+		t.Fatalf("start: %d; body: %s", r.StatusCode, b)
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/troiki/reset", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("reset: %d; body: %s", resp.StatusCode, body)
+	}
+	var v troikiViewResp
+	if err := json.Unmarshal(body, &v); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if v.Started {
+		t.Errorf("started: got true, want false")
+	}
+	// After Reset, Started=false → View reports the initial-fill cap.
+	if v.Medium.Capacity != service.TroikiInitialFillCap || v.Rest.Capacity != service.TroikiInitialFillCap {
+		t.Errorf("capacity: got medium=%d rest=%d, want %d/%d (initial fill)",
+			v.Medium.Capacity, v.Rest.Capacity, service.TroikiInitialFillCap, service.TroikiInitialFillCap)
+	}
+	if len(v.Important.Projects) != 0 || len(v.Medium.Projects) != 0 || len(v.Rest.Projects) != 0 {
+		t.Errorf("projects: got %d/%d/%d, want 0/0/0",
+			len(v.Important.Projects), len(v.Medium.Projects), len(v.Rest.Projects))
+	}
+}
+
+func TestTroikiReset_Idempotent(t *testing.T) {
+	e := setupAPIEnv(t)
+	for i := 0; i < 2; i++ {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/troiki/reset", nil))
+		if resp.StatusCode != 200 {
+			t.Fatalf("reset %d: %d; body: %s", i, resp.StatusCode, body)
+		}
 	}
 }
 

@@ -19,6 +19,7 @@ type Label struct {
 	Name        string
 	Color       string
 	IsFavourite bool
+	IsPrivate   bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -32,6 +33,7 @@ type Project struct {
 	Status         ProjectStatus
 	IsPinned       bool
 	PinnedAt       *time.Time
+	IsPrivate      bool
 	TroikiCategory *TroikiCategory
 	Labels         []Label
 	CreatedAt      time.Time
@@ -71,6 +73,8 @@ type Task struct {
 
 	IsPinned bool
 	PinnedAt *time.Time
+
+	IsPrivate bool
 
 	CompletedAt *time.Time
 

@@ -130,6 +130,29 @@ func TestTaskPatch_UpdateTitle(t *testing.T) {
 	}
 }
 
+func TestTaskPatch_IsPrivate(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, ctx.ID, "Secret task")
+	if task.IsPrivate {
+		t.Fatalf("created task should default to isPrivate=false")
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/tasks/%d", task.ID),
+		map[string]any{"isPrivate": true}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("patch: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !result.IsPrivate {
+		t.Errorf("isPrivate: got %v, want true", result.IsPrivate)
+	}
+}
+
 func TestTaskPatch_UpdatePriority(t *testing.T) {
 	e := setupAPIEnv(t)
 	ctx := createTestContext(t, e, "Work")

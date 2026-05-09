@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import InboxIcon from 'phosphor-svelte/lib/Tray';
+	import { t } from '$lib/i18n';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { getApiClient } from '$lib/api/client';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -36,12 +37,13 @@
 		const res = await tasksApi.inbox(getApiClient());
 		list.items = res.tasks;
 		inboxStatsStore.set(res.count, res.warnThresholdExceeded);
-	}, { errorMessage: 'Failed to load inbox' });
+	}, { errorMessage: $t('page.inbox.errorLoading') });
 
 	$effect(() => {
 		const handler = (e: Event) => {
-			const detail = (e as CustomEvent<{ task: Task; projectId: number | null }>).detail;
-			if (!detail || detail.projectId !== null) return;
+			const detail = (e as CustomEvent<{ task: Task }>).detail;
+			if (!detail?.task || detail.task.inboxId === null) return;
+			if (list.items.some((x) => x.id === detail.task.id)) return;
 			list.items = [...list.items, detail.task];
 			applyCount(inboxStatsStore.count + 1);
 		};
@@ -64,9 +66,9 @@
 			const created = await tasksApi.createInbox(getApiClient(), payload);
 			list.items = [...list.items, created];
 			applyCount(inboxStatsStore.count + 1);
-			toast.success('Cleanup task created for today');
+			toast.success($t('page.inbox.cleanupTaskCreated'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to create cleanup task'));
+			toast.error(describeError(err, $t('page.inbox.failedCreateCleanup')));
 		} finally {
 			creatingOverflow = false;
 		}
@@ -77,12 +79,14 @@
 <div class="px-2 py-2">
 	{#if inboxStatsStore.warnThresholdExceeded && configStore.value}
 		<p class="mt-3 mb-4 px-3 text-sm text-muted-foreground">
-			Inbox is over capacity ({inboxStatsStore.count}/{configStore.value.inbox.warnThreshold}). {#if overflowTask}<button
+			{$t('page.inbox.overCapacity', {
+				values: { count: inboxStatsStore.count, limit: configStore.value.inbox.warnThreshold }
+			})} {#if overflowTask}<button
 					type="button"
 					class="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
 					disabled={creatingOverflow}
 					onclick={createOverflowTask}
-				>Create «{overflowTask.title}» task for today</button>.
+				>{$t('page.inbox.createCleanupButton', { values: { title: overflowTask.title } })}</button>.
 			{/if}
 		</p>
 	{/if}
@@ -90,8 +94,8 @@
 		loading={loader.loading}
 		isEmpty={list.items.length === 0}
 		emptyIcon={InboxIcon}
-		emptyTitle="Inbox is empty"
-		emptyDescription="Tasks captured without a project land here. Press Q to add one."
+		emptyTitle={$t('page.inbox.emptyTitle')}
+		emptyDescription={$t('page.inbox.emptyDescription')}
 	>
 		<TaskTree
 			tasks={sortedTasks}

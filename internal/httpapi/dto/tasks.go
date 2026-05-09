@@ -23,6 +23,7 @@ type TaskDTO struct {
 	PlanState       string     `json:"planState"`
 	IsPinned        bool       `json:"isPinned"`
 	PinnedAt        *string    `json:"pinnedAt"`
+	IsPrivate       bool       `json:"isPrivate"`
 	CompletedAt     *string    `json:"completedAt"`
 	RecurrenceRule  *string    `json:"recurrenceRule"`
 	PostponeCount   int        `json:"postponeCount"`
@@ -56,6 +57,7 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		PlanState:       string(t.PlanState),
 		IsPinned:        t.IsPinned,
 		PinnedAt:        FormatTimePtr(t.PinnedAt),
+		IsPrivate:       t.IsPrivate,
 		CompletedAt:     FormatTimePtr(t.CompletedAt),
 		RecurrenceRule:  t.RecurrenceRule,
 		PostponeCount:   t.PostponeCount,
@@ -82,6 +84,30 @@ type CreateTaskRequest struct {
 	RemovedAutoLabels []string `json:"removedAutoLabels"`
 }
 
+// GroupTasksRequest is the body for POST /tasks/group: it creates a new parent
+// task in the given scope and re-parents the listed child tasks under it,
+// overwriting their labels and priority with the new parent's values.
+type GroupTasksRequest struct {
+	CreateTaskRequest
+	ProjectID *int64  `json:"projectId"`
+	SectionID *int64  `json:"sectionId"`
+	ContextID *int64  `json:"contextId"`
+	ChildIDs  []int64 `json:"childIds"`
+}
+
+// DecomposeTaskRequest is the body for POST /tasks/:id/decompose: replaces an
+// existing task with N sibling tasks created from the supplied titles. New
+// tasks inherit the original's placement, priority, due/deadline, labels,
+// description, day part, plan state, recurrence and privacy.
+type DecomposeTaskRequest struct {
+	Titles []string `json:"titles"`
+}
+
+// DecomposeTaskResponse is the body returned by POST /tasks/:id/decompose.
+type DecomposeTaskResponse struct {
+	Created []TaskDTO `json:"created"`
+}
+
 // PatchTaskRequest is the body for PATCH /tasks/:id.
 // Only editable fields are accepted; placement, status, and pin are managed via action endpoints.
 // Optional[string] distinguishes absent, null (clear), and set value.
@@ -98,4 +124,5 @@ type PatchTaskRequest struct {
 	RecurrenceRule    Optional[string] `json:"recurrenceRule"`
 	Labels            *[]string        `json:"labels"`
 	RemovedAutoLabels []string         `json:"removedAutoLabels"`
+	IsPrivate         *bool            `json:"isPrivate"`
 }

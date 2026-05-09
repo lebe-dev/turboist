@@ -17,6 +17,7 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { t } from '$lib/i18n';
 
 	const backlog = useListMutator<Task>();
 	const week = useListMutator<Task>();
@@ -44,7 +45,7 @@
 			backlog.items = backlogRes.items;
 			week.items = weekRes.items;
 		},
-		{ errorMessage: 'Failed to load planning view', autoLoad: false, initialLoading: true }
+		{ errorMessage: $t('page.nextWeek.errorLoading'), autoLoad: false, initialLoading: true }
 	);
 
 	$effect(() => {
@@ -54,7 +55,7 @@
 
 	async function planForWeek(task: Task): Promise<void> {
 		if (weekFull) {
-			toast.error(`Weekly limit reached (${weekCount}/${weeklyLimit})`);
+			toast.error($t('page.nextWeek.weeklyLimitReached', { values: { weekCount, weeklyLimit: weeklyLimit ?? 0 } }));
 			return;
 		}
 		try {
@@ -63,13 +64,13 @@
 			week.items = [updated, ...week.items];
 			void planStatsStore.load().catch(() => {});
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to plan task'));
+			toast.error(describeError(err, $t('page.nextWeek.failedPlan')));
 		}
 	}
 
 	async function returnToBacklog(task: Task): Promise<void> {
 		if (backlogFull) {
-			toast.error(`Backlog limit reached (${backlogCount}/${backlogLimit})`);
+			toast.error($t('page.nextWeek.backlogLimitReached', { values: { backlogCount, backlogLimit: backlogLimit ?? 0 } }));
 			return;
 		}
 		try {
@@ -78,7 +79,7 @@
 			backlog.items = [updated, ...backlog.items];
 			void planStatsStore.load().catch(() => {});
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to move to backlog'));
+			toast.error(describeError(err, $t('page.nextWeek.failedMove')));
 		}
 	}
 </script>
@@ -86,7 +87,7 @@
 <div class="grid grid-cols-1 gap-4 px-2 py-3 sm:grid-cols-2 sm:px-4">
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">
 		<PlanSectionHeader
-			title="Backlog"
+			title={$t('page.nextWeek.backlogTitle')}
 			count={backlogLimit !== null ? backlogCount : backlog.items.length}
 			limit={backlogLimit}
 		/>
@@ -95,8 +96,8 @@
 				loading={loader.loading}
 				isEmpty={backlog.items.length === 0}
 				emptyIcon={StackIcon}
-				emptyTitle="Backlog is empty"
-				emptyDescription="Park tasks here when they're not ready yet."
+				emptyTitle={$t('page.nextWeek.backlogEmptyTitle')}
+				emptyDescription={$t('page.nextWeek.backlogEmptyDesc')}
 			>
 				<div class="flex flex-col">
 					{#each backlog.items as task (task.id)}
@@ -113,10 +114,10 @@
 								type="button"
 								onclick={() => void planForWeek(task)}
 								disabled={weekFull}
-								aria-label="Plan for next week"
+								aria-label={$t('page.nextWeek.planForWeek')}
 								title={weekFull
-									? `Weekly limit reached (${weeklyLimit})`
-									: 'Plan for next week'}
+									? $t('page.nextWeek.weeklyLimitReachedShort', { values: { limit: weeklyLimit ?? 0 } })
+									: $t('page.nextWeek.planForWeek')}
 								class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 							>
 								<ArrowRightIcon class="size-4" weight="bold" />
@@ -130,7 +131,7 @@
 
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">
 		<PlanSectionHeader
-			title="Next week"
+			title={$t('page.nextWeek.nextWeekTitle')}
 			count={weeklyLimit !== null ? weekCount : null}
 			limit={weeklyLimit}
 		/>
@@ -139,8 +140,8 @@
 				loading={loader.loading}
 				isEmpty={week.items.length === 0}
 				emptyIcon={CalendarCheckIcon}
-				emptyTitle="Nothing planned"
-				emptyDescription="Move tasks here from the backlog with the arrow."
+				emptyTitle={$t('page.nextWeek.weekEmptyTitle')}
+				emptyDescription={$t('page.nextWeek.weekEmptyDesc')}
 			>
 				<div class="flex flex-col">
 					{#each week.items as task (task.id)}
@@ -149,10 +150,10 @@
 								type="button"
 								onclick={() => void returnToBacklog(task)}
 								disabled={backlogFull}
-								aria-label="Return to backlog"
+								aria-label={$t('page.nextWeek.returnToBacklog')}
 								title={backlogFull
-									? `Backlog limit reached (${backlogLimit})`
-									: 'Return to backlog'}
+									? $t('page.nextWeek.backlogLimitReachedShort', { values: { limit: backlogLimit ?? 0 } })
+									: $t('page.nextWeek.returnToBacklog')}
 								class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 							>
 								<ArrowLeftIcon class="size-4" weight="bold" />

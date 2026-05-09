@@ -5,42 +5,76 @@
 	import PlayIcon from 'phosphor-svelte/lib/Play';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import InfoIcon from 'phosphor-svelte/lib/Info';
+	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task, TaskInput, TroikiCategory, TroikiProject, TroikiSlot } from '$lib/api/types';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
+	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { describeError } from '$lib/utils/taskActions';
 	import { followUpStore } from '$lib/stores/followUp.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { t } from '$lib/i18n';
 	import type { ListMutator } from '$lib/utils/taskActions';
 
 	async function loadAll(): Promise<void> {
 		await troikiStore.load();
 	}
 
-	const loader = usePageLoad(loadAll, { errorMessage: 'Failed to load Troiki' });
+	const loader = usePageLoad(loadAll, { errorMessage: $t('troiki.toast.loadFailed') });
 
 	const view = $derived(troikiStore.value);
 
-	const sections: Array<{ key: TroikiCategory; label: string; description: string }> = [
-		{ key: 'important', label: 'Important', description: 'Top three projects that demand focus.' },
-		{ key: 'medium', label: 'Medium', description: 'Earned by completing Important tasks.' },
-		{ key: 'rest', label: 'Rest', description: 'Earned by completing Medium tasks.' }
+	const sections: Array<{ key: TroikiCategory; labelKey: string; descriptionKey: string }> = [
+		{
+			key: 'important',
+			labelKey: 'troiki.section.important',
+			descriptionKey: 'troiki.section.importantDescription'
+		},
+		{
+			key: 'medium',
+			labelKey: 'troiki.section.medium',
+			descriptionKey: 'troiki.section.mediumDescription'
+		},
+		{
+			key: 'rest',
+			labelKey: 'troiki.section.rest',
+			descriptionKey: 'troiki.section.restDescription'
+		}
 	];
 
+	function sortTasks(tasks: Task[]): Task[] {
+		return tasks
+			.map((t, i) => ({ t, i }))
+			.sort((a, b) => {
+				const ac = a.t.status === 'completed' ? 1 : 0;
+				const bc = b.t.status === 'completed' ? 1 : 0;
+				if (ac !== bc) return ac - bc;
+				return a.i - b.i;
+			})
+			.map(({ t }) => t);
+	}
+
 	function slotFor(key: TroikiCategory): TroikiSlot {
-		return view[key];
+		const slot = view[key];
+		const projects = (settingsStore.publicView
+			? slot.projects.filter((p) => !p.isPrivate)
+			: slot.projects
+		).map((p) => ({ ...p, tasks: sortTasks(p.tasks) }));
+		return { ...slot, projects };
 	}
 
 	function projectMutator(project: TroikiProject): ListMutator {
 		return {
-			replace(t: Task) {
-				troikiStore.applyTaskUpdate(t);
+			replace(task: Task) {
+				troikiStore.applyTaskUpdate(task);
 			},
 			remove(id: number) {
 				troikiStore.removeTask(id);
@@ -49,31 +83,34 @@
 		};
 	}
 
-	async function onTaskToggle(t: Task): Promise<void> {
+	async function onTaskToggle(task: Task): Promise<void> {
 		const client = getApiClient();
-		const wasOpen = t.status !== 'completed';
+		const wasOpen = task.status !== 'completed';
 		try {
 			const updated = wasOpen
-				? await tasksApi.complete(client, t.id)
-				: await tasksApi.uncomplete(client, t.id);
+				? await tasksApi.complete(client, task.id)
+				: await tasksApi.uncomplete(client, task.id);
 			// Completing a task can grow Medium/Rest capacity; refetch to get fresh slots.
-			if (updated.status === 'completed' || t.status === 'completed') {
+			if (updated.status === 'completed' || task.status === 'completed') {
 				await troikiStore.load();
 			} else {
 				troikiStore.applyTaskUpdate(updated);
 			}
 			if (wasOpen && updated.status === 'completed' && !updated.recurrenceRule) {
 				followUpStore.push(updated, async () => {
-					await tasksApi.uncomplete(client, t.id);
+					await tasksApi.uncomplete(client, task.id);
 					await troikiStore.load();
 				});
 			}
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to update task'));
+			toast.error(describeError(err, $t('troiki.toast.updateFailed')));
 		}
 	}
 
+	let howOpen = $state(false);
 	let starting = $state(false);
+	let resetting = $state(false);
+	let resetConfirmOpen = $state(false);
 	const canStart = $derived(!view.started && view.important.projects.length > 0);
 
 	let addOpen = $state(false);
@@ -86,23 +123,43 @@
 		addOpen = true;
 	}
 
+	function sectionLabel(category: TroikiCategory): string {
+		return $t(`troiki.section.${category}`);
+	}
+
 	async function onAddSubmit(
 		payload: TaskInput,
 		target: { projectId: number | null }
 	): Promise<void> {
 		if (target.projectId === null) {
-			toast.error('Pick a project in this Troiki section');
+			toast.error($t('troiki.toast.pickProject'));
 			return;
 		}
 		const client = getApiClient();
 		try {
 			await projectsApi.createTask(client, target.projectId, payload);
-			toast.success(`Task added to ${addCategory}`);
+			toast.success(
+				$t('troiki.toast.addedTo', { values: { section: sectionLabel(addCategory) } })
+			);
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to create task'));
+			toast.error(describeError(err, $t('troiki.toast.createFailed')));
 			return;
 		}
 		await troikiStore.load();
+	}
+
+	async function resetSystem(): Promise<void> {
+		if (resetting) return;
+		resetting = true;
+		try {
+			await troikiStore.reset();
+			await projectsStore.load();
+			toast.success($t('troiki.toast.reset'));
+		} catch (err) {
+			toast.error(describeError(err, $t('troiki.toast.resetFailed')));
+		} finally {
+			resetting = false;
+		}
 	}
 
 	async function startSystem(): Promise<void> {
@@ -110,9 +167,9 @@
 		starting = true;
 		try {
 			await troikiStore.start();
-			toast.success('Troiki started');
+			toast.success($t('troiki.toast.started'));
 		} catch (err) {
-			toast.error(describeError(err, 'Failed to start Troiki'));
+			toast.error(describeError(err, $t('troiki.toast.startFailed')));
 		} finally {
 			starting = false;
 		}
@@ -121,48 +178,48 @@
 
 <div class="px-2 py-2">
 	<div class="flex items-center justify-between px-3 pt-2 pb-4">
-		<h1 class="text-2xl font-bold tracking-tight">Troiki System</h1>
-		<HoverCard.Root>
+		<h1 class="text-2xl font-bold tracking-tight">{$t('topbar.troikiSystem')}</h1>
+		<HoverCard.Root bind:open={howOpen}>
 			<HoverCard.Trigger>
 				<button
 					type="button"
 					class="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-					aria-label="How Troiki works"
+					aria-label={$t('troiki.howAria')}
+					onclick={() => (howOpen = !howOpen)}
 				>
 					<InfoIcon class="size-3.5" />
-					How it works
+					{$t('troiki.howIt')}
 				</button>
 			</HoverCard.Trigger>
 			<HoverCard.Content align="end" class="w-96 text-xs/relaxed">
-				<p class="mb-2 font-semibold text-foreground">Troiki System Rules</p>
-				<p class="mb-2 text-muted-foreground">Three categories, max 3 projects each. Capacity in Medium and Rest is earned by completing tasks in the category above.</p>
+				<p class="mb-2 font-semibold text-foreground">{$t('troiki.rulesTitle')}</p>
+				<p class="mb-2 text-muted-foreground">{$t('troiki.rulesIntro')}</p>
 				<div class="mb-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
-					<span class="font-medium text-foreground">Important</span>
-					<span class="text-muted-foreground">Always available, up to 3 projects.</span>
-					<span class="font-medium text-foreground">Medium</span>
-					<span class="text-muted-foreground">+1 slot per completed task in Important.</span>
-					<span class="font-medium text-foreground">Rest</span>
-					<span class="text-muted-foreground">+1 slot per completed task in Medium.</span>
+					<span class="font-medium text-foreground">{$t('troiki.section.important')}</span>
+					<span class="text-muted-foreground">{$t('troiki.rules.importantHint')}</span>
+					<span class="font-medium text-foreground">{$t('troiki.section.medium')}</span>
+					<span class="text-muted-foreground">{$t('troiki.rules.mediumHint')}</span>
+					<span class="font-medium text-foreground">{$t('troiki.section.rest')}</span>
+					<span class="text-muted-foreground">{$t('troiki.rules.restHint')}</span>
 				</div>
 				<ul class="space-y-0.5 text-muted-foreground">
-					<li>• Removing a project frees its slot but does <em>not</em> unlock the next category.</li>
-					<li>• Earned capacity accumulates and never expires.</li>
-					<li>• Re-completing a task does not yield extra capacity.</li>
-					<li>• All tasks in an assigned project inherit the category priority.</li>
+					<li>• {$t('troiki.rules.bullet1')}</li>
+					<li>• {$t('troiki.rules.bullet2')}</li>
+					<li>• {$t('troiki.rules.bullet3')}</li>
+					<li>• {$t('troiki.rules.bullet4')}</li>
 				</ul>
 			</HoverCard.Content>
 		</HoverCard.Root>
 	</div>
 	{#if loader.loading}
-		<div class="px-4 py-8 text-sm text-muted-foreground">Loading…</div>
+		<div class="px-4 py-8 text-sm text-muted-foreground">{$t('app.loading')}</div>
 	{:else}
 		<header class="flex items-center justify-between px-3 pb-1">
 			<div class="text-xs text-muted-foreground">
 				{#if view.started}
-					Cycle in progress — Medium and Rest unlock as you complete the previous category.
+					{$t('troiki.cycleInProgress')}
 				{:else}
-					Initial fill — assign projects to Important, then optionally seed Medium and Rest. Press
-					Start to lock in the cycle.
+					{$t('troiki.initialFill')}
 				{/if}
 			</div>
 			{#if !view.started}
@@ -171,16 +228,25 @@
 					variant="default"
 					disabled={!canStart || starting}
 					onclick={startSystem}
-					title={canStart
-						? 'Start the Troiki cycle'
-						: 'Assign at least one project to Important first'}
+					title={canStart ? $t('troiki.startEnabled') : $t('troiki.startDisabled')}
 				>
 					<PlayIcon class="size-4" weight="fill" />
-					{starting ? 'Starting…' : 'Start the system'}
+					{starting ? $t('troiki.starting') : $t('troiki.start')}
+				</Button>
+			{:else}
+				<Button
+					size="sm"
+					variant="secondary"
+					disabled={resetting}
+					onclick={() => (resetConfirmOpen = true)}
+					title={$t('troiki.resetTitle')}
+				>
+					<ArrowCounterClockwiseIcon class="size-4" />
+					{resetting ? $t('troiki.resetting') : $t('troiki.reset')}
 				</Button>
 			{/if}
 		</header>
-		<div class="flex flex-col gap-6 py-2">
+		<div class="flex flex-col gap-10 py-2">
 			{#each sections as section (section.key)}
 				{@const slot = slotFor(section.key)}
 				{@const initialMode = !view.started && (section.key === 'medium' || section.key === 'rest')}
@@ -192,23 +258,23 @@
 					<header class="flex items-baseline justify-between px-3 pb-2">
 						<div class="flex items-center gap-2">
 							<h2 class="text-sm font-semibold uppercase tracking-wide text-foreground">
-								{section.label}
+								{$t(section.labelKey)}
 							</h2>
 							{#if locked}
 								<span
 									class="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] uppercase tracking-wide text-muted-foreground"
-									aria-label="Locked"
-									title="Locked — earn capacity by completing the previous category"
+									aria-label={$t('troiki.locked')}
+									title={$t('troiki.lockedTitle')}
 								>
 									<LockSimpleIcon class="size-3" />
-									<span>Locked</span>
+									<span>{$t('troiki.locked')}</span>
 								</span>
 							{:else if initialMode}
 								<span
 									class="rounded-full border border-dashed border-border bg-muted/20 px-2 py-0.5 text-[11px] uppercase tracking-wide text-muted-foreground"
-									title="Open during initial fill — capacity is locked in when you press Start"
+									title={$t('troiki.openInitialTitle')}
 								>
-									Open · {open}
+									{$t('troiki.openInitial', { values: { count: open } })}
 								</span>
 							{:else}
 								<span
@@ -219,7 +285,9 @@
 							{/if}
 						</div>
 						<div class="flex items-center gap-2">
-							<p class="hidden text-xs text-muted-foreground sm:block">{section.description}</p>
+							<p class="hidden text-xs text-muted-foreground sm:block">
+								{$t(section.descriptionKey)}
+							</p>
 						</div>
 					</header>
 
@@ -228,51 +296,55 @@
 							class="mx-3 rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-4 text-xs text-muted-foreground"
 						>
 							{#if section.key === 'medium'}
-								Complete an Important task to unlock a Medium slot.
+								{$t('troiki.unlockMedium')}
 							{:else}
-								Complete a Medium task to unlock a Rest slot.
+								{$t('troiki.unlockRest')}
 							{/if}
 						</div>
 					{:else if open === 0 && initialMode}
 						<div
 							class="mx-3 rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-xs text-muted-foreground"
 						>
-							Use the project actions menu (⋯ → Assign to Troiki) to assign projects to this
-							section before starting the cycle.
+							{$t('troiki.assignHint')}
 						</div>
 					{:else}
 						<div class="flex flex-col gap-3">
 							{#each slot.projects as project (project.id)}
-								<div class="rounded-md border border-border/60 bg-muted/10">
+								<div class="overflow-hidden rounded-md border border-border/60 bg-card">
 									<div
-										class="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2"
+										class="flex items-center justify-between gap-2 border-b border-border/40 bg-muted/50 px-3 py-2"
 									>
-										<div class="flex min-w-0 items-center gap-2">
-											<span
-												class="inline-block size-2.5 shrink-0 rounded-full"
-												style={`background-color: ${project.color}`}
-												aria-hidden="true"
-											></span>
-											<a
-												href={resolve(`/project/${project.id}`)}
-												class="truncate text-sm font-medium hover:underline"
-											>{project.title}</a>
-											<span
-												class="text-[11px] tabular-nums text-muted-foreground"
-												title="Open tasks in this project"
-											>
-												{project.tasks.filter((t) => t.status === 'open').length}
+										<div class="flex min-w-0 flex-col gap-0.5">
+											<span class="text-[10px] uppercase tracking-wide text-muted-foreground/70 leading-none">
+												{$t('troiki.projectLabel')}
 											</span>
+											<div class="flex min-w-0 items-center gap-2">
+												<span
+													class="inline-block size-2.5 shrink-0 rounded-full"
+													style={`background-color: ${project.color}`}
+													aria-hidden="true"
+												></span>
+												<a
+													href={resolve(`/project/${project.id}`)}
+													class="truncate text-base font-semibold hover:underline">{project.title}</a
+												>
+												<span
+													class="text-[11px] tabular-nums text-muted-foreground"
+													title={$t('troiki.openTasksTitle')}
+												>
+													{project.tasks.filter((tk) => tk.status === 'open').length}
+												</span>
+											</div>
 										</div>
 										<Button
 											size="sm"
 											variant="ghost"
 											class="h-7 px-2 text-xs"
 											onclick={() => openAdd(section.key, project.id)}
-											aria-label={`Add task to ${project.title}`}
+											aria-label={$t('troiki.addTaskAria', { values: { name: project.title } })}
 										>
 											<PlusIcon class="size-3.5" />
-											Add task
+											{$t('troiki.addTask')}
 										</Button>
 									</div>
 									{#if project.tasks.length > 0}
@@ -281,11 +353,11 @@
 											showProject={false}
 											hideDue
 											mutator={projectMutator(project)}
-											onToggle={(t) => void onTaskToggle(t)}
+											onToggle={(tk) => void onTaskToggle(tk)}
 										/>
 									{:else}
 										<div class="px-3 py-3 text-xs text-muted-foreground">
-											No tasks yet — add one to get started.
+											{$t('troiki.noTasks')}
 										</div>
 									{/if}
 								</div>
@@ -297,7 +369,7 @@
 									<span
 										class="inline-block size-3 shrink-0 rounded-full border border-dashed border-border/70"
 									></span>
-									<span>Empty slot — assign a project</span>
+									<span>{$t('troiki.emptySlot')}</span>
 								</div>
 							{/each}
 						</div>
@@ -308,8 +380,13 @@
 	{/if}
 </div>
 
-<QuickAddDialog
-	bind:open={addOpen}
-	defaultProjectId={addProjectId}
-	onSubmit={onAddSubmit}
+<QuickAddDialog bind:open={addOpen} defaultProjectId={addProjectId} onSubmit={onAddSubmit} />
+
+<ConfirmDestructiveDialog
+	bind:open={resetConfirmOpen}
+	title={$t('troiki.resetTitle')}
+	description={$t('troiki.resetDescription')}
+	confirmLabel={$t('troiki.resetConfirm')}
+	busyLabel={$t('troiki.resetting')}
+	onConfirm={resetSystem}
 />

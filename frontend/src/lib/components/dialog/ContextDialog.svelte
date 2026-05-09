@@ -11,6 +11,7 @@
 	import ColorPicker from './ColorPicker.svelte';
 	import { DEFAULT_COLOR } from './colorPalette';
 	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
+	import { t } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
@@ -47,7 +48,10 @@
 					? await contextsApi.update(client, initial.id, payload)
 					: await contextsApi.create(client, payload);
 			},
-			{ success: initial ? 'Context updated' : 'Context created', error: 'Failed to save context' }
+			{
+				success: initial ? $t('dialog.context.updated') : $t('dialog.context.created'),
+				error: $t('dialog.context.failedSave')
+			}
 		);
 		if (saved) {
 			contextsStore.upsert(saved);
@@ -60,31 +64,31 @@
 <Sheet.Root bind:open>
 	<Sheet.Content side="right" class="w-full sm:max-w-md">
 		<Sheet.Header>
-			<Sheet.Title>{initial ? 'Edit context' : 'New context'}</Sheet.Title>
-			<Sheet.Description>Group related projects under a context.</Sheet.Description>
+			<Sheet.Title>{initial ? $t('dialog.context.editTitle') : $t('dialog.context.newTitle')}</Sheet.Title>
+			<Sheet.Description>{$t('dialog.context.description')}</Sheet.Description>
 		</Sheet.Header>
 
 		<form class="flex flex-col gap-3 px-4 py-2" onsubmit={submit}>
 			<div class="flex flex-col gap-1">
-				<Label for="ctx-name">Name</Label>
-				<Input id="ctx-name" bind:value={name} placeholder="Personal" autofocus />
+				<Label for="ctx-name">{$t('common.name')}</Label>
+				<Input id="ctx-name" bind:value={name} placeholder={$t('dialog.context.namePlaceholder')} autofocus />
 			</div>
 
 			<div class="flex flex-col gap-1">
-				<Label>Color</Label>
+				<Label>{$t('common.color')}</Label>
 				<ColorPicker bind:value={color} />
 			</div>
 
 			<div class="flex items-center justify-between">
-				<Label for="ctx-fav">Favourite</Label>
+				<Label for="ctx-fav">{$t('common.favourite')}</Label>
 				<Switch id="ctx-fav" bind:checked={isFavourite} />
 			</div>
 
 			<Sheet.Footer class="px-0">
 				<Button type="submit" disabled={!name.trim() || form.submitting}>
-					{form.submitting ? 'Saving…' : initial ? 'Save' : 'Create'}
+					{form.submitting ? $t('common.saving') : initial ? $t('common.save') : $t('common.create')}
 				</Button>
-				<Sheet.Close>Cancel</Sheet.Close>
+				<Sheet.Close>{$t('common.cancel')}</Sheet.Close>
 			</Sheet.Footer>
 		</form>
 	</Sheet.Content>

@@ -22,13 +22,14 @@ func NewProjectRepo(db *sql.DB, labels *ProjectLabelsRepo) *ProjectRepo {
 
 func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	var p model.Project
-	var pinned int
+	var pinned, priv int
 	var pinnedAt, troikiCategory sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &pinned, &pinnedAt, &troikiCategory, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &pinned, &pinnedAt, &priv, &troikiCategory, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	p.IsPinned = pinned == 1
+	p.IsPrivate = priv == 1
 	if pinnedAt.Valid {
 		t, err := model.ParseUTC(pinnedAt.String)
 		if err != nil {
@@ -53,7 +54,7 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	return &p, nil
 }
 
-const projectColumns = `id, context_id, title, description, color, status, is_pinned, pinned_at, troiki_category, created_at, updated_at`
+const projectColumns = `id, context_id, title, description, color, status, is_pinned, pinned_at, is_private, troiki_category, created_at, updated_at`
 
 type CreateProject struct {
 	ContextID   int64
@@ -168,6 +169,7 @@ type ProjectUpdate struct {
 	Description *string
 	Color       *string
 	ContextID   *int64
+	IsPrivate   *bool
 
 	TroikiCategory      *model.TroikiCategory
 	TroikiCategoryClear bool
@@ -191,6 +193,14 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 	if u.ContextID != nil {
 		sets = append(sets, "context_id = ?")
 		args = append(args, *u.ContextID)
+	}
+	if u.IsPrivate != nil {
+		sets = append(sets, "is_private = ?")
+		pv := 0
+		if *u.IsPrivate {
+			pv = 1
+		}
+		args = append(args, pv)
 	}
 	if u.TroikiCategoryClear {
 		sets = append(sets, "troiki_category = NULL")
@@ -269,6 +279,19 @@ func (r *ProjectRepo) SetPinned(ctx context.Context, id int64, pinned bool) erro
 	}
 	if n == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+// ClearAllTroikiCategories unassigns every project from its Troiki category in
+// a single UPDATE. Used by Troiki Reset.
+func (r *ProjectRepo) ClearAllTroikiCategories(ctx context.Context) error {
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE projects SET troiki_category = NULL, updated_at = ? WHERE troiki_category IS NOT NULL`,
+		now)
+	if err != nil {
+		return fmt.Errorf("clear all troiki categories: %w", err)
 	}
 	return nil
 }
@@ -397,7 +420,7 @@ func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page)
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status,
-		        p.is_pinned, p.pinned_at, p.troiki_category, p.created_at, p.updated_at
+		        p.is_pinned, p.pinned_at, p.is_private, p.troiki_category, p.created_at, p.updated_at
 		 FROM projects p
 		 JOIN project_labels pl ON pl.project_id = p.id
 		 WHERE pl.label_id = ?
