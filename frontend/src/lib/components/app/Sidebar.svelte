@@ -85,6 +85,7 @@
 			current: planStatsStore.value?.week,
 			limit: weekLimit
 		},
+		{ href: resolve('/projects'), label: $t('nav.projects'), icon: FolderIcon },
 		{ href: resolve('/completed'), label: $t('nav.completed'), icon: CheckCircleIcon }
 	]);
 
@@ -112,7 +113,9 @@
 		const active = userStateStore.activeContextId;
 		const all = projectsStore.items ?? [];
 		const scoped = active == null ? all : all.filter((p) => p.contextId === active);
-		const visible = scoped.filter((p) => isProjectVisible(p, settingsStore.publicView));
+		const visible = scoped.filter(
+			(p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView)
+		);
 		return [...visible].sort((a, b) => {
 			const ta = a.troikiCategory;
 			const tb = b.troikiCategory;
@@ -134,7 +137,9 @@
 	);
 
 	const sidebarPinnedProjects = $derived(
-		projectsStore.pinned.filter((p) => isProjectVisible(p, settingsStore.publicView))
+		projectsStore.pinned.filter(
+			(p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView)
+		)
 	);
 	const sidebarPinnedTasks = $derived(
 		pinnedTasksStore.items.filter((task) => {

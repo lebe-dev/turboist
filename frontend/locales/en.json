@@ -461,6 +461,15 @@
 			"emptyDescription": "Tasks you complete will show up here, grouped by day.",
 			"errorLoading": "Failed to load completed"
 		},
+		"projects": {
+			"title": "Projects",
+			"filterAll": "All",
+			"filterArchived": "Archived",
+			"filterCancelled": "Cancelled",
+			"filterCompleted": "Completed",
+			"emptyTitle": "No projects",
+			"emptyDescription": "Projects matching the selected filter will appear here."
+		},
 		"search": {
 			"searchFailed": "Search failed",
 			"placeholder": "Type at least 2 characters…",

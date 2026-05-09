@@ -461,6 +461,15 @@
 			"emptyDescription": "Завершённые задачи появятся здесь, сгруппированные по дням.",
 			"errorLoading": "Не удалось загрузить завершённые"
 		},
+		"projects": {
+			"title": "Проекты",
+			"filterAll": "Все",
+			"filterArchived": "В архиве",
+			"filterCancelled": "Отменённые",
+			"filterCompleted": "Завершённые",
+			"emptyTitle": "Проектов нет",
+			"emptyDescription": "Проекты, подходящие под выбранный фильтр, появятся здесь."
+		},
 		"search": {
 			"searchFailed": "Поиск не выполнен",
 			"placeholder": "Введите минимум 2 символа…",
