@@ -40,6 +40,17 @@ func NewCompleteServiceWithLoc(tasks *repo.TaskRepo, projects *repo.ProjectRepo,
 }
 
 func (s *CompleteService) Complete(ctx context.Context, taskID int64) (*model.Task, error) {
+	return s.completeAt(ctx, taskID, nil)
+}
+
+// CompleteAt marks a task completed with an explicit completion timestamp.
+// Recurring tasks ignore the override (recurrence advance is always anchored to
+// the current moment) — pass a nil time on those.
+func (s *CompleteService) CompleteAt(ctx context.Context, taskID int64, completedAt time.Time) (*model.Task, error) {
+	return s.completeAt(ctx, taskID, &completedAt)
+}
+
+func (s *CompleteService) completeAt(ctx context.Context, taskID int64, completedAt *time.Time) (*model.Task, error) {
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
 		return nil, err
@@ -54,7 +65,7 @@ func (s *CompleteService) Complete(ctx context.Context, taskID int64) (*model.Ta
 	// it's a no-op when capacity was already granted.
 	if t.Status != model.TaskStatusCompleted {
 		status := model.TaskStatusCompleted
-		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
+		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status, CompletedAt: completedAt})
 		if err != nil {
 			return nil, err
 		}

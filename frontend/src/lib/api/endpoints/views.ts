@@ -18,6 +18,10 @@ export const views = {
 		return client.fetch('/api/v1/tasks/tomorrow', { query });
 	},
 
+	overdue(client: ApiClient, query: ViewPageQuery = {}): Promise<ViewList<Task>> {
+		return client.fetch('/api/v1/tasks/overdue', { query });
+	},
+
 	completedToday(client: ApiClient, query: ViewPageQuery = {}): Promise<ViewList<Task>> {
 		return client.fetch('/api/v1/tasks/completed', { query });
 	},

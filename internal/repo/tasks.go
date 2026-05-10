@@ -243,6 +243,7 @@ type TaskUpdate struct {
 	RecurrenceRule  *string
 	RecurrenceClear bool
 	Status          *model.TaskStatus
+	CompletedAt     *time.Time
 
 	IsPrivate *bool
 
@@ -309,8 +310,12 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 		sets = append(sets, "status = ?")
 		args = append(args, string(*u.Status))
 		if *u.Status == model.TaskStatusCompleted {
+			completedAt := time.Now()
+			if u.CompletedAt != nil {
+				completedAt = *u.CompletedAt
+			}
 			sets = append(sets, "completed_at = ?")
-			args = append(args, model.FormatUTC(time.Now()))
+			args = append(args, model.FormatUTC(completedAt))
 		} else {
 			sets = append(sets, "completed_at = NULL")
 		}

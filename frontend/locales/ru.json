@@ -148,6 +148,13 @@
 		"addTask": "Добавить задачу",
 		"markComplete": "Отметить выполненной",
 		"markIncomplete": "Снять отметку",
+		"completeOverdue": {
+			"title": "Завершить просроченную задачу",
+			"description": "Каким днём отметить выполнение?",
+			"today": "Сегодня (сейчас)",
+			"yesterday": "Вчера",
+			"onDueDate": "В день дедлайна ({date})"
+		},
 		"postponedTimes": "Откладывалась {count} раз(а)",
 		"inTroikiTitle": "В системе Тройки",
 		"recurringLabel": "Повторяющаяся задача",
@@ -411,7 +418,8 @@
 		"today": {
 			"emptyTitle": "На сегодня ничего нет",
 			"emptyDescription": "На сегодня задач не запланировано. Наслаждайтесь спокойствием.",
-			"errorLoading": "Не удалось загрузить раздел «Сегодня»"
+			"errorLoading": "Не удалось загрузить раздел «Сегодня»",
+			"overdueTitle": "Просрочено"
 		},
 		"tomorrow": {
 			"emptyTitle": "На завтра ничего нет",

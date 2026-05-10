@@ -23,7 +23,11 @@ export const tasks = {
 		return client.fetch(`/api/v1/tasks/${id}`, { method: 'DELETE' });
 	},
 
-	complete: (client: ApiClient, id: number) => action(client, id, 'complete'),
+	complete: (client: ApiClient, id: number, completedAt?: string) =>
+		client.fetch<Task>(`/api/v1/tasks/${id}/complete`, {
+			method: 'POST',
+			body: completedAt ? { completedAt } : undefined
+		}),
 	uncomplete: (client: ApiClient, id: number) => action(client, id, 'uncomplete'),
 	cancel: (client: ApiClient, id: number) => action(client, id, 'cancel'),
 	pin: (client: ApiClient, id: number) => action(client, id, 'pin'),
