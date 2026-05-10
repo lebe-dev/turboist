@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -49,12 +50,39 @@ func (h *TaskActionHandler) Register(r fiber.Router) {
 	r.Post("/tasks/:id/plan", h.plan)
 }
 
+// CompleteRequest is the optional body for POST /tasks/:id/complete. When
+// completedAt is provided, the task is marked completed with that timestamp
+// instead of the server's current time. Used by the "complete overdue task"
+// flow on the Today page so users can record the actual completion day.
+type CompleteRequest struct {
+	CompletedAt *string `json:"completedAt"`
+}
+
 func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 	id, err := parseID(c)
 	if err != nil {
 		return err
 	}
-	t, err := h.completeSvc.Complete(c.Context(), id)
+	var completedAt *time.Time
+	if len(c.Body()) > 0 {
+		var req CompleteRequest
+		if err := c.Bind().JSON(&req); err != nil {
+			return httpapi.ErrValidation("invalid request body")
+		}
+		if req.CompletedAt != nil && *req.CompletedAt != "" {
+			ts, err := time.Parse(time.RFC3339Nano, *req.CompletedAt)
+			if err != nil {
+				return httpapi.ErrValidation("invalid completedAt timestamp")
+			}
+			completedAt = &ts
+		}
+	}
+	var t *model.Task
+	if completedAt != nil {
+		t, err = h.completeSvc.CompleteAt(c.Context(), id, *completedAt)
+	} else {
+		t, err = h.completeSvc.Complete(c.Context(), id)
+	}
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")

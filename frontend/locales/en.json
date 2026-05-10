@@ -148,6 +148,13 @@
 		"addTask": "Add task",
 		"markComplete": "Mark complete",
 		"markIncomplete": "Mark incomplete",
+		"completeOverdue": {
+			"title": "Mark overdue task complete",
+			"description": "When was this task actually finished?",
+			"today": "Today (now)",
+			"yesterday": "Yesterday",
+			"onDueDate": "On due date ({date})"
+		},
 		"postponedTimes": "Postponed {count} times",
 		"inTroikiTitle": "In Troiki system",
 		"recurringLabel": "Recurring task",
@@ -411,7 +418,8 @@
 		"today": {
 			"emptyTitle": "Nothing for today",
 			"emptyDescription": "No tasks are scheduled for today. Enjoy the calm.",
-			"errorLoading": "Failed to load today"
+			"errorLoading": "Failed to load today",
+			"overdueTitle": "Overdue"
 		},
 		"tomorrow": {
 			"emptyTitle": "Nothing for tomorrow",

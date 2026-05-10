@@ -5,6 +5,8 @@ import { ApiError } from '$lib/api/errors';
 import { planStatsStore } from '$lib/stores/planStats.svelte';
 import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 import { followUpStore } from '$lib/stores/followUp.svelte';
+import { configStore } from '$lib/stores/config.svelte';
+import { isOverdue, dayStartUtcInTz, dayKeyInTz, toIsoUtc } from '$lib/utils/format';
 import { toast } from 'svelte-sonner';
 import { get } from 'svelte/store';
 import { t } from '$lib/i18n';
@@ -37,6 +39,9 @@ export interface ToggleCompleteOptions {
 	// their due_at advanced, which can move them out of date-bound views like
 	// Today/Tomorrow/Overdue.
 	belongs?: (task: Task) => boolean;
+	// Override completion timestamp (ISO UTC). Used when completing an overdue
+	// task to record the actual completion day chosen by the user.
+	completedAt?: string;
 }
 
 export async function toggleComplete(
@@ -44,12 +49,12 @@ export async function toggleComplete(
 	mutator: ListMutator,
 	options: ToggleCompleteOptions = {}
 ): Promise<void> {
-	const { removeWhenCompleted = true, belongs } = options;
+	const { removeWhenCompleted = true, belongs, completedAt } = options;
 	const client = getApiClient();
 	const wasOpen = task.status !== 'completed';
 	try {
 		const updated = wasOpen
-			? await tasksApi.complete(client, task.id)
+			? await tasksApi.complete(client, task.id, completedAt)
 			: await tasksApi.uncomplete(client, task.id);
 		if (updated.status === 'completed' && removeWhenCompleted) mutator.remove(task.id);
 		else if (updated.status !== 'completed' && belongs && !belongs(updated)) mutator.remove(task.id);
@@ -114,6 +119,18 @@ export async function updateTaskFields(
 	options: BelongsOption = {}
 ): Promise<void> {
 	const client = getApiClient();
+	const tz = configStore.value?.timezone ?? null;
+	// Changing the day-part of an overdue task implies the user wants to act on
+	// it today, so reschedule its due_at to the current day instead of leaving
+	// it stuck in the past.
+	if (patch.dayPart !== undefined && patch.dueAt === undefined && isOverdue(task.dueAt, tz)) {
+		const todayKey = dayKeyInTz(new Date(), tz);
+		patch = {
+			...patch,
+			dueAt: toIsoUtc(dayStartUtcInTz(todayKey, tz)),
+			dueHasTime: false
+		};
+	}
 	try {
 		const updated = await tasksApi.update(client, task.id, patch);
 		applyUpdate(updated, mutator, options.belongs);
