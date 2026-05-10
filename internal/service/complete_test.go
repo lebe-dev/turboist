@@ -122,6 +122,51 @@ func TestCompleteService_Recurring_AdvancesDueAt(t *testing.T) {
 	}
 }
 
+func TestCompleteService_Recurring_RecordsHistorySnapshot(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	rruleStr := "FREQ=DAILY;INTERVAL=1"
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Daily task",
+		DueAt:          &due,
+		RecurrenceRule: &rruleStr,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if _, err := f.svc.Complete(ctx, task.ID); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+
+	start := time.Now().Add(-time.Hour)
+	end := time.Now().Add(time.Hour)
+	items, total, err := f.tasks.ListCompletedInRange(ctx, start, end, repo.TaskFilter{}, repo.Page{Limit: 50})
+	if err != nil {
+		t.Fatalf("list completed: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("completed total: got %d, want 1", total)
+	}
+	snap := items[0]
+	if snap.ID == task.ID {
+		t.Errorf("snapshot id: got %d, want a fresh row (parent task should stay open)", snap.ID)
+	}
+	if snap.Title != task.Title {
+		t.Errorf("snapshot title: got %q, want %q", snap.Title, task.Title)
+	}
+	if snap.RecurrenceRule != nil {
+		t.Errorf("snapshot recurrence: got %v, want nil", snap.RecurrenceRule)
+	}
+	if snap.Status != model.TaskStatusCompleted {
+		t.Errorf("snapshot status: got %q, want completed", snap.Status)
+	}
+}
+
 func TestCompleteService_Recurring_CountExhausted(t *testing.T) {
 	f := setupCompleteService(t)
 	ctx := context.Background()

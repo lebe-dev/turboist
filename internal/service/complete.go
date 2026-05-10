@@ -56,7 +56,7 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 		return nil, err
 	}
 	if t.RecurrenceRule != nil {
-		return s.advanceRecurring(ctx, t)
+		return s.advanceRecurring(ctx, t, completedAt)
 	}
 	// Always attempt the capacity bump even when the task is already completed:
 	// if a previous Complete crashed between Update and bumpTroikiCapacity, the
@@ -77,7 +77,7 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 	return t, nil
 }
 
-func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task) (*model.Task, error) {
+func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, completedAt *time.Time) (*model.Task, error) {
 	r, err := rrule.StrToRRule(*t.RecurrenceRule)
 	if err != nil {
 		return nil, &RecurrenceError{Err: err}
@@ -99,12 +99,25 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task) (
 	if terminal {
 		status := model.TaskStatusCompleted
 		upd.Status = &status
+		upd.CompletedAt = completedAt
 	} else {
 		upd.DueAt = &next
 	}
 	updated, err := s.tasks.Update(ctx, t.ID, upd)
 	if err != nil {
 		return nil, err
+	}
+	// For non-terminal completions the parent task stays open (advanced to the
+	// next occurrence), so the completed view would never show this run. Snap
+	// off a completed history row so the user can see what they got done.
+	if !terminal {
+		ts := time.Now()
+		if completedAt != nil {
+			ts = *completedAt
+		}
+		if _, err := s.tasks.CreateRecurrenceCompletion(ctx, t, ts); err != nil {
+			return nil, err
+		}
 	}
 	if terminal {
 		if err := s.bumpTroikiCapacity(ctx, t); err != nil {

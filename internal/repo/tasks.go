@@ -209,6 +209,47 @@ func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, erro
 	return r.Get(ctx, id)
 }
 
+// CreateRecurrenceCompletion inserts a completed snapshot of a recurring task
+// to record an individual completion event. The snapshot copies placement and
+// descriptive fields (title, description, project/section/context, parent,
+// priority, day-part, labels) and is marked completed with the supplied
+// timestamp; recurrence is dropped so it doesn't recurse, and pin/plan state
+// are reset since the snapshot is purely a history entry.
+func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.Task, completedAt time.Time) (*model.Task, error) {
+	now := model.FormatUTC(time.Now())
+	completedStr := model.FormatUTC(completedAt)
+	res, err := r.db.ExecContext(ctx,
+		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
+			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
+			day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule,
+			completed_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'completed', NULL, 0, NULL, 0, ?, 'none', 0, NULL, ?, NULL, ?, ?, ?)`,
+		base.Title, base.Description,
+		nullInt(base.InboxID), nullInt(base.ContextID), nullInt(base.ProjectID), nullInt(base.SectionID),
+		string(base.Priority),
+		string(base.DayPart),
+		boolInt(base.IsPrivate),
+		completedStr, now, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("insert recurrence completion: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	if r.labels != nil && len(base.Labels) > 0 {
+		labelIDs := make([]int64, 0, len(base.Labels))
+		for _, l := range base.Labels {
+			labelIDs = append(labelIDs, l.ID)
+		}
+		if err := r.labels.SetForTask(ctx, id, labelIDs); err != nil {
+			return nil, fmt.Errorf("copy labels for recurrence completion: %w", err)
+		}
+	}
+	return r.Get(ctx, id)
+}
+
 func (r *TaskRepo) Get(ctx context.Context, id int64) (*model.Task, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)
 	t, err := scanTask(row)
