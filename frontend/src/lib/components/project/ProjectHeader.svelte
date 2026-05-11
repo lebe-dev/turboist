@@ -18,6 +18,7 @@
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
 	import BugIcon from 'phosphor-svelte/lib/Bug';
 	import PencilSimpleIcon from 'phosphor-svelte/lib/PencilSimple';
+	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { t } from '$lib/i18n';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
@@ -103,7 +104,7 @@
 </script>
 
 <header class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
-	<div class="flex items-start justify-between gap-3">
+	<div class="flex items-center justify-between gap-3">
 		<div class="flex min-w-0 items-center gap-2">
 			<Button
 				variant="ghost"
@@ -121,6 +122,11 @@
 				aria-hidden="true"
 			></span>
 			<h1 class="truncate text-xl font-semibold">{project.title}</h1>
+			{#if project.troikiCategory}
+				<span class="inline-flex" title={$t('task.inTroikiTitle')}>
+					<TroikiTriggerIcon class="size-3.5 text-muted-foreground/50" />
+				</span>
+			{/if}
 			{#if project.isPrivate && !settingsStore.publicView}
 				<span
 					class="inline-flex"

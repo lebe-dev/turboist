@@ -85,7 +85,8 @@
 	const showTroikiBadge = $derived(
 		!!project?.troikiCategory &&
 			page.url.pathname !== '/troiki' &&
-			!page.url.pathname.startsWith('/task/')
+			!page.url.pathname.startsWith('/task/') &&
+			!page.url.pathname.startsWith('/project/')
 	);
 	const showCalendarSlash = $derived(
 		showUnplannedBadge &&
