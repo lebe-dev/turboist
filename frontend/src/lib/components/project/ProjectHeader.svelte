@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
@@ -92,11 +95,26 @@
 		archived: 'project.statusArchived',
 		cancelled: 'project.statusCancelled'
 	};
+
+	function back(): void {
+		if (history.length > 1) history.back();
+		else void goto(resolve('/inbox'));
+	}
 </script>
 
 <header class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
 	<div class="flex items-start justify-between gap-3">
 		<div class="flex min-w-0 items-center gap-2">
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={back}
+				aria-label={$t('common.back')}
+				title={$t('common.back')}
+				class="size-7 shrink-0 p-0"
+			>
+				<ArrowLeftIcon class="size-4" />
+			</Button>
 			<span
 				class="inline-block size-3 shrink-0 rounded-full"
 				style={`background-color: ${project.color}`}

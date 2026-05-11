@@ -408,7 +408,7 @@ async function save(): Promise<void> {
 					}}
 					class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none"
 				>
-					<MarkdownText text={title} />
+					<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />
 				</div>
 			{:else}
 				<textarea
