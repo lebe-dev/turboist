@@ -7,6 +7,7 @@ type CreateProjectRequest struct {
 	Description string   `json:"description"`
 	Color       string   `json:"color"`
 	Labels      []string `json:"labels"`
+	ProjectType string   `json:"projectType"`
 }
 
 type PatchProjectRequest struct {
@@ -15,6 +16,7 @@ type PatchProjectRequest struct {
 	Color       *string   `json:"color"`
 	Labels      *[]string `json:"labels"`
 	IsPrivate   *bool     `json:"isPrivate"`
+	ProjectType *string   `json:"projectType"`
 }
 
 type ProjectDTO struct {
@@ -24,6 +26,7 @@ type ProjectDTO struct {
 	Description    string     `json:"description"`
 	Color          string     `json:"color"`
 	Status         string     `json:"status"`
+	ProjectType    string     `json:"projectType"`
 	IsPinned       bool       `json:"isPinned"`
 	PinnedAt       *string    `json:"pinnedAt"`
 	IsPrivate      bool       `json:"isPrivate"`
@@ -43,6 +46,10 @@ func ProjectFromModel(p model.Project) ProjectDTO {
 		s := string(*p.TroikiCategory)
 		troikiCat = &s
 	}
+	pt := p.Type
+	if pt == "" {
+		pt = model.ProjectTypeGeneric
+	}
 	return ProjectDTO{
 		ID:             p.ID,
 		ContextID:      p.ContextID,
@@ -50,6 +57,7 @@ func ProjectFromModel(p model.Project) ProjectDTO {
 		Description:    p.Description,
 		Color:          p.Color,
 		Status:         string(p.Status),
+		ProjectType:    string(pt),
 		IsPinned:       p.IsPinned,
 		PinnedAt:       FormatTimePtr(p.PinnedAt),
 		IsPrivate:      p.IsPrivate,

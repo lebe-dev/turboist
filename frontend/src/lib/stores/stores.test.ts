@@ -25,6 +25,7 @@ function makeProject(over: Partial<Project> = {}): Project {
 		description: '',
 		color: '#fff',
 		status: 'open',
+		projectType: 'generic',
 		isPinned: false,
 		pinnedAt: null,
 		isPrivate: false,

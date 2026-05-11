@@ -83,8 +83,14 @@
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
+			"project": "Project",
 			"privacy": "Privacy",
 			"session": "Session"
+		},
+		"project": {
+			"bugLabelsHeading": "Bug labels",
+			"bugLabelsDescription": "Labels applied automatically when filing a bug from a Software project.",
+			"bugLabelsEmpty": "No labels yet. Create labels first to configure bug filing."
 		},
 		"theme": {
 			"heading": "Theme",
@@ -271,6 +277,9 @@
 			"contextLabel": "Context",
 			"pickContext": "Pick context",
 			"pickContextError": "Pick a context",
+			"typeLabel": "Project type",
+			"typeGeneric": "Generic",
+			"typeSoftware": "Software",
 			"updated": "Project updated",
 			"created": "Project created",
 			"failedSave": "Failed to save project"
@@ -335,6 +344,8 @@
 		"assignToTroiki": "Assign to Troiki",
 		"removeFromTroiki": "Remove from Troiki",
 		"actionsAriaLabel": "Project actions",
+		"createBugAriaLabel": "File a bug",
+		"bugLabelsNotConfigured": "Configure at least one bug label in Settings → Project.",
 		"statusOpen": "Open",
 		"statusCompleted": "Completed",
 		"statusArchived": "Archived",

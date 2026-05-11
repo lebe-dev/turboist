@@ -5,6 +5,7 @@ import { setLocale, type SupportedLocale } from '../i18n';
 
 const EMPTY: UserSettings = {
 	weeklyUnplannedExcludedLabelIds: [],
+	bugLabelIds: [],
 	locale: '',
 	publicView: false,
 	bannerText: '',
@@ -22,6 +23,10 @@ class SettingsStore {
 
 	get weeklyUnplannedExcludedLabelIds(): number[] {
 		return this.value.weeklyUnplannedExcludedLabelIds ?? [];
+	}
+
+	get bugLabelIds(): number[] {
+		return this.value.bugLabelIds ?? [];
 	}
 
 	get locale(): string {
@@ -43,6 +48,11 @@ class SettingsStore {
 	async setWeeklyUnplannedExcludedLabelIds(ids: number[]): Promise<void> {
 		this.value = { ...this.value, weeklyUnplannedExcludedLabelIds: ids };
 		await settingsApi.patch(getApiClient(), { weeklyUnplannedExcludedLabelIds: ids });
+	}
+
+	async setBugLabelIds(ids: number[]): Promise<void> {
+		this.value = { ...this.value, bugLabelIds: ids };
+		await settingsApi.patch(getApiClient(), { bugLabelIds: ids });
 	}
 
 	async setLocale(loc: SupportedLocale): Promise<void> {

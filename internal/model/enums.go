@@ -33,6 +33,21 @@ func (s TaskStatus) IsValid() bool {
 	return false
 }
 
+type ProjectType string
+
+const (
+	ProjectTypeGeneric  ProjectType = "generic"
+	ProjectTypeSoftware ProjectType = "software"
+)
+
+func (t ProjectType) IsValid() bool {
+	switch t {
+	case ProjectTypeGeneric, ProjectTypeSoftware:
+		return true
+	}
+	return false
+}
+
 type ProjectStatus string
 
 const (

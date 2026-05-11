@@ -49,6 +49,15 @@
 	let sectionQuickAddOpen = $state(false);
 	let sectionQuickAddTarget = $state<ProjectSection | null>(null);
 	let rootQuickAddOpen = $state(false);
+	let bugQuickAddOpen = $state(false);
+
+	function onCreateBug(): void {
+		if (settingsStore.bugLabelIds.length === 0) {
+			toast.error($t('project.bugLabelsNotConfigured'));
+			return;
+		}
+		bugQuickAddOpen = true;
+	}
 
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
@@ -362,6 +371,7 @@
 		onDelete={() => (confirmDeleteOpen = true)}
 		onSetTroiki={setTroiki}
 		onTogglePrivate={togglePrivate}
+		{onCreateBug}
 	/>
 
 	<div class="px-2">
@@ -444,6 +454,12 @@
 	<QuickAddDialog
 		bind:open={rootQuickAddOpen}
 		defaultProjectId={projectId}
+		onSubmit={onRootTaskSubmit}
+	/>
+	<QuickAddDialog
+		bind:open={bugQuickAddOpen}
+		defaultProjectId={projectId}
+		defaultLabelIds={settingsStore.bugLabelIds}
 		onSubmit={onRootTaskSubmit}
 	/>
 	<ProjectDialog

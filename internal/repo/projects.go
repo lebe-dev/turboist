@@ -25,7 +25,7 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	var pinned, priv int
 	var pinnedAt, troikiCategory sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &pinned, &pinnedAt, &priv, &troikiCategory, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &p.Type, &pinned, &pinnedAt, &priv, &troikiCategory, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	p.IsPinned = pinned == 1
@@ -54,21 +54,26 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	return &p, nil
 }
 
-const projectColumns = `id, context_id, title, description, color, status, is_pinned, pinned_at, is_private, troiki_category, created_at, updated_at`
+const projectColumns = `id, context_id, title, description, color, status, project_type, is_pinned, pinned_at, is_private, troiki_category, created_at, updated_at`
 
 type CreateProject struct {
 	ContextID   int64
 	Title       string
 	Description string
 	Color       string
+	Type        model.ProjectType
 }
 
 func (r *ProjectRepo) Create(ctx context.Context, in CreateProject) (*model.Project, error) {
 	now := model.FormatUTC(time.Now())
+	pt := in.Type
+	if pt == "" {
+		pt = model.ProjectTypeGeneric
+	}
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO projects (context_id, title, description, color, status, is_pinned, pinned_at, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, 'open', 0, NULL, ?, ?)`,
-		in.ContextID, in.Title, in.Description, in.Color, now, now)
+		`INSERT INTO projects (context_id, title, description, color, status, project_type, is_pinned, pinned_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 'open', ?, 0, NULL, ?, ?)`,
+		in.ContextID, in.Title, in.Description, in.Color, string(pt), now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, ErrConflict
@@ -170,6 +175,7 @@ type ProjectUpdate struct {
 	Color       *string
 	ContextID   *int64
 	IsPrivate   *bool
+	Type        *model.ProjectType
 
 	TroikiCategory      *model.TroikiCategory
 	TroikiCategoryClear bool
@@ -201,6 +207,10 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 			pv = 1
 		}
 		args = append(args, pv)
+	}
+	if u.Type != nil {
+		sets = append(sets, "project_type = ?")
+		args = append(args, string(*u.Type))
 	}
 	if u.TroikiCategoryClear {
 		sets = append(sets, "troiki_category = NULL")
@@ -419,7 +429,7 @@ func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page)
 		return nil, 0, fmt.Errorf("count projects by label: %w", err)
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status,
+		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status, p.project_type,
 		        p.is_pinned, p.pinned_at, p.is_private, p.troiki_category, p.created_at, p.updated_at
 		 FROM projects p
 		 JOIN project_labels pl ON pl.project_id = p.id

@@ -79,6 +79,12 @@
 		settingsStore.setWeeklyUnplannedExcludedLabelIds(next).catch(console.error);
 	}
 
+	function toggleBugLabel(id: number) {
+		const current = settingsStore.bugLabelIds;
+		const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+		settingsStore.setBugLabelIds(next).catch(console.error);
+	}
+
 	async function setPublicView(v: boolean): Promise<void> {
 		try {
 			await settingsStore.setPublicView(v);
@@ -154,6 +160,7 @@
 		<Tabs.List variant="line">
 			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
+			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
 			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
 			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
 		</Tabs.List>
@@ -272,6 +279,40 @@
 									{label.name}
 								</span>
 								{#if excluded}
+									<CheckIcon class="size-4 text-foreground/50" weight="bold" />
+								{/if}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="project">
+			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+				<div class="flex flex-col gap-0.5">
+					<h2 class="text-sm font-semibold">{$t('settings.project.bugLabelsHeading')}</h2>
+					<p class="text-xs text-muted-foreground">{$t('settings.project.bugLabelsDescription')}</p>
+				</div>
+				{#if labelsStore.items.length === 0}
+					<p class="text-sm text-muted-foreground">{$t('settings.project.bugLabelsEmpty')}</p>
+				{:else}
+					<div class="flex flex-col gap-1">
+						{#each labelsStore.items as label (label.id)}
+							{@const active = settingsStore.bugLabelIds.includes(label.id)}
+							<button
+								type="button"
+								onclick={() => toggleBugLabel(label.id)}
+								class="flex items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+								class:bg-muted={active}
+								aria-pressed={active}
+							>
+								<span
+									class="inline-flex items-center rounded-full bg-accent/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+								>
+									{label.name}
+								</span>
+								{#if active}
 									<CheckIcon class="size-4 text-foreground/50" weight="bold" />
 								{/if}
 							</button>

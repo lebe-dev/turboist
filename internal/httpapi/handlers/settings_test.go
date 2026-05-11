@@ -298,6 +298,119 @@ func TestSettingsHandler_PatchBannerPublishedPreservesText(t *testing.T) {
 	}
 }
 
+func TestSettingsHandler_GetDefaultBugLabelIds(t *testing.T) {
+	env := setupAPIEnv(t)
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	ids, ok := body["bugLabelIds"]
+	if !ok {
+		t.Fatal("missing bugLabelIds")
+	}
+	slice, ok := ids.([]any)
+	if !ok {
+		t.Fatalf("bugLabelIds: got %T, want []any", ids)
+	}
+	if len(slice) != 0 {
+		t.Errorf("bugLabelIds: got %v, want []", slice)
+	}
+}
+
+func TestSettingsHandler_PatchBugLabelIds(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bugLabelIds": []int{42, 7},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	ids, _ := body["bugLabelIds"].([]any)
+	if len(ids) != 2 {
+		t.Fatalf("bugLabelIds: got %v, want [42 7]", ids)
+	}
+}
+
+func TestSettingsHandler_PatchBugLabelIdsPreservesOtherFields(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale": "ru",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bugLabelIds": []int{1, 2, 3},
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if loc, _ := body["locale"].(string); loc != "ru" {
+		t.Errorf("locale: got %q, want %q", loc, "ru")
+	}
+	ids, _ := body["bugLabelIds"].([]any)
+	if len(ids) != 3 {
+		t.Errorf("bugLabelIds: got %v, want 3 entries", ids)
+	}
+}
+
+func TestSettingsHandler_PatchBugLabelIdsClear(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bugLabelIds": []int{5, 6},
+	})); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bugLabelIds": []int{},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	ids, _ := body["bugLabelIds"].([]any)
+	if len(ids) != 0 {
+		t.Fatalf("bugLabelIds: got %v, want []", ids)
+	}
+}
+
 func TestSettingsHandler_PatchClear(t *testing.T) {
 	env := setupAPIEnv(t)
 

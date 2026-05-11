@@ -83,8 +83,14 @@
 		"tabs": {
 			"general": "Общие",
 			"labels": "Метки",
+			"project": "Проект",
 			"privacy": "Приватность",
 			"session": "Сессия"
+		},
+		"project": {
+			"bugLabelsHeading": "Метки для багов",
+			"bugLabelsDescription": "Метки, которые автоматически подставляются при создании бага в проекте типа Software.",
+			"bugLabelsEmpty": "Сначала создайте метки, чтобы настроить оформление багов."
 		},
 		"theme": {
 			"heading": "Тема",
@@ -271,6 +277,9 @@
 			"contextLabel": "Контекст",
 			"pickContext": "Выберите контекст",
 			"pickContextError": "Выберите контекст",
+			"typeLabel": "Тип проекта",
+			"typeGeneric": "Generic",
+			"typeSoftware": "Software",
 			"updated": "Проект обновлён",
 			"created": "Проект создан",
 			"failedSave": "Не удалось сохранить проект"
@@ -335,6 +344,8 @@
 		"assignToTroiki": "Назначить в Тройку",
 		"removeFromTroiki": "Удалить из Тройки",
 		"actionsAriaLabel": "Действия с проектом",
+		"createBugAriaLabel": "Оформить баг",
+		"bugLabelsNotConfigured": "Настройте хотя бы одну метку для багов в разделе Настройки → Проект.",
 		"statusOpen": "Открыт",
 		"statusCompleted": "Завершён",
 		"statusArchived": "В архиве",

@@ -108,12 +108,18 @@ func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettin
 	if s.WeeklyUnplannedExcludedLabelIDs == nil {
 		s.WeeklyUnplannedExcludedLabelIDs = []int64{}
 	}
+	if s.BugLabelIDs == nil {
+		s.BugLabelIDs = []int64{}
+	}
 	return &s, nil
 }
 
 func (r *UserRepo) SetSettings(ctx context.Context, id int64, s *model.UserSettings) error {
 	if s.WeeklyUnplannedExcludedLabelIDs == nil {
 		s.WeeklyUnplannedExcludedLabelIDs = []int64{}
+	}
+	if s.BugLabelIDs == nil {
+		s.BugLabelIDs = []int64{}
 	}
 	raw, err := json.Marshal(s)
 	if err != nil {

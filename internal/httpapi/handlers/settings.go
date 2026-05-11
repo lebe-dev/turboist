@@ -26,6 +26,7 @@ func (h *SettingsHandler) Register(r fiber.Router) {
 
 type settingsResp struct {
 	WeeklyUnplannedExcludedLabelIDs []int64 `json:"weeklyUnplannedExcludedLabelIds"`
+	BugLabelIDs                     []int64 `json:"bugLabelIds"`
 	Locale                          string  `json:"locale"`
 	PublicView                      bool    `json:"publicView"`
 	BannerText                      string  `json:"bannerText"`
@@ -34,6 +35,7 @@ type settingsResp struct {
 
 type settingsPatchReq struct {
 	WeeklyUnplannedExcludedLabelIDs *[]int64 `json:"weeklyUnplannedExcludedLabelIds"`
+	BugLabelIDs                     *[]int64 `json:"bugLabelIds"`
 	Locale                          *string  `json:"locale"`
 	PublicView                      *bool    `json:"publicView"`
 	BannerText                      *string  `json:"bannerText"`
@@ -53,8 +55,13 @@ func toResp(s *model.UserSettings) settingsResp {
 	if ids == nil {
 		ids = []int64{}
 	}
+	bugIDs := s.BugLabelIDs
+	if bugIDs == nil {
+		bugIDs = []int64{}
+	}
 	return settingsResp{
 		WeeklyUnplannedExcludedLabelIDs: ids,
+		BugLabelIDs:                     bugIDs,
 		Locale:                          s.Locale,
 		PublicView:                      s.PublicView,
 		BannerText:                      s.BannerText,
@@ -94,6 +101,9 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	if req.WeeklyUnplannedExcludedLabelIDs != nil {
 		current.WeeklyUnplannedExcludedLabelIDs = *req.WeeklyUnplannedExcludedLabelIDs
+	}
+	if req.BugLabelIDs != nil {
+		current.BugLabelIDs = *req.BugLabelIDs
 	}
 	if req.Locale != nil {
 		current.Locale = *req.Locale
