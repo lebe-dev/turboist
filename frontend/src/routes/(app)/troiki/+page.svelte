@@ -15,9 +15,11 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { splitByRootCompletion } from '$lib/utils/taskTree';
 	import { describeError } from '$lib/utils/taskActions';
 	import { followUpStore } from '$lib/stores/followUp.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -50,24 +52,11 @@
 		}
 	];
 
-	function sortTasks(tasks: Task[]): Task[] {
-		return tasks
-			.map((t, i) => ({ t, i }))
-			.sort((a, b) => {
-				const ac = a.t.status === 'completed' ? 1 : 0;
-				const bc = b.t.status === 'completed' ? 1 : 0;
-				if (ac !== bc) return ac - bc;
-				return a.i - b.i;
-			})
-			.map(({ t }) => t);
-	}
-
 	function slotFor(key: TroikiCategory): TroikiSlot {
 		const slot = view[key];
-		const projects = (settingsStore.publicView
+		const projects = settingsStore.publicView
 			? slot.projects.filter((p) => !p.isPrivate)
-			: slot.projects
-		).map((p) => ({ ...p, tasks: sortTasks(p.tasks) }));
+			: slot.projects;
 		return { ...slot, projects };
 	}
 
@@ -79,6 +68,9 @@
 			remove(id: number) {
 				troikiStore.removeTask(id);
 				void project;
+			},
+			insertAfter(id: number, task: Task) {
+				troikiStore.insertTaskAfter(id, task);
 			}
 		};
 	}
@@ -348,13 +340,29 @@
 										</Button>
 									</div>
 									{#if project.tasks.length > 0}
-										<TaskTree
-											tasks={project.tasks}
-											showProject={false}
-											hideDue
-											mutator={projectMutator(project)}
-											onToggle={(tk) => void onTaskToggle(tk)}
-										/>
+										{@const split = splitByRootCompletion(project.tasks)}
+										{#if split.open.length > 0}
+											<TaskTree
+												tasks={split.open}
+												showProject={false}
+												hideDue
+												mutator={projectMutator(project)}
+												onToggle={(tk) => void onTaskToggle(tk)}
+											/>
+										{/if}
+										{#if split.done.length > 0}
+											<CompletedTasksGroup
+												tasks={split.done}
+												draggable={false}
+												mutator={projectMutator(project)}
+												onToggle={(tk) => void onTaskToggle(tk)}
+											/>
+										{/if}
+										{#if split.open.length === 0 && split.done.length === 0}
+											<div class="px-3 py-3 text-xs text-muted-foreground">
+												{$t('troiki.noTasks')}
+											</div>
+										{/if}
 									{:else}
 										<div class="px-3 py-3 text-xs text-muted-foreground">
 											{$t('troiki.noTasks')}

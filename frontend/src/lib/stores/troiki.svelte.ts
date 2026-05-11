@@ -109,6 +109,36 @@ class TroikiStore {
 		this.value = next;
 	}
 
+	// insertTaskAfter adds a task into its owning Troiki project right after
+	// the given reference task. Used by duplicate flow so the new task shows
+	// up without a full refetch. If the reference is not found within the
+	// project, the task is appended to the end.
+	insertTaskAfter(referenceId: number, task: Task): void {
+		if (task.projectId === null) return;
+		const next = clone(this.value);
+		for (const cat of CATEGORIES) {
+			const slot = slotOf(next, cat);
+			const idx = slot.projects.findIndex((p) => p.id === task.projectId);
+			if (idx === -1) continue;
+			const target = slot.projects[idx];
+			if (target.tasks.some((t) => t.id === task.id)) {
+				this.value = next;
+				return;
+			}
+			const refIdx = target.tasks.findIndex((t) => t.id === referenceId);
+			const insertAt = refIdx === -1 ? target.tasks.length : refIdx + 1;
+			const tasks = [
+				...target.tasks.slice(0, insertAt),
+				task,
+				...target.tasks.slice(insertAt)
+			];
+			slot.projects[idx] = { ...target, tasks };
+			this.value = next;
+			return;
+		}
+		this.value = next;
+	}
+
 	removeTask(id: number): void {
 		const next = clone(this.value);
 		for (const cat of CATEGORIES) {

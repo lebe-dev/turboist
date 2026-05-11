@@ -83,7 +83,9 @@
 	const description = $derived(task.description?.trim() ?? '');
 	const isRecurring = $derived(!!task.recurrenceRule);
 	const showTroikiBadge = $derived(
-		!!project?.troikiCategory && page.url.pathname !== '/troiki'
+		!!project?.troikiCategory &&
+			page.url.pathname !== '/troiki' &&
+			!page.url.pathname.startsWith('/task/')
 	);
 	const showCalendarSlash = $derived(
 		showUnplannedBadge &&
