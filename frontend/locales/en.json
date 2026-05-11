@@ -400,6 +400,8 @@
 		"openTasksTitle": "Open tasks in this project",
 		"addTaskAria": "Add task to {name}",
 		"addTask": "Add task",
+		"collapseProject": "Collapse {name}",
+		"expandProject": "Expand {name}",
 		"noTasks": "No tasks yet — add one to get started.",
 		"emptySlot": "Empty slot — assign a project",
 		"projectLabel": "project",

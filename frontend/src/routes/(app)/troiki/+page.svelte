@@ -6,6 +6,9 @@
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import InfoIcon from 'phosphor-svelte/lib/Info';
 	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
+	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
+	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
+	import { SvelteSet } from 'svelte/reactivity';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
@@ -108,6 +111,42 @@
 	let addOpen = $state(false);
 	let addCategory = $state<TroikiCategory>('important');
 	let addProjectId = $state<number | null>(null);
+
+	const COLLAPSED_STORAGE_KEY = 'troiki:collapsed-projects';
+
+	function readCollapsed(): SvelteSet<number> {
+		const set = new SvelteSet<number>();
+		if (typeof localStorage === 'undefined') return set;
+		try {
+			const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+			if (!raw) return set;
+			const parsed: unknown = JSON.parse(raw);
+			if (!Array.isArray(parsed)) return set;
+			for (const v of parsed) {
+				if (typeof v === 'number') set.add(v);
+			}
+			return set;
+		} catch {
+			return set;
+		}
+	}
+
+	const collapsed = readCollapsed();
+
+	function persistCollapsed(): void {
+		if (typeof localStorage === 'undefined') return;
+		try {
+			localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsed]));
+		} catch {
+			// ignore
+		}
+	}
+
+	function toggleCollapsed(projectId: number): void {
+		if (collapsed.has(projectId)) collapsed.delete(projectId);
+		else collapsed.add(projectId);
+		persistCollapsed();
+	}
 
 	function openAdd(category: TroikiCategory, projectId: number): void {
 		addCategory = category;
@@ -302,11 +341,28 @@
 					{:else}
 						<div class="flex flex-col gap-3">
 							{#each slot.projects as project (project.id)}
+								{@const isCollapsed = collapsed.has(project.id)}
 								<div class="overflow-hidden rounded-md border border-border/60 bg-card">
 									<div
 										class="flex items-center justify-between gap-2 border-b border-border/40 bg-muted/50 px-3 py-2"
+										class:border-b-0={isCollapsed}
 									>
-										<div class="flex min-w-0 flex-col gap-0.5">
+										<button
+											type="button"
+											class="-ml-1 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+											onclick={() => toggleCollapsed(project.id)}
+											aria-expanded={!isCollapsed}
+											aria-label={isCollapsed
+												? $t('troiki.expandProject', { values: { name: project.title } })
+												: $t('troiki.collapseProject', { values: { name: project.title } })}
+										>
+											{#if isCollapsed}
+												<CaretRightIcon class="size-3.5" />
+											{:else}
+												<CaretDownIcon class="size-3.5" />
+											{/if}
+										</button>
+										<div class="flex min-w-0 flex-1 flex-col gap-0.5">
 											<span class="text-[10px] uppercase tracking-wide text-muted-foreground/70 leading-none">
 												{$t('troiki.projectLabel')}
 											</span>
@@ -346,34 +402,36 @@
 											{$t('troiki.addTask')}
 										</Button>
 									</div>
-									{#if project.tasks.length > 0}
-										{@const split = splitByRootCompletion(project.tasks)}
-										{#if split.open.length > 0}
-											<TaskTree
-												tasks={split.open}
-												showProject={false}
-												hideDue
-												mutator={projectMutator(project)}
-												onToggle={(tk) => void onTaskToggle(tk)}
-											/>
-										{/if}
-										{#if split.done.length > 0}
-											<CompletedTasksGroup
-												tasks={split.done}
-												draggable={false}
-												mutator={projectMutator(project)}
-												onToggle={(tk) => void onTaskToggle(tk)}
-											/>
-										{/if}
-										{#if split.open.length === 0 && split.done.length === 0}
+									{#if !isCollapsed}
+										{#if project.tasks.length > 0}
+											{@const split = splitByRootCompletion(project.tasks)}
+											{#if split.open.length > 0}
+												<TaskTree
+													tasks={split.open}
+													showProject={false}
+													hideDue
+													mutator={projectMutator(project)}
+													onToggle={(tk) => void onTaskToggle(tk)}
+												/>
+											{/if}
+											{#if split.done.length > 0}
+												<CompletedTasksGroup
+													tasks={split.done}
+													draggable={false}
+													mutator={projectMutator(project)}
+													onToggle={(tk) => void onTaskToggle(tk)}
+												/>
+											{/if}
+											{#if split.open.length === 0 && split.done.length === 0}
+												<div class="px-3 py-3 text-xs text-muted-foreground">
+													{$t('troiki.noTasks')}
+												</div>
+											{/if}
+										{:else}
 											<div class="px-3 py-3 text-xs text-muted-foreground">
 												{$t('troiki.noTasks')}
 											</div>
 										{/if}
-									{:else}
-										<div class="px-3 py-3 text-xs text-muted-foreground">
-											{$t('troiki.noTasks')}
-										</div>
 									{/if}
 								</div>
 							{/each}

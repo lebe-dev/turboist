@@ -400,6 +400,8 @@
 		"openTasksTitle": "Открытые задачи в этом проекте",
 		"addTaskAria": "Добавить задачу в {name}",
 		"addTask": "Добавить задачу",
+		"collapseProject": "Свернуть {name}",
+		"expandProject": "Развернуть {name}",
 		"noTasks": "Задач пока нет — добавьте одну, чтобы начать.",
 		"emptySlot": "Пустой слот — назначьте проект",
 		"projectLabel": "проект",
