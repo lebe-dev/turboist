@@ -89,6 +89,46 @@
 		}
 	}
 
+	let bannerDraft = $state(settingsStore.bannerText);
+
+	const URL_RE = /^https?:\/\/\S+$/i;
+
+	function onBannerPaste(e: ClipboardEvent): void {
+		const url = e.clipboardData?.getData('text').trim() ?? '';
+		if (!URL_RE.test(url)) return;
+		const target = e.currentTarget as HTMLTextAreaElement;
+		const start = target.selectionStart ?? bannerDraft.length;
+		const end = target.selectionEnd ?? start;
+		e.preventDefault();
+		const label = bannerDraft.slice(start, end) || url;
+		const insert = `[${label}](${url})`;
+		bannerDraft = bannerDraft.slice(0, start) + insert + bannerDraft.slice(end);
+		const cursor = start + insert.length;
+		queueMicrotask(() => target.setSelectionRange(cursor, cursor));
+	}
+
+	async function saveBannerText(): Promise<void> {
+		if (bannerDraft === settingsStore.bannerText) return;
+		try {
+			await settingsStore.setBannerText(bannerDraft);
+			toast.success($t('settings.banner.toastSaved'));
+		} catch (err) {
+			bannerDraft = settingsStore.bannerText;
+			const message = err instanceof Error ? err.message : $t('settings.banner.toastFailed');
+			toast.error(message);
+		}
+	}
+
+	async function setBannerPublished(v: boolean): Promise<void> {
+		try {
+			await settingsStore.setBannerPublished(v);
+			toast.success($t('settings.banner.toastSaved'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.banner.toastFailed');
+			toast.error(message);
+		}
+	}
+
 	async function selectLocale(loc: SupportedLocale): Promise<void> {
 		if (loc === currentLocale || localeBusy !== null) return;
 		localeBusy = loc;
@@ -173,6 +213,31 @@
 					{/each}
 				</div>
 			</section>
+			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+				<div class="flex items-start justify-between gap-3">
+					<div class="flex flex-col gap-0.5">
+						<h2 class="text-sm font-semibold">{$t('settings.banner.heading')}</h2>
+						<p class="text-xs text-muted-foreground">{$t('settings.banner.description')}</p>
+					</div>
+					<Switch
+						checked={settingsStore.bannerPublished}
+						onCheckedChange={setBannerPublished}
+						aria-label={$t('settings.banner.publishLabel')}
+					/>
+				</div>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs font-medium text-muted-foreground">{$t('settings.banner.textLabel')}</span>
+					<textarea
+						bind:value={bannerDraft}
+						onblur={saveBannerText}
+						onpaste={onBannerPaste}
+						placeholder={$t('settings.banner.textPlaceholder')}
+						rows="3"
+						class="resize-y rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+					></textarea>
+				</label>
+			</section>
+
 			<section class="flex items-center justify-between rounded-lg border border-border bg-card px-5 py-4 shadow-sm">
 				<div class="flex flex-col gap-0.5">
 					<h2 class="text-sm font-semibold">{$t('settings.version.heading')}</h2>

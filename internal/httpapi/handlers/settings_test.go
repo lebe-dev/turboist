@@ -237,6 +237,67 @@ func TestSettingsHandler_PatchPublicViewPreservesOtherFields(t *testing.T) {
 	}
 }
 
+func TestSettingsHandler_PatchBanner(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bannerText":      "Heads up: maintenance on Friday.",
+		"bannerPublished": true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if txt, _ := body["bannerText"].(string); txt != "Heads up: maintenance on Friday." {
+		t.Errorf("bannerText: got %q, want %q", txt, "Heads up: maintenance on Friday.")
+	}
+	if pub, _ := body["bannerPublished"].(bool); !pub {
+		t.Errorf("bannerPublished: got %v, want true", body["bannerPublished"])
+	}
+}
+
+func TestSettingsHandler_PatchBannerPublishedPreservesText(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bannerText":      "Keep me around",
+		"bannerPublished": true,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bannerPublished": false,
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if txt, _ := body["bannerText"].(string); txt != "Keep me around" {
+		t.Errorf("bannerText: got %q, want %q", txt, "Keep me around")
+	}
+	if pub, _ := body["bannerPublished"].(bool); pub {
+		t.Errorf("bannerPublished: got %v, want false", body["bannerPublished"])
+	}
+}
+
 func TestSettingsHandler_PatchClear(t *testing.T) {
 	env := setupAPIEnv(t)
 

@@ -28,12 +28,16 @@ type settingsResp struct {
 	WeeklyUnplannedExcludedLabelIDs []int64 `json:"weeklyUnplannedExcludedLabelIds"`
 	Locale                          string  `json:"locale"`
 	PublicView                      bool    `json:"publicView"`
+	BannerText                      string  `json:"bannerText"`
+	BannerPublished                 bool    `json:"bannerPublished"`
 }
 
 type settingsPatchReq struct {
 	WeeklyUnplannedExcludedLabelIDs *[]int64 `json:"weeklyUnplannedExcludedLabelIds"`
 	Locale                          *string  `json:"locale"`
 	PublicView                      *bool    `json:"publicView"`
+	BannerText                      *string  `json:"bannerText"`
+	BannerPublished                 *bool    `json:"bannerPublished"`
 }
 
 // supportedLocales is the whitelist accepted by PATCH /settings. Empty string
@@ -49,7 +53,13 @@ func toResp(s *model.UserSettings) settingsResp {
 	if ids == nil {
 		ids = []int64{}
 	}
-	return settingsResp{WeeklyUnplannedExcludedLabelIDs: ids, Locale: s.Locale, PublicView: s.PublicView}
+	return settingsResp{
+		WeeklyUnplannedExcludedLabelIDs: ids,
+		Locale:                          s.Locale,
+		PublicView:                      s.PublicView,
+		BannerText:                      s.BannerText,
+		BannerPublished:                 s.BannerPublished,
+	}
 }
 
 func (h *SettingsHandler) get(c fiber.Ctx) error {
@@ -90,6 +100,12 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	if req.PublicView != nil {
 		current.PublicView = *req.PublicView
+	}
+	if req.BannerText != nil {
+		current.BannerText = *req.BannerText
+	}
+	if req.BannerPublished != nil {
+		current.BannerPublished = *req.BannerPublished
 	}
 	if err := h.users.SetSettings(c.Context(), claims.UserID, current); err != nil {
 		return httpapi.ErrInternal("save settings")

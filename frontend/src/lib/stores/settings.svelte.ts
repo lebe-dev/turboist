@@ -3,7 +3,13 @@ import { getApiClient } from '../api/client';
 import type { UserSettings } from '../api/types';
 import { setLocale, type SupportedLocale } from '../i18n';
 
-const EMPTY: UserSettings = { weeklyUnplannedExcludedLabelIds: [], locale: '', publicView: false };
+const EMPTY: UserSettings = {
+	weeklyUnplannedExcludedLabelIds: [],
+	locale: '',
+	publicView: false,
+	bannerText: '',
+	bannerPublished: false
+};
 
 class SettingsStore {
 	value = $state<UserSettings>({ ...EMPTY });
@@ -26,6 +32,14 @@ class SettingsStore {
 		return this.value.publicView ?? false;
 	}
 
+	get bannerText(): string {
+		return this.value.bannerText ?? '';
+	}
+
+	get bannerPublished(): boolean {
+		return this.value.bannerPublished ?? false;
+	}
+
 	async setWeeklyUnplannedExcludedLabelIds(ids: number[]): Promise<void> {
 		this.value = { ...this.value, weeklyUnplannedExcludedLabelIds: ids };
 		await settingsApi.patch(getApiClient(), { weeklyUnplannedExcludedLabelIds: ids });
@@ -40,6 +54,16 @@ class SettingsStore {
 	async setPublicView(v: boolean): Promise<void> {
 		this.value = { ...this.value, publicView: v };
 		await settingsApi.patch(getApiClient(), { publicView: v });
+	}
+
+	async setBannerText(text: string): Promise<void> {
+		this.value = { ...this.value, bannerText: text };
+		await settingsApi.patch(getApiClient(), { bannerText: text });
+	}
+
+	async setBannerPublished(v: boolean): Promise<void> {
+		this.value = { ...this.value, bannerPublished: v };
+		await settingsApi.patch(getApiClient(), { bannerPublished: v });
 	}
 
 	clear(): void {

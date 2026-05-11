@@ -128,6 +128,15 @@
 			"hintAria": "About Public view",
 			"updated": "Public view updated",
 			"updateFailed": "Failed to update Public view"
+		},
+		"banner": {
+			"heading": "Today banner",
+			"description": "Show a message pinned at the top of the Today page. Markdown links like [text](https://example.com) are supported.",
+			"textLabel": "Message",
+			"textPlaceholder": "Type the announcement…",
+			"publishLabel": "Show",
+			"toastSaved": "Banner updated",
+			"toastFailed": "Failed to update banner"
 		}
 	},
 	"auth": {

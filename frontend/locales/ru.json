@@ -128,6 +128,15 @@
 			"hintAria": "О режиме Public view",
 			"updated": "Public view обновлён",
 			"updateFailed": "Не удалось обновить Public view"
+		},
+		"banner": {
+			"heading": "Баннер на странице Today",
+			"description": "Показать сообщение, закреплённое сверху страницы Today. Поддерживаются markdown-ссылки вида [текст](https://example.com).",
+			"textLabel": "Текст",
+			"textPlaceholder": "Введите объявление…",
+			"publishLabel": "Показать",
+			"toastSaved": "Баннер обновлён",
+			"toastFailed": "Не удалось обновить баннер"
 		}
 	},
 	"auth": {

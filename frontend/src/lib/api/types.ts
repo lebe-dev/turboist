@@ -165,6 +165,8 @@ export interface UserSettings {
 	weeklyUnplannedExcludedLabelIds: number[];
 	locale: string;
 	publicView: boolean;
+	bannerText: string;
+	bannerPublished: boolean;
 }
 
 export interface ConfigResponse {
