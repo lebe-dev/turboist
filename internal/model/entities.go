@@ -31,6 +31,7 @@ type Project struct {
 	Description    string
 	Color          string
 	Status         ProjectStatus
+	Type           ProjectType
 	IsPinned       bool
 	PinnedAt       *time.Time
 	IsPrivate      bool

@@ -3,6 +3,7 @@
 export type Priority = 'high' | 'medium' | 'low' | 'no-priority';
 export type TaskStatus = 'open' | 'completed' | 'cancelled';
 export type ProjectStatus = 'open' | 'completed' | 'archived' | 'cancelled';
+export type ProjectType = 'generic' | 'software';
 export type DayPart = 'none' | 'morning' | 'afternoon' | 'evening';
 export type PlanState = 'none' | 'week' | 'backlog';
 export type ClientKind = 'web' | 'ios' | 'cli';
@@ -57,6 +58,7 @@ export interface Project {
 	description: string;
 	color: ColorToken;
 	status: ProjectStatus;
+	projectType: ProjectType;
 	isPinned: boolean;
 	pinnedAt: string | null;
 	isPrivate: boolean;
@@ -163,8 +165,11 @@ export interface UserState {
 
 export interface UserSettings {
 	weeklyUnplannedExcludedLabelIds: number[];
+	bugLabelIds: number[];
 	locale: string;
 	publicView: boolean;
+	bannerText: string;
+	bannerPublished: boolean;
 }
 
 export interface ConfigResponse {
@@ -199,6 +204,7 @@ export interface ProjectInput {
 	contextId?: number;
 	labels?: string[];
 	isPrivate?: boolean;
+	projectType?: ProjectType;
 }
 
 export interface SectionInput {

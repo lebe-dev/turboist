@@ -83,8 +83,14 @@
 		"tabs": {
 			"general": "Общие",
 			"labels": "Метки",
+			"project": "Проект",
 			"privacy": "Приватность",
 			"session": "Сессия"
+		},
+		"project": {
+			"bugLabelsHeading": "Метки для багов",
+			"bugLabelsDescription": "Метки, которые автоматически подставляются при создании бага в проекте типа Software.",
+			"bugLabelsEmpty": "Сначала создайте метки, чтобы настроить оформление багов."
 		},
 		"theme": {
 			"heading": "Тема",
@@ -128,6 +134,15 @@
 			"hintAria": "О режиме Public view",
 			"updated": "Public view обновлён",
 			"updateFailed": "Не удалось обновить Public view"
+		},
+		"banner": {
+			"heading": "Баннер на странице Today",
+			"description": "Показать сообщение, закреплённое сверху страницы Today. Поддерживаются markdown-ссылки вида [текст](https://example.com).",
+			"textLabel": "Текст",
+			"textPlaceholder": "Введите объявление…",
+			"publishLabel": "Показать",
+			"toastSaved": "Баннер обновлён",
+			"toastFailed": "Не удалось обновить баннер"
 		}
 	},
 	"auth": {
@@ -262,6 +277,9 @@
 			"contextLabel": "Контекст",
 			"pickContext": "Выберите контекст",
 			"pickContextError": "Выберите контекст",
+			"typeLabel": "Тип проекта",
+			"typeGeneric": "Generic",
+			"typeSoftware": "Software",
 			"updated": "Проект обновлён",
 			"created": "Проект создан",
 			"failedSave": "Не удалось сохранить проект"
@@ -319,12 +337,15 @@
 		"addSection": "Добавить раздел",
 		"pin": "Закрепить",
 		"unpin": "Открепить",
+		"pinned": "Закреплено",
 		"archive": "В архив",
 		"unarchive": "Из архива",
 		"cancel": "Отменить",
 		"assignToTroiki": "Назначить в Тройку",
 		"removeFromTroiki": "Удалить из Тройки",
 		"actionsAriaLabel": "Действия с проектом",
+		"createBugAriaLabel": "Оформить баг",
+		"bugLabelsNotConfigured": "Настройте хотя бы одну метку для багов в разделе Настройки → Проект.",
 		"statusOpen": "Открыт",
 		"statusCompleted": "Завершён",
 		"statusArchived": "В архиве",
@@ -399,6 +420,8 @@
 		"openTasksTitle": "Открытые задачи в этом проекте",
 		"addTaskAria": "Добавить задачу в {name}",
 		"addTask": "Добавить задачу",
+		"collapseProject": "Свернуть {name}",
+		"expandProject": "Развернуть {name}",
 		"noTasks": "Задач пока нет — добавьте одну, чтобы начать.",
 		"emptySlot": "Пустой слот — назначьте проект",
 		"projectLabel": "проект",

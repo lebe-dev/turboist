@@ -16,6 +16,7 @@ function project(id: number, isPrivate = false): Project {
 		description: '',
 		color: '#fff',
 		status: 'open',
+		projectType: 'generic',
 		isPinned: false,
 		pinnedAt: null,
 		isPrivate,

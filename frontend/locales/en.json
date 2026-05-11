@@ -83,8 +83,14 @@
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
+			"project": "Project",
 			"privacy": "Privacy",
 			"session": "Session"
+		},
+		"project": {
+			"bugLabelsHeading": "Bug labels",
+			"bugLabelsDescription": "Labels applied automatically when filing a bug from a Software project.",
+			"bugLabelsEmpty": "No labels yet. Create labels first to configure bug filing."
 		},
 		"theme": {
 			"heading": "Theme",
@@ -128,6 +134,15 @@
 			"hintAria": "About Public view",
 			"updated": "Public view updated",
 			"updateFailed": "Failed to update Public view"
+		},
+		"banner": {
+			"heading": "Today banner",
+			"description": "Show a message pinned at the top of the Today page. Markdown links like [text](https://example.com) are supported.",
+			"textLabel": "Message",
+			"textPlaceholder": "Type the announcement…",
+			"publishLabel": "Show",
+			"toastSaved": "Banner updated",
+			"toastFailed": "Failed to update banner"
 		}
 	},
 	"auth": {
@@ -262,6 +277,9 @@
 			"contextLabel": "Context",
 			"pickContext": "Pick context",
 			"pickContextError": "Pick a context",
+			"typeLabel": "Project type",
+			"typeGeneric": "Generic",
+			"typeSoftware": "Software",
 			"updated": "Project updated",
 			"created": "Project created",
 			"failedSave": "Failed to save project"
@@ -319,12 +337,15 @@
 		"addSection": "Add section",
 		"pin": "Pin",
 		"unpin": "Unpin",
+		"pinned": "Pinned",
 		"archive": "Archive",
 		"unarchive": "Unarchive",
 		"cancel": "Cancel",
 		"assignToTroiki": "Assign to Troiki",
 		"removeFromTroiki": "Remove from Troiki",
 		"actionsAriaLabel": "Project actions",
+		"createBugAriaLabel": "File a bug",
+		"bugLabelsNotConfigured": "Configure at least one bug label in Settings → Project.",
 		"statusOpen": "Open",
 		"statusCompleted": "Completed",
 		"statusArchived": "Archived",
@@ -399,6 +420,8 @@
 		"openTasksTitle": "Open tasks in this project",
 		"addTaskAria": "Add task to {name}",
 		"addTask": "Add task",
+		"collapseProject": "Collapse {name}",
+		"expandProject": "Expand {name}",
 		"noTasks": "No tasks yet — add one to get started.",
 		"emptySlot": "Empty slot — assign a project",
 		"projectLabel": "project",

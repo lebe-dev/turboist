@@ -2,6 +2,7 @@
 	import Sidebar from '$lib/components/app/Sidebar.svelte';
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
+	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
 	import FollowUpToasts from '$lib/components/task/FollowUpToasts.svelte';
@@ -402,6 +403,9 @@
 		<div class="flex min-w-0 flex-1 flex-col">
 			<Topbar {onQuickAdd} onMenuClick={() => (mobileSidebarOpen = true)} />
 			<ContextFilterBanner />
+			{#if page.url.pathname === '/today'}
+				<TodayBanner />
+			{/if}
 			<main class="flex-1 overflow-y-auto">
 				{@render children()}
 			</main>

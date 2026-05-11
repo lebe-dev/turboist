@@ -132,6 +132,14 @@ func (h *ProjectHandler) createForContext(c fiber.Ctx) error {
 	if req.Color != "" && !isValidColor(req.Color) {
 		return httpapi.ErrValidation("invalid color")
 	}
+	projectType := model.ProjectTypeGeneric
+	if req.ProjectType != "" {
+		pt := model.ProjectType(req.ProjectType)
+		if !pt.IsValid() {
+			return httpapi.ErrValidation("invalid projectType")
+		}
+		projectType = pt
+	}
 	labelIDs, appErr := h.resolveLabels(c, req.Labels)
 	if appErr != nil {
 		return appErr
@@ -141,6 +149,7 @@ func (h *ProjectHandler) createForContext(c fiber.Ctx) error {
 		Title:       req.Title,
 		Description: req.Description,
 		Color:       req.Color,
+		Type:        projectType,
 	})
 	if err != nil {
 		return httpapi.ErrInternal("create project")
@@ -169,11 +178,20 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 	if req.Color != nil && !isValidColor(*req.Color) {
 		return httpapi.ErrValidation("invalid color")
 	}
+	var projectType *model.ProjectType
+	if req.ProjectType != nil {
+		pt := model.ProjectType(*req.ProjectType)
+		if !pt.IsValid() {
+			return httpapi.ErrValidation("invalid projectType")
+		}
+		projectType = &pt
+	}
 	p, err := h.projects.Update(c.Context(), id, repo.ProjectUpdate{
 		Title:       req.Title,
 		Description: req.Description,
 		Color:       req.Color,
 		IsPrivate:   req.IsPrivate,
+		Type:        projectType,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {

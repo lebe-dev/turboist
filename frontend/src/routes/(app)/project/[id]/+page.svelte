@@ -20,6 +20,7 @@
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { splitByRootCompletion } from '$lib/utils/taskTree';
+	import { compareTaskOrder } from '$lib/utils/priority';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
@@ -48,15 +49,29 @@
 	let sectionQuickAddOpen = $state(false);
 	let sectionQuickAddTarget = $state<ProjectSection | null>(null);
 	let rootQuickAddOpen = $state(false);
+	let bugQuickAddOpen = $state(false);
+
+	function onCreateBug(): void {
+		if (settingsStore.bugLabelIds.length === 0) {
+			toast.error($t('project.bugLabelsNotConfigured'));
+			return;
+		}
+		bugQuickAddOpen = true;
+	}
 
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
 
-	const tasksWithoutSection = $derived(taskList.items.filter((t) => t.sectionId === null));
+	// Re-sort tasks after every mutation so newly created or edited items move
+	// to the slot the backend would have placed them in. Subtasks stay anchored
+	// to their parent — `buildTree` (used downstream) re-parents them by id, so
+	// the flat order only affects root tasks.
+	const sortedTasks = $derived([...taskList.items].sort(compareTaskOrder));
+	const tasksWithoutSection = $derived(sortedTasks.filter((t) => t.sectionId === null));
 	const tasksWithoutSectionSplit = $derived(splitByRootCompletion(tasksWithoutSection));
 	const tasksBySection = $derived.by(() => {
 		const map: Record<number, Task[]> = {};
-		for (const t of taskList.items) {
+		for (const t of sortedTasks) {
 			if (t.sectionId !== null) {
 				(map[t.sectionId] ??= []).push(t);
 			}
@@ -356,6 +371,7 @@
 		onDelete={() => (confirmDeleteOpen = true)}
 		onSetTroiki={setTroiki}
 		onTogglePrivate={togglePrivate}
+		{onCreateBug}
 	/>
 
 	<div class="px-2">
@@ -438,6 +454,12 @@
 	<QuickAddDialog
 		bind:open={rootQuickAddOpen}
 		defaultProjectId={projectId}
+		onSubmit={onRootTaskSubmit}
+	/>
+	<QuickAddDialog
+		bind:open={bugQuickAddOpen}
+		defaultProjectId={projectId}
+		defaultLabelIds={settingsStore.bugLabelIds}
 		onSubmit={onRootTaskSubmit}
 	/>
 	<ProjectDialog

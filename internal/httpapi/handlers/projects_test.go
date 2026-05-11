@@ -216,6 +216,85 @@ func TestProjectPatch_Success(t *testing.T) {
 	}
 }
 
+func TestProjectCreate_DefaultProjectType(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	proj := createTestProject(t, e, ctx.ID, "Alpha")
+	if proj.ProjectType != "generic" {
+		t.Errorf("projectType: got %q, want %q", proj.ProjectType, "generic")
+	}
+}
+
+func TestProjectCreate_SoftwareType(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	url := fmt.Sprintf("/api/v1/contexts/%d/projects", ctx.ID)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, url, map[string]any{
+		"title":       "App",
+		"color":       "blue",
+		"projectType": "software",
+	}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var result dto.ProjectDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.ProjectType != "software" {
+		t.Errorf("projectType: got %q, want %q", result.ProjectType, "software")
+	}
+}
+
+func TestProjectCreate_InvalidProjectType(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	url := fmt.Sprintf("/api/v1/contexts/%d/projects", ctx.ID)
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPost, url, map[string]any{
+		"title":       "App",
+		"projectType": "bogus",
+	}))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestProjectPatch_ProjectType(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	proj := createTestProject(t, e, ctx.ID, "Alpha")
+	if proj.ProjectType != "generic" {
+		t.Fatalf("setup: expected generic, got %q", proj.ProjectType)
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/projects/%d", proj.ID),
+		map[string]any{"projectType": "software"}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.ProjectDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.ProjectType != "software" {
+		t.Errorf("projectType: got %q, want %q", result.ProjectType, "software")
+	}
+}
+
+func TestProjectPatch_InvalidProjectType(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	proj := createTestProject(t, e, ctx.ID, "Alpha")
+
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/projects/%d", proj.ID),
+		map[string]any{"projectType": "bogus"}))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func TestProjectPatch_IsPrivate(t *testing.T) {
 	e := setupAPIEnv(t)
 	ctx := createTestContext(t, e, "Work")

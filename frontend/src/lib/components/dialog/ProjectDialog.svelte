@@ -12,7 +12,7 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
-	import type { Project } from '$lib/api/types';
+	import type { Project, ProjectType } from '$lib/api/types';
 	import ColorPicker from './ColorPicker.svelte';
 	import { DEFAULT_COLOR } from './colorPalette';
 	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
@@ -35,6 +35,7 @@
 	let color = $state<string>(DEFAULT_COLOR);
 	let contextId = $state<string>('');
 	let labelIds = $state<string[]>([]);
+	let projectType = $state<ProjectType>('generic');
 
 	const form = useFormDialog();
 
@@ -49,6 +50,7 @@
 			const fallback = defaultContextId ?? allContexts[0]?.id ?? null;
 			contextId = String(initial?.contextId ?? fallback ?? '');
 			labelIds = (initial?.labels ?? []).map((l) => String(l.id));
+			projectType = initial?.projectType ?? 'generic';
 		}
 	});
 
@@ -73,14 +75,16 @@
 						description: description.trim() || null,
 						color,
 						contextId: ctxIdNum,
-						labels: labelNames
+						labels: labelNames,
+						projectType
 					});
 				} else {
 					return contextsApi.createProject(client, ctxIdNum, {
 						title: title.trim(),
 						description: description.trim() || null,
 						color,
-						labels: labelNames
+						labels: labelNames,
+						projectType
 					});
 				}
 			},
@@ -134,6 +138,32 @@
 			<div class="flex flex-col gap-1">
 				<Label>{$t('common.color')}</Label>
 				<ColorPicker bind:value={color} />
+			</div>
+
+			<div class="flex flex-col gap-1">
+				<Label>{$t('dialog.project.typeLabel')}</Label>
+				<div class="flex gap-1" role="radiogroup" aria-label={$t('dialog.project.typeLabel')}>
+					<button
+						type="button"
+						role="radio"
+						aria-checked={projectType === 'generic'}
+						onclick={() => (projectType = 'generic')}
+						class="flex-1 rounded border px-3 py-1.5 text-sm transition-colors hover:bg-muted/50"
+						class:bg-muted={projectType === 'generic'}
+					>
+						{$t('dialog.project.typeGeneric')}
+					</button>
+					<button
+						type="button"
+						role="radio"
+						aria-checked={projectType === 'software'}
+						onclick={() => (projectType = 'software')}
+						class="flex-1 rounded border px-3 py-1.5 text-sm transition-colors hover:bg-muted/50"
+						class:bg-muted={projectType === 'software'}
+					>
+						{$t('dialog.project.typeSoftware')}
+					</button>
+				</div>
 			</div>
 
 			{#if allLabels.length > 0}

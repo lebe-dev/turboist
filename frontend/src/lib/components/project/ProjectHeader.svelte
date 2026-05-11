@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
@@ -13,6 +16,9 @@
 	import TriangleIcon from 'phosphor-svelte/lib/Triangle';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
+	import BugIcon from 'phosphor-svelte/lib/Bug';
+	import PencilSimpleIcon from 'phosphor-svelte/lib/PencilSimple';
+	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { t } from '$lib/i18n';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
@@ -31,7 +37,8 @@
 		onEdit,
 		onDelete,
 		onSetTroiki,
-		onTogglePrivate
+		onTogglePrivate,
+		onCreateBug
 	}: {
 		project: Project;
 		onAddSection?: () => void;
@@ -46,6 +53,7 @@
 		onDelete?: () => void;
 		onSetTroiki?: (category: TroikiCategory | null) => void;
 		onTogglePrivate?: () => void;
+		onCreateBug?: () => void;
 	} = $props();
 
 	const TROIKI_OPTIONS: Array<{ category: TroikiCategory; labelKey: string }> = [
@@ -88,17 +96,37 @@
 		archived: 'project.statusArchived',
 		cancelled: 'project.statusCancelled'
 	};
+
+	function back(): void {
+		if (history.length > 1) history.back();
+		else void goto(resolve('/inbox'));
+	}
 </script>
 
 <header class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
-	<div class="flex items-start justify-between gap-3">
+	<div class="flex items-center justify-between gap-3">
 		<div class="flex min-w-0 items-center gap-2">
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={back}
+				aria-label={$t('common.back')}
+				title={$t('common.back')}
+				class="size-7 shrink-0 p-0"
+			>
+				<ArrowLeftIcon class="size-4" />
+			</Button>
 			<span
 				class="inline-block size-3 shrink-0 rounded-full"
 				style={`background-color: ${project.color}`}
 				aria-hidden="true"
 			></span>
 			<h1 class="truncate text-xl font-semibold">{project.title}</h1>
+			{#if project.troikiCategory}
+				<span class="inline-flex" title={$t('task.inTroikiTitle')}>
+					<TroikiTriggerIcon class="size-3.5 text-muted-foreground/50" />
+				</span>
+			{/if}
 			{#if project.isPrivate && !settingsStore.publicView}
 				<span
 					class="inline-flex"
@@ -119,6 +147,17 @@
 					{$t('project.reopen')}
 				</Button>
 			{/if}
+			{#if project.projectType === 'software' && onCreateBug}
+				<Button
+					size="sm"
+					variant="ghost"
+					onclick={onCreateBug}
+					aria-label={$t('project.createBugAriaLabel')}
+					title={$t('project.createBugAriaLabel')}
+				>
+					<BugIcon class="size-3.5 text-muted-foreground/50" />
+				</Button>
+			{/if}
 			<DropdownMenu.Root onOpenChange={(o) => o && void ensureTroikiLoaded()}>
 				<DropdownMenu.Trigger>
 					{#snippet child({ props })}
@@ -127,19 +166,16 @@
 						</Button>
 					{/snippet}
 				</DropdownMenu.Trigger>
-				<DropdownMenu.Content align="end">
-					{#if project.status === 'open'}
-						<DropdownMenu.Item onclick={onComplete}>
-							<CheckIcon class="size-4" /> {$t('project.complete')}
-						</DropdownMenu.Item>
-					{/if}
+				<DropdownMenu.Content align="end" class="min-w-[14rem] rounded-md">
 					{#if onAddSection && project.status === 'open'}
 						<DropdownMenu.Item onclick={onAddSection}>
 							<PlusIcon class="size-4" /> {$t('project.addSection')}
 						</DropdownMenu.Item>
 					{/if}
 					{#if onEdit}
-						<DropdownMenu.Item onclick={onEdit}>{$t('common.edit')}</DropdownMenu.Item>
+						<DropdownMenu.Item onclick={onEdit}>
+							<PencilSimpleIcon class="size-4" /> {$t('common.edit')}
+						</DropdownMenu.Item>
 					{/if}
 					{#if project.isPinned}
 						<DropdownMenu.Item onclick={onUnpin}>
@@ -196,6 +232,11 @@
 						</DropdownMenu.Sub>
 					{/if}
 					<DropdownMenu.Separator />
+					{#if project.status === 'open'}
+						<DropdownMenu.Item onclick={onComplete}>
+							<CheckIcon class="size-4" /> {$t('project.complete')}
+						</DropdownMenu.Item>
+					{/if}
 					{#if project.status === 'archived'}
 						<DropdownMenu.Item onclick={onUnarchive}>
 							<ArchiveIcon class="size-4" /> {$t('project.unarchive')}

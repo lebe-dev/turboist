@@ -72,7 +72,6 @@
 			href: resolve('/inbox'),
 			label: $t('nav.inbox'),
 			icon: InboxIcon,
-			accent: !inboxOverflow,
 			danger: inboxOverflow,
 			current: inboxOverflow ? inboxStatsStore.count : undefined
 		},
@@ -248,14 +247,18 @@
 	class="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
 >
 	<div class="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
-		<div class="flex min-w-0 items-center gap-2">
+		<a
+			href={resolve('/today')}
+			class="flex min-w-0 items-center gap-2 rounded-md text-foreground transition-colors hover:opacity-80"
+			aria-label={$t('nav.today')}
+		>
 			<span
 				class="flex size-5 items-center justify-center rounded-sm bg-primary text-primary-foreground shadow-sm"
 			>
 				<LightningIcon class="size-3" weight="fill" />
 			</span>
 			<span class="text-[13px] font-semibold uppercase tracking-[0.18em]">Turboist</span>
-		</div>
+		</a>
 		<button
 			type="button"
 			class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
