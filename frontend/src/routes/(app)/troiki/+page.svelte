@@ -327,6 +327,13 @@
 													{project.tasks.filter((tk) => tk.status === 'open').length}
 												</span>
 											</div>
+											{#if project.description.trim()}
+												<p
+													class="mt-1 whitespace-pre-line text-xs leading-snug text-muted-foreground"
+												>
+													{project.description}
+												</p>
+											{/if}
 										</div>
 										<Button
 											size="sm"

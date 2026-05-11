@@ -21,6 +21,7 @@
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import WarningIcon from 'phosphor-svelte/lib/Warning';
+	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import { t } from '$lib/i18n';
 
 	let {
@@ -100,13 +101,26 @@
 	const visibleProjects = $derived(
 		projectsStore.items
 			.filter((p) => p.status !== 'completed')
-			.sort((a, b) => a.title.localeCompare(b.title))
+			.slice()
+			.sort((a, b) => {
+				if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+				if (a.isPinned && b.isPinned) {
+					const ap = a.pinnedAt ?? '';
+					const bp = b.pinnedAt ?? '';
+					if (ap !== bp) return ap.localeCompare(bp);
+				}
+				return a.title.localeCompare(b.title);
+			})
 	);
 	const filteredProjects = $derived.by(() => {
 		const q = projectQuery.trim().toLowerCase();
 		if (!q) return visibleProjects;
 		return visibleProjects.filter((p) => p.title.toLowerCase().includes(q));
 	});
+	const firstUnpinnedId = $derived(filteredProjects.find((p) => !p.isPinned)?.id ?? null);
+	const hasPinDivider = $derived(
+		filteredProjects.some((p) => p.isPinned) && firstUnpinnedId !== null
+	);
 	const inboxMatchesQuery = $derived.by(() => {
 		const q = projectQuery.trim().toLowerCase();
 		if (!q) return true;
@@ -575,6 +589,13 @@
 									{#each filteredProjects as project (project.id)}
 										{@const id = String(project.id)}
 										{@const active = projectId === id}
+										{#if hasPinDivider && project.id === firstUnpinnedId}
+											<div
+												class="my-1 border-t border-border/60"
+												role="separator"
+												aria-hidden="true"
+											></div>
+										{/if}
 										<button
 											type="button"
 											onclick={() => selectProject(id)}
@@ -583,6 +604,13 @@
 											class:text-accent-foreground={active}
 											class:hover:bg-accent={!active}
 										>
+											{#if project.isPinned}
+												<PushPinIcon
+													class="size-3 shrink-0 text-amber-500/80"
+													weight="fill"
+													aria-label={$t('project.pinned')}
+												/>
+											{/if}
 											<span class="flex-1 truncate">{project.title}</span>
 											{#if active}
 												<CheckIcon class="size-3.5 opacity-70" />
