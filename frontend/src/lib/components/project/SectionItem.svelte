@@ -109,7 +109,7 @@
 <section
 	bind:this={sectionEl}
 	class={[
-		'relative rounded-md border border-border/60',
+		'relative rounded-md border border-border/60 odd:bg-muted/20',
 		dragIndicator === 'task' && 'bg-accent/40'
 	]}
 	ondragover={onDragOver}
