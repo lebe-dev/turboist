@@ -292,14 +292,30 @@
 		void moveTask(taskId, null);
 	}
 
+	function collectDescendantIds(rootId: number, items: Task[]): Set<number> {
+		const result = new Set<number>();
+		const queue = [rootId];
+		while (queue.length > 0) {
+			const pid = queue.pop()!;
+			for (const t of items) {
+				if (t.parentId === pid) {
+					result.add(t.id);
+					queue.push(t.id);
+				}
+			}
+		}
+		return result;
+	}
+
 	async function moveTask(taskId: number, targetSectionId: number | null) {
 		if (!project) return;
 		const task = taskList.items.find((t) => t.id === taskId);
 		if (!task) return;
 		if (task.sectionId === targetSectionId) return;
 		const oldItems = taskList.items;
+		const descendantIds = collectDescendantIds(taskId, taskList.items);
 		taskList.items = taskList.items.map((t) =>
-			t.id === taskId ? { ...t, sectionId: targetSectionId } : t
+			t.id === taskId || descendantIds.has(t.id) ? { ...t, sectionId: targetSectionId } : t
 		);
 		try {
 			const target =
