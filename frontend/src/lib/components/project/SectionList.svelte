@@ -30,7 +30,7 @@
 	} = $props();
 </script>
 
-<div class="flex flex-col">
+<div class="flex flex-col gap-2">
 	{#each sections as section (section.id)}
 		<SectionItem
 			{section}

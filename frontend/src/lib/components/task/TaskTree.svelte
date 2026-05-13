@@ -73,63 +73,30 @@
 	});
 </script>
 
-<div class="flex flex-col divide-y divide-border/40">
+<div class={depth === 0 ? 'flex flex-col' : 'flex flex-col divide-y divide-border/40'}>
 	{#each resolved as node (node.task.id)}
 		{@const openChildren = collapseCompletedChildren ? node.children.filter((c) => c.task.status !== 'completed') : node.children}
 		{@const doneChildren = collapseCompletedChildren ? node.children.filter((c) => c.task.status === 'completed') : []}
 		{@const doneOpen = completedChildrenOpen[node.task.id] ?? false}
-		<TaskItem
-			task={node.task}
-			{depth}
-			{showProject}
-			{hideTodayBadge}
-			{hideTomorrowBadge}
-			{hideDue}
-			{draggable}
-			{showUnplannedBadge}
-			{mutator}
-			{belongs}
-			{onToggle}
-			hasSubtasks={node.children.length > 0}
-			visibleIds={effectiveVisibleIds}
-		/>
-		{#if openChildren.length > 0}
-			<Self
-				nodes={openChildren}
-				depth={depth + 1}
+		<div class={depth === 0 ? 'border-b border-border/60 last:border-b-0 pb-1 pt-0.5' : 'contents'}>
+			<TaskItem
+				task={node.task}
+				{depth}
 				{showProject}
 				{hideTodayBadge}
 				{hideTomorrowBadge}
 				{hideDue}
 				{draggable}
 				{showUnplannedBadge}
-				{collapseCompletedChildren}
 				{mutator}
 				{belongs}
 				{onToggle}
+				hasSubtasks={node.children.length > 0}
 				visibleIds={effectiveVisibleIds}
 			/>
-		{/if}
-		{#if doneChildren.length > 0}
-			<button
-				type="button"
-				class="flex items-center gap-1.5 px-3 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
-				style:padding-left={`${(depth + 1) * 1.5 + 0.75}rem`}
-				onclick={() => { completedChildrenOpen[node.task.id] = !doneOpen; }}
-				aria-expanded={doneOpen}
-			>
-				{#if doneOpen}
-					<CaretDownIcon class="size-3 shrink-0" />
-				{:else}
-					<CaretRightIcon class="size-3 shrink-0" />
-				{/if}
-				<CheckCircleIcon class="size-3.5 shrink-0" weight="fill" />
-				<span>{$t('nav.completed')}</span>
-				<span class="text-muted-foreground/70">{doneChildren.length}</span>
-			</button>
-			{#if doneOpen}
+			{#if openChildren.length > 0}
 				<Self
-					nodes={doneChildren}
+					nodes={openChildren}
 					depth={depth + 1}
 					{showProject}
 					{hideTodayBadge}
@@ -144,6 +111,41 @@
 					visibleIds={effectiveVisibleIds}
 				/>
 			{/if}
-		{/if}
+			{#if doneChildren.length > 0}
+				<button
+					type="button"
+					class="flex items-center gap-1.5 px-3 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+					style:padding-left={`${(depth + 1) * 1.5 + 0.75}rem`}
+					onclick={() => { completedChildrenOpen[node.task.id] = !doneOpen; }}
+					aria-expanded={doneOpen}
+				>
+					{#if doneOpen}
+						<CaretDownIcon class="size-3 shrink-0" />
+					{:else}
+						<CaretRightIcon class="size-3 shrink-0" />
+					{/if}
+					<CheckCircleIcon class="size-3.5 shrink-0" weight="fill" />
+					<span>{$t('nav.completed')}</span>
+					<span class="text-muted-foreground/70">{doneChildren.length}</span>
+				</button>
+				{#if doneOpen}
+					<Self
+						nodes={doneChildren}
+						depth={depth + 1}
+						{showProject}
+						{hideTodayBadge}
+						{hideTomorrowBadge}
+						{hideDue}
+						{draggable}
+						{showUnplannedBadge}
+						{collapseCompletedChildren}
+						{mutator}
+						{belongs}
+						{onToggle}
+						visibleIds={effectiveVisibleIds}
+					/>
+				{/if}
+			{/if}
+		</div>
 	{/each}
 </div>
