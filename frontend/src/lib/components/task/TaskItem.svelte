@@ -264,8 +264,8 @@
 				{#if showWeekBadge}
 					<span
 						class="inline-flex items-center {checked
-							? 'text-muted-foreground group-hover/task:text-blue-500'
-							: 'text-blue-500'}"
+							? 'text-muted-foreground/40'
+							: 'text-muted-foreground/60'}"
 						title={$t('task.weekPlannedLabel')}
 						aria-label={$t('task.weekPlannedLabel')}
 					>
