@@ -346,6 +346,8 @@
 		"removeFromTroiki": "Удалить из Тройки",
 		"actionsAriaLabel": "Действия с проектом",
 		"createBugAriaLabel": "Оформить баг",
+		"collapseAllSubtasks": "Свернуть все субзадачи",
+		"expandAllSubtasks": "Развернуть все субзадачи",
 		"bugLabelsNotConfigured": "Настройте хотя бы одну метку для багов в разделе Настройки → Проект.",
 		"statusOpen": "Открыт",
 		"statusCompleted": "Завершён",

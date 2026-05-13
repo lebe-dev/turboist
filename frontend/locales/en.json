@@ -346,6 +346,8 @@
 		"removeFromTroiki": "Remove from Troiki",
 		"actionsAriaLabel": "Project actions",
 		"createBugAriaLabel": "File a bug",
+		"collapseAllSubtasks": "Collapse all subtasks",
+		"expandAllSubtasks": "Expand all subtasks",
 		"bugLabelsNotConfigured": "Configure at least one bug label in Settings → Project.",
 		"statusOpen": "Open",
 		"statusCompleted": "Completed",

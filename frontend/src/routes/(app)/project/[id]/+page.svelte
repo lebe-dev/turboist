@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, setContext } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -31,6 +31,7 @@
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
 
 
 
@@ -61,6 +62,25 @@
 
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
+
+	let collapsedIds = $state(new Set<number>());
+	const parentTaskIds = $derived(
+		new Set(taskList.items.filter((t) => taskList.items.some((c) => c.parentId === t.id)).map((t) => t.id))
+	);
+	const allSubtasksCollapsed = $derived(
+		parentTaskIds.size > 0 && [...parentTaskIds].every((id) => collapsedIds.has(id))
+	);
+	function toggleAllSubtasks(): void {
+		collapsedIds = allSubtasksCollapsed ? new Set() : new Set(parentTaskIds);
+	}
+	setContext(SUBTASK_COLLAPSE_KEY, {
+		get ids() { return collapsedIds; },
+		toggle(id: number) {
+			const next = new Set(collapsedIds);
+			if (next.has(id)) next.delete(id); else next.add(id);
+			collapsedIds = next;
+		}
+	});
 
 	// Re-sort tasks after every mutation so newly created or edited items move
 	// to the slot the backend would have placed them in. Subtasks stay anchored
@@ -359,6 +379,9 @@
 {:else}
 	<ProjectHeader
 		{project}
+		hasCollapsible={parentTaskIds.size > 0}
+		{allSubtasksCollapsed}
+		onToggleAllSubtasks={toggleAllSubtasks}
 		onAddSection={addSection}
 		onComplete={() => (confirmCompleteOpen = true)}
 		onUncomplete={() => action('uncomplete')}

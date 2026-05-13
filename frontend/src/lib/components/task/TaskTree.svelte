@@ -9,10 +9,13 @@
 		buildTasksById,
 		isTaskVisible
 	} from '$lib/utils/visibility';
+	import { getContext } from 'svelte';
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircle';
 	import { t } from '$lib/i18n';
+	import type { SubtaskCollapseCtx } from '$lib/context/subtaskCollapse';
+	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
 	import TaskItem from './TaskItem.svelte';
 	import Self from './TaskTree.svelte';
 
@@ -52,11 +55,20 @@
 		visibleIds?: number[];
 	} = $props();
 
-	// Root-level TaskTree owns the collapsed state; nested Self receives it via prop.
+	const collapseCtx = getContext<SubtaskCollapseCtx | undefined>(SUBTASK_COLLAPSE_KEY);
+
+	// Root-level TaskTree owns the collapsed state when no context is provided;
+	// nested Self receives it via prop (collapsedIds) to stay in sync.
 	let ownCollapsedIds = $state(new Set<number>());
-	const effectiveCollapsedIds = $derived(collapsedIds ?? ownCollapsedIds);
+	const effectiveCollapsedIds = $derived(
+		collapseCtx ? collapseCtx.ids : (collapsedIds ?? ownCollapsedIds)
+	);
 
 	function toggleCollapse(id: number): void {
+		if (collapseCtx) {
+			collapseCtx.toggle(id);
+			return;
+		}
 		const src = collapsedIds ?? ownCollapsedIds;
 		const next = new Set(src);
 		if (next.has(id)) next.delete(id); else next.add(id);
