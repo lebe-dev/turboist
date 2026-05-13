@@ -132,7 +132,7 @@
 	>
 		<button
 			type="button"
-			class="flex flex-1 items-center gap-2 text-left text-sm font-medium hover:text-foreground"
+			class="flex flex-1 items-center gap-2 text-left text-base font-semibold hover:text-foreground"
 			onclick={() => (open = !open)}
 			aria-expanded={open}
 		>
