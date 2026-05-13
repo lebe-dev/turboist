@@ -26,6 +26,7 @@
 		mutator,
 		belongs,
 		onToggle,
+		collapseCompletedChildren = false,
 		onRename,
 		onRemove,
 		onAddTask,
@@ -38,6 +39,7 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		collapseCompletedChildren?: boolean;
 		onRename?: (section: ProjectSection) => void;
 		onRemove?: (section: ProjectSection) => void;
 		onAddTask?: (section: ProjectSection) => void;
@@ -188,6 +190,7 @@
 					tasks={split.open}
 					showProject={false}
 					draggable={taskDraggable}
+					{collapseCompletedChildren}
 					{mutator}
 					{belongs}
 					{onToggle}

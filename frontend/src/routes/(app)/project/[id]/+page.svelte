@@ -400,6 +400,7 @@
 								tasks={tasksWithoutSectionSplit.open}
 								showProject={false}
 								draggable
+								collapseCompletedChildren
 								{mutator}
 								onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 							/>
@@ -423,6 +424,7 @@
 					sections={sectionList}
 					{tasksBySection}
 					{mutator}
+					collapseCompletedChildren
 					onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 					onRenameSection={renameSection}
 					onRemoveSection={(sec) => {

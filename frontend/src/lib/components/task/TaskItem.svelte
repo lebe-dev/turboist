@@ -7,6 +7,7 @@
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
+	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
@@ -88,6 +89,11 @@
 			!page.url.pathname.startsWith('/task/') &&
 			!page.url.pathname.startsWith('/project/')
 	);
+	const showWeekBadge = $derived(
+		task.planState === 'week' &&
+			page.url.pathname !== '/today' &&
+			page.url.pathname !== '/week'
+	);
 	const showCalendarSlash = $derived(
 		showUnplannedBadge &&
 			task.planState !== 'week' &&
@@ -101,7 +107,8 @@
 			task.labels.length > 0 ||
 			task.postponeCount >= 2 ||
 			isRecurring ||
-			showCalendarSlash
+			showCalendarSlash ||
+			showWeekBadge
 	);
 
 	const checkboxClass = $derived.by(() => {
@@ -229,6 +236,17 @@
 						aria-label={$t('task.unplannedLabel')}
 					>
 						<CalendarSlashIcon class="size-3.5 shrink-0" />
+					</span>
+				{/if}
+				{#if showWeekBadge}
+					<span
+						class="inline-flex items-center {checked
+							? 'text-muted-foreground group-hover/task:text-blue-500'
+							: 'text-blue-500'}"
+						title={$t('task.weekPlannedLabel')}
+						aria-label={$t('task.weekPlannedLabel')}
+					>
+						<CalendarCheckIcon class="size-3.5 shrink-0" />
 					</span>
 				{/if}
 			</div>

@@ -9,6 +9,7 @@
 		mutator,
 		belongs,
 		onToggle,
+		collapseCompletedChildren = false,
 		onRenameSection,
 		onRemoveSection,
 		onAddSection,
@@ -20,6 +21,7 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		collapseCompletedChildren?: boolean;
 		onRenameSection?: (section: ProjectSection) => void;
 		onRemoveSection?: (section: ProjectSection) => void;
 		onAddSection?: (section: ProjectSection) => void;
@@ -36,6 +38,7 @@
 			{mutator}
 			{belongs}
 			{onToggle}
+			{collapseCompletedChildren}
 			onRename={onRenameSection}
 			onRemove={onRemoveSection}
 			onAddTask={onAddSection}

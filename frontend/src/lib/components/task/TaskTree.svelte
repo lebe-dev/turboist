@@ -9,6 +9,10 @@
 		buildTasksById,
 		isTaskVisible
 	} from '$lib/utils/visibility';
+	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
+	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
+	import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircle';
+	import { t } from '$lib/i18n';
 	import TaskItem from './TaskItem.svelte';
 	import Self from './TaskTree.svelte';
 
@@ -22,6 +26,7 @@
 		hideDue = false,
 		draggable = false,
 		showUnplannedBadge = false,
+		collapseCompletedChildren = false,
 		mutator,
 		belongs,
 		onToggle,
@@ -36,11 +41,14 @@
 		hideDue?: boolean;
 		draggable?: boolean;
 		showUnplannedBadge?: boolean;
+		collapseCompletedChildren?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
 		visibleIds?: number[];
 	} = $props();
+
+	let completedChildrenOpen: Record<number, boolean> = $state({});
 
 	const visibleTasks = $derived.by(() => {
 		if (!tasks) return undefined;
@@ -67,6 +75,9 @@
 
 <div class="flex flex-col divide-y divide-border/40">
 	{#each resolved as node (node.task.id)}
+		{@const openChildren = collapseCompletedChildren ? node.children.filter((c) => c.task.status !== 'completed') : node.children}
+		{@const doneChildren = collapseCompletedChildren ? node.children.filter((c) => c.task.status === 'completed') : []}
+		{@const doneOpen = completedChildrenOpen[node.task.id] ?? false}
 		<TaskItem
 			task={node.task}
 			{depth}
@@ -82,9 +93,9 @@
 			hasSubtasks={node.children.length > 0}
 			visibleIds={effectiveVisibleIds}
 		/>
-		{#if node.children.length > 0}
+		{#if openChildren.length > 0}
 			<Self
-				nodes={node.children}
+				nodes={openChildren}
 				depth={depth + 1}
 				{showProject}
 				{hideTodayBadge}
@@ -92,11 +103,47 @@
 				{hideDue}
 				{draggable}
 				{showUnplannedBadge}
+				{collapseCompletedChildren}
 				{mutator}
 				{belongs}
 				{onToggle}
 				visibleIds={effectiveVisibleIds}
 			/>
+		{/if}
+		{#if doneChildren.length > 0}
+			<button
+				type="button"
+				class="flex items-center gap-1.5 px-3 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+				style:padding-left={`${(depth + 1) * 1.5 + 0.75}rem`}
+				onclick={() => { completedChildrenOpen[node.task.id] = !doneOpen; }}
+				aria-expanded={doneOpen}
+			>
+				{#if doneOpen}
+					<CaretDownIcon class="size-3 shrink-0" />
+				{:else}
+					<CaretRightIcon class="size-3 shrink-0" />
+				{/if}
+				<CheckCircleIcon class="size-3.5 shrink-0" weight="fill" />
+				<span>{$t('nav.completed')}</span>
+				<span class="text-muted-foreground/70">{doneChildren.length}</span>
+			</button>
+			{#if doneOpen}
+				<Self
+					nodes={doneChildren}
+					depth={depth + 1}
+					{showProject}
+					{hideTodayBadge}
+					{hideTomorrowBadge}
+					{hideDue}
+					{draggable}
+					{showUnplannedBadge}
+					{collapseCompletedChildren}
+					{mutator}
+					{belongs}
+					{onToggle}
+					visibleIds={effectiveVisibleIds}
+				/>
+			{/if}
 		{/if}
 	{/each}
 </div>

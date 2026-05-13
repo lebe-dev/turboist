@@ -27,6 +27,7 @@
 			{$t('selection.bar.count', { values: { count: taskSelectionStore.count } })}
 		</span>
 		<Button
+			variant="secondary"
 			size="sm"
 			onclick={onGroup}
 			disabled={!canGroup || busy}
