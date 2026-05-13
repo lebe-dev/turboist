@@ -10,6 +10,7 @@
 		isTaskVisible
 	} from '$lib/utils/visibility';
 	import { getContext } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircle';
@@ -70,7 +71,7 @@
 			return;
 		}
 		const src = collapsedIds ?? ownCollapsedIds;
-		const next = new Set(src);
+		const next = new SvelteSet(src);
 		if (next.has(id)) next.delete(id); else next.add(id);
 		ownCollapsedIds = next;
 	}

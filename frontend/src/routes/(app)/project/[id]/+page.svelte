@@ -32,6 +32,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
+	import { SvelteSet } from 'svelte/reactivity';
 
 
 
@@ -71,12 +72,12 @@
 		parentTaskIds.size > 0 && [...parentTaskIds].every((id) => collapsedIds.has(id))
 	);
 	function toggleAllSubtasks(): void {
-		collapsedIds = allSubtasksCollapsed ? new Set() : new Set(parentTaskIds);
+		collapsedIds = allSubtasksCollapsed ? new SvelteSet() : new SvelteSet(parentTaskIds);
 	}
 	setContext(SUBTASK_COLLAPSE_KEY, {
 		get ids() { return collapsedIds; },
 		toggle(id: number) {
-			const next = new Set(collapsedIds);
+			const next = new SvelteSet(collapsedIds);
 			if (next.has(id)) next.delete(id); else next.add(id);
 			collapsedIds = next;
 		}
@@ -292,8 +293,8 @@
 		void moveTask(taskId, null);
 	}
 
-	function collectDescendantIds(rootId: number, items: Task[]): Set<number> {
-		const result = new Set<number>();
+	function collectDescendantIds(rootId: number, items: Task[]): SvelteSet<number> {
+		const result = new SvelteSet<number>();
 		const queue = [rootId];
 		while (queue.length > 0) {
 			const pid = queue.pop()!;
