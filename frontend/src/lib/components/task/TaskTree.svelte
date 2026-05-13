@@ -27,6 +27,8 @@
 		draggable = false,
 		showUnplannedBadge = false,
 		collapseCompletedChildren = false,
+		collapsibleSubtasks = false,
+		collapsedIds,
 		mutator,
 		belongs,
 		onToggle,
@@ -42,11 +44,24 @@
 		draggable?: boolean;
 		showUnplannedBadge?: boolean;
 		collapseCompletedChildren?: boolean;
+		collapsibleSubtasks?: boolean;
+		collapsedIds?: Set<number>;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
 		visibleIds?: number[];
 	} = $props();
+
+	// Root-level TaskTree owns the collapsed state; nested Self receives it via prop.
+	let ownCollapsedIds = $state(new Set<number>());
+	const effectiveCollapsedIds = $derived(collapsedIds ?? ownCollapsedIds);
+
+	function toggleCollapse(id: number): void {
+		const src = collapsedIds ?? ownCollapsedIds;
+		const next = new Set(src);
+		if (next.has(id)) next.delete(id); else next.add(id);
+		ownCollapsedIds = next;
+	}
 
 	let completedChildrenOpen: Record<number, boolean> = $state({});
 
@@ -78,6 +93,7 @@
 		{@const openChildren = collapseCompletedChildren ? node.children.filter((c) => c.task.status !== 'completed') : node.children}
 		{@const doneChildren = collapseCompletedChildren ? node.children.filter((c) => c.task.status === 'completed') : []}
 		{@const doneOpen = completedChildrenOpen[node.task.id] ?? false}
+		{@const subtasksCollapsed = effectiveCollapsedIds.has(node.task.id)}
 		<div class={depth === 0 ? 'border-b border-border/60 last:border-b-0 pb-1 pt-0.5' : 'contents'}>
 			<TaskItem
 				task={node.task}
@@ -92,9 +108,11 @@
 				{belongs}
 				{onToggle}
 				hasSubtasks={node.children.length > 0}
+				{subtasksCollapsed}
+				onToggleCollapse={collapsibleSubtasks && node.children.length > 0 ? () => toggleCollapse(node.task.id) : undefined}
 				visibleIds={effectiveVisibleIds}
 			/>
-			{#if openChildren.length > 0}
+			{#if openChildren.length > 0 && !subtasksCollapsed}
 				<Self
 					nodes={openChildren}
 					depth={depth + 1}
@@ -105,13 +123,15 @@
 					{draggable}
 					{showUnplannedBadge}
 					{collapseCompletedChildren}
+					{collapsibleSubtasks}
+					collapsedIds={effectiveCollapsedIds}
 					{mutator}
 					{belongs}
 					{onToggle}
 					visibleIds={effectiveVisibleIds}
 				/>
 			{/if}
-			{#if doneChildren.length > 0}
+			{#if doneChildren.length > 0 && !subtasksCollapsed}
 				<button
 					type="button"
 					class="flex items-center gap-1.5 px-3 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"

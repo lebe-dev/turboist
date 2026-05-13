@@ -10,6 +10,7 @@
 		belongs,
 		onToggle,
 		collapseCompletedChildren = false,
+		collapsibleSubtasks = false,
 		onRenameSection,
 		onRemoveSection,
 		onAddSection,
@@ -22,6 +23,7 @@
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
 		collapseCompletedChildren?: boolean;
+		collapsibleSubtasks?: boolean;
 		onRenameSection?: (section: ProjectSection) => void;
 		onRemoveSection?: (section: ProjectSection) => void;
 		onAddSection?: (section: ProjectSection) => void;
@@ -39,6 +41,7 @@
 			{belongs}
 			{onToggle}
 			{collapseCompletedChildren}
+			{collapsibleSubtasks}
 			onRename={onRenameSection}
 			onRemove={onRemoveSection}
 			onAddTask={onAddSection}

@@ -27,6 +27,7 @@
 		belongs,
 		onToggle,
 		collapseCompletedChildren = false,
+		collapsibleSubtasks = false,
 		onRename,
 		onRemove,
 		onAddTask,
@@ -40,6 +41,7 @@
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
 		collapseCompletedChildren?: boolean;
+		collapsibleSubtasks?: boolean;
 		onRename?: (section: ProjectSection) => void;
 		onRemove?: (section: ProjectSection) => void;
 		onAddTask?: (section: ProjectSection) => void;
@@ -191,6 +193,7 @@
 					showProject={false}
 					draggable={taskDraggable}
 					{collapseCompletedChildren}
+					{collapsibleSubtasks}
 					{mutator}
 					{belongs}
 					{onToggle}
