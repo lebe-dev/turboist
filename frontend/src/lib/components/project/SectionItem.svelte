@@ -26,6 +26,8 @@
 		mutator,
 		belongs,
 		onToggle,
+		collapseCompletedChildren = false,
+		collapsibleSubtasks = false,
 		onRename,
 		onRemove,
 		onAddTask,
@@ -38,6 +40,8 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		collapseCompletedChildren?: boolean;
+		collapsibleSubtasks?: boolean;
 		onRename?: (section: ProjectSection) => void;
 		onRemove?: (section: ProjectSection) => void;
 		onAddTask?: (section: ProjectSection) => void;
@@ -107,7 +111,7 @@
 <section
 	bind:this={sectionEl}
 	class={[
-		'relative border-b border-border/50 last:border-b-0',
+		'relative rounded-md border border-border/60 odd:bg-muted/20',
 		dragIndicator === 'task' && 'bg-accent/40'
 	]}
 	ondragover={onDragOver}
@@ -130,7 +134,7 @@
 	>
 		<button
 			type="button"
-			class="flex flex-1 items-center gap-2 text-left text-sm font-medium hover:text-foreground"
+			class="flex flex-1 items-center gap-2 text-left text-base font-semibold hover:text-foreground"
 			onclick={() => (open = !open)}
 			aria-expanded={open}
 		>
@@ -188,6 +192,8 @@
 					tasks={split.open}
 					showProject={false}
 					draggable={taskDraggable}
+					{collapseCompletedChildren}
+					{collapsibleSubtasks}
 					{mutator}
 					{belongs}
 					{onToggle}

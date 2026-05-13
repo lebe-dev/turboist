@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, setContext } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -31,6 +31,8 @@
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
+	import { SvelteSet } from 'svelte/reactivity';
 
 
 
@@ -61,6 +63,25 @@
 
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
+
+	let collapsedIds = $state(new Set<number>());
+	const parentTaskIds = $derived(
+		new Set(taskList.items.filter((t) => taskList.items.some((c) => c.parentId === t.id)).map((t) => t.id))
+	);
+	const allSubtasksCollapsed = $derived(
+		parentTaskIds.size > 0 && [...parentTaskIds].every((id) => collapsedIds.has(id))
+	);
+	function toggleAllSubtasks(): void {
+		collapsedIds = allSubtasksCollapsed ? new SvelteSet() : new SvelteSet(parentTaskIds);
+	}
+	setContext(SUBTASK_COLLAPSE_KEY, {
+		get ids() { return collapsedIds; },
+		toggle(id: number) {
+			const next = new SvelteSet(collapsedIds);
+			if (next.has(id)) next.delete(id); else next.add(id);
+			collapsedIds = next;
+		}
+	});
 
 	// Re-sort tasks after every mutation so newly created or edited items move
 	// to the slot the backend would have placed them in. Subtasks stay anchored
@@ -272,14 +293,30 @@
 		void moveTask(taskId, null);
 	}
 
+	function collectDescendantIds(rootId: number, items: Task[]): SvelteSet<number> {
+		const result = new SvelteSet<number>();
+		const queue = [rootId];
+		while (queue.length > 0) {
+			const pid = queue.pop()!;
+			for (const t of items) {
+				if (t.parentId === pid) {
+					result.add(t.id);
+					queue.push(t.id);
+				}
+			}
+		}
+		return result;
+	}
+
 	async function moveTask(taskId: number, targetSectionId: number | null) {
 		if (!project) return;
 		const task = taskList.items.find((t) => t.id === taskId);
 		if (!task) return;
 		if (task.sectionId === targetSectionId) return;
 		const oldItems = taskList.items;
+		const descendantIds = collectDescendantIds(taskId, taskList.items);
 		taskList.items = taskList.items.map((t) =>
-			t.id === taskId ? { ...t, sectionId: targetSectionId } : t
+			t.id === taskId || descendantIds.has(t.id) ? { ...t, sectionId: targetSectionId } : t
 		);
 		try {
 			const target =
@@ -359,6 +396,9 @@
 {:else}
 	<ProjectHeader
 		{project}
+		hasCollapsible={parentTaskIds.size > 0}
+		{allSubtasksCollapsed}
+		onToggleAllSubtasks={toggleAllSubtasks}
 		onAddSection={addSection}
 		onComplete={() => (confirmCompleteOpen = true)}
 		onUncomplete={() => action('uncomplete')}
@@ -400,6 +440,8 @@
 								tasks={tasksWithoutSectionSplit.open}
 								showProject={false}
 								draggable
+								collapseCompletedChildren
+								collapsibleSubtasks
 								{mutator}
 								onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 							/>
@@ -423,6 +465,8 @@
 					sections={sectionList}
 					{tasksBySection}
 					{mutator}
+					collapseCompletedChildren
+					collapsibleSubtasks
 					onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 					onRenameSection={renameSection}
 					onRemoveSection={(sec) => {

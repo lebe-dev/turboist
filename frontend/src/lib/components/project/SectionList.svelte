@@ -9,6 +9,8 @@
 		mutator,
 		belongs,
 		onToggle,
+		collapseCompletedChildren = false,
+		collapsibleSubtasks = false,
 		onRenameSection,
 		onRemoveSection,
 		onAddSection,
@@ -20,6 +22,8 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		collapseCompletedChildren?: boolean;
+		collapsibleSubtasks?: boolean;
 		onRenameSection?: (section: ProjectSection) => void;
 		onRemoveSection?: (section: ProjectSection) => void;
 		onAddSection?: (section: ProjectSection) => void;
@@ -28,7 +32,7 @@
 	} = $props();
 </script>
 
-<div class="flex flex-col">
+<div class="flex flex-col gap-2">
 	{#each sections as section (section.id)}
 		<SectionItem
 			{section}
@@ -36,6 +40,8 @@
 			{mutator}
 			{belongs}
 			{onToggle}
+			{collapseCompletedChildren}
+			{collapsibleSubtasks}
 			onRename={onRenameSection}
 			onRemove={onRemoveSection}
 			onAddTask={onAddSection}

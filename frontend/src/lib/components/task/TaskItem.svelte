@@ -7,6 +7,9 @@
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
+	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
+	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
+	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
@@ -36,6 +39,8 @@
 		belongs,
 		onToggle,
 		hasSubtasks = false,
+		subtasksCollapsed = false,
+		onToggleCollapse,
 		visibleIds
 	}: {
 		task: Task;
@@ -50,6 +55,8 @@
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
 		hasSubtasks?: boolean;
+		subtasksCollapsed?: boolean;
+		onToggleCollapse?: () => void;
 		visibleIds?: number[];
 	} = $props();
 
@@ -88,6 +95,11 @@
 			!page.url.pathname.startsWith('/task/') &&
 			!page.url.pathname.startsWith('/project/')
 	);
+	const showWeekBadge = $derived(
+		task.planState === 'week' &&
+			page.url.pathname !== '/today' &&
+			page.url.pathname !== '/week'
+	);
 	const showCalendarSlash = $derived(
 		showUnplannedBadge &&
 			task.planState !== 'week' &&
@@ -101,7 +113,8 @@
 			task.labels.length > 0 ||
 			task.postponeCount >= 2 ||
 			isRecurring ||
-			showCalendarSlash
+			showCalendarSlash ||
+			showWeekBadge
 	);
 
 	const checkboxClass = $derived.by(() => {
@@ -133,12 +146,28 @@
 	class:py-2.5={hasMeta}
 	class:py-1.5={!hasMeta}
 	class:bg-accent={taskSelectionStore.mode && selected}
-	style:padding-left={`${depth * 1.5 + 0.75}rem`}
+	style:padding-left={onToggleCollapse && hasSubtasks ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
 	draggable={draggable && !taskSelectionStore.mode}
 	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
 	role={draggable ? 'listitem' : undefined}
 >
+	{#if onToggleCollapse && hasSubtasks}
+		<button
+			type="button"
+			onclick={onToggleCollapse}
+			class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+			class:mt-0.5={hasMeta}
+			aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
+			aria-expanded={!subtasksCollapsed}
+		>
+			{#if subtasksCollapsed}
+				<CaretRightIcon class="size-3" />
+			{:else}
+				<CaretDownIcon class="size-3" />
+			{/if}
+		</button>
+	{/if}
 	{#if taskSelectionStore.mode}
 		<button
 			type="button"
@@ -177,7 +206,8 @@
 				class="min-w-0 flex-1 break-words text-sm leading-snug md:truncate"
 				class:font-medium={!checked}
 				class:line-through={checked}
-				class:text-muted-foreground={checked}
+				class:text-muted-foreground={checked || depth > 0}
+				class:text-foreground={!checked && depth === 0}
 			>
 				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
@@ -229,6 +259,17 @@
 						aria-label={$t('task.unplannedLabel')}
 					>
 						<CalendarSlashIcon class="size-3.5 shrink-0" />
+					</span>
+				{/if}
+				{#if showWeekBadge}
+					<span
+						class="inline-flex items-center {checked
+							? 'text-muted-foreground/40'
+							: 'text-muted-foreground/60'}"
+						title={$t('task.weekPlannedLabel')}
+						aria-label={$t('task.weekPlannedLabel')}
+					>
+						<CalendarCheckIcon class="size-3.5 shrink-0" />
 					</span>
 				{/if}
 			</div>

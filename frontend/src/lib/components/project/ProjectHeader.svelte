@@ -11,6 +11,8 @@
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
+	import ArrowsInLineVerticalIcon from 'phosphor-svelte/lib/ArrowsInLineVertical';
+	import ArrowsOutLineVerticalIcon from 'phosphor-svelte/lib/ArrowsOutLineVertical';
 	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import TriangleIcon from 'phosphor-svelte/lib/Triangle';
@@ -38,9 +40,15 @@
 		onDelete,
 		onSetTroiki,
 		onTogglePrivate,
-		onCreateBug
+		onCreateBug,
+		hasCollapsible = false,
+		allSubtasksCollapsed = false,
+		onToggleAllSubtasks
 	}: {
 		project: Project;
+		hasCollapsible?: boolean;
+		allSubtasksCollapsed?: boolean;
+		onToggleAllSubtasks?: () => void;
 		onAddSection?: () => void;
 		onComplete?: () => void;
 		onUncomplete?: () => void;
@@ -145,6 +153,22 @@
 				<Button size="sm" variant="outline" onclick={onUncomplete}>
 					<ArrowCounterClockwiseIcon class="size-4" />
 					{$t('project.reopen')}
+				</Button>
+			{/if}
+			{#if hasCollapsible && onToggleAllSubtasks}
+				<Button
+					size="sm"
+					variant="ghost"
+					onclick={onToggleAllSubtasks}
+					aria-label={allSubtasksCollapsed ? $t('project.expandAllSubtasks') : $t('project.collapseAllSubtasks')}
+					title={allSubtasksCollapsed ? $t('project.expandAllSubtasks') : $t('project.collapseAllSubtasks')}
+					class="size-7 p-0"
+				>
+					{#if allSubtasksCollapsed}
+						<ArrowsOutLineVerticalIcon class="size-3.5 text-muted-foreground/60" />
+					{:else}
+						<ArrowsInLineVerticalIcon class="size-3.5 text-muted-foreground/60" />
+					{/if}
 				</Button>
 			{/if}
 			{#if project.projectType === 'software' && onCreateBug}
