@@ -182,6 +182,7 @@
 			"pin": "Закрепить",
 			"unpin": "Открепить",
 			"moveToProject": "Переместить в проект…",
+			"moveToSection": "Переместить в секцию…",
 			"removeFromBacklog": "Убрать из бэклога",
 			"toBacklog": "В бэклог",
 			"dateLabel": "Дата",
@@ -242,7 +243,9 @@
 			"failedDuplicate": "Не удалось дублировать задачу",
 			"moved": "Перемещено",
 			"movedAndCompleted": "Перемещено и завершено",
+			"movedToSection": "Перемещено в секцию",
 			"failedMove": "Не удалось переместить задачу",
+			"failedMoveToSection": "Не удалось переместить в секцию",
 			"copied": "Скопировано",
 			"failedCopy": "Не удалось скопировать",
 			"failedUndo": "Не удалось отменить",
@@ -298,7 +301,20 @@
 			"title": "Переместить в проект",
 			"description": "Выберите проект для «{title}»",
 			"searchPlaceholder": "Поиск проектов…",
-			"noProjects": "Проекты не найдены."
+			"noProjects": "Проекты не найдены.",
+			"pickSectionTitle": "Выберите секцию",
+			"pickSectionDescription": "Секция в «{project}»",
+			"noSection": "Без секции (корень проекта)",
+			"backToProjects": "Назад к проектам",
+			"loadingSections": "Загрузка секций…"
+		},
+		"moveSection": {
+			"title": "Переместить в секцию",
+			"description": "Выберите секцию для «{title}»",
+			"noSection": "Без секции (корень проекта)",
+			"noSections": "У этого проекта нет секций.",
+			"loading": "Загрузка секций…",
+			"failedLoad": "Не удалось загрузить секции"
 		},
 		"decompose": {
 			"title": "Разбить задачу",

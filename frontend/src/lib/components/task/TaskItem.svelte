@@ -24,7 +24,7 @@
 	import PostponeBadge from './PostponeBadge.svelte';
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
-	import { setTaskDrag } from '$lib/utils/dnd';
+	import { setTaskDrag, initTouchDrag, updateTouchDrag, endTouchDrag } from '$lib/utils/dnd';
 
 	let {
 		task,
@@ -74,6 +74,23 @@
 
 	function onTaskDragStart(e: DragEvent) {
 		setTaskDrag(e, task.id);
+	}
+
+	function onTaskTouchStart(e: TouchEvent) {
+		if (!draggable || taskSelectionStore.mode) return;
+		initTouchDrag(e, task.id, e.currentTarget as HTMLElement);
+	}
+
+	function onTaskTouchMove(e: TouchEvent) {
+		if (!draggable || taskSelectionStore.mode) return;
+		updateTouchDrag(e);
+	}
+
+	function onTaskTouchEnd(e: TouchEvent) {
+		if (!draggable || taskSelectionStore.mode) return;
+		const result = endTouchDrag(e);
+		if (!result) return;
+		window.dispatchEvent(new CustomEvent('turboist:task-touch-drop', { detail: result }));
 	}
 
 	const getDayPartActive = getContext<(() => boolean) | undefined>('dayPartActive');
@@ -150,6 +167,9 @@
 	data-task-id={task.id}
 	draggable={draggable && !taskSelectionStore.mode}
 	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
+	ontouchstart={draggable && !taskSelectionStore.mode ? onTaskTouchStart : undefined}
+	ontouchmove={draggable && !taskSelectionStore.mode ? onTaskTouchMove : undefined}
+	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
 	role={draggable ? 'listitem' : undefined}
 >
 	{#if onToggleCollapse && hasSubtasks}

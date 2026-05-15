@@ -182,6 +182,7 @@
 			"pin": "Pin",
 			"unpin": "Unpin",
 			"moveToProject": "Move to project…",
+			"moveToSection": "Move to section…",
 			"removeFromBacklog": "Remove from backlog",
 			"toBacklog": "To backlog",
 			"dateLabel": "Date",
@@ -242,7 +243,9 @@
 			"failedDuplicate": "Failed to duplicate task",
 			"moved": "Moved",
 			"movedAndCompleted": "Moved and completed",
+			"movedToSection": "Moved to section",
 			"failedMove": "Failed to move task",
+			"failedMoveToSection": "Failed to move to section",
 			"copied": "Copied",
 			"failedCopy": "Failed to copy",
 			"failedUndo": "Failed to undo",
@@ -298,7 +301,20 @@
 			"title": "Move to project",
 			"description": "Pick a project for \"{title}\"",
 			"searchPlaceholder": "Search projects…",
-			"noProjects": "No projects found."
+			"noProjects": "No projects found.",
+			"pickSectionTitle": "Pick a section",
+			"pickSectionDescription": "Choose a section in {project}",
+			"noSection": "No section (project root)",
+			"backToProjects": "Back to projects",
+			"loadingSections": "Loading sections…"
+		},
+		"moveSection": {
+			"title": "Move to section",
+			"description": "Choose a section for \"{title}\"",
+			"noSection": "No section (project root)",
+			"noSections": "This project has no sections.",
+			"loading": "Loading sections…",
+			"failedLoad": "Failed to load sections"
 		},
 		"decompose": {
 			"title": "Decompose task",
