@@ -243,6 +243,7 @@
 			"failedDuplicate": "Failed to duplicate task",
 			"moved": "Moved",
 			"movedAndCompleted": "Moved and completed",
+			"movedToInbox": "Moved to Inbox",
 			"movedToSection": "Moved to section",
 			"failedMove": "Failed to move task",
 			"failedMoveToSection": "Failed to move to section",

@@ -243,6 +243,7 @@
 			"failedDuplicate": "Не удалось дублировать задачу",
 			"moved": "Перемещено",
 			"movedAndCompleted": "Перемещено и завершено",
+			"movedToInbox": "Перемещено в Inbox",
 			"movedToSection": "Перемещено в секцию",
 			"failedMove": "Не удалось переместить задачу",
 			"failedMoveToSection": "Не удалось переместить в секцию",

@@ -6,10 +6,11 @@
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
-	import { moveTaskToProject, type ListMutator } from '$lib/utils/taskActions';
+	import { moveTaskToProject, moveTaskToInbox, type ListMutator } from '$lib/utils/taskActions';
 	import type { Project, ProjectSection, Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
+	import TrayIcon from 'phosphor-svelte/lib/Tray';
 	import { t } from '$lib/i18n';
 
 	let {
@@ -68,6 +69,17 @@
 		}
 		if (sections.length === 0) {
 			await doMove(project, null);
+		}
+	}
+
+	async function doMoveToInbox() {
+		if (!task || submitting) return;
+		submitting = true;
+		try {
+			await moveTaskToInbox(task, mutator, { belongs });
+			open = false;
+		} finally {
+			submitting = false;
 		}
 	}
 
@@ -158,6 +170,23 @@
 			{:else}
 				<!-- Project picker step -->
 				<Input placeholder={$t('dialog.moveTask.searchPlaceholder')} bind:value={query} autofocus />
+
+				{@const inInbox = task?.inboxId !== null}
+				<button
+					type="button"
+					disabled={submitting || inInbox}
+					onclick={doMoveToInbox}
+					class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+					class:bg-accent={inInbox}
+				>
+					<TrayIcon class="size-3.5 shrink-0 text-muted-foreground" />
+					<span class="flex-1">{$t('nav.inbox')}</span>
+					{#if inInbox}
+						<CheckIcon class="size-4 text-muted-foreground" weight="bold" />
+					{/if}
+				</button>
+
+				<div class="border-t border-border/40"></div>
 
 				<div class="flex flex-col gap-3">
 					{#each grouped as group (group.ctx.id)}

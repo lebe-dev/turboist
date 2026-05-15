@@ -183,6 +183,22 @@ export async function duplicateTask(task: Task, mutator: ListMutator): Promise<v
 	}
 }
 
+export async function moveTaskToInbox(
+	task: Task,
+	mutator: ListMutator,
+	options: BelongsOption = {}
+): Promise<void> {
+	if (task.inboxId !== null) return;
+	const client = getApiClient();
+	try {
+		const updated = await tasksApi.move(client, task.id, { inboxId: 1 });
+		applyUpdate(updated, mutator, options.belongs);
+		toast.success(tr('task.toast.movedToInbox'));
+	} catch (err) {
+		toast.error(describeError(err, tr('task.toast.failedMove')));
+	}
+}
+
 export async function moveTaskToProject(
 	task: Task,
 	contextId: number,
