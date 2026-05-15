@@ -10,6 +10,7 @@
 	import type { Task } from '$lib/api/types';
 	import TaskItem from '$lib/components/task/TaskItem.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
+	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import PlanSectionHeader from '$lib/components/view/PlanSectionHeader.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
@@ -17,10 +18,20 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
-	import { t } from '$lib/i18n';
+	import { formatDayKeyRange, nextWeekRangeKeys } from '$lib/utils/format';
+	import { t, locale } from '$lib/i18n';
 
 	const backlog = useListMutator<Task>();
 	const week = useListMutator<Task>();
+
+	const tz = $derived(configStore.value?.timezone ?? null);
+	const nextRange = $derived(nextWeekRangeKeys(new Date(), tz));
+	const nextRangeLabel = $derived(
+		formatDayKeyRange(nextRange.startKey, nextRange.endKey, $locale, tz)
+	);
+	const headerSubtitle = $derived(
+		$t('page.nextWeek.dateRangeLabel', { values: { range: nextRangeLabel } })
+	);
 
 	const weeklyLimit = $derived(configStore.value?.weekly.limit ?? null);
 	const backlogLimit = $derived(configStore.value?.backlog.limit ?? null);
@@ -83,6 +94,8 @@
 		}
 	}
 </script>
+
+<ViewHeader subtitle={headerSubtitle} />
 
 <div class="grid grid-cols-1 gap-4 px-2 py-3 sm:grid-cols-2 sm:px-4">
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">

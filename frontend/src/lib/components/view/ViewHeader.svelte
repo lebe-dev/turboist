@@ -3,23 +3,36 @@
 
 	let {
 		title,
+		subtitle,
+		meta,
 		actions,
 		banner
 	}: {
 		title?: string;
+		subtitle?: string;
+		meta?: Snippet;
 		actions?: Snippet;
 		banner?: Snippet;
 	} = $props();
 </script>
 
-{#if title || actions || banner}
+{#if title || subtitle || meta || actions || banner}
 <header class="flex flex-col gap-3 px-4 pt-4 pb-3 sm:px-8">
-	{#if title || actions}
-		<div class="flex items-center justify-between gap-3">
-			{#if title}
-				<h1 class="truncate text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-[26px]">
-					{title}
-				</h1>
+	{#if title || subtitle || meta || actions}
+		<div class="flex items-start justify-between gap-3">
+			{#if title || subtitle || meta}
+				<div class="min-w-0 flex-1">
+					{#if title}
+						<h1 class="truncate text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-[26px]">
+							{title}
+						</h1>
+					{/if}
+					{#if meta}
+						<div class="mt-1">{@render meta()}</div>
+					{:else if subtitle}
+						<p class="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+					{/if}
+				</div>
 			{/if}
 			{#if actions}
 				<div class="flex shrink-0 items-center gap-2">{@render actions()}</div>

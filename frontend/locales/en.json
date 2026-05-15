@@ -41,7 +41,6 @@
 		"inbox": "Inbox",
 		"week": "Week",
 		"thisWeek": "This week",
-		"backlog": "Backlog",
 		"nextWeek": "Next week",
 		"completed": "Completed",
 		"search": "Search",
@@ -503,15 +502,11 @@
 			"emptyTitle": "Week is empty",
 			"emptyDescription": "Plan tasks for this week from Backlog or by setting a due date.",
 			"errorLoading": "Failed to load week",
-			"limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected."
-		},
-		"backlog": {
-			"emptyTitle": "Backlog is empty",
-			"emptyDescription": "Park tasks here when they're not actionable yet.",
-			"errorLoading": "Failed to load backlog",
-			"limitReached": "Backlog limit reached ({total}/{limit}). Move tasks to a week or complete them before adding more."
+			"limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected.",
+			"daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}"
 		},
 		"nextWeek": {
+			"dateRangeLabel": "Next week: {range}",
 			"errorLoading": "Failed to load planning view",
 			"weeklyLimitReached": "Weekly limit reached ({weekCount}/{weeklyLimit})",
 			"weeklyLimitReachedShort": "Weekly limit reached ({limit})",
