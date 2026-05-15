@@ -183,17 +183,37 @@ export async function duplicateTask(task: Task, mutator: ListMutator): Promise<v
 	}
 }
 
+export async function moveTaskToInbox(
+	task: Task,
+	mutator: ListMutator,
+	options: BelongsOption = {}
+): Promise<void> {
+	if (task.inboxId !== null) return;
+	const client = getApiClient();
+	try {
+		const updated = await tasksApi.move(client, task.id, { inboxId: 1 });
+		applyUpdate(updated, mutator, options.belongs);
+		toast.success(tr('task.toast.movedToInbox'));
+	} catch (err) {
+		toast.error(describeError(err, tr('task.toast.failedMove')));
+	}
+}
+
 export async function moveTaskToProject(
 	task: Task,
 	contextId: number,
 	projectId: number,
 	mutator: ListMutator,
-	options: BelongsOption & { projectCompleted?: boolean } = {}
+	options: BelongsOption & { projectCompleted?: boolean; sectionId?: number | null } = {}
 ): Promise<void> {
-	if (task.projectId === projectId) return;
+	if (task.projectId === projectId && (options.sectionId === undefined || task.sectionId === (options.sectionId ?? null))) return;
 	const client = getApiClient();
 	try {
-		let updated = await tasksApi.move(client, task.id, { contextId, projectId });
+		const moveInput =
+			options.sectionId != null
+				? { contextId, projectId, sectionId: options.sectionId }
+				: { contextId, projectId };
+		let updated = await tasksApi.move(client, task.id, moveInput);
 		if (options.projectCompleted && updated.status !== 'completed') {
 			updated = await tasksApi.complete(client, updated.id);
 		}
@@ -203,6 +223,29 @@ export async function moveTaskToProject(
 		);
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedMove')));
+	}
+}
+
+export async function moveTaskToSection(
+	task: Task,
+	contextId: number,
+	projectId: number,
+	sectionId: number | null,
+	mutator: ListMutator,
+	options: BelongsOption = {}
+): Promise<void> {
+	if (task.sectionId === sectionId) return;
+	const client = getApiClient();
+	try {
+		const moveInput =
+			sectionId !== null
+				? { contextId, projectId, sectionId }
+				: { contextId, projectId };
+		const updated = await tasksApi.move(client, task.id, moveInput);
+		applyUpdate(updated, mutator, options.belongs);
+		toast.success(tr('task.toast.movedToSection'));
+	} catch (err) {
+		toast.error(describeError(err, tr('task.toast.failedMoveToSection')));
 	}
 }
 

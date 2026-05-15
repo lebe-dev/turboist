@@ -85,7 +85,8 @@
 			"labels": "Labels",
 			"project": "Project",
 			"privacy": "Privacy",
-			"session": "Session"
+			"session": "Session",
+			"api": "API"
 		},
 		"project": {
 			"bugLabelsHeading": "Bug labels",
@@ -143,6 +144,26 @@
 			"publishLabel": "Show",
 			"toastSaved": "Banner updated",
 			"toastFailed": "Failed to update banner"
+		},
+		"api": {
+			"heading": "API tokens",
+			"description": "Use tokens to integrate external tools (e.g. n8n). A token authenticates requests to /api/v1/* via the Authorization: Bearer header.",
+			"namePlaceholder": "Token name (e.g. n8n)",
+			"generate": "Generate token",
+			"generating": "Generating…",
+			"empty": "No tokens yet.",
+			"created": "Created",
+			"delete": "Delete",
+			"warningOnce": "Copy this token now. It will not be shown again.",
+			"copy": "Copy",
+			"copied": "Copied to clipboard",
+			"close": "Close",
+			"confirmDeleteTitle": "Delete token?",
+			"confirmDeleteDescription": "Integrations using this token will stop working. This cannot be undone.",
+			"confirmDeleteAction": "Delete",
+			"createFailed": "Failed to create token",
+			"deleteFailed": "Failed to delete token",
+			"loadFailed": "Failed to load tokens"
 		}
 	},
 	"auth": {
@@ -182,6 +203,7 @@
 			"pin": "Pin",
 			"unpin": "Unpin",
 			"moveToProject": "Move to project…",
+			"moveToSection": "Move to section…",
 			"removeFromBacklog": "Remove from backlog",
 			"toBacklog": "To backlog",
 			"dateLabel": "Date",
@@ -242,7 +264,10 @@
 			"failedDuplicate": "Failed to duplicate task",
 			"moved": "Moved",
 			"movedAndCompleted": "Moved and completed",
+			"movedToInbox": "Moved to Inbox",
+			"movedToSection": "Moved to section",
 			"failedMove": "Failed to move task",
+			"failedMoveToSection": "Failed to move to section",
 			"copied": "Copied",
 			"failedCopy": "Failed to copy",
 			"failedUndo": "Failed to undo",
@@ -298,7 +323,20 @@
 			"title": "Move to project",
 			"description": "Pick a project for \"{title}\"",
 			"searchPlaceholder": "Search projects…",
-			"noProjects": "No projects found."
+			"noProjects": "No projects found.",
+			"pickSectionTitle": "Pick a section",
+			"pickSectionDescription": "Choose a section in {project}",
+			"noSection": "No section (project root)",
+			"backToProjects": "Back to projects",
+			"loadingSections": "Loading sections…"
+		},
+		"moveSection": {
+			"title": "Move to section",
+			"description": "Choose a section for \"{title}\"",
+			"noSection": "No section (project root)",
+			"noSections": "This project has no sections.",
+			"loading": "Loading sections…",
+			"failedLoad": "Failed to load sections"
 		},
 		"decompose": {
 			"title": "Decompose task",

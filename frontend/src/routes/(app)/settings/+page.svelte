@@ -8,6 +8,7 @@
 	import QuestionIcon from 'phosphor-svelte/lib/Question';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as HoverCard from '$lib/components/ui/hover-card';
+	import ApiTokensSection from '$lib/components/settings/ApiTokensSection.svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -163,6 +164,7 @@
 			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
 			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
 			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
+			<Tabs.Trigger value="api">{$t('settings.tabs.api')}</Tabs.Trigger>
 		</Tabs.List>
 
 		<Tabs.Content value="general" class="flex flex-col gap-4">
@@ -369,6 +371,10 @@
 					</button>
 				</div>
 			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="api" class="flex flex-col gap-4">
+			<ApiTokensSection />
 		</Tabs.Content>
 	</Tabs.Root>
 </div>

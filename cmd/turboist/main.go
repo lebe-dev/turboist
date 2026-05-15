@@ -67,6 +67,7 @@ func main() {
 	tlabels := repo.NewTaskLabelsRepo(sqlDB)
 	userRepo := repo.NewUserRepo(sqlDB)
 	sessionRepo := repo.NewSessionRepo(sqlDB)
+	apiTokenRepo := repo.NewAPITokenRepo(sqlDB)
 	ctxRepo := repo.NewContextRepo(sqlDB)
 	labelRepo := repo.NewLabelRepo(sqlDB)
 	sectionRepo := repo.NewProjectSectionRepo(sqlDB)
@@ -96,20 +97,22 @@ func main() {
 
 	// HTTP app
 	deps := httpapi.Deps{
-		Log:         log,
-		JWTIssuer:   jwtIssuer,
-		UserRepo:    userRepo,
-		SessionRepo: sessionRepo,
-		IPLimiter:   ipLimiter,
-		ContextRepo: ctxRepo,
-		LabelRepo:   labelRepo,
-		SectionRepo: sectionRepo,
-		ProjectRepo: projectRepo,
-		TaskRepo:    taskRepo,
-		PinService:  pinSvc,
-		Cfg:         cfg,
-		BaseURL:     env.BaseURL,
-		Version:     Version,
+		Log:          log,
+		JWTIssuer:    jwtIssuer,
+		UserRepo:     userRepo,
+		SessionRepo:  sessionRepo,
+		APITokenRepo: apiTokenRepo,
+		APITokenSalt: []byte(env.APITokenSalt),
+		IPLimiter:    ipLimiter,
+		ContextRepo:  ctxRepo,
+		LabelRepo:    labelRepo,
+		SectionRepo:  sectionRepo,
+		ProjectRepo:  projectRepo,
+		TaskRepo:     taskRepo,
+		PinService:   pinSvc,
+		Cfg:          cfg,
+		BaseURL:      env.BaseURL,
+		Version:      Version,
 	}
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)
@@ -130,6 +133,8 @@ func main() {
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
+	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
+		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 
 	// embedded SvelteKit SPA (must be registered after API/auth routes)
 	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {

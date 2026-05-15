@@ -27,11 +27,11 @@ func (h *StateHandler) Register(r fiber.Router) {
 }
 
 func (h *StateHandler) get(c fiber.Ctx) error {
-	claims := httpapi.GetClaims(c)
-	if claims == nil {
+	userID := httpapi.GetUserID(c)
+	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
-	raw, err := h.users.GetState(c.Context(), claims.UserID)
+	raw, err := h.users.GetState(c.Context(), userID)
 	if err != nil {
 		return httpapi.ErrInternal("load state")
 	}
@@ -43,8 +43,8 @@ func (h *StateHandler) get(c fiber.Ctx) error {
 }
 
 func (h *StateHandler) patch(c fiber.Ctx) error {
-	claims := httpapi.GetClaims(c)
-	if claims == nil {
+	userID := httpapi.GetUserID(c)
+	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
 	if len(c.Body()) > 64*1024 {
@@ -55,7 +55,7 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 		return httpapi.ErrValidation("invalid JSON object")
 	}
 
-	rawCurrent, err := h.users.GetState(c.Context(), claims.UserID)
+	rawCurrent, err := h.users.GetState(c.Context(), userID)
 	if err != nil {
 		return httpapi.ErrInternal("load state")
 	}
@@ -76,7 +76,7 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("encode state")
 	}
-	if err := h.users.SetState(c.Context(), claims.UserID, string(merged)); err != nil {
+	if err := h.users.SetState(c.Context(), userID, string(merged)); err != nil {
 		return httpapi.ErrInternal("save state")
 	}
 	c.Set("Content-Type", "application/json")

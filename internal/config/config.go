@@ -153,21 +153,23 @@ func validateDayParts(parts map[string]DayPart) error {
 }
 
 type Env struct {
-	Bind         string
-	LogLevel     string
-	BaseURL      string
-	JWTSecret    string
-	DataPath     string
-	Argon2Params auth.Argon2Params
+	Bind          string
+	LogLevel      string
+	BaseURL       string
+	JWTSecret     string
+	APITokenSalt  string
+	DataPath      string
+	Argon2Params  auth.Argon2Params
 }
 
 func LoadEnv() (*Env, error) {
 	e := &Env{
-		Bind:      os.Getenv("BIND"),
-		LogLevel:  os.Getenv("LOG_LEVEL"),
-		BaseURL:   os.Getenv("BASE_URL"),
-		JWTSecret: os.Getenv("JWT_SECRET"),
-		DataPath:  os.Getenv("DATA_PATH"),
+		Bind:         os.Getenv("BIND"),
+		LogLevel:     os.Getenv("LOG_LEVEL"),
+		BaseURL:      os.Getenv("BASE_URL"),
+		JWTSecret:    os.Getenv("JWT_SECRET"),
+		APITokenSalt: os.Getenv("API_TOKEN_SALT"),
+		DataPath:     os.Getenv("DATA_PATH"),
 	}
 	if e.LogLevel == "" {
 		e.LogLevel = "info"
@@ -186,6 +188,12 @@ func LoadEnv() (*Env, error) {
 	}
 	if len(e.JWTSecret) < 32 {
 		return nil, fmt.Errorf("env: JWT_SECRET must be at least 32 bytes")
+	}
+	if e.APITokenSalt == "" {
+		return nil, fmt.Errorf("env: API_TOKEN_SALT is required")
+	}
+	if len(e.APITokenSalt) < 32 {
+		return nil, fmt.Errorf("env: API_TOKEN_SALT must be at least 32 bytes")
 	}
 
 	argon2Params, err := loadArgon2Params()

@@ -32,6 +32,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
+	import { PROJECT_SECTIONS_KEY } from '$lib/context/projectSections';
 	import { SvelteSet } from 'svelte/reactivity';
 
 
@@ -81,6 +82,10 @@
 			if (next.has(id)) next.delete(id); else next.add(id);
 			collapsedIds = next;
 		}
+	});
+
+	setContext(PROJECT_SECTIONS_KEY, {
+		get sections() { return sectionList; }
 	});
 
 	// Re-sort tasks after every mutation so newly created or edited items move
@@ -382,6 +387,17 @@
 		return () => window.removeEventListener('turboist:task-created', handler);
 	});
 
+	$effect(() => {
+		const handler = (e: Event) => {
+			const { taskId, sectionId } = (e as CustomEvent<{ taskId: number; sectionId: number | null }>).detail;
+			const task = taskList.items.find((t) => t.id === taskId);
+			if (!task || task.projectId !== projectId) return;
+			void moveTask(taskId, sectionId);
+		};
+		window.addEventListener('turboist:task-touch-drop', handler);
+		return () => window.removeEventListener('turboist:task-touch-drop', handler);
+	});
+
 	onMount(() => {
 		if (!projectsStore.loaded) projectsStore.load().catch(() => undefined);
 	});
@@ -423,6 +439,7 @@
 			emptyDescription={$t('page.project.emptyDescription')}
 		>
 			<div
+				data-section-root="true"
 				class={[
 					'rounded-md transition-colors',
 					rootDropActive && 'bg-accent/40',

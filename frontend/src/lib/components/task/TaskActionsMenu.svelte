@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { getContext } from 'svelte';
 	import { t } from '$lib/i18n';
 	import type { DayPart, Priority, Task } from '$lib/api/types';
+	import { PROJECT_SECTIONS_KEY, type ProjectSectionsCtx } from '$lib/context/projectSections';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -23,9 +25,11 @@
 		type ListMutator
 	} from '$lib/utils/taskActions';
 	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
+	import MoveSectionDialog from '$lib/components/dialog/MoveSectionDialog.svelte';
 	import DecomposeTaskDialog from '$lib/components/dialog/DecomposeTaskDialog.svelte';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
+	import ListIcon from 'phosphor-svelte/lib/List';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import CopySimpleIcon from 'phosphor-svelte/lib/CopySimple';
@@ -101,7 +105,13 @@
 		{ part: 'evening', labelKey: 'task.dayPart.evening', icon: MoonIcon as unknown as Component }
 	];
 
+	const projectSectionsCtx = getContext<ProjectSectionsCtx | undefined>(PROJECT_SECTIONS_KEY);
+	const showMoveToSection = $derived(
+		(projectSectionsCtx?.sections.length ?? 0) > 0 && task.projectId !== null
+	);
+
 	let moveOpen = $state(false);
+	let moveSectionOpen = $state(false);
 	let decomposeOpen = $state(false);
 </script>
 
@@ -153,6 +163,11 @@
 		<DropdownMenu.Item onclick={() => (moveOpen = true)}>
 			<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
 		</DropdownMenu.Item>
+		{#if showMoveToSection}
+			<DropdownMenu.Item onclick={() => (moveSectionOpen = true)}>
+				<ListIcon class="size-4" /> {$t('task.actions.moveToSection')}
+			</DropdownMenu.Item>
+		{/if}
 		<DropdownMenu.Item
 			disabled={hasSubtasks}
 			title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
@@ -298,4 +313,5 @@
 </DropdownMenu.Root>
 
 <MoveTaskDialog bind:open={moveOpen} {task} {mutator} {belongs} />
+<MoveSectionDialog bind:open={moveSectionOpen} {task} {mutator} {belongs} sections={projectSectionsCtx?.sections} />
 <DecomposeTaskDialog bind:open={decomposeOpen} {task} {mutator} />

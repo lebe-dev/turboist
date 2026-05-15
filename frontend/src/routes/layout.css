@@ -130,3 +130,8 @@
 		@apply font-sans;
 	}
 }
+
+/* Touch drag-and-drop highlight */
+.touch-drag-over {
+	@apply bg-accent/40;
+}

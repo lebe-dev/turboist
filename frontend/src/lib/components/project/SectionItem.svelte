@@ -110,6 +110,7 @@
 
 <section
 	bind:this={sectionEl}
+	data-section-id={section.id}
 	class={[
 		'relative rounded-md border border-border/60 odd:bg-muted/20',
 		dragIndicator === 'task' && 'bg-accent/40'

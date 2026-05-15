@@ -25,14 +25,16 @@ const testBaseURL = "http://test"
 
 // apiEnv is the shared test environment for resource handler tests.
 type apiEnv struct {
-	app      *fiber.App
-	db       *sql.DB
-	jwt      *auth.JWTIssuer
-	ctxs     *repo.ContextRepo
-	labels   *repo.LabelRepo
-	sections *repo.ProjectSectionRepo
-	projects *repo.ProjectRepo
-	tasks    *repo.TaskRepo
+	app          *fiber.App
+	db           *sql.DB
+	jwt          *auth.JWTIssuer
+	ctxs         *repo.ContextRepo
+	labels       *repo.LabelRepo
+	sections     *repo.ProjectSectionRepo
+	projects     *repo.ProjectRepo
+	tasks        *repo.TaskRepo
+	apiTokens    *repo.APITokenRepo
+	apiTokenSalt []byte
 }
 
 func setupAPIEnv(t *testing.T) *apiEnv {
@@ -66,8 +68,10 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
+	apiTokens := repo.NewAPITokenRepo(d)
+	salt := []byte("test-api-token-salt-32-bytes-pad!")
 
-	deps := httpapi.Deps{JWTIssuer: issuer}
+	deps := httpapi.Deps{JWTIssuer: issuer, APITokenRepo: apiTokens, APITokenSalt: salt}
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)
 
@@ -93,16 +97,20 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
+	handlers.NewAPITokensHandler(apiTokens, salt).
+		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 
 	return &apiEnv{
-		app:      app,
-		db:       d,
-		jwt:      issuer,
-		ctxs:     ctxs,
-		labels:   lbls,
-		sections: secs,
-		projects: projs,
-		tasks:    tasks,
+		app:          app,
+		db:           d,
+		jwt:          issuer,
+		ctxs:         ctxs,
+		labels:       lbls,
+		sections:     secs,
+		projects:     projs,
+		tasks:        tasks,
+		apiTokens:    apiTokens,
+		apiTokenSalt: salt,
 	}
 }
 

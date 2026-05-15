@@ -172,6 +172,16 @@ export interface UserSettings {
 	bannerPublished: boolean;
 }
 
+export interface APIToken {
+	id: number;
+	name: string;
+	createdAt: string;
+}
+
+export interface APITokenWithSecret extends APIToken {
+	token: string;
+}
+
 export interface ConfigResponse {
 	timezone: string;
 	maxPinned: number;

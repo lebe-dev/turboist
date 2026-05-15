@@ -141,6 +141,7 @@ func TestLoadEnv_OK(t *testing.T) {
 	t.Setenv("BIND", "0.0.0.0:8080")
 	t.Setenv("BASE_URL", "https://x.test")
 	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
 	t.Setenv("LOG_LEVEL", "")
 	e, err := LoadEnv()
 	if err != nil {
@@ -155,7 +156,28 @@ func TestLoadEnv_JWTSecretTooShort(t *testing.T) {
 	t.Setenv("BIND", "0.0.0.0:8080")
 	t.Setenv("BASE_URL", "https://x.test")
 	t.Setenv("JWT_SECRET", "short")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
 	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "32 bytes") {
 		t.Fatalf("expected JWT_SECRET length error, got %v", err)
+	}
+}
+
+func TestLoadEnv_APITokenSaltMissing(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "API_TOKEN_SALT is required") {
+		t.Fatalf("expected API_TOKEN_SALT required error, got %v", err)
+	}
+}
+
+func TestLoadEnv_APITokenSaltTooShort(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "short")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "32 bytes") {
+		t.Fatalf("expected API_TOKEN_SALT length error, got %v", err)
 	}
 }

@@ -15,6 +15,7 @@
 		buttonVariant = "ghost",
 		captionLayout = "label",
 		locale = "en-US",
+		weekStartsOn = 1,
 		months: monthsProp,
 		years,
 		monthFormat: monthFormatProp,
@@ -48,6 +49,7 @@ get along, so we shut typescript up by casting `value` to `never`.
 	bind:ref
 	bind:placeholder
 	{weekdayFormat}
+	{weekStartsOn}
 	{disableDaysOutsideMonth}
 	class={cn(
 		"p-2 [--cell-size:--spacing(7)] bg-background group/calendar in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",

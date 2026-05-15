@@ -121,3 +121,11 @@ type Session struct {
 func (s *Session) IsActive(now time.Time) bool {
 	return s.RevokedAt == nil && now.Before(s.ExpiresAt)
 }
+
+type APIToken struct {
+	ID        int64
+	UserID    int64
+	Name      string
+	TokenHash string
+	CreatedAt time.Time
+}
