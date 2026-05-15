@@ -40,6 +40,15 @@ func (h *TaskViewHandler) todayStart() time.Time {
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, h.cfg.Location).UTC()
 }
 
+// currentWeekRange returns [Mon 00:00, next Mon 00:00) in the configured
+// timezone, expressed as UTC instants. Week starts on Monday.
+func (h *TaskViewHandler) currentWeekRange() (time.Time, time.Time) {
+	now := time.Now().In(h.cfg.Location)
+	daysFromMonday := (int(now.Weekday()) + 6) % 7
+	start := time.Date(now.Year(), now.Month(), now.Day()-daysFromMonday, 0, 0, 0, 0, h.cfg.Location).UTC()
+	return start, start.AddDate(0, 0, 7)
+}
+
 func parseViewFilter(c fiber.Ctx) repo.TaskFilter {
 	f := repo.TaskFilter{}
 	if v := c.Query("contextId"); v != "" {
@@ -127,7 +136,8 @@ type viewResponse struct {
 
 func (h *TaskViewHandler) week(c fiber.Ctx) error {
 	filter := parseViewFilter(c)
-	items, total, err := h.tasks.ListWeek(c.Context(), filter)
+	start, end := h.currentWeekRange()
+	items, total, err := h.tasks.ListWeek(c.Context(), start, end, filter)
 	if err != nil {
 		return httpapi.ErrInternal("list week")
 	}

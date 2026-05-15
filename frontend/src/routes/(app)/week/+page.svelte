@@ -13,6 +13,7 @@
 	import LimitReachedBanner from '$lib/components/view/LimitReachedBanner.svelte';
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import { groupByDay } from '$lib/utils/viewGroup';
+	import { dayKeyInTz, parseIso, weekRangeKeys } from '$lib/utils/format';
 	import { toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -23,9 +24,22 @@
 	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
 	const { mutator } = list;
 
-	const groups = $derived(groupByDay(list.items, configStore.value?.timezone ?? null));
+	const tz = $derived(configStore.value?.timezone ?? null);
+	const groups = $derived(groupByDay(list.items, tz));
 	const limit = $derived(configStore.value?.weekly.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
+	const weekRange = $derived(weekRangeKeys(new Date(), tz));
+
+	function dueInWeek(t: Task): boolean {
+		const dt = parseIso(t.dueAt);
+		if (!dt) return false;
+		const key = dayKeyInTz(dt, tz);
+		return key >= weekRange.startKey && key < weekRange.endKey;
+	}
+
+	function belongs(t: Task): boolean {
+		return t.planState === 'week' || dueInWeek(t);
+	}
 
 	const loader = usePageLoad(async (isValid) => {
 		const res = await viewsApi.week(getApiClient(), {
@@ -71,8 +85,9 @@
 					<GroupHeader label={group.label} />
 					<TaskTree
 						tasks={group.tasks}
+						showUnplannedBadge
 						{mutator}
-						belongs={(t) => t.planState === 'week'}
+						{belongs}
 						onToggle={(t) => toggleComplete(t, mutator)}
 					/>
 				</section>

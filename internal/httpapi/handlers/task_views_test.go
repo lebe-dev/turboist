@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 )
@@ -124,6 +125,42 @@ func TestTaskViews_Week_HasTask(t *testing.T) {
 	}
 	if result.Total != 1 {
 		t.Errorf("total: got %d, want 1", result.Total)
+	}
+}
+
+// Tasks with due_at in the current week but not planned must appear in /week,
+// but the `total` (which drives the weekly limit badge) must count only
+// plan_state='week' tasks.
+func TestTaskViews_Week_IncludesDueInRange(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	// Compute Wednesday of the current week (UTC).
+	now := time.Now().UTC()
+	daysFromMonday := (int(now.Weekday()) + 6) % 7
+	monday := time.Date(now.Year(), now.Month(), now.Day()-daysFromMonday, 0, 0, 0, 0, time.UTC)
+	wed := monday.AddDate(0, 0, 2).Add(9 * time.Hour)
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/contexts/%d/tasks", ctx.ID),
+		map[string]any{"title": "Unplanned due this week", "dueAt": wed.Format("2006-01-02T15:04:05.000Z")}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create: got %d; body: %s", resp.StatusCode, body)
+	}
+
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/week", nil))
+	if resp2.StatusCode != 200 {
+		t.Fatalf("week: got %d; body: %s", resp2.StatusCode, body2)
+	}
+	var result viewResp
+	if err := json.Unmarshal(body2, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(result.Items) != 1 || result.Items[0].Title != "Unplanned due this week" {
+		t.Errorf("items: got %+v, want 1 unplanned due-this-week task", result.Items)
+	}
+	if result.Total != 0 {
+		t.Errorf("total: got %d, want 0 (due-in-range tasks must not consume weekly limit)", result.Total)
 	}
 }
 

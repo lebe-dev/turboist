@@ -26,6 +26,23 @@ export function dayKeyInTz(date: Date, tz?: string | null): string {
 	return fmt.format(date);
 }
 
+/**
+ * Returns [startKey, endKey) for the week containing `now` in the given tz.
+ * Week starts on Monday; the range is half-open (Sun is inside, next Mon out).
+ * Both keys are YYYY-MM-DD strings, suitable for lexicographic comparison.
+ */
+export function weekRangeKeys(
+	now: Date,
+	tz?: string | null
+): { startKey: string; endKey: string } {
+	const todayKey = dayKeyInTz(now, tz);
+	const [y, m, d] = todayKey.split('-').map(Number);
+	const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+	const daysFromMonday = (dow + 6) % 7;
+	const startKey = shiftDayKey(todayKey, -daysFromMonday);
+	return { startKey, endKey: shiftDayKey(startKey, 7) };
+}
+
 /** Shift a YYYY-MM-DD day key by the given number of whole days. */
 export function shiftDayKey(key: string, days: number): string {
 	const [y, m, d] = key.split('-').map(Number);

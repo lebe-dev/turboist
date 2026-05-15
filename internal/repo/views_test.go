@@ -70,7 +70,10 @@ func TestTaskRepo_Views_WeekAndBacklog(t *testing.T) {
 	wt, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "w", PlanState: week})
 	bt, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "b", PlanState: backlog})
 
-	wList, _, err := f.tasks.ListWeek(ctx, TaskFilter{})
+	// Pick a window that does not overlap any task's due (no dues set here).
+	weekStart := time.Date(2030, 1, 6, 0, 0, 0, 0, time.UTC) // Mon
+	weekEnd := weekStart.AddDate(0, 0, 7)
+	wList, _, err := f.tasks.ListWeek(ctx, weekStart, weekEnd, TaskFilter{})
 	if err != nil {
 		t.Fatalf("week: %v", err)
 	}
@@ -83,6 +86,72 @@ func TestTaskRepo_Views_WeekAndBacklog(t *testing.T) {
 	}
 	if len(bList) != 1 || bList[0].ID != bt.ID {
 		t.Errorf("backlog: %+v", bList)
+	}
+}
+
+func TestTaskRepo_Views_WeekIncludesDueInRange(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	weekStart := time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC) // Mon
+	weekEnd := weekStart.AddDate(0, 0, 7)                     // next Mon
+
+	mkDue := func(title string, due time.Time, plan model.PlanState) *model.Task {
+		t.Helper()
+		dueCopy := due
+		task, err := f.tasks.Create(ctx, CreateTask{
+			Placement: Placement{ContextID: &f.contextID},
+			Title:     title,
+			DueAt:     &dueCopy,
+			PlanState: plan,
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", title, err)
+		}
+		return task
+	}
+
+	// planState='week', no due — counted in total, included in items.
+	plannedNoDue, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID},
+		Title:     "planned-no-due",
+		PlanState: model.PlanStateWeek,
+	})
+	if err != nil {
+		t.Fatalf("create planned-no-due: %v", err)
+	}
+	// planState='week' AND due within range — counted in total, included once.
+	plannedDue := mkDue("planned-due", time.Date(2026, 5, 12, 9, 0, 0, 0, time.UTC), model.PlanStateWeek)
+	// Not planned, due within range — included in items, NOT counted in total.
+	unplannedDue := mkDue("unplanned-due", time.Date(2026, 5, 13, 9, 0, 0, 0, time.UTC), model.PlanStateNone)
+	// Not planned, due outside range — excluded entirely.
+	far := time.Date(2026, 5, 25, 9, 0, 0, 0, time.UTC)
+	if _, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID},
+		Title:     "unplanned-far",
+		DueAt:     &far,
+	}); err != nil {
+		t.Fatalf("create unplanned-far: %v", err)
+	}
+
+	items, total, err := f.tasks.ListWeek(ctx, weekStart, weekEnd, TaskFilter{})
+	if err != nil {
+		t.Fatalf("list week: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("total: got %d, want 2 (only plan_state='week')", total)
+	}
+	got := map[int64]bool{}
+	for _, it := range items {
+		got[it.ID] = true
+	}
+	for _, want := range []int64{plannedNoDue.ID, plannedDue.ID, unplannedDue.ID} {
+		if !got[want] {
+			t.Errorf("missing task %d in items", want)
+		}
+	}
+	if len(items) != 3 {
+		t.Errorf("items: got %d, want 3 (no duplicates / no out-of-range)", len(items))
 	}
 }
 

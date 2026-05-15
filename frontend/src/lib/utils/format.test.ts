@@ -9,7 +9,8 @@ import {
 	parseIso,
 	shiftDayKey,
 	timeKeyInTz,
-	toIsoUtc
+	toIsoUtc,
+	weekRangeKeys
 } from './format';
 
 describe('toIsoUtc', () => {
@@ -127,6 +128,43 @@ describe('shiftDayKey', () => {
 
 	it('returns the same key on zero shift', () => {
 		expect(shiftDayKey('2026-04-28', 0)).toBe('2026-04-28');
+	});
+});
+
+describe('weekRangeKeys', () => {
+	// 2026-05-13 is a Wednesday → Monday should be 2026-05-11, next Monday 2026-05-18.
+	const wed = new Date('2026-05-13T10:00:00Z');
+
+	it('returns Mon-startKey and next-Mon endKey for a midweek date', () => {
+		expect(weekRangeKeys(wed, 'UTC')).toEqual({
+			startKey: '2026-05-11',
+			endKey: '2026-05-18'
+		});
+	});
+
+	it('returns the same week when called on Monday itself', () => {
+		const mon = new Date('2026-05-11T10:00:00Z');
+		expect(weekRangeKeys(mon, 'UTC')).toEqual({
+			startKey: '2026-05-11',
+			endKey: '2026-05-18'
+		});
+	});
+
+	it('keeps Sunday inside the same week', () => {
+		const sun = new Date('2026-05-17T22:00:00Z');
+		expect(weekRangeKeys(sun, 'UTC')).toEqual({
+			startKey: '2026-05-11',
+			endKey: '2026-05-18'
+		});
+	});
+
+	it('shifts the week boundary by tz when crossing midnight', () => {
+		// 2026-05-11T01:00Z is Sunday 21:00 in New York → still last week there.
+		const lateSunNY = new Date('2026-05-11T01:00:00Z');
+		expect(weekRangeKeys(lateSunNY, 'America/New_York')).toEqual({
+			startKey: '2026-05-04',
+			endKey: '2026-05-11'
+		});
 	});
 });
 

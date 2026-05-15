@@ -185,9 +185,24 @@ func (r *TaskRepo) ListOverdue(ctx context.Context, todayStart time.Time, filter
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(todayStart)}, filter, page, true)
 }
 
-func (r *TaskRepo) ListWeek(ctx context.Context, filter TaskFilter) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.plan_state = 'week' AND t.status = 'open'"
-	return r.listWithBase(ctx, base, filter, Page{Limit: 200}, true)
+// ListWeek returns tasks for the weekly view: open tasks either planned for the
+// current week (plan_state = 'week') OR with due_at falling inside [start, end).
+// The returned `total` counts only planned-for-week tasks — it drives the
+// weekly limit badge, so due-in-week additions must not consume the limit.
+func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter TaskFilter) ([]model.Task, int, error) {
+	base := "FROM tasks t WHERE t.status = 'open' AND (t.plan_state = 'week' OR (t.due_at >= ? AND t.due_at < ?))"
+	args := []any{model.FormatUTC(start), model.FormatUTC(end)}
+	items, _, err := r.listWithBaseArgs(ctx, base, args, filter, Page{Limit: 200}, true)
+	if err != nil {
+		return nil, 0, err
+	}
+	plannedBase := "FROM tasks t WHERE t.status = 'open' AND t.plan_state = 'week'"
+	whereExtra, extraArgs := filter.where()
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+plannedBase+whereExtra, extraArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count week planned: %w", err)
+	}
+	return items, total, nil
 }
 
 func (r *TaskRepo) ListBacklog(ctx context.Context, filter TaskFilter) ([]model.Task, int, error) {
