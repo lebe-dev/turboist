@@ -1,6 +1,6 @@
 services:
   turboist:
-    image: tinyops/turboist:1.0.0
+    image: tinyops/turboist:1.3.1
     ports:
       - "8080:8080"
     environment:
