@@ -502,9 +502,11 @@
 			"emptyTitle": "Week is empty",
 			"emptyDescription": "Plan tasks for this week from Backlog or by setting a due date.",
 			"errorLoading": "Failed to load week",
-			"limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected."
+			"limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected.",
+			"daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}"
 		},
 		"nextWeek": {
+			"dateRangeLabel": "Next week: {range}",
 			"errorLoading": "Failed to load planning view",
 			"weeklyLimitReached": "Weekly limit reached ({weekCount}/{weeklyLimit})",
 			"weeklyLimitReachedShort": "Weekly limit reached ({limit})",

@@ -502,9 +502,11 @@
 			"emptyTitle": "На неделю ничего не запланировано",
 			"emptyDescription": "Запланируйте задачи на эту неделю из бэклога или установив дату.",
 			"errorLoading": "Не удалось загрузить неделю",
-			"limitReached": "Достигнут лимит недели ({total}/{limit}). Дальнейшее добавление будет отклоняться."
+			"limitReached": "Достигнут лимит недели ({total}/{limit}). Дальнейшее добавление будет отклоняться.",
+			"daysLeft": "{count, plural, one {остался # день недели} few {осталось # дня недели} many {осталось # дней недели} other {осталось # дней недели}}"
 		},
 		"nextWeek": {
+			"dateRangeLabel": "Следующая неделя: {range}",
 			"errorLoading": "Не удалось загрузить планирование",
 			"weeklyLimitReached": "Достигнут лимит недели ({weekCount}/{weeklyLimit})",
 			"weeklyLimitReachedShort": "Достигнут лимит недели ({limit})",

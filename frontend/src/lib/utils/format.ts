@@ -43,6 +43,53 @@ export function weekRangeKeys(
 	return { startKey, endKey: shiftDayKey(startKey, 7) };
 }
 
+/**
+ * Returns [startKey, endKey) for the week immediately after the one containing
+ * `now` in the given tz. Same Mon..next-Mon half-open convention as weekRangeKeys.
+ */
+export function nextWeekRangeKeys(
+	now: Date,
+	tz?: string | null
+): { startKey: string; endKey: string } {
+	const cur = weekRangeKeys(now, tz);
+	return { startKey: cur.endKey, endKey: shiftDayKey(cur.endKey, 7) };
+}
+
+/**
+ * Formats a half-open day-key range `[startKey, endKey)` as a localized human
+ * string, e.g. "May 11 – 17" or "11 – 17 мая". Year is included when the range
+ * spans different calendar years.
+ */
+export function formatDayKeyRange(
+	startKey: string,
+	endKey: string,
+	locale?: string | null,
+	tz?: string | null
+): string {
+	const lc = locale === 'ru' ? 'ru-RU' : 'en-US';
+	const endInclusiveKey = shiftDayKey(endKey, -1);
+	const start = dayStartUtcInTz(startKey, tz);
+	const end = dayStartUtcInTz(endInclusiveKey, tz);
+	const sameYear = startKey.slice(0, 4) === endInclusiveKey.slice(0, 4);
+	const opts: Intl.DateTimeFormatOptions = {
+		timeZone: tz || undefined,
+		month: 'short',
+		day: 'numeric',
+		...(sameYear ? {} : { year: 'numeric' })
+	};
+	const fmt = new Intl.DateTimeFormat(lc, opts);
+	return fmt.formatRange(start, end);
+}
+
+/** Whole-day difference between two YYYY-MM-DD keys: `to - from`. */
+export function daysBetweenKeys(from: string, to: string): number {
+	const [fy, fm, fd] = from.split('-').map(Number);
+	const [ty, tm, td] = to.split('-').map(Number);
+	const fromMs = Date.UTC(fy, fm - 1, fd);
+	const toMs = Date.UTC(ty, tm - 1, td);
+	return Math.round((toMs - fromMs) / DAY_MS);
+}
+
 /** Shift a YYYY-MM-DD day key by the given number of whole days. */
 export function shiftDayKey(key: string, days: number): string {
 	const [y, m, d] = key.split('-').map(Number);

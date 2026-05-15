@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	dayKeyInTz,
+	daysBetweenKeys,
 	dayStartUtcInTz,
 	formatDay,
+	formatDayKeyRange,
 	formatDayPart,
 	formatPriority,
 	isOverdue,
+	nextWeekRangeKeys,
 	parseIso,
 	shiftDayKey,
 	timeKeyInTz,
@@ -109,6 +112,24 @@ describe('dayKeyInTz', () => {
 	});
 });
 
+describe('daysBetweenKeys', () => {
+	it('returns 0 for the same key', () => {
+		expect(daysBetweenKeys('2026-05-11', '2026-05-11')).toBe(0);
+	});
+
+	it('counts forward whole days', () => {
+		expect(daysBetweenKeys('2026-05-11', '2026-05-17')).toBe(6);
+	});
+
+	it('returns a negative count when "to" precedes "from"', () => {
+		expect(daysBetweenKeys('2026-05-17', '2026-05-11')).toBe(-6);
+	});
+
+	it('spans month and year boundaries', () => {
+		expect(daysBetweenKeys('2025-12-29', '2026-01-05')).toBe(7);
+	});
+});
+
 describe('shiftDayKey', () => {
 	it('moves forward across a month boundary', () => {
 		expect(shiftDayKey('2026-04-30', 1)).toBe('2026-05-01');
@@ -165,6 +186,63 @@ describe('weekRangeKeys', () => {
 			startKey: '2026-05-04',
 			endKey: '2026-05-11'
 		});
+	});
+});
+
+describe('nextWeekRangeKeys', () => {
+	it('returns the Mon..next-Mon range that follows the current week', () => {
+		// Wednesday → current week is May 11..18, next is May 18..25.
+		const wed = new Date('2026-05-13T10:00:00Z');
+		expect(nextWeekRangeKeys(wed, 'UTC')).toEqual({
+			startKey: '2026-05-18',
+			endKey: '2026-05-25'
+		});
+	});
+
+	it('keeps the start aligned to Monday when called on Sunday', () => {
+		const sun = new Date('2026-05-17T22:00:00Z');
+		expect(nextWeekRangeKeys(sun, 'UTC')).toEqual({
+			startKey: '2026-05-18',
+			endKey: '2026-05-25'
+		});
+	});
+
+	it('rolls into a new month/year when the week boundary crosses it', () => {
+		// Wednesday 2025-12-31 — next week starts Mon 2026-01-05.
+		const wed = new Date('2025-12-31T10:00:00Z');
+		expect(nextWeekRangeKeys(wed, 'UTC')).toEqual({
+			startKey: '2026-01-05',
+			endKey: '2026-01-12'
+		});
+	});
+});
+
+describe('formatDayKeyRange', () => {
+	it('formats an in-month range in English', () => {
+		const out = formatDayKeyRange('2026-05-11', '2026-05-18', 'en', 'UTC');
+		expect(out).toMatch(/May/);
+		expect(out).toMatch(/11/);
+		expect(out).toMatch(/17/);
+		expect(out).not.toMatch(/2026/);
+	});
+
+	it('formats an in-month range in Russian', () => {
+		const out = formatDayKeyRange('2026-05-11', '2026-05-18', 'ru', 'UTC');
+		expect(out).toMatch(/ма[яй]/);
+		expect(out).toMatch(/11/);
+		expect(out).toMatch(/17/);
+		expect(out).not.toMatch(/2026/);
+	});
+
+	it('includes the year when the range spans different years', () => {
+		const out = formatDayKeyRange('2025-12-29', '2026-01-05', 'en', 'UTC');
+		expect(out).toMatch(/2025/);
+		expect(out).toMatch(/2026/);
+	});
+
+	it('uses the inclusive Sunday as the end (endKey is exclusive)', () => {
+		const out = formatDayKeyRange('2026-05-11', '2026-05-18', 'en', 'UTC');
+		expect(out).not.toMatch(/18/);
 	});
 });
 
