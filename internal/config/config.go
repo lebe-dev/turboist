@@ -153,13 +153,13 @@ func validateDayParts(parts map[string]DayPart) error {
 }
 
 type Env struct {
-	Bind          string
-	LogLevel      string
-	BaseURL       string
-	JWTSecret     string
-	APITokenSalt  string
-	DataPath      string
-	Argon2Params  auth.Argon2Params
+	Bind         string
+	LogLevel     string
+	BaseURL      string
+	JWTSecret    string
+	APITokenSalt string
+	DataPath     string
+	Argon2Params auth.Argon2Params
 }
 
 func LoadEnv() (*Env, error) {

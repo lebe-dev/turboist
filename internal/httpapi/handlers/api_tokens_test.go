@@ -172,4 +172,3 @@ func TestAPITokensHandler_InvalidTokenRejected(t *testing.T) {
 		t.Fatalf("garbage token: got %d, want 401", r.StatusCode)
 	}
 }
-
