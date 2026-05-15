@@ -11,9 +11,10 @@ Turboist is a task management app for the rest of us.
 - Pinned tasks and pinned projects (separate caps)
 - Recurring tasks (RRULE, advanced on completion)
 - Single-user JWT auth with refresh-token rotation
-- Troiki System support
+- [Troiki System support](docs/troiki-system.md)
 - Localized UI (English / Russian) — see [docs/locales.md](docs/locales.md)
 - Public View — hide private projects, tasks, and labels for screenshot-friendly sharing — see [docs/public-mode.md](docs/public-mode.md)
+- [Public API](API.md)
 
 ## Nginx Configuration
 
@@ -46,6 +47,7 @@ Two configuration sources are merged at start-up:
   - `BIND` — listen address, e.g. `0.0.0.0:8080` (required)
   - `BASE_URL` — public base URL used when building `Task.URL` (required)
   - `JWT_SECRET` — base64-encoded secret, ≥ 32 bytes (required)
+  - `API_TOKEN_SALT` — HMAC salt for API tokens, ≥ 32 bytes (required); rotating it invalidates all existing tokens
   - `LOG_LEVEL` — `debug|info|warn|error`, default `info`
 - `config.yml` — business config (timezone, day-parts, limits, auto-labels,
   inbox overflow, pin caps). See `config.example.yml` for the full schema.
@@ -53,7 +55,7 @@ Two configuration sources are merged at start-up:
 ### Run
 
 ```sh
-cp .env.example .env       # fill JWT_SECRET, BASE_URL, BIND
+cp .env.example .env       # fill JWT_SECRET, API_TOKEN_SALT, BASE_URL, BIND
 cp config.example.yml config.yml
 just run-backend           # go run ./cmd/turboist
 ```
@@ -79,9 +81,12 @@ no separate migration command — boot is idempotent.
 - `/api/v1/{contexts,labels,sections,projects,inbox,tasks,search,config}` —
   authenticated REST resources
 
-All `/api/v1/*` endpoints require an `Authorization: Bearer <jwt>` header.
-Web clients additionally receive a 30-day refresh token in an HttpOnly cookie
-scoped to `/auth/refresh`. See `files/files/API.md` for the full reference.
+All `/api/v1/*` endpoints require an `Authorization: Bearer <token>` header.
+The token can be either a 15-minute JWT access token or a long-lived API token
+generated in Settings → API. Web clients additionally receive a 30-day refresh
+token in an HttpOnly cookie scoped to `/auth/refresh`. API tokens are accepted
+on every `/api/v1/*` route except `/api/v1/api-tokens/*`, which requires a JWT
+session. See `files/files/API.md` for the full reference.
 
 ### Authentication
 

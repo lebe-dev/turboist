@@ -85,7 +85,8 @@
 			"labels": "Labels",
 			"project": "Project",
 			"privacy": "Privacy",
-			"session": "Session"
+			"session": "Session",
+			"api": "API"
 		},
 		"project": {
 			"bugLabelsHeading": "Bug labels",
@@ -143,6 +144,26 @@
 			"publishLabel": "Show",
 			"toastSaved": "Banner updated",
 			"toastFailed": "Failed to update banner"
+		},
+		"api": {
+			"heading": "API tokens",
+			"description": "Use tokens to integrate external tools (e.g. n8n). A token authenticates requests to /api/v1/* via the Authorization: Bearer header.",
+			"namePlaceholder": "Token name (e.g. n8n)",
+			"generate": "Generate token",
+			"generating": "Generating…",
+			"empty": "No tokens yet.",
+			"created": "Created",
+			"delete": "Delete",
+			"warningOnce": "Copy this token now. It will not be shown again.",
+			"copy": "Copy",
+			"copied": "Copied to clipboard",
+			"close": "Close",
+			"confirmDeleteTitle": "Delete token?",
+			"confirmDeleteDescription": "Integrations using this token will stop working. This cannot be undone.",
+			"confirmDeleteAction": "Delete",
+			"createFailed": "Failed to create token",
+			"deleteFailed": "Failed to delete token",
+			"loadFailed": "Failed to load tokens"
 		}
 	},
 	"auth": {

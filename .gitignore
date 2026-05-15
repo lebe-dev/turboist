@@ -2,6 +2,7 @@
 !/docs/**/*.md
 !/README.md
 !/DEV.md
+!/API.md
 /tasks
 /turboist
 /.env

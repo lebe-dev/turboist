@@ -13,20 +13,22 @@ import (
 
 // Deps holds all dependencies injected into the HTTP layer.
 type Deps struct {
-	Log         *slog.Logger
-	JWTIssuer   *auth.JWTIssuer
-	UserRepo    *repo.UserRepo
-	SessionRepo *repo.SessionRepo
-	IPLimiter   *auth.IPLimiter
-	ContextRepo *repo.ContextRepo
-	LabelRepo   *repo.LabelRepo
-	SectionRepo *repo.ProjectSectionRepo
-	ProjectRepo *repo.ProjectRepo
-	TaskRepo    *repo.TaskRepo
-	PinService  *service.PinService
-	Cfg         *config.Config
-	BaseURL     string
-	Version     string
+	Log          *slog.Logger
+	JWTIssuer    *auth.JWTIssuer
+	UserRepo     *repo.UserRepo
+	SessionRepo  *repo.SessionRepo
+	APITokenRepo *repo.APITokenRepo
+	APITokenSalt []byte
+	IPLimiter    *auth.IPLimiter
+	ContextRepo  *repo.ContextRepo
+	LabelRepo    *repo.LabelRepo
+	SectionRepo  *repo.ProjectSectionRepo
+	ProjectRepo  *repo.ProjectRepo
+	TaskRepo     *repo.TaskRepo
+	PinService   *service.PinService
+	Cfg          *config.Config
+	BaseURL      string
+	Version      string
 }
 
 type errorEnvelope struct {
@@ -66,7 +68,7 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 		}
 		return c.JSON(fiber.Map{"version": v, "commit": "", "buildTime": ""})
 	})
-	return app.Group("/api/v1", AuthMiddleware(deps.JWTIssuer))
+	return app.Group("/api/v1", APIAuthMiddleware(deps.JWTIssuer, deps.APITokenRepo, deps.APITokenSalt))
 }
 
 func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {

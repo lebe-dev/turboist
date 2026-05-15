@@ -70,11 +70,11 @@ func toResp(s *model.UserSettings) settingsResp {
 }
 
 func (h *SettingsHandler) get(c fiber.Ctx) error {
-	claims := httpapi.GetClaims(c)
-	if claims == nil {
+	userID := httpapi.GetUserID(c)
+	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
-	s, err := h.users.GetSettings(c.Context(), claims.UserID)
+	s, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
 		return httpapi.ErrInternal("load settings")
 	}
@@ -82,8 +82,8 @@ func (h *SettingsHandler) get(c fiber.Ctx) error {
 }
 
 func (h *SettingsHandler) patch(c fiber.Ctx) error {
-	claims := httpapi.GetClaims(c)
-	if claims == nil {
+	userID := httpapi.GetUserID(c)
+	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
 	var req settingsPatchReq
@@ -95,7 +95,7 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 			return httpapi.ErrValidation("unsupported locale")
 		}
 	}
-	current, err := h.users.GetSettings(c.Context(), claims.UserID)
+	current, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
 		return httpapi.ErrInternal("load settings")
 	}
@@ -117,7 +117,7 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	if req.BannerPublished != nil {
 		current.BannerPublished = *req.BannerPublished
 	}
-	if err := h.users.SetSettings(c.Context(), claims.UserID, current); err != nil {
+	if err := h.users.SetSettings(c.Context(), userID, current); err != nil {
 		return httpapi.ErrInternal("save settings")
 	}
 	return c.JSON(toResp(current))
