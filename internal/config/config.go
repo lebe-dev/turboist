@@ -153,21 +153,25 @@ func validateDayParts(parts map[string]DayPart) error {
 }
 
 type Env struct {
-	Bind         string
-	LogLevel     string
-	BaseURL      string
-	JWTSecret    string
-	DataPath     string
-	Argon2Params auth.Argon2Params
+	Bind                       string
+	LogLevel                   string
+	BaseURL                    string
+	JWTSecret                  string
+	DataPath                   string
+	GoogleCalendarClientID     string
+	GoogleCalendarClientSecret string
+	Argon2Params               auth.Argon2Params
 }
 
 func LoadEnv() (*Env, error) {
 	e := &Env{
-		Bind:      os.Getenv("BIND"),
-		LogLevel:  os.Getenv("LOG_LEVEL"),
-		BaseURL:   os.Getenv("BASE_URL"),
-		JWTSecret: os.Getenv("JWT_SECRET"),
-		DataPath:  os.Getenv("DATA_PATH"),
+		Bind:                       os.Getenv("BIND"),
+		LogLevel:                   os.Getenv("LOG_LEVEL"),
+		BaseURL:                    os.Getenv("BASE_URL"),
+		JWTSecret:                  os.Getenv("JWT_SECRET"),
+		DataPath:                   os.Getenv("DATA_PATH"),
+		GoogleCalendarClientID:     os.Getenv("GOOGLE_CALENDAR_CLIENT_ID"),
+		GoogleCalendarClientSecret: os.Getenv("GOOGLE_CALENDAR_CLIENT_SECRET"),
 	}
 	if e.LogLevel == "" {
 		e.LogLevel = "info"

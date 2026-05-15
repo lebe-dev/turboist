@@ -47,6 +47,9 @@ Two configuration sources are merged at start-up:
   - `BASE_URL` — public base URL used when building `Task.URL` (required)
   - `JWT_SECRET` — base64-encoded secret, ≥ 32 bytes (required)
   - `LOG_LEVEL` — `debug|info|warn|error`, default `info`
+  - `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` — optional
+    Google OAuth credentials for read-only calendar events. Configure the
+    OAuth redirect URI as `<BASE_URL>/api/v1/calendars/google/callback`.
 - `config.yml` — business config (timezone, day-parts, limits, auto-labels,
   inbox overflow, pin caps). See `config.example.yml` for the full schema.
 

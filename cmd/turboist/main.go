@@ -67,6 +67,7 @@ func main() {
 	tlabels := repo.NewTaskLabelsRepo(sqlDB)
 	userRepo := repo.NewUserRepo(sqlDB)
 	sessionRepo := repo.NewSessionRepo(sqlDB)
+	calendarRepo := repo.NewCalendarRepo(sqlDB)
 	ctxRepo := repo.NewContextRepo(sqlDB)
 	labelRepo := repo.NewLabelRepo(sqlDB)
 	sectionRepo := repo.NewProjectSectionRepo(sqlDB)
@@ -112,6 +113,14 @@ func main() {
 		Version:     Version,
 	}
 	app := httpapi.NewApp(deps)
+	calendarHandler := handlers.NewCalendarHandler(
+		calendarRepo,
+		userRepo,
+		env.BaseURL,
+		env.GoogleCalendarClientID,
+		env.GoogleCalendarClientSecret,
+	)
+	calendarHandler.RegisterPublic(app)
 	api := httpapi.RegisterRoutes(app, deps)
 
 	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
@@ -130,6 +139,7 @@ func main() {
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
+	calendarHandler.Register(api.Group("/calendars"))
 
 	// embedded SvelteKit SPA (must be registered after API/auth routes)
 	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {
