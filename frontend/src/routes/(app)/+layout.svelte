@@ -44,7 +44,6 @@
 		'/tomorrow': 'nav.tomorrow',
 		'/inbox': 'nav.inbox',
 		'/week': 'nav.thisWeek',
-		'/backlog': 'nav.backlog',
 		'/next-week': 'nav.nextWeek',
 		'/completed': 'nav.completed',
 		'/search': 'nav.search',

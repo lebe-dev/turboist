@@ -25,7 +25,6 @@
 		'/tomorrow': 'nav.tomorrow',
 		'/inbox': 'nav.inbox',
 		'/week': 'nav.thisWeek',
-		'/backlog': 'nav.backlog',
 		'/next-week': 'nav.nextWeek',
 		'/search': 'nav.search'
 	};

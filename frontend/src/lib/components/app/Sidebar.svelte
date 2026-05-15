@@ -6,10 +6,8 @@
 	import SunIcon from 'phosphor-svelte/lib/Sun';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
-	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
 	import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircle';
-	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -52,7 +50,6 @@
 	const auth = getAuthStore();
 
 	const weekLimit = $derived(configStore.value?.weekly.limit);
-	const backlogLimit = $derived(configStore.value?.backlog.limit);
 
 	type NavItem = {
 		href: string;
@@ -90,20 +87,12 @@
 
 	const planningNav = $derived<NavItem[]>([
 		{
-			href: resolve('/backlog'),
-			label: $t('nav.backlog'),
-			icon: StackIcon,
-			current: planStatsStore.value?.backlog,
-			limit: backlogLimit
-		},
-		{
 			href: resolve('/next-week'),
 			label: $t('nav.nextWeek'),
 			icon: CalendarCheckIcon,
 			current: planStatsStore.value?.week,
 			limit: weekLimit
-		},
-		{ href: resolve('/search'), label: $t('nav.search'), icon: MagnifyingGlassIcon }
+		}
 	]);
 
 	const TROIKI_ORDER: Record<TroikiCategory, number> = { important: 0, medium: 1, rest: 2 };
