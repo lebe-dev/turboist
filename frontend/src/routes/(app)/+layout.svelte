@@ -37,6 +37,8 @@
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 
+	import PlusIcon from 'phosphor-svelte/lib/Plus';
+
 	let { children } = $props();
 
 	const TITLE_KEYS: Record<string, string> = {
@@ -443,4 +445,11 @@
 	{/if}
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
 	<FollowUpToasts onNext={onFollowUpNext} />
+	<button
+		onclick={onQuickAdd}
+		class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
+		aria-label={$t('task.quickAdd')}
+	>
+		<PlusIcon class="h-7 w-7" />
+	</button>
 {/if}
