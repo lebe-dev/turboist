@@ -5,22 +5,49 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/lebe-dev/turboist/internal/config"
+	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
 
-func setupAutoLabels(t *testing.T, autoLabels []config.AutoLabel) (*service.AutoLabelsService, *repo.LabelRepo) {
+type autoLabelSpec struct {
+	mask       string
+	labelNames []string
+	ignoreCase bool
+}
+
+func setupAutoLabels(t *testing.T, specs []autoLabelSpec) (*service.AutoLabelsService, *repo.LabelRepo) {
 	t.Helper()
 	d := setupTestDB(t)
 	labels := repo.NewLabelRepo(d)
-	cfg := &config.Config{AutoLabels: autoLabels}
-	return service.NewAutoLabelsService(labels, cfg), labels
+	appSettings := repo.NewAppSettingsRepo(d)
+	if specs != nil {
+		rules := make([]model.AutoLabelRule, 0, len(specs))
+		for _, sp := range specs {
+			ids := make([]int64, 0, len(sp.labelNames))
+			for _, name := range sp.labelNames {
+				l, err := labels.GetByName(context.Background(), name)
+				if err != nil {
+					created, err := labels.Create(context.Background(), name, "grey", false)
+					if err != nil {
+						t.Fatalf("seed label %q: %v", name, err)
+					}
+					l = created
+				}
+				ids = append(ids, l.ID)
+			}
+			rules = append(rules, model.AutoLabelRule{Mask: sp.mask, LabelIDs: ids, IgnoreCase: sp.ignoreCase})
+		}
+		if err := appSettings.Set(context.Background(), &model.AppSettings{AutoLabels: rules}); err != nil {
+			t.Fatalf("seed app settings: %v", err)
+		}
+	}
+	return service.NewAutoLabelsService(labels, appSettings), labels
 }
 
 func TestAutoLabelsService_Apply_MatchedAutoLabel(t *testing.T) {
-	svc, labels := setupAutoLabels(t, []config.AutoLabel{
-		{Mask: "urgent", Label: "urgent"},
+	svc, labels := setupAutoLabels(t, []autoLabelSpec{
+		{mask: "urgent", labelNames: []string{"urgent"}, ignoreCase: true},
 	})
 	ctx := context.Background()
 
@@ -33,7 +60,7 @@ func TestAutoLabelsService_Apply_MatchedAutoLabel(t *testing.T) {
 	}
 	l, err := labels.GetByName(ctx, "urgent")
 	if err != nil {
-		t.Fatalf("expected auto-created label, got: %v", err)
+		t.Fatalf("expected pre-seeded label, got: %v", err)
 	}
 	if l.ID != ids[0] {
 		t.Errorf("id: got %d, want %d", ids[0], l.ID)
@@ -41,8 +68,8 @@ func TestAutoLabelsService_Apply_MatchedAutoLabel(t *testing.T) {
 }
 
 func TestAutoLabelsService_Apply_NoMatch(t *testing.T) {
-	svc, _ := setupAutoLabels(t, []config.AutoLabel{
-		{Mask: "urgent", Label: "urgent"},
+	svc, _ := setupAutoLabels(t, []autoLabelSpec{
+		{mask: "urgent", labelNames: []string{"urgent"}, ignoreCase: true},
 	})
 	ctx := context.Background()
 
@@ -56,9 +83,8 @@ func TestAutoLabelsService_Apply_NoMatch(t *testing.T) {
 }
 
 func TestAutoLabelsService_Apply_CaseSensitive(t *testing.T) {
-	cs := false
-	svc, _ := setupAutoLabels(t, []config.AutoLabel{
-		{Mask: "Urgent", Label: "urgent", IgnoreCase: &cs},
+	svc, _ := setupAutoLabels(t, []autoLabelSpec{
+		{mask: "Urgent", labelNames: []string{"urgent"}, ignoreCase: false},
 	})
 	ctx := context.Background()
 
@@ -79,9 +105,24 @@ func TestAutoLabelsService_Apply_CaseSensitive(t *testing.T) {
 	}
 }
 
+func TestAutoLabelsService_Apply_MultipleLabelsPerRule(t *testing.T) {
+	svc, _ := setupAutoLabels(t, []autoLabelSpec{
+		{mask: "bug", labelNames: []string{"bug", "triage"}, ignoreCase: true},
+	})
+	ctx := context.Background()
+
+	ids, err := svc.Apply(ctx, "bug report", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if len(ids) != 2 {
+		t.Errorf("ids: got %v, want 2", ids)
+	}
+}
+
 func TestAutoLabelsService_Apply_RemovedAutoLabel(t *testing.T) {
-	svc, _ := setupAutoLabels(t, []config.AutoLabel{
-		{Mask: "urgent", Label: "urgent"},
+	svc, _ := setupAutoLabels(t, []autoLabelSpec{
+		{mask: "urgent", labelNames: []string{"urgent"}, ignoreCase: true},
 	})
 	ctx := context.Background()
 

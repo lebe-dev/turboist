@@ -45,9 +45,8 @@ func smokeApp(t *testing.T) *smokeEnv {
 			WarnThreshold: 5,
 			OverflowTask:  config.OverflowTask{Title: "Clear inbox", Priority: "high"},
 		},
-		DayParts:   map[string]config.DayPart{"morning": {Start: 6, End: 12}},
-		AutoLabels: []config.AutoLabel{},
-		Location:   loc,
+		DayParts: map[string]config.DayPart{"morning": {Start: 6, End: 12}},
+		Location: loc,
 	}
 	const baseURL = "http://test"
 
@@ -66,7 +65,8 @@ func smokeApp(t *testing.T) *smokeEnv {
 	ipLimiter := auth.NewIPLimiter(rate.Every(time.Second), 100, time.Minute)
 
 	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
-	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, cfg)
+	appSettingsRepo := repo.NewAppSettingsRepo(sqlDB)
+	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, appSettingsRepo)
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteService(taskRepo, projectRepo, userRepo)
 	moveSvc := service.NewMoveService(taskRepo, projectRepo)

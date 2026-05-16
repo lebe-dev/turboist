@@ -196,7 +196,16 @@ export interface ConfigResponse {
 		afternoon: { start: number; end: number };
 		evening: { start: number; end: number };
 	};
-	autoLabels: Array<{ mask: string; label: string; ignoreCase: boolean }>;
+}
+
+export interface AutoLabelRule {
+	mask: string;
+	labelIds: number[];
+	ignoreCase: boolean;
+}
+
+export interface AppSettings {
+	autoLabels: AutoLabelRule[];
 }
 
 // Request payloads

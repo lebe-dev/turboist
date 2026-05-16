@@ -29,12 +29,6 @@ day-parts:
   evening:
     start: 17
     end: 22
-auto-labels:
-  - mask: "купить"
-    label: "покупки"
-  - mask: "Проект -"
-    label: "проект"
-    ignore-case: false
 `
 
 func writeConfig(t *testing.T, body string) string {
@@ -58,15 +52,6 @@ func TestLoad_Valid(t *testing.T) {
 	}
 	if cfg.Weekly.Limit != 30 || cfg.Backlog.Limit != 30 || cfg.MaxPinned != 5 {
 		t.Fatalf("limits not parsed: %+v", cfg)
-	}
-	if len(cfg.AutoLabels) != 2 {
-		t.Fatalf("auto-labels count: %d", len(cfg.AutoLabels))
-	}
-	if cfg.AutoLabels[0].IgnoreCaseValue() != true {
-		t.Fatalf("default ignore-case must be true")
-	}
-	if cfg.AutoLabels[1].IgnoreCaseValue() != false {
-		t.Fatalf("explicit ignore-case must be false")
 	}
 }
 
@@ -96,15 +81,6 @@ func TestLoad_BadPriority(t *testing.T) {
 	_, err := Load(p)
 	if err == nil || !strings.Contains(err.Error(), "priority") {
 		t.Fatalf("expected priority error, got %v", err)
-	}
-}
-
-func TestLoad_EmptyAutoLabel(t *testing.T) {
-	body := validYAML + "\n  - mask: \"foo\"\n    label: \"\"\n"
-	p := writeConfig(t, body)
-	_, err := Load(p)
-	if err == nil || !strings.Contains(err.Error(), "label") {
-		t.Fatalf("expected empty label error, got %v", err)
 	}
 }
 

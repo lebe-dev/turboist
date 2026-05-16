@@ -31,16 +31,3 @@ day-parts:
   evening:
     start: 17
     end: 22
-
-# Auto-labels: when a task title contains `mask`, the backend attaches `label`.
-# `ignore-case` defaults to true. Missing labels are auto-created on first match.
-auto-labels:
-  - mask: "купить"
-    label: "покупки"
-  - mask: "встреча"
-    label: "работа"
-  - mask: "созвон"
-    label: "работа"
-  - mask: "Проект -"
-    label: "проект"
-    ignore-case: false

@@ -67,6 +67,7 @@ func main() {
 	tlabels := repo.NewTaskLabelsRepo(sqlDB)
 	userRepo := repo.NewUserRepo(sqlDB)
 	sessionRepo := repo.NewSessionRepo(sqlDB)
+	appSettingsRepo := repo.NewAppSettingsRepo(sqlDB)
 	apiTokenRepo := repo.NewAPITokenRepo(sqlDB)
 	ctxRepo := repo.NewContextRepo(sqlDB)
 	labelRepo := repo.NewLabelRepo(sqlDB)
@@ -82,7 +83,7 @@ func main() {
 
 	// services
 	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
-	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, cfg)
+	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, appSettingsRepo)
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, projectRepo, userRepo, cfg.Location)
 	moveSvc := service.NewMoveService(taskRepo, projectRepo)
@@ -133,6 +134,7 @@ func main() {
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
+	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 

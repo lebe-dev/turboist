@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
 
-func setupTaskService(t *testing.T, autoLabels []config.AutoLabel) (*service.TaskService, *repo.TaskRepo, *repo.ContextRepo, *repo.LabelRepo, *repo.ProjectRepo) {
+func setupTaskService(t *testing.T, autoLabels []model.AutoLabelRule) (*service.TaskService, *repo.TaskRepo, *repo.ContextRepo, *repo.LabelRepo, *repo.ProjectRepo) {
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
@@ -19,8 +18,13 @@ func setupTaskService(t *testing.T, autoLabels []config.AutoLabel) (*service.Tas
 	projects := repo.NewProjectRepo(d, plabels)
 	labels := repo.NewLabelRepo(d)
 	ctxs := repo.NewContextRepo(d)
-	cfg := &config.Config{AutoLabels: autoLabels}
-	auto := service.NewAutoLabelsService(labels, cfg)
+	appSettings := repo.NewAppSettingsRepo(d)
+	if autoLabels != nil {
+		if err := appSettings.Set(context.Background(), &model.AppSettings{AutoLabels: autoLabels}); err != nil {
+			t.Fatalf("seed app settings: %v", err)
+		}
+	}
+	auto := service.NewAutoLabelsService(labels, appSettings)
 	svc := service.NewTaskService(tasks, projects, tlabels, auto)
 	return svc, tasks, ctxs, labels, projects
 }
@@ -68,10 +72,27 @@ func TestTaskService_Create_WithExplicitLabels(t *testing.T) {
 }
 
 func TestTaskService_Create_WithAutoLabel(t *testing.T) {
-	svc, _, ctxs, _, _ := setupTaskService(t, []config.AutoLabel{
-		{Mask: "urgent", Label: "urgent"},
-	})
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels)
+	plabels := repo.NewProjectLabelsRepo(d)
+	projects := repo.NewProjectRepo(d, plabels)
+	labels := repo.NewLabelRepo(d)
+	ctxs := repo.NewContextRepo(d)
+	appSettings := repo.NewAppSettingsRepo(d)
 	ctx := context.Background()
+
+	urgentLabel, err := labels.Create(ctx, "urgent", "red", false)
+	if err != nil {
+		t.Fatalf("seed label: %v", err)
+	}
+	if err := appSettings.Set(ctx, &model.AppSettings{AutoLabels: []model.AutoLabelRule{
+		{Mask: "urgent", LabelIDs: []int64{urgentLabel.ID}, IgnoreCase: true},
+	}}); err != nil {
+		t.Fatalf("seed app settings: %v", err)
+	}
+	auto := service.NewAutoLabelsService(labels, appSettings)
+	svc := service.NewTaskService(tasks, projects, tlabels, auto)
 
 	c, _ := ctxs.Create(ctx, "work", "blue", false)
 	cid := c.ID

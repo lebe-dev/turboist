@@ -23,6 +23,7 @@
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { goto } from '$app/navigation';
@@ -110,7 +111,8 @@
 					pinnedTasksStore.load(),
 					userStateStore.load(),
 					troikiStore.load(),
-					settingsStore.load()
+					settingsStore.load(),
+					appSettingsStore.load()
 				]);
 				if (isSupportedLocale(settingsStore.locale)) {
 					setLocale(settingsStore.locale);

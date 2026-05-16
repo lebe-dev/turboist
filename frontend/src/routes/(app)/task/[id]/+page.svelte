@@ -16,6 +16,7 @@
 	import { ApiError } from '$lib/api/errors';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
@@ -162,9 +163,17 @@
 	const project = $derived(
 		task?.projectId ? projectsStore.items.find((p) => p.id === task!.projectId) : null
 	);
-	const autoLabelNames = $derived(
-		new Set((configStore.value?.autoLabels ?? []).map((r) => r.label))
-	);
+	const autoLabelNames = $derived.by(() => {
+		const byId = new Map(allLabels.map((l) => [l.id, l.name]));
+		const names: string[] = [];
+		for (const rule of appSettingsStore.autoLabels) {
+			for (const id of rule.labelIds) {
+				const name = byId.get(id);
+				if (name && !names.includes(name)) names.push(name);
+			}
+		}
+		return new Set(names);
+	});
 	const selectedLabels = $derived(
 		labelIds
 			.map((id) => allLabels.find((l) => String(l.id) === id))
