@@ -35,6 +35,10 @@
 		"unfavourite": "Unfavourite",
 		"labels": "Labels"
 	},
+	"calendar": {
+		"title": "Calendar",
+		"allDay": "All day"
+	},
 	"nav": {
 		"today": "Today",
 		"tomorrow": "Tomorrow",
@@ -82,6 +86,7 @@
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
+			"calendars": "Calendars",
 			"project": "Project",
 			"privacy": "Privacy",
 			"session": "Session",
@@ -131,6 +136,28 @@
 			"toastSaved": "Auto-label rules saved",
 			"toastFailed": "Failed to save auto-label rules",
 			"toastEmptyFields": "Mask must not be empty and at least one label must be selected"
+		},
+		"calendars": {
+			"heading": "Calendars",
+			"description": "Show selected Google Calendar events alongside Today and Week.",
+			"enableLabel": "Enable calendars",
+			"googleNotConfigured": "Google Calendar OAuth is not configured on this server.",
+			"connectGoogle": "Connect Google",
+			"sync": "Sync calendars",
+			"sourcesHeading": "Visible calendars",
+			"sourcesDescription": "Choose which calendars appear in task views.",
+			"empty": "No calendars connected yet.",
+			"primary": "Primary",
+			"accountsHeading": "Connected accounts",
+			"accountsDescription": "Google accounts authorized for calendar access.",
+			"disconnect": "Disconnect",
+			"loadFailed": "Failed to load calendars",
+			"updateFailed": "Failed to update calendars",
+			"connectFailed": "Failed to start Google authorization",
+			"syncFailed": "Failed to sync calendars",
+			"disconnectFailed": "Failed to disconnect calendar",
+			"synced": "Calendars synced",
+			"disconnected": "Calendar disconnected"
 		},
 		"version": {
 			"heading": "App version",

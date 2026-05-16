@@ -170,6 +170,53 @@ export interface UserSettings {
 	publicView: boolean;
 	bannerText: string;
 	bannerPublished: boolean;
+	calendarEnabled: boolean;
+}
+
+export interface CalendarAccount {
+	id: number;
+	provider: string;
+	email: string;
+	displayName: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface CalendarSource {
+	id: number;
+	accountId: number;
+	provider: string;
+	externalId: string;
+	summary: string;
+	color: string;
+	selected: boolean;
+	isPrimary: boolean;
+}
+
+export interface CalendarSettingsResponse {
+	enabled: boolean;
+	googleConfigured: boolean;
+	accounts: CalendarAccount[];
+	sources: CalendarSource[];
+}
+
+export interface CalendarEvent {
+	id: string;
+	sourceId: number;
+	sourceName: string;
+	sourceColor: string;
+	provider: string;
+	externalId: string;
+	title: string;
+	location: string;
+	start: string;
+	end: string;
+	allDay: boolean;
+	htmlLink: string;
+}
+
+export interface CalendarEventsResponse {
+	items: CalendarEvent[];
 }
 
 export interface APIToken {

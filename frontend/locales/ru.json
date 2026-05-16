@@ -35,6 +35,10 @@
 		"unfavourite": "Убрать из избранного",
 		"labels": "Метки"
 	},
+	"calendar": {
+		"title": "Календарь",
+		"allDay": "Весь день"
+	},
 	"nav": {
 		"today": "Сегодня",
 		"tomorrow": "Завтра",
@@ -82,6 +86,7 @@
 		"tabs": {
 			"general": "Общие",
 			"labels": "Метки",
+			"calendars": "Календари",
 			"project": "Проект",
 			"privacy": "Приватность",
 			"session": "Сессия",
@@ -131,6 +136,28 @@
 			"toastSaved": "Правила авто-меток сохранены",
 			"toastFailed": "Не удалось сохранить правила",
 			"toastEmptyFields": "Маска не должна быть пустой, и нужно выбрать хотя бы одну метку"
+		},
+		"calendars": {
+			"heading": "Календари",
+			"description": "Показывать события выбранных Google-календарей рядом с Today и Неделей.",
+			"enableLabel": "Включить календари",
+			"googleNotConfigured": "Google Calendar OAuth не настроен на сервере.",
+			"connectGoogle": "Подключить Google",
+			"sync": "Обновить календари",
+			"sourcesHeading": "Видимые календари",
+			"sourcesDescription": "Выберите, какие календари показывать в списках задач.",
+			"empty": "Календари пока не подключены.",
+			"primary": "Основной",
+			"accountsHeading": "Подключённые аккаунты",
+			"accountsDescription": "Google-аккаунты с доступом к календарям.",
+			"disconnect": "Отключить",
+			"loadFailed": "Не удалось загрузить календари",
+			"updateFailed": "Не удалось обновить календари",
+			"connectFailed": "Не удалось начать авторизацию Google",
+			"syncFailed": "Не удалось обновить календари",
+			"disconnectFailed": "Не удалось отключить календарь",
+			"synced": "Календари обновлены",
+			"disconnected": "Календарь отключён"
 		},
 		"version": {
 			"heading": "Версия приложения",
