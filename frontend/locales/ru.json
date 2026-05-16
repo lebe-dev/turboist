@@ -157,8 +157,8 @@
 			"updateFailed": "Не удалось обновить Public view"
 		},
 		"banner": {
-			"heading": "Баннер на странице Today",
-			"description": "Показать сообщение, закреплённое сверху страницы Today. Поддерживаются markdown-ссылки вида [текст](https://example.com).",
+			"heading": "Баннер на странице «Сегодня»",
+			"description": "Показать сообщение, закреплённое сверху страницы «Сегодня». Поддерживаются markdown-ссылки вида [текст](https://example.com).",
 			"textLabel": "Текст",
 			"textPlaceholder": "Введите объявление…",
 			"publishLabel": "Показать",

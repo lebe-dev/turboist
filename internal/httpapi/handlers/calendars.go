@@ -143,12 +143,44 @@ func (h *CalendarHandler) googleOAuthConfigForUser(ctx context.Context, userID i
 	if err != nil {
 		return nil, false, err
 	}
+	clientID, err := h.tokenCipher.decrypt(dbCfg.ClientID)
+	if err != nil {
+		return nil, false, err
+	}
 	clientSecret, err := h.tokenCipher.decrypt(dbCfg.ClientSecret)
 	if err != nil {
 		return nil, false, err
 	}
-	cfg, ok := h.oauthConfig(dbCfg.ClientID, clientSecret)
+	if err := h.ensureEncryptedOAuthConfig(ctx, dbCfg, clientID, clientSecret); err != nil {
+		return nil, false, err
+	}
+	cfg, ok := h.oauthConfig(clientID, clientSecret)
 	return cfg, ok, nil
+}
+
+func (h *CalendarHandler) ensureEncryptedOAuthConfig(ctx context.Context, cfg *model.CalendarOAuthConfig, clientID, clientSecret string) error {
+	if isCalendarEncrypted(cfg.ClientID) && isCalendarEncrypted(cfg.ClientSecret) {
+		return nil
+	}
+	encryptedID, err := h.tokenCipher.encrypt(clientID)
+	if err != nil {
+		return err
+	}
+	encryptedSecret, err := h.tokenCipher.encrypt(clientSecret)
+	if err != nil {
+		return err
+	}
+	_, err = h.calendars.UpsertOAuthConfig(ctx, &model.CalendarOAuthConfig{
+		UserID:       cfg.UserID,
+		Provider:     cfg.Provider,
+		ClientID:     encryptedID,
+		ClientSecret: encryptedSecret,
+	})
+	return err
+}
+
+func isCalendarEncrypted(value string) bool {
+	return value == "" || strings.HasPrefix(value, calendarEncryptedTokenPrefix)
 }
 
 func (h *CalendarHandler) oauthConfig(clientID, clientSecret string) (*oauth2.Config, bool) {
@@ -197,24 +229,24 @@ func (h *CalendarHandler) list(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("list calendar sources")
 	}
-	googleClientID := h.googleClientID
+	googleClientIDConfigured := h.googleClientID != ""
 	googleClientSecretConfigured := h.googleClientSecret != ""
-	googleConfigFromEnv := googleClientID != "" && googleClientSecretConfigured
+	googleConfigFromEnv := googleClientIDConfigured && googleClientSecretConfigured
 	if !googleConfigFromEnv {
 		dbCfg, err := h.calendars.GetOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle)
 		if err != nil && !errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrInternal("load google calendar config")
 		}
 		if dbCfg != nil {
-			googleClientID = dbCfg.ClientID
+			googleClientIDConfigured = dbCfg.ClientID != ""
 			googleClientSecretConfigured = dbCfg.ClientSecret != ""
 		}
 	}
 	out := calendarListResp{
 		Enabled:                      settings.CalendarEnabled,
-		GoogleConfigured:             googleClientID != "" && googleClientSecretConfigured,
+		GoogleConfigured:             googleClientIDConfigured && googleClientSecretConfigured,
 		GoogleConfigFromEnv:          googleConfigFromEnv,
-		GoogleClientIDConfigured:     googleClientID != "",
+		GoogleClientIDConfigured:     googleClientIDConfigured,
 		GoogleClientSecretConfigured: googleClientSecretConfigured,
 		Accounts:                     make([]calendarAccountResp, len(accounts)),
 		Sources:                      make([]calendarSourceResp, len(sources)),
@@ -280,16 +312,22 @@ func (h *CalendarHandler) patchGoogleConfig(c fiber.Ctx) error {
 	if req.ClientSecret != nil {
 		clientSecret = strings.TrimSpace(*req.ClientSecret)
 	}
-	if clientID == "" {
-		existing, err := h.calendars.GetOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle)
-		if err == nil {
-			clientID = existing.ClientID
-		} else if !errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrInternal("load google calendar config")
-		}
+	existing, err := h.calendars.GetOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle)
+	if err != nil && !errors.Is(err, repo.ErrNotFound) {
+		return httpapi.ErrInternal("load google calendar config")
 	}
-	if clientID == "" {
+	if clientID == "" && existing == nil {
 		return httpapi.ErrValidation("clientId is required")
+	}
+	if clientSecret == "" && existing == nil {
+		return httpapi.ErrValidation("clientSecret is required")
+	}
+	if clientID != "" {
+		encrypted, err := h.tokenCipher.encrypt(clientID)
+		if err != nil {
+			return httpapi.ErrInternal("encrypt google calendar client id")
+		}
+		clientID = encrypted
 	}
 	if clientSecret != "" {
 		encrypted, err := h.tokenCipher.encrypt(clientSecret)
@@ -351,34 +389,34 @@ func (h *CalendarHandler) googleStart(c fiber.Ctx) error {
 
 func (h *CalendarHandler) googleCallback(c fiber.Ctx) error {
 	if c.Query("error") != "" {
-		return h.redirectToSettings(c, "calendar=error")
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	state := c.Query("state")
 	code := c.Query("code")
 	if state == "" || code == "" {
-		return httpapi.ErrValidation("missing OAuth state or code")
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	userID, err := h.calendars.ConsumeOAuthState(c.Context(), state, model.CalendarProviderGoogle)
 	if errors.Is(err, repo.ErrNotFound) {
-		return httpapi.ErrValidation("invalid or expired OAuth state")
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	if err != nil {
-		return httpapi.ErrInternal("consume oauth state")
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	cfg, ok, err := h.googleOAuthConfigForUser(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load google calendar config")
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	if !ok {
-		return httpapi.ErrValidation("Google Calendar OAuth is not configured")
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	token, err := cfg.Exchange(c.Context(), code)
 	if err != nil {
-		return httpapi.ErrInternal("exchange google token")
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	account, err := h.saveGoogleAccountAndSources(c.Context(), userID, cfg, token)
 	if err != nil {
-		return err
+		return h.redirectToSettings(c, "tab=calendars&calendar=error")
 	}
 	if account != nil {
 		settings, err := h.users.GetSettings(c.Context(), userID)
@@ -388,7 +426,7 @@ func (h *CalendarHandler) googleCallback(c fiber.Ctx) error {
 		}
 		h.eventCache.deleteUser(userID)
 	}
-	return h.redirectToSettings(c, "calendar=connected")
+	return h.redirectToSettings(c, "tab=calendars&calendar=connected")
 }
 
 func (h *CalendarHandler) redirectToSettings(c fiber.Ctx, query string) error {
@@ -397,7 +435,8 @@ func (h *CalendarHandler) redirectToSettings(c fiber.Ctx, query string) error {
 		target += "?" + query
 	}
 	c.Set("Location", target)
-	return c.SendStatus(fiber.StatusFound)
+	c.Status(fiber.StatusFound)
+	return nil
 }
 
 func (h *CalendarHandler) googleSync(c fiber.Ctx) error {
@@ -658,6 +697,7 @@ func (h *CalendarHandler) googleCalendarServiceForAccount(ctx context.Context, c
 
 func (h *CalendarHandler) freshGoogleToken(ctx context.Context, cfg *oauth2.Config, account *model.CalendarAccount) (*oauth2.Token, error) {
 	token := accountToken(account)
+	needsEncryption := !isCalendarEncrypted(token.AccessToken) || !isCalendarEncrypted(token.RefreshToken)
 	if err := h.decryptToken(token); err != nil {
 		return nil, err
 	}
@@ -666,7 +706,7 @@ func (h *CalendarHandler) freshGoogleToken(ctx context.Context, cfg *oauth2.Conf
 	if err != nil {
 		return nil, err
 	}
-	if tokenChanged(token, fresh) {
+	if tokenChanged(token, fresh) || needsEncryption {
 		account.AccessToken = fresh.AccessToken
 		account.RefreshToken = fresh.RefreshToken
 		if account.RefreshToken == "" {

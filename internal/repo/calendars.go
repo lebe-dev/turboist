@@ -93,10 +93,15 @@ func (r *CalendarRepo) GetOAuthConfig(ctx context.Context, userID int64, provide
 
 func (r *CalendarRepo) UpsertOAuthConfig(ctx context.Context, cfg *model.CalendarOAuthConfig) (*model.CalendarOAuthConfig, error) {
 	now := model.FormatUTC(time.Now())
-	if cfg.ClientSecret == "" {
+	if cfg.ClientID == "" || cfg.ClientSecret == "" {
 		existing, err := r.GetOAuthConfig(ctx, cfg.UserID, cfg.Provider)
 		if err == nil {
-			cfg.ClientSecret = existing.ClientSecret
+			if cfg.ClientID == "" {
+				cfg.ClientID = existing.ClientID
+			}
+			if cfg.ClientSecret == "" {
+				cfg.ClientSecret = existing.ClientSecret
+			}
 		} else if !errors.Is(err, ErrNotFound) {
 			return nil, err
 		}

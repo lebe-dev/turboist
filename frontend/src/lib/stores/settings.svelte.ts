@@ -10,7 +10,8 @@ const EMPTY: UserSettings = {
 	publicView: false,
 	bannerText: '',
 	bannerPublished: false,
-	calendarEnabled: false
+	calendarEnabled: false,
+	calendarHidePastEvents: true
 };
 
 class SettingsStore {
@@ -50,6 +51,10 @@ class SettingsStore {
 		return this.value.calendarEnabled ?? false;
 	}
 
+	get calendarHidePastEvents(): boolean {
+		return this.value.calendarHidePastEvents ?? true;
+	}
+
 	async setWeeklyUnplannedExcludedLabelIds(ids: number[]): Promise<void> {
 		this.value = { ...this.value, weeklyUnplannedExcludedLabelIds: ids };
 		await settingsApi.patch(getApiClient(), { weeklyUnplannedExcludedLabelIds: ids });
@@ -84,6 +89,11 @@ class SettingsStore {
 	async setCalendarEnabled(v: boolean): Promise<void> {
 		this.value = { ...this.value, calendarEnabled: v };
 		await settingsApi.patch(getApiClient(), { calendarEnabled: v });
+	}
+
+	async setCalendarHidePastEvents(v: boolean): Promise<void> {
+		this.value = { ...this.value, calendarHidePastEvents: v };
+		await settingsApi.patch(getApiClient(), { calendarHidePastEvents: v });
 	}
 
 	clear(): void {
