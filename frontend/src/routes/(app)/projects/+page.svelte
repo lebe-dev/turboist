@@ -109,7 +109,7 @@
 		emptyTitle={$t('page.projects.emptyTitle')}
 		emptyDescription={$t('page.projects.emptyDescription')}
 	>
-		<ul class="flex flex-col divide-y divide-border/50 rounded-md border border-border/60 bg-card">
+		<ul class="flex flex-col divide-y divide-border/50 overflow-hidden rounded-md border border-border/60 bg-card">
 			{#each filtered as project (project.id)}
 				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 				{@const ctxName = contextsById[project.contextId]}
