@@ -36,7 +36,18 @@ type CalendarSource struct {
 type CalendarOAuthState struct {
 	State     string
 	UserID    int64
+	SessionID int64
 	Provider  CalendarProvider
 	ExpiresAt time.Time
 	CreatedAt time.Time
+}
+
+type CalendarOAuthConfig struct {
+	ID           int64
+	UserID       int64
+	Provider     CalendarProvider
+	ClientID     string
+	ClientSecret string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }

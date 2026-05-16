@@ -196,6 +196,9 @@ export interface CalendarSource {
 export interface CalendarSettingsResponse {
 	enabled: boolean;
 	googleConfigured: boolean;
+	googleConfigFromEnv: boolean;
+	googleClientIdConfigured: boolean;
+	googleClientSecretConfigured: boolean;
 	accounts: CalendarAccount[];
 	sources: CalendarSource[];
 }
@@ -211,6 +214,8 @@ export interface CalendarEvent {
 	location: string;
 	start: string;
 	end: string;
+	startDate?: string;
+	endDate?: string;
 	allDay: boolean;
 	htmlLink: string;
 }

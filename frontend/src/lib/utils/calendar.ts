@@ -22,9 +22,29 @@ export function eventTimeLabel(
 
 export function sortCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
 	return [...events].sort((a, b) => {
-		if (a.start !== b.start) return a.start < b.start ? -1 : 1;
+		const aStart = eventSortKey(a);
+		const bStart = eventSortKey(b);
+		if (aStart !== bStart) return aStart < bStart ? -1 : 1;
 		return a.title.localeCompare(b.title);
 	});
+}
+
+export function calendarEventsOrEmpty(
+	load: Promise<CalendarEvent[]>,
+	timeoutMs = 22000
+): Promise<CalendarEvent[]> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<CalendarEvent[]>((resolve) => {
+		timer = setTimeout(() => resolve([]), timeoutMs);
+	});
+	return Promise.race([load.catch(() => []), timeout]).finally(() => {
+		if (timer) clearTimeout(timer);
+	});
+}
+
+function eventSortKey(event: CalendarEvent): string {
+	if (event.allDay && event.startDate) return event.startDate;
+	return event.start;
 }
 
 export function groupCalendarEventsByDay(
@@ -34,7 +54,8 @@ export function groupCalendarEventsByDay(
 ): CalendarDayGroup[] {
 	const buckets = new Map<string, CalendarEvent[]>();
 	for (const event of sortCalendarEvents(events)) {
-		const key = event.allDay ? event.start.slice(0, 10) : dayKeyInTz(new Date(event.start), tz);
+		const key =
+			event.allDay && event.startDate ? event.startDate : dayKeyInTz(new Date(event.start), tz);
 		const bucket = buckets.get(key);
 		if (bucket) bucket.push(event);
 		else buckets.set(key, [event]);

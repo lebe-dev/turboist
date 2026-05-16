@@ -18,6 +18,21 @@ export const calendars = {
 		});
 	},
 
+	saveGoogleConfig(
+		client: ApiClient,
+		clientId: string,
+		clientSecret: string
+	): Promise<CalendarSettingsResponse> {
+		return client.fetch('/api/v1/calendars/google/config', {
+			method: 'PATCH',
+			body: { clientId, clientSecret }
+		});
+	},
+
+	deleteGoogleConfig(client: ApiClient): Promise<CalendarSettingsResponse> {
+		return client.fetch('/api/v1/calendars/google/config', { method: 'DELETE' });
+	},
+
 	googleStart(client: ApiClient): Promise<{ url: string }> {
 		return client.fetch('/api/v1/calendars/google/start');
 	},

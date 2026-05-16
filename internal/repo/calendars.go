@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/lebe-dev/turboist/internal/model"
@@ -58,14 +59,97 @@ func scanCalendarSource(row interface{ Scan(...any) error }) (*model.CalendarSou
 	return &s, nil
 }
 
-func (r *CalendarRepo) CreateOAuthState(ctx context.Context, state string, userID int64, provider model.CalendarProvider, ttl time.Duration) error {
-	now := time.Now()
+func scanCalendarOAuthConfig(row interface{ Scan(...any) error }) (*model.CalendarOAuthConfig, error) {
+	var cfg model.CalendarOAuthConfig
+	var provider, createdAt, updatedAt string
+	if err := row.Scan(&cfg.ID, &cfg.UserID, &provider, &cfg.ClientID, &cfg.ClientSecret, &createdAt, &updatedAt); err != nil {
+		return nil, err
+	}
+	cfg.Provider = model.CalendarProvider(provider)
+	var err error
+	if cfg.CreatedAt, err = model.ParseUTC(createdAt); err != nil {
+		return nil, fmt.Errorf("parse oauth config created_at: %w", err)
+	}
+	if cfg.UpdatedAt, err = model.ParseUTC(updatedAt); err != nil {
+		return nil, fmt.Errorf("parse oauth config updated_at: %w", err)
+	}
+	return &cfg, nil
+}
+
+func (r *CalendarRepo) GetOAuthConfig(ctx context.Context, userID int64, provider model.CalendarProvider) (*model.CalendarOAuthConfig, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT id, user_id, provider, client_id, client_secret, created_at, updated_at
+		   FROM calendar_oauth_configs WHERE user_id = ? AND provider = ?`,
+		userID, string(provider))
+	cfg, err := scanCalendarOAuthConfig(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func (r *CalendarRepo) UpsertOAuthConfig(ctx context.Context, cfg *model.CalendarOAuthConfig) (*model.CalendarOAuthConfig, error) {
+	now := model.FormatUTC(time.Now())
+	if cfg.ClientSecret == "" {
+		existing, err := r.GetOAuthConfig(ctx, cfg.UserID, cfg.Provider)
+		if err == nil {
+			cfg.ClientSecret = existing.ClientSecret
+		} else if !errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
+	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO calendar_oauth_states (state, user_id, provider, expires_at, created_at)
-		 VALUES (?, ?, ?, ?, ?)`,
-		state, userID, string(provider), model.FormatUTC(now.Add(ttl)), model.FormatUTC(now))
+		`INSERT INTO calendar_oauth_configs
+		    (user_id, provider, client_id, client_secret, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(user_id, provider) DO UPDATE SET
+		    client_id = excluded.client_id,
+		    client_secret = excluded.client_secret,
+		    updated_at = excluded.updated_at`,
+		cfg.UserID, string(cfg.Provider), cfg.ClientID, cfg.ClientSecret, now, now)
+	if err != nil {
+		return nil, fmt.Errorf("upsert calendar oauth config: %w", err)
+	}
+	return r.GetOAuthConfig(ctx, cfg.UserID, cfg.Provider)
+}
+
+func (r *CalendarRepo) DeleteOAuthConfig(ctx context.Context, userID int64, provider model.CalendarProvider) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM calendar_oauth_configs WHERE user_id = ? AND provider = ?`, userID, string(provider))
+	if err != nil {
+		return fmt.Errorf("delete calendar oauth config: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *CalendarRepo) CreateOAuthState(ctx context.Context, state string, userID, sessionID int64, provider model.CalendarProvider, ttl time.Duration) error {
+	now := time.Now()
+	if err := r.DeleteExpiredOAuthStates(ctx); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO calendar_oauth_states (state, user_id, session_id, provider, expires_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		state, userID, sessionID, string(provider), model.FormatUTC(now.Add(ttl)), model.FormatUTC(now))
 	if err != nil {
 		return fmt.Errorf("insert calendar oauth state: %w", err)
+	}
+	return nil
+}
+
+func (r *CalendarRepo) DeleteExpiredOAuthStates(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM calendar_oauth_states WHERE expires_at < ?`, model.FormatUTC(time.Now()))
+	if err != nil {
+		return fmt.Errorf("delete expired calendar oauth states: %w", err)
 	}
 	return nil
 }
@@ -133,6 +217,26 @@ func (r *CalendarRepo) UpsertAccount(ctx context.Context, a *model.CalendarAccou
 	return r.GetAccountByProvider(ctx, a.UserID, a.Provider)
 }
 
+func (r *CalendarRepo) UpdateAccountToken(ctx context.Context, a *model.CalendarAccount) (*model.CalendarAccount, error) {
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE calendar_accounts
+		    SET access_token = ?, refresh_token = ?, expiry = ?, updated_at = ?
+		  WHERE user_id = ? AND provider = ?`,
+		a.AccessToken, a.RefreshToken, model.FormatUTC(a.Expiry), now, a.UserID, string(a.Provider))
+	if err != nil {
+		return nil, fmt.Errorf("update calendar account token: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, ErrNotFound
+	}
+	return r.GetAccountByProvider(ctx, a.UserID, a.Provider)
+}
+
 func (r *CalendarRepo) GetAccountByProvider(ctx context.Context, userID int64, provider model.CalendarProvider) (*model.CalendarAccount, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, user_id, provider, email, display_name, access_token, refresh_token, expiry, created_at, updated_at
@@ -191,10 +295,12 @@ func (r *CalendarRepo) UpsertSources(ctx context.Context, account *model.Calenda
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	externalIDs := make([]string, 0, len(sources))
 	for _, src := range sources {
 		if src.Summary == "" {
 			src.Summary = src.ExternalID
 		}
+		externalIDs = append(externalIDs, src.ExternalID)
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO calendar_sources
 			    (account_id, user_id, provider, external_id, summary, color, selected, is_primary, created_at, updated_at)
@@ -208,6 +314,23 @@ func (r *CalendarRepo) UpsertSources(ctx context.Context, account *model.Calenda
 			boolInt(src.Selected), boolInt(src.IsPrimary), now, now)
 		if err != nil {
 			return fmt.Errorf("upsert calendar source: %w", err)
+		}
+	}
+	if len(externalIDs) == 0 {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM calendar_sources WHERE account_id = ?`, account.ID); err != nil {
+			return fmt.Errorf("delete stale calendar sources: %w", err)
+		}
+	} else {
+		args := make([]any, 0, len(externalIDs)+1)
+		args = append(args, account.ID)
+		placeholders := make([]string, len(externalIDs))
+		for i, externalID := range externalIDs {
+			placeholders[i] = "?"
+			args = append(args, externalID)
+		}
+		query := fmt.Sprintf(`DELETE FROM calendar_sources WHERE account_id = ? AND external_id NOT IN (%s)`, strings.Join(placeholders, ","))
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			return fmt.Errorf("delete stale calendar sources: %w", err)
 		}
 	}
 	return tx.Commit()

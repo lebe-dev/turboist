@@ -125,6 +125,7 @@ func main() {
 		env.BaseURL,
 		env.GoogleCalendarClientID,
 		env.GoogleCalendarClientSecret,
+		env.CalendarTokenKey,
 	)
 	calendarHandler.RegisterPublic(app)
 	api := httpapi.RegisterRoutes(app, deps)
