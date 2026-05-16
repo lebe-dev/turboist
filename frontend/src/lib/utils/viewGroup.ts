@@ -15,6 +15,12 @@ export interface DayPartGroup {
 	tasks: Task[];
 }
 
+export interface DayPartGroupMeta {
+	part: DayPart;
+	label: string;
+	interval: DayPartInterval | null;
+}
+
 const DAY_PART_ORDER: Array<{ part: DayPart; labelKey: string }> = [
 	{ part: 'morning', labelKey: 'task.dayPart.morning' },
 	{ part: 'afternoon', labelKey: 'task.dayPart.afternoon' },
@@ -30,6 +36,17 @@ function intervalFor(
 	return dayParts[part];
 }
 
+export function dayPartGroupMeta(
+	dayParts?: ConfigResponse['dayParts']
+): DayPartGroupMeta[] {
+	const tr = get(t);
+	return DAY_PART_ORDER.map((g) => ({
+		part: g.part,
+		label: tr(g.labelKey),
+		interval: intervalFor(g.part, dayParts)
+	}));
+}
+
 export function groupByDayPart(
 	tasks: Task[],
 	dayParts?: ConfigResponse['dayParts']
@@ -41,11 +58,8 @@ export function groupByDayPart(
 		if (arr) arr.push(t);
 		else buckets.set(key, [t]);
 	}
-	const tr = get(t);
-	return DAY_PART_ORDER.filter((g) => (buckets.get(g.part)?.length ?? 0) > 0).map((g) => ({
-		part: g.part,
-		label: tr(g.labelKey),
-		interval: intervalFor(g.part, dayParts),
+	return dayPartGroupMeta(dayParts).filter((g) => (buckets.get(g.part)?.length ?? 0) > 0).map((g) => ({
+		...g,
 		tasks: buckets.get(g.part)!
 	}));
 }
@@ -148,7 +162,7 @@ export function groupByDay(tasks: Task[], tz?: string | null): DayGroup[] {
 			label: labelFor(key, todayKey, tz),
 			date: v.date,
 			tasks: v.tasks
-		}));
+	}));
 	if (noDate.length) {
 		groups.push({ dayKey: 'no-date', label: get(t)('common.noDate'), date: new Date(0), tasks: noDate });
 	}

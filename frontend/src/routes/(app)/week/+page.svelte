@@ -7,7 +7,7 @@
 	import { configStore } from '$lib/stores/config.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import type { CalendarEvent, Task } from '$lib/api/types';
-	import CalendarEventList from '$lib/components/calendar/CalendarEventList.svelte';
+	import CalendarEventItem from '$lib/components/calendar/CalendarEventItem.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
@@ -15,7 +15,7 @@
 	import LimitReachedBanner from '$lib/components/view/LimitReachedBanner.svelte';
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import { groupByDay } from '$lib/utils/viewGroup';
-	import { calendarEventsOrEmpty, groupCalendarEventsByDay } from '$lib/utils/calendar';
+	import { calendarEventsOrEmpty, groupCalendarEventsByDay, isPastCalendarEvent } from '$lib/utils/calendar';
 	import {
 		dayKeyInTz,
 		dayStartUtcInTz,
@@ -28,23 +28,66 @@
 	import { toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 
 
 	let total = $state(0);
 	let calendarEvents = $state<CalendarEvent[]>([]);
+	let now = $state(new Date());
 
 	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
 	const { mutator } = list;
 
 	const tz = $derived(configStore.value?.timezone ?? null);
 	const groups = $derived(groupByDay(list.items, tz));
+	const activeCalendarEvents = $derived(
+		settingsStore.calendarHidePastEvents
+			? calendarEvents.filter((event) => !isPastCalendarEvent(event, now, tz))
+			: calendarEvents
+	);
 	const eventGroups = $derived(
-		groupCalendarEventsByDay(calendarEvents, {
+		groupCalendarEventsByDay(activeCalendarEvents, {
 			today: $t('common.today'),
 			tomorrow: $t('common.tomorrow'),
 			yesterday: $t('common.yesterday')
 		}, tz)
 	);
+	const combinedGroups = $derived.by(() => {
+		const byKey = new Map<
+			string,
+			{
+				dayKey: string;
+				label: string;
+				tasks: Task[];
+				events: CalendarEvent[];
+			}
+		>();
+		for (const group of groups) {
+			byKey.set(group.dayKey, {
+				dayKey: group.dayKey,
+				label: group.label,
+				tasks: group.tasks,
+				events: []
+			});
+		}
+		for (const group of eventGroups) {
+			const existing = byKey.get(group.dayKey);
+			if (existing) existing.events = group.events;
+			else {
+				byKey.set(group.dayKey, {
+					dayKey: group.dayKey,
+					label: group.label,
+					tasks: [],
+					events: group.events
+				});
+			}
+		}
+		return [...byKey.values()].sort((a, b) => {
+			if (a.dayKey === 'no-date') return 1;
+			if (b.dayKey === 'no-date') return -1;
+			return a.dayKey < b.dayKey ? -1 : a.dayKey > b.dayKey ? 1 : 0;
+		});
+	});
 	const limit = $derived(configStore.value?.weekly.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
 	const weekRange = $derived(weekRangeKeys(new Date(), tz));
@@ -90,6 +133,23 @@
 		void userStateStore.activeContextId;
 		void loader.refetch();
 	});
+
+	$effect(() => {
+		function onVisible(): void {
+			if (document.visibilityState !== 'visible') return;
+			now = new Date();
+			void loader.refetch();
+		}
+		document.addEventListener('visibilitychange', onVisible);
+		return () => document.removeEventListener('visibilitychange', onVisible);
+	});
+
+	$effect(() => {
+		const timer = window.setInterval(() => {
+			now = new Date();
+		}, 60_000);
+		return () => window.clearInterval(timer);
+	});
 </script>
 
 <ViewHeader>
@@ -120,22 +180,18 @@
 <div class="px-2 py-2">
 	<ViewContent
 		loading={loader.loading}
-		isEmpty={list.items.length === 0 && calendarEvents.length === 0}
+		isEmpty={list.items.length === 0 && activeCalendarEvents.length === 0}
 		emptyIcon={CalendarIcon}
 		emptyTitle={$t('page.week.emptyTitle')}
 		emptyDescription={$t('page.week.emptyDescription')}
 	>
 		<div class="flex flex-col gap-4 py-2">
-			{#each eventGroups as group (group.dayKey)}
+			{#each combinedGroups as group (group.dayKey)}
 				<section>
 					<GroupHeader label={group.label} />
-					<CalendarEventList events={group.events} timezone={configStore.value?.timezone ?? null} compact />
-				</section>
-			{/each}
-
-			{#each groups as group (group.dayKey)}
-				<section>
-					<GroupHeader label={group.label} />
+					{#each group.events as event (event.id)}
+						<CalendarEventItem {event} timezone={tz} />
+					{/each}
 					<TaskTree
 						tasks={group.tasks}
 						showUnplannedBadge

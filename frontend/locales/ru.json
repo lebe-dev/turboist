@@ -38,7 +38,11 @@
 	"calendar": {
 		"title": "Календарь",
 		"allDay": "Весь день",
-		"openInGoogle": "Открыть в Google Calendar"
+		"openInGoogle": "Открыть в Google Calendar",
+		"actionsAriaLabel": "Действия с событием календаря",
+		"createTask": "Создать задачу",
+		"taskCreated": "Задача создана",
+		"taskCreateFailed": "Не удалось создать задачу"
 	},
 	"nav": {
 		"today": "Сегодня",
@@ -87,7 +91,7 @@
 		"tabs": {
 			"general": "Общие",
 			"labels": "Метки",
-			"calendars": "Календари",
+			"calendars": "Календарь (beta)",
 			"project": "Проект",
 			"privacy": "Приватность",
 			"session": "Сессия",
@@ -139,12 +143,21 @@
 			"toastEmptyFields": "Маска не должна быть пустой, и нужно выбрать хотя бы одну метку"
 		},
 		"calendars": {
-			"heading": "Календари",
-			"description": "Показывать события выбранных Google-календарей рядом с Today и Неделей.",
+			"heading": "Календарь (beta)",
+			"description": "Показывать события выбранных Google-календарей в списках «Сегодня», «Завтра» и «Неделя».",
 			"enableLabel": "Включить календари",
+			"hidePastEvents": "Скрывать прошедшие события",
+			"hidePastEventsDescription": "События с завершившимся временем уйдут из активного списка и появятся в «Завершено сегодня».",
 			"googleNotConfigured": "Google Calendar OAuth не настроен на сервере.",
 			"configHeading": "Google OAuth",
 			"configDescription": "Вставьте OAuth-данные веб-клиента для этого экземпляра Turboist.",
+			"configHelpAria": "Как создать Google OAuth-данные",
+			"configHelpTitle": "Создайте данные в Google Cloud",
+			"configHelpEnableApi": "Включите Google Calendar API для проекта.",
+			"configHelpCreateClient": "Создайте OAuth client ID с типом Web application и добавьте callback URL ниже в Authorized redirect URIs.",
+			"configHelpCopyKeys": "Скопируйте Client ID и Client secret в эти поля, затем сохраните.",
+			"configHelpRedirectLabel": "Authorized redirect URI",
+			"configHelpLink": "Открыть Google Cloud credentials",
 			"configFromEnv": "Google OAuth настроен переменными окружения сервера.",
 			"clientId": "Client ID",
 			"clientIdSaved": "Client ID сохранён",
@@ -196,8 +209,8 @@
 			"updateFailed": "Не удалось обновить Public view"
 		},
 		"banner": {
-			"heading": "Баннер на странице Today",
-			"description": "Показать сообщение, закреплённое сверху страницы Today. Поддерживаются markdown-ссылки вида [текст](https://example.com).",
+			"heading": "Баннер на странице «Сегодня»",
+			"description": "Показать сообщение, закреплённое сверху страницы «Сегодня». Поддерживаются markdown-ссылки вида [текст](https://example.com).",
 			"textLabel": "Текст",
 			"textPlaceholder": "Введите объявление…",
 			"publishLabel": "Показать",

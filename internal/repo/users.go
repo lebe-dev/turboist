@@ -105,6 +105,9 @@ func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettin
 			return &model.UserSettings{}, nil
 		}
 	}
+	if raw == "" || raw == "{}" || !jsonObjectHasKey(raw, "calendarHidePastEvents") {
+		s.CalendarHidePastEvents = true
+	}
 	if s.WeeklyUnplannedExcludedLabelIDs == nil {
 		s.WeeklyUnplannedExcludedLabelIDs = []int64{}
 	}
@@ -112,6 +115,15 @@ func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettin
 		s.BugLabelIDs = []int64{}
 	}
 	return &s, nil
+}
+
+func jsonObjectHasKey(raw string, key string) bool {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &obj); err != nil {
+		return false
+	}
+	_, ok := obj[key]
+	return ok
 }
 
 func (r *UserRepo) SetSettings(ctx context.Context, id int64, s *model.UserSettings) error {

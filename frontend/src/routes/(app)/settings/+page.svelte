@@ -6,18 +6,12 @@
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import SignOutIcon from 'phosphor-svelte/lib/SignOut';
 	import QuestionIcon from 'phosphor-svelte/lib/Question';
-	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
-	import ArrowsClockwiseIcon from 'phosphor-svelte/lib/ArrowsClockwise';
-	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import ApiTokensSection from '$lib/components/settings/ApiTokensSection.svelte';
+	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
 	import { Switch } from '$lib/components/ui/switch';
-	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import { toast } from 'svelte-sonner';
-	import { calendars as calendarsApi } from '$lib/api/endpoints/calendars';
-	import { getApiClient } from '$lib/api/client';
-	import type { CalendarSettingsResponse } from '$lib/api/types';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
@@ -30,9 +24,30 @@
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 
 	const appVersion = __APP_VERSION__;
 	const auth = getAuthStore();
+
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'session', 'api'] as const;
+	type SettingsTab = (typeof settingsTabs)[number];
+
+	let activeTab = $state<SettingsTab>('general');
+
+	function isSettingsTab(value: string | null): value is SettingsTab {
+		return !!value && (settingsTabs as readonly string[]).includes(value);
+	}
+
+	$effect(() => {
+		const tab = page.url.searchParams.get('tab');
+		if (isSettingsTab(tab)) {
+			activeTab = tab;
+			return;
+		}
+		if (page.url.searchParams.has('calendar')) {
+			activeTab = 'calendars';
+		}
+	});
 
 	let logoutAllBusy = $state(false);
 
@@ -86,12 +101,6 @@
 	);
 
 	let localeBusy = $state<SupportedLocale | null>(null);
-	let calendarsState = $state<CalendarSettingsResponse | null>(null);
-	let calendarsBusy = $state(false);
-	let calendarsLoaded = $state(false);
-	let googleClientIdDraft = $state('');
-	let googleClientSecretDraft = $state('');
-	let confirmDeleteGoogleConfigOpen = $state(false);
 
 	function toggleLabel(id: number) {
 		const excluded = settingsStore.weeklyUnplannedExcludedLabelIds;
@@ -112,133 +121,6 @@
 		} catch (err) {
 			const message = err instanceof Error ? err.message : $t('settings.privacy.updateFailed');
 			toast.error(message);
-		}
-	}
-
-	async function loadCalendars(): Promise<void> {
-		if (calendarsBusy) return;
-		calendarsBusy = true;
-		try {
-			calendarsState = await calendarsApi.get(getApiClient());
-			googleClientIdDraft = '';
-			googleClientSecretDraft = '';
-			settingsStore.value = {
-				...settingsStore.value,
-				calendarEnabled: calendarsState.enabled
-			};
-			calendarsLoaded = true;
-		} catch (err) {
-			const message = err instanceof Error ? err.message : $t('settings.calendars.loadFailed');
-			toast.error(message);
-		} finally {
-			calendarsBusy = false;
-		}
-	}
-
-	async function setCalendarsEnabled(v: boolean): Promise<void> {
-		calendarsBusy = true;
-		try {
-			calendarsState = await calendarsApi.setEnabled(getApiClient(), v);
-			settingsStore.value = { ...settingsStore.value, calendarEnabled: calendarsState.enabled };
-		} catch (err) {
-			const message = err instanceof Error ? err.message : $t('settings.calendars.updateFailed');
-			toast.error(message);
-		} finally {
-			calendarsBusy = false;
-		}
-	}
-
-	async function saveGoogleCalendarConfig(): Promise<void> {
-		calendarsBusy = true;
-		try {
-			calendarsState = await calendarsApi.saveGoogleConfig(
-				getApiClient(),
-				googleClientIdDraft,
-				googleClientSecretDraft
-			);
-			googleClientIdDraft = '';
-			googleClientSecretDraft = '';
-			toast.success($t('settings.calendars.configSaved'));
-		} catch (err) {
-			const message = err instanceof Error ? err.message : $t('settings.calendars.configSaveFailed');
-			toast.error(message);
-		} finally {
-			calendarsBusy = false;
-		}
-	}
-
-	async function deleteGoogleCalendarConfig(): Promise<void> {
-		calendarsBusy = true;
-		try {
-			calendarsState = await calendarsApi.deleteGoogleConfig(getApiClient());
-			googleClientIdDraft = '';
-			googleClientSecretDraft = '';
-			toast.success($t('settings.calendars.configDeleted'));
-		} catch (err) {
-			const message = err instanceof Error ? err.message : $t('settings.calendars.configDeleteFailed');
-			toast.error(message);
-		} finally {
-			calendarsBusy = false;
-		}
-	}
-
-	async function connectGoogleCalendar(): Promise<void> {
-		calendarsBusy = true;
-		try {
-			const res = await calendarsApi.googleStart(getApiClient());
-			window.location.href = res.url;
-		} catch (err) {
-			const message = err instanceof Error ? err.message : $t('settings.calendars.connectFailed');
-			toast.error(message);
-			calendarsBusy = false;
-		}
-	}
-
-	async function syncGoogleCalendar(): Promise<void> {
-		calendarsBusy = true;
-		try {
-			calendarsState = await calendarsApi.googleSync(getApiClient());
-			toast.success($t('settings.calendars.synced'));
-		} catch (err) {
-			const message = err instanceof Error ? err.message : $t('settings.calendars.syncFailed');
-			toast.error(message);
-		} finally {
-			calendarsBusy = false;
-		}
-	}
-
-	async function toggleCalendarSource(id: number, selected: boolean): Promise<void> {
-		if (!calendarsState) return;
-		const previous = calendarsState;
-		calendarsState = {
-			...calendarsState,
-			sources: calendarsState.sources.map((s) => (s.id === id ? { ...s, selected } : s))
-		};
-		try {
-			const updated = await calendarsApi.setSourceSelected(getApiClient(), id, selected);
-			calendarsState = {
-				...calendarsState,
-				sources: calendarsState.sources.map((s) => (s.id === id ? updated : s))
-			};
-		} catch (err) {
-			calendarsState = previous;
-			const message = err instanceof Error ? err.message : $t('settings.calendars.updateFailed');
-			toast.error(message);
-		}
-	}
-
-	async function disconnectCalendarAccount(id: number): Promise<void> {
-		if (!calendarsState) return;
-		calendarsBusy = true;
-		try {
-			await calendarsApi.deleteAccount(getApiClient(), id);
-			calendarsState = await calendarsApi.get(getApiClient());
-			toast.success($t('settings.calendars.disconnected'));
-		} catch (err) {
-			const message = err instanceof Error ? err.message : $t('settings.calendars.disconnectFailed');
-			toast.error(message);
-		} finally {
-			calendarsBusy = false;
 		}
 	}
 
@@ -357,9 +239,6 @@
 		}
 	}
 
-	$effect(() => {
-		if (!calendarsLoaded) void loadCalendars();
-	});
 </script>
 
 <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
@@ -368,7 +247,7 @@
 		<p class="text-sm text-muted-foreground">{$t('settings.subtitle')}</p>
 	</header>
 
-	<Tabs.Root value="general" class="flex flex-col gap-4">
+	<Tabs.Root bind:value={activeTab} class="flex flex-col gap-4">
 		<Tabs.List variant="line">
 			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
@@ -469,189 +348,7 @@
 		</Tabs.Content>
 
 		<Tabs.Content value="calendars" class="flex flex-col gap-4">
-			<section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-				<div class="flex items-start justify-between gap-3">
-					<div class="flex flex-col gap-0.5">
-						<h2 class="text-sm font-semibold">{$t('settings.calendars.heading')}</h2>
-						<p class="text-xs text-muted-foreground">{$t('settings.calendars.description')}</p>
-					</div>
-					<Switch
-						checked={settingsStore.calendarEnabled}
-						disabled={calendarsBusy}
-						onCheckedChange={setCalendarsEnabled}
-						aria-label={$t('settings.calendars.enableLabel')}
-					/>
-				</div>
-
-				{#if calendarsState && !calendarsState.googleConfigured}
-					<p class="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-						{$t('settings.calendars.googleNotConfigured')}
-					</p>
-				{/if}
-
-				{#if calendarsState}
-					<form
-						class="grid gap-3 border-t border-border/60 pt-4"
-						onsubmit={(e) => {
-							e.preventDefault();
-							void saveGoogleCalendarConfig();
-						}}
-					>
-						<div class="flex flex-col gap-1">
-							<h3 class="text-sm font-medium">{$t('settings.calendars.configHeading')}</h3>
-							<p class="text-xs text-muted-foreground">
-								{calendarsState.googleConfigFromEnv
-									? $t('settings.calendars.configFromEnv')
-									: $t('settings.calendars.configDescription')}
-							</p>
-						</div>
-						<div class="grid gap-3 sm:grid-cols-2">
-							<label class="flex flex-col gap-1.5">
-								<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
-								<input
-									bind:value={googleClientIdDraft}
-									disabled={calendarsBusy || calendarsState.googleConfigFromEnv}
-									placeholder={calendarsState.googleClientIdConfigured
-										? $t('settings.calendars.clientIdSaved')
-										: ''}
-									autocomplete="off"
-									spellcheck="false"
-									class="rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-								/>
-							</label>
-							<label class="flex flex-col gap-1.5">
-								<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientSecret')}</span>
-								<input
-									type="password"
-									bind:value={googleClientSecretDraft}
-									disabled={calendarsBusy || calendarsState.googleConfigFromEnv}
-									placeholder={calendarsState.googleClientSecretConfigured
-										? $t('settings.calendars.secretSaved')
-										: ''}
-									autocomplete="off"
-									spellcheck="false"
-									class="rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-								/>
-							</label>
-						</div>
-						{#if !calendarsState.googleConfigFromEnv}
-							<div class="flex flex-wrap gap-2">
-								<button
-									type="submit"
-									disabled={calendarsBusy ||
-										(!calendarsState.googleClientIdConfigured && googleClientIdDraft.trim() === '') ||
-										(!calendarsState.googleClientSecretConfigured &&
-											googleClientSecretDraft.trim() === '')}
-									class="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:border-foreground/30 hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<CheckIcon class="size-4" />
-									{$t('settings.calendars.saveConfig')}
-								</button>
-								{#if calendarsState.googleClientIdConfigured || calendarsState.googleClientSecretConfigured}
-									<button
-										type="button"
-										onclick={() => (confirmDeleteGoogleConfigOpen = true)}
-										disabled={calendarsBusy}
-										class="inline-flex items-center gap-2 rounded-md border border-destructive/35 px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
-									>
-										<TrashIcon class="size-4" />
-										{$t('settings.calendars.deleteConfig')}
-									</button>
-								{/if}
-							</div>
-						{/if}
-					</form>
-				{/if}
-
-				<div class="flex flex-wrap gap-2">
-					<button
-						type="button"
-						onclick={connectGoogleCalendar}
-						disabled={calendarsBusy || calendarsState?.googleConfigured === false}
-						class="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:border-foreground/30 hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						<CalendarBlankIcon class="size-4" />
-						{$t('settings.calendars.connectGoogle')}
-					</button>
-					<button
-						type="button"
-						onclick={syncGoogleCalendar}
-						disabled={calendarsBusy || (calendarsState?.accounts.length ?? 0) === 0}
-						class="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:border-foreground/30 hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						<ArrowsClockwiseIcon class="size-4" />
-						{$t('settings.calendars.sync')}
-					</button>
-				</div>
-			</section>
-
-			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
-				<div class="flex flex-col gap-0.5">
-					<h2 class="text-sm font-semibold">{$t('settings.calendars.sourcesHeading')}</h2>
-					<p class="text-xs text-muted-foreground">{$t('settings.calendars.sourcesDescription')}</p>
-				</div>
-				{#if calendarsBusy && !calendarsState}
-					<p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
-				{:else if !calendarsState || calendarsState.sources.length === 0}
-					<p class="text-sm text-muted-foreground">{$t('settings.calendars.empty')}</p>
-				{:else}
-					<div class="flex flex-col gap-1">
-						{#each calendarsState.sources as source (source.id)}
-							<button
-								type="button"
-								onclick={() => toggleCalendarSource(source.id, !source.selected)}
-								class="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-								class:bg-muted={source.selected}
-								aria-pressed={source.selected}
-							>
-								<span class="flex min-w-0 items-center gap-2">
-									<span class="h-2.5 w-2.5 shrink-0 rounded-full" style={`background:${source.color || '#9ca3af'}`}></span>
-									<span class="min-w-0 truncate text-sm">{source.summary}</span>
-									{#if source.isPrimary}
-										<span class="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground">
-											{$t('settings.calendars.primary')}
-										</span>
-									{/if}
-								</span>
-								{#if source.selected}
-									<CheckIcon class="size-4 shrink-0 text-foreground/50" weight="bold" />
-								{/if}
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</section>
-
-			{#if calendarsState && calendarsState.accounts.length > 0}
-				<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
-					<div class="flex flex-col gap-0.5">
-						<h2 class="text-sm font-semibold">{$t('settings.calendars.accountsHeading')}</h2>
-						<p class="text-xs text-muted-foreground">{$t('settings.calendars.accountsDescription')}</p>
-					</div>
-					<div class="flex flex-col gap-1">
-						{#each calendarsState.accounts as account (account.id)}
-							<div class="flex items-center justify-between gap-3 rounded-md px-3 py-2">
-								<div class="min-w-0">
-									<p class="truncate text-sm font-medium">{account.displayName || account.email || 'Google Calendar'}</p>
-									{#if account.email}
-										<p class="truncate text-xs text-muted-foreground">{account.email}</p>
-									{/if}
-								</div>
-								<button
-									type="button"
-									onclick={() => disconnectCalendarAccount(account.id)}
-									disabled={calendarsBusy}
-									aria-label={$t('settings.calendars.disconnect')}
-									title={$t('settings.calendars.disconnect')}
-									class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<TrashIcon class="size-4" />
-								</button>
-							</div>
-						{/each}
-					</div>
-				</section>
-			{/if}
+			<GoogleCalendarSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="labels">
@@ -870,11 +567,3 @@
 		</Tabs.Content>
 	</Tabs.Root>
 </div>
-
-<ConfirmDestructiveDialog
-	bind:open={confirmDeleteGoogleConfigOpen}
-	title={$t('settings.calendars.confirmDeleteConfigTitle')}
-	description={$t('settings.calendars.confirmDeleteConfigDesc')}
-	confirmLabel={$t('settings.calendars.deleteConfig')}
-	onConfirm={deleteGoogleCalendarConfig}
-/>

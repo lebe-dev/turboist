@@ -28,6 +28,9 @@ type AppError struct {
 }
 
 func (e *AppError) Error() string {
+	if e == nil {
+		return "<nil app error>"
+	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 

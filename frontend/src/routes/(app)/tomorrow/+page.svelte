@@ -5,12 +5,12 @@
 	import { calendars as calendarsApi } from '$lib/api/endpoints/calendars';
 	import { getApiClient } from '$lib/api/client';
 	import type { CalendarEvent, Task } from '$lib/api/types';
-	import CalendarEventList from '$lib/components/calendar/CalendarEventList.svelte';
+	import CalendarEventItem from '$lib/components/calendar/CalendarEventItem.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import DayPartSection from '$lib/components/view/DayPartSection.svelte';
-	import { groupByDayPart } from '$lib/utils/viewGroup';
-	import { calendarEventsOrEmpty } from '$lib/utils/calendar';
+	import { dayPartGroupMeta, groupByDayPart } from '$lib/utils/viewGroup';
+	import { calendarEventsOrEmpty, groupCalendarEventsByDayPart } from '$lib/utils/calendar';
 	import { parseIso, dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
@@ -29,7 +29,16 @@
 	const tz = $derived(configStore.value?.timezone ?? null);
 	const dayParts = $derived(configStore.value?.dayParts);
 	const groups = $derived(groupByDayPart(list.items, dayParts));
-
+	const calendarGroups = $derived(groupCalendarEventsByDayPart(calendarEvents, dayParts, tz));
+	const combinedGroups = $derived(
+		dayPartGroupMeta(dayParts)
+			.map((meta) => ({
+				...meta,
+				tasks: groups.find((g) => g.part === meta.part)?.tasks ?? [],
+				events: calendarGroups.find((g) => g.part === meta.part)?.events ?? []
+			}))
+			.filter((g) => g.tasks.length > 0 || g.events.length > 0)
+	);
 
 	const loader = usePageLoad(async (isValid) => {
 		const todayKey = dayKeyInTz(new Date(), tz);
@@ -83,17 +92,18 @@
 		emptyDescription={$t('page.tomorrow.emptyDescription')}
 	>
 		<div class="flex flex-col gap-4 py-2">
-			<CalendarEventList events={calendarEvents} timezone={tz} />
-
-			{#each groups as group (group.part)}
+			{#each combinedGroups as group (group.part)}
 				<DayPartSection
 					part={group.part}
 					label={group.label}
 					interval={group.interval}
-					count={group.tasks.length}
+					count={group.tasks.length + group.events.length}
 					active={true}
 					onBulkMove={(targetPart) => bulkMove(group, targetPart)}
 				>
+					{#each group.events as event (event.id)}
+						<CalendarEventItem {event} timezone={tz} dayPart={group.part} />
+					{/each}
 					<TaskTree
 						tasks={group.tasks}
 						hideTomorrowBadge

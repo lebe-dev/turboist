@@ -171,6 +171,7 @@ export interface UserSettings {
 	bannerText: string;
 	bannerPublished: boolean;
 	calendarEnabled: boolean;
+	calendarHidePastEvents: boolean;
 }
 
 export interface CalendarAccount {

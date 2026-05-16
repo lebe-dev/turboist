@@ -38,7 +38,11 @@
 	"calendar": {
 		"title": "Calendar",
 		"allDay": "All day",
-		"openInGoogle": "Open in Google Calendar"
+		"openInGoogle": "Open in Google Calendar",
+		"actionsAriaLabel": "Calendar event actions",
+		"createTask": "Create task",
+		"taskCreated": "Task created",
+		"taskCreateFailed": "Failed to create task"
 	},
 	"nav": {
 		"today": "Today",
@@ -87,7 +91,7 @@
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
-			"calendars": "Calendars",
+			"calendars": "Calendar (beta)",
 			"project": "Project",
 			"privacy": "Privacy",
 			"session": "Session",
@@ -139,12 +143,21 @@
 			"toastEmptyFields": "Mask must not be empty and at least one label must be selected"
 		},
 		"calendars": {
-			"heading": "Calendars",
-			"description": "Show selected Google Calendar events alongside Today and Week.",
+			"heading": "Calendar (beta)",
+			"description": "Show selected Google Calendar events in Today, Tomorrow, and Week.",
 			"enableLabel": "Enable calendars",
+			"hidePastEvents": "Hide past events",
+			"hidePastEventsDescription": "Timed events whose end time has passed move out of the active list and into Completed today.",
 			"googleNotConfigured": "Google Calendar OAuth is not configured on this server.",
 			"configHeading": "Google OAuth",
 			"configDescription": "Paste the OAuth web client credentials for this Turboist instance.",
+			"configHelpAria": "How to create Google OAuth credentials",
+			"configHelpTitle": "Create credentials in Google Cloud",
+			"configHelpEnableApi": "Enable Google Calendar API for the project.",
+			"configHelpCreateClient": "Create OAuth client ID with the Web application type and add the callback URL below to Authorized redirect URIs.",
+			"configHelpCopyKeys": "Copy Client ID and Client secret into these fields, then save.",
+			"configHelpRedirectLabel": "Authorized redirect URI",
+			"configHelpLink": "Open Google Cloud credentials",
 			"configFromEnv": "Google OAuth is configured by server environment variables.",
 			"clientId": "Client ID",
 			"clientIdSaved": "Client ID saved",

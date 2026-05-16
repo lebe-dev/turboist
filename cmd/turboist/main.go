@@ -147,7 +147,7 @@ func main() {
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
-	calendarHandler.Register(api.Group("/calendars"))
+	calendarHandler.Register(api.Group("/calendars", httpapi.RequireJWTAuth()))
 
 	// embedded SvelteKit SPA (must be registered after API/auth routes)
 	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {
