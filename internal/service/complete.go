@@ -102,6 +102,7 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 		upd.CompletedAt = completedAt
 	} else {
 		upd.DueAt = &next
+		upd.ResetPostponeCount = true
 	}
 	updated, err := s.tasks.Update(ctx, t.ID, upd)
 	if err != nil {
