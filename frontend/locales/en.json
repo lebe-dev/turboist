@@ -291,7 +291,8 @@
       "confirmDelete": "Delete \"{title}\"? Subtasks will also be removed.",
       "decomposed": "Decomposed into {count} task(s)",
       "failedDecompose": "Failed to decompose task"
-    }
+    },
+    "backlogLabel": "In backlog"
   },
   "dialog": {
     "context": {

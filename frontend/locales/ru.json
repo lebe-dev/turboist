@@ -291,7 +291,8 @@
       "confirmDelete": "Удалить «{title}»? Подзадачи также будут удалены.",
       "decomposed": "Разбито на {count}",
       "failedDecompose": "Не удалось разбить задачу"
-    }
+    },
+    "backlogLabel": "В бэклоге"
   },
   "dialog": {
     "context": {
