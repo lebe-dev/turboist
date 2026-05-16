@@ -8,4 +8,5 @@ type UserSettings struct {
 	PublicView                      bool    `json:"publicView"`
 	BannerText                      string  `json:"bannerText"`
 	BannerPublished                 bool    `json:"bannerPublished"`
+	CalendarEnabled                 bool    `json:"calendarEnabled"`
 }

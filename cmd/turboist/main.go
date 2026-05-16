@@ -69,6 +69,7 @@ func main() {
 	sessionRepo := repo.NewSessionRepo(sqlDB)
 	appSettingsRepo := repo.NewAppSettingsRepo(sqlDB)
 	apiTokenRepo := repo.NewAPITokenRepo(sqlDB)
+	calendarRepo := repo.NewCalendarRepo(sqlDB)
 	ctxRepo := repo.NewContextRepo(sqlDB)
 	labelRepo := repo.NewLabelRepo(sqlDB)
 	sectionRepo := repo.NewProjectSectionRepo(sqlDB)
@@ -118,6 +119,14 @@ func main() {
 		Version:      Version,
 	}
 	app := httpapi.NewApp(deps)
+	calendarHandler := handlers.NewCalendarHandler(
+		calendarRepo,
+		userRepo,
+		env.BaseURL,
+		env.GoogleCalendarClientID,
+		env.GoogleCalendarClientSecret,
+	)
+	calendarHandler.RegisterPublic(app)
 	api := httpapi.RegisterRoutes(app, deps)
 
 	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
@@ -140,6 +149,7 @@ func main() {
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewBackupHandler(backupSvc).Register(api.Group("", httpapi.RequireJWTAuth()))
+	calendarHandler.Register(api.Group("/calendars"))
 
 	// embedded SvelteKit SPA (must be registered after API/auth routes)
 	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {

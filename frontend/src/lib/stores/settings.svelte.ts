@@ -9,7 +9,8 @@ const EMPTY: UserSettings = {
 	locale: '',
 	publicView: false,
 	bannerText: '',
-	bannerPublished: false
+	bannerPublished: false,
+	calendarEnabled: false
 };
 
 class SettingsStore {
@@ -45,6 +46,10 @@ class SettingsStore {
 		return this.value.bannerPublished ?? false;
 	}
 
+	get calendarEnabled(): boolean {
+		return this.value.calendarEnabled ?? false;
+	}
+
 	async setWeeklyUnplannedExcludedLabelIds(ids: number[]): Promise<void> {
 		this.value = { ...this.value, weeklyUnplannedExcludedLabelIds: ids };
 		await settingsApi.patch(getApiClient(), { weeklyUnplannedExcludedLabelIds: ids });
@@ -74,6 +79,11 @@ class SettingsStore {
 	async setBannerPublished(v: boolean): Promise<void> {
 		this.value = { ...this.value, bannerPublished: v };
 		await settingsApi.patch(getApiClient(), { bannerPublished: v });
+	}
+
+	async setCalendarEnabled(v: boolean): Promise<void> {
+		this.value = { ...this.value, calendarEnabled: v };
+		await settingsApi.patch(getApiClient(), { calendarEnabled: v });
 	}
 
 	clear(): void {
