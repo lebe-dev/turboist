@@ -78,7 +78,7 @@
 	},
 	"settings": {
 		"title": "Settings",
-		"subtitle": "Personalise how Turboist looks and behaves.",
+		"subtitle": "Personalise how your workspace looks and behaves.",
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
@@ -162,7 +162,8 @@
 			"confirmDeleteAction": "Delete",
 			"createFailed": "Failed to create token",
 			"deleteFailed": "Failed to delete token",
-			"loadFailed": "Failed to load tokens"
+			"loadFailed": "Failed to load tokens",
+			"docsLink": "Documentation"
 		}
 	},
 	"auth": {

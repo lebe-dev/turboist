@@ -4,6 +4,7 @@
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
+	import ArrowSquareOutIcon from 'phosphor-svelte/lib/ArrowSquareOut';
 	import { t } from '$lib/i18n';
 	import { getApiClient, apiTokens, type APIToken, type APITokenWithSecret } from '$lib/api';
 	import { describeError } from '$lib/utils/taskActions';
@@ -102,9 +103,20 @@
 </script>
 
 <section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-	<div class="flex flex-col gap-0.5">
-		<h2 class="text-sm font-semibold">{$t('settings.api.heading')}</h2>
-		<p class="text-xs text-muted-foreground">{$t('settings.api.description')}</p>
+	<div class="flex items-start justify-between gap-3">
+		<div class="flex flex-col gap-0.5">
+			<h2 class="text-sm font-semibold">{$t('settings.api.heading')}</h2>
+			<p class="text-xs text-muted-foreground">{$t('settings.api.description')}</p>
+		</div>
+		<a
+			href="https://github.com/lebe-dev/turboist/blob/main/API.md"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+		>
+			{$t('settings.api.docsLink')}
+			<ArrowSquareOutIcon class="size-3.5 shrink-0" />
+		</a>
 	</div>
 
 	<form
@@ -122,7 +134,7 @@
 			maxlength={64}
 			class="sm:max-w-xs"
 		/>
-		<Button type="submit" disabled={creating || newName.trim() === ''}>
+		<Button type="submit" variant="secondary" disabled={creating || newName.trim() === ''}>
 			<PlusIcon class="size-4" />
 			{creating ? $t('settings.api.generating') : $t('settings.api.generate')}
 		</Button>
@@ -181,7 +193,7 @@
 		if (!open) closeCreatedModal();
 	}}
 >
-	<AlertDialog.Content>
+	<AlertDialog.Content size="lg">
 		<AlertDialog.Header>
 			<AlertDialog.Title>{createdToken?.name ?? ''}</AlertDialog.Title>
 			<AlertDialog.Description>{$t('settings.api.warningOnce')}</AlertDialog.Description>
