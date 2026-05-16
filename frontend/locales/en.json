@@ -37,7 +37,8 @@
 	},
 	"calendar": {
 		"title": "Calendar",
-		"allDay": "All day"
+		"allDay": "All day",
+		"openInGoogle": "Open in Google Calendar"
 	},
 	"nav": {
 		"today": "Today",
@@ -142,6 +143,21 @@
 			"description": "Show selected Google Calendar events alongside Today and Week.",
 			"enableLabel": "Enable calendars",
 			"googleNotConfigured": "Google Calendar OAuth is not configured on this server.",
+			"configHeading": "Google OAuth",
+			"configDescription": "Paste the OAuth web client credentials for this Turboist instance.",
+			"configFromEnv": "Google OAuth is configured by server environment variables.",
+			"clientId": "Client ID",
+			"clientIdSaved": "Client ID saved",
+			"clientSecret": "Client secret",
+			"secretSaved": "Secret saved",
+			"saveConfig": "Save Google config",
+			"configSaved": "Google config saved",
+			"configSaveFailed": "Failed to save Google config",
+			"deleteConfig": "Delete OAuth keys",
+			"configDeleted": "Google OAuth keys deleted",
+			"configDeleteFailed": "Failed to delete Google OAuth keys",
+			"confirmDeleteConfigTitle": "Delete Google OAuth keys?",
+			"confirmDeleteConfigDesc": "Turboist will forget the saved Client ID and Client secret. Connected calendar accounts stay listed, but syncing will not work until you save OAuth keys again.",
 			"connectGoogle": "Connect Google",
 			"sync": "Sync calendars",
 			"sourcesHeading": "Visible calendars",

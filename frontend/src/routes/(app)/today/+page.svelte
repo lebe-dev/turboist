@@ -14,8 +14,8 @@
 	import CompleteOverdueDialog from '$lib/components/dialog/CompleteOverdueDialog.svelte';
 	import { activeDayPart, groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz, dayStartUtcInTz, isOverdue, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { calendarEventsOrEmpty } from '$lib/utils/calendar';
 	import { configStore } from '$lib/stores/config.svelte';
-	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { toggleComplete, updateTaskFields } from '$lib/utils/taskActions';
 	import type { DayPart } from '$lib/api/types';
@@ -76,13 +76,10 @@
 			const todayKey = dayKeyInTz(new Date(), tz);
 			const start = toIsoUtc(dayStartUtcInTz(todayKey, tz));
 			const end = toIsoUtc(dayStartUtcInTz(shiftDayKey(todayKey, 1), tz));
-			const [open, overdue, completed, events] = await Promise.all([
+			const [open, overdue, completed] = await Promise.all([
 				viewsApi.today(getApiClient(), { contextId: ctxId }),
 				viewsApi.overdue(getApiClient(), { contextId: ctxId }),
-				viewsApi.completedToday(getApiClient(), { limit: 1, contextId: ctxId }),
-				settingsStore.calendarEnabled
-					? calendarsApi.events(getApiClient(), start, end).catch(() => [])
-					: Promise.resolve([])
+				viewsApi.completedToday(getApiClient(), { limit: 1, contextId: ctxId })
 			]);
 			if (!isValid()) return;
 			const seen: Record<number, true> = {};
@@ -95,10 +92,19 @@
 			list.items = merged;
 			total = open.total + overdue.total;
 			completedCount = completed.total;
-			calendarEvents = events;
+			void loadCalendarEvents(start, end, isValid);
 		},
 		{ errorMessage: $t('page.today.errorLoading'), autoLoad: false, initialLoading: true }
 	);
+
+	async function loadCalendarEvents(
+		start: string,
+		end: string,
+		isValid: () => boolean
+	): Promise<void> {
+		const events = await calendarEventsOrEmpty(calendarsApi.events(getApiClient(), start, end));
+		if (isValid()) calendarEvents = events;
+	}
 
 	$effect(() => {
 		void userStateStore.activeContextId;
@@ -112,10 +118,8 @@
 			void loader.refetch();
 		}
 		document.addEventListener('visibilitychange', onVisible);
-		window.addEventListener('focus', onVisible);
 		return () => {
 			document.removeEventListener('visibilitychange', onVisible);
-			window.removeEventListener('focus', onVisible);
 		};
 	});
 

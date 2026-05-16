@@ -52,6 +52,8 @@ Two configuration sources are merged at start-up:
   - `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` — optional
     Google OAuth credentials for read-only calendar events. Configure the
     OAuth redirect URI as `<BASE_URL>/api/v1/calendars/google/callback`.
+  - `CALENDAR_TOKEN_KEY` — optional encryption key for stored calendar OAuth
+    tokens. Defaults to `JWT_SECRET`; keep the chosen value stable.
 - `config.yml` — business config (timezone, day-parts, limits, auto-labels,
   inbox overflow, pin caps). See `config.example.yml` for the full schema.
 

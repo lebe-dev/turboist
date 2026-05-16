@@ -37,7 +37,8 @@
 	},
 	"calendar": {
 		"title": "Календарь",
-		"allDay": "Весь день"
+		"allDay": "Весь день",
+		"openInGoogle": "Открыть в Google Calendar"
 	},
 	"nav": {
 		"today": "Сегодня",
@@ -142,6 +143,21 @@
 			"description": "Показывать события выбранных Google-календарей рядом с Today и Неделей.",
 			"enableLabel": "Включить календари",
 			"googleNotConfigured": "Google Calendar OAuth не настроен на сервере.",
+			"configHeading": "Google OAuth",
+			"configDescription": "Вставьте OAuth-данные веб-клиента для этого экземпляра Turboist.",
+			"configFromEnv": "Google OAuth настроен переменными окружения сервера.",
+			"clientId": "Client ID",
+			"clientIdSaved": "Client ID сохранён",
+			"clientSecret": "Client secret",
+			"secretSaved": "Секрет сохранён",
+			"saveConfig": "Сохранить Google",
+			"configSaved": "Google-настройки сохранены",
+			"configSaveFailed": "Не удалось сохранить Google-настройки",
+			"deleteConfig": "Удалить OAuth-ключи",
+			"configDeleted": "OAuth-ключи Google удалены",
+			"configDeleteFailed": "Не удалось удалить OAuth-ключи Google",
+			"confirmDeleteConfigTitle": "Удалить OAuth-ключи Google?",
+			"confirmDeleteConfigDesc": "Turboist забудет сохранённые Client ID и Client secret. Подключённые календарные аккаунты останутся в списке, но синхронизация не заработает, пока вы снова не сохраните OAuth-ключи.",
 			"connectGoogle": "Подключить Google",
 			"sync": "Обновить календари",
 			"sourcesHeading": "Видимые календари",

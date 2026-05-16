@@ -28,9 +28,21 @@ CREATE TABLE calendar_sources (
     UNIQUE(account_id, external_id)
 );
 
+CREATE TABLE calendar_oauth_configs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    client_id TEXT NOT NULL DEFAULT '',
+    client_secret TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, provider)
+);
+
 CREATE TABLE calendar_oauth_states (
     state TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id INTEGER NOT NULL DEFAULT 0,
     provider TEXT NOT NULL,
     expires_at TEXT NOT NULL,
     created_at TEXT NOT NULL
@@ -38,5 +50,6 @@ CREATE TABLE calendar_oauth_states (
 
 -- +goose Down
 DROP TABLE calendar_oauth_states;
+DROP TABLE calendar_oauth_configs;
 DROP TABLE calendar_sources;
 DROP TABLE calendar_accounts;
