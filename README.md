@@ -116,6 +116,7 @@ applied; HTTP handlers are exercised via Fiber's `app.Test`.
 
 ## RoadMap
 
+- Feature: backup & restore
 - Offline-first
 - iOS Native App
 - Feature: Constraints
