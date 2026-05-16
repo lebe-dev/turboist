@@ -117,6 +117,7 @@ applied; HTTP handlers are exercised via Fiber's `app.Test`.
 ## RoadMap
 
 - Feature: backup & restore
+- Feature: Federated Project Synchronization (Bridge Protocol) for Multi-Instance Collaboration
 - Offline-first
 - iOS Native App
 - Feature: Constraints
