@@ -291,7 +291,8 @@ type TaskUpdate struct {
 	TroikiCategory      *model.TroikiCategory
 	TroikiCategoryClear bool
 
-	IncPostponeCount bool
+	IncPostponeCount   bool
+	ResetPostponeCount bool
 }
 
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
@@ -363,6 +364,9 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	}
 	if u.IncPostponeCount {
 		sets = append(sets, "postpone_count = postpone_count + 1")
+	}
+	if u.ResetPostponeCount {
+		sets = append(sets, "postpone_count = 0")
 	}
 	if u.IsPrivate != nil {
 		sets = append(sets, "is_private = ?")

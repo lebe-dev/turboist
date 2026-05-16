@@ -76,7 +76,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	api := httpapi.RegisterRoutes(app, deps)
 
 	pinSvc := service.NewPinService(tasks, projs, cfg.MaxPinned)
-	autoLabelsSvc := service.NewAutoLabelsService(lbls, cfg)
+	appSettings := repo.NewAppSettingsRepo(d)
+	autoLabelsSvc := service.NewAutoLabelsService(lbls, appSettings)
 	taskSvc := service.NewTaskService(tasks, projs, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteService(tasks, projs, users)
 	moveSvc := service.NewMoveService(tasks, projs)
@@ -97,6 +98,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
+	handlers.NewAppSettingsHandler(appSettings, lbls).Register(api)
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 
@@ -152,7 +154,6 @@ func makeTestConfig() *config.Config {
 		DayParts: map[string]config.DayPart{
 			"morning": {Start: 6, End: 12},
 		},
-		AutoLabels: []config.AutoLabel{},
-		Location:   loc,
+		Location: loc,
 	}
 }

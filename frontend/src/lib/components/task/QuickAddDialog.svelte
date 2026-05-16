@@ -8,6 +8,7 @@
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
 	import RecurrencePicker from './RecurrencePicker.svelte';
@@ -151,7 +152,8 @@
 	const titleLines = $derived(titles.split('\n').map((l) => l.trim()).filter(Boolean));
 	const isMultiTask = $derived(titleLines.length > 1);
 
-	const autoLabelRules = $derived(configStore.value?.autoLabels ?? []);
+	const autoLabelRules = $derived(appSettingsStore.autoLabels);
+	const labelNameById = $derived(new Map(allLabels.map((l) => [l.id, l.name])));
 	const detectedAutoLabels = $derived.by(() => {
 		const matched: string[] = [];
 		const explicitNames = selectedLabels.map((l) => l.name);
@@ -161,10 +163,14 @@
 			const hay = rule.ignoreCase === false ? titles : lowerTitles;
 			const needle = rule.ignoreCase === false ? rule.mask : rule.mask.toLowerCase();
 			if (!hay.includes(needle)) continue;
-			if (matched.includes(rule.label)) continue;
-			if (explicitNames.includes(rule.label)) continue;
-			if (dismissedAutoLabels.includes(rule.label)) continue;
-			matched.push(rule.label);
+			for (const id of rule.labelIds) {
+				const name = labelNameById.get(id);
+				if (!name) continue;
+				if (matched.includes(name)) continue;
+				if (explicitNames.includes(name)) continue;
+				if (dismissedAutoLabels.includes(name)) continue;
+				matched.push(name);
+			}
 		}
 		return matched;
 	});

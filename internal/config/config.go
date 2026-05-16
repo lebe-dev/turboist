@@ -12,13 +12,12 @@ import (
 )
 
 type Config struct {
-	Timezone   string             `yaml:"timezone"`
-	MaxPinned  int                `yaml:"max-pinned"`
-	Weekly     WeeklyConfig       `yaml:"weekly"`
-	Backlog    BacklogConfig      `yaml:"backlog"`
-	Inbox      InboxConfig        `yaml:"inbox"`
-	DayParts   map[string]DayPart `yaml:"day-parts"`
-	AutoLabels []AutoLabel        `yaml:"auto-labels"`
+	Timezone  string             `yaml:"timezone"`
+	MaxPinned int                `yaml:"max-pinned"`
+	Weekly    WeeklyConfig       `yaml:"weekly"`
+	Backlog   BacklogConfig      `yaml:"backlog"`
+	Inbox     InboxConfig        `yaml:"inbox"`
+	DayParts  map[string]DayPart `yaml:"day-parts"`
 
 	Location *time.Location `yaml:"-"`
 }
@@ -44,19 +43,6 @@ type OverflowTask struct {
 type DayPart struct {
 	Start int `yaml:"start"`
 	End   int `yaml:"end"`
-}
-
-type AutoLabel struct {
-	Mask       string `yaml:"mask"`
-	Label      string `yaml:"label"`
-	IgnoreCase *bool  `yaml:"ignore-case,omitempty"`
-}
-
-func (a AutoLabel) IgnoreCaseValue() bool {
-	if a.IgnoreCase == nil {
-		return true
-	}
-	return *a.IgnoreCase
 }
 
 var validPriorities = map[string]struct{}{
@@ -109,15 +95,6 @@ func (c *Config) Validate() error {
 
 	if err := validateDayParts(c.DayParts); err != nil {
 		return err
-	}
-
-	for i, al := range c.AutoLabels {
-		if al.Label == "" {
-			return fmt.Errorf("config: auto-labels[%d].label must not be empty", i)
-		}
-		if al.Mask == "" {
-			return fmt.Errorf("config: auto-labels[%d].mask must not be empty", i)
-		}
 	}
 
 	return nil

@@ -27,12 +27,6 @@ type dayPartResp struct {
 	End   int `json:"end"`
 }
 
-type autoLabelResp struct {
-	Mask       string `json:"mask"`
-	Label      string `json:"label"`
-	IgnoreCase bool   `json:"ignoreCase"`
-}
-
 type overflowTaskResp struct {
 	Title    string `json:"title"`
 	Priority string `json:"priority"`
@@ -48,13 +42,12 @@ type limitResp struct {
 }
 
 type configResp struct {
-	Timezone   string                 `json:"timezone"`
-	MaxPinned  int                    `json:"maxPinned"`
-	Weekly     limitResp              `json:"weekly"`
-	Backlog    limitResp              `json:"backlog"`
-	Inbox      inboxResp              `json:"inbox"`
-	DayParts   map[string]dayPartResp `json:"dayParts"`
-	AutoLabels []autoLabelResp        `json:"autoLabels"`
+	Timezone  string                 `json:"timezone"`
+	MaxPinned int                    `json:"maxPinned"`
+	Weekly    limitResp              `json:"weekly"`
+	Backlog   limitResp              `json:"backlog"`
+	Inbox     inboxResp              `json:"inbox"`
+	DayParts  map[string]dayPartResp `json:"dayParts"`
 }
 
 func (h *MetaHandler) config(c fiber.Ctx) error {
@@ -62,14 +55,6 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 	dayParts := make(map[string]dayPartResp, len(cfg.DayParts))
 	for name, dp := range cfg.DayParts {
 		dayParts[name] = dayPartResp{Start: dp.Start, End: dp.End}
-	}
-	autoLabels := make([]autoLabelResp, len(cfg.AutoLabels))
-	for i, al := range cfg.AutoLabels {
-		autoLabels[i] = autoLabelResp{
-			Mask:       al.Mask,
-			Label:      al.Label,
-			IgnoreCase: al.IgnoreCaseValue(),
-		}
 	}
 	return c.JSON(configResp{
 		Timezone:  cfg.Timezone,
@@ -83,7 +68,6 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 				Priority: cfg.Inbox.OverflowTask.Priority,
 			},
 		},
-		DayParts:   dayParts,
-		AutoLabels: autoLabels,
+		DayParts: dayParts,
 	})
 }

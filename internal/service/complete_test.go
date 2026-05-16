@@ -471,6 +471,47 @@ func TestCompleteService_TroikiHook_ProjectRecategorise_GrantsAgain(t *testing.T
 	}
 }
 
+func TestCompleteService_Recurring_ResetsPostponeCount(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	rruleStr := "FREQ=DAILY;INTERVAL=1"
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Daily task",
+		DueAt:          &due,
+		RecurrenceRule: &rruleStr,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := f.tasks.Update(ctx, task.ID, repo.TaskUpdate{IncPostponeCount: true}); err != nil {
+			t.Fatalf("bump postpone: %v", err)
+		}
+	}
+	before, err := f.tasks.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("get before: %v", err)
+	}
+	if before.PostponeCount != 2 {
+		t.Fatalf("postpone_count before: got %d, want 2", before.PostponeCount)
+	}
+
+	result, err := f.svc.Complete(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if result.Status != model.TaskStatusOpen {
+		t.Fatalf("status: got %q, want open", result.Status)
+	}
+	if result.PostponeCount != 0 {
+		t.Errorf("postpone_count: got %d, want 0 (recurring advance must reset)", result.PostponeCount)
+	}
+}
+
 func TestCompleteService_Recurring_PreservesDayPart(t *testing.T) {
 	f := setupCompleteService(t)
 	ctx := context.Background()

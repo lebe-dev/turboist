@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
 
@@ -42,11 +42,36 @@ func createTestLabel(t *testing.T, e *apiEnv, name string) dto.LabelDTO {
 	return result
 }
 
-func setupEnvWithAutoLabels(t *testing.T, autoLabels []config.AutoLabel) *apiEnv {
+type autoLabelSpec struct {
+	mask       string
+	labelNames []string
+	ignoreCase bool
+}
+
+func setupEnvWithAutoLabels(t *testing.T, specs []autoLabelSpec) *apiEnv {
 	t.Helper()
-	cfg := makeTestConfig()
-	cfg.AutoLabels = autoLabels
-	return buildAPIEnvWithConfig(t, cfg)
+	e := buildAPIEnvWithConfig(t, makeTestConfig())
+	ctx := context.Background()
+	rules := make([]model.AutoLabelRule, 0, len(specs))
+	for _, sp := range specs {
+		ids := make([]int64, 0, len(sp.labelNames))
+		for _, name := range sp.labelNames {
+			l, err := e.labels.GetByName(ctx, name)
+			if err != nil {
+				created, err := e.labels.Create(ctx, name, "grey", false)
+				if err != nil {
+					t.Fatalf("seed label %q: %v", name, err)
+				}
+				l = created
+			}
+			ids = append(ids, l.ID)
+		}
+		rules = append(rules, model.AutoLabelRule{Mask: sp.mask, LabelIDs: ids, IgnoreCase: sp.ignoreCase})
+	}
+	if err := repo.NewAppSettingsRepo(e.db).Set(ctx, &model.AppSettings{AutoLabels: rules}); err != nil {
+		t.Fatalf("seed app settings: %v", err)
+	}
+	return e
 }
 
 // --- GET /tasks/:id ---
@@ -647,8 +672,8 @@ func TestCreateTask_UnknownLabel(t *testing.T) {
 // --- Auto-labels ---
 
 func TestAutoLabels_MatchedOnCreate(t *testing.T) {
-	e := setupEnvWithAutoLabels(t, []config.AutoLabel{
-		{Mask: "buy", Label: "shopping"},
+	e := setupEnvWithAutoLabels(t, []autoLabelSpec{
+		{mask: "buy", labelNames: []string{"shopping"}, ignoreCase: true},
 	})
 	ctx := createTestContext(t, e, "Personal")
 
@@ -668,8 +693,8 @@ func TestAutoLabels_MatchedOnCreate(t *testing.T) {
 }
 
 func TestAutoLabels_UnmatchedOnCreate(t *testing.T) {
-	e := setupEnvWithAutoLabels(t, []config.AutoLabel{
-		{Mask: "buy", Label: "shopping"},
+	e := setupEnvWithAutoLabels(t, []autoLabelSpec{
+		{mask: "buy", labelNames: []string{"shopping"}, ignoreCase: true},
 	})
 	ctx := createTestContext(t, e, "Personal")
 
@@ -689,9 +714,8 @@ func TestAutoLabels_UnmatchedOnCreate(t *testing.T) {
 }
 
 func TestAutoLabels_CaseSensitive(t *testing.T) {
-	f := false
-	e := setupEnvWithAutoLabels(t, []config.AutoLabel{
-		{Mask: "BUY", Label: "shopping", IgnoreCase: &f},
+	e := setupEnvWithAutoLabels(t, []autoLabelSpec{
+		{mask: "BUY", labelNames: []string{"shopping"}, ignoreCase: false},
 	})
 	ctx := createTestContext(t, e, "Personal")
 
@@ -727,8 +751,8 @@ func TestAutoLabels_CaseSensitive(t *testing.T) {
 }
 
 func TestAutoLabels_RemovedAutoLabels_OnCreate(t *testing.T) {
-	e := setupEnvWithAutoLabels(t, []config.AutoLabel{
-		{Mask: "buy", Label: "shopping"},
+	e := setupEnvWithAutoLabels(t, []autoLabelSpec{
+		{mask: "buy", labelNames: []string{"shopping"}, ignoreCase: true},
 	})
 	ctx := createTestContext(t, e, "Personal")
 
@@ -752,8 +776,8 @@ func TestAutoLabels_RemovedAutoLabels_OnCreate(t *testing.T) {
 }
 
 func TestAutoLabels_MatchedOnTitleChange(t *testing.T) {
-	e := setupEnvWithAutoLabels(t, []config.AutoLabel{
-		{Mask: "buy", Label: "shopping"},
+	e := setupEnvWithAutoLabels(t, []autoLabelSpec{
+		{mask: "buy", labelNames: []string{"shopping"}, ignoreCase: true},
 	})
 	ctx := createTestContext(t, e, "Personal")
 	task := createTestTask(t, e, ctx.ID, "read a book")
@@ -778,16 +802,15 @@ func TestAutoLabels_MatchedOnTitleChange(t *testing.T) {
 	}
 }
 
-func TestAutoLabels_AutoCreatesLabel(t *testing.T) {
-	e := setupEnvWithAutoLabels(t, []config.AutoLabel{
-		{Mask: "urgent", Label: "urgent-flag"},
+func TestAutoLabels_MultipleLabelsPerRule(t *testing.T) {
+	e := setupEnvWithAutoLabels(t, []autoLabelSpec{
+		{mask: "bug", labelNames: []string{"bug", "triage"}, ignoreCase: true},
 	})
 	ctx := createTestContext(t, e, "Personal")
 
-	// Label "urgent-flag" doesn't exist yet — should be auto-created.
 	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
 		fmt.Sprintf("/api/v1/contexts/%d/tasks", ctx.ID),
-		map[string]any{"title": "urgent task"}))
+		map[string]any{"title": "found a bug"}))
 	if resp.StatusCode != 201 {
 		t.Fatalf("create: got %d; body: %s", resp.StatusCode, body)
 	}
@@ -795,8 +818,8 @@ func TestAutoLabels_AutoCreatesLabel(t *testing.T) {
 	if err := json.Unmarshal(body, &result); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if len(result.Labels) != 1 || result.Labels[0].Name != "urgent-flag" {
-		t.Errorf("auto-created label: got %v, want [{urgent-flag}]", result.Labels)
+	if len(result.Labels) != 2 {
+		t.Errorf("got %d labels, want 2 (bug, triage)", len(result.Labels))
 	}
 }
 

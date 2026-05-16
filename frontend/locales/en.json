@@ -78,7 +78,7 @@
 	},
 	"settings": {
 		"title": "Settings",
-		"subtitle": "Personalise how Turboist looks and behaves.",
+		"subtitle": "Personalise how your workspace looks and behaves.",
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
@@ -114,6 +114,23 @@
 			"heading": "Weekly unplanned exclusions",
 			"description": "Tasks with these labels will not show the unplanned badge even if not scheduled for the week.",
 			"empty": "No labels yet."
+		},
+		"autoLabels": {
+			"heading": "Auto-labels",
+			"description": "When a task title contains the mask, the selected labels are attached automatically.",
+			"empty": "No auto-label rules yet.",
+			"mask": "Mask",
+			"labels": "Labels",
+			"ignoreCase": "Ignore case",
+			"maskPlaceholder": "e.g. buy",
+			"labelsPlaceholder": "Select labels…",
+			"noLabelsAvailable": "No labels available. Create labels first.",
+			"add": "Add rule",
+			"remove": "Remove rule",
+			"save": "Save",
+			"toastSaved": "Auto-label rules saved",
+			"toastFailed": "Failed to save auto-label rules",
+			"toastEmptyFields": "Mask must not be empty and at least one label must be selected"
 		},
 		"version": {
 			"heading": "App version",
@@ -162,7 +179,8 @@
 			"confirmDeleteAction": "Delete",
 			"createFailed": "Failed to create token",
 			"deleteFailed": "Failed to delete token",
-			"loadFailed": "Failed to load tokens"
+			"loadFailed": "Failed to load tokens",
+			"docsLink": "Documentation"
 		}
 	},
 	"auth": {

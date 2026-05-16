@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
@@ -20,8 +19,8 @@ func setupGroupService(t *testing.T) (*service.GroupService, *repo.TaskRepo, *re
 	projects := repo.NewProjectRepo(d, plabels)
 	labels := repo.NewLabelRepo(d)
 	ctxs := repo.NewContextRepo(d)
-	cfg := &config.Config{}
-	auto := service.NewAutoLabelsService(labels, cfg)
+	appSettings := repo.NewAppSettingsRepo(d)
+	auto := service.NewAutoLabelsService(labels, appSettings)
 	taskSvc := service.NewTaskService(tasks, projects, tlabels, auto)
 	moveSvc := service.NewMoveService(tasks, projects)
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, tasks, tlabels)
