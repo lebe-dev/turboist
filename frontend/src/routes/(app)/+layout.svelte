@@ -76,6 +76,11 @@
 		parentId: number | null;
 		sectionId: number | null;
 	} | null>(null);
+	let quickAddPrefill = $state<{
+		title: string;
+		dueDate: string;
+		dayPart: DayPart;
+	} | null>(null);
 	let groupOpen = $state(false);
 	let groupBusy = $state(false);
 	let groupSnapshot = $state<{
@@ -93,7 +98,10 @@
 	});
 
 	$effect(() => {
-		if (!quickOpen) followUpOverride = null;
+		if (!quickOpen) {
+			followUpOverride = null;
+			quickAddPrefill = null;
+		}
 	});
 
 	function startLoad(): void {
@@ -143,8 +151,24 @@
 
 	function onQuickAdd(): void {
 		followUpOverride = null;
+		quickAddPrefill = null;
 		quickOpen = true;
 	}
+
+	$effect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent<{ title?: string; dueDate?: string; dayPart?: DayPart }>).detail;
+			quickAddPrefill = {
+				title: detail?.title ?? '',
+				dueDate: detail?.dueDate ?? '',
+				dayPart: detail?.dayPart ?? 'none'
+			};
+			followUpOverride = null;
+			quickOpen = true;
+		};
+		window.addEventListener('turboist:quick-add', handler);
+		return () => window.removeEventListener('turboist:quick-add', handler);
+	});
 
 	async function onGroupRequest(): Promise<void> {
 		const ids = Array.from(taskSelectionStore.ids);
@@ -427,11 +451,12 @@
 	</Sheet.Root>
 	<QuickAddDialog
 		bind:open={quickOpen}
+		defaultTitle={quickAddPrefill?.title ?? ''}
 		defaultProjectId={followUpOverride ? followUpOverride.projectId : quickAddDefaults.projectId}
 		defaultLabelIds={followUpOverride ? followUpOverride.labelIds : quickAddDefaults.labelIds}
-		defaultDueDate={followUpOverride ? '' : quickAddDefaults.dueDate}
+		defaultDueDate={followUpOverride ? '' : quickAddPrefill?.dueDate ?? quickAddDefaults.dueDate}
 		defaultPriority={followUpOverride?.priority ?? 'no-priority'}
-		defaultDayPart={followUpOverride?.dayPart ?? 'none'}
+		defaultDayPart={followUpOverride?.dayPart ?? quickAddPrefill?.dayPart ?? 'none'}
 		defaultParentId={followUpOverride?.parentId ?? null}
 		defaultSectionId={followUpOverride?.sectionId ?? null}
 		onSubmit={onQuickSubmit}

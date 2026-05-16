@@ -109,6 +109,28 @@ func TestErrorHandler_AppError(t *testing.T) {
 	}
 }
 
+// TestErrorHandler_TypedNilAppError guards against handlers returning a typed
+// nil *AppError as error, which Fiber still passes to the error handler.
+func TestErrorHandler_TypedNilAppError(t *testing.T) {
+	app := httpapi.NewApp(httpapi.Deps{})
+	app.Get("/typed-nil", func(c fiber.Ctx) error {
+		var appErr *httpapi.AppError
+		return appErr
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/typed-nil", nil)
+	resp := doRequest(t, app, req)
+	body := readBody(t, resp)
+
+	if resp.StatusCode != 500 {
+		t.Errorf("status = %d; want 500 (body: %s)", resp.StatusCode, body)
+	}
+	e := parseError(t, body)
+	if e.Error.Code != httpapi.CodeInternalError {
+		t.Errorf("code = %q; want %q", e.Error.Code, httpapi.CodeInternalError)
+	}
+}
+
 // TestErrorHandler_FiberNotFound checks the 404 envelope for unmatched routes.
 func TestErrorHandler_FiberNotFound(t *testing.T) {
 	app := httpapi.NewApp(httpapi.Deps{})

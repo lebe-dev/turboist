@@ -9,6 +9,7 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import ApiTokensSection from '$lib/components/settings/ApiTokensSection.svelte';
+	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -23,9 +24,30 @@
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 
 	const appVersion = __APP_VERSION__;
 	const auth = getAuthStore();
+
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'session', 'api'] as const;
+	type SettingsTab = (typeof settingsTabs)[number];
+
+	let activeTab = $state<SettingsTab>('general');
+
+	function isSettingsTab(value: string | null): value is SettingsTab {
+		return !!value && (settingsTabs as readonly string[]).includes(value);
+	}
+
+	$effect(() => {
+		const tab = page.url.searchParams.get('tab');
+		if (isSettingsTab(tab)) {
+			activeTab = tab;
+			return;
+		}
+		if (page.url.searchParams.has('calendar')) {
+			activeTab = 'calendars';
+		}
+	});
 
 	let logoutAllBusy = $state(false);
 
@@ -216,6 +238,7 @@
 			localeBusy = null;
 		}
 	}
+
 </script>
 
 <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
@@ -224,10 +247,11 @@
 		<p class="text-sm text-muted-foreground">{$t('settings.subtitle')}</p>
 	</header>
 
-	<Tabs.Root value="general" class="flex flex-col gap-4">
+	<Tabs.Root bind:value={activeTab} class="flex flex-col gap-4">
 		<Tabs.List variant="line">
 			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
+			<Tabs.Trigger value="calendars">{$t('settings.tabs.calendars')}</Tabs.Trigger>
 			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
 			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
 			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
@@ -321,6 +345,10 @@
 				</div>
 				<span class="font-mono text-sm text-muted-foreground">v{appVersion}</span>
 			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="calendars" class="flex flex-col gap-4">
+			<GoogleCalendarSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="labels">

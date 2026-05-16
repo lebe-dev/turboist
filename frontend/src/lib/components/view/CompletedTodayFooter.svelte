@@ -3,16 +3,21 @@
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { getApiClient } from '$lib/api/client';
-	import type { Task } from '$lib/api/types';
+	import type { CalendarEvent, Task } from '$lib/api/types';
+	import CalendarEventItem from '$lib/components/calendar/CalendarEventItem.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { t } from '$lib/i18n';
 
 	let {
 		count,
+		calendarEvents = [],
+		timezone = null,
 		onUncompleteOutside
 	}: {
 		count: number;
+		calendarEvents?: CalendarEvent[];
+		timezone?: string | null;
 		onUncompleteOutside?: (task: Task) => void;
 	} = $props();
 
@@ -20,9 +25,14 @@
 	let loaded = $state(false);
 	let loading = $state(false);
 	let items = $state<Task[]>([]);
+	const displayCount = $derived(count + calendarEvents.length);
 
 	async function ensureLoaded(): Promise<void> {
 		if (loaded || loading) return;
+		if (count <= 0) {
+			loaded = true;
+			return;
+		}
 		loading = true;
 		try {
 			const res = await viewsApi.completedToday(getApiClient());
@@ -58,7 +68,7 @@
 	}
 </script>
 
-{#if count > 0}
+{#if displayCount > 0}
 	<div class="flex flex-col items-stretch gap-2 pt-6">
 		<button
 			type="button"
@@ -70,7 +80,7 @@
 			<span
 				class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground"
 			>
-				{count}
+				{displayCount}
 			</span>
 			<CaretDownIcon
 				class="size-3.5 transition-transform {expanded ? 'rotate-180' : ''}"
@@ -81,9 +91,12 @@
 			<div class="px-1">
 				{#if loading}
 					<div class="px-4 py-4 text-sm text-muted-foreground">{$t('app.loading')}</div>
-				{:else if items.length === 0}
+				{:else if items.length === 0 && calendarEvents.length === 0}
 					<div class="px-4 py-4 text-sm text-muted-foreground">{$t('view.noTasksCompleted')}</div>
 				{:else}
+					{#each calendarEvents as event (event.id)}
+						<CalendarEventItem {event} {timezone} completed showActions={false} />
+					{/each}
 					<TaskTree tasks={items} hideDue onToggle={onItemToggle} />
 				{/if}
 			</div>
