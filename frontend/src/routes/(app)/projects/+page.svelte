@@ -14,10 +14,12 @@
 	import type { Project, ProjectStatus } from '$lib/api/types';
 	import { t } from '$lib/i18n';
 
-	type Filter = 'all' | 'archived' | 'cancelled' | 'completed';
+	type Filter = 'all' | 'archived' | 'cancelled' | 'completed' | 'generic' | 'software';
 
 	const FILTERS: Array<{ value: Filter; labelKey: string }> = [
 		{ value: 'all', labelKey: 'page.projects.filterAll' },
+		{ value: 'generic', labelKey: 'page.projects.filterGeneric' },
+		{ value: 'software', labelKey: 'page.projects.filterSoftware' },
 		{ value: 'archived', labelKey: 'page.projects.filterArchived' },
 		{ value: 'cancelled', labelKey: 'page.projects.filterCancelled' },
 		{ value: 'completed', labelKey: 'page.projects.filterCompleted' }
@@ -50,6 +52,8 @@
 
 	const counts = $derived({
 		all: visible.length,
+		generic: visible.filter((p) => p.projectType === 'generic').length,
+		software: visible.filter((p) => p.projectType === 'software').length,
 		archived: visible.filter((p) => p.status === 'archived').length,
 		cancelled: visible.filter((p) => p.status === 'cancelled').length,
 		completed: visible.filter((p) => p.status === 'completed').length
@@ -59,9 +63,14 @@
 		const list =
 			activeFilter === 'all'
 				? visible
-				: visible.filter((p) => p.status === activeFilter);
+				: activeFilter === 'generic' || activeFilter === 'software'
+					? visible.filter((p) => p.projectType === activeFilter)
+					: visible.filter((p) => p.status === activeFilter);
 		return [...list].sort((a, b) => {
-			if (activeFilter === 'all') {
+			const aOpen = a.status === 'open';
+			const bOpen = b.status === 'open';
+			if (aOpen !== bOpen) return aOpen ? -1 : 1;
+			if (activeFilter === 'all' || activeFilter === 'generic' || activeFilter === 'software') {
 				const ta = a.troikiCategory;
 				const tb = b.troikiCategory;
 				if (ta && !tb) return -1;
@@ -117,9 +126,6 @@
 						<span class="min-w-0 flex-1 truncate font-medium text-foreground">
 							{project.title}
 						</span>
-						{#if project.troikiCategory}
-							<TroikiTriggerIcon class="size-3 shrink-0 text-muted-foreground/60" />
-						{/if}
 						{#if project.isPrivate && !settingsStore.publicView}
 							<span
 								class="inline-flex shrink-0"
@@ -128,6 +134,9 @@
 							>
 								<LockSimpleIcon class="size-3 text-muted-foreground/50" />
 							</span>
+						{/if}
+						{#if project.troikiCategory}
+							<TroikiTriggerIcon class="size-3 shrink-0 text-muted-foreground/60" />
 						{/if}
 						{#if ctxName}
 							<span class="shrink-0 truncate text-xs text-muted-foreground">{ctxName}</span>
