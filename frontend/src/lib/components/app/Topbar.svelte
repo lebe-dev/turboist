@@ -282,16 +282,18 @@
 		>
 			<CheckSquareIcon class="size-4" />
 		</Button>
-		<Button
-			variant="secondary"
-			size="icon-sm"
-			onclick={() => onQuickAdd?.()}
-			class="hidden bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25 md:inline-flex"
-			aria-label={$t('topbar.quickAdd')}
-			title={$t('topbar.quickAdd')}
-		>
-			<PlusIcon class="size-4" />
-		</Button>
+		{#if onQuickAdd}
+			<Button
+				variant="secondary"
+				size="icon-sm"
+				onclick={() => onQuickAdd?.()}
+				class="hidden bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25 md:inline-flex"
+				aria-label={$t('topbar.quickAdd')}
+				title={$t('topbar.quickAdd')}
+			>
+				<PlusIcon class="size-4" />
+			</Button>
+		{/if}
 		<a
 			href={resolve('/troiki')}
 			aria-label={$t('topbar.troikiSystem')}

@@ -64,6 +64,8 @@
 
 	const auth = getAuthStore();
 
+	const quickAddHidden = $derived(page.url.pathname === '/settings');
+
 	let dataReady = $state(false);
 	let loadStarted = $state(false);
 	let loadFailed = $state(false);
@@ -427,7 +429,10 @@
 				<Sidebar />
 			</div>
 		<div class="flex min-w-0 flex-1 flex-col">
-			<Topbar {onQuickAdd} onMenuClick={() => (mobileSidebarOpen = true)} />
+			<Topbar
+				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
+				onMenuClick={() => (mobileSidebarOpen = true)}
+			/>
 			<ContextFilterBanner />
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
@@ -470,11 +475,13 @@
 	{/if}
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
 	<FollowUpToasts onNext={onFollowUpNext} />
-	<button
-		onclick={onQuickAdd}
-		class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
-		aria-label={$t('task.quickAdd')}
-	>
-		<PlusIcon class="h-7 w-7" />
-	</button>
+	{#if !quickAddHidden}
+		<button
+			onclick={onQuickAdd}
+			class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
+			aria-label={$t('task.quickAdd')}
+		>
+			<PlusIcon class="h-7 w-7" />
+		</button>
+	{/if}
 {/if}
