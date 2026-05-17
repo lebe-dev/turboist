@@ -300,7 +300,7 @@
 							class="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="fill" />
+							<PushPinIcon class="size-4 shrink-0 text-muted-foreground/60 md:size-3.5" weight="fill" />
 							<span class="break-words">{project.title}</span>
 						</a>
 						{@render unpinButton(() => unpinProject(project.id), $t('sidebar.unpinAria', { values: { name: project.title } }))}
@@ -318,7 +318,7 @@
 							class="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="regular" />
+							<PushPinIcon class="size-4 shrink-0 text-muted-foreground/60 md:size-3.5" weight="regular" />
 							<span class="break-words">{task.title}</span>
 						</a>
 						{@render unpinButton(() => unpinTask(task.id), $t('sidebar.unpinAria', { values: { name: task.title } }))}
