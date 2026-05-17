@@ -286,7 +286,7 @@
 			variant="secondary"
 			size="icon-sm"
 			onclick={() => onQuickAdd?.()}
-			class="bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
+			class="hidden bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25 md:inline-flex"
 			aria-label={$t('topbar.quickAdd')}
 			title={$t('topbar.quickAdd')}
 		>

@@ -51,7 +51,8 @@
     "planning": "Planning",
     "pinned": "Pinned",
     "projects": "Projects",
-    "labels": "Labels"
+    "labels": "Labels",
+    "backlogCount": "Tasks in backlog"
   },
   "sidebar": {
     "collapse": "Collapse sidebar",

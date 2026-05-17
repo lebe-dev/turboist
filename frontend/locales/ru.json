@@ -51,7 +51,8 @@
     "planning": "Планирование",
     "pinned": "Закреплённые",
     "projects": "Проекты",
-    "labels": "Метки"
+    "labels": "Метки",
+    "backlogCount": "Задачи в бэклоге"
   },
   "sidebar": {
     "collapse": "Свернуть боковую панель",
