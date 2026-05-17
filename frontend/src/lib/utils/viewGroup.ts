@@ -105,7 +105,11 @@ function labelFor(key: string, todayKey: string, tz?: string | null): string {
 	});
 }
 
-export function groupByCompletedDay(tasks: Task[], tz?: string | null): DayGroup[] {
+export function groupByCompletedDay(
+	tasks: Task[],
+	tz?: string | null,
+	now: Date = new Date()
+): DayGroup[] {
 	const buckets = new Map<string, { date: Date; tasks: Task[] }>();
 	for (const t of tasks) {
 		if (!t.completedAt) continue;
@@ -115,7 +119,7 @@ export function groupByCompletedDay(tasks: Task[], tz?: string | null): DayGroup
 		if (bucket) bucket.tasks.push(t);
 		else buckets.set(key, { date: dayStartUtcInTz(key, tz), tasks: [t] });
 	}
-	const todayKey = dayKeyInTz(new Date(), tz);
+	const todayKey = dayKeyInTz(now, tz);
 	return [...buckets.entries()]
 		.sort(([a], [b]) => (a > b ? -1 : a < b ? 1 : 0))
 		.map(([key, v]) => ({
@@ -126,7 +130,11 @@ export function groupByCompletedDay(tasks: Task[], tz?: string | null): DayGroup
 		}));
 }
 
-export function groupByDay(tasks: Task[], tz?: string | null): DayGroup[] {
+export function groupByDay(
+	tasks: Task[],
+	tz?: string | null,
+	now: Date = new Date()
+): DayGroup[] {
 	const buckets = new Map<string, { date: Date; tasks: Task[] }>();
 	const noDate: Task[] = [];
 	for (const t of tasks) {
@@ -140,7 +148,7 @@ export function groupByDay(tasks: Task[], tz?: string | null): DayGroup[] {
 		if (bucket) bucket.tasks.push(t);
 		else buckets.set(key, { date: dayStartUtcInTz(key, tz), tasks: [t] });
 	}
-	const todayKey = dayKeyInTz(new Date(), tz);
+	const todayKey = dayKeyInTz(now, tz);
 	const groups: DayGroup[] = [...buckets.entries()]
 		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 		.map(([key, v]) => ({

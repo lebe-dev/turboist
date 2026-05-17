@@ -13,6 +13,7 @@
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
 	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_ORDER } from '$lib/utils/priority';
 	import {
 		copyTaskTitle,
@@ -65,7 +66,7 @@
 	const priorityLocked = $derived(!!parentProject?.troikiCategory);
 
 	const tz = $derived(configStore.value?.timezone ?? null);
-	const todayKey = $derived(dayKeyInTz(new Date(), tz));
+	const todayKey = $derived(nowStore.todayKey);
 	const dueKey = $derived(task.dueAt ? dayKeyInTz(new Date(task.dueAt), tz) : null);
 
 	const isToday = $derived(dueKey === todayKey);

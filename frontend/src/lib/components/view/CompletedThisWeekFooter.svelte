@@ -10,6 +10,7 @@
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import { groupByCompletedDay } from '$lib/utils/viewGroup';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { t } from '$lib/i18n';
 
 	let expanded = $state(false);
@@ -18,7 +19,7 @@
 	let items = $state<Task[]>([]);
 
 	const tz = $derived(configStore.value?.timezone ?? null);
-	const groups = $derived(groupByCompletedDay(items, tz));
+	const groups = $derived(groupByCompletedDay(items, tz, nowStore.now));
 
 	async function ensureLoaded(): Promise<void> {
 		if (loaded || loading) return;

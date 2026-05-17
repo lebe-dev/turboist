@@ -34,7 +34,8 @@
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
 	import { describeError } from '$lib/utils/taskActions';
-	import { dayKeyInTz, shiftDayKey } from '$lib/utils/format';
+	import { shiftDayKey } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 
@@ -94,6 +95,29 @@
 
 	$effect(() => {
 		if (!quickOpen) followUpOverride = null;
+	});
+
+	$effect(() => {
+		function onVisible(): void {
+			if (document.visibilityState === 'visible') nowStore.refresh();
+		}
+		function onFocus(): void {
+			nowStore.refresh();
+		}
+		function onPageShow(): void {
+			nowStore.refresh();
+		}
+
+		nowStore.scheduleMidnight();
+		document.addEventListener('visibilitychange', onVisible);
+		window.addEventListener('focus', onFocus);
+		window.addEventListener('pageshow', onPageShow);
+		return () => {
+			document.removeEventListener('visibilitychange', onVisible);
+			window.removeEventListener('focus', onFocus);
+			window.removeEventListener('pageshow', onPageShow);
+			nowStore.teardown();
+		};
 	});
 
 	function startLoad(): void {
@@ -244,8 +268,7 @@
 
 	const quickAddDefaults = $derived.by(() => {
 		const path = page.url.pathname;
-		const tz = configStore.value?.timezone ?? null;
-		const todayKey = dayKeyInTz(new Date(), tz);
+		const todayKey = nowStore.todayKey;
 		const tomorrowKey = shiftDayKey(todayKey, 1);
 
 		let projectId: number | null = null;

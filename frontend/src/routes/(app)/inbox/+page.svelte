@@ -12,7 +12,8 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
-	import { dayKeyInTz, dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
+	import { dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 
 
 	let creatingOverflow = $state(false);
@@ -56,7 +57,7 @@
 		creatingOverflow = true;
 		try {
 			const tz = configStore.value?.timezone ?? null;
-			const todayKey = dayKeyInTz(new Date(), tz);
+			const todayKey = nowStore.todayKey;
 			const payload: TaskInput = {
 				title: overflowTask.title,
 				priority: overflowTask.priority,

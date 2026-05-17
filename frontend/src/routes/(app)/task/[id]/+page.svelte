@@ -30,6 +30,7 @@
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import { comparePriority } from '$lib/utils/priority';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -149,7 +150,7 @@
 		scheduleSave();
 	}
 
-	const todayKey = $derived(dayKeyInTz(new Date(), configStore.value?.timezone ?? null));
+	const todayKey = $derived(nowStore.todayKey);
 	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);

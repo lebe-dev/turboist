@@ -11,6 +11,7 @@
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import { groupByCompletedDay } from '$lib/utils/viewGroup';
 	import { toggleComplete } from '$lib/utils/taskActions';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
@@ -19,7 +20,9 @@
 	const list = useListMutator<Task>();
 	const { mutator } = list;
 
-	const groups = $derived(groupByCompletedDay(list.items, configStore.value?.timezone ?? null));
+	const groups = $derived(
+		groupByCompletedDay(list.items, configStore.value?.timezone ?? null, nowStore.now)
+	);
 
 	const loader = usePageLoad(
 		async (isValid) => {

@@ -12,7 +12,8 @@
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
 	import RecurrencePicker from './RecurrencePicker.svelte';
-	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { clickOutside } from '$lib/actions/clickOutside';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -183,7 +184,7 @@
 	const projectName = $derived(
 		projectsStore.items.find((p) => String(p.id) === projectId)?.title ?? emptyProjectLabel
 	);
-	const todayKey = $derived(dayKeyInTz(new Date(), configStore.value?.timezone ?? null));
+	const todayKey = $derived(nowStore.todayKey);
 	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);

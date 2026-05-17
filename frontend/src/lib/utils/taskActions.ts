@@ -6,7 +6,8 @@ import { planStatsStore } from '$lib/stores/planStats.svelte';
 import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 import { followUpStore } from '$lib/stores/followUp.svelte';
 import { configStore } from '$lib/stores/config.svelte';
-import { isOverdue, dayStartUtcInTz, dayKeyInTz, toIsoUtc } from '$lib/utils/format';
+import { isOverdue, dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
+import { nowStore } from '$lib/stores/now.svelte';
 import { toast } from 'svelte-sonner';
 import { get } from 'svelte/store';
 import { t } from '$lib/i18n';
@@ -124,7 +125,7 @@ export async function updateTaskFields(
 	// it today, so reschedule its due_at to the current day instead of leaving
 	// it stuck in the past.
 	if (patch.dayPart !== undefined && patch.dueAt === undefined && isOverdue(task.dueAt, tz)) {
-		const todayKey = dayKeyInTz(new Date(), tz);
+		const todayKey = nowStore.todayKey;
 		patch = {
 			...patch,
 			dueAt: toIsoUtc(dayStartUtcInTz(todayKey, tz)),
