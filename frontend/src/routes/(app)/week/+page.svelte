@@ -12,6 +12,7 @@
 	import LimitBadge from '$lib/components/view/LimitBadge.svelte';
 	import LimitReachedBanner from '$lib/components/view/LimitReachedBanner.svelte';
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
+	import CompletedThisWeekFooter from '$lib/components/view/CompletedThisWeekFooter.svelte';
 	import { groupByDay } from '$lib/utils/viewGroup';
 	import {
 		dayKeyInTz,
@@ -115,4 +116,7 @@
 			{/each}
 		</div>
 	</ViewContent>
+	{#if !loader.loading}
+		<CompletedThisWeekFooter />
+	{/if}
 </div>

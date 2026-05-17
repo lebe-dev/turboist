@@ -427,6 +427,8 @@
   },
   "view": {
     "completedToday": "Завершено сегодня",
+    "completedThisWeek": "Завершено за неделю",
+    "noTasksCompletedWeek": "За эту неделю нет завершённых задач.",
     "noTasksCompleted": "Сегодня нет завершённых задач.",
     "failedLoadCompleted": "Не удалось загрузить завершённые задачи",
     "taskCompleted": "Задача завершена",

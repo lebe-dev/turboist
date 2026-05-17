@@ -427,6 +427,8 @@
   },
   "view": {
     "completedToday": "Completed today",
+    "completedThisWeek": "Completed this week",
+    "noTasksCompletedWeek": "No tasks completed this week.",
     "noTasksCompleted": "No tasks completed today.",
     "failedLoadCompleted": "Failed to load completed tasks",
     "taskCompleted": "Task completed",
