@@ -213,7 +213,7 @@
 									</button>
 								{/snippet}
 							</DropdownMenu.Trigger>
-							<DropdownMenu.Content align="start">
+							<DropdownMenu.Content align="start" class="min-w-[10rem] rounded-md">
 								<DropdownMenu.Item onclick={() => openEditContext(ctx)}>
 									<PencilIcon class="size-4" /> {$t('common.edit')}
 								</DropdownMenu.Item>
@@ -315,6 +315,9 @@
 <ConfirmDestructiveDialog
 	bind:open={confirmDeleteOpen}
 	title={$t('page.context.confirmDeleteTitle')}
-	description={$t('page.context.confirmDeleteDesc')}
+	description={confirmDeleteContext
+		? $t('page.context.confirmDeleteNamed', { values: { name: confirmDeleteContext.name } })
+		: $t('page.context.confirmDeleteDesc')}
+	countdownSeconds={20}
 	onConfirm={deleteContext}
 />

@@ -16,6 +16,7 @@
     "privateTooltip": "Not shown in Public view mode",
     "edit": "Edit",
     "delete": "Delete",
+    "deleteCountdown": "Wait {seconds}s before deleting…",
     "cancel": "Cancel",
     "save": "Save",
     "saving": "Saving…",
@@ -641,7 +642,8 @@
       "emptyDescription": "No tasks yet for this filter.",
       "noProject": "No project",
       "confirmDeleteTitle": "Delete context?",
-      "confirmDeleteDesc": "All projects, sections, and tasks under this context will be permanently deleted (cascade). This cannot be undone."
+      "confirmDeleteDesc": "All projects, sections, and tasks under this context will be permanently deleted (cascade). This cannot be undone.",
+      "confirmDeleteNamed": "All projects, sections, and tasks under \"{name}\" will be permanently deleted (cascade). This cannot be undone."
     },
     "label": {
       "errorLoading": "Failed to load label",

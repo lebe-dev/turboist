@@ -10,6 +10,7 @@
 		confirmLabel,
 		busyLabel,
 		variant = 'destructive',
+		countdownSeconds = 0,
 		onConfirm
 	}: {
 		open?: boolean;
@@ -18,15 +19,35 @@
 		confirmLabel?: string;
 		busyLabel?: string;
 		variant?: 'destructive' | 'default';
+		countdownSeconds?: number;
 		onConfirm: () => void | Promise<void>;
 	} = $props();
 
 	const resolvedConfirm = $derived(confirmLabel ?? $t('common.delete'));
 
 	let busy = $state(false);
+	let remaining = $state(0);
+
+	$effect(() => {
+		if (!open || countdownSeconds <= 0) {
+			remaining = 0;
+			return;
+		}
+		remaining = countdownSeconds;
+		const id = setInterval(() => {
+			remaining -= 1;
+			if (remaining <= 0) {
+				remaining = 0;
+				clearInterval(id);
+			}
+		}, 1000);
+		return () => clearInterval(id);
+	});
+
+	const locked = $derived(remaining > 0);
 
 	async function confirm() {
-		if (busy) return;
+		if (busy || locked) return;
 		busy = true;
 		try {
 			await onConfirm();
@@ -43,11 +64,21 @@
 			<AlertDialog.Title>{title}</AlertDialog.Title>
 			<AlertDialog.Description>{description}</AlertDialog.Description>
 		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel disabled={busy}>{$t('common.cancel')}</AlertDialog.Cancel>
-			<Button {variant} onclick={confirm} disabled={busy}>
-				{busy ? (busyLabel ?? `${resolvedConfirm}…`) : resolvedConfirm}
-			</Button>
+		<AlertDialog.Footer class={locked ? 'sm:justify-between' : undefined}>
+			{#if locked}
+				<span
+					class="self-center text-sm tabular-nums text-muted-foreground"
+					aria-live="polite"
+				>
+					{$t('common.deleteCountdown', { values: { seconds: remaining } })}
+				</span>
+			{/if}
+			<div class="flex flex-col-reverse gap-2 sm:flex-row">
+				<AlertDialog.Cancel disabled={busy}>{$t('common.cancel')}</AlertDialog.Cancel>
+				<Button {variant} onclick={confirm} disabled={busy || locked}>
+					{busy ? (busyLabel ?? `${resolvedConfirm}…`) : resolvedConfirm}
+				</Button>
+			</div>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>
