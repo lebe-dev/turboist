@@ -43,15 +43,21 @@
 		const q = query.trim().toLowerCase();
 		const matches = (p: Project) => !q || p.title.toLowerCase().includes(q);
 		const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
+		const byTitle = (a: Project, b: Project) => collator.compare(a.title, b.title);
+		const pinnedFirst = (a: Project, b: Project) => {
+			if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+			return byTitle(a, b);
+		};
 		return contextsStore.items
+			.slice()
+			.sort((a, b) => {
+				if (a.isFavourite !== b.isFavourite) return a.isFavourite ? -1 : 1;
+				return 0;
+			})
 			.map((ctx) => {
 				const all = projectsStore.byContext(ctx.id).filter(matches);
-				const open = all
-					.filter((p) => p.status === 'open')
-					.sort((a, b) => collator.compare(a.title, b.title));
-				const done = all
-					.filter((p) => p.status !== 'open')
-					.sort((a, b) => collator.compare(a.title, b.title));
+				const open = all.filter((p) => p.status === 'open').sort(pinnedFirst);
+				const done = all.filter((p) => p.status !== 'open').sort(byTitle);
 				return { ctx, projects: [...open, ...done] };
 			})
 			.filter((g) => g.projects.length > 0);

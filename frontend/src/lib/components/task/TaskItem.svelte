@@ -8,6 +8,7 @@
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
 	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
+	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
@@ -117,6 +118,9 @@
 			page.url.pathname !== '/today' &&
 			page.url.pathname !== '/week'
 	);
+	const showBacklogBadge = $derived(
+		task.planState === 'backlog' && page.url.pathname !== '/next-week'
+	);
 	const showCalendarSlash = $derived(
 		showUnplannedBadge &&
 			task.planState !== 'week' &&
@@ -131,7 +135,8 @@
 			task.postponeCount >= 2 ||
 			isRecurring ||
 			showCalendarSlash ||
-			showWeekBadge
+			showWeekBadge ||
+			showBacklogBadge
 	);
 
 	const checkboxClass = $derived.by(() => {
@@ -237,7 +242,7 @@
 			<p class="break-words text-xs text-muted-foreground/70 md:truncate"><MarkdownText text={description} /></p>
 		{/if}
 
-		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showCalendarSlash || showWeekBadge || showBacklogBadge}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -290,6 +295,17 @@
 						aria-label={$t('task.weekPlannedLabel')}
 					>
 						<CalendarCheckIcon class="size-3.5 shrink-0" />
+					</span>
+				{/if}
+				{#if showBacklogBadge}
+					<span
+						class="inline-flex items-center {checked
+							? 'text-muted-foreground/40'
+							: 'text-violet-500'}"
+						title={$t('task.backlogLabel')}
+						aria-label={$t('task.backlogLabel')}
+					>
+						<ArchiveIcon class="size-3.5 shrink-0" />
 					</span>
 				{/if}
 			</div>

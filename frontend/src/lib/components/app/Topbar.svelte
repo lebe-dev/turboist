@@ -1,22 +1,32 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Kbd from '$lib/components/ui/kbd';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import ListIcon from 'phosphor-svelte/lib/List';
 	import SidebarSimpleIcon from 'phosphor-svelte/lib/SidebarSimple';
+	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
+	import PencilIcon from 'phosphor-svelte/lib/Pencil';
+	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
+	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import CheckSquareIcon from 'phosphor-svelte/lib/CheckSquare';
 	import { toast } from 'svelte-sonner';
+	import { getApiClient } from '$lib/api/client';
+	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
+	import { describeError } from '$lib/utils/taskActions';
+	import type { Context } from '$lib/api/types';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
+	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
 	import { t } from '$lib/i18n';
 
@@ -38,6 +48,9 @@
 	} = $props();
 
 	let contextDialogOpen = $state(false);
+	let editingContext = $state<Context | null>(null);
+	let confirmDeleteContext = $state<Context | null>(null);
+	let confirmDeleteOpen = $state(false);
 	let mobileSearchOpen = $state(false);
 
 	const isTaskPage = $derived(page.url.pathname.startsWith('/task/'));
@@ -61,6 +74,36 @@
 		} catch (err) {
 			const message = err instanceof Error ? err.message : $t('topbar.failedSetContext');
 			toast.error(message);
+		}
+	}
+
+	function openEditContext(ctx: Context): void {
+		editingContext = ctx;
+		contextDialogOpen = true;
+	}
+
+	function requestDeleteContext(ctx: Context): void {
+		confirmDeleteContext = ctx;
+		confirmDeleteOpen = true;
+	}
+
+	async function deleteContext(): Promise<void> {
+		const ctx = confirmDeleteContext;
+		if (!ctx) return;
+		try {
+			await contextsApi.remove(getApiClient(), ctx.id);
+			contextsStore.remove(ctx.id);
+			projectsStore.items
+				.filter((p) => p.contextId === ctx.id)
+				.forEach((p) => projectsStore.remove(p.id));
+			if (userStateStore.activeContextId === ctx.id) {
+				await userStateStore.setActiveContextId(null).catch(() => undefined);
+			}
+			toast.success($t('page.context.deleted'));
+		} catch (err) {
+			toast.error(describeError(err, $t('page.context.failedDelete')));
+		} finally {
+			confirmDeleteContext = null;
 		}
 	}
 </script>
@@ -150,11 +193,49 @@
 				{/if}
 				{@render chip(null, $t('topbar.all'))}
 				{#each contextsStore.items as ctx (ctx.id)}
-					{@render chip(ctx.id, ctx.name, ctx.color)}
+					{@const active = userStateStore.activeContextId === ctx.id}
+					{#if active && !contextsLocked}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<button
+										{...props}
+										type="button"
+										class="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 pr-1.5 text-[12px] text-foreground transition-colors hover:bg-muted/80"
+										aria-label={$t('context.actionsAriaLabel')}
+									>
+										<span
+											class="size-2 shrink-0 rounded-full"
+											style={`background-color: ${ctx.color}`}
+										></span>
+										<span class="truncate">{ctx.name}</span>
+										<CaretDownIcon class="size-3 text-muted-foreground" />
+									</button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="start">
+								<DropdownMenu.Item onclick={() => openEditContext(ctx)}>
+									<PencilIcon class="size-4" /> {$t('common.edit')}
+								</DropdownMenu.Item>
+								<DropdownMenu.Separator />
+								<DropdownMenu.Item
+									variant="destructive"
+									onclick={() => requestDeleteContext(ctx)}
+								>
+									<TrashIcon class="size-4" /> {$t('common.delete')}
+								</DropdownMenu.Item>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					{:else}
+						{@render chip(ctx.id, ctx.name, ctx.color)}
+					{/if}
 				{/each}
 				<button
 					type="button"
-					onclick={() => (contextDialogOpen = true)}
+					onclick={() => {
+						editingContext = null;
+						contextDialogOpen = true;
+					}}
 					disabled={contextsLocked}
 					class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 					aria-label={$t('topbar.addContext')}
@@ -226,4 +307,14 @@
 	</div>
 </header>
 
-<ContextDialog bind:open={contextDialogOpen} />
+<ContextDialog
+	bind:open={contextDialogOpen}
+	initial={editingContext}
+	onSaved={() => (editingContext = null)}
+/>
+<ConfirmDestructiveDialog
+	bind:open={confirmDeleteOpen}
+	title={$t('page.context.confirmDeleteTitle')}
+	description={$t('page.context.confirmDeleteDesc')}
+	onConfirm={deleteContext}
+/>

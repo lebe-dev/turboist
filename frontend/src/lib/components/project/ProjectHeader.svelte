@@ -149,7 +149,7 @@
 			{/if}
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
-			{#if project.status === 'completed'}
+			{#if project.status === 'completed' || project.status === 'cancelled'}
 				<Button size="sm" variant="outline" onclick={onUncomplete}>
 					<ArrowCounterClockwiseIcon class="size-4" />
 					{$t('project.reopen')}
