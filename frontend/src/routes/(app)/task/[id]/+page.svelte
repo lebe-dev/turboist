@@ -184,8 +184,9 @@
 	function hydrate(t: Task): void {
 		allowSave = false;
 		task = t;
-		title = t.title;
-		description = t.description ?? '';
+		if (title !== t.title) title = t.title;
+		const nextDescription = t.description ?? '';
+		if (description !== nextDescription) description = nextDescription;
 		priority = t.priority;
 		dayPart = t.dayPart;
 		recurrence = t.recurrenceRule ?? null;
