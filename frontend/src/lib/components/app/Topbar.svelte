@@ -169,7 +169,7 @@
 						type="button"
 						onclick={() => selectContext(id)}
 						disabled={contextsLocked}
-						class="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+						class="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
 						class:bg-transparent={!active}
 						class:text-muted-foreground={!active || contextsLocked}
 						class:hover:bg-muted={!active && !contextsLocked}
@@ -201,7 +201,7 @@
 									<button
 										{...props}
 										type="button"
-										class="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 pr-1.5 text-[12px] text-foreground transition-colors hover:bg-muted/80"
+										class="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 pr-1.5 text-[12px] text-foreground transition-colors hover:bg-muted/80"
 										aria-label={$t('context.actionsAriaLabel')}
 									>
 										<span
@@ -237,7 +237,7 @@
 						contextDialogOpen = true;
 					}}
 					disabled={contextsLocked}
-					class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+					class="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 					aria-label={$t('topbar.addContext')}
 					title={$t('topbar.addContext')}
 				>
