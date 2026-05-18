@@ -33,7 +33,6 @@
 	const TITLE_KEYS: Record<string, string> = {
 		'/today': 'nav.today',
 		'/tomorrow': 'nav.tomorrow',
-		'/inbox': 'nav.inbox',
 		'/week': 'nav.thisWeek',
 		'/next-week': 'nav.nextWeek',
 		'/search': 'nav.search'
