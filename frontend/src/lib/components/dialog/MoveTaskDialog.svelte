@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
 	import { moveTaskToProject, moveTaskToInbox, type ListMutator } from '$lib/utils/taskActions';
@@ -11,6 +12,7 @@
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import TrayIcon from 'phosphor-svelte/lib/Tray';
+	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import { t } from '$lib/i18n';
 
 	let {
@@ -41,12 +43,25 @@
 
 	const TROIKI_ORDER: Record<TroikiCategory, number> = { important: 0, medium: 1, rest: 2 };
 
+	const activeContextId = $derived(userStateStore.activeContextId);
+
 	const grouped = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		const matches = (p: Project) => !q || p.title.toLowerCase().includes(q);
 		const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
 		const byTitle = (a: Project, b: Project) => collator.compare(a.title, b.title);
+		const byPinned = (a: Project, b: Project) => {
+			if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+			if (a.isPinned && b.isPinned) {
+				const ai = projectsStore.pinned.findIndex((p) => p.id === a.id);
+				const bi = projectsStore.pinned.findIndex((p) => p.id === b.id);
+				return ai - bi;
+			}
+			return 0;
+		};
 		const byTroiki = (a: Project, b: Project) => {
+			const pinned = byPinned(a, b);
+			if (pinned !== 0) return pinned;
 			const ta = a.troikiCategory;
 			const tb = b.troikiCategory;
 			if (ta && !tb) return -1;
@@ -54,12 +69,14 @@
 			if (ta && tb && ta !== tb) return TROIKI_ORDER[ta] - TROIKI_ORDER[tb];
 			return byTitle(a, b);
 		};
-		return contextsStore.items
+		const contexts = contextsStore.items
 			.slice()
+			.filter((ctx) => activeContextId === null || ctx.id === activeContextId)
 			.sort((a, b) => {
 				if (a.isFavourite !== b.isFavourite) return a.isFavourite ? -1 : 1;
 				return 0;
-			})
+			});
+		return contexts
 			.map((ctx) => {
 				const all = projectsStore.byContext(ctx.id).filter(matches);
 				const open = all.filter((p) => p.status === 'open').sort(byTroiki);
@@ -219,6 +236,12 @@
 									<span class="flex items-center gap-2">
 										{#if done}
 											<CheckIcon class="size-3 text-muted-foreground" weight="bold" />
+										{:else if project.isPinned}
+											<PushPinIcon
+												class="size-3.5 shrink-0"
+												style="color: {project.color};"
+												weight="fill"
+											/>
 										{:else}
 											<span
 												class="inline-block size-2.5 rounded-full"
