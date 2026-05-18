@@ -16,6 +16,7 @@
     "privateTooltip": "Not shown in Public view mode",
     "edit": "Edit",
     "delete": "Delete",
+    "deleteCountdown": "Wait {seconds}s before deleting…",
     "cancel": "Cancel",
     "save": "Save",
     "saving": "Saving…",
@@ -50,7 +51,8 @@
     "planning": "Planning",
     "pinned": "Pinned",
     "projects": "Projects",
-    "labels": "Labels"
+    "labels": "Labels",
+    "backlogCount": "Tasks in backlog"
   },
   "sidebar": {
     "collapse": "Collapse sidebar",
@@ -511,6 +513,7 @@
       "errorLoading": "Failed to load tomorrow"
     },
     "inbox": {
+      "subtitle": "A place to capture raw thoughts and ideas as they come. Once collected, move anything valuable into a real project.",
       "emptyTitle": "Inbox is empty",
       "emptyDescription": "Tasks captured without a project land here. Press Q to add one.",
       "errorLoading": "Failed to load inbox",
@@ -625,7 +628,9 @@
       "dayPart": "Day part",
       "repeat": "Repeat",
       "labels": "Labels",
-      "editLabels": "Edit labels"
+      "editLabels": "Edit labels",
+      "inboxSubtasksNoticePre": "Subtasks are not available for inbox tasks. Move the task",
+      "inboxSubtasksNoticeLink": "to a project"
     },
     "context": {
       "errorLoading": "Failed to load context",
@@ -641,7 +646,8 @@
       "emptyDescription": "No tasks yet for this filter.",
       "noProject": "No project",
       "confirmDeleteTitle": "Delete context?",
-      "confirmDeleteDesc": "All projects, sections, and tasks under this context will be permanently deleted (cascade). This cannot be undone."
+      "confirmDeleteDesc": "All projects, sections, and tasks under this context will be permanently deleted (cascade). This cannot be undone.",
+      "confirmDeleteNamed": "All projects, sections, and tasks under \"{name}\" will be permanently deleted (cascade). This cannot be undone."
     },
     "label": {
       "errorLoading": "Failed to load label",

@@ -13,6 +13,7 @@
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
 	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_ORDER } from '$lib/utils/priority';
 	import {
 		copyTaskTitle,
@@ -59,13 +60,15 @@
 		hasSubtasks?: boolean;
 	} = $props();
 
+	const inInbox = $derived(task.inboxId !== null);
+
 	const parentProject = $derived(
 		task.projectId !== null ? projectsStore.items.find((p) => p.id === task.projectId) : null
 	);
 	const priorityLocked = $derived(!!parentProject?.troikiCategory);
 
 	const tz = $derived(configStore.value?.timezone ?? null);
-	const todayKey = $derived(dayKeyInTz(new Date(), tz));
+	const todayKey = $derived(nowStore.todayKey);
 	const dueKey = $derived(task.dueAt ? dayKeyInTz(new Date(task.dueAt), tz) : null);
 
 	const isToday = $derived(dueKey === todayKey);
@@ -143,23 +146,27 @@
 		<DropdownMenu.Item onclick={() => void duplicateTask(task, mutator)}>
 			<CopySimpleIcon class="size-4" /> {$t('task.actions.duplicate')}
 		</DropdownMenu.Item>
-		<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>
-			<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />
-			{task.isPinned ? $t('task.actions.unpin') : $t('task.actions.pin')}
-		</DropdownMenu.Item>
-		<DropdownMenu.Item
-			onclick={async () => {
-				const next = !task.isPrivate;
-				await updateTaskFields(task, mutator, { isPrivate: next }, { belongs });
-				toast.success($t('common.privacyUpdated'));
-			}}
-		>
-			{#if task.isPrivate}
-				<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
-			{:else}
-				<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
-			{/if}
-		</DropdownMenu.Item>
+		{#if !inInbox}
+			<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>
+				<PushPinIcon class="size-4" weight={task.isPinned ? 'fill' : 'regular'} />
+				{task.isPinned ? $t('task.actions.unpin') : $t('task.actions.pin')}
+			</DropdownMenu.Item>
+		{/if}
+		{#if !inInbox}
+			<DropdownMenu.Item
+				onclick={async () => {
+					const next = !task.isPrivate;
+					await updateTaskFields(task, mutator, { isPrivate: next }, { belongs });
+					toast.success($t('common.privacyUpdated'));
+				}}
+			>
+				{#if task.isPrivate}
+					<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
+				{:else}
+					<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
+				{/if}
+			</DropdownMenu.Item>
+		{/if}
 		<DropdownMenu.Item onclick={() => (moveOpen = true)}>
 			<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
 		</DropdownMenu.Item>
@@ -168,25 +175,28 @@
 				<ListIcon class="size-4" /> {$t('task.actions.moveToSection')}
 			</DropdownMenu.Item>
 		{/if}
-		<DropdownMenu.Item
-			disabled={hasSubtasks}
-			title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
-			onclick={() => {
-				if (!hasSubtasks) decomposeOpen = true;
-			}}
-		>
-			<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
-		</DropdownMenu.Item>
-		{#if task.planState === 'backlog'}
-			<DropdownMenu.Item onclick={() => void removeFromBacklog(task, mutator, { belongs })}>
-				<ArchiveIcon class="size-4" /> {$t('task.actions.removeFromBacklog')}
+		{#if !inInbox}
+			<DropdownMenu.Item
+				disabled={hasSubtasks}
+				title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
+				onclick={() => {
+					if (!hasSubtasks) decomposeOpen = true;
+				}}
+			>
+				<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
 			</DropdownMenu.Item>
-		{:else}
-			<DropdownMenu.Item onclick={() => void moveToBacklog(task, mutator, { belongs })}>
-				<ArchiveIcon class="size-4" /> {$t('task.actions.toBacklog')}
-			</DropdownMenu.Item>
+			{#if task.planState === 'backlog'}
+				<DropdownMenu.Item onclick={() => void removeFromBacklog(task, mutator, { belongs })}>
+					<ArchiveIcon class="size-4" /> {$t('task.actions.removeFromBacklog')}
+				</DropdownMenu.Item>
+			{:else}
+				<DropdownMenu.Item onclick={() => void moveToBacklog(task, mutator, { belongs })}>
+					<ArchiveIcon class="size-4" /> {$t('task.actions.toBacklog')}
+				</DropdownMenu.Item>
+			{/if}
 		{/if}
 
+		{#if !inInbox}
 		<DropdownMenu.Separator />
 
 		<div class="px-2 py-1.5">
@@ -303,6 +313,7 @@
 				</div>
 			{/if}
 		</div>
+		{/if}
 
 		<DropdownMenu.Separator />
 

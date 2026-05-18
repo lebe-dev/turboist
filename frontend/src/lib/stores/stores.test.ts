@@ -1,8 +1,10 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { contextsStore } from './contexts.svelte';
 import { projectsStore } from './projects.svelte';
 import { labelsStore } from './labels.svelte';
 import { troikiStore } from './troiki.svelte';
+import { nowStore } from './now.svelte';
+import { configStore } from './config.svelte';
 import type { Context, Label, Project, Task, TroikiCategory } from '$lib/api/types';
 import type { TroikiViewResponse } from '$lib/api/types';
 
@@ -145,6 +147,38 @@ function makeTroikiProject(
 ): Project & { tasks: Task[] } {
 	return { ...makeProject({ id, troikiCategory: category }), tasks };
 }
+
+describe('nowStore', () => {
+	afterEach(() => {
+		nowStore.teardown();
+		vi.useRealTimers();
+		configStore.clear();
+	});
+
+	it('refresh() updates now to the current system time', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-05-17T12:00:00.000Z'));
+		nowStore.refresh();
+		expect(nowStore.now.toISOString()).toBe('2026-05-17T12:00:00.000Z');
+
+		vi.setSystemTime(new Date('2026-05-18T03:30:00.000Z'));
+		nowStore.refresh();
+		expect(nowStore.now.toISOString()).toBe('2026-05-18T03:30:00.000Z');
+	});
+
+	it('todayKey reflects configStore timezone and current now', () => {
+		vi.useFakeTimers();
+		// 23:30 UTC on May 17 → still May 17 in UTC, but already May 18 in Asia/Tokyo (UTC+9).
+		vi.setSystemTime(new Date('2026-05-17T23:30:00.000Z'));
+		nowStore.refresh();
+
+		configStore.value = { timezone: 'UTC' } as never;
+		expect(nowStore.todayKey).toBe('2026-05-17');
+
+		configStore.value = { timezone: 'Asia/Tokyo' } as never;
+		expect(nowStore.todayKey).toBe('2026-05-18');
+	});
+});
 
 describe('troikiStore', () => {
 	it('clear resets to empty default state', () => {

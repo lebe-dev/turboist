@@ -5,6 +5,7 @@
 	import type { Task } from '$lib/api/types';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { dayKeyInTz, dayStartUtcInTz, formatDay, parseIso, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 
 	let {
 		open = $bindable(false),
@@ -22,7 +23,7 @@
 
 	const choices = $derived.by<Choice[]>(() => {
 		const out: Choice[] = [];
-		const todayKey = dayKeyInTz(new Date(), tz);
+		const todayKey = nowStore.todayKey;
 		const yesterdayKey = (() => {
 			const d = dayStartUtcInTz(todayKey, tz);
 			d.setUTCDate(d.getUTCDate() - 1);

@@ -16,6 +16,7 @@
 	import GearIcon from 'phosphor-svelte/lib/Gear';
 	import UserIcon from 'phosphor-svelte/lib/User';
 	import XIcon from 'phosphor-svelte/lib/X';
+	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
 	import { toast } from 'svelte-sonner';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
@@ -59,6 +60,7 @@
 		limit?: number;
 		accent?: boolean;
 		danger?: boolean;
+		hoverCount?: number;
 	};
 
 	const inboxWarnThreshold = $derived(configStore.value?.inbox.warnThreshold ?? 0);
@@ -85,13 +87,16 @@
 		{ href: resolve('/completed'), label: $t('nav.completed'), icon: CheckCircleIcon }
 	]);
 
+	const backlogCount = $derived(planStatsStore.value?.backlog ?? 0);
+
 	const planningNav = $derived<NavItem[]>([
 		{
 			href: resolve('/next-week'),
 			label: $t('nav.nextWeek'),
 			icon: CalendarCheckIcon,
 			current: planStatsStore.value?.week,
-			limit: weekLimit
+			limit: weekLimit,
+			hoverCount: backlogCount > 0 ? backlogCount : undefined
 		}
 	]);
 
@@ -195,7 +200,7 @@
 	{@const showBadge = item.current != null || item.limit != null}
 	<a
 		href={item.href as ReturnType<typeof resolve>}
-		class="group/nav flex items-center justify-between gap-2 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors md:py-1 md:text-[13px]"
+		class="group/nav relative flex items-center justify-between gap-2 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors md:py-1 md:text-[13px]"
 		class:bg-sidebar-accent={active}
 		class:text-foreground={active && !item.accent && !item.danger}
 		class:text-primary={item.accent && !item.danger}
@@ -214,7 +219,7 @@
 		</span>
 		{#if showBadge}
 			<span
-				class="font-mono text-[12px] tabular-nums md:text-[10px]"
+				class="font-mono text-[12px] tabular-nums transition-opacity md:text-[10px] {item.hoverCount != null ? 'group-hover/nav:opacity-0' : ''}"
 				class:text-muted-foreground={!item.danger}
 				class:text-red-600={item.danger}
 				class:dark:text-red-400={item.danger}
@@ -227,6 +232,15 @@
 				{:else}
 					{item.current}
 				{/if}
+			</span>
+		{/if}
+		{#if item.hoverCount != null}
+			<span
+				class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 font-mono text-[12px] tabular-nums text-muted-foreground opacity-0 transition-opacity group-hover/nav:opacity-100 md:text-[10px]"
+				title={$t('nav.backlogCount')}
+			>
+				<ArchiveIcon class="size-3 shrink-0 md:size-2.5" />
+				{item.hoverCount}
 			</span>
 		{/if}
 	</a>
@@ -278,15 +292,15 @@
 					{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 					{@const active = isActive(href)}
 					<div
-						class="group/pin relative flex items-start rounded-md transition-colors hover:bg-sidebar-accent"
+						class="group/pin relative flex items-center rounded-md transition-colors hover:bg-sidebar-accent"
 						class:bg-sidebar-accent={active}
 					>
 						<a
 							{href}
-							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
+							class="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="fill" />
+							<PushPinIcon class="size-4 shrink-0 md:size-3.5" style="color: {project.color};" weight="fill" />
 							<span class="break-words">{project.title}</span>
 						</a>
 						{@render unpinButton(() => unpinProject(project.id), $t('sidebar.unpinAria', { values: { name: project.title } }))}
@@ -296,15 +310,15 @@
 					{@const href = resolve('/(app)/task/[id]', { id: String(task.id) })}
 					{@const active = isActive(href)}
 					<div
-						class="group/pin relative flex items-start rounded-md transition-colors hover:bg-sidebar-accent"
+						class="group/pin relative flex items-center rounded-md transition-colors hover:bg-sidebar-accent"
 						class:bg-sidebar-accent={active}
 					>
 						<a
 							{href}
-							class="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
+							class="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:text-foreground md:py-1 md:text-[13px]"
 							class:text-foreground={active}
 						>
-							<PushPinIcon class="mt-0.5 size-4 shrink-0 text-amber-500/80 md:size-3.5" weight="regular" />
+							<PushPinIcon class="size-4 shrink-0 text-muted-foreground/60 md:size-3.5" weight="regular" />
 							<span class="break-words">{task.title}</span>
 						</a>
 						{@render unpinButton(() => unpinTask(task.id), $t('sidebar.unpinAria', { values: { name: task.title } }))}
@@ -331,12 +345,12 @@
 				{@const active = isActive(href)}
 				<a
 					{href}
-					class="flex items-start gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
+					class="flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
 					class:bg-sidebar-accent={active}
 					class:text-foreground={active}
 				>
 					<FolderIcon
-						class="mt-0.5 size-4 shrink-0 opacity-90 md:size-3.5"
+						class="size-4 shrink-0 opacity-90 md:size-3.5"
 						style={`color: ${project.color}`}
 						weight="fill"
 					/>

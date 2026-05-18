@@ -34,7 +34,8 @@
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
 	import { describeError } from '$lib/utils/taskActions';
-	import { dayKeyInTz, shiftDayKey } from '$lib/utils/format';
+	import { shiftDayKey } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 
@@ -62,6 +63,8 @@
 	});
 
 	const auth = getAuthStore();
+
+	const quickAddHidden = $derived(page.url.pathname === '/settings');
 
 	let dataReady = $state(false);
 	let loadStarted = $state(false);
@@ -94,6 +97,29 @@
 
 	$effect(() => {
 		if (!quickOpen) followUpOverride = null;
+	});
+
+	$effect(() => {
+		function onVisible(): void {
+			if (document.visibilityState === 'visible') nowStore.refresh();
+		}
+		function onFocus(): void {
+			nowStore.refresh();
+		}
+		function onPageShow(): void {
+			nowStore.refresh();
+		}
+
+		nowStore.scheduleMidnight();
+		document.addEventListener('visibilitychange', onVisible);
+		window.addEventListener('focus', onFocus);
+		window.addEventListener('pageshow', onPageShow);
+		return () => {
+			document.removeEventListener('visibilitychange', onVisible);
+			window.removeEventListener('focus', onFocus);
+			window.removeEventListener('pageshow', onPageShow);
+			nowStore.teardown();
+		};
 	});
 
 	function startLoad(): void {
@@ -244,8 +270,7 @@
 
 	const quickAddDefaults = $derived.by(() => {
 		const path = page.url.pathname;
-		const tz = configStore.value?.timezone ?? null;
-		const todayKey = dayKeyInTz(new Date(), tz);
+		const todayKey = nowStore.todayKey;
 		const tomorrowKey = shiftDayKey(todayKey, 1);
 
 		let projectId: number | null = null;
@@ -404,7 +429,10 @@
 				<Sidebar />
 			</div>
 		<div class="flex min-w-0 flex-1 flex-col">
-			<Topbar {onQuickAdd} onMenuClick={() => (mobileSidebarOpen = true)} />
+			<Topbar
+				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
+				onMenuClick={() => (mobileSidebarOpen = true)}
+			/>
 			<ContextFilterBanner />
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
@@ -447,11 +475,13 @@
 	{/if}
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
 	<FollowUpToasts onNext={onFollowUpNext} />
-	<button
-		onclick={onQuickAdd}
-		class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
-		aria-label={$t('task.quickAdd')}
-	>
-		<PlusIcon class="h-7 w-7" />
-	</button>
+	{#if !quickAddHidden}
+		<button
+			onclick={onQuickAdd}
+			class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
+			aria-label={$t('task.quickAdd')}
+		>
+			<PlusIcon class="h-7 w-7" />
+		</button>
+	{/if}
 {/if}

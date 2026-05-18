@@ -2,6 +2,8 @@
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import { t } from '$lib/i18n';
+	import * as Sheet from '$lib/components/ui/sheet';
+	import { IsMobile } from '$lib/hooks';
 
 	type RecurrenceMode = 'none' | 'daily' | 'interval' | 'weekly' | 'monthly';
 
@@ -26,6 +28,8 @@
 	};
 
 	let { value = $bindable<string | null>(null) }: { value?: string | null } = $props();
+
+	const isMobile = new IsMobile();
 
 	let open = $state(false);
 	let intervalDays = $state(2);
@@ -130,6 +134,117 @@
 	}
 </script>
 
+{#snippet menuContent()}
+	<!-- None -->
+	<button
+		type="button"
+		onclick={selectNone}
+		class={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent ${currentMode === 'none' ? 'bg-accent' : ''}`}
+	>
+		<span class={dot('none')}></span>
+		<span>{$t('task.recurrence.noRepeat')}</span>
+	</button>
+
+	<!-- Every day -->
+	<button
+		type="button"
+		onclick={selectDaily}
+		class={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent ${currentMode === 'daily' ? 'bg-accent' : ''}`}
+	>
+		<span class={dot('daily')}></span>
+		<span>{$t('task.recurrence.daily')}</span>
+	</button>
+
+	<!-- Every N days -->
+	<div
+		role="button"
+		tabindex="0"
+		onclick={applyInterval}
+		onkeydown={(e) => e.key === 'Enter' && applyInterval()}
+		class={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs transition-colors hover:bg-accent ${currentMode === 'interval' ? 'bg-accent' : ''}`}
+	>
+		<span class={dot('interval')}></span>
+		<span class="flex-shrink-0">{$t('task.recurrence.every')}</span>
+		<input
+			type="number"
+			min="2"
+			max="365"
+			value={intervalDays}
+			oninput={(e) => {
+				const n = parseInt((e.target as HTMLInputElement).value, 10);
+				if (!isNaN(n) && n >= 2) {
+					intervalDays = n;
+					value = `FREQ=DAILY;INTERVAL=${n}`;
+				}
+			}}
+			onclick={(e) => {
+				e.stopPropagation();
+				applyInterval();
+			}}
+			class="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-center text-xs focus:outline-none focus:ring-[2px] focus:ring-ring/50"
+		/>
+		<span class="flex-shrink-0">{$t('task.recurrence.days')}</span>
+	</div>
+
+	<!-- Weekly -->
+	<div
+		class={`flex w-full cursor-pointer flex-col gap-2 rounded-md px-2.5 py-2 text-xs transition-colors hover:bg-accent ${currentMode === 'weekly' ? 'bg-accent' : ''}`}
+		role="button"
+		tabindex="0"
+		onclick={applyWeekly}
+		onkeydown={(e) => e.key === 'Enter' && applyWeekly()}
+	>
+		<div class="flex items-center gap-2.5">
+			<span class={dot('weekly')}></span>
+			<span>{$t('task.recurrence.onDaysOfWeek')}</span>
+		</div>
+		<div class="ml-6 flex gap-0.5">
+			{#each WEEKDAY_ORDER as day (day)}
+				<button
+					type="button"
+					onclick={(e) => {
+						e.stopPropagation();
+						toggleWeekday(day);
+					}}
+					class={`flex h-6 w-[26px] items-center justify-center rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 ${weekdays.includes(day) ? 'bg-foreground/20 text-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+				>
+					{$t(WEEKDAY_KEY[day])}
+				</button>
+			{/each}
+		</div>
+	</div>
+
+	<!-- Monthly -->
+	<div
+		class={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs transition-colors hover:bg-accent ${currentMode === 'monthly' ? 'bg-accent' : ''}`}
+		role="button"
+		tabindex="0"
+		onclick={applyMonthly}
+		onkeydown={(e) => e.key === 'Enter' && applyMonthly()}
+	>
+		<span class={dot('monthly')}></span>
+		<span class="flex-shrink-0">{$t('task.recurrence.monthlyDayLabel')}</span>
+		<input
+			type="number"
+			min="1"
+			max="31"
+			value={monthDay}
+			oninput={(e) => {
+				const n = parseInt((e.target as HTMLInputElement).value, 10);
+				if (!isNaN(n) && n >= 1 && n <= 31) {
+					monthDay = n;
+					value = `FREQ=MONTHLY;BYMONTHDAY=${n}`;
+				}
+			}}
+			onclick={(e) => {
+				e.stopPropagation();
+				applyMonthly();
+			}}
+			class="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-center text-xs focus:outline-none focus:ring-[2px] focus:ring-ring/50"
+		/>
+	</div>
+{/snippet}
+
 <div class="relative inline-flex">
 	<div
 		class="inline-flex h-8 items-center rounded-md border border-border bg-background text-xs font-medium transition-colors"
@@ -155,7 +270,18 @@
 		{/if}
 	</div>
 
-	{#if open}
+	{#if isMobile.current}
+		<Sheet.Root bind:open>
+			<Sheet.Content side="bottom" class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2">
+				<Sheet.Header class="px-2.5 pb-1 pt-0">
+					<Sheet.Title>{$t('task.recurrence.repeat')}</Sheet.Title>
+				</Sheet.Header>
+				<div class="flex flex-col gap-1 pb-4">
+					{@render menuContent()}
+				</div>
+			</Sheet.Content>
+		</Sheet.Root>
+	{:else if open}
 		<div
 			class="fixed inset-0 z-10"
 			role="presentation"
@@ -165,114 +291,7 @@
 		<div
 			class="absolute left-0 top-9 z-20 w-64 rounded-lg border border-border bg-popover p-2 shadow-lg"
 		>
-			<!-- None -->
-			<button
-				type="button"
-				onclick={selectNone}
-				class={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent ${currentMode === 'none' ? 'bg-accent' : ''}`}
-			>
-				<span class={dot('none')}></span>
-				<span>{$t('task.recurrence.noRepeat')}</span>
-			</button>
-
-			<!-- Every day -->
-			<button
-				type="button"
-				onclick={selectDaily}
-				class={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent ${currentMode === 'daily' ? 'bg-accent' : ''}`}
-			>
-				<span class={dot('daily')}></span>
-				<span>{$t('task.recurrence.daily')}</span>
-			</button>
-
-			<!-- Every N days -->
-			<div
-				role="button"
-				tabindex="0"
-				onclick={applyInterval}
-				onkeydown={(e) => e.key === 'Enter' && applyInterval()}
-				class={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs transition-colors hover:bg-accent ${currentMode === 'interval' ? 'bg-accent' : ''}`}
-			>
-				<span class={dot('interval')}></span>
-				<span class="flex-shrink-0">{$t('task.recurrence.every')}</span>
-				<input
-					type="number"
-					min="2"
-					max="365"
-					value={intervalDays}
-					oninput={(e) => {
-						const n = parseInt((e.target as HTMLInputElement).value, 10);
-						if (!isNaN(n) && n >= 2) {
-							intervalDays = n;
-							value = `FREQ=DAILY;INTERVAL=${n}`;
-						}
-					}}
-					onclick={(e) => {
-						e.stopPropagation();
-						applyInterval();
-					}}
-					class="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-center text-xs focus:outline-none focus:ring-[2px] focus:ring-ring/50"
-				/>
-				<span class="flex-shrink-0">{$t('task.recurrence.days')}</span>
-			</div>
-
-			<!-- Weekly -->
-			<div
-				class={`flex w-full cursor-pointer flex-col gap-2 rounded-md px-2.5 py-2 text-xs transition-colors hover:bg-accent ${currentMode === 'weekly' ? 'bg-accent' : ''}`}
-				role="button"
-				tabindex="0"
-				onclick={applyWeekly}
-				onkeydown={(e) => e.key === 'Enter' && applyWeekly()}
-			>
-				<div class="flex items-center gap-2.5">
-					<span class={dot('weekly')}></span>
-					<span>{$t('task.recurrence.onDaysOfWeek')}</span>
-				</div>
-				<div class="ml-6 flex gap-0.5">
-					{#each WEEKDAY_ORDER as day (day)}
-						<button
-							type="button"
-							onclick={(e) => {
-								e.stopPropagation();
-								toggleWeekday(day);
-							}}
-							class={`flex h-6 w-[26px] items-center justify-center rounded text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 ${weekdays.includes(day) ? 'bg-foreground/20 text-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
-						>
-							{$t(WEEKDAY_KEY[day])}
-						</button>
-					{/each}
-				</div>
-			</div>
-
-			<!-- Monthly -->
-			<div
-				class={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-xs transition-colors hover:bg-accent ${currentMode === 'monthly' ? 'bg-accent' : ''}`}
-				role="button"
-				tabindex="0"
-				onclick={applyMonthly}
-				onkeydown={(e) => e.key === 'Enter' && applyMonthly()}
-			>
-				<span class={dot('monthly')}></span>
-				<span class="flex-shrink-0">{$t('task.recurrence.monthlyDayLabel')}</span>
-				<input
-					type="number"
-					min="1"
-					max="31"
-					value={monthDay}
-					oninput={(e) => {
-						const n = parseInt((e.target as HTMLInputElement).value, 10);
-						if (!isNaN(n) && n >= 1 && n <= 31) {
-							monthDay = n;
-							value = `FREQ=MONTHLY;BYMONTHDAY=${n}`;
-						}
-					}}
-					onclick={(e) => {
-						e.stopPropagation();
-						applyMonthly();
-					}}
-					class="w-12 rounded border border-border bg-background px-1.5 py-0.5 text-center text-xs focus:outline-none focus:ring-[2px] focus:ring-ring/50"
-				/>
-			</div>
+			{@render menuContent()}
 		</div>
 	{/if}
 </div>

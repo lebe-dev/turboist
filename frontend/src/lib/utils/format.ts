@@ -169,12 +169,13 @@ export function timeKeyInTz(date: Date, tz?: string | null): string {
 export function formatDay(
 	value: string | Date | null | undefined,
 	withTime = false,
-	tz?: string | null
+	tz?: string | null,
+	now: Date = new Date()
 ): string {
 	const date = typeof value === 'string' ? parseIso(value) : (value ?? null);
 	if (!date) return '';
 
-	const todayKey = dayKeyInTz(new Date(), tz);
+	const todayKey = dayKeyInTz(now, tz);
 	const targetKey = dayKeyInTz(date, tz);
 	const todayStart = dayStartUtcInTz(todayKey, tz);
 	const targetStart = dayStartUtcInTz(targetKey, tz);

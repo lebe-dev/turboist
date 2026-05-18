@@ -33,7 +33,6 @@
 	const TITLE_KEYS: Record<string, string> = {
 		'/today': 'nav.today',
 		'/tomorrow': 'nav.tomorrow',
-		'/inbox': 'nav.inbox',
 		'/week': 'nav.thisWeek',
 		'/next-week': 'nav.nextWeek',
 		'/search': 'nav.search'
@@ -169,7 +168,7 @@
 						type="button"
 						onclick={() => selectContext(id)}
 						disabled={contextsLocked}
-						class="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+						class="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
 						class:bg-transparent={!active}
 						class:text-muted-foreground={!active || contextsLocked}
 						class:hover:bg-muted={!active && !contextsLocked}
@@ -201,7 +200,7 @@
 									<button
 										{...props}
 										type="button"
-										class="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 pr-1.5 text-[12px] text-foreground transition-colors hover:bg-muted/80"
+										class="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 pr-1.5 text-[12px] text-foreground transition-colors hover:bg-muted/80"
 										aria-label={$t('context.actionsAriaLabel')}
 									>
 										<span
@@ -213,7 +212,7 @@
 									</button>
 								{/snippet}
 							</DropdownMenu.Trigger>
-							<DropdownMenu.Content align="start">
+							<DropdownMenu.Content align="start" class="min-w-[10rem] rounded-md">
 								<DropdownMenu.Item onclick={() => openEditContext(ctx)}>
 									<PencilIcon class="size-4" /> {$t('common.edit')}
 								</DropdownMenu.Item>
@@ -237,7 +236,7 @@
 						contextDialogOpen = true;
 					}}
 					disabled={contextsLocked}
-					class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+					class="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 					aria-label={$t('topbar.addContext')}
 					title={$t('topbar.addContext')}
 				>
@@ -282,16 +281,18 @@
 		>
 			<CheckSquareIcon class="size-4" />
 		</Button>
-		<Button
-			variant="secondary"
-			size="icon-sm"
-			onclick={() => onQuickAdd?.()}
-			class="bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
-			aria-label={$t('topbar.quickAdd')}
-			title={$t('topbar.quickAdd')}
-		>
-			<PlusIcon class="size-4" />
-		</Button>
+		{#if onQuickAdd}
+			<Button
+				variant="secondary"
+				size="icon-sm"
+				onclick={() => onQuickAdd?.()}
+				class="hidden bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25 md:inline-flex"
+				aria-label={$t('topbar.quickAdd')}
+				title={$t('topbar.quickAdd')}
+			>
+				<PlusIcon class="size-4" />
+			</Button>
+		{/if}
 		<a
 			href={resolve('/troiki')}
 			aria-label={$t('topbar.troikiSystem')}
@@ -315,6 +316,9 @@
 <ConfirmDestructiveDialog
 	bind:open={confirmDeleteOpen}
 	title={$t('page.context.confirmDeleteTitle')}
-	description={$t('page.context.confirmDeleteDesc')}
+	description={confirmDeleteContext
+		? $t('page.context.confirmDeleteNamed', { values: { name: confirmDeleteContext.name } })
+		: $t('page.context.confirmDeleteDesc')}
+	countdownSeconds={20}
 	onConfirm={deleteContext}
 />

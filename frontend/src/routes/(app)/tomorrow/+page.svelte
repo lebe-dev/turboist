@@ -10,6 +10,7 @@
 	import { groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz, shiftDayKey } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { toggleComplete, updateTaskFields } from '$lib/utils/taskActions';
 	import type { DayPart } from '$lib/api/types';
@@ -40,6 +41,15 @@
 		void loader.refetch();
 	});
 
+	let lastDayKey = $state(nowStore.todayKey);
+	$effect(() => {
+		const k = nowStore.todayKey;
+		if (k !== lastDayKey) {
+			lastDayKey = k;
+			void loader.refetch();
+		}
+	});
+
 	function bulkMove(group: DayPartGroup, targetPart: DayPart): void {
 		for (const task of group.tasks) {
 			void updateTaskFields(task, mutator, { dayPart: targetPart });
@@ -50,7 +60,7 @@
 		const dt = parseIso(t.dueAt);
 		if (!dt) return false;
 		const tz = configStore.value?.timezone ?? null;
-		const tomorrowKey = shiftDayKey(dayKeyInTz(new Date(), tz), 1);
+		const tomorrowKey = shiftDayKey(nowStore.todayKey, 1);
 		return dayKeyInTz(dt, tz) === tomorrowKey;
 	}
 

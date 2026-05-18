@@ -26,10 +26,12 @@
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
 	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
+	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import { comparePriority } from '$lib/utils/priority';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -128,7 +130,9 @@
 		return projectsStore.items.find((p) => p.id === projectId)?.troikiCategory ?? null;
 	});
 	const projectTroikiLocked = $derived(projectTroikiCategory !== null);
+	const inInbox = $derived(task?.inboxId !== null && task?.inboxId !== undefined);
 
+	let moveDialogOpen = $state(false);
 	let datePopoverOpen = $state(false);
 
 	const calendarValue = $derived<DateValue | undefined>(
@@ -149,7 +153,7 @@
 		scheduleSave();
 	}
 
-	const todayKey = $derived(dayKeyInTz(new Date(), configStore.value?.timezone ?? null));
+	const todayKey = $derived(nowStore.todayKey);
 	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);
@@ -183,8 +187,9 @@
 	function hydrate(t: Task): void {
 		allowSave = false;
 		task = t;
-		title = t.title;
-		description = t.description ?? '';
+		if (title !== t.title) title = t.title;
+		const nextDescription = t.description ?? '';
+		if (description !== nextDescription) description = nextDescription;
 		priority = t.priority;
 		dayPart = t.dayPart;
 		recurrence = t.recurrenceRule ?? null;
@@ -480,16 +485,25 @@ async function save(): Promise<void> {
 				{/if}
 			</div>
 
-			{#if task.inboxId === null}
-				<section class="flex flex-col gap-2">
-					<div class="flex items-baseline justify-between gap-2">
-						<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-							{$t('page.task.subtasks')}
-						</span>
-						{#if subtasks.items.length > 0}
-							<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
-						{/if}
+			<section class="flex flex-col gap-2">
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+						{$t('page.task.subtasks')}
+					</span>
+					{#if !inInbox && subtasks.items.length > 0}
+						<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
+					{/if}
+				</div>
+				{#if inInbox}
+					<div class="rounded-md border border-border/60 bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+						{$t('page.task.inboxSubtasksNoticePre')}
+						<button
+							type="button"
+							onclick={() => (moveDialogOpen = true)}
+							class="underline underline-offset-2 transition-colors hover:text-foreground"
+						>{$t('page.task.inboxSubtasksNoticeLink')}</button>.
 					</div>
+				{:else}
 					{#if subtasks.items.length > 0}
 						<div class="overflow-hidden rounded-md border border-border/60">
 							{#if openSubtasks.length > 0}
@@ -535,11 +549,12 @@ async function save(): Promise<void> {
 							</Button>
 						{/if}
 					</div>
-				</section>
-			{/if}
+				{/if}
+			</section>
 		</div>
 
 		<aside class="flex flex-col gap-5 sm:border-l sm:border-border sm:pl-6">
+			{#if !inInbox}
 			<div class="flex flex-col gap-1.5">
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					{$t('page.task.date')}
@@ -641,6 +656,7 @@ async function save(): Promise<void> {
 					<DayPartPicker bind:value={dayPart} />
 				</div>
 			</div>
+			{/if}
 
 			<div class="flex flex-col gap-1.5">
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -708,3 +724,5 @@ async function save(): Promise<void> {
 		</aside>
 	</form>
 {/if}
+
+<MoveTaskDialog bind:open={moveDialogOpen} task={task} mutator={pageMutator} />

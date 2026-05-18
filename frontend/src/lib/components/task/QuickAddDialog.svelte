@@ -4,6 +4,8 @@
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
 	import { Calendar } from '$lib/components/ui/calendar';
+	import * as Sheet from '$lib/components/ui/sheet';
+	import { IsMobile } from '$lib/hooks';
 	import type { DayPart, Priority, TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -12,7 +14,8 @@
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
 	import RecurrencePicker from './RecurrencePicker.svelte';
-	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { clickOutside } from '$lib/actions/clickOutside';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -60,6 +63,7 @@
 	} = $props();
 
 	const isWrap = $derived(wrap !== null);
+	const isMobile = new IsMobile();
 
 	function initialLabelIds(): string[] {
 		const base = defaultLabelIds.map(String);
@@ -183,7 +187,9 @@
 	const projectName = $derived(
 		projectsStore.items.find((p) => String(p.id) === projectId)?.title ?? emptyProjectLabel
 	);
-	const todayKey = $derived(dayKeyInTz(new Date(), configStore.value?.timezone ?? null));
+	const isInbox = $derived(projectId === '');
+
+	const todayKey = $derived(nowStore.todayKey);
 	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);
@@ -414,6 +420,7 @@
 					{/if}
 
 					<div class="mt-4 flex flex-wrap items-center gap-2">
+						{#if !isInbox}
 						<div
 							class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 							role="group"
@@ -476,17 +483,48 @@
 								</PopoverPrimitive.Portal>
 							</PopoverPrimitive.Root>
 						</div>
+						{/if}
 
+						{#if !isInbox}
 						<PriorityPicker bind:value={priority} />
 
 						<DayPartPicker bind:value={dayPart} />
+						{/if}
 
 						<RecurrencePicker bind:value={recurrenceRule} />
 
 						{#if allLabels.length > 0}
+							{#snippet labelOptions()}
+								{#each allLabels as label (label.id)}
+									{@const id = String(label.id)}
+									{@const active = labelIds.includes(id)}
+									<button
+										type="button"
+										onclick={() => toggleLabel(id)}
+										class="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors"
+										class:bg-accent={active}
+										class:text-accent-foreground={active}
+										class:hover:bg-accent={!active}
+									>
+										{#if label.color}
+											<span
+												class="size-2 rounded-full"
+												style={`background-color: ${label.color}`}
+											></span>
+										{/if}
+										<span class="flex-1 truncate">{label.name}</span>
+										{#if active}
+											<XIcon class="size-3 opacity-60" />
+										{/if}
+									</button>
+								{/each}
+							{/snippet}
+
 							<div
 								class="relative"
-								use:clickOutside={() => (labelMenuOpen = false)}
+								use:clickOutside={() => {
+									if (!isMobile.current) labelMenuOpen = false;
+								}}
 							>
 								<button
 									type="button"
@@ -497,34 +535,27 @@
 									<TagIcon class="size-3.5" />
 									<span>{$t('common.labels')}</span>
 								</button>
-								{#if labelMenuOpen}
+
+								{#if isMobile.current}
+									<Sheet.Root bind:open={labelMenuOpen}>
+										<Sheet.Content
+											side="bottom"
+											class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2"
+										>
+											<Sheet.Header class="px-2.5 pb-1 pt-0">
+												<Sheet.Title>{$t('common.labels')}</Sheet.Title>
+											</Sheet.Header>
+											<div class="flex flex-col gap-1 pb-4">
+												{@render labelOptions()}
+											</div>
+										</Sheet.Content>
+									</Sheet.Root>
+								{:else if labelMenuOpen}
 									<div
 										class="absolute left-0 top-9 z-10 flex max-h-64 w-56 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-popover p-2 shadow-lg"
 										role="menu"
 									>
-										{#each allLabels as label (label.id)}
-											{@const id = String(label.id)}
-											{@const active = labelIds.includes(id)}
-											<button
-												type="button"
-												onclick={() => toggleLabel(id)}
-												class="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors"
-												class:bg-accent={active}
-												class:text-accent-foreground={active}
-												class:hover:bg-accent={!active}
-											>
-												{#if label.color}
-													<span
-														class="size-2 rounded-full"
-														style={`background-color: ${label.color}`}
-													></span>
-												{/if}
-												<span class="flex-1 truncate">{label.name}</span>
-												{#if active}
-													<XIcon class="size-3 opacity-60" />
-												{/if}
-											</button>
-										{/each}
+										{@render labelOptions()}
 									</div>
 								{/if}
 							</div>

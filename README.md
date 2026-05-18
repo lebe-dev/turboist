@@ -117,6 +117,9 @@ applied; HTTP handlers are exercised via Fiber's `app.Test`.
 ## RoadMap
 
 - Feature: backup & restore
+- Feature: extended session management on Session page
+- Feature: 2FA TOTP support
+- Feature: Task templates
 - Feature: Federated Project Synchronization (Bridge Protocol) for Multi-Instance Collaboration
 - Offline-first
 - iOS Native App

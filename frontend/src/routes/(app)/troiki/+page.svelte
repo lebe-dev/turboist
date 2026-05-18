@@ -409,7 +409,7 @@
 												<TaskTree
 													tasks={split.open}
 													showProject={false}
-													hideDue
+													collapseCompletedChildren
 													mutator={projectMutator(project)}
 													onToggle={(tk) => void onTaskToggle(tk)}
 												/>

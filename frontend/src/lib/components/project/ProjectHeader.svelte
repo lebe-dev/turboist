@@ -284,6 +284,6 @@
 		</div>
 	</div>
 	{#if project.description}
-		<p class="text-sm text-muted-foreground">{project.description}</p>
+		<p class="whitespace-pre-line text-sm text-muted-foreground">{project.description}</p>
 	{/if}
 </header>

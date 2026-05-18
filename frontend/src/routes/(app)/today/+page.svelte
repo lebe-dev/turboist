@@ -13,6 +13,7 @@
 	import { activeDayPart, groupByDayPart } from '$lib/utils/viewGroup';
 	import { parseIso, dayKeyInTz, isOverdue } from '$lib/utils/format';
 	import { configStore } from '$lib/stores/config.svelte';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { toggleComplete, updateTaskFields } from '$lib/utils/taskActions';
 	import type { DayPart } from '$lib/api/types';
@@ -60,8 +61,7 @@
 	const todayTasks = $derived(list.items.filter((t) => !isOverdue(t.dueAt, tz)));
 	const groups = $derived(groupByDayPart(todayTasks, dayParts));
 
-	let now = $state(new Date());
-	const active = $derived(activeDayPart(now, dayParts, tz));
+	const active = $derived(activeDayPart(nowStore.now, dayParts, tz));
 
 	let completeDialogOpen = $state(false);
 	let pendingCompleteTask = $state<Task | null>(null);
@@ -94,18 +94,13 @@
 		void loader.refetch();
 	});
 
+	let lastDayKey = $state(nowStore.todayKey);
 	$effect(() => {
-		function onVisible(): void {
-			if (document.visibilityState !== 'visible') return;
-			now = new Date();
+		const k = nowStore.todayKey;
+		if (k !== lastDayKey) {
+			lastDayKey = k;
 			void loader.refetch();
 		}
-		document.addEventListener('visibilitychange', onVisible);
-		window.addEventListener('focus', onVisible);
-		return () => {
-			document.removeEventListener('visibilitychange', onVisible);
-			window.removeEventListener('focus', onVisible);
-		};
 	});
 
 	$effect(() => {
@@ -126,7 +121,7 @@
 	function isToday(t: Task): boolean {
 		const dt = parseIso(t.dueAt);
 		if (!dt) return false;
-		return dayKeyInTz(dt, tz) === dayKeyInTz(new Date(), tz);
+		return dayKeyInTz(dt, tz) === nowStore.todayKey;
 	}
 
 	// Tasks belong on this page when they are due today OR are overdue.

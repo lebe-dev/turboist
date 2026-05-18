@@ -22,6 +22,7 @@
 		weekRangeKeys
 	} from '$lib/utils/format';
 	import { toggleComplete } from '$lib/utils/taskActions';
+	import { nowStore } from '$lib/stores/now.svelte';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 
@@ -32,14 +33,14 @@
 	const { mutator } = list;
 
 	const tz = $derived(configStore.value?.timezone ?? null);
-	const groups = $derived(groupByDay(list.items, tz));
+	const groups = $derived(groupByDay(list.items, tz, nowStore.now));
 	const limit = $derived(configStore.value?.weekly.limit ?? null);
 	const exceeded = $derived(limit !== null && total >= limit);
-	const weekRange = $derived(weekRangeKeys(new Date(), tz));
+	const weekRange = $derived(weekRangeKeys(nowStore.now, tz));
 	const weekRangeLabel = $derived(
 		formatDayKeyRange(weekRange.startKey, weekRange.endKey, $locale, tz)
 	);
-	const daysPassed = $derived(daysBetweenKeys(weekRange.startKey, dayKeyInTz(new Date(), tz)));
+	const daysPassed = $derived(daysBetweenKeys(weekRange.startKey, nowStore.todayKey));
 	const daysLeftCount = $derived(daysPassed >= 1 ? 7 - daysPassed : 0);
 
 	function dueInWeek(t: Task): boolean {
@@ -65,6 +66,15 @@
 	$effect(() => {
 		void userStateStore.activeContextId;
 		void loader.refetch();
+	});
+
+	let lastDayKey = $state(nowStore.todayKey);
+	$effect(() => {
+		const k = nowStore.todayKey;
+		if (k !== lastDayKey) {
+			lastDayKey = k;
+			void loader.refetch();
+		}
 	});
 </script>
 
