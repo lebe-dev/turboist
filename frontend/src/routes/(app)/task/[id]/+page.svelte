@@ -26,6 +26,7 @@
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
 	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
+	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import { comparePriority } from '$lib/utils/priority';
@@ -131,6 +132,7 @@
 	const projectTroikiLocked = $derived(projectTroikiCategory !== null);
 	const inInbox = $derived(task?.inboxId !== null && task?.inboxId !== undefined);
 
+	let moveDialogOpen = $state(false);
 	let datePopoverOpen = $state(false);
 
 	const calendarValue = $derived<DateValue | undefined>(
@@ -483,16 +485,25 @@ async function save(): Promise<void> {
 				{/if}
 			</div>
 
-			{#if task.inboxId === null}
-				<section class="flex flex-col gap-2">
-					<div class="flex items-baseline justify-between gap-2">
-						<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-							{$t('page.task.subtasks')}
-						</span>
-						{#if subtasks.items.length > 0}
-							<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
-						{/if}
+			<section class="flex flex-col gap-2">
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+						{$t('page.task.subtasks')}
+					</span>
+					{#if !inInbox && subtasks.items.length > 0}
+						<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
+					{/if}
+				</div>
+				{#if inInbox}
+					<div class="rounded-md border border-border/60 bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+						{$t('page.task.inboxSubtasksNoticePre')}
+						<button
+							type="button"
+							onclick={() => (moveDialogOpen = true)}
+							class="underline underline-offset-2 transition-colors hover:text-foreground"
+						>{$t('page.task.inboxSubtasksNoticeLink')}</button>.
 					</div>
+				{:else}
 					{#if subtasks.items.length > 0}
 						<div class="overflow-hidden rounded-md border border-border/60">
 							{#if openSubtasks.length > 0}
@@ -538,8 +549,8 @@ async function save(): Promise<void> {
 							</Button>
 						{/if}
 					</div>
-				</section>
-			{/if}
+				{/if}
+			</section>
 		</div>
 
 		<aside class="flex flex-col gap-5 sm:border-l sm:border-border sm:pl-6">
@@ -713,3 +724,5 @@ async function save(): Promise<void> {
 		</aside>
 	</form>
 {/if}
+
+<MoveTaskDialog bind:open={moveDialogOpen} task={task} mutator={pageMutator} />

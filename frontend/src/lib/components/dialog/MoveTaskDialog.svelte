@@ -7,7 +7,7 @@
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
 	import { moveTaskToProject, moveTaskToInbox, type ListMutator } from '$lib/utils/taskActions';
-	import type { Project, ProjectSection, Task } from '$lib/api/types';
+	import type { Project, ProjectSection, Task, TroikiCategory } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import TrayIcon from 'phosphor-svelte/lib/Tray';
@@ -39,13 +39,19 @@
 		}
 	});
 
+	const TROIKI_ORDER: Record<TroikiCategory, number> = { important: 0, medium: 1, rest: 2 };
+
 	const grouped = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		const matches = (p: Project) => !q || p.title.toLowerCase().includes(q);
 		const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
 		const byTitle = (a: Project, b: Project) => collator.compare(a.title, b.title);
-		const pinnedFirst = (a: Project, b: Project) => {
-			if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+		const byTroiki = (a: Project, b: Project) => {
+			const ta = a.troikiCategory;
+			const tb = b.troikiCategory;
+			if (ta && !tb) return -1;
+			if (!ta && tb) return 1;
+			if (ta && tb && ta !== tb) return TROIKI_ORDER[ta] - TROIKI_ORDER[tb];
 			return byTitle(a, b);
 		};
 		return contextsStore.items
@@ -56,7 +62,7 @@
 			})
 			.map((ctx) => {
 				const all = projectsStore.byContext(ctx.id).filter(matches);
-				const open = all.filter((p) => p.status === 'open').sort(pinnedFirst);
+				const open = all.filter((p) => p.status === 'open').sort(byTroiki);
 				const done = all.filter((p) => p.status !== 'open').sort(byTitle);
 				return { ctx, projects: [...open, ...done] };
 			})

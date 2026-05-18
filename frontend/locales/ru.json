@@ -628,7 +628,9 @@
       "dayPart": "Часть дня",
       "repeat": "Повтор",
       "labels": "Метки",
-      "editLabels": "Редактировать метки"
+      "editLabels": "Редактировать метки",
+      "inboxSubtasksNoticePre": "Подзадачи недоступны для задач из Inbox. Переместите задачу",
+      "inboxSubtasksNoticeLink": "в проект"
     },
     "context": {
       "errorLoading": "Не удалось загрузить контекст",

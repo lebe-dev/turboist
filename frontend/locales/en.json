@@ -628,7 +628,9 @@
       "dayPart": "Day part",
       "repeat": "Repeat",
       "labels": "Labels",
-      "editLabels": "Edit labels"
+      "editLabels": "Edit labels",
+      "inboxSubtasksNoticePre": "Subtasks are not available for inbox tasks. Move the task",
+      "inboxSubtasksNoticeLink": "to a project"
     },
     "context": {
       "errorLoading": "Failed to load context",
