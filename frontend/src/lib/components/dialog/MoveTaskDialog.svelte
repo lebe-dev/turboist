@@ -5,6 +5,8 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { isProjectVisible } from '$lib/utils/visibility';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { getApiClient } from '$lib/api/client';
 	import { moveTaskToProject, moveTaskToInbox, type ListMutator } from '$lib/utils/taskActions';
@@ -47,7 +49,9 @@
 
 	const grouped = $derived.by(() => {
 		const q = query.trim().toLowerCase();
-		const matches = (p: Project) => !q || p.title.toLowerCase().includes(q);
+		const publicView = settingsStore.publicView;
+		const matches = (p: Project) =>
+			isProjectVisible(p, publicView) && (!q || p.title.toLowerCase().includes(q));
 		const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
 		const byTitle = (a: Project, b: Project) => collator.compare(a.title, b.title);
 		const byPinned = (a: Project, b: Project) => {

@@ -13,6 +13,7 @@
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { isLabelVisible } from '$lib/utils/visibility';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 	import type { AutoLabelRule } from '$lib/api/types';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
@@ -147,8 +148,14 @@
 	);
 	let autoLabelsBusy = $state(false);
 
-	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
-	const labelNameById = $derived(new Map(allLabels.map((l) => [l.id, l.name])));
+	const allLabels = $derived(
+		[...labelsStore.favourites, ...labelsStore.rest].filter((l) =>
+			isLabelVisible(l, settingsStore.publicView)
+		)
+	);
+	const labelNameById = $derived(
+		new Map([...labelsStore.favourites, ...labelsStore.rest].map((l) => [l.id, l.name]))
+	);
 
 	const autoLabelsDirty = $derived.by(() => {
 		const a = autoLabelsDraft;
