@@ -187,6 +187,8 @@
 	const projectName = $derived(
 		projectsStore.items.find((p) => String(p.id) === projectId)?.title ?? emptyProjectLabel
 	);
+	const isInbox = $derived(projectId === '');
+
 	const todayKey = $derived(nowStore.todayKey);
 	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
 	const isToday = $derived(dueDate === todayKey);
@@ -418,6 +420,7 @@
 					{/if}
 
 					<div class="mt-4 flex flex-wrap items-center gap-2">
+						{#if !isInbox}
 						<div
 							class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 							role="group"
@@ -480,10 +483,13 @@
 								</PopoverPrimitive.Portal>
 							</PopoverPrimitive.Root>
 						</div>
+						{/if}
 
+						{#if !isInbox}
 						<PriorityPicker bind:value={priority} />
 
 						<DayPartPicker bind:value={dayPart} />
+						{/if}
 
 						<RecurrencePicker bind:value={recurrenceRule} />
 

@@ -129,6 +129,7 @@
 		return projectsStore.items.find((p) => p.id === projectId)?.troikiCategory ?? null;
 	});
 	const projectTroikiLocked = $derived(projectTroikiCategory !== null);
+	const inInbox = $derived(task?.inboxId !== null && task?.inboxId !== undefined);
 
 	let datePopoverOpen = $state(false);
 
@@ -542,6 +543,7 @@ async function save(): Promise<void> {
 		</div>
 
 		<aside class="flex flex-col gap-5 sm:border-l sm:border-border sm:pl-6">
+			{#if !inInbox}
 			<div class="flex flex-col gap-1.5">
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 					{$t('page.task.date')}
@@ -643,6 +645,7 @@ async function save(): Promise<void> {
 					<DayPartPicker bind:value={dayPart} />
 				</div>
 			</div>
+			{/if}
 
 			<div class="flex flex-col gap-1.5">
 				<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
