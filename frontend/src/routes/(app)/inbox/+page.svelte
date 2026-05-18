@@ -78,6 +78,10 @@
 </script>
 
 <div class="px-2 py-2">
+	<div class="px-3 pt-2 pb-4">
+		<h1 class="text-2xl font-bold tracking-tight">{$t('nav.inbox')}</h1>
+		<p class="mt-1 text-sm text-muted-foreground">{$t('page.inbox.subtitle')}</p>
+	</div>
 	{#if inboxStatsStore.warnThresholdExceeded && configStore.value}
 		<p class="mt-3 mb-4 px-3 text-sm text-muted-foreground">
 			{$t('page.inbox.overCapacity', {

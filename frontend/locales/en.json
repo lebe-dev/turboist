@@ -513,6 +513,7 @@
       "errorLoading": "Failed to load tomorrow"
     },
     "inbox": {
+      "subtitle": "A place to capture raw thoughts and ideas as they come. Once collected, move anything valuable into a real project.",
       "emptyTitle": "Inbox is empty",
       "emptyDescription": "Tasks captured without a project land here. Press Q to add one.",
       "errorLoading": "Failed to load inbox",
