@@ -12,6 +12,11 @@ import (
 // ErrBadBackup is returned when the input bytes are not a recognizable backup.
 var ErrBadBackup = errors.New("backup: invalid payload")
 
+// maxDecompressedBackupBytes caps the size of the decompressed JSON payload.
+// Without this, a small (KB-sized) gzip bomb could expand to gigabytes and
+// exhaust process memory inside io.ReadAll.
+const maxDecompressedBackupBytes = 256 * 1024 * 1024
+
 // Marshal serializes the payload into a single JSON document. The encoder is
 // configured to keep IDs as raw numbers, which json.Marshal already does.
 func (p *BackupPayload) Marshal() ([]byte, error) {
@@ -27,9 +32,13 @@ func DecodeBackup(raw []byte) (*BackupPayload, error) {
 			return nil, fmt.Errorf("%w: gzip header: %v", ErrBadBackup, err)
 		}
 		defer func() { _ = zr.Close() }()
-		decoded, err := io.ReadAll(zr)
+		limited := io.LimitReader(zr, maxDecompressedBackupBytes+1)
+		decoded, err := io.ReadAll(limited)
 		if err != nil {
 			return nil, fmt.Errorf("%w: gzip body: %v", ErrBadBackup, err)
+		}
+		if len(decoded) > maxDecompressedBackupBytes {
+			return nil, fmt.Errorf("%w: decompressed payload exceeds %d bytes", ErrBadBackup, maxDecompressedBackupBytes)
 		}
 		raw = decoded
 	}

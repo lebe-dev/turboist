@@ -43,9 +43,13 @@ type errorDetail struct {
 }
 
 // NewApp creates a Fiber app with the custom error handler and standard middleware.
+// BodyLimit is bumped above Fiber's 4 MiB default so the backup restore endpoint
+// can accept payloads up to the cap enforced by handlers.BackupHandler. Smaller
+// caps are still enforced per-handler at the application layer.
 func NewApp(deps Deps) *fiber.App {
 	app := fiber.New(fiber.Config{
 		ErrorHandler: makeErrorHandler(deps.Log),
+		BodyLimit:    64 * 1024 * 1024,
 	})
 	app.Use(recover.New())
 	app.Use(RequestIDMiddleware())

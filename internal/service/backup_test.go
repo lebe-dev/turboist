@@ -644,6 +644,35 @@ func TestDecodeBackup_RejectsCorruptedGzip(t *testing.T) {
 	}
 }
 
+func TestDecodeBackup_RejectsDecompressionBomb(t *testing.T) {
+	// A tiny gzipped payload that decompresses to >256 MiB of zero bytes must
+	// be rejected before io.ReadAll exhausts process memory.
+	var buf bytes.Buffer
+	zw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		t.Fatalf("gzip writer: %v", err)
+	}
+	// 257 MiB worth of zeros — gzip squashes this to a few KiB.
+	const target = 257 * 1024 * 1024
+	chunk := make([]byte, 1<<20)
+	for written := 0; written < target; written += len(chunk) {
+		if _, err := zw.Write(chunk); err != nil {
+			t.Fatalf("gzip write: %v", err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+
+	_, err = service.DecodeBackup(buf.Bytes())
+	if err == nil {
+		t.Fatal("want error from oversized decompressed payload, got nil")
+	}
+	if !errors.Is(err, service.ErrBadBackup) {
+		t.Errorf("err not ErrBadBackup: %v", err)
+	}
+}
+
 func TestDecodeBackup_RejectsUnknownFields(t *testing.T) {
 	// json.Decoder is configured with DisallowUnknownFields so foreign keys
 	// (typos, schema drift, malicious tampering) surface immediately.
