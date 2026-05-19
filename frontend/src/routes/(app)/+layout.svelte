@@ -93,6 +93,7 @@
 	$effect(() => {
 		void page.url.pathname;
 		mobileSidebarOpen = false;
+		taskSelectionStore.disable();
 	});
 
 	$effect(() => {
