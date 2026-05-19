@@ -26,6 +26,7 @@ type Deps struct {
 	ProjectRepo  *repo.ProjectRepo
 	TaskRepo     *repo.TaskRepo
 	PinService   *service.PinService
+	BackupSvc    *service.BackupService
 	Cfg          *config.Config
 	BaseURL      string
 	Version      string
@@ -42,9 +43,13 @@ type errorDetail struct {
 }
 
 // NewApp creates a Fiber app with the custom error handler and standard middleware.
+// BodyLimit is bumped above Fiber's 4 MiB default so the backup restore endpoint
+// can accept payloads up to the cap enforced by handlers.BackupHandler. Smaller
+// caps are still enforced per-handler at the application layer.
 func NewApp(deps Deps) *fiber.App {
 	app := fiber.New(fiber.Config{
 		ErrorHandler: makeErrorHandler(deps.Log),
+		BodyLimit:    64 * 1024 * 1024,
 	})
 	app.Use(recover.New())
 	app.Use(RequestIDMiddleware())
@@ -88,6 +93,15 @@ func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 				log.Error("unhandled error", slog.String("error", err.Error()))
 			}
 			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error"}
+		}
+		if log != nil && appErr.HTTPStatus >= 500 && appErr.Internal != nil {
+			log.Error("server error",
+				slog.String("code", appErr.Code),
+				slog.String("message", appErr.Message),
+				slog.String("cause", appErr.Internal.Error()),
+				slog.String("path", c.Path()),
+				slog.String("method", c.Method()),
+			)
 		}
 		return c.Status(appErr.HTTPStatus).JSON(errorEnvelope{
 			Error: errorDetail{

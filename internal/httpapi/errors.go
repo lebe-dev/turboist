@@ -25,10 +25,25 @@ type AppError struct {
 	Code       string
 	Message    string
 	Details    any
+	// Internal is the underlying cause. Surfaced via Unwrap and logged by the
+	// central error handler for 5xx responses; never sent to clients.
+	Internal error
 }
 
 func (e *AppError) Error() string {
+	if e.Internal != nil {
+		return fmt.Sprintf("%s: %s: %v", e.Code, e.Message, e.Internal)
+	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+func (e *AppError) Unwrap() error { return e.Internal }
+
+// WithCause attaches the underlying error so the central handler can log it.
+// The cause is intentionally not added to Details — it stays server-side only.
+func (e *AppError) WithCause(err error) *AppError {
+	e.Internal = err
+	return e
 }
 
 func newErr(status int, code, msg string, details ...any) *AppError {

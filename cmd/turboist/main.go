@@ -90,6 +90,7 @@ func main() {
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, taskRepo, tlabels)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
+	backupSvc := service.NewBackupService(sqlDB)
 
 	// session cleanup
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
@@ -111,6 +112,7 @@ func main() {
 		ProjectRepo:  projectRepo,
 		TaskRepo:     taskRepo,
 		PinService:   pinSvc,
+		BackupSvc:    backupSvc,
 		Cfg:          cfg,
 		BaseURL:      env.BaseURL,
 		Version:      Version,
@@ -137,6 +139,7 @@ func main() {
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
+	handlers.NewBackupHandler(backupSvc).Register(api.Group("", httpapi.RequireJWTAuth()))
 
 	// embedded SvelteKit SPA (must be registered after API/auth routes)
 	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {

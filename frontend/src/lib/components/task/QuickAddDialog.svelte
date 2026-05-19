@@ -561,12 +561,8 @@
 							</div>
 						{/if}
 					</div>
-				</div>
 
-				<div
-					class="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-5 py-3"
-				>
-					<div class="relative" use:clickOutside={() => (projectMenuOpen = false)}>
+					<div class="mt-3 relative" use:clickOutside={() => (projectMenuOpen = false)}>
 						<button
 							type="button"
 							onclick={openProjectMenu}
@@ -577,7 +573,7 @@
 						</button>
 						{#if projectMenuOpen}
 							<div
-								class="absolute bottom-9 left-0 z-10 flex w-64 flex-col rounded-md border border-border bg-popover shadow-lg"
+								class="absolute top-9 left-0 z-10 flex w-64 flex-col rounded-md border border-border bg-popover shadow-lg"
 								role="menu"
 							>
 								<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
@@ -663,7 +659,11 @@
 							</div>
 						{/if}
 					</div>
+				</div>
 
+				<div
+					class="flex items-center justify-end gap-3 border-t border-border bg-muted/30 px-5 py-3"
+				>
 					<div class="flex items-center gap-2">
 						<DialogPrimitive.Close>
 							{#snippet child({ props })}

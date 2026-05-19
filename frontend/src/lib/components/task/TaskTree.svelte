@@ -134,7 +134,7 @@
 					{hideTomorrowBadge}
 					{hideDue}
 					{draggable}
-					{showUnplannedBadge}
+					showUnplannedBadge={showUnplannedBadge && node.task.planState !== 'week'}
 					{collapseCompletedChildren}
 					{collapsibleSubtasks}
 					collapsedIds={effectiveCollapsedIds}
@@ -170,7 +170,7 @@
 						{hideTomorrowBadge}
 						{hideDue}
 						{draggable}
-						{showUnplannedBadge}
+						showUnplannedBadge={showUnplannedBadge && node.task.planState !== 'week'}
 						{collapseCompletedChildren}
 						{mutator}
 						{belongs}
