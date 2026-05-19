@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/lebe-dev/turboist/internal/model"
 )
@@ -232,10 +233,11 @@ func (s *BackupService) readSettings(ctx context.Context) (*BackupConfig, error)
 		var us model.UserSettings
 		if userRaw == "" || userRaw == "{}" {
 			cfg.User = &us
-		} else if err := json.Unmarshal([]byte(userRaw), &us); err == nil {
-			cfg.User = &us
 		} else {
-			cfg.User = &model.UserSettings{}
+			if err := json.Unmarshal([]byte(userRaw), &us); err != nil {
+				return nil, fmt.Errorf("decode user settings: %w", err)
+			}
+			cfg.User = &us
 		}
 	}
 
@@ -248,10 +250,11 @@ func (s *BackupService) readSettings(ctx context.Context) (*BackupConfig, error)
 		var as model.AppSettings
 		if appRaw == "" || appRaw == "{}" {
 			cfg.App = &as
-		} else if err := json.Unmarshal([]byte(appRaw), &as); err == nil {
-			cfg.App = &as
 		} else {
-			cfg.App = &model.AppSettings{}
+			if err := json.Unmarshal([]byte(appRaw), &as); err != nil {
+				return nil, fmt.Errorf("decode app settings: %w", err)
+			}
+			cfg.App = &as
 		}
 	}
 	return cfg, nil

@@ -379,6 +379,59 @@ func TestBackupService_RestoreRollsBackOnInsertError(t *testing.T) {
 	}
 }
 
+func TestBackupService_ExportReturnsErrorOnCorruptedUserSettings(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+	// Inject malformed JSON directly into the users.settings column to bypass
+	// the repo's marshalling. The export path must surface this rather than
+	// silently substituting an empty UserSettings.
+	if _, err := f.db.ExecContext(ctx,
+		`UPDATE users SET settings = ? WHERE id = 1`, `{not valid json`); err != nil {
+		t.Fatalf("inject bad user settings: %v", err)
+	}
+	_, err := f.svc.Export(ctx, service.ExportOptions{IncludeSettings: true})
+	if err == nil {
+		t.Fatal("want error from corrupted user settings, got nil")
+	}
+}
+
+func TestBackupService_ExportReturnsErrorOnCorruptedAppSettings(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+	// Seed an app_settings row with malformed JSON. Export must fail rather
+	// than masking the corruption with an empty AppSettings.
+	if _, err := f.db.ExecContext(ctx,
+		`INSERT INTO app_settings (id, data) VALUES (1, ?)
+		 ON CONFLICT(id) DO UPDATE SET data = excluded.data`, `{"AutoLabels":`); err != nil {
+		t.Fatalf("inject bad app settings: %v", err)
+	}
+	_, err := f.svc.Export(ctx, service.ExportOptions{IncludeSettings: true})
+	if err == nil {
+		t.Fatal("want error from corrupted app settings, got nil")
+	}
+}
+
+func TestBackupService_ExportHandlesEmptyUserSettings(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+	// Empty string and "{}" must remain valid — the corrupted-settings guard
+	// must not regress these "no settings yet" cases.
+	for _, raw := range []string{"", "{}"} {
+		if _, err := f.db.ExecContext(ctx,
+			`UPDATE users SET settings = ? WHERE id = 1`, raw); err != nil {
+			t.Fatalf("set settings to %q: %v", raw, err)
+		}
+		payload, err := f.svc.Export(ctx, service.ExportOptions{IncludeSettings: true})
+		if err != nil {
+			t.Fatalf("export with settings=%q: %v", raw, err)
+		}
+		if payload.Settings == nil || payload.Settings.User == nil {
+			t.Errorf("settings=%q: expected empty user settings present, got %#v",
+				raw, payload.Settings)
+		}
+	}
+}
+
 func countTasks(t *testing.T, db *sql.DB) int {
 	t.Helper()
 	var n int
