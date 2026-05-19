@@ -34,13 +34,12 @@ func sanitizePayload(d *BackupData) {
 	sectionIDs := idSet(d.ProjectSections, func(s BackupProjectSection) int64 { return s.ID })
 
 	// Tasks: null nullable refs to missing rows; drop tasks whose required
-	// placement (inbox OR context) is unsatisfiable.
-	taskIDs := make(map[int64]struct{}, len(d.Tasks))
-	for _, t := range d.Tasks {
-		taskIDs[t.ID] = struct{}{}
-	}
-	tasks := d.Tasks[:0]
-	for _, t := range d.Tasks {
+	// placement (inbox OR context) is unsatisfiable. Done in three passes so
+	// the parent_id heal sees the final survivor set — a child appearing
+	// before its parent in the slice could otherwise keep a parent_id that
+	// gets dropped later in the same pass.
+	for i := range d.Tasks {
+		t := &d.Tasks[i]
 		if t.ContextID != nil {
 			if _, ok := contextIDs[*t.ContextID]; !ok {
 				t.ContextID = nil
@@ -57,16 +56,24 @@ func sanitizePayload(d *BackupData) {
 				t.SectionID = nil
 			}
 		}
+	}
+	// CHECK constraint: exactly one of inbox_id / context_id must be set.
+	taskIDs := make(map[int64]struct{}, len(d.Tasks))
+	for _, t := range d.Tasks {
+		if (t.InboxID == nil) == (t.ContextID == nil) {
+			continue
+		}
+		taskIDs[t.ID] = struct{}{}
+	}
+	tasks := d.Tasks[:0]
+	for _, t := range d.Tasks {
+		if _, ok := taskIDs[t.ID]; !ok {
+			continue
+		}
 		if t.ParentID != nil {
 			if _, ok := taskIDs[*t.ParentID]; !ok {
 				t.ParentID = nil
 			}
-		}
-		// CHECK constraint: exactly one of inbox_id / context_id must be set.
-		if (t.InboxID == nil) == (t.ContextID == nil) {
-			// Skip rows that no longer satisfy the placement invariant.
-			delete(taskIDs, t.ID)
-			continue
 		}
 		tasks = append(tasks, t)
 	}

@@ -24,8 +24,9 @@ var maxBackupUploadBytes = 64 * 1024 * 1024
 //	GET  /api/v1/backup?settings=1 -> gzipped JSON snapshot; downloads as turboist-backup-YYYYMMDD.json
 //	POST /api/v1/restore           -> wipes user data and imports the supplied payload (plain or gzipped)
 //
-// Restore requires a JWT session — the destructive nature warrants tying the
-// action to an interactive login rather than allowing long-lived API tokens.
+// Both endpoints require a JWT session — restore is destructive, and export
+// reveals the entire dataset, so neither is appropriate for long-lived API
+// tokens. The group middleware in main.go enforces this on both routes.
 type BackupHandler struct {
 	svc *service.BackupService
 }
@@ -80,10 +81,9 @@ func (h *BackupHandler) restore(c fiber.Ctx) error {
 	}
 	payload, err := service.DecodeBackup(body)
 	if err != nil {
-		if errors.Is(err, service.ErrBadBackup) {
-			return httpapi.ErrValidation("invalid backup file")
-		}
-		return httpapi.ErrInternal("decode backup").WithCause(err)
+		// DecodeBackup wraps every failure with ErrBadBackup, so any error is
+		// a client problem (malformed payload / unsupported version).
+		return httpapi.ErrValidation("invalid backup file")
 	}
 	if err := h.svc.Restore(c.Context(), payload); err != nil {
 		if errors.Is(err, service.ErrBadBackup) {

@@ -574,6 +574,57 @@ func TestBackupService_SanitizeDropsTaskViolatingPlacement(t *testing.T) {
 	}
 }
 
+func TestBackupService_SanitizeHealsParentIDWhenParentDroppedLater(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	// Child task (id=7) appears in the slice BEFORE its parent (id=6). The
+	// parent has both inbox_id and context_id set, so it must be dropped by
+	// the placement check. The single-pass implementation kept the child's
+	// parent_id pointing at the missing row, causing commit-time fk failure;
+	// the multi-pass implementation must null it instead so restore succeeds.
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Contexts: []service.BackupContext{
+				{ID: 1, Name: "ctx", Color: "blue", CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z"},
+			},
+			Tasks: []service.BackupTask{
+				{
+					ID: 7, Title: "child first", ContextID: ptr(int64(1)), ParentID: ptr(int64(6)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+				{
+					ID: 6, Title: "parent both placements", InboxID: ptr(int64(1)), ContextID: ptr(int64(1)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+			},
+		},
+	}
+	if err := f.svc.Restore(ctx, bad); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(got.Data.Tasks) != 1 {
+		t.Fatalf("tasks: got %d, want 1", len(got.Data.Tasks))
+	}
+	survivor := got.Data.Tasks[0]
+	if survivor.ID != 7 {
+		t.Errorf("survivor id: got %d, want 7", survivor.ID)
+	}
+	if survivor.ParentID != nil {
+		t.Errorf("survivor parent_id: got %v, want nil (healed against final survivor set)", *survivor.ParentID)
+	}
+}
+
 func TestBackupService_SanitizeDropsProjectLabelWhenProjectMissing(t *testing.T) {
 	f := setupBackupFixtures(t)
 	ctx := context.Background()
