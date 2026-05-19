@@ -432,6 +432,230 @@ func TestBackupService_ExportHandlesEmptyUserSettings(t *testing.T) {
 	}
 }
 
+func TestBackupService_SanitizeDropsTaskLabelWhenLabelMissing(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	// Task references label_id=999 which is not present in Labels. The task
+	// itself is well-formed (inbox placement), so it must survive, but the
+	// link row pointing at the missing label must be dropped.
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Tasks: []service.BackupTask{
+				{
+					ID: 1, Title: "labelled inbox", InboxID: ptr(int64(1)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+			},
+			TaskLabels: []service.BackupTaskLabel{
+				{TaskID: 1, LabelID: 999},
+			},
+		},
+	}
+	if err := f.svc.Restore(ctx, bad); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(got.Data.Tasks) != 1 {
+		t.Fatalf("tasks: got %d, want 1", len(got.Data.Tasks))
+	}
+	if len(got.Data.TaskLabels) != 0 {
+		t.Errorf("task_labels: got %d, want 0 (dangling label link must be dropped)", len(got.Data.TaskLabels))
+	}
+}
+
+func TestBackupService_SanitizeDropsSectionWithoutProject(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	// Section references project_id=999 (missing) → section dropped.
+	// Task references that section but has valid inbox placement; section_id
+	// must be NULL'd out, the task itself stays.
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			ProjectSections: []service.BackupProjectSection{
+				{ID: 50, ProjectID: 999, Title: "orphan", Position: 1,
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z"},
+			},
+			Tasks: []service.BackupTask{
+				{
+					ID: 1, Title: "with ghost section", InboxID: ptr(int64(1)), SectionID: ptr(int64(50)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+			},
+		},
+	}
+	if err := f.svc.Restore(ctx, bad); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(got.Data.ProjectSections) != 0 {
+		t.Errorf("project_sections: got %d, want 0 (orphan section must be dropped)", len(got.Data.ProjectSections))
+	}
+	if len(got.Data.Tasks) != 1 {
+		t.Fatalf("tasks: got %d, want 1", len(got.Data.Tasks))
+	}
+	if got.Data.Tasks[0].SectionID != nil {
+		t.Errorf("task.section_id: got %v, want nil (healed)", *got.Data.Tasks[0].SectionID)
+	}
+}
+
+func TestBackupService_SanitizeDropsTaskViolatingPlacement(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	// Task ID=1 has BOTH inbox_id and context_id set, violating the
+	// (inbox XOR context) CHECK invariant — it must be dropped together with
+	// any task_labels rows that referenced it. Task ID=2 is a clean inbox
+	// task with the same label, expected to survive.
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Contexts: []service.BackupContext{
+				{ID: 1, Name: "ctx", Color: "blue", CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z"},
+			},
+			Labels: []service.BackupLabel{
+				{ID: 5, Name: "lbl", Color: "red", CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z"},
+			},
+			Tasks: []service.BackupTask{
+				{
+					ID: 1, Title: "both placements", InboxID: ptr(int64(1)), ContextID: ptr(int64(1)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+				{
+					ID: 2, Title: "clean inbox", InboxID: ptr(int64(1)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+			},
+			TaskLabels: []service.BackupTaskLabel{
+				{TaskID: 1, LabelID: 5},
+				{TaskID: 2, LabelID: 5},
+			},
+		},
+	}
+	if err := f.svc.Restore(ctx, bad); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(got.Data.Tasks) != 1 {
+		t.Fatalf("tasks: got %d, want 1 (task with both placements must be dropped)", len(got.Data.Tasks))
+	}
+	if got.Data.Tasks[0].ID != 2 {
+		t.Errorf("survivor id: got %d, want 2", got.Data.Tasks[0].ID)
+	}
+	if len(got.Data.TaskLabels) != 1 {
+		t.Fatalf("task_labels: got %d, want 1 (link to dropped task must be removed)", len(got.Data.TaskLabels))
+	}
+	if got.Data.TaskLabels[0].TaskID != 2 {
+		t.Errorf("surviving task_label.task_id: got %d, want 2", got.Data.TaskLabels[0].TaskID)
+	}
+}
+
+func TestBackupService_SanitizeDropsProjectLabelWhenProjectMissing(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	// Label exists but the referenced project does not — link must be dropped.
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Labels: []service.BackupLabel{
+				{ID: 5, Name: "lbl", Color: "red", CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z"},
+			},
+			ProjectLabels: []service.BackupProjectLabel{
+				{ProjectID: 999, LabelID: 5},
+			},
+		},
+	}
+	if err := f.svc.Restore(ctx, bad); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(got.Data.ProjectLabels) != 0 {
+		t.Errorf("project_labels: got %d, want 0 (link to missing project must be dropped)", len(got.Data.ProjectLabels))
+	}
+}
+
+func TestBackupService_RestoreEmptyPayloadWipesAll(t *testing.T) {
+	f := setupBackupFixtures(t)
+	seedSample(t, f)
+	ctx := context.Background()
+	if countTasks(t, f.db) == 0 {
+		t.Fatal("precondition: sample seed yielded no tasks")
+	}
+
+	empty := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data:       service.BackupData{},
+	}
+	if err := f.svc.Restore(ctx, empty); err != nil {
+		t.Fatalf("restore empty: %v", err)
+	}
+	got, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(got.Data.Contexts) != 0 || len(got.Data.Labels) != 0 ||
+		len(got.Data.Projects) != 0 || len(got.Data.ProjectSections) != 0 ||
+		len(got.Data.Tasks) != 0 || len(got.Data.TaskLabels) != 0 ||
+		len(got.Data.ProjectLabels) != 0 {
+		t.Errorf("data after empty restore: %#v, want all empty", got.Data)
+	}
+}
+
+func TestDecodeBackup_RejectsCorruptedGzip(t *testing.T) {
+	// 0x1f 0x8b is the gzip magic — the decoder routes through gzip.NewReader,
+	// which must fail on garbage that follows the magic bytes.
+	raw := []byte{0x1f, 0x8b, 0x00, 0xde, 0xad, 0xbe, 0xef}
+	_, err := service.DecodeBackup(raw)
+	if err == nil {
+		t.Fatal("want error from corrupted gzip body, got nil")
+	}
+	if !errors.Is(err, service.ErrBadBackup) {
+		t.Errorf("err not ErrBadBackup: %v", err)
+	}
+}
+
+func TestDecodeBackup_RejectsUnknownFields(t *testing.T) {
+	// json.Decoder is configured with DisallowUnknownFields so foreign keys
+	// (typos, schema drift, malicious tampering) surface immediately.
+	raw := []byte(`{"version":1,"exportedAt":"2026-05-19T00:00:00.000Z","data":{"contexts":[],"labels":[],"projects":[],"projectSections":[],"tasks":[],"taskLabels":[],"projectLabels":[]},"mystery":true}`)
+	_, err := service.DecodeBackup(raw)
+	if err == nil {
+		t.Fatal("want error from unknown field, got nil")
+	}
+	if !errors.Is(err, service.ErrBadBackup) {
+		t.Errorf("err not ErrBadBackup: %v", err)
+	}
+}
+
 func countTasks(t *testing.T, db *sql.DB) int {
 	t.Helper()
 	var n int
