@@ -14,8 +14,10 @@ import (
 
 // maxBackupUploadBytes caps the restore payload size. 64 MiB is generous for a
 // fully-populated todoist-like dataset (gzipped) while still preventing trivial
-// memory-exhaustion attempts against the in-memory decode path.
-const maxBackupUploadBytes = 64 * 1024 * 1024
+// memory-exhaustion attempts against the in-memory decode path. Declared as
+// var (not const) so tests can shrink it to verify the size guard without
+// allocating dozens of megabytes per assertion.
+var maxBackupUploadBytes = 64 * 1024 * 1024
 
 // BackupHandler exposes export / restore of the full dataset.
 //

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
 
@@ -137,5 +138,115 @@ func TestBackupHandler_RestoreRejectsBadJSON(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestBackupHandler_ExportRequiresAuth(t *testing.T) {
+	env := setupAPIEnv(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/backup", nil)
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestBackupHandler_RestoreRequiresAuth(t *testing.T) {
+	env := setupAPIEnv(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/restore", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestBackupHandler_RestoreRejectsEmptyBody(t *testing.T) {
+	env := setupAPIEnv(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/restore", nil)
+	req.Header.Set("Authorization", "Bearer "+env.token(t))
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestBackupHandler_ExportRoundTripViaHTTP(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	ctx := t.Context()
+	work, err := env.ctxs.Create(ctx, "work", "blue", true)
+	if err != nil {
+		t.Fatalf("seed context: %v", err)
+	}
+	if _, err := env.labels.Create(ctx, "urgent", "red", true); err != nil {
+		t.Fatalf("seed label: %v", err)
+	}
+	if _, err := env.projects.Create(ctx, repo.CreateProject{ContextID: work.ID, Title: "Q3", Color: "purple"}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+
+	exportReq := env.authedReq(t, http.MethodGet, "/api/v1/backup?settings=1", nil)
+	exportResp, err := env.app.Test(exportReq)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if exportResp.StatusCode != http.StatusOK {
+		t.Fatalf("export status: got %d, want %d", exportResp.StatusCode, http.StatusOK)
+	}
+
+	zr, err := gzip.NewReader(exportResp.Body)
+	if err != nil {
+		t.Fatalf("gzip reader: %v", err)
+	}
+	raw, err := io.ReadAll(zr)
+	_ = zr.Close()
+	if err != nil {
+		t.Fatalf("read export: %v", err)
+	}
+
+	// Server-side decode validates the payload survives the network format.
+	payload, err := service.DecodeBackup(raw)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload.Version != service.BackupSchemaVersion {
+		t.Errorf("version: got %d, want %d", payload.Version, service.BackupSchemaVersion)
+	}
+	if got := len(payload.Data.Contexts); got != 1 {
+		t.Errorf("contexts: got %d, want 1", got)
+	}
+	if got := len(payload.Data.Labels); got != 1 {
+		t.Errorf("labels: got %d, want 1", got)
+	}
+	if got := len(payload.Data.Projects); got != 1 {
+		t.Errorf("projects: got %d, want 1", got)
+	}
+
+	restoreReq := httptest.NewRequest(http.MethodPost, "/api/v1/restore", bytes.NewReader(raw))
+	restoreReq.Header.Set("Content-Type", "application/json")
+	restoreReq.Header.Set("Authorization", "Bearer "+env.token(t))
+	restoreResp, err := env.app.Test(restoreReq)
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if restoreResp.StatusCode != http.StatusNoContent {
+		t.Errorf("restore status: got %d, want %d", restoreResp.StatusCode, http.StatusNoContent)
+	}
+
+	ctxs, _, err := env.ctxs.List(ctx, repo.Page{})
+	if err != nil {
+		t.Fatalf("list contexts: %v", err)
+	}
+	if len(ctxs) != 1 || ctxs[0].Name != "work" {
+		t.Errorf("contexts after restore: got %+v, want one named 'work'", ctxs)
 	}
 }
