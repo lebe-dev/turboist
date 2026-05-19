@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/lebe-dev/turboist/internal/model"
@@ -653,6 +654,95 @@ func TestDecodeBackup_RejectsUnknownFields(t *testing.T) {
 	}
 	if !errors.Is(err, service.ErrBadBackup) {
 		t.Errorf("err not ErrBadBackup: %v", err)
+	}
+}
+
+func TestBackupService_RestoreRejectsVersionMismatch(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion + 99,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data:       service.BackupData{},
+	}
+	err := f.svc.Restore(ctx, bad)
+	if err == nil {
+		t.Fatal("want error from version mismatch, got nil")
+	}
+	if !errors.Is(err, service.ErrBadBackup) {
+		t.Errorf("err not ErrBadBackup: %v", err)
+	}
+}
+
+func TestBackupService_RestoreRejectsNilPayload(t *testing.T) {
+	f := setupBackupFixtures(t)
+	err := f.svc.Restore(context.Background(), nil)
+	if err == nil {
+		t.Fatal("want error from nil payload, got nil")
+	}
+	if !errors.Is(err, service.ErrBadBackup) {
+		t.Errorf("err not ErrBadBackup: %v", err)
+	}
+}
+
+func TestBackupService_RestoreFailsOnDanglingInboxFK(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+	// sanitize does not touch InboxID, but tasks.inbox_id REFERENCES inbox(id).
+	// The bogus inbox id survives until commit-time foreign_key_check.
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Tasks: []service.BackupTask{
+				{
+					ID: 1, Title: "ghost inbox", InboxID: ptr(int64(424242)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+			},
+		},
+	}
+	err := f.svc.Restore(ctx, bad)
+	if err == nil {
+		t.Fatal("want fk-violation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "fk check failed") {
+		t.Errorf("want 'fk check failed' in error, got: %v", err)
+	}
+}
+
+func TestBackupService_RestoreFailsOnInsertLabelsConstraint(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+	// Two labels with the same name violate UNIQUE(labels.name) — surfaces the
+	// "labels: %w" wrap in Restore and the error path in insertLabels.
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Labels: []service.BackupLabel{
+				{ID: 1, Name: "dup", Color: "red", CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z"},
+				{ID: 2, Name: "dup", Color: "blue", CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z"},
+			},
+		},
+	}
+	if err := f.svc.Restore(ctx, bad); err == nil {
+		t.Fatal("want error from duplicate label name, got nil")
+	}
+}
+
+func TestBackupService_ExportFailsWhenContextsTableMissing(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+	// Dropping the table breaks readContexts, the very first export step, so
+	// the wrapped error from backup.go's Export coordinator is exercised.
+	if _, err := f.db.ExecContext(ctx, `DROP TABLE contexts`); err != nil {
+		t.Fatalf("drop contexts: %v", err)
+	}
+	if _, err := f.svc.Export(ctx, service.ExportOptions{}); err == nil {
+		t.Fatal("want export error after dropping table, got nil")
 	}
 }
 
