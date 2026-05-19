@@ -8,6 +8,7 @@
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
+	import CheckSquareIcon from 'phosphor-svelte/lib/CheckSquare';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -23,6 +24,7 @@
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { t } from '$lib/i18n';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import type { Project, TroikiCategory } from '$lib/api/types';
 
@@ -201,6 +203,13 @@
 							<PencilSimpleIcon class="size-4" /> {$t('common.edit')}
 						</DropdownMenu.Item>
 					{/if}
+					<DropdownMenu.Item
+						onclick={() => {
+							if (!taskSelectionStore.mode) taskSelectionStore.enable();
+						}}
+					>
+						<CheckSquareIcon class="size-4" /> {$t('task.actions.select')}
+					</DropdownMenu.Item>
 					{#if project.isPinned}
 						<DropdownMenu.Item onclick={onUnpin}>
 							<PushPinIcon class="size-4" /> {$t('project.unpin')}

@@ -255,7 +255,9 @@
       "priorityLockedTooltip": "Priority is managed by Troiki category",
       "lockedByTroiki": "Locked by Troiki category.",
       "decompose": "Decompose task",
-      "decomposeDisabled": "Cannot decompose: task has subtasks"
+      "decomposeDisabled": "Cannot decompose: task has subtasks",
+      "select": "Select tasks",
+      "deselect": "Deselect"
     },
     "dayPart": {
       "morning": "Morning",

@@ -255,7 +255,9 @@
       "priorityLockedTooltip": "Приоритет управляется категорией Тройки",
       "lockedByTroiki": "Заблокировано категорией Тройки.",
       "decompose": "Разбить задачу",
-      "decomposeDisabled": "Нельзя разбить: у задачи есть подзадачи"
+      "decomposeDisabled": "Нельзя разбить: у задачи есть подзадачи",
+      "select": "Выбрать задачи",
+      "deselect": "Снять выбор"
     },
     "dayPart": {
       "morning": "Утро",

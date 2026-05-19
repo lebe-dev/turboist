@@ -391,7 +391,7 @@ async function save(): Promise<void> {
 		{/if}
 	</div>
 	{#if task}
-		<TaskActionsMenu task={task} mutator={pageMutator} />
+		<TaskActionsMenu task={task} mutator={pageMutator} selectIncludesSelf={false} />
 	{/if}
 </header>
 
