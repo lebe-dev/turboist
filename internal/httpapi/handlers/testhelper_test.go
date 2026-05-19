@@ -101,6 +101,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewAppSettingsHandler(appSettings, lbls).Register(api)
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
+	handlers.NewBackupHandler(service.NewBackupService(d)).
+		Register(api.Group("", httpapi.RequireJWTAuth()))
 
 	return &apiEnv{
 		app:          app,

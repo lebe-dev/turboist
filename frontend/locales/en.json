@@ -87,7 +87,8 @@
       "project": "Project",
       "privacy": "Privacy",
       "session": "Session",
-      "api": "API"
+      "api": "API",
+      "backup": "Backup & Restore"
     },
     "project": {
       "bugLabelsHeading": "Bug labels",
@@ -183,6 +184,27 @@
       "deleteFailed": "Failed to delete token",
       "loadFailed": "Failed to load tokens",
       "docsLink": "Documentation"
+    },
+    "backup": {
+      "heading": "Backup & Restore",
+      "description": "Download a snapshot of your data or restore it from a previously saved file.",
+      "includeSettings": "Include settings",
+      "includeSettingsHint": "Adds your interface preferences and global app settings to the backup. API tokens and sessions are never included.",
+      "download": "Download backup",
+      "downloading": "Preparing…",
+      "downloadFailed": "Failed to create backup",
+      "restoreHeading": "Restore from file",
+      "restoreDescription": "Replaces all current projects, tasks, sections and labels with the contents of the backup file. This action cannot be undone.",
+      "chooseFile": "Choose backup file…",
+      "noFile": "No file selected",
+      "restore": "Restore",
+      "restoring": "Restoring…",
+      "restoreSuccess": "Backup restored",
+      "restoreFailed": "Failed to restore backup",
+      "confirmTitle": "Restore from backup?",
+      "confirmDescription": "All your current data will be permanently replaced with the contents of \"{name}\". This cannot be undone. The Restore button will unlock in {seconds}s.",
+      "confirmReady": "Read carefully, then confirm.",
+      "cancel": "Cancel"
     }
   },
   "auth": {

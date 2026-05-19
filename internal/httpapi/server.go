@@ -26,6 +26,7 @@ type Deps struct {
 	ProjectRepo  *repo.ProjectRepo
 	TaskRepo     *repo.TaskRepo
 	PinService   *service.PinService
+	BackupSvc    *service.BackupService
 	Cfg          *config.Config
 	BaseURL      string
 	Version      string
@@ -88,6 +89,15 @@ func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 				log.Error("unhandled error", slog.String("error", err.Error()))
 			}
 			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error"}
+		}
+		if log != nil && appErr.HTTPStatus >= 500 && appErr.Internal != nil {
+			log.Error("server error",
+				slog.String("code", appErr.Code),
+				slog.String("message", appErr.Message),
+				slog.String("cause", appErr.Internal.Error()),
+				slog.String("path", c.Path()),
+				slog.String("method", c.Method()),
+			)
 		}
 		return c.Status(appErr.HTTPStatus).JSON(errorEnvelope{
 			Error: errorDetail{

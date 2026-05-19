@@ -11,3 +11,4 @@ export { tasks } from './endpoints/tasks';
 export { labels } from './endpoints/labels';
 export { views } from './endpoints/views';
 export { apiTokens } from './endpoints/api-tokens';
+export { backup } from './endpoints/backup';
