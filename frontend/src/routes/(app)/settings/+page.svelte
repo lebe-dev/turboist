@@ -233,15 +233,19 @@
 	</header>
 
 	<Tabs.Root value="general" class="flex flex-col gap-4">
-		<Tabs.List variant="line">
-			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
-			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
-			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
-			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
-			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
-			<Tabs.Trigger value="api">{$t('settings.tabs.api')}</Tabs.Trigger>
-			<Tabs.Trigger value="backup">{$t('settings.tabs.backup')}</Tabs.Trigger>
-		</Tabs.List>
+		<div
+			class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+		>
+			<Tabs.List variant="line" class="snap-x">
+				<Tabs.Trigger value="general" class="snap-start">{$t('settings.tabs.general')}</Tabs.Trigger>
+				<Tabs.Trigger value="labels" class="snap-start">{$t('settings.tabs.labels')}</Tabs.Trigger>
+				<Tabs.Trigger value="project" class="snap-start">{$t('settings.tabs.project')}</Tabs.Trigger>
+				<Tabs.Trigger value="privacy" class="snap-start">{$t('settings.tabs.privacy')}</Tabs.Trigger>
+				<Tabs.Trigger value="session" class="snap-start">{$t('settings.tabs.session')}</Tabs.Trigger>
+				<Tabs.Trigger value="api" class="snap-start">{$t('settings.tabs.api')}</Tabs.Trigger>
+				<Tabs.Trigger value="backup" class="snap-start">{$t('settings.tabs.backup')}</Tabs.Trigger>
+			</Tabs.List>
+		</div>
 
 		<Tabs.Content value="general" class="flex flex-col gap-4">
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
