@@ -25,6 +25,7 @@
 	import PostponeBadge from './PostponeBadge.svelte';
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
+	import { stripMarkdownSyntax } from '$lib/utils/markdown';
 	import { setTaskDrag, initTouchDrag, updateTouchDrag, endTouchDrag } from '$lib/utils/dnd';
 
 	let {
@@ -106,6 +107,7 @@
 	);
 	const taskHref = $derived(resolve('/(app)/task/[id]', { id: String(task.id) }));
 	const description = $derived(task.description?.trim() ?? '');
+	const descriptionPreview = $derived(stripMarkdownSyntax(description));
 	const isRecurring = $derived(!!task.recurrenceRule);
 	const showTroikiBadge = $derived(
 		!!project?.troikiCategory &&
@@ -238,8 +240,8 @@
 			</a>
 		</div>
 
-		{#if description}
-			<p class="break-words text-xs text-muted-foreground/70 md:truncate"><MarkdownText text={description} /></p>
+		{#if descriptionPreview}
+			<p class="line-clamp-3 break-words text-xs text-muted-foreground/70 md:line-clamp-1">{descriptionPreview}</p>
 		{/if}
 
 		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showCalendarSlash || showWeekBadge || showBacklogBadge}

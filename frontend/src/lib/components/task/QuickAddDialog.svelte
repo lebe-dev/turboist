@@ -330,16 +330,16 @@
 			class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
 		/>
 		<DialogPrimitive.Content
-			class="fixed left-1/2 top-[15%] z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+			class="fixed left-1/2 top-[15%] z-50 flex max-h-[80vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
 		>
 			<DialogPrimitive.Title class="sr-only">{$t('dialog.quickAdd.title')}</DialogPrimitive.Title>
 			<DialogPrimitive.Description class="sr-only">
 				{$t('dialog.quickAdd.description')}
 			</DialogPrimitive.Description>
 
-			<form onsubmit={submit} class="flex flex-col">
+			<form onsubmit={submit} class="flex min-h-0 flex-1 flex-col">
 				{#if wrap}
-					<div class="border-b border-border bg-muted/40 px-5 py-3">
+					<div class="shrink-0 border-b border-border bg-muted/40 px-5 py-3">
 						<div class="flex items-center gap-2 text-sm font-medium text-foreground">
 							<StackIcon class="size-4 text-primary" weight="bold" />
 							<span>{$t('dialog.quickAdd.wrap.title', { values: { count: wrap.tasks.length } })}</span>
@@ -359,7 +359,7 @@
 						{/if}
 					</div>
 				{/if}
-				<div class="px-5 pt-5 pb-3">
+				<div class="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-3">
 					<!-- svelte-ignore a11y_autofocus -->
 					<textarea
 						bind:this={titlesEl}
@@ -662,7 +662,7 @@
 				</div>
 
 				<div
-					class="flex items-center justify-end gap-3 border-t border-border bg-muted/30 px-5 py-3"
+					class="flex shrink-0 items-center justify-end gap-3 border-t border-border bg-muted/30 px-5 py-3"
 				>
 					<div class="flex items-center gap-2">
 						<DialogPrimitive.Close>

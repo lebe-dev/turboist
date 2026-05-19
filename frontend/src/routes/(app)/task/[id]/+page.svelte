@@ -38,8 +38,9 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
+	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
-	import { hasMarkdownLink } from '$lib/utils/markdown';
+	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
 	import { tick } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
@@ -67,9 +68,9 @@
 	let titleEl = $state<HTMLTextAreaElement | undefined>();
 
 	const titleHasLink = $derived(hasMarkdownLink(title));
-	const descriptionHasLink = $derived(hasMarkdownLink(description));
+	const descriptionHasMarkdown = $derived(hasMarkdownContent(description));
 	const showTitleRendered = $derived(titleHasLink && !titleFocused);
-	const showDescriptionRendered = $derived(descriptionHasLink && !descriptionFocused);
+	const showDescriptionRendered = $derived(descriptionHasMarkdown && !descriptionFocused);
 
 	async function focusTitle(): Promise<void> {
 		titleFocused = true;
@@ -462,9 +463,9 @@ async function save(): Promise<void> {
 								void focusDescription();
 							}
 						}}
-						class="block w-full cursor-text whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
+						class="block w-full cursor-text break-words text-sm leading-relaxed text-foreground outline-none"
 					>
-						<MarkdownText text={description} />
+						<MarkdownRich text={description} />
 					</div>
 				{:else}
 					<textarea
