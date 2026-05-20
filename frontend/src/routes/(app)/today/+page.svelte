@@ -17,6 +17,7 @@
 	import { calendarEventsOrEmpty, groupCalendarEventsByDayPart, isPastCalendarEvent } from '$lib/utils/calendar';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { nowStore } from '$lib/stores/now.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { toggleComplete, updateTaskFields } from '$lib/utils/taskActions';
 	import type { DayPart } from '$lib/api/types';
