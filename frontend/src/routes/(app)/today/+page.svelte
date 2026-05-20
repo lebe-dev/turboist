@@ -28,6 +28,7 @@
 	let total = $state(0);
 	let completedCount = $state(0);
 	let calendarEvents = $state<CalendarEvent[]>([]);
+	let now = $state(new Date());
 
 	const list = useListMutator<Task>({
 		onRemove: () => {

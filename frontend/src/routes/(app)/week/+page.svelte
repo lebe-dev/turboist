@@ -144,6 +144,13 @@
 			void loader.refetch();
 		}
 	});
+
+	$effect(() => {
+		const timer = window.setInterval(() => {
+			now = new Date();
+		}, 60_000);
+		return () => window.clearInterval(timer);
+	});
 </script>
 
 <ViewHeader>
