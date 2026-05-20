@@ -32,7 +32,7 @@
 	const appVersion = __APP_VERSION__;
 	const auth = getAuthStore();
 
-	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'session', 'api'] as const;
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'session', 'api', 'backup'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -138,7 +138,6 @@
 		{ value: 'backup', labelKey: 'settings.tabs.backup' }
 	] as const;
 
-	let activeTab = $state<(typeof tabItems)[number]['value']>('general');
 	const activeTabLabel = $derived(
 		$t(tabItems.find((t) => t.value === activeTab)?.labelKey ?? 'settings.tabs.general')
 	);
