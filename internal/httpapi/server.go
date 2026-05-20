@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"log/slog"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
@@ -52,7 +54,7 @@ func NewApp(deps Deps) *fiber.App {
 		BodyLimit:    64 * 1024 * 1024,
 	})
 	app.Use(recover.New())
-	app.Use(RequestIDMiddleware())
+	app.Use(RequestIDMiddleware(deps.Log))
 	if deps.Log != nil {
 		app.Use(AccessLogMiddleware(deps.Log))
 	}
@@ -94,14 +96,28 @@ func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 			}
 			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error"}
 		}
+		ctx := c.Context()
+		reqLog := logging.FromContext(ctx)
 		if log != nil && appErr.HTTPStatus >= 500 && appErr.Internal != nil {
-			log.Error("server error",
+			reqLog.ErrorContext(ctx, "server error",
 				slog.String("code", appErr.Code),
 				slog.String("message", appErr.Message),
 				slog.String("cause", appErr.Internal.Error()),
 				slog.String("path", c.Path()),
 				slog.String("method", c.Method()),
 			)
+		} else if log != nil && appErr.HTTPStatus >= 400 && appErr.HTTPStatus < 500 && !strings.HasPrefix(appErr.Code, "auth_") {
+			attrs := []any{
+				slog.String("code", appErr.Code),
+				slog.String("message", appErr.Message),
+				slog.Int("status", appErr.HTTPStatus),
+				slog.String("path", c.Path()),
+				slog.String("method", c.Method()),
+			}
+			if appErr.Internal != nil {
+				attrs = append(attrs, slog.String("cause", appErr.Internal.Error()))
+			}
+			reqLog.DebugContext(ctx, "client error", attrs...)
 		}
 		return c.Status(appErr.HTTPStatus).JSON(errorEnvelope{
 			Error: errorDetail{

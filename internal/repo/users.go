@@ -43,49 +43,57 @@ func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 }
 
 func (r *UserRepo) Exists(ctx context.Context) (bool, error) {
+	const op = "repo.users.Exists"
+	logQuery(ctx, op)
 	var n int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
-		return false, fmt.Errorf("count users: %w", err)
+		return false, logErr(ctx, op, fmt.Errorf("count users: %w", err))
 	}
 	return n > 0, nil
 }
 
 func (r *UserRepo) Create(ctx context.Context, username, passwordHash string) (*model.User, error) {
+	const op = "repo.users.Create"
+	logQuery(ctx, op, username)
 	now := model.FormatUTC(time.Now())
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO users (id, username, password_hash, created_at, updated_at) VALUES (1, ?, ?, ?, ?)`,
 		username, passwordHash, now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return nil, ErrConflict
+			return nil, logErr(ctx, op, ErrConflict)
 		}
-		return nil, fmt.Errorf("insert user: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("insert user: %w", err))
 	}
 	return r.Get(ctx, 1)
 }
 
 func (r *UserRepo) Get(ctx context.Context, id int64) (*model.User, error) {
+	const op = "repo.users.Get"
+	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, created_at, updated_at FROM users WHERE id = ?`, id)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return u, nil
 }
 
 func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.User, error) {
+	const op = "repo.users.GetByUsername"
+	logQuery(ctx, op, username)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, created_at, updated_at FROM users WHERE username = ?`, username)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return u, nil
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
@@ -85,27 +87,40 @@ func NewTroikiService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, users *r
 // On success, EnforceProjectPriority is invoked so every open task in the
 // project (root + subtasks) is pinned to the category-derived priority.
 func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *model.TroikiCategory) (*model.Project, error) {
+	const op = "service.TroikiService.SetCategory"
+	log := logging.FromContext(ctx)
+	catVal := ""
+	if cat != nil {
+		catVal = string(*cat)
+	}
+	log.DebugContext(ctx, op, slog.Int64("project_id", projectID), slog.String("category", catVal))
 	p, err := s.projects.Get(ctx, projectID)
 	if err != nil {
+		log.ErrorContext(ctx, op+": get project", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
 		return nil, err
 	}
 	if p.Status != model.ProjectStatusOpen {
+		log.WarnContext(ctx, op+": project not open", slog.Int64("project_id", projectID), slog.String("status", string(p.Status)))
 		return nil, ErrTroikiInvalidProject
 	}
 
 	if cat == nil {
 		updated, err := s.projects.Update(ctx, projectID, repo.ProjectUpdate{TroikiCategoryClear: true})
 		if err != nil {
+			log.ErrorContext(ctx, op+": clear category", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
 			return nil, err
 		}
 		// Reset per-task grant flags so a future re-categorisation can grant
 		// capacity again on the same tasks.
 		if err := s.tasks.ResetTroikiGrantedByProject(ctx, projectID); err != nil {
+			log.ErrorContext(ctx, op+": reset grant flags", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
 			return nil, err
 		}
+		log.InfoContext(ctx, "troiki category cleared", slog.String("op", op), slog.Int64("project_id", projectID))
 		return updated, nil
 	}
 	if !cat.IsValid() {
+		log.WarnContext(ctx, op+": invalid category", slog.Int64("project_id", projectID), slog.String("category", string(*cat)))
 		return nil, fmt.Errorf("troiki: invalid category %q", *cat)
 	}
 	if p.TroikiCategory != nil && *p.TroikiCategory == *cat {
@@ -114,16 +129,19 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 
 	cap, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
 	if err != nil {
+		log.ErrorContext(ctx, op+": get capacity", slog.String("err", err.Error()))
 		return nil, err
 	}
 	capacity, err := s.capacityForWith(*cat, cap)
 	if err != nil {
+		log.WarnContext(ctx, op+": invalid capacity request", slog.String("err", err.Error()))
 		return nil, err
 	}
 	// Atomic capacity-checked assignment — a separate read+write would race with
 	// a concurrent SetCategory and let both requests exceed the slot cap.
 	ok, err := s.projects.SetTroikiCategoryIfRoom(ctx, projectID, *cat, capacity)
 	if err != nil {
+		log.ErrorContext(ctx, op+": atomic category set", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
 		return nil, err
 	}
 	if !ok {
@@ -134,22 +152,28 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 		// rejects the redundant write). Re-read to surface the actual cause.
 		cur, err := s.projects.Get(ctx, projectID)
 		if err != nil {
+			log.ErrorContext(ctx, op+": re-read project", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
 			return nil, err
 		}
 		if cur.Status != model.ProjectStatusOpen {
+			log.WarnContext(ctx, op+": project not open", slog.Int64("project_id", projectID))
 			return nil, ErrTroikiInvalidProject
 		}
 		if cur.TroikiCategory != nil && *cur.TroikiCategory == *cat {
 			return cur, nil
 		}
+		log.WarnContext(ctx, op+": slot full", slog.Int64("project_id", projectID), slog.String("category", string(*cat)), slog.Int("capacity", capacity))
 		return nil, ErrTroikiSlotFull
 	}
 	if err := s.tasks.ResetTroikiGrantedByProject(ctx, projectID); err != nil {
+		log.ErrorContext(ctx, op+": reset grant flags", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
 		return nil, err
 	}
 	if err := s.EnforceProjectPriority(ctx, projectID, PriorityForCategory(*cat)); err != nil {
+		log.ErrorContext(ctx, op+": enforce priority", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
 		return nil, err
 	}
+	log.InfoContext(ctx, "troiki category set", slog.String("op", op), slog.Int64("project_id", projectID), slog.String("category", string(*cat)))
 	return s.projects.Get(ctx, projectID)
 }
 
@@ -212,8 +236,12 @@ func (s *TroikiService) buildSlot(ctx context.Context, cat model.TroikiCategory,
 // project counts as capacity and flips troiki_started=1. Idempotent — calling
 // on an already-started user is a no-op.
 func (s *TroikiService) Start(ctx context.Context) error {
+	const op = "service.TroikiService.Start"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op)
 	cap, err := s.users.GetTroikiCapacity(ctx, SingleUserID)
 	if err != nil {
+		log.ErrorContext(ctx, op+": get capacity", slog.String("err", err.Error()))
 		return err
 	}
 	if cap.Started {
@@ -221,13 +249,20 @@ func (s *TroikiService) Start(ctx context.Context) error {
 	}
 	medium, err := s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryMedium)
 	if err != nil {
+		log.ErrorContext(ctx, op+": count medium", slog.String("err", err.Error()))
 		return err
 	}
 	rest, err := s.projects.CountOpenByTroikiCategory(ctx, model.TroikiCategoryRest)
 	if err != nil {
+		log.ErrorContext(ctx, op+": count rest", slog.String("err", err.Error()))
 		return err
 	}
-	return s.users.StartTroiki(ctx, SingleUserID, medium, rest)
+	if err := s.users.StartTroiki(ctx, SingleUserID, medium, rest); err != nil {
+		log.ErrorContext(ctx, op+": start", slog.String("err", err.Error()))
+		return err
+	}
+	log.InfoContext(ctx, "troiki started", slog.String("op", op), slog.Int("medium", medium), slog.Int("rest", rest))
+	return nil
 }
 
 // Reset returns the Troiki system to its initial state: every project is
@@ -236,13 +271,23 @@ func (s *TroikiService) Start(ctx context.Context) error {
 // capacity counters are zeroed. Task priorities are intentionally left
 // unchanged — the user resets the cycle, not their backlog. Idempotent.
 func (s *TroikiService) Reset(ctx context.Context) error {
+	const op = "service.TroikiService.Reset"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op)
 	if err := s.projects.ClearAllTroikiCategories(ctx); err != nil {
+		log.ErrorContext(ctx, op+": clear categories", slog.String("err", err.Error()))
 		return err
 	}
 	if err := s.tasks.ResetAllTroikiGranted(ctx); err != nil {
+		log.ErrorContext(ctx, op+": reset grant flags", slog.String("err", err.Error()))
 		return err
 	}
-	return s.users.ResetTroiki(ctx, SingleUserID)
+	if err := s.users.ResetTroiki(ctx, SingleUserID); err != nil {
+		log.ErrorContext(ctx, op+": reset user", slog.String("err", err.Error()))
+		return err
+	}
+	log.InfoContext(ctx, "troiki reset", slog.String("op", op))
+	return nil
 }
 
 func (s *TroikiService) capacityForWith(cat model.TroikiCategory, cap repo.TroikiCapacity) (int, error) {

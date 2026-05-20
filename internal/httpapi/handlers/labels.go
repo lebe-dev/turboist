@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -48,14 +49,18 @@ func (h *LabelHandler) list(c fiber.Ctx) error {
 }
 
 func (h *LabelHandler) create(c fiber.Ctx) error {
+	logEntry(c, "handler.Label.Create")
 	var req dto.CreateLabelRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Label.Create", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if req.Name == "" {
+		logValidation(c, "handler.Label.Create", "name required")
 		return httpapi.ErrValidation("name is required")
 	}
 	if req.Color != "" && !isValidColor(req.Color) {
+		logValidation(c, "handler.Label.Create", "invalid color")
 		return httpapi.ErrValidation("invalid color")
 	}
 	l, err := h.labels.Create(c.Context(), req.Name, req.Color, req.IsFavourite)
@@ -65,6 +70,7 @@ func (h *LabelHandler) create(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("create label").WithCause(err)
 	}
+	logMutation(c, "handler.Label.Create", slog.Int64("label_id", l.ID))
 	return c.Status(fiber.StatusCreated).JSON(dto.LabelFromModel(*l))
 }
 
@@ -88,11 +94,14 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Label.Patch", slog.Int64("label_id", id))
 	var req dto.PatchLabelRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Label.Patch", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if req.Color != nil && !isValidColor(*req.Color) {
+		logValidation(c, "handler.Label.Patch", "invalid color")
 		return httpapi.ErrValidation("invalid color")
 	}
 	l, err := h.labels.Update(c.Context(), id, repo.LabelUpdate{
@@ -110,6 +119,7 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("update label").WithCause(err)
 	}
+	logMutation(c, "handler.Label.Patch", slog.Int64("label_id", l.ID))
 	return c.JSON(dto.LabelFromModel(*l))
 }
 
@@ -118,12 +128,14 @@ func (h *LabelHandler) delete(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Label.Delete", slog.Int64("label_id", id))
 	if err := h.labels.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("label not found")
 		}
 		return httpapi.ErrInternal("delete label").WithCause(err)
 	}
+	logMutation(c, "handler.Label.Delete", slog.Int64("label_id", id))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

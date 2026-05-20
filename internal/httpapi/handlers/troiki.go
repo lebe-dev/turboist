@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -80,6 +81,7 @@ func (h *TroikiHandler) view(c fiber.Ctx) error {
 }
 
 func (h *TroikiHandler) start(c fiber.Ctx) error {
+	logEntry(c, "handler.Troiki.Start")
 	if err := h.svc.Start(c.Context()); err != nil {
 		return httpapi.ErrInternal("troiki start").WithCause(err)
 	}
@@ -87,10 +89,12 @@ func (h *TroikiHandler) start(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("troiki view").WithCause(err)
 	}
+	logMutation(c, "handler.Troiki.Start")
 	return c.JSON(h.renderView(v))
 }
 
 func (h *TroikiHandler) reset(c fiber.Ctx) error {
+	logEntry(c, "handler.Troiki.Reset")
 	if err := h.svc.Reset(c.Context()); err != nil {
 		return httpapi.ErrInternal("troiki reset").WithCause(err)
 	}
@@ -98,6 +102,7 @@ func (h *TroikiHandler) reset(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("troiki view").WithCause(err)
 	}
+	logMutation(c, "handler.Troiki.Reset")
 	return c.JSON(h.renderView(v))
 }
 
@@ -112,14 +117,17 @@ func (h *TroikiHandler) setProjectCategory(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Troiki.SetCategory", slog.Int64("project_id", id))
 	var req SetTroikiCategoryRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Troiki.SetCategory", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	var cat *model.TroikiCategory
 	if req.Category != nil {
 		v := model.TroikiCategory(*req.Category)
 		if !v.IsValid() {
+			logValidation(c, "handler.Troiki.SetCategory", "invalid category", slog.String("category", *req.Category))
 			return httpapi.ErrValidation("invalid troiki category")
 		}
 		cat = &v
@@ -137,5 +145,10 @@ func (h *TroikiHandler) setProjectCategory(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("set troiki category").WithCause(err)
 	}
+	catStr := ""
+	if cat != nil {
+		catStr = string(*cat)
+	}
+	logMutation(c, "handler.Troiki.SetCategory", slog.Int64("project_id", id), slog.String("category", catStr))
 	return c.JSON(dto.ProjectFromModel(*p))
 }

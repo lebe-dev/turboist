@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -51,6 +52,12 @@ func (j *JWTIssuer) Issue(userID, sessionID int64) (string, time.Time, error) {
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("sign token: %w", err)
 	}
+	slog.Default().Debug("jwt issued",
+		slog.String("op", "auth.JWTIssuer.Issue"),
+		slog.Int64("user_id", userID),
+		slog.Int64("session_id", sessionID),
+		slog.Time("exp", exp),
+	)
 	return signed, exp, nil
 }
 
@@ -63,11 +70,24 @@ func (j *JWTIssuer) Verify(tokenStr string) (*Claims, error) {
 	})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
+			slog.Default().Debug("jwt verify failed",
+				slog.String("op", "auth.JWTIssuer.Verify"),
+				slog.String("reason", "expired"),
+			)
 			return nil, ErrTokenExpired
 		}
+		slog.Default().Debug("jwt verify failed",
+			slog.String("op", "auth.JWTIssuer.Verify"),
+			slog.String("reason", "malformed"),
+			slog.String("err", err.Error()),
+		)
 		return nil, ErrTokenInvalid
 	}
 	if !parsed.Valid {
+		slog.Default().Debug("jwt verify failed",
+			slog.String("op", "auth.JWTIssuer.Verify"),
+			slog.String("reason", "invalid"),
+		)
 		return nil, ErrTokenInvalid
 	}
 	mc, ok := parsed.Claims.(jwt.MapClaims)

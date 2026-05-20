@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -36,6 +37,7 @@ func main() {
 	}
 
 	log := logging.New(env.LogLevel)
+	slog.SetDefault(log)
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -55,7 +57,7 @@ func main() {
 		log.Error("open db", "err", err)
 		os.Exit(1)
 	}
-	defer func() { _ = sqlDB.Close() }()
+	defer logging.LogClose(context.Background(), "main.sqlDB", sqlDB)
 
 	if err := db.RunMigrations(context.Background(), sqlDB); err != nil {
 		log.Error("run migrations", "err", err)

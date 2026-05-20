@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/lebe-dev/turboist/internal/auth"
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
 
@@ -22,8 +23,10 @@ const (
 	AuthMethodAPIToken = "api_token"
 )
 
-// RequestIDMiddleware propagates or generates an X-Request-ID header.
-func RequestIDMiddleware() fiber.Handler {
+// RequestIDMiddleware propagates or generates an X-Request-ID header and
+// attaches a request-scoped logger (carrying request_id) to c.Context() so
+// downstream layers can retrieve it via logging.FromContext.
+func RequestIDMiddleware(log *slog.Logger) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		id := c.Get("X-Request-ID")
 		if id == "" {
@@ -31,49 +34,109 @@ func RequestIDMiddleware() fiber.Handler {
 		}
 		c.Set("X-Request-ID", id)
 		c.Locals(localsRequestIDKey, id)
+
+		base := log
+		if base == nil {
+			base = slog.Default()
+		}
+		reqLog := base.With(slog.String("request_id", id))
+		c.SetContext(logging.WithLogger(c.Context(), reqLog))
 		return c.Next()
 	}
 }
 
 // AccessLogMiddleware logs each request with method, path, status, and duration.
+// Level depends on status: DEBUG for <400, INFO for 4xx, WARN for 5xx.
 func AccessLogMiddleware(log *slog.Logger) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		start := time.Now()
 		err := c.Next()
+		status := c.Response().StatusCode()
 		rid, _ := c.Locals(localsRequestIDKey).(string)
-		log.Info("request",
+		userID := GetUserID(c)
+
+		attrs := []any{
 			slog.String("method", c.Method()),
 			slog.String("path", c.Path()),
-			slog.Int("status", c.Response().StatusCode()),
+			slog.Int("status", status),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("request_id", rid),
-		)
+			slog.Int("bytes_out", len(c.Response().Body())),
+		}
+		if userID != 0 {
+			attrs = append(attrs, slog.Int64("user_id", userID))
+		}
+
+		level := slog.LevelDebug
+		switch {
+		case status >= 500:
+			level = slog.LevelWarn
+		case status >= 400:
+			level = slog.LevelInfo
+		}
+		log.Log(c.Context(), level, "request", attrs...)
 		return err
 	}
+}
+
+// maskToken returns a short prefix of a bearer token suitable for logging.
+// Never logs the full token. Returns "" for empty input.
+func maskToken(t string) string {
+	if t == "" {
+		return ""
+	}
+	const n = 6
+	if len(t) <= n {
+		return t + "…"
+	}
+	return t[:n] + "…"
+}
+
+// enrichLogger replaces the request-scoped logger on c.Context() with one that
+// carries the given attrs in addition to whatever the previous logger had.
+func enrichLogger(c fiber.Ctx, attrs ...any) {
+	log := logging.FromContext(c.Context()).With(attrs...)
+	c.SetContext(logging.WithLogger(c.Context(), log))
 }
 
 // AuthMiddleware validates the Bearer JWT token and stores claims in Locals.
 // JWT-only — does not accept API tokens. Used by /auth/* protected routes.
 func AuthMiddleware(issuer *auth.JWTIssuer) fiber.Handler {
 	return func(c fiber.Ctx) error {
+		ctx := c.Context()
 		header := c.Get("Authorization")
 		if header == "" {
+			logging.FromContext(ctx).WarnContext(ctx, "auth: missing authorization header", slog.String("op", "httpapi.AuthMiddleware"))
 			return ErrAuthInvalid("missing authorization header")
 		}
 		parts := strings.SplitN(header, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			logging.FromContext(ctx).WarnContext(ctx, "auth: bad authorization header format", slog.String("op", "httpapi.AuthMiddleware"))
 			return ErrAuthInvalid("invalid authorization header format")
 		}
 		claims, err := issuer.Verify(parts[1])
 		if err != nil {
+			masked := maskToken(parts[1])
 			if errors.Is(err, auth.ErrTokenExpired) {
+				logging.FromContext(ctx).WarnContext(ctx, "auth: token expired",
+					slog.String("op", "httpapi.AuthMiddleware"),
+					slog.String("token_prefix", masked),
+				)
 				return ErrAuthExpired()
 			}
+			logging.FromContext(ctx).WarnContext(ctx, "auth: invalid token",
+				slog.String("op", "httpapi.AuthMiddleware"),
+				slog.String("token_prefix", masked),
+			)
 			return ErrAuthInvalid("invalid token")
 		}
 		c.Locals(localsClaimsKey, claims)
 		c.Locals(localsAuthMethodKey, AuthMethodJWT)
 		c.Locals(localsUserIDKey, claims.UserID)
+		enrichLogger(c,
+			slog.Int64("user_id", claims.UserID),
+			slog.String("auth_method", AuthMethodJWT),
+		)
 		return c.Next()
 	}
 }
@@ -84,34 +147,54 @@ func AuthMiddleware(issuer *auth.JWTIssuer) fiber.Handler {
 // read them via GetUserID and require a specific method via RequireJWTAuth.
 func APIAuthMiddleware(issuer *auth.JWTIssuer, apiTokens *repo.APITokenRepo, salt []byte) fiber.Handler {
 	return func(c fiber.Ctx) error {
+		ctx := c.Context()
 		header := c.Get("Authorization")
 		if header == "" {
+			logging.FromContext(ctx).WarnContext(ctx, "auth: missing authorization header", slog.String("op", "httpapi.APIAuthMiddleware"))
 			return ErrAuthInvalid("missing authorization header")
 		}
 		parts := strings.SplitN(header, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			logging.FromContext(ctx).WarnContext(ctx, "auth: bad authorization header format", slog.String("op", "httpapi.APIAuthMiddleware"))
 			return ErrAuthInvalid("invalid authorization header format")
 		}
 		token := parts[1]
+		masked := maskToken(token)
 
 		claims, jwtErr := issuer.Verify(token)
 		if jwtErr == nil {
 			c.Locals(localsClaimsKey, claims)
 			c.Locals(localsAuthMethodKey, AuthMethodJWT)
 			c.Locals(localsUserIDKey, claims.UserID)
+			enrichLogger(c,
+				slog.Int64("user_id", claims.UserID),
+				slog.String("auth_method", AuthMethodJWT),
+			)
 			return c.Next()
 		}
 		if errors.Is(jwtErr, auth.ErrTokenExpired) {
+			logging.FromContext(c.Context()).WarnContext(c.Context(), "auth: token expired",
+				slog.String("op", "httpapi.APIAuthMiddleware"),
+				slog.String("token_prefix", masked),
+			)
 			return ErrAuthExpired()
 		}
 
 		hash := auth.HashAPIToken(token, salt)
 		apiToken, err := apiTokens.GetByTokenHash(c.Context(), hash)
 		if err != nil {
+			logging.FromContext(c.Context()).WarnContext(c.Context(), "auth: invalid token",
+				slog.String("op", "httpapi.APIAuthMiddleware"),
+				slog.String("token_prefix", masked),
+			)
 			return ErrAuthInvalid("invalid token")
 		}
 		c.Locals(localsAuthMethodKey, AuthMethodAPIToken)
 		c.Locals(localsUserIDKey, apiToken.UserID)
+		enrichLogger(c,
+			slog.Int64("user_id", apiToken.UserID),
+			slog.String("auth_method", AuthMethodAPIToken),
+		)
 		return c.Next()
 	}
 }

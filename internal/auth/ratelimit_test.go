@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
@@ -53,5 +54,36 @@ func TestIPLimiter_GCSweep(t *testing.T) {
 
 	if _, ok := l.visitors["ip"]; ok {
 		t.Errorf("idle visitor should be evicted")
+	}
+}
+
+func TestIPLimiter_LogsWarnWhenBlocked(t *testing.T) {
+	cap := newCaptureHandler()
+	swapDefault(t, cap)
+
+	l := NewIPLimiter(rate.Every(time.Hour), 1, time.Minute)
+	defer l.Stop()
+
+	if !l.Allow("1.1.1.1") {
+		t.Fatal("first call should be allowed")
+	}
+	if l.Allow("1.1.1.1") {
+		t.Fatal("second call should be blocked")
+	}
+
+	var sawAllow, sawBlock bool
+	for _, r := range cap.snapshot() {
+		switch {
+		case r.Level == slog.LevelDebug && r.Message == "ratelimit allow":
+			sawAllow = true
+		case r.Level == slog.LevelWarn && r.Message == "ratelimit blocked":
+			sawBlock = true
+		}
+	}
+	if !sawAllow {
+		t.Error("no DEBUG 'ratelimit allow' record")
+	}
+	if !sawBlock {
+		t.Error("no WARN 'ratelimit blocked' record")
 	}
 }

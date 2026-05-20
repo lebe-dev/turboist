@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -47,11 +48,14 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
+	logEntry(c, "handler.State.Patch", slog.Int64("user_id", userID))
 	if len(c.Body()) > 64*1024 {
+		logValidation(c, "handler.State.Patch", "payload too large", slog.Int("bytes", len(c.Body())))
 		return httpapi.ErrValidation("state payload too large")
 	}
 	var patch map[string]json.RawMessage
 	if err := json.Unmarshal(c.Body(), &patch); err != nil {
+		logValidation(c, "handler.State.Patch", "invalid JSON")
 		return httpapi.ErrValidation("invalid JSON object")
 	}
 
@@ -79,6 +83,7 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 	if err := h.users.SetState(c.Context(), userID, string(merged)); err != nil {
 		return httpapi.ErrInternal("save state").WithCause(err)
 	}
+	logMutation(c, "handler.State.Patch", slog.Int64("user_id", userID))
 	c.Set("Content-Type", "application/json")
 	return c.Send(merged)
 }

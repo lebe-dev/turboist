@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -59,11 +60,14 @@ type bulkResponse struct {
 }
 
 func (h *TaskBulkHandler) bulkComplete(c fiber.Ctx) error {
+	logEntry(c, "handler.Task.BulkComplete")
 	var req BulkIDsRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Task.BulkComplete", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if len(req.IDs) > 100 {
+		logValidation(c, "handler.Task.BulkComplete", "too many ids", slog.Int("count", len(req.IDs)))
 		return httpapi.ErrValidation("too many ids")
 	}
 
@@ -79,15 +83,19 @@ func (h *TaskBulkHandler) bulkComplete(c fiber.Ctx) error {
 			resp.Succeeded = append(resp.Succeeded, id)
 		}
 	}
+	logMutation(c, "handler.Task.BulkComplete", slog.Int("succeeded", len(resp.Succeeded)), slog.Int("failed", len(resp.Failed)))
 	return c.JSON(resp)
 }
 
 func (h *TaskBulkHandler) bulkMove(c fiber.Ctx) error {
+	logEntry(c, "handler.Task.BulkMove")
 	var req BulkMoveRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Task.BulkMove", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if len(req.IDs) > 100 {
+		logValidation(c, "handler.Task.BulkMove", "too many ids", slog.Int("count", len(req.IDs)))
 		return httpapi.ErrValidation("too many ids")
 	}
 
@@ -99,6 +107,7 @@ func (h *TaskBulkHandler) bulkMove(c fiber.Ctx) error {
 		ParentID:  req.ParentID,
 	}
 	if err := target.Validate(); err != nil {
+		logValidation(c, "handler.Task.BulkMove", "invalid placement")
 		return httpapi.ErrForbiddenPlacement("invalid task placement")
 	}
 
@@ -114,6 +123,7 @@ func (h *TaskBulkHandler) bulkMove(c fiber.Ctx) error {
 			resp.Succeeded = append(resp.Succeeded, id)
 		}
 	}
+	logMutation(c, "handler.Task.BulkMove", slog.Int("succeeded", len(resp.Succeeded)), slog.Int("failed", len(resp.Failed)))
 	return c.JSON(resp)
 }
 
@@ -125,8 +135,10 @@ type GroupTasksResponse struct {
 }
 
 func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
+	logEntry(c, "handler.Task.Group")
 	var req dto.GroupTasksRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Task.Group", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 
@@ -136,11 +148,13 @@ func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
 		SectionID: req.SectionID,
 	}
 	if err := placement.Validate(); err != nil {
+		logValidation(c, "handler.Task.Group", "invalid placement")
 		return httpapi.ErrForbiddenPlacement("invalid task placement")
 	}
 
 	create, appErr := buildTaskCreate(req.CreateTaskRequest, placement)
 	if appErr != nil {
+		logValidation(c, "handler.Task.Group", appErr.Message)
 		return appErr
 	}
 
@@ -153,13 +167,16 @@ func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
 	res, err := h.groupSvc.Group(c.Context(), in)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidGroupRequest) {
+			logValidation(c, "handler.Task.Group", err.Error())
 			return httpapi.ErrValidation(err.Error())
 		}
 		if errors.Is(err, repo.ErrInvalidPlacement) {
+			logValidation(c, "handler.Task.Group", "invalid placement")
 			return httpapi.ErrForbiddenPlacement("invalid task placement")
 		}
 		var ule *service.UnknownLabelError
 		if errors.As(err, &ule) {
+			logValidation(c, "handler.Task.Group", "unknown label", slog.String("label", ule.Name))
 			return httpapi.ErrValidation("unknown label: " + ule.Name)
 		}
 		return httpapi.ErrInternal("group tasks").WithCause(err)
@@ -173,6 +190,7 @@ func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
 	for _, f := range res.Failed {
 		resp.Failed = append(resp.Failed, bulkFailedItem{ID: f.ID, Error: toErrDetail(f.Err)})
 	}
+	logMutation(c, "handler.Task.Group", slog.Int64("parent_id", res.Parent.ID), slog.Int("succeeded", len(resp.Succeeded)), slog.Int("failed", len(resp.Failed)))
 	return c.Status(fiber.StatusCreated).JSON(resp)
 }
 

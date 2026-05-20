@@ -20,6 +20,7 @@ func Open(path string) (*sql.DB, error) {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	if err := sqlDB.Ping(); err != nil {
+		// Intentional: discard Close error during cleanup of a failed Open; the ping error is the actionable one.
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}

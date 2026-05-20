@@ -21,13 +21,15 @@ func NewAppSettingsRepo(db *sql.DB) *AppSettingsRepo {
 }
 
 func (r *AppSettingsRepo) Get(ctx context.Context) (*model.AppSettings, error) {
+	const op = "repo.app_settings.Get"
+	logQuery(ctx, op)
 	var raw string
 	err := r.db.QueryRowContext(ctx, `SELECT data FROM app_settings WHERE id = 1`).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &model.AppSettings{AutoLabels: []model.AutoLabelRule{}}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get app settings: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("get app settings: %w", err))
 	}
 	var s model.AppSettings
 	if raw != "" && raw != "{}" {
@@ -42,6 +44,8 @@ func (r *AppSettingsRepo) Get(ctx context.Context) (*model.AppSettings, error) {
 }
 
 func (r *AppSettingsRepo) Set(ctx context.Context, s *model.AppSettings) error {
+	const op = "repo.app_settings.Set"
+	logQuery(ctx, op)
 	if s.AutoLabels == nil {
 		s.AutoLabels = []model.AutoLabelRule{}
 	}
@@ -53,7 +57,7 @@ func (r *AppSettingsRepo) Set(ctx context.Context, s *model.AppSettings) error {
 		`INSERT INTO app_settings (id, data) VALUES (1, ?)
 		 ON CONFLICT(id) DO UPDATE SET data = excluded.data`, string(raw))
 	if err != nil {
-		return fmt.Errorf("set app settings: %w", err)
+		return logErr(ctx, op, fmt.Errorf("set app settings: %w", err))
 	}
 	return nil
 }

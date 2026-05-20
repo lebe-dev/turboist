@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -42,6 +43,7 @@ func (h *BackupHandler) Register(r fiber.Router) {
 
 func (h *BackupHandler) export(c fiber.Ctx) error {
 	includeSettings := boolQuery(c, "settings")
+	logEntry(c, "handler.Backup.Export", slog.Bool("include_settings", includeSettings))
 	payload, err := h.svc.Export(c.Context(), service.ExportOptions{IncludeSettings: includeSettings})
 	if err != nil {
 		return httpapi.ErrInternal("export backup").WithCause(err)
@@ -68,29 +70,40 @@ func (h *BackupHandler) export(c fiber.Ctx) error {
 	c.Set("Content-Encoding", "gzip")
 	c.Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	c.Set("Cache-Control", "no-store")
+	logMutation(c, "handler.Backup.Export",
+		slog.Int("raw_bytes", len(raw)),
+		slog.Int("gzip_bytes", buf.Len()),
+		slog.Bool("include_settings", includeSettings),
+	)
 	return c.Send(buf.Bytes())
 }
 
 func (h *BackupHandler) restore(c fiber.Ctx) error {
 	body := c.Body()
+	logEntry(c, "handler.Backup.Restore", slog.Int("payload_bytes", len(body)))
 	if len(body) == 0 {
+		logValidation(c, "handler.Backup.Restore", "empty body")
 		return httpapi.ErrValidation("empty body")
 	}
 	if len(body) > maxBackupUploadBytes {
+		logValidation(c, "handler.Backup.Restore", "payload too large", slog.Int("payload_bytes", len(body)))
 		return httpapi.ErrValidation("payload too large")
 	}
 	payload, err := service.DecodeBackup(body)
 	if err != nil {
 		// DecodeBackup wraps every failure with ErrBadBackup, so any error is
 		// a client problem (malformed payload / unsupported version).
+		logValidation(c, "handler.Backup.Restore", "decode failed", slog.String("err", err.Error()))
 		return httpapi.ErrValidation("invalid backup file")
 	}
 	if err := h.svc.Restore(c.Context(), payload); err != nil {
 		if errors.Is(err, service.ErrBadBackup) {
+			logValidation(c, "handler.Backup.Restore", "bad backup", slog.String("err", err.Error()))
 			return httpapi.ErrValidation("invalid backup file")
 		}
 		return httpapi.ErrInternal("restore backup").WithCause(err)
 	}
+	logMutation(c, "handler.Backup.Restore", slog.Int("payload_bytes", len(body)))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

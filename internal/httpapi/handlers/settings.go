@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"log/slog"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/model"
@@ -86,12 +88,15 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
+	logEntry(c, "handler.Settings.Patch", slog.Int64("user_id", userID))
 	var req settingsPatchReq
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Settings.Patch", "invalid JSON")
 		return httpapi.ErrValidation("invalid JSON")
 	}
 	if req.Locale != nil {
 		if _, ok := supportedLocales[*req.Locale]; !ok {
+			logValidation(c, "handler.Settings.Patch", "unsupported locale", slog.String("locale", *req.Locale))
 			return httpapi.ErrValidation("unsupported locale")
 		}
 	}
@@ -120,5 +125,6 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	if err := h.users.SetSettings(c.Context(), userID, current); err != nil {
 		return httpapi.ErrInternal("save settings").WithCause(err)
 	}
+	logMutation(c, "handler.Settings.Patch", slog.Int64("user_id", userID))
 	return c.JSON(toResp(current))
 }

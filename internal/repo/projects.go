@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -65,6 +66,8 @@ type CreateProject struct {
 }
 
 func (r *ProjectRepo) Create(ctx context.Context, in CreateProject) (*model.Project, error) {
+	const op = "repo.projects.Create"
+	logQuery(ctx, op, in)
 	now := model.FormatUTC(time.Now())
 	pt := in.Type
 	if pt == "" {
@@ -76,31 +79,33 @@ func (r *ProjectRepo) Create(ctx context.Context, in CreateProject) (*model.Proj
 		in.ContextID, in.Title, in.Description, in.Color, string(pt), now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return nil, ErrConflict
+			return nil, logErr(ctx, op, ErrConflict)
 		}
-		return nil, fmt.Errorf("insert project: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("insert project: %w", err))
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return r.Get(ctx, id)
 }
 
 func (r *ProjectRepo) Get(ctx context.Context, id int64) (*model.Project, error) {
+	const op = "repo.projects.Get"
+	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT `+projectColumns+` FROM projects WHERE id = ?`, id)
 	p, err := scanProject(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if r.labels != nil {
 		hydrated, err := r.labels.LabelsByProjectIDs(ctx, []int64{p.ID})
 		if err != nil {
-			return nil, err
+			return nil, logErr(ctx, op, err)
 		}
 		p.Labels = hydrated[p.ID]
 	}
@@ -113,6 +118,8 @@ type ProjectListFilter struct {
 }
 
 func (r *ProjectRepo) List(ctx context.Context, filter ProjectListFilter, page Page) ([]model.Project, int, error) {
+	const op = "repo.projects.List"
+	logQuery(ctx, op, filter, page)
 	page = page.Normalize()
 	conds := []string{}
 	args := []any{}
@@ -131,7 +138,7 @@ func (r *ProjectRepo) List(ctx context.Context, filter ProjectListFilter, page P
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects`+where, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count projects: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count projects: %w", err))
 	}
 
 	listArgs := append([]any{}, args...)
@@ -140,27 +147,27 @@ func (r *ProjectRepo) List(ctx context.Context, filter ProjectListFilter, page P
 		`SELECT `+projectColumns+` FROM projects`+where+
 			` ORDER BY is_pinned DESC, pinned_at DESC, created_at DESC LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list projects: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list projects: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Project, 0)
 	ids := make([]int64, 0)
 	for rows.Next() {
 		p, err := scanProject(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *p)
 		ids = append(ids, p.ID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, logErr(ctx, op, err)
 	}
 	if r.labels != nil && len(ids) > 0 {
 		hydrated, err := r.labels.LabelsByProjectIDs(ctx, ids)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		for i := range out {
 			out[i].Labels = hydrated[out[i].ID]
@@ -182,6 +189,8 @@ type ProjectUpdate struct {
 }
 
 func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*model.Project, error) {
+	const op = "repo.projects.Update"
+	logQuery(ctx, op, id)
 	sets := make([]string, 0, 4)
 	args := make([]any, 0, 5)
 	if u.Title != nil {
@@ -227,14 +236,14 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 
 	res, err := r.db.ExecContext(ctx, `UPDATE projects SET `+joinSets(sets)+` WHERE id = ?`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("update project: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("update project: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	return r.Get(ctx, id)
 }
@@ -244,6 +253,8 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 // and reopening it must require an explicit re-assignment so capacity is
 // re-checked against the current state of the slot.
 func (r *ProjectRepo) UpdateStatus(ctx context.Context, id int64, status model.ProjectStatus) error {
+	const op = "repo.projects.UpdateStatus"
+	logQuery(ctx, op, id, status)
 	now := model.FormatUTC(time.Now())
 	var res sql.Result
 	var err error
@@ -257,19 +268,21 @@ func (r *ProjectRepo) UpdateStatus(ctx context.Context, id int64, status model.P
 			string(status), now, id)
 	}
 	if err != nil {
-		return fmt.Errorf("update project status: %w", err)
+		return logErr(ctx, op, fmt.Errorf("update project status: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return ErrNotFound
+		return logErr(ctx, op, ErrNotFound)
 	}
 	return nil
 }
 
 func (r *ProjectRepo) SetPinned(ctx context.Context, id int64, pinned bool) error {
+	const op = "repo.projects.SetPinned"
+	logQuery(ctx, op, id, pinned)
 	now := model.FormatUTC(time.Now())
 	var res sql.Result
 	var err error
@@ -281,14 +294,14 @@ func (r *ProjectRepo) SetPinned(ctx context.Context, id int64, pinned bool) erro
 			`UPDATE projects SET is_pinned = 0, pinned_at = NULL, updated_at = ? WHERE id = ?`, now, id)
 	}
 	if err != nil {
-		return fmt.Errorf("set pinned: %w", err)
+		return logErr(ctx, op, fmt.Errorf("set pinned: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return ErrNotFound
+		return logErr(ctx, op, ErrNotFound)
 	}
 	return nil
 }
@@ -296,27 +309,31 @@ func (r *ProjectRepo) SetPinned(ctx context.Context, id int64, pinned bool) erro
 // ClearAllTroikiCategories unassigns every project from its Troiki category in
 // a single UPDATE. Used by Troiki Reset.
 func (r *ProjectRepo) ClearAllTroikiCategories(ctx context.Context) error {
+	const op = "repo.projects.ClearAllTroikiCategories"
+	logQuery(ctx, op)
 	now := model.FormatUTC(time.Now())
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE projects SET troiki_category = NULL, updated_at = ? WHERE troiki_category IS NOT NULL`,
 		now)
 	if err != nil {
-		return fmt.Errorf("clear all troiki categories: %w", err)
+		return logErr(ctx, op, fmt.Errorf("clear all troiki categories: %w", err))
 	}
 	return nil
 }
 
 func (r *ProjectRepo) Delete(ctx context.Context, id int64) error {
+	const op = "repo.projects.Delete"
+	logQuery(ctx, op, id)
 	res, err := r.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
 	if err != nil {
-		return fmt.Errorf("delete project: %w", err)
+		return logErr(ctx, op, fmt.Errorf("delete project: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return ErrNotFound
+		return logErr(ctx, op, ErrNotFound)
 	}
 	return nil
 }
@@ -335,6 +352,8 @@ func (r *ProjectRepo) SetLabels(ctx context.Context, projectID int64, labelIDs [
 //   - (false, nil)  when the slot is full or the project is no longer open
 //   - (false, ErrNotFound) when the project id does not exist
 func (r *ProjectRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat model.TroikiCategory, capacity int) (bool, error) {
+	const op = "repo.projects.SetTroikiCategoryIfRoom"
+	logQuery(ctx, op, id, cat, capacity)
 	now := model.FormatUTC(time.Now())
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE projects
@@ -344,11 +363,11 @@ func (r *ProjectRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat
 		   AND (SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open') < ?`,
 		string(cat), now, id, string(cat), capacity)
 	if err != nil {
-		return false, fmt.Errorf("set project troiki category: %w", err)
+		return false, logErr(ctx, op, fmt.Errorf("set project troiki category: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return false, err
+		return false, logErr(ctx, op, err)
 	}
 	if n > 0 {
 		return true, nil
@@ -356,9 +375,9 @@ func (r *ProjectRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat
 	var exists int
 	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM projects WHERE id = ?`, id).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return false, ErrNotFound
+			return false, logErr(ctx, op, ErrNotFound)
 		}
-		return false, fmt.Errorf("set project troiki category: %w", err)
+		return false, logErr(ctx, op, fmt.Errorf("set project troiki category: %w", err))
 	}
 	return false, nil
 }
@@ -367,11 +386,13 @@ func (r *ProjectRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat
 // along with their total count. Slot counts and the rendered list must agree,
 // so this listing is intentionally not paginated.
 func (r *ProjectRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCategory) ([]model.Project, int, error) {
+	const op = "repo.projects.ListByTroikiCategory"
+	logQuery(ctx, op, cat)
 	var total int
 	if err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open'`,
 		string(cat)).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count troiki projects: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count troiki projects: %w", err))
 	}
 
 	rows, err := r.db.QueryContext(ctx,
@@ -380,27 +401,27 @@ func (r *ProjectRepo) ListByTroikiCategory(ctx context.Context, cat model.Troiki
 		 ORDER BY is_pinned DESC, pinned_at DESC, created_at DESC`,
 		string(cat))
 	if err != nil {
-		return nil, 0, fmt.Errorf("list troiki projects: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list troiki projects: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Project, 0, total)
 	ids := make([]int64, 0, total)
 	for rows.Next() {
 		p, err := scanProject(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *p)
 		ids = append(ids, p.ID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, logErr(ctx, op, err)
 	}
 	if r.labels != nil && len(ids) > 0 {
 		hydrated, err := r.labels.LabelsByProjectIDs(ctx, ids)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		for i := range out {
 			out[i].Labels = hydrated[out[i].ID]
@@ -410,23 +431,27 @@ func (r *ProjectRepo) ListByTroikiCategory(ctx context.Context, cat model.Troiki
 }
 
 func (r *ProjectRepo) CountOpenByTroikiCategory(ctx context.Context, cat model.TroikiCategory) (int, error) {
+	const op = "repo.projects.CountOpenByTroikiCategory"
+	logQuery(ctx, op, cat)
 	var n int
 	if err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open'`,
 		string(cat)).Scan(&n); err != nil {
-		return 0, err
+		return 0, logErr(ctx, op, err)
 	}
 	return n, nil
 }
 
 func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page) ([]model.Project, int, error) {
+	const op = "repo.projects.ListByLabel"
+	logQuery(ctx, op, labelID, page)
 	page = page.Normalize()
 	var total int
 	if err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM projects p
 		 JOIN project_labels pl ON pl.project_id = p.id
 		 WHERE pl.label_id = ?`, labelID).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count projects by label: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count projects by label: %w", err))
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status, p.project_type,
@@ -437,26 +462,26 @@ func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page)
 		 ORDER BY p.is_pinned DESC, p.pinned_at DESC, p.created_at DESC
 		 LIMIT ? OFFSET ?`, labelID, page.Limit, page.Offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list projects by label: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list projects by label: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 	out := make([]model.Project, 0)
 	ids := make([]int64, 0)
 	for rows.Next() {
 		p, err := scanProject(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *p)
 		ids = append(ids, p.ID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, logErr(ctx, op, err)
 	}
 	if r.labels != nil && len(ids) > 0 {
 		hydrated, err := r.labels.LabelsByProjectIDs(ctx, ids)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		for i := range out {
 			out[i].Labels = hydrated[out[i].ID]

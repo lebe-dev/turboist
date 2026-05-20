@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -67,15 +68,19 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
+	logEntry(c, "handler.APIToken.Create", slog.Int64("user_id", userID))
 	var req apiTokenCreateReq
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.APIToken.Create", "invalid JSON")
 		return httpapi.ErrValidation("invalid JSON")
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
+		logValidation(c, "handler.APIToken.Create", "name required")
 		return httpapi.ErrValidation("name is required")
 	}
 	if len(name) > apiTokenNameMaxLen {
+		logValidation(c, "handler.APIToken.Create", "name too long", slog.Int("len", len(name)))
 		return httpapi.ErrValidation("name is too long")
 	}
 
@@ -91,6 +96,12 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("create api token").WithCause(err)
 	}
+	// Never log the plaintext token value — only the row id.
+	logMutation(c, "handler.APIToken.Create",
+		slog.Int64("token_id", created.ID),
+		slog.Int64("user_id", userID),
+		slog.String("name", created.Name),
+	)
 	return c.Status(fiber.StatusCreated).JSON(apiTokenCreateResp{
 		ID:        created.ID,
 		Name:      created.Name,
@@ -122,13 +133,16 @@ func (h *APITokensHandler) delete(c fiber.Ctx) error {
 	}
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil || id <= 0 {
+		logValidation(c, "handler.APIToken.Delete", "invalid id")
 		return httpapi.ErrValidation("invalid id")
 	}
+	logEntry(c, "handler.APIToken.Delete", slog.Int64("token_id", id), slog.Int64("user_id", userID))
 	if err := h.repo.Delete(c.Context(), id, userID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("api token not found")
 		}
 		return httpapi.ErrInternal("delete api token").WithCause(err)
 	}
+	logMutation(c, "handler.APIToken.Delete", slog.Int64("token_id", id), slog.Int64("user_id", userID))
 	return c.SendStatus(fiber.StatusNoContent)
 }

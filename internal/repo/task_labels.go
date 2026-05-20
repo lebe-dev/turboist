@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -18,24 +19,28 @@ func NewTaskLabelsRepo(db *sql.DB) *TaskLabelsRepo {
 }
 
 func (r *TaskLabelsRepo) SetForTask(ctx context.Context, taskID int64, labelIDs []int64) error {
+	const op = "repo.task_labels.SetForTask"
+	logQuery(ctx, op, taskID, labelIDs)
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return logErr(ctx, op, fmt.Errorf("begin tx: %w", err))
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM task_labels WHERE task_id = ?`, taskID); err != nil {
-		return fmt.Errorf("clear task_labels: %w", err)
+		return logErr(ctx, op, fmt.Errorf("clear task_labels: %w", err))
 	}
 	for _, lid := range labelIDs {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO task_labels (task_id, label_id) VALUES (?, ?)`, taskID, lid); err != nil {
-			return fmt.Errorf("insert task_label: %w", err)
+			return logErr(ctx, op, fmt.Errorf("insert task_label: %w", err))
 		}
 	}
 	return tx.Commit()
 }
 
 func (r *TaskLabelsRepo) LabelsByTaskIDs(ctx context.Context, taskIDs []int64) (map[int64][]model.Label, error) {
+	const op = "repo.task_labels.LabelsByTaskIDs"
+	logQuery(ctx, op, taskIDs)
 	if len(taskIDs) == 0 {
 		return map[int64][]model.Label{}, nil
 	}
@@ -52,9 +57,9 @@ func (r *TaskLabelsRepo) LabelsByTaskIDs(ctx context.Context, taskIDs []int64) (
 	      ORDER BY l.name ASC`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("hydrate task labels: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("hydrate task labels: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make(map[int64][]model.Label, len(taskIDs))
 	for rows.Next() {

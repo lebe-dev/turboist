@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
@@ -30,8 +32,12 @@ func NewPlanService(tasks *repo.TaskRepo, contexts *repo.ContextRepo, weeklyLimi
 }
 
 func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state model.PlanState) (*model.Task, error) {
+	const op = "service.PlanService.SetPlanState"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int64("task_id", taskID), slog.String("state", string(state)))
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
+		log.ErrorContext(ctx, op+": get task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
 		return nil, err
 	}
 	if t.PlanState == state {
@@ -41,30 +47,37 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 	case model.PlanStateWeek:
 		count, err := s.tasks.CountWeek(ctx)
 		if err != nil {
+			log.ErrorContext(ctx, op+": count week", slog.String("err", err.Error()))
 			return nil, err
 		}
 		if count >= s.weeklyLimit {
+			log.WarnContext(ctx, op+": weekly limit exceeded", slog.Int64("task_id", taskID), slog.Int("count", count), slog.Int("limit", s.weeklyLimit))
 			return nil, ErrPlanLimitExceeded
 		}
 	case model.PlanStateBacklog:
 		count, err := s.tasks.CountBacklog(ctx)
 		if err != nil {
+			log.ErrorContext(ctx, op+": count backlog", slog.String("err", err.Error()))
 			return nil, err
 		}
 		if count >= s.backlogLimit {
+			log.WarnContext(ctx, op+": backlog limit exceeded", slog.Int64("task_id", taskID), slog.Int("count", count), slog.Int("limit", s.backlogLimit))
 			return nil, ErrPlanLimitExceeded
 		}
 	}
 	if t.InboxID != nil && (state == model.PlanStateWeek || state == model.PlanStateBacklog) {
 		ctxs, _, err := s.contexts.List(ctx, repo.Page{Limit: 1})
 		if err != nil {
+			log.ErrorContext(ctx, op+": list contexts", slog.String("err", err.Error()))
 			return nil, err
 		}
 		if len(ctxs) == 0 {
+			log.WarnContext(ctx, op+": no context for inbox task", slog.Int64("task_id", taskID))
 			return nil, ErrNoContextForInbox
 		}
 		ctxID := ctxs[0].ID
 		if err := s.tasks.Move(ctx, taskID, repo.Placement{ContextID: &ctxID}); err != nil {
+			log.ErrorContext(ctx, op+": move inbox task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
 			return nil, err
 		}
 	}
@@ -72,5 +85,11 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 	if state == model.PlanStateWeek || state == model.PlanStateBacklog {
 		update.DueAtClear = true
 	}
-	return s.tasks.Update(ctx, taskID, update)
+	updated, err := s.tasks.Update(ctx, taskID, update)
+	if err != nil {
+		log.ErrorContext(ctx, op+": update task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		return nil, err
+	}
+	log.InfoContext(ctx, "plan state changed", slog.String("op", op), slog.Int64("task_id", taskID), slog.String("state", string(state)))
+	return updated, nil
 }

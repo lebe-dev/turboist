@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
@@ -22,19 +25,35 @@ func NewMoveService(tasks *repo.TaskRepo, projects *repo.ProjectRepo) *MoveServi
 }
 
 func (s *MoveService) Move(ctx context.Context, taskID int64, target repo.Placement) (*model.Task, error) {
+	const op = "service.MoveService.Move"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
 	if err := s.tasks.Move(ctx, taskID, target); err != nil {
+		if errors.Is(err, repo.ErrInvalidPlacement) {
+			log.WarnContext(ctx, op+": invalid placement", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		} else {
+			log.ErrorContext(ctx, op+": move task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		}
 		return nil, err
 	}
 	if target.ProjectID != nil && s.projects != nil {
 		p, err := s.projects.Get(ctx, *target.ProjectID)
 		if err != nil {
+			log.ErrorContext(ctx, op+": get project", slog.Int64("project_id", *target.ProjectID), slog.String("err", err.Error()))
 			return nil, err
 		}
 		if p.TroikiCategory != nil {
 			if err := s.tasks.UpdatePriorityByProject(ctx, *target.ProjectID, PriorityForCategory(*p.TroikiCategory)); err != nil {
+				log.ErrorContext(ctx, op+": pin priority", slog.Int64("project_id", *target.ProjectID), slog.String("err", err.Error()))
 				return nil, err
 			}
 		}
 	}
-	return s.tasks.Get(ctx, taskID)
+	t, err := s.tasks.Get(ctx, taskID)
+	if err != nil {
+		log.ErrorContext(ctx, op+": get task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		return nil, err
+	}
+	log.InfoContext(ctx, "task moved", slog.String("op", op), slog.Int64("task_id", taskID))
+	return t, nil
 }

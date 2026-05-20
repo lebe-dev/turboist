@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -40,6 +41,8 @@ func scanContext(row interface{ Scan(...any) error }) (*model.Context, error) {
 }
 
 func (r *ContextRepo) Create(ctx context.Context, name, color string, isFavourite bool) (*model.Context, error) {
+	const op = "repo.contexts.Create"
+	logQuery(ctx, op, name, color, isFavourite)
 	now := model.FormatUTC(time.Now())
 	favInt := 0
 	if isFavourite {
@@ -50,49 +53,53 @@ func (r *ContextRepo) Create(ctx context.Context, name, color string, isFavourit
 		name, color, favInt, now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return nil, ErrConflict
+			return nil, logErr(ctx, op, ErrConflict)
 		}
-		return nil, fmt.Errorf("insert context: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("insert context: %w", err))
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("last insert id: %w", err))
 	}
 	return r.Get(ctx, id)
 }
 
 func (r *ContextRepo) Get(ctx context.Context, id int64) (*model.Context, error) {
+	const op = "repo.contexts.Get"
+	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, name, color, is_favourite, created_at, updated_at FROM contexts WHERE id = ?`, id)
 	c, err := scanContext(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return c, nil
 }
 
 func (r *ContextRepo) List(ctx context.Context, page Page) ([]model.Context, int, error) {
+	const op = "repo.contexts.List"
+	logQuery(ctx, op, page)
 	page = page.Normalize()
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM contexts`).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count contexts: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count contexts: %w", err))
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, color, is_favourite, created_at, updated_at FROM contexts
 		 ORDER BY is_favourite DESC, name ASC LIMIT ? OFFSET ?`, page.Limit, page.Offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list contexts: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list contexts: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Context, 0)
 	for rows.Next() {
 		c, err := scanContext(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *c)
 	}
@@ -106,6 +113,8 @@ type ContextUpdate struct {
 }
 
 func (r *ContextRepo) Update(ctx context.Context, id int64, u ContextUpdate) (*model.Context, error) {
+	const op = "repo.contexts.Update"
+	logQuery(ctx, op, id)
 	sets := make([]string, 0, 4)
 	args := make([]any, 0, 4)
 	if u.Name != nil {
@@ -135,31 +144,33 @@ func (r *ContextRepo) Update(ctx context.Context, id int64, u ContextUpdate) (*m
 	res, err := r.db.ExecContext(ctx, q, args...)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return nil, ErrConflict
+			return nil, logErr(ctx, op, ErrConflict)
 		}
-		return nil, fmt.Errorf("update context: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("update context: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	return r.Get(ctx, id)
 }
 
 func (r *ContextRepo) Delete(ctx context.Context, id int64) error {
+	const op = "repo.contexts.Delete"
+	logQuery(ctx, op, id)
 	res, err := r.db.ExecContext(ctx, `DELETE FROM contexts WHERE id = ?`, id)
 	if err != nil {
-		return fmt.Errorf("delete context: %w", err)
+		return logErr(ctx, op, fmt.Errorf("delete context: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return ErrNotFound
+		return logErr(ctx, op, ErrNotFound)
 	}
 	return nil
 }

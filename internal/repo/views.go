@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -98,6 +99,8 @@ func (r *TaskRepo) ListByLabel(ctx context.Context, labelID int64, filter TaskFi
 // children of a cancelled parent from being rendered as detached top-level
 // items by the tree builder when their parent row is filtered out.
 func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64][]model.Task, error) {
+	const op = "repo.tasks.ListByProjectIDs"
+	logQuery(ctx, op, ids)
 	if len(ids) == 0 {
 		return map[int64][]model.Task{}, nil
 	}
@@ -118,16 +121,16 @@ func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64
 		   AND id NOT IN (SELECT id FROM cancelled_subtree)
 		 ORDER BY `+taskOrderBy, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list tasks by project ids: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("list tasks by project ids: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := map[int64][]model.Task{}
 	allIDs := make([]int64, 0)
 	for rows.Next() {
 		t, err := scanTask(rows)
 		if err != nil {
-			return nil, err
+			return nil, logErr(ctx, op, err)
 		}
 		if t.ProjectID != nil {
 			out[*t.ProjectID] = append(out[*t.ProjectID], *t)
@@ -135,7 +138,7 @@ func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if r.labels != nil && len(allIDs) > 0 {
 		hydrated, err := r.labels.LabelsByTaskIDs(ctx, allIDs)
@@ -221,32 +224,34 @@ func (r *TaskRepo) ListPinned(ctx context.Context, filter TaskFilter) ([]model.T
 // counts and the rendered list must agree, otherwise the UI shows phantom
 // "empty slot" placeholders.
 func (r *TaskRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCategory) ([]model.Task, int, error) {
+	const op = "repo.tasks.ListByTroikiCategory"
+	logQuery(ctx, op, cat)
 	base := "FROM tasks t WHERE t.troiki_category = ? AND t.status = 'open'"
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+base, string(cat)).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count troiki tasks: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count troiki tasks: %w", err))
 	}
 
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT `+taskColumns+` `+base+` ORDER BY `+taskOrderBy, string(cat))
 	if err != nil {
-		return nil, 0, fmt.Errorf("list troiki tasks: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list troiki tasks: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Task, 0, total)
 	ids := make([]int64, 0, total)
 	for rows.Next() {
 		t, err := scanTask(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *t)
 		ids = append(ids, t.ID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, logErr(ctx, op, err)
 	}
 	if r.labels != nil && len(ids) > 0 {
 		hydrated, err := r.labels.LabelsByTaskIDs(ctx, ids)
@@ -271,6 +276,8 @@ func (r *TaskRepo) listWithBase(ctx context.Context, base string, filter TaskFil
 }
 
 func (r *TaskRepo) listWithBaseArgs(ctx context.Context, base string, baseArgs []any, filter TaskFilter, page Page, hydrate bool) ([]model.Task, int, error) {
+	const op = "repo.tasks.list"
+	logQuery(ctx, op, base, baseArgs, filter, page)
 	page = page.Normalize()
 	whereExtra, extraArgs := filter.where()
 	allArgs := append([]any{}, baseArgs...)
@@ -278,7 +285,7 @@ func (r *TaskRepo) listWithBaseArgs(ctx context.Context, base string, baseArgs [
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+base+whereExtra, allArgs...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count tasks: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count tasks: %w", err))
 	}
 
 	listArgs := append([]any{}, allArgs...)
@@ -287,22 +294,22 @@ func (r *TaskRepo) listWithBaseArgs(ctx context.Context, base string, baseArgs [
 		`SELECT `+taskColumns+` `+base+whereExtra+
 			` ORDER BY `+taskOrderBy+` LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list tasks: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list tasks: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Task, 0)
 	ids := make([]int64, 0)
 	for rows.Next() {
 		t, err := scanTask(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *t)
 		ids = append(ids, t.ID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, logErr(ctx, op, err)
 	}
 	if hydrate && r.labels != nil && len(ids) > 0 {
 		hydrated, err := r.labels.LabelsByTaskIDs(ctx, ids)

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
@@ -60,28 +62,37 @@ const maxGroupChildren = 100
 // Group validates the request, creates the parent, then re-parents each child
 // and overwrites its labels and priority to match the parent.
 func (s *GroupService) Group(ctx context.Context, in GroupInput) (*GroupResult, error) {
+	const op = "service.GroupService.Group"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int("child_count", len(in.ChildIDs)))
 	if len(in.ChildIDs) == 0 {
+		log.WarnContext(ctx, op+": empty childIds")
 		return nil, newInvalidGroupErr("childIds must not be empty")
 	}
 	if len(in.ChildIDs) > maxGroupChildren {
+		log.WarnContext(ctx, op+": too many childIds", slog.Int("count", len(in.ChildIDs)))
 		return nil, newInvalidGroupErr("too many childIds")
 	}
 	seen := make(map[int64]struct{}, len(in.ChildIDs))
 	for _, id := range in.ChildIDs {
 		if id <= 0 {
+			log.WarnContext(ctx, op+": invalid childId", slog.Int64("child_id", id))
 			return nil, newInvalidGroupErr("invalid childId")
 		}
 		if _, dup := seen[id]; dup {
+			log.WarnContext(ctx, op+": duplicate childId", slog.Int64("child_id", id))
 			return nil, newInvalidGroupErr("duplicate childId")
 		}
 		seen[id] = struct{}{}
 	}
 	if in.Parent.InboxID != nil || (in.Parent.ContextID == nil && in.Parent.ProjectID == nil) {
+		log.WarnContext(ctx, op+": invalid placement")
 		return nil, repo.ErrInvalidPlacement
 	}
 
 	parent, err := s.tasks.Create(ctx, in.Parent, in.ExplicitLabels, in.RemovedAutoLabels)
 	if err != nil {
+		log.ErrorContext(ctx, op+": create parent", slog.String("err", err.Error()))
 		return nil, err
 	}
 
@@ -119,5 +130,6 @@ func (s *GroupService) Group(ctx context.Context, in GroupInput) (*GroupResult, 
 		res.SucceededIDs = append(res.SucceededIDs, id)
 	}
 
+	log.InfoContext(ctx, "group created", slog.String("op", op), slog.Int64("parent_id", parent.ID), slog.Int("succeeded", len(res.SucceededIDs)), slog.Int("failed", len(res.Failed)))
 	return res, nil
 }
