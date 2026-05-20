@@ -41,6 +41,11 @@
 	const { mutator } = list;
 
 	const tz = $derived(configStore.value?.timezone ?? null);
+	const activeCalendarEvents = $derived(
+		settingsStore.calendarHidePastEvents
+			? calendarEvents.filter((event) => !isPastCalendarEvent(event, now, tz))
+			: calendarEvents
+	);
 	const groups = $derived(groupByDay(list.items, tz, nowStore.now));
 	const eventGroups = $derived(
 		groupCalendarEventsByDay(activeCalendarEvents, {
