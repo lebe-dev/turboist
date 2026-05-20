@@ -80,14 +80,16 @@ func AccessLogMiddleware(log *slog.Logger) fiber.Handler {
 }
 
 // maskToken returns a short prefix of a bearer token suitable for logging.
-// Never logs the full token. Returns "" for empty input.
+// Never logs the full token. Returns "" for empty input. For tokens that are
+// already short enough to be guessable verbatim, returns only the ellipsis so
+// the caller never accidentally records the entire value.
 func maskToken(t string) string {
 	if t == "" {
 		return ""
 	}
 	const n = 6
 	if len(t) <= n {
-		return t + "…"
+		return "…"
 	}
 	return t[:n] + "…"
 }
@@ -183,6 +185,9 @@ func APIAuthMiddleware(issuer *auth.JWTIssuer, apiTokens *repo.APITokenRepo, sal
 		hash := auth.HashAPIToken(token, salt)
 		apiToken, err := apiTokens.GetByTokenHash(c.Context(), hash)
 		if err != nil {
+			if !errors.Is(err, repo.ErrNotFound) {
+				return ErrInternal("lookup api token").WithCause(err)
+			}
 			logging.FromContext(c.Context()).WarnContext(c.Context(), "auth: invalid token",
 				slog.String("op", "httpapi.APIAuthMiddleware"),
 				slog.String("token_prefix", masked),

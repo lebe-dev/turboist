@@ -1,4 +1,4 @@
-# Turboist v1.5.0
+# Turboist v1.5.1
 
 ## New Features
 

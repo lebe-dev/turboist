@@ -91,10 +91,7 @@ func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 			}
 			appErr = &AppError{HTTPStatus: e.Code, Code: code, Message: e.Message}
 		default:
-			if log != nil {
-				log.Error("unhandled error", slog.String("error", err.Error()))
-			}
-			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error"}
+			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error", Internal: err}
 		}
 		ctx := c.Context()
 		reqLog := logging.FromContext(ctx)

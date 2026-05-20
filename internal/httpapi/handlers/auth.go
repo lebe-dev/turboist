@@ -157,6 +157,9 @@ func (h *AuthHandler) login(c fiber.Ctx) error {
 
 	user, err := h.users.GetByUsername(ctx, req.Username)
 	if err != nil {
+		if !errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrInternal("lookup user").WithCause(err)
+		}
 		log.WarnContext(ctx, "auth: login unknown user",
 			slog.String("op", "handler.Auth.Login"),
 			slog.String("client_kind", string(req.ClientKind)),
@@ -165,6 +168,17 @@ func (h *AuthHandler) login(c fiber.Ctx) error {
 		return httpapi.ErrAuthInvalid("invalid credentials")
 	}
 	if err := auth.VerifyPassword(req.Password, user.PasswordHash); err != nil {
+		if errors.Is(err, auth.ErrInvalidHash) || errors.Is(err, auth.ErrUnsupportedHashAlgo) {
+			// Stored hash is malformed or uses an unsupported algorithm. Keep the
+			// client-facing response identical to a wrong-password reply to avoid
+			// account enumeration; surface the underlying cause server-side only.
+			log.ErrorContext(ctx, "auth: login stored hash invalid",
+				slog.String("op", "handler.Auth.Login"),
+				slog.Int64("user_id", user.ID),
+				slog.String("err", err.Error()),
+			)
+			return httpapi.ErrAuthInvalid("invalid credentials")
+		}
 		log.WarnContext(ctx, "auth: login wrong password",
 			slog.String("op", "handler.Auth.Login"),
 			slog.Int64("user_id", user.ID),
@@ -217,12 +231,21 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 			slog.String("op", "handler.Auth.Refresh"),
 			slog.Int64("session_id", sid),
 		)
-		_ = h.sessions.Revoke(ctx, sid)
+		if err := h.sessions.Revoke(ctx, sid); err != nil && !errors.Is(err, repo.ErrNotFound) {
+			log.ErrorContext(ctx, "auth: refresh reuse revoke failed",
+				slog.String("op", "handler.Auth.Refresh"),
+				slog.Int64("session_id", sid),
+				slog.String("err", err.Error()),
+			)
+		}
 		return httpapi.ErrAuthInvalid("refresh token reuse detected")
 	}
 
 	session, err := h.sessions.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
+		if !errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrInternal("lookup session").WithCause(err)
+		}
 		log.WarnContext(ctx, "auth: refresh token unknown",
 			slog.String("op", "handler.Auth.Refresh"),
 		)
@@ -344,7 +367,15 @@ func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.Cli
 	}
 
 	if err := h.sessions.EnforceLimit(c.Context(), user.ID, kind, sessionLimit); err != nil {
-		_ = h.sessions.Revoke(c.Context(), session.ID)
+		ctx := c.Context()
+		if rerr := h.sessions.Revoke(ctx, session.ID); rerr != nil && !errors.Is(rerr, repo.ErrNotFound) {
+			logging.FromContext(ctx).ErrorContext(ctx,
+				"auth: rollback session after enforce-limit failed",
+				slog.String("op", "handler.Auth.issueSession"),
+				slog.Int64("session_id", session.ID),
+				slog.String("err", rerr.Error()),
+			)
+		}
 		return httpapi.ErrInternal("enforce session limit").WithCause(err)
 	}
 
