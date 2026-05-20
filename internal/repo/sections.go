@@ -40,7 +40,7 @@ func scanSection(row interface{ Scan(...any) error }) (*model.ProjectSection, er
 
 func (r *ProjectSectionRepo) Create(ctx context.Context, projectID int64, title string) (*model.ProjectSection, error) {
 	const op = "repo.project_sections.Create"
-	logQuery(ctx, op, projectID, title)
+	logQuery(ctx, op, projectID)
 	now := model.FormatUTC(time.Now())
 	var nextPos int
 	if err := r.db.QueryRowContext(ctx,

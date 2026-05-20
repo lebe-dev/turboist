@@ -37,7 +37,7 @@ func (s *PinService) PinProject(ctx context.Context, projectID int64) error {
 		return ErrPinLimitExceeded
 	}
 	if err := s.projects.SetPinned(ctx, projectID, true); err != nil {
-		log.ErrorContext(ctx, op+": set pinned", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": set pinned", err, slog.Int64("project_id", projectID))
 		return err
 	}
 	log.InfoContext(ctx, "project pinned", slog.String("op", op), slog.Int64("project_id", projectID))
@@ -49,7 +49,7 @@ func (s *PinService) UnpinProject(ctx context.Context, projectID int64) error {
 	log := logging.FromContext(ctx)
 	log.DebugContext(ctx, op, slog.Int64("project_id", projectID))
 	if err := s.projects.SetPinned(ctx, projectID, false); err != nil {
-		log.ErrorContext(ctx, op+": set unpinned", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": set unpinned", err, slog.Int64("project_id", projectID))
 		return err
 	}
 	log.InfoContext(ctx, "project unpinned", slog.String("op", op), slog.Int64("project_id", projectID))
@@ -70,7 +70,7 @@ func (s *PinService) PinTask(ctx context.Context, taskID int64) error {
 		return ErrPinLimitExceeded
 	}
 	if err := s.tasks.SetPinned(ctx, taskID, true); err != nil {
-		log.ErrorContext(ctx, op+": set pinned", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": set pinned", err, slog.Int64("task_id", taskID))
 		return err
 	}
 	log.InfoContext(ctx, "task pinned", slog.String("op", op), slog.Int64("task_id", taskID))
@@ -82,7 +82,7 @@ func (s *PinService) UnpinTask(ctx context.Context, taskID int64) error {
 	log := logging.FromContext(ctx)
 	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
 	if err := s.tasks.SetPinned(ctx, taskID, false); err != nil {
-		log.ErrorContext(ctx, op+": set unpinned", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": set unpinned", err, slog.Int64("task_id", taskID))
 		return err
 	}
 	log.InfoContext(ctx, "task unpinned", slog.String("op", op), slog.Int64("task_id", taskID))

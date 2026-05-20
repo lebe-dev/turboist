@@ -22,7 +22,7 @@ func NewSearchRepo(tasks *TaskRepo, projects *ProjectRepo) *SearchRepo {
 // validate q (min 2 chars) — repo treats empty q as no-op.
 func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]model.Task, int, error) {
 	const op = "repo.search.SearchTasks"
-	logQuery(ctx, op, q, page)
+	logQuery(ctx, op, len(q), page)
 	q = strings.TrimSpace(q)
 	if q == "" {
 		return []model.Task{}, 0, nil
@@ -75,7 +75,7 @@ func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]mo
 
 func (r *SearchRepo) SearchProjects(ctx context.Context, q string, page Page) ([]model.Project, int, error) {
 	const op = "repo.search.SearchProjects"
-	logQuery(ctx, op, q, page)
+	logQuery(ctx, op, len(q), page)
 	q = strings.TrimSpace(q)
 	if q == "" {
 		return []model.Project{}, 0, nil

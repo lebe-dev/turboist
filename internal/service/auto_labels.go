@@ -91,7 +91,7 @@ func (s *AutoLabelsService) resolveExisting(ctx context.Context, name string) (i
 func (s *AutoLabelsService) Apply(ctx context.Context, title string, currentIDs []int64, explicitNames *[]string, removedAutoNames []string) ([]int64, error) {
 	const op = "service.AutoLabelsService.Apply"
 	log := logging.FromContext(ctx)
-	log.DebugContext(ctx, op, slog.String("title", title))
+	log.DebugContext(ctx, op, slog.Int("title_len", len(title)))
 	rules, err := s.loadRules(ctx)
 	if err != nil {
 		log.ErrorContext(ctx, op+": load rules", slog.String("err", err.Error()))

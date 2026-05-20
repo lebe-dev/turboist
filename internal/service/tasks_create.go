@@ -29,11 +29,11 @@ func NewTaskService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskLabels
 func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLabels []string, removedAutoLabels []string) (*model.Task, error) {
 	const op = "service.TaskService.Create"
 	log := logging.FromContext(ctx)
-	log.DebugContext(ctx, op, slog.String("title", in.Title))
+	log.DebugContext(ctx, op)
 	if in.ProjectID != nil && s.projects != nil {
 		p, err := s.projects.Get(ctx, *in.ProjectID)
 		if err != nil {
-			log.ErrorContext(ctx, op+": get project", slog.Int64("project_id", *in.ProjectID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": get project", err, slog.Int64("project_id", *in.ProjectID))
 			return nil, err
 		}
 		if p.TroikiCategory != nil {
@@ -42,7 +42,7 @@ func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLa
 	}
 	t, err := s.tasks.Create(ctx, in)
 	if err != nil {
-		log.ErrorContext(ctx, op+": create task", slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": create task", err)
 		return nil, err
 	}
 	finalIDs, err := s.autoLabels.Apply(ctx, in.Title, nil, &explicitLabels, removedAutoLabels)
@@ -58,12 +58,12 @@ func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLa
 	}
 	if len(finalIDs) > 0 {
 		if err := s.taskLabels.SetForTask(ctx, t.ID, finalIDs); err != nil {
-			log.ErrorContext(ctx, op+": set labels", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": set labels", err, slog.Int64("task_id", t.ID))
 			return nil, err
 		}
 		out, err := s.tasks.Get(ctx, t.ID)
 		if err != nil {
-			log.ErrorContext(ctx, op+": refetch", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": refetch", err, slog.Int64("task_id", t.ID))
 			return nil, err
 		}
 		log.InfoContext(ctx, "task created", slog.String("op", op), slog.Int64("task_id", t.ID))

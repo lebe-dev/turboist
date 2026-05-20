@@ -32,26 +32,26 @@ func (s *MoveService) Move(ctx context.Context, taskID int64, target repo.Placem
 		if errors.Is(err, repo.ErrInvalidPlacement) {
 			log.WarnContext(ctx, op+": invalid placement", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
 		} else {
-			log.ErrorContext(ctx, op+": move task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": move task", err, slog.Int64("task_id", taskID))
 		}
 		return nil, err
 	}
 	if target.ProjectID != nil && s.projects != nil {
 		p, err := s.projects.Get(ctx, *target.ProjectID)
 		if err != nil {
-			log.ErrorContext(ctx, op+": get project", slog.Int64("project_id", *target.ProjectID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": get project", err, slog.Int64("project_id", *target.ProjectID))
 			return nil, err
 		}
 		if p.TroikiCategory != nil {
 			if err := s.tasks.UpdatePriorityByProject(ctx, *target.ProjectID, PriorityForCategory(*p.TroikiCategory)); err != nil {
-				log.ErrorContext(ctx, op+": pin priority", slog.Int64("project_id", *target.ProjectID), slog.String("err", err.Error()))
+				logRepoErr(ctx, op+": pin priority", err, slog.Int64("project_id", *target.ProjectID))
 				return nil, err
 			}
 		}
 	}
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
-		log.ErrorContext(ctx, op+": get task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	log.InfoContext(ctx, "task moved", slog.String("op", op), slog.Int64("task_id", taskID))

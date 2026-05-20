@@ -42,7 +42,7 @@ func scanContext(row interface{ Scan(...any) error }) (*model.Context, error) {
 
 func (r *ContextRepo) Create(ctx context.Context, name, color string, isFavourite bool) (*model.Context, error) {
 	const op = "repo.contexts.Create"
-	logQuery(ctx, op, name, color, isFavourite)
+	logQuery(ctx, op, color, isFavourite)
 	now := model.FormatUTC(time.Now())
 	favInt := 0
 	if isFavourite {

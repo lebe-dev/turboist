@@ -96,7 +96,7 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 	log.DebugContext(ctx, op, slog.Int64("project_id", projectID), slog.String("category", catVal))
 	p, err := s.projects.Get(ctx, projectID)
 	if err != nil {
-		log.ErrorContext(ctx, op+": get project", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": get project", err, slog.Int64("project_id", projectID))
 		return nil, err
 	}
 	if p.Status != model.ProjectStatusOpen {
@@ -152,7 +152,7 @@ func (s *TroikiService) SetCategory(ctx context.Context, projectID int64, cat *m
 		// rejects the redundant write). Re-read to surface the actual cause.
 		cur, err := s.projects.Get(ctx, projectID)
 		if err != nil {
-			log.ErrorContext(ctx, op+": re-read project", slog.Int64("project_id", projectID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": re-read project", err, slog.Int64("project_id", projectID))
 			return nil, err
 		}
 		if cur.Status != model.ProjectStatusOpen {

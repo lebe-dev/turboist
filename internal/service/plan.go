@@ -37,7 +37,7 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 	log.DebugContext(ctx, op, slog.Int64("task_id", taskID), slog.String("state", string(state)))
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
-		log.ErrorContext(ctx, op+": get task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	if t.PlanState == state {
@@ -77,7 +77,7 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 		}
 		ctxID := ctxs[0].ID
 		if err := s.tasks.Move(ctx, taskID, repo.Placement{ContextID: &ctxID}); err != nil {
-			log.ErrorContext(ctx, op+": move inbox task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": move inbox task", err, slog.Int64("task_id", taskID))
 			return nil, err
 		}
 	}
@@ -87,7 +87,7 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 	}
 	updated, err := s.tasks.Update(ctx, taskID, update)
 	if err != nil {
-		log.ErrorContext(ctx, op+": update task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": update task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	log.InfoContext(ctx, "plan state changed", slog.String("op", op), slog.Int64("task_id", taskID), slog.String("state", string(state)))

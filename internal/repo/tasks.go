@@ -175,7 +175,7 @@ type CreateTask struct {
 
 func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, error) {
 	const op = "repo.tasks.Create"
-	logQuery(ctx, op, in.Title, in.Placement)
+	logQuery(ctx, op, in.Placement)
 	if err := in.Validate(); err != nil {
 		return nil, err
 	}

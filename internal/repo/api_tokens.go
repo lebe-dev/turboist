@@ -35,7 +35,7 @@ func scanAPIToken(row interface{ Scan(...any) error }) (*model.APIToken, error) 
 
 func (r *APITokenRepo) Create(ctx context.Context, userID int64, name, tokenHash string) (*model.APIToken, error) {
 	const op = "repo.api_tokens.Create"
-	logQuery(ctx, op, userID, name)
+	logQuery(ctx, op, userID)
 	now := model.FormatUTC(time.Now())
 	res, err := r.db.ExecContext(ctx,
 		`INSERT INTO api_tokens (user_id, name, token_hash, created_at) VALUES (?, ?, ?, ?)`,

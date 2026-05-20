@@ -44,7 +44,7 @@ func scanLabel(row interface{ Scan(...any) error }) (*model.Label, error) {
 
 func (r *LabelRepo) Create(ctx context.Context, name, color string, isFavourite bool) (*model.Label, error) {
 	const op = "repo.labels.Create"
-	logQuery(ctx, op, name, color, isFavourite)
+	logQuery(ctx, op, color, isFavourite)
 	now := model.FormatUTC(time.Now())
 	favInt := 0
 	if isFavourite {
@@ -83,7 +83,7 @@ func (r *LabelRepo) Get(ctx context.Context, id int64) (*model.Label, error) {
 
 func (r *LabelRepo) GetByName(ctx context.Context, name string) (*model.Label, error) {
 	const op = "repo.labels.GetByName"
-	logQuery(ctx, op, name)
+	logQuery(ctx, op)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE name = ?`, name)
 	l, err := scanLabel(row)

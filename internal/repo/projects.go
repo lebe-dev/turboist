@@ -67,7 +67,7 @@ type CreateProject struct {
 
 func (r *ProjectRepo) Create(ctx context.Context, in CreateProject) (*model.Project, error) {
 	const op = "repo.projects.Create"
-	logQuery(ctx, op, in)
+	logQuery(ctx, op, in.ContextID, string(in.Type))
 	now := model.FormatUTC(time.Now())
 	pt := in.Type
 	if pt == "" {

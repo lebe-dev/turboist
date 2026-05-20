@@ -58,7 +58,7 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
-		log.ErrorContext(ctx, op+": get task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	if t.RecurrenceRule != nil {
@@ -73,7 +73,7 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 		status := model.TaskStatusCompleted
 		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status, CompletedAt: completedAt})
 		if err != nil {
-			log.ErrorContext(ctx, op+": update status", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+			logRepoErr(ctx, op+": update status", err, slog.Int64("task_id", taskID))
 			return nil, err
 		}
 		t = updated
@@ -118,7 +118,7 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 	}
 	updated, err := s.tasks.Update(ctx, t.ID, upd)
 	if err != nil {
-		log.ErrorContext(ctx, op+": update task", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": update task", err, slog.Int64("task_id", t.ID))
 		return nil, err
 	}
 	// For non-terminal completions the parent task stays open (advanced to the
@@ -199,7 +199,7 @@ func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.
 	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
-		log.ErrorContext(ctx, op+": get task", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	if t.Status == model.TaskStatusOpen {
@@ -207,7 +207,7 @@ func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.
 	}
 	reopened, err := s.tasks.ReopenAndPinProjectPriority(ctx, taskID)
 	if err != nil {
-		log.ErrorContext(ctx, op+": reopen", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": reopen", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	log.InfoContext(ctx, "task reopened", slog.String("op", op), slog.Int64("task_id", taskID))
@@ -224,7 +224,7 @@ func (s *CompleteService) Cancel(ctx context.Context, taskID int64) (*model.Task
 	status := model.TaskStatusCancelled
 	updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
 	if err != nil {
-		log.ErrorContext(ctx, op+": update", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+		logRepoErr(ctx, op+": update", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	log.InfoContext(ctx, "task cancelled", slog.String("op", op), slog.Int64("task_id", taskID))

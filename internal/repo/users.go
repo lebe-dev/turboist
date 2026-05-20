@@ -54,7 +54,7 @@ func (r *UserRepo) Exists(ctx context.Context) (bool, error) {
 
 func (r *UserRepo) Create(ctx context.Context, username, passwordHash string) (*model.User, error) {
 	const op = "repo.users.Create"
-	logQuery(ctx, op, username)
+	logQuery(ctx, op)
 	now := model.FormatUTC(time.Now())
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO users (id, username, password_hash, created_at, updated_at) VALUES (1, ?, ?, ?, ?)`,
@@ -85,7 +85,7 @@ func (r *UserRepo) Get(ctx context.Context, id int64) (*model.User, error) {
 
 func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	const op = "repo.users.GetByUsername"
-	logQuery(ctx, op, username)
+	logQuery(ctx, op)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, created_at, updated_at FROM users WHERE username = ?`, username)
 	u, err := scanUser(row)
