@@ -98,6 +98,8 @@
 	const getDayPartActive = getContext<(() => boolean) | undefined>('dayPartActive');
 	const phaseActive = $derived(getDayPartActive ? getDayPartActive() : true);
 
+	let descriptionExpanded = $state(false);
+
 	const checked = $derived(task.status === 'completed');
 	const project = $derived(
 		task.projectId ? projectsStore.items.find((p) => p.id === task.projectId) : null
@@ -108,6 +110,7 @@
 	const taskHref = $derived(resolve('/(app)/task/[id]', { id: String(task.id) }));
 	const description = $derived(task.description?.trim() ?? '');
 	const descriptionPreview = $derived(stripMarkdownSyntax(description));
+	const descriptionExpandable = $derived(description.length > 100);
 	const isRecurring = $derived(!!task.recurrenceRule);
 	const showTroikiBadge = $derived(
 		!!project?.troikiCategory &&
@@ -241,7 +244,15 @@
 		</div>
 
 		{#if descriptionPreview}
-			<p class="line-clamp-3 break-words text-xs text-muted-foreground/70 md:line-clamp-1">{descriptionPreview}</p>
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+			<p
+				class="break-words text-xs text-muted-foreground/70"
+				class:line-clamp-2={!descriptionExpanded}
+				class:cursor-pointer={descriptionExpandable && !descriptionExpanded}
+				onclick={descriptionExpandable && !descriptionExpanded
+					? (e) => { e.preventDefault(); e.stopPropagation(); descriptionExpanded = true; }
+					: undefined}
+			>{descriptionPreview}</p>
 		{/if}
 
 		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showCalendarSlash || showWeekBadge || showBacklogBadge}
