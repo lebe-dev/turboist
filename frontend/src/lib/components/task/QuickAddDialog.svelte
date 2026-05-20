@@ -16,7 +16,6 @@
 	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
-	import { clickOutside } from '$lib/actions/clickOutside';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -519,12 +518,7 @@
 								{/each}
 							{/snippet}
 
-							<div
-								class="relative"
-								use:clickOutside={() => {
-									if (!isMobile.current) labelMenuOpen = false;
-								}}
-							>
+							{#if isMobile.current}
 								<button
 									type="button"
 									onclick={() => (labelMenuOpen = !labelMenuOpen)}
@@ -534,30 +528,44 @@
 									<TagIcon class="size-3.5" />
 									<span>{$t('common.labels')}</span>
 								</button>
-
-								{#if isMobile.current}
-									<Sheet.Root bind:open={labelMenuOpen}>
-										<Sheet.Content
-											side="bottom"
-											class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2"
-										>
-											<Sheet.Header class="px-2.5 pb-1 pt-0">
-												<Sheet.Title>{$t('common.labels')}</Sheet.Title>
-											</Sheet.Header>
-											<div class="flex flex-col gap-1 pb-4">
-												{@render labelOptions()}
-											</div>
-										</Sheet.Content>
-									</Sheet.Root>
-								{:else if labelMenuOpen}
-									<div
-										class="absolute left-0 top-9 z-10 flex max-h-64 w-56 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-popover p-2 shadow-lg"
-										role="menu"
+								<Sheet.Root bind:open={labelMenuOpen}>
+									<Sheet.Content
+										side="bottom"
+										class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2"
 									>
-										{@render labelOptions()}
-									</div>
-								{/if}
-							</div>
+										<Sheet.Header class="px-2.5 pb-1 pt-0">
+											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
+										</Sheet.Header>
+										<div class="flex flex-col gap-1 pb-4">
+											{@render labelOptions()}
+										</div>
+									</Sheet.Content>
+								</Sheet.Root>
+							{:else}
+								<PopoverPrimitive.Root bind:open={labelMenuOpen}>
+									<PopoverPrimitive.Trigger>
+										{#snippet child({ props })}
+											<button
+												{...props}
+												type="button"
+												class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent"
+											>
+												<TagIcon class="size-3.5" />
+												<span>{$t('common.labels')}</span>
+											</button>
+										{/snippet}
+									</PopoverPrimitive.Trigger>
+									<PopoverPrimitive.Portal>
+										<PopoverPrimitive.Content
+											align="start"
+											sideOffset={4}
+											class="z-[60] flex max-h-64 w-56 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-popover p-2 shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+										>
+											{@render labelOptions()}
+										</PopoverPrimitive.Content>
+									</PopoverPrimitive.Portal>
+								</PopoverPrimitive.Root>
+							{/if}
 						{/if}
 					</div>
 
