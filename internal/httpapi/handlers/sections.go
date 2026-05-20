@@ -52,7 +52,7 @@ func (h *SectionHandler) reorder(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
 		}
-		return httpapi.ErrInternal("reorder section")
+		return httpapi.ErrInternal("reorder section").WithCause(err)
 	}
 	return c.JSON(dto.SectionFromModel(*s))
 }
@@ -67,7 +67,7 @@ func (h *SectionHandler) get(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
 		}
-		return httpapi.ErrInternal("get section")
+		return httpapi.ErrInternal("get section").WithCause(err)
 	}
 	return c.JSON(dto.SectionFromModel(*s))
 }
@@ -86,7 +86,7 @@ func (h *SectionHandler) patch(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
 		}
-		return httpapi.ErrInternal("update section")
+		return httpapi.ErrInternal("update section").WithCause(err)
 	}
 	return c.JSON(dto.SectionFromModel(*s))
 }
@@ -100,7 +100,7 @@ func (h *SectionHandler) delete(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
 		}
-		return httpapi.ErrInternal("delete section")
+		return httpapi.ErrInternal("delete section").WithCause(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -114,12 +114,12 @@ func (h *SectionHandler) listTasks(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
 		}
-		return httpapi.ErrInternal("get section")
+		return httpapi.ErrInternal("get section").WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.tasks.ListBySection(c.Context(), id, repo.TaskFilter{}, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list tasks by section")
+		return httpapi.ErrInternal("list tasks by section").WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(items))
 	for i, t := range items {
@@ -138,11 +138,11 @@ func (h *SectionHandler) createTask(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
 		}
-		return httpapi.ErrInternal("get section")
+		return httpapi.ErrInternal("get section").WithCause(err)
 	}
 	proj, err := h.projects.Get(c.Context(), sec.ProjectID)
 	if err != nil {
-		return httpapi.ErrInternal("get project for section")
+		return httpapi.ErrInternal("get project for section").WithCause(err)
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {

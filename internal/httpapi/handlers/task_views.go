@@ -80,7 +80,7 @@ func (h *TaskViewHandler) today(c fiber.Ctx) error {
 	filter := parseViewFilter(c)
 	items, total, err := h.tasks.ListToday(c.Context(), h.todayStart(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list today")
+		return httpapi.ErrInternal("list today").WithCause(err)
 	}
 	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
 }
@@ -90,7 +90,7 @@ func (h *TaskViewHandler) tomorrow(c fiber.Ctx) error {
 	filter := parseViewFilter(c)
 	items, total, err := h.tasks.ListTomorrow(c.Context(), h.todayStart(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list tomorrow")
+		return httpapi.ErrInternal("list tomorrow").WithCause(err)
 	}
 	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
 }
@@ -113,7 +113,7 @@ func (h *TaskViewHandler) completed(c fiber.Ctx) error {
 	end := todayStart.Add(24 * time.Hour)
 	items, total, err := h.tasks.ListCompletedInRange(c.Context(), start, end, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list completed")
+		return httpapi.ErrInternal("list completed").WithCause(err)
 	}
 	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
 }
@@ -123,7 +123,7 @@ func (h *TaskViewHandler) overdue(c fiber.Ctx) error {
 	filter := parseViewFilter(c)
 	items, total, err := h.tasks.ListOverdue(c.Context(), h.todayStart(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list overdue")
+		return httpapi.ErrInternal("list overdue").WithCause(err)
 	}
 	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
 }
@@ -139,7 +139,7 @@ func (h *TaskViewHandler) week(c fiber.Ctx) error {
 	start, end := h.currentWeekRange()
 	items, total, err := h.tasks.ListWeek(c.Context(), start, end, filter)
 	if err != nil {
-		return httpapi.ErrInternal("list week")
+		return httpapi.ErrInternal("list week").WithCause(err)
 	}
 	return c.JSON(viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total})
 }
@@ -148,7 +148,7 @@ func (h *TaskViewHandler) backlog(c fiber.Ctx) error {
 	filter := parseViewFilter(c)
 	items, total, err := h.tasks.ListBacklog(c.Context(), filter)
 	if err != nil {
-		return httpapi.ErrInternal("list backlog")
+		return httpapi.ErrInternal("list backlog").WithCause(err)
 	}
 	return c.JSON(viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total})
 }
@@ -157,7 +157,7 @@ func (h *TaskViewHandler) pinned(c fiber.Ctx) error {
 	filter := parseViewFilter(c)
 	items, total, err := h.tasks.ListPinned(c.Context(), filter)
 	if err != nil {
-		return httpapi.ErrInternal("list pinned")
+		return httpapi.ErrInternal("list pinned").WithCause(err)
 	}
 	return c.JSON(viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total})
 }
@@ -170,11 +170,11 @@ type statsPlanResponse struct {
 func (h *TaskViewHandler) statsPlan(c fiber.Ctx) error {
 	week, err := h.tasks.CountWeek(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("count week")
+		return httpapi.ErrInternal("count week").WithCause(err)
 	}
 	backlog, err := h.tasks.CountBacklog(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("count backlog")
+		return httpapi.ErrInternal("count backlog").WithCause(err)
 	}
 	return c.JSON(statsPlanResponse{Week: week, Backlog: backlog})
 }

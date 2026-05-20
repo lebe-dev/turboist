@@ -74,29 +74,29 @@ func (h *TroikiHandler) renderView(v service.TroikiView) troikiViewDTO {
 func (h *TroikiHandler) view(c fiber.Ctx) error {
 	v, err := h.svc.View(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("troiki view")
+		return httpapi.ErrInternal("troiki view").WithCause(err)
 	}
 	return c.JSON(h.renderView(v))
 }
 
 func (h *TroikiHandler) start(c fiber.Ctx) error {
 	if err := h.svc.Start(c.Context()); err != nil {
-		return httpapi.ErrInternal("troiki start")
+		return httpapi.ErrInternal("troiki start").WithCause(err)
 	}
 	v, err := h.svc.View(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("troiki view")
+		return httpapi.ErrInternal("troiki view").WithCause(err)
 	}
 	return c.JSON(h.renderView(v))
 }
 
 func (h *TroikiHandler) reset(c fiber.Ctx) error {
 	if err := h.svc.Reset(c.Context()); err != nil {
-		return httpapi.ErrInternal("troiki reset")
+		return httpapi.ErrInternal("troiki reset").WithCause(err)
 	}
 	v, err := h.svc.View(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("troiki view")
+		return httpapi.ErrInternal("troiki view").WithCause(err)
 	}
 	return c.JSON(h.renderView(v))
 }
@@ -135,7 +135,7 @@ func (h *TroikiHandler) setProjectCategory(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrTroikiInvalidProject) {
 			return httpapi.ErrForbiddenPlacement("troiki category requires an open project")
 		}
-		return httpapi.ErrInternal("set troiki category")
+		return httpapi.ErrInternal("set troiki category").WithCause(err)
 	}
 	return c.JSON(dto.ProjectFromModel(*p))
 }

@@ -57,7 +57,7 @@ func toAppSettingsResp(s *model.AppSettings) appSettingsResp {
 func (h *AppSettingsHandler) get(c fiber.Ctx) error {
 	s, err := h.repo.Get(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("load app settings")
+		return httpapi.ErrInternal("load app settings").WithCause(err)
 	}
 	return c.JSON(toAppSettingsResp(s))
 }
@@ -92,11 +92,11 @@ func (h *AppSettingsHandler) putAutoLabels(c fiber.Ctx) error {
 	}
 	current, err := h.repo.Get(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("load app settings")
+		return httpapi.ErrInternal("load app settings").WithCause(err)
 	}
 	current.AutoLabels = rules
 	if err := h.repo.Set(c.Context(), current); err != nil {
-		return httpapi.ErrInternal("save app settings")
+		return httpapi.ErrInternal("save app settings").WithCause(err)
 	}
 	return c.JSON(toAppSettingsResp(current))
 }

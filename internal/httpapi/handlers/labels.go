@@ -38,7 +38,7 @@ func (h *LabelHandler) list(c fiber.Ctx) error {
 	filter := repo.LabelListFilter{Query: c.Query("q")}
 	items, total, err := h.labels.List(c.Context(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list labels")
+		return httpapi.ErrInternal("list labels").WithCause(err)
 	}
 	dtos := make([]dto.LabelDTO, len(items))
 	for i, l := range items {
@@ -63,7 +63,7 @@ func (h *LabelHandler) create(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("label name already exists")
 		}
-		return httpapi.ErrInternal("create label")
+		return httpapi.ErrInternal("create label").WithCause(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(dto.LabelFromModel(*l))
 }
@@ -78,7 +78,7 @@ func (h *LabelHandler) get(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("label not found")
 		}
-		return httpapi.ErrInternal("get label")
+		return httpapi.ErrInternal("get label").WithCause(err)
 	}
 	return c.JSON(dto.LabelFromModel(*l))
 }
@@ -108,7 +108,7 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("label name already exists")
 		}
-		return httpapi.ErrInternal("update label")
+		return httpapi.ErrInternal("update label").WithCause(err)
 	}
 	return c.JSON(dto.LabelFromModel(*l))
 }
@@ -122,7 +122,7 @@ func (h *LabelHandler) delete(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("label not found")
 		}
-		return httpapi.ErrInternal("delete label")
+		return httpapi.ErrInternal("delete label").WithCause(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -136,12 +136,12 @@ func (h *LabelHandler) listTasks(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("label not found")
 		}
-		return httpapi.ErrInternal("get label")
+		return httpapi.ErrInternal("get label").WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.tasks.ListByLabel(c.Context(), id, repo.TaskFilter{}, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list tasks by label")
+		return httpapi.ErrInternal("list tasks by label").WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(items))
 	for i, t := range items {
@@ -159,12 +159,12 @@ func (h *LabelHandler) listProjects(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("label not found")
 		}
-		return httpapi.ErrInternal("get label")
+		return httpapi.ErrInternal("get label").WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.projects.ListByLabel(c.Context(), id, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list projects by label")
+		return httpapi.ErrInternal("list projects by label").WithCause(err)
 	}
 	dtos := make([]dto.ProjectDTO, len(items))
 	for i, p := range items {

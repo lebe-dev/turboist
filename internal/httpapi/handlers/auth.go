@@ -66,7 +66,7 @@ func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
 func (h *AuthHandler) setupRequired(c fiber.Ctx) error {
 	exists, err := h.users.Exists(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("check user existence")
+		return httpapi.ErrInternal("check user existence").WithCause(err)
 	}
 	return c.JSON(fiber.Map{"required": !exists})
 }
@@ -78,7 +78,7 @@ func (h *AuthHandler) setup(c fiber.Ctx) error {
 
 	exists, err := h.users.Exists(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("check user existence")
+		return httpapi.ErrInternal("check user existence").WithCause(err)
 	}
 	if exists {
 		return httpapi.ErrSetupAlreadyDone()
@@ -94,11 +94,11 @@ func (h *AuthHandler) setup(c fiber.Ctx) error {
 
 	hash, err := auth.HashPassword(req.Password, h.argon2Params)
 	if err != nil {
-		return httpapi.ErrInternal("hash password")
+		return httpapi.ErrInternal("hash password").WithCause(err)
 	}
 	user, err := h.users.Create(c.Context(), req.Username, hash)
 	if err != nil {
-		return httpapi.ErrInternal("create user")
+		return httpapi.ErrInternal("create user").WithCause(err)
 	}
 
 	return h.issueSession(c, user, req.ClientKind)
@@ -166,11 +166,11 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 
 	newToken, newHash, err := auth.GenerateRefreshToken()
 	if err != nil {
-		return httpapi.ErrInternal("generate refresh token")
+		return httpapi.ErrInternal("generate refresh token").WithCause(err)
 	}
 	newExp := auth.RefreshExpiry(time.Now())
 	if err := h.sessions.Rotate(c.Context(), session.ID, newHash, newExp); err != nil {
-		return httpapi.ErrInternal("rotate session")
+		return httpapi.ErrInternal("rotate session").WithCause(err)
 	}
 
 	// Mark old hash as rotated for theft detection window.
@@ -178,7 +178,7 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 
 	access, _, err := h.jwt.Issue(session.UserID, session.ID)
 	if err != nil {
-		return httpapi.ErrInternal("issue access token")
+		return httpapi.ErrInternal("issue access token").WithCause(err)
 	}
 
 	if session.ClientKind == model.ClientWeb {
@@ -195,7 +195,7 @@ func (h *AuthHandler) logout(c fiber.Ctx) error {
 	}
 	if err := h.sessions.Revoke(c.Context(), claims.SessionID); err != nil {
 		if !errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrInternal("revoke session")
+			return httpapi.ErrInternal("revoke session").WithCause(err)
 		}
 	}
 	clearRefreshCookie(c)
@@ -208,7 +208,7 @@ func (h *AuthHandler) logoutAll(c fiber.Ctx) error {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
 	if err := h.sessions.RevokeAllForUser(c.Context(), claims.UserID); err != nil {
-		return httpapi.ErrInternal("revoke all sessions")
+		return httpapi.ErrInternal("revoke all sessions").WithCause(err)
 	}
 	clearRefreshCookie(c)
 	return c.SendStatus(fiber.StatusNoContent)
@@ -221,7 +221,7 @@ func (h *AuthHandler) me(c fiber.Ctx) error {
 	}
 	user, err := h.users.Get(c.Context(), claims.UserID)
 	if err != nil {
-		return httpapi.ErrInternal("get user")
+		return httpapi.ErrInternal("get user").WithCause(err)
 	}
 	return c.JSON(fiber.Map{"user": dto.UserDTO{ID: user.ID, Username: user.Username}})
 }
@@ -231,7 +231,7 @@ func (h *AuthHandler) me(c fiber.Ctx) error {
 func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.ClientKind) error {
 	token, tokenHash, err := auth.GenerateRefreshToken()
 	if err != nil {
-		return httpapi.ErrInternal("generate refresh token")
+		return httpapi.ErrInternal("generate refresh token").WithCause(err)
 	}
 
 	session, err := h.sessions.Create(c.Context(), repo.CreateSessionParams{
@@ -242,17 +242,17 @@ func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.Cli
 		ExpiresAt:  auth.RefreshExpiry(time.Now()),
 	})
 	if err != nil {
-		return httpapi.ErrInternal("create session")
+		return httpapi.ErrInternal("create session").WithCause(err)
 	}
 
 	if err := h.sessions.EnforceLimit(c.Context(), user.ID, kind, sessionLimit); err != nil {
 		_ = h.sessions.Revoke(c.Context(), session.ID)
-		return httpapi.ErrInternal("enforce session limit")
+		return httpapi.ErrInternal("enforce session limit").WithCause(err)
 	}
 
 	access, _, err := h.jwt.Issue(user.ID, session.ID)
 	if err != nil {
-		return httpapi.ErrInternal("issue access token")
+		return httpapi.ErrInternal("issue access token").WithCause(err)
 	}
 
 	if kind == model.ClientWeb {

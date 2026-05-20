@@ -39,7 +39,7 @@ type inboxResponse struct {
 func (h *InboxHandler) get(c fiber.Ctx) error {
 	tasks, total, err := h.tasks.ListInbox(c.Context(), repo.TaskFilter{}, repo.Page{Limit: 200})
 	if err != nil {
-		return httpapi.ErrInternal("list inbox")
+		return httpapi.ErrInternal("list inbox").WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(tasks))
 	for i, t := range tasks {

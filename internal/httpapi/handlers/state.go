@@ -33,7 +33,7 @@ func (h *StateHandler) get(c fiber.Ctx) error {
 	}
 	raw, err := h.users.GetState(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load state")
+		return httpapi.ErrInternal("load state").WithCause(err)
 	}
 	c.Set("Content-Type", "application/json")
 	if raw == "" {
@@ -57,7 +57,7 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 
 	rawCurrent, err := h.users.GetState(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load state")
+		return httpapi.ErrInternal("load state").WithCause(err)
 	}
 	current := map[string]json.RawMessage{}
 	if rawCurrent != "" {
@@ -74,10 +74,10 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 	}
 	merged, err := json.Marshal(current)
 	if err != nil {
-		return httpapi.ErrInternal("encode state")
+		return httpapi.ErrInternal("encode state").WithCause(err)
 	}
 	if err := h.users.SetState(c.Context(), userID, string(merged)); err != nil {
-		return httpapi.ErrInternal("save state")
+		return httpapi.ErrInternal("save state").WithCause(err)
 	}
 	c.Set("Content-Type", "application/json")
 	return c.Send(merged)

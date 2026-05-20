@@ -60,7 +60,7 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("get task")
+		return httpapi.ErrInternal("get task").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
@@ -75,7 +75,7 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("get task")
+		return httpapi.ErrInternal("get task").WithCause(err)
 	}
 	var req dto.PatchTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
@@ -103,7 +103,7 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		if t.ProjectID != nil {
 			proj, err := h.projects.Get(c.Context(), *t.ProjectID)
 			if err != nil && !errors.Is(err, repo.ErrNotFound) {
-				return httpapi.ErrInternal("get project")
+				return httpapi.ErrInternal("get project").WithCause(err)
 			}
 			if proj != nil && proj.TroikiCategory != nil && p != service.PriorityForCategory(*proj.TroikiCategory) {
 				return httpapi.ErrValidation("priority is managed by Troiki category")
@@ -184,7 +184,7 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("update task")
+		return httpapi.ErrInternal("update task").WithCause(err)
 	}
 
 	needsLabelUpdate := req.Title != nil || req.Labels != nil || len(req.RemovedAutoLabels) > 0
@@ -194,11 +194,11 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 			if errors.As(err, &ule) {
 				return httpapi.ErrValidation("unknown label: " + ule.Name)
 			}
-			return httpapi.ErrInternal("apply labels")
+			return httpapi.ErrInternal("apply labels").WithCause(err)
 		}
 		updated, err = h.tasks.Get(c.Context(), id)
 		if err != nil {
-			return httpapi.ErrInternal("get task after patch")
+			return httpapi.ErrInternal("get task after patch").WithCause(err)
 		}
 	}
 
@@ -214,7 +214,7 @@ func (h *TaskHandler) delete(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("delete task")
+		return httpapi.ErrInternal("delete task").WithCause(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -228,11 +228,11 @@ func (h *TaskHandler) listSubtasks(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("get task")
+		return httpapi.ErrInternal("get task").WithCause(err)
 	}
 	items, err := h.tasks.ListSubtasks(c.Context(), parentID)
 	if err != nil {
-		return httpapi.ErrInternal("list subtasks")
+		return httpapi.ErrInternal("list subtasks").WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(items))
 	for i, t := range items {
@@ -251,7 +251,7 @@ func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("parent task not found")
 		}
-		return httpapi.ErrInternal("get parent task")
+		return httpapi.ErrInternal("get parent task").WithCause(err)
 	}
 	if parent.InboxID != nil {
 		return httpapi.ErrForbiddenPlacement("subtasks cannot be placed in inbox")
@@ -300,7 +300,7 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("get task")
+		return httpapi.ErrInternal("get task").WithCause(err)
 	}
 	in := repo.CreateTask{
 		Placement: repo.Placement{
@@ -357,11 +357,11 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("get task")
+		return httpapi.ErrInternal("get task").WithCause(err)
 	}
 	subs, err := h.tasks.ListSubtasks(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("list subtasks")
+		return httpapi.ErrInternal("list subtasks").WithCause(err)
 	}
 	if len(subs) > 0 {
 		return httpapi.ErrConflict("task has subtasks")
@@ -417,7 +417,7 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 
 	if err := h.tasks.Delete(c.Context(), id); err != nil {
 		rollback()
-		return httpapi.ErrInternal("delete original task")
+		return httpapi.ErrInternal("delete original task").WithCause(err)
 	}
 
 	out := dto.DecomposeTaskResponse{Created: make([]dto.TaskDTO, len(created))}
@@ -436,5 +436,5 @@ func handleTaskCreateErr(err error) *httpapi.AppError {
 	if errors.Is(err, repo.ErrInvalidPlacement) {
 		return httpapi.ErrForbiddenPlacement("invalid task placement")
 	}
-	return httpapi.ErrInternal("create task")
+	return httpapi.ErrInternal("create task").WithCause(err)
 }

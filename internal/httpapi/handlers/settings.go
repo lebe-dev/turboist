@@ -76,7 +76,7 @@ func (h *SettingsHandler) get(c fiber.Ctx) error {
 	}
 	s, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load settings")
+		return httpapi.ErrInternal("load settings").WithCause(err)
 	}
 	return c.JSON(toResp(s))
 }
@@ -97,7 +97,7 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	current, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load settings")
+		return httpapi.ErrInternal("load settings").WithCause(err)
 	}
 	if req.WeeklyUnplannedExcludedLabelIDs != nil {
 		current.WeeklyUnplannedExcludedLabelIDs = *req.WeeklyUnplannedExcludedLabelIDs
@@ -118,7 +118,7 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 		current.BannerPublished = *req.BannerPublished
 	}
 	if err := h.users.SetSettings(c.Context(), userID, current); err != nil {
-		return httpapi.ErrInternal("save settings")
+		return httpapi.ErrInternal("save settings").WithCause(err)
 	}
 	return c.JSON(toResp(current))
 }

@@ -113,7 +113,7 @@ func doCreateTask(c fiber.Ctx, svc *service.TaskService, placement repo.Placemen
 		if errors.Is(err, repo.ErrInvalidPlacement) {
 			return httpapi.ErrForbiddenPlacement("invalid task placement")
 		}
-		return httpapi.ErrInternal("create task")
+		return httpapi.ErrInternal("create task").WithCause(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(dto.TaskFromModel(*t, baseURL))
 }

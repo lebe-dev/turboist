@@ -91,7 +91,7 @@ func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 		if errors.As(err, &re) {
 			return httpapi.ErrRecurrenceInvalid(re.Err.Error())
 		}
-		return httpapi.ErrInternal("complete task")
+		return httpapi.ErrInternal("complete task").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
@@ -109,7 +109,7 @@ func (h *TaskActionHandler) uncomplete(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrTroikiSlotFull) {
 			return httpapi.ErrTroikiSlotFull("troiki slot is full")
 		}
-		return httpapi.ErrInternal("uncomplete task")
+		return httpapi.ErrInternal("uncomplete task").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
@@ -124,7 +124,7 @@ func (h *TaskActionHandler) cancel(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("cancel task")
+		return httpapi.ErrInternal("cancel task").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
@@ -162,7 +162,7 @@ func (h *TaskActionHandler) move(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrInvalidPlacement) || errors.Is(err, repo.ErrCycle) {
 			return httpapi.ErrForbiddenPlacement("invalid task placement")
 		}
-		return httpapi.ErrInternal("move task")
+		return httpapi.ErrInternal("move task").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
@@ -196,7 +196,7 @@ func (h *TaskActionHandler) plan(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrNoContextForInbox) {
 			return httpapi.ErrValidation("create a context before planning inbox tasks")
 		}
-		return httpapi.ErrInternal("set plan state")
+		return httpapi.ErrInternal("set plan state").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
@@ -213,11 +213,11 @@ func (h *TaskActionHandler) pin(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrPinLimitExceeded) {
 			return httpapi.ErrLimitExceeded("max-pinned limit reached")
 		}
-		return httpapi.ErrInternal("pin task")
+		return httpapi.ErrInternal("pin task").WithCause(err)
 	}
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("get task after pin")
+		return httpapi.ErrInternal("get task after pin").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
@@ -231,11 +231,11 @@ func (h *TaskActionHandler) unpin(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("unpin task")
+		return httpapi.ErrInternal("unpin task").WithCause(err)
 	}
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("get task after unpin")
+		return httpapi.ErrInternal("get task after unpin").WithCause(err)
 	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }

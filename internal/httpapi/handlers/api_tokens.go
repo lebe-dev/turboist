@@ -81,7 +81,7 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 
 	plain, err := auth.GenerateAPIToken()
 	if err != nil {
-		return httpapi.ErrInternal("generate token")
+		return httpapi.ErrInternal("generate token").WithCause(err)
 	}
 	hash := auth.HashAPIToken(plain, h.salt)
 	created, err := h.repo.Create(c.Context(), userID, name, hash)
@@ -89,7 +89,7 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("token already exists")
 		}
-		return httpapi.ErrInternal("create api token")
+		return httpapi.ErrInternal("create api token").WithCause(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(apiTokenCreateResp{
 		ID:        created.ID,
@@ -106,7 +106,7 @@ func (h *APITokensHandler) list(c fiber.Ctx) error {
 	}
 	tokens, err := h.repo.ListByUser(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("list api tokens")
+		return httpapi.ErrInternal("list api tokens").WithCause(err)
 	}
 	out := make([]apiTokenResp, 0, len(tokens))
 	for i := range tokens {
@@ -128,7 +128,7 @@ func (h *APITokensHandler) delete(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("api token not found")
 		}
-		return httpapi.ErrInternal("delete api token")
+		return httpapi.ErrInternal("delete api token").WithCause(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }

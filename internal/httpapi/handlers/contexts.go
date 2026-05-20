@@ -42,7 +42,7 @@ func (h *ContextHandler) list(c fiber.Ctx) error {
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.ctxs.List(c.Context(), repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list contexts")
+		return httpapi.ErrInternal("list contexts").WithCause(err)
 	}
 	dtos := make([]dto.ContextDTO, len(items))
 	for i, ctx := range items {
@@ -67,7 +67,7 @@ func (h *ContextHandler) create(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("context name already exists")
 		}
-		return httpapi.ErrInternal("create context")
+		return httpapi.ErrInternal("create context").WithCause(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(dto.ContextFromModel(*ctx))
 }
@@ -82,7 +82,7 @@ func (h *ContextHandler) get(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	return c.JSON(dto.ContextFromModel(*ctx))
 }
@@ -111,7 +111,7 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("context name already exists")
 		}
-		return httpapi.ErrInternal("update context")
+		return httpapi.ErrInternal("update context").WithCause(err)
 	}
 	return c.JSON(dto.ContextFromModel(*ctx))
 }
@@ -125,7 +125,7 @@ func (h *ContextHandler) delete(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("delete context")
+		return httpapi.ErrInternal("delete context").WithCause(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -139,7 +139,7 @@ func (h *ContextHandler) listProjects(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := repo.ProjectListFilter{ContextID: &id}
@@ -152,7 +152,7 @@ func (h *ContextHandler) listProjects(c fiber.Ctx) error {
 	}
 	items, total, err := h.projects.List(c.Context(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list projects")
+		return httpapi.ErrInternal("list projects").WithCause(err)
 	}
 	dtos := make([]dto.ProjectDTO, len(items))
 	for i, p := range items {
@@ -170,7 +170,7 @@ func (h *ContextHandler) listTasks(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := repo.TaskFilter{}
@@ -200,7 +200,7 @@ func (h *ContextHandler) listTasks(c fiber.Ctx) error {
 	}
 	items, total, err := h.tasks.ListByContext(c.Context(), id, true, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list tasks")
+		return httpapi.ErrInternal("list tasks").WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(items))
 	for i, t := range items {
@@ -218,7 +218,7 @@ func (h *ContextHandler) createTask(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {

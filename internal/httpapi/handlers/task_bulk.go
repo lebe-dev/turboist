@@ -162,7 +162,7 @@ func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
 		if errors.As(err, &ule) {
 			return httpapi.ErrValidation("unknown label: " + ule.Name)
 		}
-		return httpapi.ErrInternal("group tasks")
+		return httpapi.ErrInternal("group tasks").WithCause(err)
 	}
 
 	resp := GroupTasksResponse{
