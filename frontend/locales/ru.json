@@ -585,7 +585,8 @@
       "emptyTitle": "Проектов нет",
       "emptyDescription": "Проекты, подходящие под выбранный фильтр, появятся здесь.",
       "filterGeneric": "Общие",
-      "filterSoftware": "Разработка"
+      "filterSoftware": "Разработка",
+      "searchPlaceholder": "Поиск проектов…"
     },
     "search": {
       "searchFailed": "Поиск не выполнен",

@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
@@ -39,6 +40,7 @@
 	};
 
 	let activeFilter = $state<Filter>('all');
+	let searchQuery = $state('');
 
 	const contextsById = $derived.by(() => {
 		const map: Record<number, string> = {};
@@ -80,23 +82,40 @@
 			return a.title.localeCompare(b.title);
 		});
 	});
+
+	const searched = $derived.by<Project[]>(() => {
+		const q = searchQuery.trim().toLowerCase();
+		if (!q) return filtered;
+		return filtered.filter((p) => p.title.toLowerCase().includes(q));
+	});
 </script>
 
 <ViewHeader title={$t('page.projects.title')}>
 	{#snippet banner()}
-		<div class="flex flex-wrap items-center gap-2 px-1 pb-1">
-			{#each FILTERS as f (f.value)}
-				{@const active = activeFilter === f.value}
-				{@const count = counts[f.value]}
-				<Button
-					size="sm"
-					variant={active ? 'secondary' : 'ghost'}
-					onclick={() => (activeFilter = f.value)}
-				>
-					{$t(f.labelKey)}
-					<Badge variant="outline" class="ml-1 h-4 text-[10px]">{count}</Badge>
-				</Button>
-			{/each}
+		<div class="flex flex-col gap-2 px-1 pb-1">
+			<div class="flex flex-wrap items-center gap-2">
+				{#each FILTERS as f (f.value)}
+					{@const active = activeFilter === f.value}
+					{@const count = counts[f.value]}
+					<Button
+						size="sm"
+						variant={active ? 'secondary' : 'ghost'}
+						onclick={() => (activeFilter = f.value)}
+					>
+						{$t(f.labelKey)}
+						<Badge variant="outline" class="ml-1 h-4 text-[10px]">{count}</Badge>
+					</Button>
+				{/each}
+			</div>
+			<div class="relative">
+				<MagnifyingGlassIcon class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder={$t('page.projects.searchPlaceholder')}
+					class="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
+				/>
+			</div>
 		</div>
 	{/snippet}
 </ViewHeader>
@@ -104,13 +123,13 @@
 <div class="px-2 py-2 sm:px-6">
 	<ViewContent
 		loading={!projectsStore.loaded}
-		isEmpty={filtered.length === 0}
+		isEmpty={searched.length === 0}
 		emptyIcon={FolderIcon}
 		emptyTitle={$t('page.projects.emptyTitle')}
 		emptyDescription={$t('page.projects.emptyDescription')}
 	>
 		<ul class="flex flex-col divide-y divide-border/50 overflow-hidden rounded-md border border-border/60 bg-card">
-			{#each filtered as project (project.id)}
+			{#each searched as project (project.id)}
 				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 				{@const ctxName = contextsById[project.contextId]}
 				<li>

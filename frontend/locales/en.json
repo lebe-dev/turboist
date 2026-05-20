@@ -585,7 +585,8 @@
       "emptyTitle": "No projects",
       "emptyDescription": "Projects matching the selected filter will appear here.",
       "filterGeneric": "Generic",
-      "filterSoftware": "Software"
+      "filterSoftware": "Software",
+      "searchPlaceholder": "Search projects…"
     },
     "search": {
       "searchFailed": "Search failed",
