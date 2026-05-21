@@ -541,12 +541,21 @@
 								<Sheet.Root bind:open={labelMenuOpen}>
 									<Sheet.Content
 										side="bottom"
+<<<<<<< HEAD
 										class="max-h-[80vh] overflow-y-auto rounded-t-lg p-3"
 									>
 										<Sheet.Header class="px-2 pb-2 pt-0">
 											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
 										</Sheet.Header>
 										<div class="flex flex-col gap-2 pb-4">
+=======
+										class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2"
+									>
+										<Sheet.Header class="px-2.5 pb-1 pt-0">
+											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
+										</Sheet.Header>
+										<div class="flex flex-col gap-1 pb-4">
+>>>>>>> 049dc85 (v1.6.0 (#32))
 											{@render labelOptions()}
 										</div>
 									</Sheet.Content>

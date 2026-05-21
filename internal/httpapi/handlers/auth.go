@@ -3,7 +3,10 @@ package handlers
 import (
 	"errors"
 	"log/slog"
+<<<<<<< HEAD
 	"strings"
+=======
+>>>>>>> 049dc85 (v1.6.0 (#32))
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -201,6 +204,7 @@ func (h *AuthHandler) login(c fiber.Ctx) error {
 		return httpapi.ErrAuthInvalid("invalid credentials")
 	}
 
+<<<<<<< HEAD
 	if user.TOTPEnabled {
 		if h.totp == nil {
 			// Fail closed: this account has 2FA enabled but the TOTP service is
@@ -225,6 +229,8 @@ func (h *AuthHandler) login(c fiber.Ctx) error {
 		return c.JSON(dto.OTPChallengeResponse{OTPRequired: true, Ticket: ticket})
 	}
 
+=======
+>>>>>>> 049dc85 (v1.6.0 (#32))
 	log.InfoContext(ctx, "auth: login ok",
 		slog.String("op", "handler.Auth.Login"),
 		slog.Int64("user_id", user.ID),
@@ -233,6 +239,7 @@ func (h *AuthHandler) login(c fiber.Ctx) error {
 	return h.issueSession(c, user, req.ClientKind)
 }
 
+<<<<<<< HEAD
 // loginOTP completes the two-step login: it verifies the short-lived ticket
 // issued by /auth/login and the user-entered TOTP (or recovery) code, then
 // issues a regular session.
@@ -335,6 +342,12 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 	ctx := c.Context()
 	log := logging.FromContext(ctx)
 	if !h.limiter.Allow(c.IP()) {
+=======
+func (h *AuthHandler) refresh(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
+	if !h.limiter.Allow(c.IP()) {
+>>>>>>> 049dc85 (v1.6.0 (#32))
 		log.WarnContext(ctx, "auth: refresh rate limited",
 			slog.String("op", "handler.Auth.Refresh"),
 			slog.String("ip", c.IP()),
@@ -468,6 +481,7 @@ func (h *AuthHandler) logoutAll(c fiber.Ctx) error {
 		slog.String("op", "handler.Auth.LogoutAll"),
 		slog.Int64("user_id", claims.UserID),
 	)
+<<<<<<< HEAD
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -492,6 +506,8 @@ func (h *AuthHandler) logoutOthers(c fiber.Ctx) error {
 		slog.Int64("user_id", claims.UserID),
 		slog.Int64("session_id", claims.SessionID),
 	)
+=======
+>>>>>>> 049dc85 (v1.6.0 (#32))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

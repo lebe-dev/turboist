@@ -86,7 +86,11 @@
       "labels": "Labels",
       "project": "Project",
       "privacy": "Privacy",
+<<<<<<< HEAD
       "security": "Security",
+=======
+      "session": "Session",
+>>>>>>> 049dc85 (v1.6.0 (#32))
       "api": "API",
       "backup": "Backup & Restore",
       "calendars": "Calendar (beta)"
@@ -140,6 +144,7 @@
       "heading": "App version",
       "description": "The currently running version of Turboist."
     },
+<<<<<<< HEAD
     "twofa": {
       "heading": "Two-factor authentication",
       "description": "Add a one-time code from your authenticator app on each login.",
@@ -170,6 +175,8 @@
       "disableFailed": "Failed to disable 2FA",
       "invalidCode": "Invalid or expired code"
     },
+=======
+>>>>>>> 049dc85 (v1.6.0 (#32))
     "session": {
       "heading": "Active sessions",
       "description": "Sign out from all devices and browsers, including this one.",
@@ -177,6 +184,7 @@
       "loggingOut": "Logging out…",
       "logoutAllFailed": "Failed to log out"
     },
+<<<<<<< HEAD
     "sessions": {
       "heading": "Sessions",
       "description": "Devices and browsers currently signed in to your account. End any of them individually or sign out everywhere at once.",
@@ -205,6 +213,8 @@
       "revokeFailed": "Failed to revoke session",
       "loadFailed": "Failed to load sessions"
     },
+=======
+>>>>>>> 049dc85 (v1.6.0 (#32))
     "privacy": {
       "heading": "Public view",
       "description": "Hide everything you've marked as private from the UI.",
@@ -242,6 +252,7 @@
       "createFailed": "Failed to create token",
       "deleteFailed": "Failed to delete token",
       "loadFailed": "Failed to load tokens",
+<<<<<<< HEAD
       "docsLink": "Documentation",
       "scopes": {
         "title": "Permissions",
@@ -272,6 +283,9 @@
         "write": "write",
         "emptyError": "Select at least one permission"
       }
+=======
+      "docsLink": "Documentation"
+>>>>>>> 049dc85 (v1.6.0 (#32))
     },
     "backup": {
       "heading": "Backup & Restore",
@@ -354,6 +368,7 @@
     "username": "Username",
     "password": "Password",
     "confirmPassword": "Confirm password",
+<<<<<<< HEAD
     "passwordsMismatch": "Passwords do not match",
     "otpTitle": "Two-factor authentication",
     "otpAppHint": "Enter the 6-digit code from your authenticator app.",
@@ -365,6 +380,9 @@
     "otpVerify": "Verify",
     "otpCancel": "Use a different account",
     "otpFailed": "Invalid or expired code"
+=======
+    "passwordsMismatch": "Passwords do not match"
+>>>>>>> 049dc85 (v1.6.0 (#32))
   },
   "task": {
     "addTask": "Add task",
@@ -454,8 +472,11 @@
       "movedAndCompleted": "Moved and completed",
       "movedToInbox": "Moved to Inbox",
       "movedToSection": "Moved to section",
+<<<<<<< HEAD
       "movedTitle": "Task moved",
       "movedTo": "To: {destination}",
+=======
+>>>>>>> 049dc85 (v1.6.0 (#32))
       "failedMove": "Failed to move task",
       "failedMoveToSection": "Failed to move to section",
       "copied": "Copied",
@@ -698,9 +719,13 @@
       "emptyDescription": "Plan tasks for this week from Backlog or by setting a due date.",
       "errorLoading": "Failed to load week",
       "limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected.",
+<<<<<<< HEAD
       "daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}",
       "onlyPlanned": "Only planned",
       "onlyPlannedTooltip": "Show only tasks planned for this week and calendar events"
+=======
+      "daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}"
+>>>>>>> 049dc85 (v1.6.0 (#32))
     },
     "nextWeek": {
       "dateRangeLabel": "Next week: {range}",
@@ -854,6 +879,7 @@
     "createTask": "Create task",
     "taskCreated": "Task created",
     "taskCreateFailed": "Failed to create task"
+<<<<<<< HEAD
   },
   "legal": {
     "back": "Back",
@@ -863,5 +889,7 @@
     "privacy": {
       "title": "Privacy Policy"
     }
+=======
+>>>>>>> 049dc85 (v1.6.0 (#32))
   }
 }

@@ -1,6 +1,10 @@
 services:
   turboist:
+<<<<<<< HEAD
     image: tinyops/turboist:1.7.0
+=======
+    image: tinyops/turboist:1.6.0
+>>>>>>> 049dc85 (v1.6.0 (#32))
     ports:
       - "8080:8080"
     environment:

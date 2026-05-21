@@ -44,6 +44,7 @@ func scanAPIToken(ctx context.Context, op string, row interface{ Scan(...any) er
 	return &t, nil
 }
 
+<<<<<<< HEAD
 func (r *APITokenRepo) Create(ctx context.Context, userID int64, name, tokenHash string, scopes []string) (*model.APIToken, error) {
 	const op = "repo.api_tokens.Create"
 	logQuery(ctx, op, userID)
@@ -51,6 +52,11 @@ func (r *APITokenRepo) Create(ctx context.Context, userID int64, name, tokenHash
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("marshal scopes: %w", err))
 	}
+=======
+func (r *APITokenRepo) Create(ctx context.Context, userID int64, name, tokenHash string) (*model.APIToken, error) {
+	const op = "repo.api_tokens.Create"
+	logQuery(ctx, op, userID)
+>>>>>>> 049dc85 (v1.6.0 (#32))
 	now := model.FormatUTC(time.Now())
 	res, err := r.db.ExecContext(ctx,
 		`INSERT INTO api_tokens (user_id, name, token_hash, scopes, created_at) VALUES (?, ?, ?, ?, ?)`,

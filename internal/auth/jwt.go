@@ -110,11 +110,24 @@ func (j *JWTIssuer) VerifyOTPTicket(tokenStr string) (*OTPTicket, error) {
 	})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
+			slog.Default().Debug("jwt verify failed",
+				slog.String("op", "auth.JWTIssuer.Verify"),
+				slog.String("reason", "expired"),
+			)
 			return nil, ErrTokenExpired
 		}
+		slog.Default().Debug("jwt verify failed",
+			slog.String("op", "auth.JWTIssuer.Verify"),
+			slog.String("reason", "malformed"),
+			slog.String("err", err.Error()),
+		)
 		return nil, ErrTokenInvalid
 	}
 	if !parsed.Valid {
+		slog.Default().Debug("jwt verify failed",
+			slog.String("op", "auth.JWTIssuer.Verify"),
+			slog.String("reason", "invalid"),
+		)
 		return nil, ErrTokenInvalid
 	}
 	mc, ok := parsed.Claims.(jwt.MapClaims)

@@ -596,6 +596,10 @@
 		/>
 	{/if}
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
+<<<<<<< HEAD
+=======
+	<FollowUpToasts onNext={onFollowUpNext} />
+>>>>>>> 049dc85 (v1.6.0 (#32))
 	{#if !quickAddHidden && !taskSelectionStore.mode}
 		<button
 			onclick={onQuickAdd}
