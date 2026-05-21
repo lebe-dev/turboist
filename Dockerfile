@@ -21,7 +21,7 @@ RUN go mod download
 
 COPY cmd/ /build/cmd/
 COPY internal/ /build/internal/
-COPY static.go VERSION /build/
+COPY static.go VERSION config.example.yml /build/
 COPY --from=frontend-build /build/build/ /build/frontend/build/
 
 RUN CGO_ENABLED=0 go build -ldflags="-w -s -X main.Version=$(cat VERSION)" -o turboist ./cmd/turboist && \
