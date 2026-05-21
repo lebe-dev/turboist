@@ -437,6 +437,19 @@
 					{/each}
 				</div>
 			{/if}
+
+			<div class="flex items-start justify-between gap-3 border-t border-border/60 pt-4">
+				<div class="flex flex-col gap-0.5">
+					<h3 class="text-sm font-medium">{$t('settings.calendars.hidePastEvents')}</h3>
+					<p class="text-xs text-muted-foreground">{$t('settings.calendars.hidePastEventsDescription')}</p>
+				</div>
+				<Switch
+					checked={settingsStore.calendarHidePastEvents}
+					disabled={busy || loading}
+					onCheckedChange={setHidePastEvents}
+					aria-label={$t('settings.calendars.hidePastEvents')}
+				/>
+			</div>
 		</section>
 		{/if}
 
@@ -467,19 +480,6 @@
 							</button>
 						</div>
 					{/each}
-				</div>
-
-				<div class="flex items-start justify-between gap-3 border-t border-border/60 pt-4">
-					<div class="flex flex-col gap-0.5">
-						<h3 class="text-sm font-medium">{$t('settings.calendars.hidePastEvents')}</h3>
-						<p class="text-xs text-muted-foreground">{$t('settings.calendars.hidePastEventsDescription')}</p>
-					</div>
-					<Switch
-						checked={settingsStore.calendarHidePastEvents}
-						disabled={busy || loading}
-						onCheckedChange={setHidePastEvents}
-						aria-label={$t('settings.calendars.hidePastEvents')}
-					/>
 				</div>
 			</section>
 		{/if}

@@ -210,7 +210,7 @@
     "calendars": {
       "heading": "Google Calendar integration",
       "description": "Show selected Google Calendar events in Today, Tomorrow, and Week.",
-      "syncInfo": "Events are fetched automatically when you open task lists, at most once every 2 minutes. The refresh button next to the calendar list forces Google to re-send both the list of calendars and the events.",
+      "syncInfo": "Events are fetched automatically when you open task lists, at most once every 2 minutes.",
       "enableLabel": "Enable calendars",
       "hidePastEvents": "Hide past events",
       "hidePastEventsDescription": "Timed events whose end time has passed move out of the active list and into Completed today.",
