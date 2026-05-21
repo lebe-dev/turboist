@@ -55,9 +55,8 @@
 >
 	<span
 		data-calendar-marker
-		class="inline-flex size-4 shrink-0 items-center justify-center rounded-full"
+		class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground"
 		class:mt-0.5={hasMeta}
-		style={`color:${event.sourceColor || '#9ca3af'}`}
 		title={$t('calendar.openInGoogle')}
 		aria-hidden="true"
 	>
