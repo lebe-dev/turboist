@@ -102,6 +102,9 @@ type User struct {
 	TroikiMediumCapacity int
 	TroikiRestCapacity   int
 	TroikiStarted        bool
+	TOTPSecret           string
+	TOTPEnabled          bool
+	TOTPEnabledAt        *time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
