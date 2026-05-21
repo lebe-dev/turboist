@@ -176,7 +176,6 @@
 	const canSaveConfig = $derived(
 		!busy &&
 			!!calendarsState &&
-			!calendarsState.googleConfigFromEnv &&
 			(calendarsState.googleClientIdConfigured || googleClientIdDraft.trim() !== '') &&
 			(calendarsState.googleClientSecretConfigured || googleClientSecretDraft.trim() !== '')
 	);
@@ -251,9 +250,7 @@
 						</HoverCard.Root>
 					</div>
 					<p class="text-xs text-muted-foreground">
-						{calendarsState.googleConfigFromEnv
-							? $t('settings.calendars.configFromEnv')
-							: $t('settings.calendars.configDescription')}
+						{$t('settings.calendars.configDescription')}
 					</p>
 				</div>
 				<div class="grid gap-3 sm:grid-cols-2">
@@ -261,7 +258,7 @@
 						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
 						<Input
 							bind:value={googleClientIdDraft}
-							disabled={busy || calendarsState.googleConfigFromEnv}
+							disabled={busy}
 							placeholder={calendarsState.googleClientIdConfigured
 								? $t('settings.calendars.clientIdSaved')
 								: ''}
@@ -276,7 +273,7 @@
 						<Input
 							type="text"
 							bind:value={googleClientSecretDraft}
-							disabled={busy || calendarsState.googleConfigFromEnv}
+							disabled={busy}
 							placeholder={calendarsState.googleClientSecretConfigured
 								? $t('settings.calendars.secretSaved')
 								: ''}
@@ -287,26 +284,24 @@
 						/>
 					</label>
 				</div>
-				{#if !calendarsState.googleConfigFromEnv}
-					<div class="flex flex-wrap gap-2">
-						<Button type="submit" variant="outline" disabled={!canSaveConfig}>
-							<CheckIcon class="size-4" />
-							{$t('settings.calendars.saveConfig')}
+				<div class="flex flex-wrap gap-2">
+					<Button type="submit" variant="outline" disabled={!canSaveConfig}>
+						<CheckIcon class="size-4" />
+						{$t('settings.calendars.saveConfig')}
+					</Button>
+					{#if calendarsState.googleClientIdConfigured || calendarsState.googleClientSecretConfigured}
+						<Button
+							type="button"
+							variant="outline"
+							disabled={busy}
+							class="border-destructive/35 text-destructive hover:bg-destructive/10"
+							onclick={() => (deleteConfigOpen = true)}
+						>
+							<TrashIcon class="size-4" />
+							{$t('settings.calendars.deleteConfig')}
 						</Button>
-						{#if calendarsState.googleClientIdConfigured || calendarsState.googleClientSecretConfigured}
-							<Button
-								type="button"
-								variant="outline"
-								disabled={busy}
-								class="border-destructive/35 text-destructive hover:bg-destructive/10"
-								onclick={() => (deleteConfigOpen = true)}
-							>
-								<TrashIcon class="size-4" />
-								{$t('settings.calendars.deleteConfig')}
-							</Button>
-						{/if}
-					</div>
-				{/if}
+					{/if}
+				</div>
 			</form>
 		</section>
 	{:else}
@@ -371,9 +366,7 @@
 						</HoverCard.Root>
 					</div>
 					<p class="text-xs text-muted-foreground">
-						{calendarsState.googleConfigFromEnv
-							? $t('settings.calendars.configFromEnv')
-							: $t('settings.calendars.configDescription')}
+						{$t('settings.calendars.configDescription')}
 					</p>
 				</div>
 				<div class="grid gap-3 sm:grid-cols-2">
@@ -381,7 +374,7 @@
 						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
 						<Input
 							bind:value={googleClientIdDraft}
-							disabled={busy || calendarsState.googleConfigFromEnv}
+							disabled={busy}
 							placeholder={calendarsState.googleClientIdConfigured
 								? $t('settings.calendars.clientIdSaved')
 								: ''}
@@ -396,7 +389,7 @@
 						<Input
 							type="text"
 							bind:value={googleClientSecretDraft}
-							disabled={busy || calendarsState.googleConfigFromEnv}
+							disabled={busy}
 							placeholder={calendarsState.googleClientSecretConfigured
 								? $t('settings.calendars.secretSaved')
 								: ''}
@@ -407,26 +400,24 @@
 						/>
 					</label>
 				</div>
-				{#if !calendarsState.googleConfigFromEnv}
-					<div class="flex flex-wrap gap-2">
-						<Button type="submit" variant="outline" disabled={!canSaveConfig}>
-							<CheckIcon class="size-4" />
-							{$t('settings.calendars.saveConfig')}
+				<div class="flex flex-wrap gap-2">
+					<Button type="submit" variant="outline" disabled={!canSaveConfig}>
+						<CheckIcon class="size-4" />
+						{$t('settings.calendars.saveConfig')}
+					</Button>
+					{#if calendarsState.googleClientIdConfigured || calendarsState.googleClientSecretConfigured}
+						<Button
+							type="button"
+							variant="outline"
+							disabled={busy}
+							class="border-destructive/35 text-destructive hover:bg-destructive/10"
+							onclick={() => (deleteConfigOpen = true)}
+						>
+							<TrashIcon class="size-4" />
+							{$t('settings.calendars.deleteConfig')}
 						</Button>
-						{#if calendarsState.googleClientIdConfigured || calendarsState.googleClientSecretConfigured}
-							<Button
-								type="button"
-								variant="outline"
-								disabled={busy}
-								class="border-destructive/35 text-destructive hover:bg-destructive/10"
-								onclick={() => (deleteConfigOpen = true)}
-							>
-								<TrashIcon class="size-4" />
-								{$t('settings.calendars.deleteConfig')}
-							</Button>
-						{/if}
-					</div>
-				{/if}
+					{/if}
+				</div>
 			</form>
 
 			<div class="flex flex-wrap gap-2 border-t border-border/60 pt-4">

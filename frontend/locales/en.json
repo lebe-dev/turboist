@@ -223,7 +223,6 @@
       "configHelpCopyKeys": "Copy Client ID and Client secret into these fields, then save.",
       "configHelpRedirectLabel": "Authorized redirect URI",
       "configHelpLink": "Open Google Cloud Console",
-      "configFromEnv": "Google OAuth is configured by server environment variables.",
       "clientId": "Client ID",
       "clientIdSaved": "Client ID saved",
       "clientSecret": "Client secret",

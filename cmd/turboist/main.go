@@ -126,9 +126,7 @@ func main() {
 		calendarRepo,
 		userRepo,
 		env.BaseURL,
-		env.GoogleCalendarClientID,
-		env.GoogleCalendarClientSecret,
-		env.CalendarTokenKey,
+		env.JWTSecret,
 		log,
 	)
 	calendarHandler := handlers.NewCalendarHandler(
@@ -136,8 +134,6 @@ func main() {
 		calendarRepo,
 		userRepo,
 		env.BaseURL,
-		env.GoogleCalendarClientID,
-		env.GoogleCalendarClientSecret,
 		log,
 	)
 	calendarHandler.RegisterPublic(app)

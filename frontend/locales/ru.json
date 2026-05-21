@@ -223,7 +223,6 @@
       "configHelpCopyKeys": "Скопируйте Client ID и Client secret в эти поля, затем сохраните.",
       "configHelpRedirectLabel": "Authorized redirect URI",
       "configHelpLink": "Открыть Google Cloud Console",
-      "configFromEnv": "Google OAuth настроен переменными окружения сервера.",
       "clientId": "Client ID",
       "clientIdSaved": "Client ID сохранён",
       "clientSecret": "Client secret",

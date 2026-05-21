@@ -108,8 +108,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		Register(api.Group("", httpapi.RequireJWTAuth()))
 
 	calendarRepo := repo.NewCalendarRepo(d)
-	calendarSvc := calendarsvc.NewService(calendarRepo, users, testBaseURL, "", "", "test-token-key-32bytes-padding!!", slog.Default())
-	calendarHandler := handlers.NewCalendarHandler(calendarSvc, calendarRepo, users, testBaseURL, "", "", slog.Default())
+	calendarSvc := calendarsvc.NewService(calendarRepo, users, testBaseURL, "test-token-key-32bytes-padding!!", slog.Default())
+	calendarHandler := handlers.NewCalendarHandler(calendarSvc, calendarRepo, users, testBaseURL, slog.Default())
 	calendarHandler.RegisterPublic(app)
 	calendarHandler.Register(api.Group("/calendars"))
 
