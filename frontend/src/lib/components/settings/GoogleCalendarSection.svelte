@@ -28,6 +28,13 @@
 	let deleteConfigOpen = $state(false);
 	let editingConfig = $state(false);
 	let redirectUri = $state('');
+	let clientIdInput = $state<HTMLInputElement | null>(null);
+
+	$effect(() => {
+		if (editingConfig && clientIdInput) {
+			clientIdInput.focus();
+		}
+	});
 
 	const googleCredentialsUrl = 'https://console.cloud.google.com/apis/credentials';
 
@@ -235,18 +242,20 @@
 						</HoverCard.Content>
 					</HoverCard.Root>
 				</div>
-				{#if showSavedState}
+				{#if calendarsState?.googleClientIdConfigured || calendarsState?.googleClientSecretConfigured}
 					<div class="flex items-center gap-0.5">
-						<button
-							type="button"
-							disabled={busy}
-							title={$t('common.edit')}
-							aria-label={$t('common.edit')}
-							onclick={() => (editingConfig = true)}
-							class="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-						>
-							<PencilSimpleIcon class="size-3.5" />
-						</button>
+						{#if showSavedState}
+							<button
+								type="button"
+								disabled={busy}
+								title={$t('common.edit')}
+								aria-label={$t('common.edit')}
+								onclick={() => (editingConfig = true)}
+								class="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<PencilSimpleIcon class="size-3.5" />
+							</button>
+						{/if}
 						<button
 							type="button"
 							disabled={busy}
@@ -287,6 +296,7 @@
 					<label class="flex flex-col gap-1.5">
 						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
 						<Input
+							bind:ref={clientIdInput}
 							bind:value={googleClientIdDraft}
 							disabled={busy}
 							placeholder=""
@@ -310,25 +320,14 @@
 						/>
 					</label>
 				</div>
-				<div class="mt-3 flex flex-wrap gap-2">
-					<Button type="submit" variant="outline" disabled={!canSaveConfig}>
-						<CheckIcon class="size-4" />
+				<div class="mt-3 flex items-center gap-2">
+					<Button type="submit" variant="outline" size="sm" disabled={!canSaveConfig}>
+						<CheckIcon class="size-3.5" />
 						{$t('settings.calendars.saveConfig')}
 					</Button>
 					{#if editingConfig}
-						<Button type="button" variant="outline" disabled={busy} onclick={() => (editingConfig = false)}>
+						<Button type="button" variant="outline" size="sm" disabled={busy} onclick={() => (editingConfig = false)}>
 							{$t('common.cancel')}
-						</Button>
-					{/if}
-					{#if calendarsState?.googleClientIdConfigured || calendarsState?.googleClientSecretConfigured}
-						<Button
-							type="button"
-							variant="outline"
-							disabled={busy}
-							onclick={() => (deleteConfigOpen = true)}
-						>
-							<TrashIcon class="size-4" />
-							{$t('settings.calendars.deleteConfig')}
 						</Button>
 					{/if}
 				</div>
@@ -363,33 +362,24 @@
 		</section>
 	{:else}
 		<section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-			{#if calendarsState.accounts.length > 0}
-			<div class="flex items-start justify-between gap-3">
-				<div class="flex flex-col gap-0.5">
-					<h3 class="text-sm font-medium">{$t('settings.calendars.hidePastEvents')}</h3>
-					<p class="text-xs text-muted-foreground">{$t('settings.calendars.hidePastEventsDescription')}</p>
-				</div>
-				<Switch
-					checked={settingsStore.calendarHidePastEvents}
-					disabled={busy || loading}
-					onCheckedChange={setHidePastEvents}
-					aria-label={$t('settings.calendars.hidePastEvents')}
-				/>
-			</div>
-			{/if}
+			{@render oauthConfigBlock(false)}
 
-			{@render oauthConfigBlock(calendarsState.accounts.length > 0)}
-
-			<div class="flex flex-wrap gap-2 border-t border-border/60 pt-4">
+			<div class="flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
 				<Button
 					type="button"
 					variant="outline"
 					onclick={connectGoogleCalendar}
-					disabled={busy}
+					disabled={busy || editingConfig || calendarsState.accounts.length > 0}
 					>
 					<CalendarBlankIcon class="size-4" />
 					{$t('settings.calendars.connectGoogle')}
 				</Button>
+				{#if calendarsState.accounts.length > 0}
+					<span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+						<CheckIcon class="size-3.5 text-foreground/70" weight="bold" />
+						{$t('settings.calendars.connected')}
+					</span>
+				{/if}
 			</div>
 		</section>
 
@@ -446,7 +436,7 @@
 		{/if}
 
 		{#if calendarsState.accounts.length > 0}
-			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+			<section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
 				<div class="flex flex-col gap-0.5">
 					<h2 class="text-sm font-semibold">{$t('settings.calendars.accountsHeading')}</h2>
 					<p class="text-xs text-muted-foreground">{$t('settings.calendars.accountsDescription')}</p>
@@ -472,6 +462,19 @@
 							</button>
 						</div>
 					{/each}
+				</div>
+
+				<div class="flex items-start justify-between gap-3 border-t border-border/60 pt-4">
+					<div class="flex flex-col gap-0.5">
+						<h3 class="text-sm font-medium">{$t('settings.calendars.hidePastEvents')}</h3>
+						<p class="text-xs text-muted-foreground">{$t('settings.calendars.hidePastEventsDescription')}</p>
+					</div>
+					<Switch
+						checked={settingsStore.calendarHidePastEvents}
+						disabled={busy || loading}
+						onCheckedChange={setHidePastEvents}
+						aria-label={$t('settings.calendars.hidePastEvents')}
+					/>
 				</div>
 			</section>
 		{/if}

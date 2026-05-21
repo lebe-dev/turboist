@@ -236,6 +236,7 @@
       "confirmDeleteConfigTitle": "Disconnect Google OAuth?",
       "confirmDeleteConfigDesc": "Turboist will forget the saved Client ID and Client secret. Connected calendar accounts stay listed, but syncing will not work until you save OAuth keys again.",
       "connectGoogle": "Connect",
+      "connected": "Integration connected",
       "sync": "Sync calendars",
       "sourcesHeading": "Visible calendars",
       "sourcesDescription": "Choose which calendars appear in task views.",

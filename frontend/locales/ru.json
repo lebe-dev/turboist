@@ -236,6 +236,7 @@
       "confirmDeleteConfigTitle": "Отключить Google OAuth?",
       "confirmDeleteConfigDesc": "Turboist забудет сохранённые Client ID и Client secret. Подключённые календарные аккаунты останутся в списке, но синхронизация не заработает, пока вы снова не сохраните OAuth-ключи.",
       "connectGoogle": "Подключить",
+      "connected": "Интеграция подключена",
       "sync": "Обновить календари",
       "sourcesHeading": "Видимые календари",
       "sourcesDescription": "Выберите, какие календари показывать в списках задач.",
