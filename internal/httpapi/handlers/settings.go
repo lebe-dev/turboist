@@ -33,6 +33,8 @@ type settingsResp struct {
 	PublicView                      bool    `json:"publicView"`
 	BannerText                      string  `json:"bannerText"`
 	BannerPublished                 bool    `json:"bannerPublished"`
+	CalendarEnabled                 bool    `json:"calendarEnabled"`
+	CalendarHidePastEvents          bool    `json:"calendarHidePastEvents"`
 }
 
 type settingsPatchReq struct {
@@ -42,6 +44,8 @@ type settingsPatchReq struct {
 	PublicView                      *bool    `json:"publicView"`
 	BannerText                      *string  `json:"bannerText"`
 	BannerPublished                 *bool    `json:"bannerPublished"`
+	CalendarEnabled                 *bool    `json:"calendarEnabled"`
+	CalendarHidePastEvents          *bool    `json:"calendarHidePastEvents"`
 }
 
 // supportedLocales is the whitelist accepted by PATCH /settings. Empty string
@@ -68,6 +72,8 @@ func toResp(s *model.UserSettings) settingsResp {
 		PublicView:                      s.PublicView,
 		BannerText:                      s.BannerText,
 		BannerPublished:                 s.BannerPublished,
+		CalendarEnabled:                 s.CalendarEnabled,
+		CalendarHidePastEvents:          s.CalendarHidePastEvents,
 	}
 }
 
@@ -121,6 +127,12 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	if req.BannerPublished != nil {
 		current.BannerPublished = *req.BannerPublished
+	}
+	if req.CalendarEnabled != nil {
+		current.CalendarEnabled = *req.CalendarEnabled
+	}
+	if req.CalendarHidePastEvents != nil {
+		current.CalendarHidePastEvents = *req.CalendarHidePastEvents
 	}
 	if err := h.users.SetSettings(c.Context(), userID, current); err != nil {
 		return httpapi.ErrInternal("save settings").WithCause(err)
