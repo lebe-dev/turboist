@@ -6,6 +6,7 @@
 	import ArrowSquareOutIcon from 'phosphor-svelte/lib/ArrowSquareOut';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import PencilSimpleIcon from 'phosphor-svelte/lib/PencilSimple';
 	import QuestionIcon from 'phosphor-svelte/lib/Question';
 	import { t } from '$lib/i18n';
 	import { calendars as calendarsApi } from '$lib/api/endpoints/calendars';
@@ -25,6 +26,7 @@
 	let googleClientIdDraft = $state('');
 	let googleClientSecretDraft = $state('');
 	let deleteConfigOpen = $state(false);
+	let editingConfig = $state(false);
 	let redirectUri = $state('');
 
 	const googleCredentialsUrl = 'https://console.cloud.google.com/apis/credentials';
@@ -49,6 +51,7 @@
 		calendarsState = await calendarsApi.get(getApiClient());
 		googleClientIdDraft = '';
 		googleClientSecretDraft = '';
+		editingConfig = false;
 		settingsStore.value = {
 			...settingsStore.value,
 			calendarEnabled: calendarsState.enabled
@@ -91,6 +94,7 @@
 			);
 			googleClientIdDraft = '';
 			googleClientSecretDraft = '';
+			editingConfig = false;
 			toast.success($t('settings.calendars.configSaved'));
 		} catch (err) {
 			toast.error(describeError(err, $t('settings.calendars.configSaveFailed')));
@@ -106,6 +110,7 @@
 			calendarsState = await calendarsApi.deleteGoogleConfig(getApiClient());
 			googleClientIdDraft = '';
 			googleClientSecretDraft = '';
+			editingConfig = false;
 			toast.success($t('settings.calendars.configDeleted'));
 		} catch (err) {
 			toast.error(describeError(err, $t('settings.calendars.configDeleteFailed')));
@@ -176,10 +181,161 @@
 	const canSaveConfig = $derived(
 		!busy &&
 			!!calendarsState &&
-			(calendarsState.googleClientIdConfigured || googleClientIdDraft.trim() !== '') &&
-			(calendarsState.googleClientSecretConfigured || googleClientSecretDraft.trim() !== '')
+			googleClientIdDraft.trim() !== '' &&
+			googleClientSecretDraft.trim() !== ''
+	);
+
+	const showSavedState = $derived(
+		!!calendarsState &&
+			calendarsState.googleClientIdConfigured &&
+			calendarsState.googleClientSecretConfigured &&
+			!editingConfig
 	);
 </script>
+
+{#snippet oauthConfigBlock(borderTop: boolean)}
+	<div class={borderTop ? 'grid gap-3 border-t border-border/60 pt-4' : 'grid gap-3'}>
+		<div class="flex flex-col gap-1">
+			<div class="flex items-center justify-between gap-2">
+				<div class="flex items-center gap-1.5">
+					<h3 class="text-sm font-medium">{$t('settings.calendars.configHeading')}</h3>
+					<HoverCard.Root>
+						<HoverCard.Trigger>
+							<QuestionIcon
+								class="size-4 cursor-help text-muted-foreground transition-colors hover:text-foreground"
+								aria-label={$t('settings.calendars.configHelpAria')}
+							/>
+						</HoverCard.Trigger>
+						<HoverCard.Content class="w-80 text-xs leading-relaxed">
+							<div class="flex flex-col gap-2">
+								<p class="font-medium text-foreground">{$t('settings.calendars.configHelpTitle')}</p>
+								<ol class="ml-4 list-decimal space-y-1 text-muted-foreground">
+									<li>{$t('settings.calendars.configHelpEnableApi')}</li>
+									<li>{$t('settings.calendars.configHelpCreateClient')}</li>
+									<li>{$t('settings.calendars.configHelpCopyKeys')}</li>
+								</ol>
+								{#if redirectUri}
+									<div class="rounded border border-border/60 bg-muted/40 px-2 py-1.5">
+										<p class="mb-1 text-[11px] font-medium text-muted-foreground">
+											{$t('settings.calendars.configHelpRedirectLabel')}
+										</p>
+										<code class="break-all font-mono text-[11px] text-foreground">{redirectUri}</code>
+									</div>
+								{/if}
+								<a
+									href={googleCredentialsUrl}
+									target="_blank"
+									rel="noreferrer"
+									class="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
+								>
+									{$t('settings.calendars.configHelpLink')}
+									<ArrowSquareOutIcon class="size-3.5 shrink-0" />
+								</a>
+							</div>
+						</HoverCard.Content>
+					</HoverCard.Root>
+				</div>
+				{#if showSavedState}
+					<div class="flex items-center gap-0.5">
+						<button
+							type="button"
+							disabled={busy}
+							title={$t('common.edit')}
+							aria-label={$t('common.edit')}
+							onclick={() => (editingConfig = true)}
+							class="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<PencilSimpleIcon class="size-3.5" />
+						</button>
+						<button
+							type="button"
+							disabled={busy}
+							title={$t('settings.calendars.deleteConfig')}
+							aria-label={$t('settings.calendars.deleteConfig')}
+							onclick={() => (deleteConfigOpen = true)}
+							class="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<TrashIcon class="size-3.5" />
+						</button>
+					</div>
+				{/if}
+			</div>
+			<p class="text-xs text-muted-foreground">
+				{$t('settings.calendars.configDescription')}
+			</p>
+		</div>
+
+		{#if showSavedState}
+			<div class="grid gap-3 sm:grid-cols-2">
+				<div class="flex flex-col gap-1.5">
+					<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
+					<p class="text-sm text-foreground">{$t('settings.calendars.clientIdSaved')}</p>
+				</div>
+				<div class="flex flex-col gap-1.5">
+					<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientSecret')}</span>
+					<p class="text-sm text-foreground">{$t('settings.calendars.secretSaved')}</p>
+				</div>
+			</div>
+		{:else}
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					void saveGoogleCalendarConfig();
+				}}
+			>
+				<div class="grid gap-3 sm:grid-cols-2">
+					<label class="flex flex-col gap-1.5">
+						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
+						<Input
+							bind:value={googleClientIdDraft}
+							disabled={busy}
+							placeholder=""
+							autocomplete="off"
+							autocapitalize="none"
+							autocorrect="off"
+							spellcheck={false}
+						/>
+					</label>
+					<label class="flex flex-col gap-1.5">
+						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientSecret')}</span>
+						<Input
+							type="text"
+							bind:value={googleClientSecretDraft}
+							disabled={busy}
+							placeholder=""
+							autocomplete="off"
+							autocapitalize="none"
+							autocorrect="off"
+							spellcheck={false}
+						/>
+					</label>
+				</div>
+				<div class="mt-3 flex flex-wrap gap-2">
+					<Button type="submit" variant="outline" disabled={!canSaveConfig}>
+						<CheckIcon class="size-4" />
+						{$t('settings.calendars.saveConfig')}
+					</Button>
+					{#if editingConfig}
+						<Button type="button" variant="outline" disabled={busy} onclick={() => (editingConfig = false)}>
+							{$t('common.cancel')}
+						</Button>
+					{/if}
+					{#if calendarsState?.googleClientIdConfigured || calendarsState?.googleClientSecretConfigured}
+						<Button
+							type="button"
+							variant="outline"
+							disabled={busy}
+							onclick={() => (deleteConfigOpen = true)}
+						>
+							<TrashIcon class="size-4" />
+							{$t('settings.calendars.deleteConfig')}
+						</Button>
+					{/if}
+				</div>
+			</form>
+		{/if}
+	</div>
+{/snippet}
 
 <section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
 	<div class="flex items-start justify-between gap-3">
@@ -203,109 +359,11 @@
 {:else if calendarsState?.enabled}
 	{#if !calendarsState.googleConfigured}
 		<section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-			<form
-				class="grid gap-3"
-				onsubmit={(e) => {
-					e.preventDefault();
-					void saveGoogleCalendarConfig();
-				}}
-			>
-				<div class="flex flex-col gap-1">
-					<div class="flex items-center gap-1.5">
-						<h3 class="text-sm font-medium">{$t('settings.calendars.configHeading')}</h3>
-						<HoverCard.Root>
-							<HoverCard.Trigger>
-								<QuestionIcon
-									class="size-4 cursor-help text-muted-foreground transition-colors hover:text-foreground"
-									aria-label={$t('settings.calendars.configHelpAria')}
-								/>
-							</HoverCard.Trigger>
-							<HoverCard.Content class="w-80 text-xs leading-relaxed">
-								<div class="flex flex-col gap-2">
-									<p class="font-medium text-foreground">{$t('settings.calendars.configHelpTitle')}</p>
-									<ol class="ml-4 list-decimal space-y-1 text-muted-foreground">
-										<li>{$t('settings.calendars.configHelpEnableApi')}</li>
-										<li>{$t('settings.calendars.configHelpCreateClient')}</li>
-										<li>{$t('settings.calendars.configHelpCopyKeys')}</li>
-									</ol>
-									{#if redirectUri}
-										<div class="rounded border border-border/60 bg-muted/40 px-2 py-1.5">
-											<p class="mb-1 text-[11px] font-medium text-muted-foreground">
-												{$t('settings.calendars.configHelpRedirectLabel')}
-											</p>
-											<code class="break-all font-mono text-[11px] text-foreground">{redirectUri}</code>
-										</div>
-									{/if}
-									<a
-										href={googleCredentialsUrl}
-										target="_blank"
-										rel="noreferrer"
-										class="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
-									>
-										{$t('settings.calendars.configHelpLink')}
-										<ArrowSquareOutIcon class="size-3.5 shrink-0" />
-									</a>
-								</div>
-							</HoverCard.Content>
-						</HoverCard.Root>
-					</div>
-					<p class="text-xs text-muted-foreground">
-						{$t('settings.calendars.configDescription')}
-					</p>
-				</div>
-				<div class="grid gap-3 sm:grid-cols-2">
-					<label class="flex flex-col gap-1.5">
-						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
-						<Input
-							bind:value={googleClientIdDraft}
-							disabled={busy}
-							placeholder={calendarsState.googleClientIdConfigured
-								? $t('settings.calendars.clientIdSaved')
-								: ''}
-							autocomplete="off"
-							autocapitalize="none"
-							autocorrect="off"
-							spellcheck={false}
-						/>
-					</label>
-					<label class="flex flex-col gap-1.5">
-						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientSecret')}</span>
-						<Input
-							type="text"
-							bind:value={googleClientSecretDraft}
-							disabled={busy}
-							placeholder={calendarsState.googleClientSecretConfigured
-								? $t('settings.calendars.secretSaved')
-								: ''}
-							autocomplete="off"
-							autocapitalize="none"
-							autocorrect="off"
-							spellcheck={false}
-						/>
-					</label>
-				</div>
-				<div class="flex flex-wrap gap-2">
-					<Button type="submit" variant="outline" disabled={!canSaveConfig}>
-						<CheckIcon class="size-4" />
-						{$t('settings.calendars.saveConfig')}
-					</Button>
-					{#if calendarsState.googleClientIdConfigured || calendarsState.googleClientSecretConfigured}
-						<Button
-							type="button"
-							variant="outline"
-							disabled={busy}
-							class="border-destructive/35 text-destructive hover:bg-destructive/10"
-							onclick={() => (deleteConfigOpen = true)}
-						>
-							<TrashIcon class="size-4" />
-							{$t('settings.calendars.deleteConfig')}
-						</Button>
-					{/if}
-				</div>
-			</form>
+			{@render oauthConfigBlock(false)}
 		</section>
 	{:else}
 		<section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+			{#if calendarsState.accounts.length > 0}
 			<div class="flex items-start justify-between gap-3">
 				<div class="flex flex-col gap-0.5">
 					<h3 class="text-sm font-medium">{$t('settings.calendars.hidePastEvents')}</h3>
@@ -318,107 +376,9 @@
 					aria-label={$t('settings.calendars.hidePastEvents')}
 				/>
 			</div>
+			{/if}
 
-			<form
-				class="grid gap-3 border-t border-border/60 pt-4"
-				onsubmit={(e) => {
-					e.preventDefault();
-					void saveGoogleCalendarConfig();
-				}}
-			>
-				<div class="flex flex-col gap-1">
-					<div class="flex items-center gap-1.5">
-						<h3 class="text-sm font-medium">{$t('settings.calendars.configHeading')}</h3>
-						<HoverCard.Root>
-							<HoverCard.Trigger>
-								<QuestionIcon
-									class="size-4 cursor-help text-muted-foreground transition-colors hover:text-foreground"
-									aria-label={$t('settings.calendars.configHelpAria')}
-								/>
-							</HoverCard.Trigger>
-							<HoverCard.Content class="w-80 text-xs leading-relaxed">
-								<div class="flex flex-col gap-2">
-									<p class="font-medium text-foreground">{$t('settings.calendars.configHelpTitle')}</p>
-									<ol class="ml-4 list-decimal space-y-1 text-muted-foreground">
-										<li>{$t('settings.calendars.configHelpEnableApi')}</li>
-										<li>{$t('settings.calendars.configHelpCreateClient')}</li>
-										<li>{$t('settings.calendars.configHelpCopyKeys')}</li>
-									</ol>
-									{#if redirectUri}
-										<div class="rounded border border-border/60 bg-muted/40 px-2 py-1.5">
-											<p class="mb-1 text-[11px] font-medium text-muted-foreground">
-												{$t('settings.calendars.configHelpRedirectLabel')}
-											</p>
-											<code class="break-all font-mono text-[11px] text-foreground">{redirectUri}</code>
-										</div>
-									{/if}
-									<a
-										href={googleCredentialsUrl}
-										target="_blank"
-										rel="noreferrer"
-										class="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
-									>
-										{$t('settings.calendars.configHelpLink')}
-										<ArrowSquareOutIcon class="size-3.5 shrink-0" />
-									</a>
-								</div>
-							</HoverCard.Content>
-						</HoverCard.Root>
-					</div>
-					<p class="text-xs text-muted-foreground">
-						{$t('settings.calendars.configDescription')}
-					</p>
-				</div>
-				<div class="grid gap-3 sm:grid-cols-2">
-					<label class="flex flex-col gap-1.5">
-						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientId')}</span>
-						<Input
-							bind:value={googleClientIdDraft}
-							disabled={busy}
-							placeholder={calendarsState.googleClientIdConfigured
-								? $t('settings.calendars.clientIdSaved')
-								: ''}
-							autocomplete="off"
-							autocapitalize="none"
-							autocorrect="off"
-							spellcheck={false}
-						/>
-					</label>
-					<label class="flex flex-col gap-1.5">
-						<span class="text-xs font-medium text-muted-foreground">{$t('settings.calendars.clientSecret')}</span>
-						<Input
-							type="text"
-							bind:value={googleClientSecretDraft}
-							disabled={busy}
-							placeholder={calendarsState.googleClientSecretConfigured
-								? $t('settings.calendars.secretSaved')
-								: ''}
-							autocomplete="off"
-							autocapitalize="none"
-							autocorrect="off"
-							spellcheck={false}
-						/>
-					</label>
-				</div>
-				<div class="flex flex-wrap gap-2">
-					<Button type="submit" variant="outline" disabled={!canSaveConfig}>
-						<CheckIcon class="size-4" />
-						{$t('settings.calendars.saveConfig')}
-					</Button>
-					{#if calendarsState.googleClientIdConfigured || calendarsState.googleClientSecretConfigured}
-						<Button
-							type="button"
-							variant="outline"
-							disabled={busy}
-							class="border-destructive/35 text-destructive hover:bg-destructive/10"
-							onclick={() => (deleteConfigOpen = true)}
-						>
-							<TrashIcon class="size-4" />
-							{$t('settings.calendars.deleteConfig')}
-						</Button>
-					{/if}
-				</div>
-			</form>
+			{@render oauthConfigBlock(calendarsState.accounts.length > 0)}
 
 			<div class="flex flex-wrap gap-2 border-t border-border/60 pt-4">
 				<Button
@@ -426,13 +386,14 @@
 					variant="outline"
 					onclick={connectGoogleCalendar}
 					disabled={busy}
-				>
+					>
 					<CalendarBlankIcon class="size-4" />
 					{$t('settings.calendars.connectGoogle')}
 				</Button>
 			</div>
 		</section>
 
+		{#if calendarsState.accounts.length > 0}
 		<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
 			<div class="flex items-start justify-between gap-3">
 				<div class="flex flex-col gap-0.5">
@@ -482,6 +443,7 @@
 				</div>
 			{/if}
 		</section>
+		{/if}
 
 		{#if calendarsState.accounts.length > 0}
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
