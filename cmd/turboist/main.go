@@ -18,6 +18,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
 	"golang.org/x/time/rate"
 )
 
@@ -119,13 +120,23 @@ func main() {
 		Version:      Version,
 	}
 	app := httpapi.NewApp(deps)
-	calendarHandler := handlers.NewCalendarHandler(
+	calendarSvc := calendarsvc.NewService(
 		calendarRepo,
 		userRepo,
 		env.BaseURL,
 		env.GoogleCalendarClientID,
 		env.GoogleCalendarClientSecret,
 		env.CalendarTokenKey,
+		log,
+	)
+	calendarHandler := handlers.NewCalendarHandler(
+		calendarSvc,
+		calendarRepo,
+		userRepo,
+		env.BaseURL,
+		env.GoogleCalendarClientID,
+		env.GoogleCalendarClientSecret,
+		log,
 	)
 	calendarHandler.RegisterPublic(app)
 	api := httpapi.RegisterRoutes(app, deps)

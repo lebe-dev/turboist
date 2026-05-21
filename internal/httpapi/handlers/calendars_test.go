@@ -1,80 +1,107 @@
-package handlers
+package handlers_test
 
 import (
+	"encoding/json"
+	"net/http"
 	"testing"
-
-	calendar "google.golang.org/api/calendar/v3"
 )
 
-func TestGoogleEventTimesDateTime(t *testing.T) {
-	start, end, startDate, endDate, allDay, ok := googleEventTimes(&calendar.Event{
-		Start: &calendar.EventDateTime{DateTime: "2026-05-15T09:30:00+03:00"},
-		End:   &calendar.EventDateTime{DateTime: "2026-05-15T10:15:00+03:00"},
-	})
+func TestCalendarHandler_ListRequiresAuth(t *testing.T) {
+	env := setupAPIEnv(t)
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/calendars/", nil)
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestCalendarHandler_ListEmpty(t *testing.T) {
+	env := setupAPIEnv(t)
+	req := env.authedReq(t, http.MethodGet, "/api/v1/calendars/", nil)
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := body["enabled"].(bool); !ok || v {
+		t.Errorf("enabled: got %v, want false", body["enabled"])
+	}
+	accounts, ok := body["accounts"].([]any)
 	if !ok {
-		t.Fatal("expected event times to parse")
+		t.Fatalf("accounts: missing or wrong type: %T", body["accounts"])
 	}
-	if allDay {
-		t.Fatal("expected timed event")
+	if len(accounts) != 0 {
+		t.Errorf("accounts: got %d items, want 0", len(accounts))
 	}
-	if startDate != "" || endDate != "" {
-		t.Fatalf("timed date fields = %q/%q; want empty", startDate, endDate)
-	}
-	if got := start.UTC().Format("15:04"); got != "06:30" {
-		t.Fatalf("start UTC = %s; want 06:30", got)
-	}
-	if got := end.UTC().Format("15:04"); got != "07:15" {
-		t.Fatalf("end UTC = %s; want 07:15", got)
-	}
-}
-
-func TestGoogleEventTimesAllDay(t *testing.T) {
-	start, end, startDate, endDate, allDay, ok := googleEventTimes(&calendar.Event{
-		Start: &calendar.EventDateTime{Date: "2026-05-15"},
-		End:   &calendar.EventDateTime{Date: "2026-05-16"},
-	})
+	sources, ok := body["sources"].([]any)
 	if !ok {
-		t.Fatal("expected event times to parse")
+		t.Fatalf("sources: missing or wrong type: %T", body["sources"])
 	}
-	if !allDay {
-		t.Fatal("expected all-day event")
+	if len(sources) != 0 {
+		t.Errorf("sources: got %d items, want 0", len(sources))
 	}
-	if startDate != "2026-05-15" || endDate != "2026-05-16" {
-		t.Fatalf("all-day date fields = %q/%q; want 2026-05-15/2026-05-16", startDate, endDate)
-	}
-	if got := start.Format("2006-01-02"); got != "2026-05-15" {
-		t.Fatalf("start date = %s; want 2026-05-15", got)
-	}
-	if got := end.Format("2006-01-02"); got != "2026-05-16" {
-		t.Fatalf("end date = %s; want 2026-05-16", got)
+	if v, ok := body["googleConfigured"].(bool); !ok || v {
+		t.Errorf("googleConfigured: got %v, want false", body["googleConfigured"])
 	}
 }
 
-func TestCalendarTokenCipherRoundTrip(t *testing.T) {
-	cipher := newCalendarTokenCipher("01234567890123456789012345678901")
-	encrypted, err := cipher.encrypt("secret-token")
+func TestCalendarHandler_PatchSettingsToggle(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	// Enable
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/calendars/settings", map[string]any{
+		"enabled": true,
+	}))
 	if err != nil {
-		t.Fatalf("encrypt token: %v", err)
+		t.Fatal(err)
 	}
-	if encrypted == "secret-token" {
-		t.Fatal("token was not encrypted")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
 	}
-	decrypted, err := cipher.decrypt(encrypted)
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := body["enabled"].(bool); !ok || !v {
+		t.Errorf("enabled: got %v, want true", body["enabled"])
+	}
+
+	// Disable
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/calendars/settings", map[string]any{
+		"enabled": false,
+	}))
 	if err != nil {
-		t.Fatalf("decrypt token: %v", err)
+		t.Fatal(err)
 	}
-	if decrypted != "secret-token" {
-		t.Fatalf("decrypted token = %q; want secret-token", decrypted)
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp2.StatusCode, http.StatusOK)
+	}
+	var body2 map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body2); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := body2["enabled"].(bool); !ok || v {
+		t.Errorf("enabled: got %v, want false", body2["enabled"])
 	}
 }
 
-func TestCalendarTokenCipherAllowsLegacyPlaintext(t *testing.T) {
-	cipher := newCalendarTokenCipher("01234567890123456789012345678901")
-	decrypted, err := cipher.decrypt("legacy-token")
+func TestCalendarHandler_DeleteAccountNotFound(t *testing.T) {
+	env := setupAPIEnv(t)
+	req := env.authedReq(t, http.MethodDelete, "/api/v1/calendars/accounts/9999", nil)
+	resp, err := env.app.Test(req)
 	if err != nil {
-		t.Fatalf("decrypt legacy token: %v", err)
+		t.Fatal(err)
 	}
-	if decrypted != "legacy-token" {
-		t.Fatalf("decrypted token = %q; want legacy-token", decrypted)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}
 }

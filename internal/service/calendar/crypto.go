@@ -1,4 +1,4 @@
-package handlers
+package calendar
 
 import (
 	"crypto/aes"
@@ -11,17 +11,23 @@ import (
 	"strings"
 )
 
-const calendarEncryptedTokenPrefix = "enc:v1:"
+// EncryptedTokenPrefix is the prefix used to identify encrypted token values.
+const EncryptedTokenPrefix = "enc:v1:"
 
-type calendarTokenCipher struct {
+// TokenCipher encrypts and decrypts OAuth tokens using AES-256-GCM.
+type TokenCipher struct {
 	key [32]byte
 }
 
-func newCalendarTokenCipher(keyMaterial string) *calendarTokenCipher {
-	return &calendarTokenCipher{key: sha256.Sum256([]byte(keyMaterial))}
+// NewTokenCipher creates a TokenCipher from the given key material.
+// The key is derived via SHA-256 so any non-empty string is accepted.
+func NewTokenCipher(keyMaterial string) *TokenCipher {
+	return &TokenCipher{key: sha256.Sum256([]byte(keyMaterial))}
 }
 
-func (c *calendarTokenCipher) encrypt(plain string) (string, error) {
+// Encrypt encrypts plain using AES-256-GCM and returns the ciphertext
+// prefixed with EncryptedTokenPrefix. Returns empty string for empty input.
+func (c *TokenCipher) Encrypt(plain string) (string, error) {
 	if plain == "" {
 		return "", nil
 	}
@@ -38,17 +44,20 @@ func (c *calendarTokenCipher) encrypt(plain string) (string, error) {
 		return "", fmt.Errorf("create token nonce: %w", err)
 	}
 	ciphertext := gcm.Seal(nonce, nonce, []byte(plain), nil)
-	return calendarEncryptedTokenPrefix + base64.RawURLEncoding.EncodeToString(ciphertext), nil
+	return EncryptedTokenPrefix + base64.RawURLEncoding.EncodeToString(ciphertext), nil
 }
 
-func (c *calendarTokenCipher) decrypt(stored string) (string, error) {
+// Decrypt decrypts a value previously returned by Encrypt.
+// Plain-text values (no prefix) are returned as-is for backward compatibility.
+// Returns empty string for empty input.
+func (c *TokenCipher) Decrypt(stored string) (string, error) {
 	if stored == "" {
 		return "", nil
 	}
-	if !strings.HasPrefix(stored, calendarEncryptedTokenPrefix) {
+	if !strings.HasPrefix(stored, EncryptedTokenPrefix) {
 		return stored, nil
 	}
-	raw := strings.TrimPrefix(stored, calendarEncryptedTokenPrefix)
+	raw := strings.TrimPrefix(stored, EncryptedTokenPrefix)
 	ciphertext, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
 		return "", fmt.Errorf("decode token ciphertext: %w", err)
@@ -70,4 +79,9 @@ func (c *calendarTokenCipher) decrypt(stored string) (string, error) {
 		return "", fmt.Errorf("decrypt token: %w", err)
 	}
 	return string(plain), nil
+}
+
+// IsEncrypted reports whether value is either empty or already encrypted.
+func IsEncrypted(value string) bool {
+	return value == "" || strings.HasPrefix(value, EncryptedTokenPrefix)
 }
