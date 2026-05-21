@@ -349,6 +349,11 @@
 			aria-label={$t('settings.calendars.enableLabel')}
 		/>
 	</div>
+	{#if settingsStore.calendarEnabled}
+		<p class="border-t border-border/60 pt-3 text-xs text-muted-foreground">
+			{$t('settings.calendars.syncInfo')}
+		</p>
+	{/if}
 </section>
 
 {#if loading}
