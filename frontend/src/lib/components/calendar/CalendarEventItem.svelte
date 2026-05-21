@@ -1,5 +1,6 @@
 <script lang="ts">
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
+	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
 	import type { CalendarEvent, DayPart } from '$lib/api/types';
 	import { t } from '$lib/i18n';
 	import { eventTimeLabel } from '$lib/utils/calendar';
@@ -55,12 +56,16 @@
 >
 	<span
 		data-calendar-marker
-		class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground"
+		class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/60"
 		class:mt-0.5={hasMeta}
 		title={$t('calendar.openInGoogle')}
 		aria-hidden="true"
 	>
-		<CalendarIcon class="size-4" weight="bold" />
+		{#if completed}
+			<CalendarCheckIcon class="size-4" weight="bold" />
+		{:else}
+			<CalendarIcon class="size-4" weight="bold" />
+		{/if}
 	</span>
 
 	<div class="flex min-w-0 flex-1 flex-col gap-1">
