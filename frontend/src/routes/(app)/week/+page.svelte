@@ -55,6 +55,7 @@
 		}, tz)
 	);
 	const combinedGroups = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const byKey = new Map<
 			string,
 			{

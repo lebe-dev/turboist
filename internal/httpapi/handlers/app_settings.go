@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -57,23 +58,27 @@ func toAppSettingsResp(s *model.AppSettings) appSettingsResp {
 func (h *AppSettingsHandler) get(c fiber.Ctx) error {
 	s, err := h.repo.Get(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("load app settings")
+		return httpapi.ErrInternal("load app settings").WithCause(err)
 	}
 	return c.JSON(toAppSettingsResp(s))
 }
 
 func (h *AppSettingsHandler) putAutoLabels(c fiber.Ctx) error {
+	logEntry(c, "handler.AppSettings.PutAutoLabels")
 	var req autoLabelsPutReq
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.AppSettings.PutAutoLabels", "invalid JSON")
 		return httpapi.ErrValidation("invalid JSON")
 	}
 	rules := make([]model.AutoLabelRule, 0, len(req.AutoLabels))
 	for i, r := range req.AutoLabels {
 		mask := strings.TrimSpace(r.Mask)
 		if mask == "" {
+			logValidation(c, "handler.AppSettings.PutAutoLabels", "empty mask", slog.Int("index", i))
 			return httpapi.ErrValidation("auto-labels mask must not be empty", map[string]any{"index": i})
 		}
 		if len(r.LabelIDs) == 0 {
+			logValidation(c, "handler.AppSettings.PutAutoLabels", "empty labelIds", slog.Int("index", i))
 			return httpapi.ErrValidation("auto-labels labelIds must not be empty", map[string]any{"index": i})
 		}
 		seen := make(map[int64]struct{}, len(r.LabelIDs))
@@ -92,12 +97,13 @@ func (h *AppSettingsHandler) putAutoLabels(c fiber.Ctx) error {
 	}
 	current, err := h.repo.Get(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("load app settings")
+		return httpapi.ErrInternal("load app settings").WithCause(err)
 	}
 	current.AutoLabels = rules
 	if err := h.repo.Set(c.Context(), current); err != nil {
-		return httpapi.ErrInternal("save app settings")
+		return httpapi.ErrInternal("save app settings").WithCause(err)
 	}
+	logMutation(c, "handler.AppSettings.PutAutoLabels", slog.Int("rules", len(rules)))
 	return c.JSON(toAppSettingsResp(current))
 }
 

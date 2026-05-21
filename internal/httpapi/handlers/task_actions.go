@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -63,15 +64,18 @@ func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Task.Complete", slog.Int64("task_id", id))
 	var completedAt *time.Time
 	if len(c.Body()) > 0 {
 		var req CompleteRequest
 		if err := c.Bind().JSON(&req); err != nil {
+			logValidation(c, "handler.Task.Complete", "invalid body")
 			return httpapi.ErrValidation("invalid request body")
 		}
 		if req.CompletedAt != nil && *req.CompletedAt != "" {
 			ts, err := time.Parse(time.RFC3339Nano, *req.CompletedAt)
 			if err != nil {
+				logValidation(c, "handler.Task.Complete", "invalid completedAt")
 				return httpapi.ErrValidation("invalid completedAt timestamp")
 			}
 			completedAt = &ts
@@ -91,8 +95,9 @@ func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 		if errors.As(err, &re) {
 			return httpapi.ErrRecurrenceInvalid(re.Err.Error())
 		}
-		return httpapi.ErrInternal("complete task")
+		return httpapi.ErrInternal("complete task").WithCause(err)
 	}
+	logMutation(c, "handler.Task.Complete", slog.Int64("task_id", t.ID))
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -101,6 +106,7 @@ func (h *TaskActionHandler) uncomplete(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Task.Uncomplete", slog.Int64("task_id", id))
 	t, err := h.completeSvc.Uncomplete(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -109,8 +115,9 @@ func (h *TaskActionHandler) uncomplete(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrTroikiSlotFull) {
 			return httpapi.ErrTroikiSlotFull("troiki slot is full")
 		}
-		return httpapi.ErrInternal("uncomplete task")
+		return httpapi.ErrInternal("uncomplete task").WithCause(err)
 	}
+	logMutation(c, "handler.Task.Uncomplete", slog.Int64("task_id", t.ID))
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -119,13 +126,15 @@ func (h *TaskActionHandler) cancel(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Task.Cancel", slog.Int64("task_id", id))
 	t, err := h.completeSvc.Cancel(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("cancel task")
+		return httpapi.ErrInternal("cancel task").WithCause(err)
 	}
+	logMutation(c, "handler.Task.Cancel", slog.Int64("task_id", t.ID))
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -143,8 +152,10 @@ func (h *TaskActionHandler) move(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Task.Move", slog.Int64("task_id", id))
 	var req MoveRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Task.Move", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	target := repo.Placement{
@@ -160,10 +171,12 @@ func (h *TaskActionHandler) move(c fiber.Ctx) error {
 			return httpapi.ErrNotFound("task not found")
 		}
 		if errors.Is(err, repo.ErrInvalidPlacement) || errors.Is(err, repo.ErrCycle) {
+			logValidation(c, "handler.Task.Move", "invalid placement")
 			return httpapi.ErrForbiddenPlacement("invalid task placement")
 		}
-		return httpapi.ErrInternal("move task")
+		return httpapi.ErrInternal("move task").WithCause(err)
 	}
+	logMutation(c, "handler.Task.Move", slog.Int64("task_id", t.ID))
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -177,12 +190,15 @@ func (h *TaskActionHandler) plan(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Task.Plan", slog.Int64("task_id", id))
 	var req PlanRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Task.Plan", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	state := model.PlanState(req.State)
 	if !state.IsValid() {
+		logValidation(c, "handler.Task.Plan", "invalid plan state", slog.String("state", req.State))
 		return httpapi.ErrValidation("invalid plan state")
 	}
 	t, err := h.planSvc.SetPlanState(c.Context(), id, state)
@@ -194,10 +210,12 @@ func (h *TaskActionHandler) plan(c fiber.Ctx) error {
 			return httpapi.ErrLimitExceeded("plan limit exceeded")
 		}
 		if errors.Is(err, service.ErrNoContextForInbox) {
+			logValidation(c, "handler.Task.Plan", "no context for inbox")
 			return httpapi.ErrValidation("create a context before planning inbox tasks")
 		}
-		return httpapi.ErrInternal("set plan state")
+		return httpapi.ErrInternal("set plan state").WithCause(err)
 	}
+	logMutation(c, "handler.Task.Plan", slog.Int64("task_id", t.ID), slog.String("state", string(state)))
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -206,6 +224,7 @@ func (h *TaskActionHandler) pin(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Task.Pin", slog.Int64("task_id", id))
 	if err := h.pinSvc.PinTask(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
@@ -213,12 +232,13 @@ func (h *TaskActionHandler) pin(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrPinLimitExceeded) {
 			return httpapi.ErrLimitExceeded("max-pinned limit reached")
 		}
-		return httpapi.ErrInternal("pin task")
+		return httpapi.ErrInternal("pin task").WithCause(err)
 	}
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("get task after pin")
+		return httpapi.ErrInternal("get task after pin").WithCause(err)
 	}
+	logMutation(c, "handler.Task.Pin", slog.Int64("task_id", t.ID))
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -227,15 +247,17 @@ func (h *TaskActionHandler) unpin(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Task.Unpin", slog.Int64("task_id", id))
 	if err := h.pinSvc.UnpinTask(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
 		}
-		return httpapi.ErrInternal("unpin task")
+		return httpapi.ErrInternal("unpin task").WithCause(err)
 	}
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("get task after unpin")
+		return httpapi.ErrInternal("get task after unpin").WithCause(err)
 	}
+	logMutation(c, "handler.Task.Unpin", slog.Int64("task_id", t.ID))
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }

@@ -100,4 +100,4 @@ ssh:
 
 # --- Deploy ---
 deploy:
-    ssh kaiman "cd /opt/turboist-dev && sed -i 's|tinyops/turboist:[^\"]*|tinyops/turboist:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"
+    ssh kaiman "cd /opt/turboist && sed -i 's|{{ imageName }}:[^\"]*|{{ imageName }}:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"

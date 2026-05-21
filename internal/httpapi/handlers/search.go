@@ -30,10 +30,12 @@ type searchResponse struct {
 func (h *SearchHandler) search_(c fiber.Ctx) error {
 	q := c.Query("q")
 	if len([]rune(q)) < 2 {
+		logValidation(c, "handler.Search", "query too short")
 		return httpapi.ErrValidation("q must be at least 2 characters")
 	}
 	searchType := c.Query("type", "all")
 	if searchType != "tasks" && searchType != "projects" && searchType != "all" {
+		logValidation(c, "handler.Search", "invalid type")
 		return httpapi.ErrValidation("type must be tasks, projects, or all")
 	}
 
@@ -45,7 +47,7 @@ func (h *SearchHandler) search_(c fiber.Ctx) error {
 	if searchType == "tasks" || searchType == "all" {
 		tasks, total, err := h.search.SearchTasks(c.Context(), q, page)
 		if err != nil {
-			return httpapi.ErrInternal("search tasks")
+			return httpapi.ErrInternal("search tasks").WithCause(err)
 		}
 		r := dto.NewPagedResponse(tasksToDTO(tasks, h.baseURL), total, pp.Limit, pp.Offset)
 		resp.Tasks = &r
@@ -54,7 +56,7 @@ func (h *SearchHandler) search_(c fiber.Ctx) error {
 	if searchType == "projects" || searchType == "all" {
 		projects, total, err := h.search.SearchProjects(c.Context(), q, page)
 		if err != nil {
-			return httpapi.ErrInternal("search projects")
+			return httpapi.ErrInternal("search projects").WithCause(err)
 		}
 		r := dto.NewPagedResponse(projectsToDTO(projects), total, pp.Limit, pp.Offset)
 		resp.Projects = &r

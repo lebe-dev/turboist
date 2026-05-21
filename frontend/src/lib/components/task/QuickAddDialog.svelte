@@ -16,7 +16,6 @@
 	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
-	import { clickOutside } from '$lib/actions/clickOutside';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -135,12 +134,11 @@
 		return emptyProjectLabel.toLowerCase().includes(q);
 	});
 
-	async function openProjectMenu(): Promise<void> {
-		projectMenuOpen = !projectMenuOpen;
-		if (projectMenuOpen) {
+	function onProjectMenuOpenChange(open: boolean): void {
+		projectMenuOpen = open;
+		if (open) {
 			projectQuery = '';
-			await tick();
-			projectSearchInput?.focus();
+			tick().then(() => projectSearchInput?.focus());
 		}
 	}
 
@@ -334,16 +332,16 @@
 			class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
 		/>
 		<DialogPrimitive.Content
-			class="fixed left-1/2 top-[15%] z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+			class="fixed left-1/2 top-[15%] z-50 flex max-h-[80vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
 		>
 			<DialogPrimitive.Title class="sr-only">{$t('dialog.quickAdd.title')}</DialogPrimitive.Title>
 			<DialogPrimitive.Description class="sr-only">
 				{$t('dialog.quickAdd.description')}
 			</DialogPrimitive.Description>
 
-			<form onsubmit={submit} class="flex flex-col">
+			<form onsubmit={submit} class="flex min-h-0 flex-1 flex-col">
 				{#if wrap}
-					<div class="border-b border-border bg-muted/40 px-5 py-3">
+					<div class="shrink-0 border-b border-border bg-muted/40 px-5 py-3">
 						<div class="flex items-center gap-2 text-sm font-medium text-foreground">
 							<StackIcon class="size-4 text-primary" weight="bold" />
 							<span>{$t('dialog.quickAdd.wrap.title', { values: { count: wrap.tasks.length } })}</span>
@@ -363,7 +361,7 @@
 						{/if}
 					</div>
 				{/if}
-				<div class="px-5 pt-5 pb-3">
+				<div class="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-3">
 					<!-- svelte-ignore a11y_autofocus -->
 					<textarea
 						bind:this={titlesEl}
@@ -524,12 +522,7 @@
 								{/each}
 							{/snippet}
 
-							<div
-								class="relative"
-								use:clickOutside={() => {
-									if (!isMobile.current) labelMenuOpen = false;
-								}}
-							>
+							{#if isMobile.current}
 								<button
 									type="button"
 									onclick={() => (labelMenuOpen = !labelMenuOpen)}
@@ -539,134 +532,154 @@
 									<TagIcon class="size-3.5" />
 									<span>{$t('common.labels')}</span>
 								</button>
-
-								{#if isMobile.current}
-									<Sheet.Root bind:open={labelMenuOpen}>
-										<Sheet.Content
-											side="bottom"
-											class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2"
-										>
-											<Sheet.Header class="px-2.5 pb-1 pt-0">
-												<Sheet.Title>{$t('common.labels')}</Sheet.Title>
-											</Sheet.Header>
-											<div class="flex flex-col gap-1 pb-4">
-												{@render labelOptions()}
-											</div>
-										</Sheet.Content>
-									</Sheet.Root>
-								{:else if labelMenuOpen}
-									<div
-										class="absolute left-0 top-9 z-10 flex max-h-64 w-56 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-popover p-2 shadow-lg"
-										role="menu"
+								<Sheet.Root bind:open={labelMenuOpen}>
+									<Sheet.Content
+										side="bottom"
+										class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2"
 									>
-										{@render labelOptions()}
-									</div>
-								{/if}
-							</div>
+										<Sheet.Header class="px-2.5 pb-1 pt-0">
+											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
+										</Sheet.Header>
+										<div class="flex flex-col gap-1 pb-4">
+											{@render labelOptions()}
+										</div>
+									</Sheet.Content>
+								</Sheet.Root>
+							{:else}
+								<PopoverPrimitive.Root bind:open={labelMenuOpen}>
+									<PopoverPrimitive.Trigger>
+										{#snippet child({ props })}
+											<button
+												{...props}
+												type="button"
+												class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent"
+											>
+												<TagIcon class="size-3.5" />
+												<span>{$t('common.labels')}</span>
+											</button>
+										{/snippet}
+									</PopoverPrimitive.Trigger>
+									<PopoverPrimitive.Portal>
+										<PopoverPrimitive.Content
+											align="start"
+											sideOffset={4}
+											class="z-[60] flex max-h-64 w-56 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-popover p-2 shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+										>
+											{@render labelOptions()}
+										</PopoverPrimitive.Content>
+									</PopoverPrimitive.Portal>
+								</PopoverPrimitive.Root>
+							{/if}
 						{/if}
 					</div>
 
-					<div class="mt-3 relative" use:clickOutside={() => (projectMenuOpen = false)}>
-						<button
-							type="button"
-							onclick={openProjectMenu}
-							aria-expanded={projectMenuOpen}
-							class="inline-flex h-8 max-w-[14rem] items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent"
-						>
-							<span class="truncate">{projectName}</span>
-						</button>
-						{#if projectMenuOpen}
-							<div
-								class="absolute top-9 left-0 z-10 flex w-64 flex-col rounded-md border border-border bg-popover shadow-lg"
-								role="menu"
-							>
-								<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
-									<MagnifyingGlassIcon class="size-3.5 text-muted-foreground" />
-									<input
-										bind:this={projectSearchInput}
-										bind:value={projectQuery}
-										type="text"
-										placeholder={$t('dialog.quickAdd.searchProjectsPlaceholder')}
-										class="h-6 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-										onkeydown={(e) => {
-											if (e.key === 'Escape') {
-												e.stopPropagation();
-												projectMenuOpen = false;
-											}
-										}}
-									/>
-								</div>
-								<div class="flex max-h-56 flex-col gap-0.5 overflow-y-auto p-1">
-									{#if inboxMatchesQuery}
-										{@const active = projectId === ''}
-										<button
-											type="button"
-											onclick={() => selectProject('')}
-											disabled={isWrap}
-											aria-disabled={isWrap}
-											title={isWrap ? $t('dialog.quickAdd.wrap.inboxDisabled') : undefined}
-											class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
-											class:bg-accent={active && !isWrap}
-											class:text-accent-foreground={active && !isWrap}
-											class:hover:bg-accent={!active && !isWrap}
-											class:opacity-50={isWrap}
-											class:cursor-not-allowed={isWrap}
-										>
-											<span class="flex-1 truncate">{emptyProjectLabel}</span>
-											{#if active && !isWrap}
-												<CheckIcon class="size-3.5 opacity-70" />
+					<div class="mt-3">
+						<PopoverPrimitive.Root bind:open={projectMenuOpen} onOpenChange={onProjectMenuOpenChange}>
+							<PopoverPrimitive.Trigger>
+								{#snippet child({ props })}
+									<button
+										{...props}
+										type="button"
+										class="inline-flex h-8 max-w-[14rem] items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent"
+									>
+										<span class="truncate">{projectName}</span>
+									</button>
+								{/snippet}
+							</PopoverPrimitive.Trigger>
+							<PopoverPrimitive.Portal>
+								<PopoverPrimitive.Content
+									align="start"
+									sideOffset={4}
+									class="z-[60] flex w-64 flex-col rounded-md border border-border bg-popover shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+								>
+									<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
+										<MagnifyingGlassIcon class="size-3.5 text-muted-foreground" />
+										<input
+											bind:this={projectSearchInput}
+											bind:value={projectQuery}
+											type="text"
+											placeholder={$t('dialog.quickAdd.searchProjectsPlaceholder')}
+											class="h-6 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+											onkeydown={(e) => {
+												if (e.key === 'Escape') {
+													e.stopPropagation();
+													projectMenuOpen = false;
+												}
+											}}
+										/>
+									</div>
+									<div class="flex max-h-56 flex-col gap-0.5 overflow-y-auto p-1">
+										{#if inboxMatchesQuery}
+											{@const active = projectId === ''}
+											<button
+												type="button"
+												onclick={() => selectProject('')}
+												disabled={isWrap}
+												aria-disabled={isWrap}
+												title={isWrap ? $t('dialog.quickAdd.wrap.inboxDisabled') : undefined}
+												class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
+												class:bg-accent={active && !isWrap}
+												class:text-accent-foreground={active && !isWrap}
+												class:hover:bg-accent={!active && !isWrap}
+												class:opacity-50={isWrap}
+												class:cursor-not-allowed={isWrap}
+											>
+												<span class="flex-1 truncate">{emptyProjectLabel}</span>
+												{#if active && !isWrap}
+													<CheckIcon class="size-3.5 opacity-70" />
+												{/if}
+											</button>
+											{#if isWrap}
+												<div class="px-2 pb-1.5 pt-0.5 text-[11px] leading-snug text-muted-foreground">
+													{$t('dialog.quickAdd.wrap.inboxDisabled')}
+												</div>
 											{/if}
-										</button>
-										{#if isWrap}
-											<div class="px-2 pb-1.5 pt-0.5 text-[11px] leading-snug text-muted-foreground">
-												{$t('dialog.quickAdd.wrap.inboxDisabled')}
+										{/if}
+										{#each filteredProjects as project (project.id)}
+											{@const id = String(project.id)}
+											{@const active = projectId === id}
+											{#if hasPinDivider && project.id === firstUnpinnedId}
+												<div
+													class="my-1 border-t border-border/60"
+													role="separator"
+													aria-hidden="true"
+												></div>
+											{/if}
+											<button
+												type="button"
+												onclick={() => selectProject(id)}
+												class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
+												class:bg-accent={active}
+												class:text-accent-foreground={active}
+												class:hover:bg-accent={!active}
+											>
+												{#if project.isPinned}
+													<PushPinIcon
+														class="size-3 shrink-0 text-amber-500/80"
+														weight="fill"
+														aria-label={$t('project.pinned')}
+													/>
+												{/if}
+												<span class="flex-1 truncate">{project.title}</span>
+												{#if active}
+													<CheckIcon class="size-3.5 opacity-70" />
+												{/if}
+											</button>
+										{/each}
+										{#if !inboxMatchesQuery && filteredProjects.length === 0}
+											<div class="px-2 py-3 text-center text-xs text-muted-foreground">
+												{$t('dialog.quickAdd.noMatches')}
 											</div>
 										{/if}
-									{/if}
-									{#each filteredProjects as project (project.id)}
-										{@const id = String(project.id)}
-										{@const active = projectId === id}
-										{#if hasPinDivider && project.id === firstUnpinnedId}
-											<div
-												class="my-1 border-t border-border/60"
-												role="separator"
-												aria-hidden="true"
-											></div>
-										{/if}
-										<button
-											type="button"
-											onclick={() => selectProject(id)}
-											class="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors"
-											class:bg-accent={active}
-											class:text-accent-foreground={active}
-											class:hover:bg-accent={!active}
-										>
-											{#if project.isPinned}
-												<PushPinIcon
-													class="size-3 shrink-0 text-amber-500/80"
-													weight="fill"
-													aria-label={$t('project.pinned')}
-												/>
-											{/if}
-											<span class="flex-1 truncate">{project.title}</span>
-											{#if active}
-												<CheckIcon class="size-3.5 opacity-70" />
-											{/if}
-										</button>
-									{/each}
-									{#if !inboxMatchesQuery && filteredProjects.length === 0}
-										<div class="px-2 py-3 text-center text-xs text-muted-foreground">
-											{$t('dialog.quickAdd.noMatches')}
-										</div>
-									{/if}
-								</div>
-							</div>
-						{/if}
+									</div>
+								</PopoverPrimitive.Content>
+							</PopoverPrimitive.Portal>
+						</PopoverPrimitive.Root>
 					</div>
 				</div>
 
 				<div
-					class="flex items-center justify-end gap-3 border-t border-border bg-muted/30 px-5 py-3"
+					class="flex shrink-0 items-center justify-end gap-3 border-t border-border bg-muted/30 px-5 py-3"
 				>
 					<div class="flex items-center gap-2">
 						<DialogPrimitive.Close>

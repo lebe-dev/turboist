@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -16,7 +17,7 @@ func (s *BackupService) readContexts(ctx context.Context) ([]BackupContext, erro
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
 	out := make([]BackupContext, 0)
 	for rows.Next() {
 		var c BackupContext
@@ -36,7 +37,7 @@ func (s *BackupService) readLabels(ctx context.Context) ([]BackupLabel, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
 	out := make([]BackupLabel, 0)
 	for rows.Next() {
 		var l BackupLabel
@@ -59,7 +60,7 @@ func (s *BackupService) readProjects(ctx context.Context) ([]BackupProject, erro
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
 	out := make([]BackupProject, 0)
 	for rows.Next() {
 		var p BackupProject
@@ -91,7 +92,7 @@ func (s *BackupService) readProjectSections(ctx context.Context) ([]BackupProjec
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
 	out := make([]BackupProjectSection, 0)
 	for rows.Next() {
 		var s BackupProjectSection
@@ -114,7 +115,7 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
 	out := make([]BackupTask, 0)
 	for rows.Next() {
 		var t BackupTask
@@ -191,7 +192,7 @@ func (s *BackupService) readTaskLabels(ctx context.Context) ([]BackupTaskLabel, 
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
 	out := make([]BackupTaskLabel, 0)
 	for rows.Next() {
 		var l BackupTaskLabel
@@ -209,7 +210,7 @@ func (s *BackupService) readProjectLabels(ctx context.Context) ([]BackupProjectL
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
 	out := make([]BackupProjectLabel, 0)
 	for rows.Next() {
 		var l BackupProjectLabel

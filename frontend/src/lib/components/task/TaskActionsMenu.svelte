@@ -9,6 +9,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { toast } from 'svelte-sonner';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
@@ -29,6 +30,7 @@
 	import MoveSectionDialog from '$lib/components/dialog/MoveSectionDialog.svelte';
 	import DecomposeTaskDialog from '$lib/components/dialog/DecomposeTaskDialog.svelte';
 	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
+	import CheckSquareIcon from 'phosphor-svelte/lib/CheckSquare';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import ListIcon from 'phosphor-svelte/lib/List';
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
@@ -51,13 +53,15 @@
 		mutator,
 		belongs,
 		onEdit,
-		hasSubtasks = false
+		hasSubtasks = false,
+		selectIncludesSelf = true
 	}: {
 		task: Task;
 		mutator: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onEdit?: (task: Task) => void;
 		hasSubtasks?: boolean;
+		selectIncludesSelf?: boolean;
 	} = $props();
 
 	const inInbox = $derived(task.inboxId !== null);
@@ -145,6 +149,19 @@
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void duplicateTask(task, mutator)}>
 			<CopySimpleIcon class="size-4" /> {$t('task.actions.duplicate')}
+		</DropdownMenu.Item>
+		<DropdownMenu.Item
+			onclick={() => {
+				if (!taskSelectionStore.mode) taskSelectionStore.enable();
+				if (!selectIncludesSelf) return;
+				if (taskSelectionStore.has(task.id)) taskSelectionStore.toggle(task.id);
+				else taskSelectionStore.add(task.id);
+			}}
+		>
+			<CheckSquareIcon class="size-4" />
+			{selectIncludesSelf && taskSelectionStore.has(task.id)
+				? $t('task.actions.deselect')
+				: $t('task.actions.select')}
 		</DropdownMenu.Item>
 		{#if !inInbox}
 			<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>

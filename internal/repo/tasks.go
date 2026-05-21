@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -173,6 +174,8 @@ type CreateTask struct {
 }
 
 func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, error) {
+	const op = "repo.tasks.Create"
+	logQuery(ctx, op, in.Placement)
 	if err := in.Validate(); err != nil {
 		return nil, err
 	}
@@ -200,11 +203,11 @@ func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, erro
 		now, now,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("insert task: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("insert task: %w", err))
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return r.Get(ctx, id)
 }
@@ -216,6 +219,8 @@ func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, erro
 // timestamp; recurrence is dropped so it doesn't recurse, and pin/plan state
 // are reset since the snapshot is purely a history entry.
 func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.Task, completedAt time.Time) (*model.Task, error) {
+	const op = "repo.tasks.CreateRecurrenceCompletion"
+	logQuery(ctx, op, base.ID, completedAt)
 	now := model.FormatUTC(time.Now())
 	completedStr := model.FormatUTC(completedAt)
 	res, err := r.db.ExecContext(ctx,
@@ -232,11 +237,11 @@ func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.T
 		completedStr, now, now,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("insert recurrence completion: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("insert recurrence completion: %w", err))
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if r.labels != nil && len(base.Labels) > 0 {
 		labelIDs := make([]int64, 0, len(base.Labels))
@@ -244,25 +249,27 @@ func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.T
 			labelIDs = append(labelIDs, l.ID)
 		}
 		if err := r.labels.SetForTask(ctx, id, labelIDs); err != nil {
-			return nil, fmt.Errorf("copy labels for recurrence completion: %w", err)
+			return nil, logErr(ctx, op, fmt.Errorf("copy labels for recurrence completion: %w", err))
 		}
 	}
 	return r.Get(ctx, id)
 }
 
 func (r *TaskRepo) Get(ctx context.Context, id int64) (*model.Task, error) {
+	const op = "repo.tasks.Get"
+	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)
 	t, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if r.labels != nil {
 		hydrated, err := r.labels.LabelsByTaskIDs(ctx, []int64{t.ID})
 		if err != nil {
-			return nil, err
+			return nil, logErr(ctx, op, err)
 		}
 		t.Labels = hydrated[t.ID]
 	}
@@ -296,6 +303,8 @@ type TaskUpdate struct {
 }
 
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
+	const op = "repo.tasks.Update"
+	logQuery(ctx, op, id)
 	sets := make([]string, 0, 8)
 	args := make([]any, 0, 12)
 	if u.Title != nil {
@@ -391,14 +400,14 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 
 	res, err := r.db.ExecContext(ctx, `UPDATE tasks SET `+joinSets(sets)+` WHERE id = ?`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("update task: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("update task: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	return r.Get(ctx, id)
 }
@@ -649,16 +658,18 @@ func (r *TaskRepo) SetPinned(ctx context.Context, id int64, pinned bool) error {
 }
 
 func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
+	const op = "repo.tasks.Delete"
+	logQuery(ctx, op, id)
 	res, err := r.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id)
 	if err != nil {
-		return fmt.Errorf("delete task: %w", err)
+		return logErr(ctx, op, fmt.Errorf("delete task: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return ErrNotFound
+		return logErr(ctx, op, ErrNotFound)
 	}
 	return nil
 }
@@ -667,6 +678,8 @@ func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 // subtree of taskID) are rejected with ErrCycle. Subtasks in inbox are
 // rejected by Placement.Validate (parent_id forbidden alongside inbox_id).
 func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) error {
+	const op = "repo.tasks.Move"
+	logQuery(ctx, op, taskID, target)
 	if err := target.Validate(); err != nil {
 		return err
 	}
@@ -758,7 +771,7 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 		for rows.Next() {
 			var id int64
 			if err := rows.Scan(&id); err != nil {
-				_ = rows.Close()
+				logging.LogClose(ctx, "repo.tasks.collectDescendants.rows", rows)
 				return nil, err
 			}
 			next = append(next, id)

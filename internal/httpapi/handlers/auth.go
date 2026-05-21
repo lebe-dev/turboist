@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -10,6 +11,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
@@ -66,71 +68,141 @@ func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
 func (h *AuthHandler) setupRequired(c fiber.Ctx) error {
 	exists, err := h.users.Exists(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("check user existence")
+		return httpapi.ErrInternal("check user existence").WithCause(err)
 	}
 	return c.JSON(fiber.Map{"required": !exists})
 }
 
 func (h *AuthHandler) setup(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
 	if !h.limiter.Allow(c.IP()) {
+		log.WarnContext(ctx, "auth: setup rate limited",
+			slog.String("op", "handler.Auth.Setup"),
+			slog.String("ip", c.IP()),
+		)
 		return httpapi.ErrAuthRateLimited()
 	}
 
-	exists, err := h.users.Exists(c.Context())
+	exists, err := h.users.Exists(ctx)
 	if err != nil {
-		return httpapi.ErrInternal("check user existence")
+		return httpapi.ErrInternal("check user existence").WithCause(err)
 	}
 	if exists {
+		log.WarnContext(ctx, "auth: setup already done",
+			slog.String("op", "handler.Auth.Setup"),
+		)
 		return httpapi.ErrSetupAlreadyDone()
 	}
 
 	var req dto.LoginRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		log.WarnContext(ctx, "auth: setup invalid body",
+			slog.String("op", "handler.Auth.Setup"),
+			slog.String("err", err.Error()),
+		)
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if err := validateLoginRequest(req); err != nil {
+		log.WarnContext(ctx, "auth: setup validation failed",
+			slog.String("op", "handler.Auth.Setup"),
+			slog.String("code", err.Code),
+		)
 		return err
 	}
 
 	hash, err := auth.HashPassword(req.Password, h.argon2Params)
 	if err != nil {
-		return httpapi.ErrInternal("hash password")
+		return httpapi.ErrInternal("hash password").WithCause(err)
 	}
-	user, err := h.users.Create(c.Context(), req.Username, hash)
+	user, err := h.users.Create(ctx, req.Username, hash)
 	if err != nil {
-		return httpapi.ErrInternal("create user")
+		return httpapi.ErrInternal("create user").WithCause(err)
 	}
 
+	log.InfoContext(ctx, "auth: setup complete",
+		slog.String("op", "handler.Auth.Setup"),
+		slog.Int64("user_id", user.ID),
+		slog.String("client_kind", string(req.ClientKind)),
+	)
 	return h.issueSession(c, user, req.ClientKind)
 }
 
 func (h *AuthHandler) login(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
 	if !h.limiter.Allow(c.IP()) {
+		log.WarnContext(ctx, "auth: login rate limited",
+			slog.String("op", "handler.Auth.Login"),
+			slog.String("ip", c.IP()),
+		)
 		return httpapi.ErrAuthRateLimited()
 	}
 
 	var req dto.LoginRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		log.WarnContext(ctx, "auth: login invalid body",
+			slog.String("op", "handler.Auth.Login"),
+			slog.String("err", err.Error()),
+		)
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if err := validateLoginRequest(req); err != nil {
+		log.WarnContext(ctx, "auth: login validation failed",
+			slog.String("op", "handler.Auth.Login"),
+			slog.String("code", err.Code),
+		)
 		return err
 	}
 
-	user, err := h.users.GetByUsername(c.Context(), req.Username)
+	user, err := h.users.GetByUsername(ctx, req.Username)
 	if err != nil {
+		if !errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrInternal("lookup user").WithCause(err)
+		}
+		log.WarnContext(ctx, "auth: login unknown user",
+			slog.String("op", "handler.Auth.Login"),
+			slog.String("client_kind", string(req.ClientKind)),
+		)
 		// Avoid username enumeration: return same error for not found vs wrong password.
 		return httpapi.ErrAuthInvalid("invalid credentials")
 	}
 	if err := auth.VerifyPassword(req.Password, user.PasswordHash); err != nil {
+		if errors.Is(err, auth.ErrInvalidHash) || errors.Is(err, auth.ErrUnsupportedHashAlgo) {
+			// Stored hash is malformed or uses an unsupported algorithm. Keep the
+			// client-facing response identical to a wrong-password reply to avoid
+			// account enumeration; surface the underlying cause server-side only.
+			log.ErrorContext(ctx, "auth: login stored hash invalid",
+				slog.String("op", "handler.Auth.Login"),
+				slog.Int64("user_id", user.ID),
+				slog.String("err", err.Error()),
+			)
+			return httpapi.ErrAuthInvalid("invalid credentials")
+		}
+		log.WarnContext(ctx, "auth: login wrong password",
+			slog.String("op", "handler.Auth.Login"),
+			slog.Int64("user_id", user.ID),
+			slog.String("client_kind", string(req.ClientKind)),
+		)
 		return httpapi.ErrAuthInvalid("invalid credentials")
 	}
 
+	log.InfoContext(ctx, "auth: login ok",
+		slog.String("op", "handler.Auth.Login"),
+		slog.Int64("user_id", user.ID),
+		slog.String("client_kind", string(req.ClientKind)),
+	)
 	return h.issueSession(c, user, req.ClientKind)
 }
 
 func (h *AuthHandler) refresh(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
 	if !h.limiter.Allow(c.IP()) {
+		log.WarnContext(ctx, "auth: refresh rate limited",
+			slog.String("op", "handler.Auth.Refresh"),
+			slog.String("ip", c.IP()),
+		)
 		return httpapi.ErrAuthRateLimited()
 	}
 
@@ -143,6 +215,9 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 		}
 	}
 	if token == "" {
+		log.WarnContext(ctx, "auth: refresh missing token",
+			slog.String("op", "handler.Auth.Refresh"),
+		)
 		return httpapi.ErrAuthInvalid("missing refresh token")
 	}
 
@@ -152,25 +227,46 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 	// After Rotate the old hash is no longer in DB, so we look up the session ID
 	// from the theft cache (recorded at rotation time) and revoke it directly.
 	if sid, ok := h.theft.wasRotated(tokenHash); ok {
-		_ = h.sessions.Revoke(c.Context(), sid)
+		log.WarnContext(ctx, "auth: refresh token reuse",
+			slog.String("op", "handler.Auth.Refresh"),
+			slog.Int64("session_id", sid),
+		)
+		if err := h.sessions.Revoke(ctx, sid); err != nil && !errors.Is(err, repo.ErrNotFound) {
+			log.ErrorContext(ctx, "auth: refresh reuse revoke failed",
+				slog.String("op", "handler.Auth.Refresh"),
+				slog.Int64("session_id", sid),
+				slog.String("err", err.Error()),
+			)
+		}
 		return httpapi.ErrAuthInvalid("refresh token reuse detected")
 	}
 
-	session, err := h.sessions.GetByTokenHash(c.Context(), tokenHash)
+	session, err := h.sessions.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
+		if !errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrInternal("lookup session").WithCause(err)
+		}
+		log.WarnContext(ctx, "auth: refresh token unknown",
+			slog.String("op", "handler.Auth.Refresh"),
+		)
 		return httpapi.ErrAuthInvalid("invalid or expired refresh token")
 	}
 	if !session.IsActive(time.Now()) {
+		log.WarnContext(ctx, "auth: refresh token revoked or expired",
+			slog.String("op", "handler.Auth.Refresh"),
+			slog.Int64("session_id", session.ID),
+			slog.Int64("user_id", session.UserID),
+		)
 		return httpapi.ErrAuthInvalid("refresh token revoked or expired")
 	}
 
 	newToken, newHash, err := auth.GenerateRefreshToken()
 	if err != nil {
-		return httpapi.ErrInternal("generate refresh token")
+		return httpapi.ErrInternal("generate refresh token").WithCause(err)
 	}
 	newExp := auth.RefreshExpiry(time.Now())
-	if err := h.sessions.Rotate(c.Context(), session.ID, newHash, newExp); err != nil {
-		return httpapi.ErrInternal("rotate session")
+	if err := h.sessions.Rotate(ctx, session.ID, newHash, newExp); err != nil {
+		return httpapi.ErrInternal("rotate session").WithCause(err)
 	}
 
 	// Mark old hash as rotated for theft detection window.
@@ -178,39 +274,64 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 
 	access, _, err := h.jwt.Issue(session.UserID, session.ID)
 	if err != nil {
-		return httpapi.ErrInternal("issue access token")
+		return httpapi.ErrInternal("issue access token").WithCause(err)
 	}
 
 	if session.ClientKind == model.ClientWeb {
 		setRefreshCookie(c, newToken)
 	}
 
+	log.InfoContext(ctx, "auth: refresh ok",
+		slog.String("op", "handler.Auth.Refresh"),
+		slog.Int64("user_id", session.UserID),
+		slog.Int64("session_id", session.ID),
+		slog.String("client_kind", string(session.ClientKind)),
+	)
 	return c.JSON(dto.RefreshResponse{Access: access, Refresh: newToken})
 }
 
 func (h *AuthHandler) logout(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
 	claims := httpapi.GetClaims(c)
 	if claims == nil {
+		log.WarnContext(ctx, "auth: logout missing claims",
+			slog.String("op", "handler.Auth.Logout"),
+		)
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
-	if err := h.sessions.Revoke(c.Context(), claims.SessionID); err != nil {
+	if err := h.sessions.Revoke(ctx, claims.SessionID); err != nil {
 		if !errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrInternal("revoke session")
+			return httpapi.ErrInternal("revoke session").WithCause(err)
 		}
 	}
 	clearRefreshCookie(c)
+	log.InfoContext(ctx, "auth: logout ok",
+		slog.String("op", "handler.Auth.Logout"),
+		slog.Int64("user_id", claims.UserID),
+		slog.Int64("session_id", claims.SessionID),
+	)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *AuthHandler) logoutAll(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
 	claims := httpapi.GetClaims(c)
 	if claims == nil {
+		log.WarnContext(ctx, "auth: logoutAll missing claims",
+			slog.String("op", "handler.Auth.LogoutAll"),
+		)
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
-	if err := h.sessions.RevokeAllForUser(c.Context(), claims.UserID); err != nil {
-		return httpapi.ErrInternal("revoke all sessions")
+	if err := h.sessions.RevokeAllForUser(ctx, claims.UserID); err != nil {
+		return httpapi.ErrInternal("revoke all sessions").WithCause(err)
 	}
 	clearRefreshCookie(c)
+	log.InfoContext(ctx, "auth: logoutAll ok",
+		slog.String("op", "handler.Auth.LogoutAll"),
+		slog.Int64("user_id", claims.UserID),
+	)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -221,7 +342,7 @@ func (h *AuthHandler) me(c fiber.Ctx) error {
 	}
 	user, err := h.users.Get(c.Context(), claims.UserID)
 	if err != nil {
-		return httpapi.ErrInternal("get user")
+		return httpapi.ErrInternal("get user").WithCause(err)
 	}
 	return c.JSON(fiber.Map{"user": dto.UserDTO{ID: user.ID, Username: user.Username}})
 }
@@ -231,7 +352,7 @@ func (h *AuthHandler) me(c fiber.Ctx) error {
 func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.ClientKind) error {
 	token, tokenHash, err := auth.GenerateRefreshToken()
 	if err != nil {
-		return httpapi.ErrInternal("generate refresh token")
+		return httpapi.ErrInternal("generate refresh token").WithCause(err)
 	}
 
 	session, err := h.sessions.Create(c.Context(), repo.CreateSessionParams{
@@ -242,17 +363,25 @@ func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.Cli
 		ExpiresAt:  auth.RefreshExpiry(time.Now()),
 	})
 	if err != nil {
-		return httpapi.ErrInternal("create session")
+		return httpapi.ErrInternal("create session").WithCause(err)
 	}
 
 	if err := h.sessions.EnforceLimit(c.Context(), user.ID, kind, sessionLimit); err != nil {
-		_ = h.sessions.Revoke(c.Context(), session.ID)
-		return httpapi.ErrInternal("enforce session limit")
+		ctx := c.Context()
+		if rerr := h.sessions.Revoke(ctx, session.ID); rerr != nil && !errors.Is(rerr, repo.ErrNotFound) {
+			logging.FromContext(ctx).ErrorContext(ctx,
+				"auth: rollback session after enforce-limit failed",
+				slog.String("op", "handler.Auth.issueSession"),
+				slog.Int64("session_id", session.ID),
+				slog.String("err", rerr.Error()),
+			)
+		}
+		return httpapi.ErrInternal("enforce session limit").WithCause(err)
 	}
 
 	access, _, err := h.jwt.Issue(user.ID, session.ID)
 	if err != nil {
-		return httpapi.ErrInternal("issue access token")
+		return httpapi.ErrInternal("issue access token").WithCause(err)
 	}
 
 	if kind == model.ClientWeb {

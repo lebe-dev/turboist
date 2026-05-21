@@ -17,35 +17,29 @@ import (
 
 // Service encapsulates the business logic for Google Calendar integration.
 type Service struct {
-	calendars       *repo.CalendarRepo
-	users           *repo.UserRepo
-	cipher          *TokenCipher
-	cache           *EventCache
-	baseURL         string
-	envClientID     string
-	envClientSecret string
-	log             *slog.Logger
+	calendars *repo.CalendarRepo
+	users     *repo.UserRepo
+	cipher    *TokenCipher
+	cache     *EventCache
+	baseURL   string
+	log       *slog.Logger
 }
 
 // NewService constructs a Service. calendarTokenKey is used to derive the AES
-// encryption key for OAuth tokens. envClientID / envClientSecret are optional
-// server-wide OAuth credentials; when empty, per-user credentials from the DB
-// are used instead.
+// encryption key for OAuth tokens stored in the DB.
 func NewService(
 	calendars *repo.CalendarRepo,
 	users *repo.UserRepo,
-	baseURL, envClientID, envClientSecret, calendarTokenKey string,
+	baseURL, calendarTokenKey string,
 	log *slog.Logger,
 ) *Service {
 	return &Service{
-		calendars:       calendars,
-		users:           users,
-		cipher:          NewTokenCipher(calendarTokenKey),
-		cache:           NewEventCache(2 * time.Minute),
-		baseURL:         strings.TrimRight(baseURL, "/"),
-		envClientID:     envClientID,
-		envClientSecret: envClientSecret,
-		log:             log,
+		calendars: calendars,
+		users:     users,
+		cipher:    NewTokenCipher(calendarTokenKey),
+		cache:     NewEventCache(2 * time.Minute),
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		log:       log,
 	}
 }
 
@@ -75,14 +69,9 @@ func (s *Service) OAuthConfig(clientID, clientSecret string) (*oauth2.Config, bo
 	}, true
 }
 
-// OAuthConfigForUser returns the effective OAuth config for a user: server-level
-// env credentials take priority; if absent, per-user credentials stored in the
-// DB are decrypted and used. Returns (nil, false, nil) when no credentials are
-// configured at all.
+// OAuthConfigForUser returns the per-user OAuth config stored in the DB.
+// Returns (nil, false, nil) when no credentials are configured.
 func (s *Service) OAuthConfigForUser(ctx context.Context, userID int64) (*oauth2.Config, bool, error) {
-	if cfg, ok := s.OAuthConfig(s.envClientID, s.envClientSecret); ok {
-		return cfg, true, nil
-	}
 	dbCfg, err := s.calendars.GetOAuthConfig(ctx, userID, model.CalendarProviderGoogle)
 	if errors.Is(err, repo.ErrNotFound) {
 		return nil, false, nil

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -42,6 +43,8 @@ func scanLabel(row interface{ Scan(...any) error }) (*model.Label, error) {
 }
 
 func (r *LabelRepo) Create(ctx context.Context, name, color string, isFavourite bool) (*model.Label, error) {
+	const op = "repo.labels.Create"
+	logQuery(ctx, op, color, isFavourite)
 	now := model.FormatUTC(time.Now())
 	favInt := 0
 	if isFavourite {
@@ -52,39 +55,43 @@ func (r *LabelRepo) Create(ctx context.Context, name, color string, isFavourite 
 		name, color, favInt, now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return nil, ErrConflict
+			return nil, logErr(ctx, op, ErrConflict)
 		}
-		return nil, fmt.Errorf("insert label: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("insert label: %w", err))
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return r.Get(ctx, id)
 }
 
 func (r *LabelRepo) Get(ctx context.Context, id int64) (*model.Label, error) {
+	const op = "repo.labels.Get"
+	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE id = ?`, id)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return l, nil
 }
 
 func (r *LabelRepo) GetByName(ctx context.Context, name string) (*model.Label, error) {
+	const op = "repo.labels.GetByName"
+	logQuery(ctx, op)
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE name = ?`, name)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	return l, nil
 }
@@ -94,6 +101,8 @@ type LabelListFilter struct {
 }
 
 func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page) ([]model.Label, int, error) {
+	const op = "repo.labels.List"
+	logQuery(ctx, op, filter, page)
 	page = page.Normalize()
 	where := ""
 	args := []any{}
@@ -104,7 +113,7 @@ func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page)
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM labels`+where, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count labels: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count labels: %w", err))
 	}
 
 	args = append(args, page.Limit, page.Offset)
@@ -112,15 +121,15 @@ func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page)
 		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels`+where+
 			` ORDER BY is_favourite DESC, name ASC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list labels: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list labels: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Label, 0)
 	for rows.Next() {
 		l, err := scanLabel(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *l)
 	}
@@ -135,6 +144,8 @@ type LabelUpdate struct {
 }
 
 func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model.Label, error) {
+	const op = "repo.labels.Update"
+	logQuery(ctx, op, id)
 	sets := make([]string, 0, 4)
 	args := make([]any, 0, 4)
 	if u.Name != nil {
@@ -171,36 +182,40 @@ func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model
 	res, err := r.db.ExecContext(ctx, `UPDATE labels SET `+joinSets(sets)+` WHERE id = ?`, args...)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return nil, ErrConflict
+			return nil, logErr(ctx, op, ErrConflict)
 		}
-		return nil, fmt.Errorf("update label: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("update label: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return nil, err
+		return nil, logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return nil, ErrNotFound
+		return nil, logErr(ctx, op, ErrNotFound)
 	}
 	return r.Get(ctx, id)
 }
 
 func (r *LabelRepo) Delete(ctx context.Context, id int64) error {
+	const op = "repo.labels.Delete"
+	logQuery(ctx, op, id)
 	res, err := r.db.ExecContext(ctx, `DELETE FROM labels WHERE id = ?`, id)
 	if err != nil {
-		return fmt.Errorf("delete label: %w", err)
+		return logErr(ctx, op, fmt.Errorf("delete label: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return ErrNotFound
+		return logErr(ctx, op, ErrNotFound)
 	}
 	return nil
 }
 
 func (r *LabelRepo) GetByIDs(ctx context.Context, ids []int64) ([]model.Label, error) {
+	const op = "repo.labels.GetByIDs"
+	logQuery(ctx, op, ids)
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -214,14 +229,14 @@ func (r *LabelRepo) GetByIDs(ctx context.Context, ids []int64) ([]model.Label, e
 		strings.Join(placeholders, ",") + `)`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("get labels by ids: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("get labels by ids: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 	out := make([]model.Label, 0, len(ids))
 	for rows.Next() {
 		l, err := scanLabel(rows)
 		if err != nil {
-			return nil, err
+			return nil, logErr(ctx, op, err)
 		}
 		out = append(out, *l)
 	}

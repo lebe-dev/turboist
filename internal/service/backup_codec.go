@@ -3,10 +3,13 @@ package service
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/lebe-dev/turboist/internal/logging"
 )
 
 // ErrBadBackup is returned when the input bytes are not a recognizable backup.
@@ -31,7 +34,7 @@ func DecodeBackup(raw []byte) (*BackupPayload, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: gzip header: %v", ErrBadBackup, err)
 		}
-		defer func() { _ = zr.Close() }()
+		defer logging.LogClose(context.Background(), "service.backup.DecodeBackup.gzip", zr)
 		limited := io.LimitReader(zr, maxDecompressedBackupBytes+1)
 		decoded, err := io.ReadAll(limited)
 		if err != nil {

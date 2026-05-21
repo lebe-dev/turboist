@@ -39,7 +39,7 @@ type inboxResponse struct {
 func (h *InboxHandler) get(c fiber.Ctx) error {
 	tasks, total, err := h.tasks.ListInbox(c.Context(), repo.TaskFilter{}, repo.Page{Limit: 200})
 	if err != nil {
-		return httpapi.ErrInternal("list inbox")
+		return httpapi.ErrInternal("list inbox").WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(tasks))
 	for i, t := range tasks {
@@ -53,11 +53,14 @@ func (h *InboxHandler) get(c fiber.Ctx) error {
 }
 
 func (h *InboxHandler) createTask(c fiber.Ctx) error {
+	logEntry(c, "handler.Inbox.CreateTask")
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Inbox.CreateTask", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if req.Title == "" {
+		logValidation(c, "handler.Inbox.CreateTask", "title required")
 		return httpapi.ErrValidation("title is required")
 	}
 	id := inboxID

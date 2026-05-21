@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log/slog"
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
@@ -42,7 +43,7 @@ func (h *ContextHandler) list(c fiber.Ctx) error {
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.ctxs.List(c.Context(), repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list contexts")
+		return httpapi.ErrInternal("list contexts").WithCause(err)
 	}
 	dtos := make([]dto.ContextDTO, len(items))
 	for i, ctx := range items {
@@ -52,14 +53,18 @@ func (h *ContextHandler) list(c fiber.Ctx) error {
 }
 
 func (h *ContextHandler) create(c fiber.Ctx) error {
+	logEntry(c, "handler.Context.Create")
 	var req dto.CreateContextRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Context.Create", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if req.Name == "" {
+		logValidation(c, "handler.Context.Create", "name required")
 		return httpapi.ErrValidation("name is required")
 	}
 	if req.Color != "" && !isValidColor(req.Color) {
+		logValidation(c, "handler.Context.Create", "invalid color")
 		return httpapi.ErrValidation("invalid color")
 	}
 	ctx, err := h.ctxs.Create(c.Context(), req.Name, req.Color, req.IsFavourite)
@@ -67,8 +72,9 @@ func (h *ContextHandler) create(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("context name already exists")
 		}
-		return httpapi.ErrInternal("create context")
+		return httpapi.ErrInternal("create context").WithCause(err)
 	}
+	logMutation(c, "handler.Context.Create", slog.Int64("context_id", ctx.ID))
 	return c.Status(fiber.StatusCreated).JSON(dto.ContextFromModel(*ctx))
 }
 
@@ -82,7 +88,7 @@ func (h *ContextHandler) get(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	return c.JSON(dto.ContextFromModel(*ctx))
 }
@@ -92,11 +98,14 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Context.Patch", slog.Int64("context_id", id))
 	var req dto.PatchContextRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Context.Patch", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if req.Color != nil && !isValidColor(*req.Color) {
+		logValidation(c, "handler.Context.Patch", "invalid color")
 		return httpapi.ErrValidation("invalid color")
 	}
 	ctx, err := h.ctxs.Update(c.Context(), id, repo.ContextUpdate{
@@ -111,8 +120,9 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("context name already exists")
 		}
-		return httpapi.ErrInternal("update context")
+		return httpapi.ErrInternal("update context").WithCause(err)
 	}
+	logMutation(c, "handler.Context.Patch", slog.Int64("context_id", ctx.ID))
 	return c.JSON(dto.ContextFromModel(*ctx))
 }
 
@@ -121,12 +131,14 @@ func (h *ContextHandler) delete(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Context.Delete", slog.Int64("context_id", id))
 	if err := h.ctxs.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("delete context")
+		return httpapi.ErrInternal("delete context").WithCause(err)
 	}
+	logMutation(c, "handler.Context.Delete", slog.Int64("context_id", id))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -139,20 +151,21 @@ func (h *ContextHandler) listProjects(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := repo.ProjectListFilter{ContextID: &id}
 	if s := c.Query("status"); s != "" {
 		ps := model.ProjectStatus(s)
 		if !ps.IsValid() {
+			logValidation(c, "handler.Context.ListProjects", "invalid status")
 			return httpapi.ErrValidation("invalid status")
 		}
 		filter.Status = &ps
 	}
 	items, total, err := h.projects.List(c.Context(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list projects")
+		return httpapi.ErrInternal("list projects").WithCause(err)
 	}
 	dtos := make([]dto.ProjectDTO, len(items))
 	for i, p := range items {
@@ -170,7 +183,7 @@ func (h *ContextHandler) listTasks(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := repo.TaskFilter{}
@@ -200,7 +213,7 @@ func (h *ContextHandler) listTasks(c fiber.Ctx) error {
 	}
 	items, total, err := h.tasks.ListByContext(c.Context(), id, true, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
 	if err != nil {
-		return httpapi.ErrInternal("list tasks")
+		return httpapi.ErrInternal("list tasks").WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(items))
 	for i, t := range items {
@@ -214,17 +227,20 @@ func (h *ContextHandler) createTask(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	logEntry(c, "handler.Context.CreateTask", slog.Int64("context_id", id))
 	if _, err := h.ctxs.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
 		}
-		return httpapi.ErrInternal("get context")
+		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, "handler.Context.CreateTask", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if req.Title == "" {
+		logValidation(c, "handler.Context.CreateTask", "title required")
 		return httpapi.ErrValidation("title is required")
 	}
 	return doCreateTask(c, h.taskSvc, repo.Placement{ContextID: &id}, req, h.baseURL)

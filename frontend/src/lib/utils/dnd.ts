@@ -48,11 +48,14 @@ interface TouchDragState {
 	startX: number;
 	startY: number;
 	started: boolean;
+	armed: boolean;
+	holdTimer: ReturnType<typeof setTimeout> | null;
 }
 
 let activeTouchDrag: TouchDragState | null = null;
 let highlightedSectionEl: Element | null = null;
-const DRAG_THRESHOLD = 8; // px before drag starts
+const SCROLL_CANCEL_THRESHOLD = 10; // px finger movement before long-press fires → cancel drag, allow scroll
+const HOLD_DURATION_MS = 350; // long-press duration before drag is armed
 
 function clearHighlight() {
 	if (highlightedSectionEl) {
@@ -63,51 +66,76 @@ function clearHighlight() {
 	}
 }
 
-export function initTouchDrag(e: TouchEvent, taskId: number, sourceEl: HTMLElement): void {
+function armDrag(): void {
+	if (!activeTouchDrag) return;
+	activeTouchDrag.armed = true;
+	activeTouchDrag.holdTimer = null;
+	if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+		try { navigator.vibrate(15); } catch { /* noop */ }
+	}
+
+	const sourceEl = document.querySelector(`[data-task-id="${activeTouchDrag.taskId}"]`) as HTMLElement | null;
+	if (!sourceEl) { activeTouchDrag = null; return; }
+	const ghost = sourceEl.cloneNode(true) as HTMLElement;
+	const rect = sourceEl.getBoundingClientRect();
+	ghost.style.cssText = `
+		position: fixed;
+		left: ${rect.left}px;
+		top: ${rect.top}px;
+		width: ${rect.width}px;
+		opacity: 0.8;
+		pointer-events: none;
+		z-index: 9999;
+		border-radius: 8px;
+		box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+		transform: scale(1.02);
+		transition: none;
+	`;
+	document.body.appendChild(ghost);
+	activeTouchDrag.ghostEl = ghost;
+	activeTouchDrag.started = true;
+	sourceEl.style.opacity = '0.3';
+}
+
+function cancelTouchDrag(): void {
+	if (!activeTouchDrag) return;
+	if (activeTouchDrag.holdTimer !== null) {
+		clearTimeout(activeTouchDrag.holdTimer);
+	}
+	activeTouchDrag = null;
+}
+
+export function initTouchDrag(e: TouchEvent, taskId: number, _sourceEl: HTMLElement): void {
 	if (activeTouchDrag) return;
 	const touch = e.touches[0];
-	activeTouchDrag = {
+	const state: TouchDragState = {
 		taskId,
 		ghostEl: null as unknown as HTMLElement,
 		startX: touch.clientX,
 		startY: touch.clientY,
-		started: false
+		started: false,
+		armed: false,
+		holdTimer: null
 	};
+	activeTouchDrag = state;
+	state.holdTimer = setTimeout(armDrag, HOLD_DURATION_MS);
 }
 
 export function updateTouchDrag(e: TouchEvent): boolean {
 	if (!activeTouchDrag) return false;
 	const touch = e.touches[0];
+	const dx = touch.clientX - activeTouchDrag.startX;
+	const dy = touch.clientY - activeTouchDrag.startY;
 
-	if (!activeTouchDrag.started) {
-		const dx = touch.clientX - activeTouchDrag.startX;
-		const dy = touch.clientY - activeTouchDrag.startY;
-		if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return false;
-
-		// Start dragging: create ghost
-		const sourceEl = document.querySelector(`[data-task-id="${activeTouchDrag.taskId}"]`) as HTMLElement | null;
-		if (!sourceEl) { activeTouchDrag = null; return false; }
-
-		const ghost = sourceEl.cloneNode(true) as HTMLElement;
-		const rect = sourceEl.getBoundingClientRect();
-		ghost.style.cssText = `
-			position: fixed;
-			left: ${rect.left}px;
-			top: ${rect.top}px;
-			width: ${rect.width}px;
-			opacity: 0.8;
-			pointer-events: none;
-			z-index: 9999;
-			border-radius: 8px;
-			box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-			transform: scale(1.02);
-			transition: none;
-		`;
-		document.body.appendChild(ghost);
-		activeTouchDrag.ghostEl = ghost;
-		activeTouchDrag.started = true;
-		sourceEl.style.opacity = '0.3';
+	if (!activeTouchDrag.armed) {
+		// Before long-press fires: any meaningful finger movement = user wants to scroll, abort drag entirely.
+		if (Math.sqrt(dx * dx + dy * dy) >= SCROLL_CANCEL_THRESHOLD) {
+			cancelTouchDrag();
+		}
+		return false;
 	}
+
+	if (!activeTouchDrag.started) return false;
 
 	e.preventDefault();
 
@@ -132,7 +160,8 @@ export function updateTouchDrag(e: TouchEvent): boolean {
 
 export function endTouchDrag(e: TouchEvent): { taskId: number; sectionId: number | null } | null {
 	if (!activeTouchDrag) return null;
-	const { taskId, ghostEl, started } = activeTouchDrag;
+	const { taskId, ghostEl, started, holdTimer } = activeTouchDrag;
+	if (holdTimer !== null) clearTimeout(holdTimer);
 	activeTouchDrag = null;
 
 	// Restore source opacity

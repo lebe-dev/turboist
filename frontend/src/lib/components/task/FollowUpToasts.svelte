@@ -25,7 +25,7 @@
 </script>
 
 <div
-	class="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col-reverse gap-2"
+	class="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col-reverse gap-2"
 	aria-live="polite"
 >
 	{#each followUpStore.items as item (item.id)}

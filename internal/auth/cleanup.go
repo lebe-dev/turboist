@@ -33,8 +33,12 @@ func runSessionCleanup(ctx context.Context, sessions *repo.SessionRepo, log *slo
 func cleanupOnce(ctx context.Context, sessions *repo.SessionRepo, log *slog.Logger) {
 	n, err := sessions.Cleanup(ctx)
 	if err != nil {
-		log.Error("session cleanup failed", "err", err)
+		log.Error("session cleanup failed", slog.String("op", "auth.SessionCleanup"), slog.String("err", err.Error()))
 		return
 	}
-	log.Info("session cleanup done", "removed", n)
+	if n == 0 {
+		log.Debug("session cleanup done", slog.String("op", "auth.SessionCleanup"), slog.Int64("removed", n))
+		return
+	}
+	log.Info("session cleanup done", slog.String("op", "auth.SessionCleanup"), slog.Int64("removed", n))
 }

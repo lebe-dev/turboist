@@ -48,7 +48,25 @@ Two configuration sources are merged at start-up:
   - `BASE_URL` — public base URL used when building `Task.URL` (required)
   - `JWT_SECRET` — base64-encoded secret, ≥ 32 bytes (required)
   - `API_TOKEN_SALT` — HMAC salt for API tokens, ≥ 32 bytes (required); rotating it invalidates all existing tokens
-  - `LOG_LEVEL` — `debug|info|warn|error`, default `info`
+  - `LOG_LEVEL` — `debug|info|warn|error`, default `info`. Logs are emitted as
+    JSON via `log/slog` with request-scoped fields (`request_id`, `user_id`,
+    `auth_method`) attached by middleware. What each level emits:
+    - `debug` — handler entry/exit with key params, service inputs and
+      decision branches, repo query bind values and `sql.ErrNoRows` lookups,
+      JWT issue/verify lifecycle, allowed rate-limit requests, access log for
+      successful (<400) responses
+    - `info` — significant state changes: successful auth events
+      (`/auth/setup`, `/auth/login`, `/auth/refresh`, `/auth/logout`), session
+      creation/rotation, successful mutations (create/update/delete/complete/
+      move/restore) with resulting id, backup export/restore start/finish with
+      row counts, access log for 4xx responses
+    - `warn` — recoverable/expected failures: validation errors, wrong
+      password, unknown user, expired/used/invalid refresh tokens, rate-limit
+      hits (with client IP), business-rule rejections (plan cap exceeded,
+      troiki slot full, forbidden placement, invalid RRULE), deferred
+      `io.Closer` errors, access log for 5xx responses
+    - `error` — unexpected failures: SQL errors that are not `sql.ErrNoRows`,
+      transaction aborts, panics
   - `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` — optional
     Google OAuth credentials for read-only calendar events. Configure the
     OAuth redirect URI as `<BASE_URL>/api/v1/calendars/google/callback`.

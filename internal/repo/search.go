@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -20,6 +21,8 @@ func NewSearchRepo(tasks *TaskRepo, projects *ProjectRepo) *SearchRepo {
 // SearchTasks runs a LIKE search over title/description. The caller must
 // validate q (min 2 chars) — repo treats empty q as no-op.
 func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]model.Task, int, error) {
+	const op = "repo.search.SearchTasks"
+	logQuery(ctx, op, len(q), page)
 	q = strings.TrimSpace(q)
 	if q == "" {
 		return []model.Task{}, 0, nil
@@ -32,7 +35,7 @@ func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]mo
 	var total int
 	if err := r.tasks.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM tasks t WHERE t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\'`, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count search tasks: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count search tasks: %w", err))
 	}
 	listArgs := append([]any{}, args...)
 	listArgs = append(listArgs, page.Limit, page.Offset)
@@ -41,22 +44,22 @@ func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]mo
 			` FROM tasks t WHERE t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\'
 			  ORDER BY `+taskOrderBy+` LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("search tasks: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("search tasks: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Task, 0)
 	ids := make([]int64, 0)
 	for rows.Next() {
 		t, err := scanTask(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *t)
 		ids = append(ids, t.ID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, logErr(ctx, op, err)
 	}
 	if r.tasks.labels != nil && len(ids) > 0 {
 		hydrated, err := r.tasks.labels.LabelsByTaskIDs(ctx, ids)
@@ -71,6 +74,8 @@ func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]mo
 }
 
 func (r *SearchRepo) SearchProjects(ctx context.Context, q string, page Page) ([]model.Project, int, error) {
+	const op = "repo.search.SearchProjects"
+	logQuery(ctx, op, len(q), page)
 	q = strings.TrimSpace(q)
 	if q == "" {
 		return []model.Project{}, 0, nil
@@ -82,7 +87,7 @@ func (r *SearchRepo) SearchProjects(ctx context.Context, q string, page Page) ([
 	var total int
 	if err := r.projects.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM projects WHERE title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'`, like, like).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count search projects: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("count search projects: %w", err))
 	}
 	rows, err := r.projects.db.QueryContext(ctx,
 		`SELECT `+projectColumns+` FROM projects
@@ -90,22 +95,22 @@ func (r *SearchRepo) SearchProjects(ctx context.Context, q string, page Page) ([
 		 ORDER BY is_pinned DESC, pinned_at DESC, created_at DESC LIMIT ? OFFSET ?`,
 		like, like, page.Limit, page.Offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("search projects: %w", err)
+		return nil, 0, logErr(ctx, op, fmt.Errorf("search projects: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make([]model.Project, 0)
 	ids := make([]int64, 0)
 	for rows.Next() {
 		p, err := scanProject(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, logErr(ctx, op, err)
 		}
 		out = append(out, *p)
 		ids = append(ids, p.ID)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, 0, logErr(ctx, op, err)
 	}
 	if r.projects.labels != nil && len(ids) > 0 {
 		hydrated, err := r.projects.labels.LabelsByProjectIDs(ctx, ids)

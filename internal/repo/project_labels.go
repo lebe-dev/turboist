@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -21,18 +22,20 @@ func NewProjectLabelsRepo(db *sql.DB) *ProjectLabelsRepo {
 // called within a transaction by callers that need atomicity with project
 // inserts/updates. The standalone form opens its own transaction.
 func (r *ProjectLabelsRepo) SetForProject(ctx context.Context, projectID int64, labelIDs []int64) error {
+	const op = "repo.project_labels.SetForProject"
+	logQuery(ctx, op, projectID, labelIDs)
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return logErr(ctx, op, fmt.Errorf("begin tx: %w", err))
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM project_labels WHERE project_id = ?`, projectID); err != nil {
-		return fmt.Errorf("clear project_labels: %w", err)
+		return logErr(ctx, op, fmt.Errorf("clear project_labels: %w", err))
 	}
 	for _, lid := range labelIDs {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO project_labels (project_id, label_id) VALUES (?, ?)`, projectID, lid); err != nil {
-			return fmt.Errorf("insert project_label: %w", err)
+			return logErr(ctx, op, fmt.Errorf("insert project_label: %w", err))
 		}
 	}
 	return tx.Commit()
@@ -41,6 +44,8 @@ func (r *ProjectLabelsRepo) SetForProject(ctx context.Context, projectID int64, 
 // LabelsByProjectIDs returns labels grouped by project_id for the given
 // projectIDs. Used to hydrate listings without GROUP_CONCAT.
 func (r *ProjectLabelsRepo) LabelsByProjectIDs(ctx context.Context, projectIDs []int64) (map[int64][]model.Label, error) {
+	const op = "repo.project_labels.LabelsByProjectIDs"
+	logQuery(ctx, op, projectIDs)
 	if len(projectIDs) == 0 {
 		return map[int64][]model.Label{}, nil
 	}
@@ -57,9 +62,9 @@ func (r *ProjectLabelsRepo) LabelsByProjectIDs(ctx context.Context, projectIDs [
 	      ORDER BY l.name ASC`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("hydrate project labels: %w", err)
+		return nil, logErr(ctx, op, fmt.Errorf("hydrate project labels: %w", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, op+".rows", rows)
 
 	out := make(map[int64][]model.Label, len(projectIDs))
 	for rows.Next() {

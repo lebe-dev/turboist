@@ -98,6 +98,7 @@
 	$effect(() => {
 		void page.url.pathname;
 		mobileSidebarOpen = false;
+		taskSelectionStore.disable();
 	});
 
 	$effect(() => {
@@ -461,7 +462,7 @@
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
 			{/if}
-			<main class="flex-1 overflow-y-auto">
+			<main class="flex-1 overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
 				{@render children()}
 			</main>
 		</div>
@@ -500,7 +501,7 @@
 	{/if}
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
 	<FollowUpToasts onNext={onFollowUpNext} />
-	{#if !quickAddHidden}
+	{#if !quickAddHidden && !taskSelectionStore.mode}
 		<button
 			onclick={onQuickAdd}
 			class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"

@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	rrule "github.com/teambition/rrule-go"
@@ -51,8 +53,12 @@ func (s *CompleteService) CompleteAt(ctx context.Context, taskID int64, complete
 }
 
 func (s *CompleteService) completeAt(ctx context.Context, taskID int64, completedAt *time.Time) (*model.Task, error) {
+	const op = "service.CompleteService.Complete"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
+		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	if t.RecurrenceRule != nil {
@@ -67,19 +73,25 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 		status := model.TaskStatusCompleted
 		updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status, CompletedAt: completedAt})
 		if err != nil {
+			logRepoErr(ctx, op+": update status", err, slog.Int64("task_id", taskID))
 			return nil, err
 		}
 		t = updated
 	}
 	if err := s.bumpTroikiCapacity(ctx, t); err != nil {
+		log.ErrorContext(ctx, op+": bump troiki capacity", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
 		return nil, err
 	}
+	log.InfoContext(ctx, "task completed", slog.String("op", op), slog.Int64("task_id", taskID))
 	return t, nil
 }
 
 func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, completedAt *time.Time) (*model.Task, error) {
+	const op = "service.CompleteService.advanceRecurring"
+	log := logging.FromContext(ctx)
 	r, err := rrule.StrToRRule(*t.RecurrenceRule)
 	if err != nil {
+		log.WarnContext(ctx, op+": invalid RRULE", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
 		return nil, &RecurrenceError{Err: err}
 	}
 
@@ -106,6 +118,7 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 	}
 	updated, err := s.tasks.Update(ctx, t.ID, upd)
 	if err != nil {
+		logRepoErr(ctx, op+": update task", err, slog.Int64("task_id", t.ID))
 		return nil, err
 	}
 	// For non-terminal completions the parent task stays open (advanced to the
@@ -117,14 +130,17 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 			ts = *completedAt
 		}
 		if _, err := s.tasks.CreateRecurrenceCompletion(ctx, t, ts); err != nil {
+			log.ErrorContext(ctx, op+": create recurrence completion", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
 			return nil, err
 		}
 	}
 	if terminal {
 		if err := s.bumpTroikiCapacity(ctx, t); err != nil {
+			log.ErrorContext(ctx, op+": bump troiki capacity", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
 			return nil, err
 		}
 	}
+	log.InfoContext(ctx, "recurring task advanced", slog.String("op", op), slog.Int64("task_id", t.ID), slog.Bool("terminal", terminal))
 	return updated, nil
 }
 
@@ -178,20 +194,39 @@ func (s *CompleteService) bumpTroikiCapacity(ctx context.Context, t *model.Task)
 // the task come back open with a priority derived from the project's previous
 // category.
 func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.Task, error) {
+	const op = "service.CompleteService.Uncomplete"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
+		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
 	if t.Status == model.TaskStatusOpen {
 		return t, nil
 	}
-	return s.tasks.ReopenAndPinProjectPriority(ctx, taskID)
+	reopened, err := s.tasks.ReopenAndPinProjectPriority(ctx, taskID)
+	if err != nil {
+		logRepoErr(ctx, op+": reopen", err, slog.Int64("task_id", taskID))
+		return nil, err
+	}
+	log.InfoContext(ctx, "task reopened", slog.String("op", op), slog.Int64("task_id", taskID))
+	return reopened, nil
 }
 
 // Cancel marks a task cancelled. With project-owned Troiki categories, cancelling
 // a single task does not release any slot — the project keeps its category until
 // the user explicitly clears it.
 func (s *CompleteService) Cancel(ctx context.Context, taskID int64) (*model.Task, error) {
+	const op = "service.CompleteService.Cancel"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
 	status := model.TaskStatusCancelled
-	return s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
+	updated, err := s.tasks.Update(ctx, taskID, repo.TaskUpdate{Status: &status})
+	if err != nil {
+		logRepoErr(ctx, op+": update", err, slog.Int64("task_id", taskID))
+		return nil, err
+	}
+	log.InfoContext(ctx, "task cancelled", slog.String("op", op), slog.Int64("task_id", taskID))
+	return updated, nil
 }

@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
@@ -87,8 +89,12 @@ func (s *AutoLabelsService) resolveExisting(ctx context.Context, name string) (i
 //   - explicitNames: if non-nil, replaces the base set; each name must reference an existing label
 //   - removedAutoNames: label names to exclude from the final set (best-effort; ignored if not found)
 func (s *AutoLabelsService) Apply(ctx context.Context, title string, currentIDs []int64, explicitNames *[]string, removedAutoNames []string) ([]int64, error) {
+	const op = "service.AutoLabelsService.Apply"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int("title_len", len(title)))
 	rules, err := s.loadRules(ctx)
 	if err != nil {
+		log.ErrorContext(ctx, op+": load rules", slog.String("err", err.Error()))
 		return nil, err
 	}
 
@@ -98,6 +104,12 @@ func (s *AutoLabelsService) Apply(ctx context.Context, title string, currentIDs 
 		for _, name := range *explicitNames {
 			id, err := s.resolveExisting(ctx, name)
 			if err != nil {
+				var unk *UnknownLabelError
+				if errors.As(err, &unk) {
+					log.WarnContext(ctx, op+": unknown label", slog.String("name", name))
+				} else {
+					log.ErrorContext(ctx, op+": resolve label", slog.String("name", name), slog.String("err", err.Error()))
+				}
 				return nil, err
 			}
 			base[id] = struct{}{}

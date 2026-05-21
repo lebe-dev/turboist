@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -174,7 +175,7 @@ func firstFKViolation(ctx context.Context, tx *sql.Tx) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = rows.Close() }()
+	defer logging.LogClose(ctx, "service.backup.firstFKViolation.rows", rows)
 	if rows.Next() {
 		var table, parent sql.NullString
 		var rowid, fkid sql.NullInt64

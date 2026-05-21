@@ -130,29 +130,23 @@ func validateDayParts(parts map[string]DayPart) error {
 }
 
 type Env struct {
-	Bind                       string
-	LogLevel                   string
-	BaseURL                    string
-	JWTSecret                  string
-	APITokenSalt               string
-	DataPath                   string
-	GoogleCalendarClientID     string
-	GoogleCalendarClientSecret string
-	CalendarTokenKey           string
-	Argon2Params               auth.Argon2Params
+	Bind         string
+	LogLevel     string
+	BaseURL      string
+	JWTSecret    string
+	APITokenSalt string
+	DataPath     string
+	Argon2Params auth.Argon2Params
 }
 
 func LoadEnv() (*Env, error) {
 	e := &Env{
-		Bind:                       os.Getenv("BIND"),
-		LogLevel:                   os.Getenv("LOG_LEVEL"),
-		BaseURL:                    os.Getenv("BASE_URL"),
-		JWTSecret:                  os.Getenv("JWT_SECRET"),
-		APITokenSalt:               os.Getenv("API_TOKEN_SALT"),
-		DataPath:                   os.Getenv("DATA_PATH"),
-		GoogleCalendarClientID:     os.Getenv("GOOGLE_CALENDAR_CLIENT_ID"),
-		GoogleCalendarClientSecret: os.Getenv("GOOGLE_CALENDAR_CLIENT_SECRET"),
-		CalendarTokenKey:           os.Getenv("CALENDAR_TOKEN_KEY"),
+		Bind:         os.Getenv("BIND"),
+		LogLevel:     os.Getenv("LOG_LEVEL"),
+		BaseURL:      os.Getenv("BASE_URL"),
+		JWTSecret:    os.Getenv("JWT_SECRET"),
+		APITokenSalt: os.Getenv("API_TOKEN_SALT"),
+		DataPath:     os.Getenv("DATA_PATH"),
 	}
 	if e.LogLevel == "" {
 		e.LogLevel = "info"
@@ -178,13 +172,6 @@ func LoadEnv() (*Env, error) {
 	if len(e.APITokenSalt) < 32 {
 		return nil, fmt.Errorf("env: API_TOKEN_SALT must be at least 32 bytes")
 	}
-	if e.CalendarTokenKey == "" {
-		e.CalendarTokenKey = e.JWTSecret
-	}
-	if len(e.CalendarTokenKey) < 32 {
-		return nil, fmt.Errorf("env: CALENDAR_TOKEN_KEY must be at least 32 bytes")
-	}
-
 	argon2Params, err := loadArgon2Params()
 	if err != nil {
 		return nil, err

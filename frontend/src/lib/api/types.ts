@@ -197,7 +197,6 @@ export interface CalendarSource {
 export interface CalendarSettingsResponse {
 	enabled: boolean;
 	googleConfigured: boolean;
-	googleConfigFromEnv: boolean;
 	googleClientIdConfigured: boolean;
 	googleClientSecretConfigured: boolean;
 	accounts: CalendarAccount[];

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Popover as PopoverPrimitive } from 'bits-ui';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import { t } from '$lib/i18n';
@@ -245,13 +246,13 @@
 	</div>
 {/snippet}
 
-<div class="relative inline-flex">
+{#snippet triggerGroup(onToggle: () => void)}
 	<div
 		class="inline-flex h-8 items-center rounded-md border border-border bg-background text-xs font-medium transition-colors"
 	>
 		<button
 			type="button"
-			onclick={() => (open = !open)}
+			onclick={onToggle}
 			aria-expanded={open}
 			class={`inline-flex h-full items-center gap-1.5 px-2.5 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 ${hasRepeat ? 'rounded-l-md' : 'rounded-md'}`}
 		>
@@ -269,8 +270,11 @@
 			</button>
 		{/if}
 	</div>
+{/snippet}
 
-	{#if isMobile.current}
+{#if isMobile.current}
+	<div class="inline-flex">
+		{@render triggerGroup(() => (open = !open))}
 		<Sheet.Root bind:open>
 			<Sheet.Content side="bottom" class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2">
 				<Sheet.Header class="px-2.5 pb-1 pt-0">
@@ -281,17 +285,24 @@
 				</div>
 			</Sheet.Content>
 		</Sheet.Root>
-	{:else if open}
-		<div
-			class="fixed inset-0 z-10"
-			role="presentation"
-			onclick={() => (open = false)}
-		></div>
-
-		<div
-			class="absolute left-0 top-9 z-20 w-64 rounded-lg border border-border bg-popover p-2 shadow-lg"
-		>
-			{@render menuContent()}
-		</div>
-	{/if}
-</div>
+	</div>
+{:else}
+	<PopoverPrimitive.Root bind:open>
+		<PopoverPrimitive.Trigger>
+			{#snippet child({ props })}
+				<div {...props} class="inline-flex">
+					{@render triggerGroup(() => (open = !open))}
+				</div>
+			{/snippet}
+		</PopoverPrimitive.Trigger>
+		<PopoverPrimitive.Portal>
+			<PopoverPrimitive.Content
+				align="start"
+				sideOffset={4}
+				class="z-[60] w-64 rounded-lg border border-border bg-popover p-2 shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+			>
+				{@render menuContent()}
+			</PopoverPrimitive.Content>
+		</PopoverPrimitive.Portal>
+	</PopoverPrimitive.Root>
+{/if}

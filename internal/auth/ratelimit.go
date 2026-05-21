@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 
@@ -40,14 +41,27 @@ func NewIPLimiter(rps rate.Limit, burst int, ttl time.Duration) *IPLimiter {
 
 func (l *IPLimiter) Allow(ip string) bool {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	v, ok := l.visitors[ip]
 	if !ok {
 		v = &visitor{limiter: rate.NewLimiter(l.rps, l.burst)}
 		l.visitors[ip] = v
 	}
 	v.lastSeen = l.now()
-	return v.limiter.Allow()
+	allowed := v.limiter.Allow()
+	l.mu.Unlock()
+
+	if allowed {
+		slog.Default().Debug("ratelimit allow",
+			slog.String("op", "auth.IPLimiter.Allow"),
+			slog.String("ip", ip),
+		)
+	} else {
+		slog.Default().Warn("ratelimit blocked",
+			slog.String("op", "auth.IPLimiter.Allow"),
+			slog.String("ip", ip),
+		)
+	}
+	return allowed
 }
 
 func (l *IPLimiter) Stop() {

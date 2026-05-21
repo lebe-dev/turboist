@@ -14,3 +14,4 @@ turboist
 /plans/
 /coverage.*
 /docs/
+/*.json

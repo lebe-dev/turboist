@@ -20,13 +20,11 @@ import (
 
 // CalendarHandler is a thin Fiber adapter over calendar.Service.
 type CalendarHandler struct {
-	svc             *calendar.Service
-	calendars       *repo.CalendarRepo
-	users           *repo.UserRepo
-	baseURL         string
-	envClientID     string
-	envClientSecret string
-	log             *slog.Logger
+	svc       *calendar.Service
+	calendars *repo.CalendarRepo
+	users     *repo.UserRepo
+	baseURL   string
+	log       *slog.Logger
 }
 
 // NewCalendarHandler constructs a CalendarHandler.
@@ -34,17 +32,15 @@ func NewCalendarHandler(
 	svc *calendar.Service,
 	calendars *repo.CalendarRepo,
 	users *repo.UserRepo,
-	baseURL, envClientID, envClientSecret string,
+	baseURL string,
 	log *slog.Logger,
 ) *CalendarHandler {
 	return &CalendarHandler{
-		svc:             svc,
-		calendars:       calendars,
-		users:           users,
-		baseURL:         strings.TrimRight(baseURL, "/"),
-		envClientID:     envClientID,
-		envClientSecret: envClientSecret,
-		log:             log,
+		svc:       svc,
+		calendars: calendars,
+		users:     users,
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		log:       log,
 	}
 }
 
@@ -91,7 +87,6 @@ type calendarSourceResp struct {
 type calendarListResp struct {
 	Enabled                      bool                  `json:"enabled"`
 	GoogleConfigured             bool                  `json:"googleConfigured"`
-	GoogleConfigFromEnv          bool                  `json:"googleConfigFromEnv"`
 	GoogleClientIDConfigured     bool                  `json:"googleClientIdConfigured"`
 	GoogleClientSecretConfigured bool                  `json:"googleClientSecretConfigured"`
 	Accounts                     []calendarAccountResp `json:"accounts"`
@@ -195,23 +190,18 @@ func (h *CalendarHandler) list(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("list calendar sources").WithCause(err)
 	}
-	googleClientIDConfigured := h.envClientID != ""
-	googleClientSecretConfigured := h.envClientSecret != ""
-	googleConfigFromEnv := googleClientIDConfigured && googleClientSecretConfigured
-	if !googleConfigFromEnv {
-		dbCfg, err := h.calendars.GetOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle)
-		if err != nil && !errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrInternal("load google calendar config").WithCause(err)
-		}
-		if dbCfg != nil {
-			googleClientIDConfigured = dbCfg.ClientID != ""
-			googleClientSecretConfigured = dbCfg.ClientSecret != ""
-		}
+	var googleClientIDConfigured, googleClientSecretConfigured bool
+	dbCfg, err := h.calendars.GetOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle)
+	if err != nil && !errors.Is(err, repo.ErrNotFound) {
+		return httpapi.ErrInternal("load google calendar config").WithCause(err)
+	}
+	if dbCfg != nil {
+		googleClientIDConfigured = dbCfg.ClientID != ""
+		googleClientSecretConfigured = dbCfg.ClientSecret != ""
 	}
 	out := calendarListResp{
 		Enabled:                      settings.CalendarEnabled,
 		GoogleConfigured:             googleClientIDConfigured && googleClientSecretConfigured,
-		GoogleConfigFromEnv:          googleConfigFromEnv,
 		GoogleClientIDConfigured:     googleClientIDConfigured,
 		GoogleClientSecretConfigured: googleClientSecretConfigured,
 		Accounts:                     make([]calendarAccountResp, len(accounts)),
@@ -262,9 +252,6 @@ func (h *CalendarHandler) patchGoogleConfig(c fiber.Ctx) error {
 	userID, appErr := h.claimsUserID(c)
 	if appErr != nil {
 		return appErr
-	}
-	if h.envClientID != "" || h.envClientSecret != "" {
-		return httpapi.ErrValidation("Google Calendar OAuth is configured by server environment")
 	}
 	var req googleCalendarConfigPatchReq
 	if err := c.Bind().JSON(&req); err != nil {
@@ -319,9 +306,6 @@ func (h *CalendarHandler) deleteGoogleConfig(c fiber.Ctx) error {
 	userID, appErr := h.claimsUserID(c)
 	if appErr != nil {
 		return appErr
-	}
-	if h.envClientID != "" || h.envClientSecret != "" {
-		return httpapi.ErrValidation("Google Calendar OAuth is configured by server environment")
 	}
 	if err := h.calendars.DeleteOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle); err != nil && !errors.Is(err, repo.ErrNotFound) {
 		return httpapi.ErrInternal("delete google calendar config").WithCause(err)
