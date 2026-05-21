@@ -11,6 +11,7 @@
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import ApiTokensSection from '$lib/components/settings/ApiTokensSection.svelte';
 	import BackupRestoreSection from '$lib/components/settings/BackupRestoreSection.svelte';
+	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -26,9 +27,30 @@
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 
 	const appVersion = __APP_VERSION__;
 	const auth = getAuthStore();
+
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'session', 'api', 'backup'] as const;
+	type SettingsTab = (typeof settingsTabs)[number];
+
+	let activeTab = $state<SettingsTab>('general');
+
+	function isSettingsTab(value: string | null): value is SettingsTab {
+		return !!value && (settingsTabs as readonly string[]).includes(value);
+	}
+
+	$effect(() => {
+		const tab = page.url.searchParams.get('tab');
+		if (isSettingsTab(tab)) {
+			activeTab = tab;
+			return;
+		}
+		if (page.url.searchParams.has('calendar')) {
+			activeTab = 'calendars';
+		}
+	});
 
 	let logoutAllBusy = $state(false);
 
@@ -108,6 +130,7 @@
 	const tabItems = [
 		{ value: 'general', labelKey: 'settings.tabs.general' },
 		{ value: 'labels', labelKey: 'settings.tabs.labels' },
+		{ value: 'calendars', labelKey: 'settings.tabs.calendars' },
 		{ value: 'project', labelKey: 'settings.tabs.project' },
 		{ value: 'privacy', labelKey: 'settings.tabs.privacy' },
 		{ value: 'session', labelKey: 'settings.tabs.session' },
@@ -115,11 +138,136 @@
 		{ value: 'backup', labelKey: 'settings.tabs.backup' }
 	] as const;
 
-	let activeTab = $state<(typeof tabItems)[number]['value']>('general');
 	const activeTabLabel = $derived(
 		$t(tabItems.find((t) => t.value === activeTab)?.labelKey ?? 'settings.tabs.general')
 	);
 
+	async function loadCalendars(): Promise<void> {
+		if (calendarsBusy) return;
+		calendarsBusy = true;
+		try {
+			calendarsState = await calendarsApi.get(getApiClient());
+			googleClientIdDraft = '';
+			googleClientSecretDraft = '';
+			settingsStore.value = {
+				...settingsStore.value,
+				calendarEnabled: calendarsState.enabled
+			};
+			calendarsLoaded = true;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.calendars.loadFailed');
+			toast.error(message);
+		} finally {
+			calendarsBusy = false;
+		}
+	}
+
+	async function setCalendarsEnabled(v: boolean): Promise<void> {
+		calendarsBusy = true;
+		try {
+			calendarsState = await calendarsApi.setEnabled(getApiClient(), v);
+			settingsStore.value = { ...settingsStore.value, calendarEnabled: calendarsState.enabled };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.calendars.updateFailed');
+			toast.error(message);
+		} finally {
+			calendarsBusy = false;
+		}
+	}
+
+	async function saveGoogleCalendarConfig(): Promise<void> {
+		calendarsBusy = true;
+		try {
+			calendarsState = await calendarsApi.saveGoogleConfig(
+				getApiClient(),
+				googleClientIdDraft,
+				googleClientSecretDraft
+			);
+			googleClientIdDraft = '';
+			googleClientSecretDraft = '';
+			toast.success($t('settings.calendars.configSaved'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.calendars.configSaveFailed');
+			toast.error(message);
+		} finally {
+			calendarsBusy = false;
+		}
+	}
+
+	async function deleteGoogleCalendarConfig(): Promise<void> {
+		calendarsBusy = true;
+		try {
+			calendarsState = await calendarsApi.deleteGoogleConfig(getApiClient());
+			googleClientIdDraft = '';
+			googleClientSecretDraft = '';
+			toast.success($t('settings.calendars.configDeleted'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.calendars.configDeleteFailed');
+			toast.error(message);
+		} finally {
+			calendarsBusy = false;
+		}
+	}
+
+	async function connectGoogleCalendar(): Promise<void> {
+		calendarsBusy = true;
+		try {
+			const res = await calendarsApi.googleStart(getApiClient());
+			window.location.href = res.url;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.calendars.connectFailed');
+			toast.error(message);
+			calendarsBusy = false;
+		}
+	}
+
+	async function syncGoogleCalendar(): Promise<void> {
+		calendarsBusy = true;
+		try {
+			calendarsState = await calendarsApi.googleSync(getApiClient());
+			toast.success($t('settings.calendars.synced'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.calendars.syncFailed');
+			toast.error(message);
+		} finally {
+			calendarsBusy = false;
+		}
+	}
+
+	async function toggleCalendarSource(id: number, selected: boolean): Promise<void> {
+		if (!calendarsState) return;
+		const previous = calendarsState;
+		calendarsState = {
+			...calendarsState,
+			sources: calendarsState.sources.map((s) => (s.id === id ? { ...s, selected } : s))
+		};
+		try {
+			const updated = await calendarsApi.setSourceSelected(getApiClient(), id, selected);
+			calendarsState = {
+				...calendarsState,
+				sources: calendarsState.sources.map((s) => (s.id === id ? updated : s))
+			};
+		} catch (err) {
+			calendarsState = previous;
+			const message = err instanceof Error ? err.message : $t('settings.calendars.updateFailed');
+			toast.error(message);
+		}
+	}
+
+	async function disconnectCalendarAccount(id: number): Promise<void> {
+		if (!calendarsState) return;
+		calendarsBusy = true;
+		try {
+			await calendarsApi.deleteAccount(getApiClient(), id);
+			calendarsState = await calendarsApi.get(getApiClient());
+			toast.success($t('settings.calendars.disconnected'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.calendars.disconnectFailed');
+			toast.error(message);
+		} finally {
+			calendarsBusy = false;
+		}
+	}
 	let bannerDraft = $state(settingsStore.bannerText);
 
 	const URL_RE = /^https?:\/\/\S+$/i;
@@ -240,6 +388,7 @@
 			localeBusy = null;
 		}
 	}
+
 </script>
 
 <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
@@ -262,6 +411,7 @@
 		<Tabs.List variant="line" class="hidden sm:inline-flex">
 			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
+			<Tabs.Trigger value="calendars">{$t('settings.tabs.calendars')}</Tabs.Trigger>
 			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
 			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
 			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
@@ -356,6 +506,10 @@
 				</div>
 				<span class="font-mono text-sm text-muted-foreground">v{appVersion}</span>
 			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="calendars" class="flex flex-col gap-4">
+			<GoogleCalendarSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="labels">

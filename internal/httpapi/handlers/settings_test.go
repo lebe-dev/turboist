@@ -38,6 +38,40 @@ func TestSettingsHandler_GetDefault(t *testing.T) {
 	if loc != "" {
 		t.Errorf("locale: got %q, want \"\"", loc)
 	}
+	hidePast, ok := body["calendarHidePastEvents"].(bool)
+	if !ok {
+		t.Fatalf("calendarHidePastEvents: missing or wrong type: %T", body["calendarHidePastEvents"])
+	}
+	if !hidePast {
+		t.Errorf("calendarHidePastEvents: got %v, want true", hidePast)
+	}
+}
+
+func TestSettingsHandler_PatchCalendarHidePastEvents(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"calendarHidePastEvents": false,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	hidePast, _ := body["calendarHidePastEvents"].(bool)
+	if hidePast {
+		t.Errorf("calendarHidePastEvents: got %v, want false", hidePast)
+	}
 }
 
 func TestSettingsHandler_PatchLocale(t *testing.T) {
