@@ -16,6 +16,9 @@ const (
 	CodeForbiddenPlacement = "forbidden_placement"
 	CodeRecurrenceInvalid  = "recurrence_invalid"
 	CodeTroikiSlotFull     = "troiki_slot_full"
+	CodeTOTPInvalidCode    = "totp_invalid_code"
+	CodeTOTPAlreadyEnabled = "totp_already_enabled"
+	CodeTOTPNotEnabled     = "totp_not_enabled"
 	CodeInternalError      = "internal_error"
 )
 
@@ -104,4 +107,16 @@ func ErrTroikiSlotFull(msg string) *AppError {
 
 func ErrInternal(msg string) *AppError {
 	return newErr(500, CodeInternalError, msg)
+}
+
+func ErrTOTPInvalidCode() *AppError {
+	return newErr(401, CodeTOTPInvalidCode, "invalid TOTP code")
+}
+
+func ErrTOTPAlreadyEnabled() *AppError {
+	return newErr(409, CodeTOTPAlreadyEnabled, "TOTP already enabled")
+}
+
+func ErrTOTPNotEnabled() *AppError {
+	return newErr(409, CodeTOTPNotEnabled, "TOTP not enabled")
 }

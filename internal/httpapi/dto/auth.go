@@ -27,3 +27,17 @@ type RefreshResponse struct {
 	Access  string `json:"access"`
 	Refresh string `json:"refresh"`
 }
+
+type TOTPSetupResponse struct {
+	Secret      string `json:"secret"`
+	OtpauthURL  string `json:"otpauthUrl"`
+	QRPngBase64 string `json:"qrPngBase64"`
+}
+
+type TOTPCodeRequest struct {
+	Code string `json:"code"`
+}
+
+type TOTPConfirmResponse struct {
+	RecoveryCodes []string `json:"recoveryCodes"`
+}

@@ -13,6 +13,7 @@ import (
 	turboist "github.com/lebe-dev/turboist"
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
+	"github.com/lebe-dev/turboist/internal/crypto"
 	"github.com/lebe-dev/turboist/internal/db"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/handlers"
@@ -20,6 +21,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
+	totpsvc "github.com/lebe-dev/turboist/internal/service/totp"
 	"golang.org/x/time/rate"
 )
 
@@ -73,6 +75,7 @@ func main() {
 	appSettingsRepo := repo.NewAppSettingsRepo(sqlDB)
 	apiTokenRepo := repo.NewAPITokenRepo(sqlDB)
 	calendarRepo := repo.NewCalendarRepo(sqlDB)
+	totpRecoveryRepo := repo.NewTOTPRecoveryRepo(sqlDB)
 	ctxRepo := repo.NewContextRepo(sqlDB)
 	labelRepo := repo.NewLabelRepo(sqlDB)
 	sectionRepo := repo.NewProjectSectionRepo(sqlDB)
@@ -95,6 +98,16 @@ func main() {
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
 	backupSvc := service.NewBackupService(sqlDB)
+
+	var totpSvc *totpsvc.Service
+	if env.TOTPSecretKey != "" {
+		totpSvc = totpsvc.NewService(
+			crypto.NewTokenCipher(env.TOTPSecretKey),
+			userRepo,
+			totpRecoveryRepo,
+			env.Argon2Params,
+		)
+	}
 
 	// session cleanup
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
@@ -140,7 +153,12 @@ func main() {
 	api := httpapi.RegisterRoutes(app, deps)
 
 	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
-	authHandler.RegisterAuth(app.Group("/auth"), jwtIssuer)
+	authGroup := app.Group("/auth")
+	authHandler.RegisterAuth(authGroup, jwtIssuer)
+	if totpSvc != nil {
+		totpHandler := handlers.NewTOTPHandler(userRepo, totpSvc, ipLimiter)
+		totpHandler.RegisterTOTP(authGroup.Group("", httpapi.AuthMiddleware(jwtIssuer)))
+	}
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, env.BaseURL).Register(api.Group("/labels"))
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))

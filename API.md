@@ -67,6 +67,9 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `CodeConflict` | 409 |
 | `CodeLimitExceeded` | 409 |
 | `CodeForbiddenPlacement` | 422 |
+| `totp_invalid_code` | 401 |
+| `totp_already_enabled` | 409 |
+| `totp_not_enabled` | 409 |
 | `CodeInternalError` | 500 |
 
 ### Enum Values
@@ -235,6 +238,57 @@ curl -X POST "$BASE/auth/logout-all" \
 curl "$BASE/auth/me" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+### `POST /auth/totp/setup` *(requires JWT)*
+
+Begin TOTP enrollment. Generates a fresh secret, encrypts and persists it
+without enabling 2FA, and returns the data needed to display a QR code.
+
+**Response** `200`:
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP",
+  "otpauthUrl": "otpauth://totp/Turboist:alice?secret=...&issuer=Turboist",
+  "qrPngBase64": "<base64 PNG>"
+}
+```
+
+Errors: `totp_already_enabled` (409) if 2FA is already on.
+
+### `POST /auth/totp/confirm` *(requires JWT)*
+
+Verify the user-supplied 6-digit code against the pending secret. On success
+enables 2FA and returns 8 single-use recovery codes — these are the only time
+they are visible.
+
+**Request:**
+```json
+{ "code": "123456" }
+```
+
+**Response** `200`:
+```json
+{ "recoveryCodes": ["ABCDEFGHJK", "..."] }
+```
+
+Errors: `totp_invalid_code` (401), `totp_already_enabled` (409),
+`totp_not_enabled` (409) when no pending setup exists, `auth_rate_limited`
+(429).
+
+### `POST /auth/totp/disable` *(requires JWT)*
+
+Disable 2FA. The supplied code may be either a current TOTP code or an unused
+recovery code.
+
+**Request:**
+```json
+{ "code": "123456" }
+```
+
+**Response:** `204 No Content`.
+
+Errors: `totp_invalid_code` (401), `totp_not_enabled` (409),
+`auth_rate_limited` (429).
 
 ---
 
