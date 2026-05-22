@@ -9,12 +9,15 @@ import (
 // /healthz and /version are registered inline in server.go.
 // This handler exposes /api/v1/config (requires auth).
 type MetaHandler struct {
-	cfg *config.Config
+	cfg           *config.Config
+	totpAvailable bool
 }
 
-// NewMetaHandler constructs a MetaHandler.
-func NewMetaHandler(cfg *config.Config) *MetaHandler {
-	return &MetaHandler{cfg: cfg}
+// NewMetaHandler constructs a MetaHandler. totpAvailable reports whether
+// the TOTP feature is wired up on this deploy (TOTP_SECRET_KEY non-empty);
+// the frontend uses it to hide the 2FA UI when the routes are not mounted.
+func NewMetaHandler(cfg *config.Config, totpAvailable bool) *MetaHandler {
+	return &MetaHandler{cfg: cfg, totpAvailable: totpAvailable}
 }
 
 // Register wires /config onto the authenticated API group r.
@@ -42,12 +45,13 @@ type limitResp struct {
 }
 
 type configResp struct {
-	Timezone  string                 `json:"timezone"`
-	MaxPinned int                    `json:"maxPinned"`
-	Weekly    limitResp              `json:"weekly"`
-	Backlog   limitResp              `json:"backlog"`
-	Inbox     inboxResp              `json:"inbox"`
-	DayParts  map[string]dayPartResp `json:"dayParts"`
+	Timezone      string                 `json:"timezone"`
+	MaxPinned     int                    `json:"maxPinned"`
+	Weekly        limitResp              `json:"weekly"`
+	Backlog       limitResp              `json:"backlog"`
+	Inbox         inboxResp              `json:"inbox"`
+	DayParts      map[string]dayPartResp `json:"dayParts"`
+	TOTPAvailable bool                   `json:"totpAvailable"`
 }
 
 func (h *MetaHandler) config(c fiber.Ctx) error {
@@ -68,6 +72,7 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 				Priority: cfg.Inbox.OverflowTask.Priority,
 			},
 		},
-		DayParts: dayParts,
+		DayParts:      dayParts,
+		TOTPAvailable: h.totpAvailable,
 	})
 }

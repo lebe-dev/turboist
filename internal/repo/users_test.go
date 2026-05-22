@@ -160,6 +160,101 @@ func TestUserRepo_GetTroikiCapacity_NotFound(t *testing.T) {
 	}
 }
 
+func TestUserRepo_TOTPState_DefaultsDisabled(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	st, err := r.GetTOTPState(ctx, 1)
+	if err != nil {
+		t.Fatalf("get totp state: %v", err)
+	}
+	if st.Enabled {
+		t.Errorf("enabled: got true, want false")
+	}
+	if st.Secret != "" {
+		t.Errorf("secret: got %q, want empty", st.Secret)
+	}
+	if st.EnabledAt != nil {
+		t.Errorf("enabled_at: got %v, want nil", st.EnabledAt)
+	}
+}
+
+func TestUserRepo_SetTOTPSecret_AndEnable(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := r.SetTOTPSecret(ctx, 1, "enc:v1:abc"); err != nil {
+		t.Fatalf("set secret: %v", err)
+	}
+	st, _ := r.GetTOTPState(ctx, 1)
+	if st.Secret != "enc:v1:abc" {
+		t.Errorf("secret: got %q, want enc:v1:abc", st.Secret)
+	}
+	if st.Enabled {
+		t.Errorf("enabled after SetTOTPSecret: got true, want false")
+	}
+	if err := r.EnableTOTP(ctx, 1, "enc:v1:abc"); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	st, _ = r.GetTOTPState(ctx, 1)
+	if !st.Enabled {
+		t.Errorf("enabled: got false, want true")
+	}
+	if st.EnabledAt == nil {
+		t.Errorf("enabled_at: got nil, want timestamp")
+	}
+	u, err := r.Get(ctx, 1)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if !u.TOTPEnabled || u.TOTPSecret != "enc:v1:abc" || u.TOTPEnabledAt == nil {
+		t.Errorf("user TOTP fields: got %+v, want enabled+secret+enabled_at", u)
+	}
+}
+
+func TestUserRepo_DisableTOTP(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "h"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := r.SetTOTPSecret(ctx, 1, "enc:v1:abc"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if err := r.EnableTOTP(ctx, 1, "enc:v1:abc"); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	if err := r.DisableTOTP(ctx, 1); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	st, _ := r.GetTOTPState(ctx, 1)
+	if st.Enabled {
+		t.Errorf("enabled after disable: got true, want false")
+	}
+	if st.Secret != "" {
+		t.Errorf("secret after disable: got %q, want empty", st.Secret)
+	}
+	if st.EnabledAt != nil {
+		t.Errorf("enabled_at after disable: got %v, want nil", st.EnabledAt)
+	}
+}
+
+func TestUserRepo_GetTOTPState_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.GetTOTPState(ctx, 42); !errors.Is(err, ErrNotFound) {
+		t.Errorf("got %v, want ErrNotFound", err)
+	}
+}
+
 func TestUserRepo_UpdatePasswordHash(t *testing.T) {
 	db := setupTestDB(t)
 	r := NewUserRepo(db)

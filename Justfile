@@ -17,9 +17,6 @@ bump-deps: bump-backend-deps && bump-frontend-deps
 build-frontend:
     cd frontend && yarn && yarn build
 
-frontend-build:
-    cd frontend && yarn && yarn build
-
 build: build-frontend && format
     go build -ldflags="-X main.Version={{ version }}" -o turboist ./cmd/turboist
 

@@ -148,6 +148,47 @@ func TestLoadEnv_APITokenSaltMissing(t *testing.T) {
 	}
 }
 
+func TestLoadEnv_TOTPSecretKeyEmptyIsOK(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+	t.Setenv("TOTP_SECRET_KEY", "")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if e.TOTPSecretKey != "" {
+		t.Fatalf("TOTPSecretKey: got %q, want empty", e.TOTPSecretKey)
+	}
+}
+
+func TestLoadEnv_TOTPSecretKeyTooShort(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+	t.Setenv("TOTP_SECRET_KEY", "tooshort")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "TOTP_SECRET_KEY") {
+		t.Fatalf("expected TOTP_SECRET_KEY length error, got %v", err)
+	}
+}
+
+func TestLoadEnv_TOTPSecretKeyOK(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+	t.Setenv("TOTP_SECRET_KEY", "totp-totp-totp-totp-totp-totp-totp")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if got := e.TOTPSecretKey; len(got) < 32 {
+		t.Fatalf("TOTPSecretKey: got %q (len %d), want ≥32 bytes", got, len(got))
+	}
+}
+
 func TestLoadEnv_APITokenSaltTooShort(t *testing.T) {
 	t.Setenv("BIND", "0.0.0.0:8080")
 	t.Setenv("BASE_URL", "https://x.test")

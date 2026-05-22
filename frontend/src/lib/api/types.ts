@@ -15,16 +15,39 @@ export type ColorToken = string;
 export interface User {
 	id: number;
 	username: string;
+	totpEnabled: boolean;
+}
+
+export interface TOTPSetupResponse {
+	secret: string;
+	otpauthUrl: string;
+	qrPngBase64: string;
+}
+
+export interface TOTPConfirmResponse {
+	recoveryCodes: string[];
 }
 
 export interface AuthSetupRequiredResponse {
 	required: boolean;
 }
 
-export interface AuthLoginResponse {
+export interface AuthLoginSuccessResponse {
 	access: string;
 	refresh: string;
 	user: User;
+}
+
+export interface AuthOTPChallengeResponse {
+	otpRequired: true;
+	ticket: string;
+}
+
+export type AuthLoginResponse = AuthLoginSuccessResponse | AuthOTPChallengeResponse;
+
+export interface AuthOTPLoginRequest {
+	ticket: string;
+	code: string;
 }
 
 export interface AuthRefreshResponse {
@@ -248,6 +271,7 @@ export interface ConfigResponse {
 		afternoon: { start: number; end: number };
 		evening: { start: number; end: number };
 	};
+	totpAvailable: boolean;
 }
 
 export interface AutoLabelRule {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/crypto"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"golang.org/x/oauth2"
@@ -19,7 +20,7 @@ import (
 type Service struct {
 	calendars *repo.CalendarRepo
 	users     *repo.UserRepo
-	cipher    *TokenCipher
+	cipher    *crypto.TokenCipher
 	cache     *EventCache
 	baseURL   string
 	log       *slog.Logger
@@ -36,7 +37,7 @@ func NewService(
 	return &Service{
 		calendars: calendars,
 		users:     users,
-		cipher:    NewTokenCipher(calendarTokenKey),
+		cipher:    crypto.NewTokenCipher(calendarTokenKey),
 		cache:     NewEventCache(2 * time.Minute),
 		baseURL:   strings.TrimRight(baseURL, "/"),
 		log:       log,
@@ -45,7 +46,7 @@ func NewService(
 
 // Cipher returns the underlying TokenCipher so handlers can encrypt/decrypt
 // individual values (e.g. per-user OAuth config).
-func (s *Service) Cipher() *TokenCipher {
+func (s *Service) Cipher() *crypto.TokenCipher {
 	return s.cipher
 }
 
@@ -97,7 +98,7 @@ func (s *Service) OAuthConfigForUser(ctx context.Context, userID int64) (*oauth2
 // ensureEncryptedOAuthConfig re-encrypts plain-text credentials stored before
 // encryption was introduced. It is idempotent when values are already encrypted.
 func (s *Service) ensureEncryptedOAuthConfig(ctx context.Context, cfg *model.CalendarOAuthConfig, clientID, clientSecret string) error {
-	if IsEncrypted(cfg.ClientID) && IsEncrypted(cfg.ClientSecret) {
+	if crypto.IsEncrypted(cfg.ClientID) && crypto.IsEncrypted(cfg.ClientSecret) {
 		return nil
 	}
 	encryptedID, err := s.cipher.Encrypt(clientID)
@@ -122,7 +123,7 @@ func (s *Service) ensureEncryptedOAuthConfig(ctx context.Context, cfg *model.Cal
 // encrypted value is persisted back to the DB.
 func (s *Service) FreshGoogleToken(ctx context.Context, cfg *oauth2.Config, account *model.CalendarAccount) (*oauth2.Token, error) {
 	token := accountToken(account)
-	needsEncryption := !IsEncrypted(token.AccessToken) || !IsEncrypted(token.RefreshToken)
+	needsEncryption := !crypto.IsEncrypted(token.AccessToken) || !crypto.IsEncrypted(token.RefreshToken)
 	if err := s.DecryptToken(token); err != nil {
 		return nil, err
 	}

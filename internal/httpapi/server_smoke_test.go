@@ -103,7 +103,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewTroikiHandler(troikiSvc, baseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, baseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, baseURL).Register(api)
-	handlers.NewMetaHandler(cfg).Register(api)
+	handlers.NewMetaHandler(cfg, false).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 
 	return &smokeEnv{app: app, jwt: jwtIssuer}

@@ -20,6 +20,11 @@ export class AuthStore {
 	accessToken = $state<string | null>(null);
 	status = $state<AuthStatus>('loading');
 	setupRequired = $state<boolean>(false);
+	awaitingOtp = $state<boolean>(false);
+
+	// Ticket from /auth/login that authorises a follow-up /auth/login/otp.
+	// Kept in memory only — never persisted to localStorage.
+	private otpTicket: string | null = null;
 
 	readonly client: ApiClient;
 
@@ -85,12 +90,40 @@ export class AuthStore {
 		}
 	}
 
-	async login(credentials: Omit<AuthCredentials, 'clientKind'>): Promise<void> {
+	async login(
+		credentials: Omit<AuthCredentials, 'clientKind'>
+	): Promise<{ otpRequired: boolean }> {
 		const res = await auth.login(this.client, { ...credentials, clientKind: 'web' });
+		if ('otpRequired' in res) {
+			this.otpTicket = res.ticket;
+			this.awaitingOtp = true;
+			return { otpRequired: true };
+		}
+		this.otpTicket = null;
+		this.awaitingOtp = false;
 		this.accessToken = res.access;
 		this.user = res.user;
 		this.status = 'authenticated';
 		this.setupRequired = false;
+		return { otpRequired: false };
+	}
+
+	async verifyOtp(code: string): Promise<void> {
+		if (!this.otpTicket) {
+			throw new Error('No OTP challenge in progress');
+		}
+		const res = await auth.loginOtp(this.client, { ticket: this.otpTicket, code });
+		this.otpTicket = null;
+		this.awaitingOtp = false;
+		this.accessToken = res.access;
+		this.user = res.user;
+		this.status = 'authenticated';
+		this.setupRequired = false;
+	}
+
+	cancelOtp(): void {
+		this.otpTicket = null;
+		this.awaitingOtp = false;
 	}
 
 	async setup(credentials: Omit<AuthCredentials, 'clientKind'>): Promise<void> {
@@ -123,6 +156,8 @@ export class AuthStore {
 		this.user = null;
 		this.accessToken = null;
 		this.status = 'guest';
+		this.otpTicket = null;
+		this.awaitingOtp = false;
 	}
 }
 

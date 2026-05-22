@@ -1,4 +1,4 @@
-package calendar
+package crypto
 
 import (
 	"crypto/aes"
@@ -14,7 +14,7 @@ import (
 // EncryptedTokenPrefix is the prefix used to identify encrypted token values.
 const EncryptedTokenPrefix = "enc:v1:"
 
-// TokenCipher encrypts and decrypts OAuth tokens using AES-256-GCM.
+// TokenCipher encrypts and decrypts secrets using AES-256-GCM.
 type TokenCipher struct {
 	key [32]byte
 }

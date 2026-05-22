@@ -22,13 +22,23 @@ func NewUserRepo(db *sql.DB) *UserRepo {
 func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 	var u model.User
 	var createdAt, updatedAt string
-	var startedInt int64
+	var startedInt, totpEnabledInt int64
+	var totpEnabledAt sql.NullString
 	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash,
 		&u.TroikiMediumCapacity, &u.TroikiRestCapacity, &startedInt,
+		&u.TOTPSecret, &totpEnabledInt, &totpEnabledAt,
 		&createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	u.TroikiStarted = startedInt != 0
+	u.TOTPEnabled = totpEnabledInt != 0
+	if totpEnabledAt.Valid && totpEnabledAt.String != "" {
+		t, err := model.ParseUTC(totpEnabledAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse totp_enabled_at: %w", err)
+		}
+		u.TOTPEnabledAt = &t
+	}
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
@@ -41,6 +51,8 @@ func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 	u.UpdatedAt = t
 	return &u, nil
 }
+
+const userSelectCols = `id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, totp_secret, totp_enabled, totp_enabled_at, created_at, updated_at`
 
 func (r *UserRepo) Exists(ctx context.Context) (bool, error) {
 	const op = "repo.users.Exists"
@@ -72,7 +84,7 @@ func (r *UserRepo) Get(ctx context.Context, id int64) (*model.User, error) {
 	const op = "repo.users.Get"
 	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, created_at, updated_at FROM users WHERE id = ?`, id)
+		`SELECT `+userSelectCols+` FROM users WHERE id = ?`, id)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -87,7 +99,7 @@ func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*model.U
 	const op = "repo.users.GetByUsername"
 	logQuery(ctx, op)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, troiki_medium_capacity, troiki_rest_capacity, troiki_started, created_at, updated_at FROM users WHERE username = ?`, username)
+		`SELECT `+userSelectCols+` FROM users WHERE username = ?`, username)
 	u, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -262,6 +274,192 @@ func (r *UserRepo) IncTroikiCapacity(ctx context.Context, id int64, target model
 		`UPDATE users SET `+col+` = `+col+` + 1, updated_at = ? WHERE id = ?`, now, id)
 	if err != nil {
 		return fmt.Errorf("inc troiki capacity: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+type TOTPState struct {
+	Secret       string
+	Enabled      bool
+	EnabledAt    *time.Time
+	LastUsedStep int64
+}
+
+func (r *UserRepo) GetTOTPState(ctx context.Context, id int64) (*TOTPState, error) {
+	const op = "repo.users.GetTOTPState"
+	logQuery(ctx, op, id)
+	var secret string
+	var enabledInt, lastStep int64
+	var enabledAt sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`SELECT totp_secret, totp_enabled, totp_enabled_at, totp_last_used_step FROM users WHERE id = ?`, id).
+		Scan(&secret, &enabledInt, &enabledAt, &lastStep)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, logErr(ctx, op, ErrNotFound)
+	}
+	if err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("get totp state: %w", err))
+	}
+	s := &TOTPState{Secret: secret, Enabled: enabledInt != 0, LastUsedStep: lastStep}
+	if enabledAt.Valid && enabledAt.String != "" {
+		t, err := model.ParseUTC(enabledAt.String)
+		if err != nil {
+			return nil, logErr(ctx, op, fmt.Errorf("parse totp_enabled_at: %w", err))
+		}
+		s.EnabledAt = &t
+	}
+	return s, nil
+}
+
+// AdvanceTOTPLastUsedStep atomically updates totp_last_used_step to step only
+// when step is strictly greater than the currently stored value. Returns true
+// when the row was updated (the step is fresh and was accepted). Returns false
+// when the step is stale (replay) — the caller must reject the code.
+func (r *UserRepo) AdvanceTOTPLastUsedStep(ctx context.Context, id, step int64) (bool, error) {
+	const op = "repo.users.AdvanceTOTPLastUsedStep"
+	logQuery(ctx, op, id, step)
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_last_used_step = ? WHERE id = ? AND totp_last_used_step < ?`,
+		step, id, step)
+	if err != nil {
+		return false, logErr(ctx, op, fmt.Errorf("advance totp last used step: %w", err))
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// SetTOTPSecret stores the encrypted TOTP secret without enabling 2FA.
+// Used during setup to persist the secret before the user confirms with a code.
+//
+// The CAS on totp_enabled = 0 prevents a stale concurrent setup from overwriting
+// the live secret of an already-enrolled user: if another request enables TOTP
+// between this caller's pre-check and write, the write fails with ErrNotFound
+// and the caller must surface "already enabled" to the user.
+func (r *UserRepo) SetTOTPSecret(ctx context.Context, id int64, encryptedSecret string) error {
+	const op = "repo.users.SetTOTPSecret"
+	logQuery(ctx, op, id)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = ?, updated_at = ? WHERE id = ? AND totp_enabled = 0`,
+		encryptedSecret, now, id)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("set totp secret: %w", err))
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// EnableTOTP marks 2FA enabled for the user, but only if the stored
+// encrypted secret still matches expectedSecret. This guards against a
+// concurrent BeginSetup overwriting the secret between confirm-time
+// verification and the enable commit — without the CAS the user could be
+// enrolled with a secret different from the one they just scanned. Returns
+// ErrNotFound when the row is missing OR when the secret has changed (the
+// caller must restart setup).
+func (r *UserRepo) EnableTOTP(ctx context.Context, id int64, expectedSecret string) error {
+	const op = "repo.users.EnableTOTP"
+	logQuery(ctx, op, id)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_enabled = 1, totp_enabled_at = ?, updated_at = ? WHERE id = ? AND totp_secret = ?`,
+		now, now, id, expectedSecret)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("enable totp: %w", err))
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// EnableTOTPWithRecoveryCodes atomically enables TOTP and replaces the user's
+// recovery codes in a single transaction. The CAS on totp_secret guards against
+// a concurrent BeginSetup overwriting the secret between confirm-time
+// verification and the enable commit. The CAS on totp_enabled = 0 additionally
+// serializes concurrent ConfirmSetup calls so only one set of recovery codes
+// wins — without it two confirms using codes from adjacent skew steps could
+// both pass AdvanceTOTPLastUsedStep and the later transaction would silently
+// overwrite the earlier caller's recovery-code set. Returns ErrNotFound when
+// the row is missing, when the secret has changed, or when TOTP was already
+// enabled (the caller must surface "already enabled").
+//
+// Atomicity matters: a non-atomic "enable, then replace codes" can leave the
+// user with totp_enabled=1 but no fresh recovery codes if the second write
+// fails, locking them out because subsequent ConfirmSetup calls reject with
+// ErrAlreadyEnabled.
+func (r *UserRepo) EnableTOTPWithRecoveryCodes(ctx context.Context, id int64, expectedSecret string, codeHashes []string) error {
+	const op = "repo.users.EnableTOTPWithRecoveryCodes"
+	logQuery(ctx, op, id)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("begin: %w", err))
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := model.FormatUTC(time.Now())
+	res, err := tx.ExecContext(ctx,
+		`UPDATE users SET totp_enabled = 1, totp_enabled_at = ?, updated_at = ? WHERE id = ? AND totp_secret = ? AND totp_enabled = 0`,
+		now, now, id, expectedSecret)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("enable totp: %w", err))
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return logErr(ctx, op, err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM totp_recovery_codes WHERE user_id = ?`, id); err != nil {
+		return logErr(ctx, op, fmt.Errorf("delete recovery: %w", err))
+	}
+	stmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO totp_recovery_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)`)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("prepare recovery: %w", err))
+	}
+	defer func() { _ = stmt.Close() }()
+	for _, h := range codeHashes {
+		if _, err := stmt.ExecContext(ctx, id, h, now); err != nil {
+			return logErr(ctx, op, fmt.Errorf("insert recovery: %w", err))
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return logErr(ctx, op, fmt.Errorf("commit: %w", err))
+	}
+	return nil
+}
+
+func (r *UserRepo) DisableTOTP(ctx context.Context, id int64) error {
+	const op = "repo.users.DisableTOTP"
+	logQuery(ctx, op, id)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = '', totp_enabled = 0, totp_enabled_at = NULL, totp_last_used_step = 0, updated_at = ? WHERE id = ?`,
+		now, id)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("disable totp: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
