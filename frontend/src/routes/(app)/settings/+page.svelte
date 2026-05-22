@@ -35,7 +35,7 @@
 	const auth = getAuthStore();
 	const totpAvailable = $derived(configStore.value?.totpAvailable ?? false);
 
-	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'security', 'session', 'api', 'backup'] as const;
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'security', 'api', 'backup'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -136,8 +136,7 @@
 		{ value: 'calendars', labelKey: 'settings.tabs.calendars' },
 		{ value: 'project', labelKey: 'settings.tabs.project' },
 		{ value: 'privacy', labelKey: 'settings.tabs.privacy' },
-		...(totpAvailable ? [{ value: 'security', labelKey: 'settings.tabs.security' }] : []),
-		{ value: 'session', labelKey: 'settings.tabs.session' },
+		{ value: 'security', labelKey: 'settings.tabs.security' },
 		{ value: 'api', labelKey: 'settings.tabs.api' },
 		{ value: 'backup', labelKey: 'settings.tabs.backup' }
 	]);
@@ -292,10 +291,7 @@
 			<Tabs.Trigger value="calendars">{$t('settings.tabs.calendars')}</Tabs.Trigger>
 			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
 			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
-			{#if totpAvailable}
-				<Tabs.Trigger value="security">{$t('settings.tabs.security')}</Tabs.Trigger>
-			{/if}
-			<Tabs.Trigger value="session">{$t('settings.tabs.session')}</Tabs.Trigger>
+			<Tabs.Trigger value="security">{$t('settings.tabs.security')}</Tabs.Trigger>
 			<Tabs.Trigger value="api">{$t('settings.tabs.api')}</Tabs.Trigger>
 			<Tabs.Trigger value="backup">{$t('settings.tabs.backup')}</Tabs.Trigger>
 		</Tabs.List>
@@ -584,13 +580,8 @@
 			</section>
 		</Tabs.Content>
 
-		{#if totpAvailable}
-			<Tabs.Content value="security" class="flex flex-col gap-4">
-				<TwoFactorSection />
-			</Tabs.Content>
-		{/if}
-
-		<Tabs.Content value="session" class="flex flex-col gap-4">
+		<Tabs.Content value="security" class="flex flex-col gap-4">
+			<TwoFactorSection available={totpAvailable} />
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
 				<div class="flex flex-col gap-0.5">
 					<h2 class="text-sm font-semibold">{$t('settings.session.heading')}</h2>

@@ -27,12 +27,22 @@ afterEach(() => {
 });
 
 describe('TwoFactorSection', () => {
-	it('shows disabled state with enable button when 2FA is off', () => {
+	it('shows enable button without a status badge when 2FA is off', () => {
 		setupStore(false, vi.fn());
 		render(TwoFactorSection);
 
-		expect(screen.getByTestId('twofa-status').textContent).toMatch(/Disabled/i);
+		expect(screen.queryByTestId('twofa-status')).toBeNull();
+		expect(screen.queryByTestId('twofa-unavailable')).toBeNull();
 		expect(screen.getByRole('button', { name: /enable 2fa/i })).toBeTruthy();
+	});
+
+	it('disables the enable button and shows a notice when TOTP is not configured', () => {
+		setupStore(false, vi.fn());
+		render(TwoFactorSection, { props: { available: false } });
+
+		expect(screen.getByTestId('twofa-unavailable')).toBeTruthy();
+		const btn = screen.getByRole('button', { name: /enable 2fa/i }) as HTMLButtonElement;
+		expect(btn.disabled).toBe(true);
 	});
 
 	it('shows enabled state with disable button when 2FA is on', () => {

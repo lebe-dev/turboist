@@ -87,7 +87,6 @@
       "project": "Project",
       "privacy": "Privacy",
       "security": "Security",
-      "session": "Session",
       "api": "API",
       "backup": "Backup & Restore",
       "calendars": "Calendar (beta)"
@@ -145,7 +144,7 @@
       "heading": "Two-factor authentication",
       "description": "Add a one-time code from your authenticator app on each login.",
       "statusEnabled": "Enabled",
-      "statusDisabled": "Disabled",
+      "unavailable": "Two-factor authentication is not configured on this deploy. Ask the administrator to set TOTP_SECRET_KEY in the environment to enable it.",
       "enableButton": "Enable 2FA",
       "disableButton": "Disable 2FA",
       "starting": "Preparing…",
@@ -168,7 +167,8 @@
       "disabledToast": "Two-factor authentication disabled",
       "setupFailed": "Failed to start 2FA setup",
       "confirmFailed": "Failed to confirm 2FA",
-      "disableFailed": "Failed to disable 2FA"
+      "disableFailed": "Failed to disable 2FA",
+      "invalidCode": "Invalid or expired code"
     },
     "session": {
       "heading": "Active sessions",
@@ -299,8 +299,12 @@
     "confirmPassword": "Confirm password",
     "passwordsMismatch": "Passwords do not match",
     "otpTitle": "Two-factor authentication",
-    "otpHint": "Enter the 6-digit code from your authenticator app, or a recovery code.",
-    "otpLabel": "Code",
+    "otpAppHint": "Enter the 6-digit code from your authenticator app.",
+    "otpAppLabel": "Authentication code",
+    "otpRecoveryHint": "Enter one of the recovery codes you saved when you enabled 2FA.",
+    "otpRecoveryLabel": "Recovery code",
+    "otpUseRecovery": "Use a recovery code",
+    "otpUseApp": "Use authenticator app instead",
     "otpVerify": "Verify",
     "otpCancel": "Use a different account",
     "otpFailed": "Invalid or expired code"

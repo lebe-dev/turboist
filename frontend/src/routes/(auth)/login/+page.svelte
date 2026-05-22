@@ -15,6 +15,7 @@
 	let otpCode = $state('');
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
+	let useRecovery = $state(false);
 
 	$effect(() => {
 		if (auth.setupRequired) void goto(resolve('/setup'));
@@ -50,8 +51,14 @@
 			await auth.verifyOtp(otpCode.trim());
 			await goto(resolve('/'));
 		} catch (err) {
-			error =
-				err instanceof ApiError ? err.message : err instanceof Error ? err.message : $t('auth.otpFailed');
+			if (
+				err instanceof ApiError &&
+				(err.code === 'totp_invalid_code' || err.code === 'auth_invalid')
+			) {
+				error = $t('auth.otpFailed');
+			} else {
+				error = err instanceof Error ? err.message : $t('auth.otpFailed');
+			}
 		} finally {
 			submitting = false;
 		}
@@ -61,20 +68,36 @@
 		auth.cancelOtp();
 		otpCode = '';
 		error = null;
+		useRecovery = false;
+	}
+
+	function switchToRecovery(): void {
+		useRecovery = true;
+		otpCode = '';
+		error = null;
+	}
+
+	function switchToApp(): void {
+		useRecovery = false;
+		otpCode = '';
+		error = null;
 	}
 </script>
 
 {#if auth.awaitingOtp}
 	<form class="flex flex-col gap-4" onsubmit={onOtpSubmit}>
 		<h1 class="text-lg font-semibold">{$t('auth.otpTitle')}</h1>
-		<p class="text-xs text-muted-foreground">{$t('auth.otpHint')}</p>
+		<p class="text-sm text-muted-foreground">
+			{useRecovery ? $t('auth.otpRecoveryHint') : $t('auth.otpAppHint')}
+		</p>
 		<div class="flex flex-col gap-1.5">
-			<Label for="otp">{$t('auth.otpLabel')}</Label>
+			<Label for="otp">{useRecovery ? $t('auth.otpRecoveryLabel') : $t('auth.otpAppLabel')}</Label>
 			<Input
 				id="otp"
 				bind:value={otpCode}
-				autocomplete="one-time-code"
-				inputmode="text"
+				autocomplete={useRecovery ? 'off' : 'one-time-code'}
+				inputmode={useRecovery ? 'text' : 'numeric'}
+				placeholder={useRecovery ? 'XXXXXXXXXX' : '000000'}
 				autofocus
 				required
 			/>
@@ -85,6 +108,19 @@
 		<Button type="submit" disabled={submitting}>
 			{submitting ? $t('auth.signingIn') : $t('auth.otpVerify')}
 		</Button>
+		{#if useRecovery}
+			<button type="button" class="text-xs text-muted-foreground underline" onclick={switchToApp}>
+				{$t('auth.otpUseApp')}
+			</button>
+		{:else}
+			<button
+				type="button"
+				class="text-xs text-muted-foreground underline"
+				onclick={switchToRecovery}
+			>
+				{$t('auth.otpUseRecovery')}
+			</button>
+		{/if}
 		<button type="button" class="text-xs text-muted-foreground underline" onclick={onCancelOtp}>
 			{$t('auth.otpCancel')}
 		</button>
