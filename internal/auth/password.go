@@ -2,14 +2,29 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
 )
+
+// HashToken returns a hex-encoded SHA-256 digest of token.
+// Use for high-entropy random tokens (API keys, recovery codes) — not passwords.
+func HashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+// VerifyToken reports whether token matches the hex-encoded SHA-256 hash.
+func VerifyToken(token, hash string) bool {
+	got := HashToken(token)
+	return subtle.ConstantTimeCompare([]byte(got), []byte(hash)) == 1
+}
 
 const (
 	argonKeyLen  = 32

@@ -287,7 +287,7 @@ func (s *Service) findRecoveryCode(ctx context.Context, userID int64, code strin
 		return repo.TOTPRecoveryCode{}, err
 	}
 	for _, rc := range codes {
-		if err := auth.VerifyPassword(code, rc.CodeHash); err == nil {
+		if auth.VerifyToken(code, rc.CodeHash) {
 			return rc, nil
 		}
 	}
@@ -359,12 +359,8 @@ func (s *Service) generateRecoveryCodes() (plaintexts []string, hashes []string,
 		if gerr != nil {
 			return nil, nil, gerr
 		}
-		hash, herr := auth.HashPassword(code, s.argon2Params)
-		if herr != nil {
-			return nil, nil, fmt.Errorf("hash recovery code: %w", herr)
-		}
 		plaintexts[i] = code
-		hashes[i] = hash
+		hashes[i] = auth.HashToken(code)
 	}
 	return plaintexts, hashes, nil
 }
