@@ -86,6 +86,7 @@
       "labels": "Labels",
       "project": "Project",
       "privacy": "Privacy",
+      "security": "Security",
       "session": "Session",
       "api": "API",
       "backup": "Backup & Restore",
@@ -139,6 +140,35 @@
     "version": {
       "heading": "App version",
       "description": "The currently running version of Turboist."
+    },
+    "twofa": {
+      "heading": "Two-factor authentication",
+      "description": "Add a one-time code from your authenticator app on each login.",
+      "statusEnabled": "Enabled",
+      "statusDisabled": "Disabled",
+      "enableButton": "Enable 2FA",
+      "disableButton": "Disable 2FA",
+      "starting": "Preparing…",
+      "setupHint": "Scan the QR code with your authenticator app (or enter the secret manually), then enter the 6-digit code to confirm.",
+      "qrAlt": "TOTP QR code",
+      "secretLabel": "Secret",
+      "secretCopied": "Secret copied",
+      "codePlaceholder": "6-digit code",
+      "codeOrRecoveryPlaceholder": "TOTP or recovery code",
+      "confirmButton": "Confirm",
+      "confirming": "Confirming…",
+      "disableConfirm": "Disable",
+      "disabling": "Disabling…",
+      "recoveryHint": "Save these recovery codes in a safe place. Each can be used once to sign in if you lose access to your authenticator. They will not be shown again.",
+      "copyRecovery": "Copy",
+      "downloadRecovery": "Download .txt",
+      "recoveryCopied": "Recovery codes copied",
+      "finishRecovery": "Done",
+      "enabledToast": "Two-factor authentication enabled",
+      "disabledToast": "Two-factor authentication disabled",
+      "setupFailed": "Failed to start 2FA setup",
+      "confirmFailed": "Failed to confirm 2FA",
+      "disableFailed": "Failed to disable 2FA"
     },
     "session": {
       "heading": "Active sessions",
@@ -267,7 +297,13 @@
     "username": "Username",
     "password": "Password",
     "confirmPassword": "Confirm password",
-    "passwordsMismatch": "Passwords do not match"
+    "passwordsMismatch": "Passwords do not match",
+    "otpTitle": "Two-factor authentication",
+    "otpHint": "Enter the 6-digit code from your authenticator app, or a recovery code.",
+    "otpLabel": "Code",
+    "otpVerify": "Verify",
+    "otpCancel": "Use a different account",
+    "otpFailed": "Invalid or expired code"
   },
   "task": {
     "addTask": "Add task",

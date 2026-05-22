@@ -179,11 +179,47 @@ curl -X POST "$BASE/auth/setup" \
 
 Web clients (`clientKind: "web"`) receive the refresh token in an `HttpOnly` cookie instead of the body.
 
+If the account has TOTP enabled, `/auth/login` returns an OTP challenge instead
+of the regular response — both with HTTP `200`:
+
+```json
+{ "otpRequired": true, "ticket": "<short-lived JWT>" }
+```
+
+The ticket is valid for 5 minutes, is bound to the chosen `clientKind`, and is
+only usable on `/auth/login/otp`. Clients should keep it in memory only.
+
 ```sh
 curl -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"username":"alice","password":"secret","clientKind":"cli"}'
 ```
+
+### `POST /auth/login/otp`
+
+Completes a two-step login. Accepts either a TOTP code or one of the user's
+unused recovery codes.
+
+**Request:**
+```json
+{
+  "ticket": "<ticket from /auth/login>",
+  "code": "123456"
+}
+```
+
+**Response** (200) — identical to `/auth/login`:
+```json
+{
+  "access": "<jwt>",
+  "refresh": "<token>",
+  "user": { "id": 1, "username": "alice" }
+}
+```
+
+Errors: `auth_invalid` (401) for missing/expired ticket; `totp_invalid_code`
+(401) for a wrong TOTP or recovery code; `auth_rate_limited` (429) when the IP
+limiter trips. The endpoint shares the same per-IP backoff as `/auth/login`.
 
 ### `POST /auth/refresh`
 
@@ -231,8 +267,10 @@ curl -X POST "$BASE/auth/logout-all" \
 ### `GET /auth/me` *(requires JWT)*
 
 ```json
-{ "user": { "id": 1, "username": "alice" } }
+{ "user": { "id": 1, "username": "alice", "totpEnabled": false } }
 ```
+
+`totpEnabled` reflects whether the account has confirmed TOTP 2FA enrollment.
 
 ```sh
 curl "$BASE/auth/me" \

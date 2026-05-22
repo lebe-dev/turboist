@@ -67,11 +67,13 @@ describe('AuthStore', () => {
 		);
 
 		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
-		await store.login({ username: 'eu', password: 'p' });
+		const result = await store.login({ username: 'eu', password: 'p' });
 
+		expect(result).toEqual({ otpRequired: false });
 		expect(store.status).toBe('authenticated');
 		expect(store.accessToken).toBe('A');
 		expect(store.user).toEqual({ id: 1, username: 'eu' });
+		expect(store.awaitingOtp).toBe(false);
 
 		const init = fetchMock.mock.calls[0][1] as RequestInit;
 		expect(init.method).toBe('POST');
@@ -81,12 +83,88 @@ describe('AuthStore', () => {
 		);
 	});
 
+	it('login with otpRequired keeps status=guest and flips awaitingOtp', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock.mockResolvedValueOnce(jsonResponse({ otpRequired: true, ticket: 'TICKET' }));
+
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+		const result = await store.login({ username: 'eu', password: 'p' });
+
+		expect(result).toEqual({ otpRequired: true });
+		expect(store.awaitingOtp).toBe(true);
+		expect(store.status).not.toBe('authenticated');
+		expect(store.accessToken).toBeNull();
+		expect(store.user).toBeNull();
+	});
+
+	it('verifyOtp posts ticket+code and finalises authentication', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ otpRequired: true, ticket: 'TICKET' }))
+			.mockResolvedValueOnce(
+				jsonResponse({ access: 'A', refresh: 'R', user: { id: 1, username: 'eu', totpEnabled: true } })
+			);
+
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+		await store.login({ username: 'eu', password: 'p' });
+		await store.verifyOtp('123456');
+
+		expect(store.status).toBe('authenticated');
+		expect(store.accessToken).toBe('A');
+		expect(store.user).toEqual({ id: 1, username: 'eu', totpEnabled: true });
+		expect(store.awaitingOtp).toBe(false);
+
+		const otpInit = fetchMock.mock.calls[1][1] as RequestInit;
+		expect(otpInit.method).toBe('POST');
+		expect(otpInit.credentials).toBe('include');
+		expect(otpInit.body).toBe(JSON.stringify({ ticket: 'TICKET', code: '123456' }));
+		const url = fetchMock.mock.calls[1][0] as string;
+		expect(url).toContain('/auth/login/otp');
+	});
+
+	it('verifyOtp throws when no challenge is in progress', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+
+		await expect(store.verifyOtp('123456')).rejects.toThrow('No OTP challenge in progress');
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('verifyOtp does not retry on failure but keeps awaitingOtp so the user can re-enter', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ otpRequired: true, ticket: 'TICKET' }))
+			.mockResolvedValueOnce(
+				jsonResponse({ error: { code: 'totp_invalid_code', message: 'bad' } }, 401)
+			);
+
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+		await store.login({ username: 'eu', password: 'p' });
+		await expect(store.verifyOtp('000000')).rejects.toBeDefined();
+
+		expect(store.awaitingOtp).toBe(true);
+		expect(store.status).not.toBe('authenticated');
+	});
+
+	it('cancelOtp clears the pending challenge', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock.mockResolvedValueOnce(jsonResponse({ otpRequired: true, ticket: 'TICKET' }));
+
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+		await store.login({ username: 'eu', password: 'p' });
+		expect(store.awaitingOtp).toBe(true);
+
+		store.cancelOtp();
+		expect(store.awaitingOtp).toBe(false);
+		await expect(store.verifyOtp('123456')).rejects.toThrow('No OTP challenge in progress');
+	});
+
 	it('logout clears state even when API call fails', async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
 
 		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
-		store.user = { id: 1, username: 'eu' };
+		store.user = { id: 1, username: 'eu', totpEnabled: false };
 		store.accessToken = 'A';
 		store.status = 'authenticated';
 

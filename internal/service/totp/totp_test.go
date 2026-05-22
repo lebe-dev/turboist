@@ -78,7 +78,11 @@ func TestService_BeginSetup_FailsWhenAlreadyEnabled(t *testing.T) {
 		t.Fatalf("begin: %v", err)
 	}
 	// Force-enable by calling EnableTOTP directly to bypass code check.
-	if err := users.EnableTOTP(ctx, 1); err != nil {
+	st, err := users.GetTOTPState(ctx, 1)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if err := users.EnableTOTP(ctx, 1, st.Secret); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
 	if _, err := svc.BeginSetup(ctx, 1, "admin"); !errors.Is(err, ErrAlreadyEnabled) {
@@ -141,7 +145,7 @@ func TestService_ConfirmSetup_RequiresPendingSecret(t *testing.T) {
 	}
 }
 
-func TestService_Verify_ReplayWindow(t *testing.T) {
+func TestService_Verify_RejectsReplayWithinWindow(t *testing.T) {
 	svc, _, _ := setupService(t)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)
@@ -151,21 +155,34 @@ func TestService_Verify_ReplayWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	code, err := totp.GenerateCode(info.Secret, now)
+	// Confirm with a code from the *previous* step so Verify can still accept
+	// a fresh code from the current step (ConfirmSetup burns the matched step).
+	prev := now.Add(-time.Duration(totpPeriodSeconds) * time.Second)
+	confirmCode, err := totp.GenerateCode(info.Secret, prev)
 	if err != nil {
-		t.Fatalf("gen: %v", err)
+		t.Fatalf("gen confirm: %v", err)
 	}
-	if _, err := svc.ConfirmSetup(ctx, 1, code); err != nil {
+	if _, err := svc.ConfirmSetup(ctx, 1, confirmCode); err != nil {
 		t.Fatalf("confirm: %v", err)
 	}
-	// Same code, same time -> still valid (the service does not track used
-	// TOTP codes; replay protection within the period is the caller's job).
-	if err := svc.Verify(ctx, 1, code); err != nil {
-		t.Errorf("verify same period: got %v, want nil", err)
+	currentCode, err := totp.GenerateCode(info.Secret, now)
+	if err != nil {
+		t.Fatalf("gen current: %v", err)
 	}
-	// Move time far outside the skew window -> rejected.
+	if err := svc.Verify(ctx, 1, currentCode); err != nil {
+		t.Fatalf("verify first: %v", err)
+	}
+	// Replay within the validity window must be rejected.
+	if err := svc.Verify(ctx, 1, currentCode); !errors.Is(err, ErrInvalidCode) {
+		t.Errorf("replay: got %v, want ErrInvalidCode", err)
+	}
+	// And the burned confirmation code must also be rejected.
+	if err := svc.Verify(ctx, 1, confirmCode); !errors.Is(err, ErrInvalidCode) {
+		t.Errorf("replay confirm code: got %v, want ErrInvalidCode", err)
+	}
+	// Move time far outside the skew window -> rejected as not-matching.
 	svc.SetNowFunc(func() time.Time { return now.Add(5 * time.Minute) })
-	if err := svc.Verify(ctx, 1, code); !errors.Is(err, ErrInvalidCode) {
+	if err := svc.Verify(ctx, 1, currentCode); !errors.Is(err, ErrInvalidCode) {
 		t.Errorf("verify after window: got %v, want ErrInvalidCode", err)
 	}
 }
@@ -214,10 +231,13 @@ func TestService_Disable_WithTOTPCode(t *testing.T) {
 	svc.SetNowFunc(func() time.Time { return now })
 
 	info, _ := svc.BeginSetup(ctx, 1, "admin")
-	code, _ := totp.GenerateCode(info.Secret, now)
-	if _, err := svc.ConfirmSetup(ctx, 1, code); err != nil {
+	// Confirm with the previous step so a fresh code from `now` can disable.
+	prev := now.Add(-time.Duration(totpPeriodSeconds) * time.Second)
+	confirmCode, _ := totp.GenerateCode(info.Secret, prev)
+	if _, err := svc.ConfirmSetup(ctx, 1, confirmCode); err != nil {
 		t.Fatalf("confirm: %v", err)
 	}
+	code, _ := totp.GenerateCode(info.Secret, now)
 	if err := svc.Disable(ctx, 1, code); err != nil {
 		t.Fatalf("disable: %v", err)
 	}

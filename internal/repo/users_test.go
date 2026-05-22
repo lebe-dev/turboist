@@ -199,7 +199,7 @@ func TestUserRepo_SetTOTPSecret_AndEnable(t *testing.T) {
 	if st.Enabled {
 		t.Errorf("enabled after SetTOTPSecret: got true, want false")
 	}
-	if err := r.EnableTOTP(ctx, 1); err != nil {
+	if err := r.EnableTOTP(ctx, 1, "enc:v1:abc"); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
 	st, _ = r.GetTOTPState(ctx, 1)
@@ -228,7 +228,7 @@ func TestUserRepo_DisableTOTP(t *testing.T) {
 	if err := r.SetTOTPSecret(ctx, 1, "enc:v1:abc"); err != nil {
 		t.Fatalf("set: %v", err)
 	}
-	if err := r.EnableTOTP(ctx, 1); err != nil {
+	if err := r.EnableTOTP(ctx, 1, "enc:v1:abc"); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
 	if err := r.DisableTOTP(ctx, 1); err != nil {

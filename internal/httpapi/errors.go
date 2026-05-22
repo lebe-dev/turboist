@@ -120,3 +120,7 @@ func ErrTOTPAlreadyEnabled() *AppError {
 func ErrTOTPNotEnabled() *AppError {
 	return newErr(409, CodeTOTPNotEnabled, "TOTP not enabled")
 }
+
+func ErrTOTPTicketInvalid() *AppError {
+	return newErr(401, CodeAuthInvalid, "invalid or expired OTP ticket")
+}

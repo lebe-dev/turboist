@@ -11,6 +11,7 @@ Turboist is a task management app for the rest of us.
 - Pinned tasks and pinned projects (separate caps)
 - Recurring tasks (RRULE, advanced on completion)
 - Single-user JWT auth with refresh-token rotation
+- Optional TOTP 2FA (RFC 6238) with single-use recovery codes
 - [Troiki System support](docs/troiki-system.md)
 - Localized UI (English / Russian) — see [docs/locales.md](docs/locales.md)
 - Public View — hide private projects, tasks, and labels for screenshot-friendly sharing — see [docs/public-mode.md](docs/public-mode.md)
@@ -72,6 +73,10 @@ Two configuration sources are merged at start-up:
     OAuth redirect URI as `<BASE_URL>/api/v1/calendars/google/callback`.
   - `CALENDAR_TOKEN_KEY` — optional encryption key for stored calendar OAuth
     tokens. Defaults to `JWT_SECRET`; keep the chosen value stable.
+  - `TOTP_SECRET_KEY` — encryption key (≥ 32 bytes) for TOTP secrets stored at
+    rest. Required to enable the optional TOTP 2FA flow; if empty, the feature
+    is disabled and `/auth/totp/*` endpoints return an error. Keep the chosen
+    value stable — rotating it invalidates every enrolled secret.
 - `config.yml` — business config (timezone, day-parts, limits, auto-labels,
   inbox overflow, pin caps). See `config.example.yml` for the full schema.
 
@@ -140,7 +145,6 @@ applied; HTTP handlers are exercised via Fiber's `app.Test`.
 ## RoadMap
 
 - Feature: extended session management on Session page
-- Feature: 2FA TOTP support
 - Feature: Task templates
 - Feature: Federated Project Synchronization (Bridge Protocol) for Multi-Instance Collaboration
 - Offline-first

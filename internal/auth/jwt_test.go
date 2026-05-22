@@ -43,6 +43,55 @@ func TestJWT_Verify_WrongSecret(t *testing.T) {
 	}
 }
 
+func TestJWT_OTPTicket_IssueAndVerify(t *testing.T) {
+	j := NewJWTIssuer([]byte("secret"))
+	tok, exp, err := j.IssueOTPTicket(7, "web")
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if time.Until(exp) > OTPTicketTTL+time.Second {
+		t.Errorf("expiry too far: %v", exp)
+	}
+	tk, err := j.VerifyOTPTicket(tok)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if tk.UserID != 7 {
+		t.Errorf("user id: got %d, want 7", tk.UserID)
+	}
+	if tk.ClientKind != "web" {
+		t.Errorf("client kind: got %q, want web", tk.ClientKind)
+	}
+}
+
+func TestJWT_OTPTicket_Expired(t *testing.T) {
+	j := NewJWTIssuer([]byte("secret"))
+	j.SetClock(func() time.Time { return time.Unix(1000, 0) })
+	tok, _, _ := j.IssueOTPTicket(1, "cli")
+	j.SetClock(func() time.Time { return time.Unix(1000+int64(OTPTicketTTL.Seconds())+10, 0) })
+	_, err := j.VerifyOTPTicket(tok)
+	if !errors.Is(err, ErrTokenExpired) {
+		t.Errorf("err: got %v, want ErrTokenExpired", err)
+	}
+}
+
+func TestJWT_OTPTicket_RejectsAccessToken(t *testing.T) {
+	j := NewJWTIssuer([]byte("secret"))
+	tok, _, _ := j.Issue(1, 2)
+	if _, err := j.VerifyOTPTicket(tok); !errors.Is(err, ErrTokenInvalid) {
+		t.Errorf("access token accepted as ticket: %v", err)
+	}
+}
+
+func TestJWT_Verify_RejectsOTPTicket(t *testing.T) {
+	j := NewJWTIssuer([]byte("secret"))
+	tok, _, _ := j.IssueOTPTicket(1, "cli")
+	// A ticket lacks "sid" so the regular Verify should treat it as invalid.
+	if _, err := j.Verify(tok); err == nil {
+		t.Error("ticket accepted by access-token Verify")
+	}
+}
+
 func TestJWT_Verify_Expired(t *testing.T) {
 	j := NewJWTIssuer([]byte("s"))
 	j.SetClock(func() time.Time { return time.Now().Add(-time.Hour) })

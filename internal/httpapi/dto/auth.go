@@ -13,8 +13,9 @@ type RefreshRequest struct {
 }
 
 type UserDTO struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
+	ID          int64  `json:"id"`
+	Username    string `json:"username"`
+	TOTPEnabled bool   `json:"totpEnabled"`
 }
 
 type AuthResponse struct {
@@ -40,4 +41,18 @@ type TOTPCodeRequest struct {
 
 type TOTPConfirmResponse struct {
 	RecoveryCodes []string `json:"recoveryCodes"`
+}
+
+// OTPChallengeResponse is the 200 response returned by /auth/login when the
+// account has TOTP enabled. The client must call /auth/login/otp with the
+// ticket and the user-entered code (TOTP or recovery) to complete the login.
+type OTPChallengeResponse struct {
+	OTPRequired bool   `json:"otpRequired"`
+	Ticket      string `json:"ticket"`
+}
+
+// OTPLoginRequest is the body of /auth/login/otp.
+type OTPLoginRequest struct {
+	Ticket string `json:"ticket"`
+	Code   string `json:"code"`
 }

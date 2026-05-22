@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -14,6 +15,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
+	"github.com/lebe-dev/turboist/internal/service/totp"
 )
 
 const (
@@ -31,6 +33,9 @@ type AuthHandler struct {
 	limiter      *auth.IPLimiter
 	theft        *theftCache
 	argon2Params auth.Argon2Params
+	// totp is nil when the TOTP feature is disabled (no TOTP_SECRET_KEY). When
+	// non-nil, the login flow becomes two-step for accounts that have enrolled.
+	totp *totp.Service
 }
 
 // NewAuthHandler constructs an AuthHandler.
@@ -51,6 +56,13 @@ func NewAuthHandler(
 	}
 }
 
+// WithTOTP enables the two-step login flow. Pass nil (or skip the call) to
+// keep TOTP disabled.
+func (h *AuthHandler) WithTOTP(svc *totp.Service) *AuthHandler {
+	h.totp = svc
+	return h
+}
+
 // Stop releases background goroutines started by this handler.
 func (h *AuthHandler) Stop() { h.theft.stop() }
 
@@ -59,6 +71,7 @@ func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
 	r.Get("/setup-required", h.setupRequired)
 	r.Post("/setup", h.setup)
 	r.Post("/login", h.login)
+	r.Post("/login/otp", h.loginOTP)
 	r.Post("/refresh", h.refresh)
 	r.Post("/logout", httpapi.AuthMiddleware(jwtIssuer), h.logout)
 	r.Post("/logout-all", httpapi.AuthMiddleware(jwtIssuer), h.logoutAll)
@@ -187,12 +200,134 @@ func (h *AuthHandler) login(c fiber.Ctx) error {
 		return httpapi.ErrAuthInvalid("invalid credentials")
 	}
 
+	if user.TOTPEnabled {
+		if h.totp == nil {
+			// Fail closed: this account has 2FA enabled but the TOTP service is
+			// unavailable (e.g. TOTP_SECRET_KEY missing on this deploy). Refusing
+			// the login prevents a misconfigured restart from silently bypassing
+			// 2FA for already-enrolled users.
+			log.ErrorContext(ctx, "auth: login refused — totp service unavailable for enrolled user",
+				slog.String("op", "handler.Auth.Login"),
+				slog.Int64("user_id", user.ID),
+			)
+			return httpapi.ErrInternal("totp service unavailable")
+		}
+		ticket, _, terr := h.jwt.IssueOTPTicket(user.ID, string(req.ClientKind))
+		if terr != nil {
+			return httpapi.ErrInternal("issue otp ticket").WithCause(terr)
+		}
+		log.InfoContext(ctx, "auth: login awaiting otp",
+			slog.String("op", "handler.Auth.Login"),
+			slog.Int64("user_id", user.ID),
+			slog.String("client_kind", string(req.ClientKind)),
+		)
+		return c.JSON(dto.OTPChallengeResponse{OTPRequired: true, Ticket: ticket})
+	}
+
 	log.InfoContext(ctx, "auth: login ok",
 		slog.String("op", "handler.Auth.Login"),
 		slog.Int64("user_id", user.ID),
 		slog.String("client_kind", string(req.ClientKind)),
 	)
 	return h.issueSession(c, user, req.ClientKind)
+}
+
+// loginOTP completes the two-step login: it verifies the short-lived ticket
+// issued by /auth/login and the user-entered TOTP (or recovery) code, then
+// issues a regular session.
+func (h *AuthHandler) loginOTP(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
+	if !h.limiter.Allow(c.IP()) {
+		log.WarnContext(ctx, "auth: login/otp rate limited",
+			slog.String("op", "handler.Auth.LoginOTP"),
+			slog.String("ip", c.IP()),
+		)
+		return httpapi.ErrAuthRateLimited()
+	}
+	if h.totp == nil {
+		// TOTP feature disabled server-side; nothing should ever produce a ticket.
+		return httpapi.ErrAuthInvalid("otp login disabled")
+	}
+
+	var req dto.OTPLoginRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		log.WarnContext(ctx, "auth: login/otp invalid body",
+			slog.String("op", "handler.Auth.LoginOTP"),
+			slog.String("err", err.Error()),
+		)
+		return httpapi.ErrValidation("invalid request body")
+	}
+	if strings.TrimSpace(req.Ticket) == "" {
+		return httpapi.ErrValidation("ticket is required")
+	}
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		return httpapi.ErrValidation("code is required")
+	}
+
+	ticket, err := h.jwt.VerifyOTPTicket(req.Ticket)
+	if err != nil {
+		log.WarnContext(ctx, "auth: login/otp invalid ticket",
+			slog.String("op", "handler.Auth.LoginOTP"),
+			slog.String("reason", err.Error()),
+		)
+		return httpapi.ErrTOTPTicketInvalid()
+	}
+	clientKind := model.ClientKind(ticket.ClientKind)
+	if !clientKind.IsValid() {
+		log.WarnContext(ctx, "auth: login/otp invalid client kind in ticket",
+			slog.String("op", "handler.Auth.LoginOTP"),
+			slog.String("client_kind", ticket.ClientKind),
+		)
+		return httpapi.ErrTOTPTicketInvalid()
+	}
+
+	// Load the user before consuming any code. A failure here (e.g. row
+	// missing, transient DB error) would otherwise burn the recovery code
+	// without completing login — fine on average, but catastrophic if the
+	// user is on their last recovery code with no working TOTP device.
+	user, err := h.users.Get(ctx, ticket.UserID)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrTOTPTicketInvalid()
+		}
+		return httpapi.ErrInternal("lookup user").WithCause(err)
+	}
+
+	verr := h.totp.Verify(ctx, ticket.UserID, code)
+	if verr != nil {
+		if !errors.Is(verr, totp.ErrInvalidCode) {
+			if errors.Is(verr, totp.ErrNotEnabled) {
+				log.WarnContext(ctx, "auth: login/otp user not enrolled",
+					slog.String("op", "handler.Auth.LoginOTP"),
+					slog.Int64("user_id", ticket.UserID),
+				)
+				return httpapi.ErrTOTPTicketInvalid()
+			}
+			return httpapi.ErrInternal("verify otp").WithCause(verr)
+		}
+		if rerr := h.totp.ConsumeRecoveryCode(ctx, ticket.UserID, code); rerr != nil {
+			if errors.Is(rerr, totp.ErrInvalidCode) || errors.Is(rerr, totp.ErrNotEnabled) {
+				log.WarnContext(ctx, "auth: login/otp invalid code",
+					slog.String("op", "handler.Auth.LoginOTP"),
+					slog.Int64("user_id", ticket.UserID),
+				)
+				return httpapi.ErrTOTPInvalidCode()
+			}
+			return httpapi.ErrInternal("consume recovery code").WithCause(rerr)
+		}
+		log.InfoContext(ctx, "auth: login/otp recovery code used",
+			slog.String("op", "handler.Auth.LoginOTP"),
+			slog.Int64("user_id", ticket.UserID),
+		)
+	}
+	log.InfoContext(ctx, "auth: login/otp ok",
+		slog.String("op", "handler.Auth.LoginOTP"),
+		slog.Int64("user_id", user.ID),
+		slog.String("client_kind", string(clientKind)),
+	)
+	return h.issueSession(c, user, clientKind)
 }
 
 func (h *AuthHandler) refresh(c fiber.Ctx) error {
@@ -344,7 +479,7 @@ func (h *AuthHandler) me(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("get user").WithCause(err)
 	}
-	return c.JSON(fiber.Map{"user": dto.UserDTO{ID: user.ID, Username: user.Username}})
+	return c.JSON(fiber.Map{"user": dto.UserDTO{ID: user.ID, Username: user.Username, TOTPEnabled: user.TOTPEnabled}})
 }
 
 // issueSession creates a session, enforces the per-client limit, issues tokens,
@@ -391,7 +526,7 @@ func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.Cli
 	return c.JSON(dto.AuthResponse{
 		Access:  access,
 		Refresh: token,
-		User:    dto.UserDTO{ID: user.ID, Username: user.Username},
+		User:    dto.UserDTO{ID: user.ID, Username: user.Username, TOTPEnabled: user.TOTPEnabled},
 	})
 }
 

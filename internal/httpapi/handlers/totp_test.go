@@ -154,7 +154,11 @@ func TestTOTP_Setup_AlreadyEnabled(t *testing.T) {
 	env := setupTOTPTest(t)
 	// Enable TOTP via service for the seeded user (id 1).
 	postJSONAuth(t, env, "/auth/totp/setup", nil)
-	if err := env.users.EnableTOTP(context.Background(), 1); err != nil {
+	st, err := env.users.GetTOTPState(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if err := env.users.EnableTOTP(context.Background(), 1, st.Secret); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
 
@@ -251,11 +255,13 @@ func TestTOTP_Disable_WithTOTPCode(t *testing.T) {
 	}
 	var s totpSetupResp
 	_ = json.Unmarshal(body, &s)
-	code, _ := totp.GenerateCode(s.Secret, time.Now())
-	postJSONAuth(t, env, "/auth/totp/confirm", map[string]string{"code": code})
+	// Confirm with the previous step's code so a fresh code from the current
+	// step can still pass replay protection during disable.
+	now := time.Now()
+	confirmCode, _ := totp.GenerateCode(s.Secret, now.Add(-30*time.Second))
+	postJSONAuth(t, env, "/auth/totp/confirm", map[string]string{"code": confirmCode})
 
-	// Wait until a fresh code window so we don't replay (skew=1 still treats same code as valid).
-	disableCode, _ := totp.GenerateCode(s.Secret, time.Now())
+	disableCode, _ := totp.GenerateCode(s.Secret, now)
 	resp2, body2 := postJSONAuth(t, env, "/auth/totp/disable", map[string]string{"code": disableCode})
 	if resp2.StatusCode != 204 {
 		t.Fatalf("disable status: got %d, body: %s", resp2.StatusCode, body2)

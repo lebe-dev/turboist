@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base32"
 	"errors"
 	"fmt"
 	"image/png"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -21,6 +23,13 @@ import (
 	"github.com/lebe-dev/turboist/internal/crypto"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
+
+// totpPeriodSeconds is the RFC 6238 step interval used to derive 6-digit codes.
+const totpPeriodSeconds = 30
+
+// totpSkew is the number of adjacent steps (before and after the current one)
+// also accepted, to tolerate clock drift between the server and authenticator.
+const totpSkew = 1
 
 // Issuer is the label shown in authenticator apps next to the account.
 const Issuer = "Turboist"
@@ -112,6 +121,13 @@ func (s *Service) BeginSetup(ctx context.Context, userID int64, username string)
 		return nil, fmt.Errorf("encrypt secret: %w", err)
 	}
 	if err := s.users.SetTOTPSecret(ctx, userID, encrypted); err != nil {
+		// The CAS in SetTOTPSecret refuses to overwrite once totp_enabled = 1.
+		// Reaching here despite the pre-check above means another request
+		// completed ConfirmSetup in the meantime — surface that to the caller
+		// instead of silently dropping the live secret.
+		if errors.Is(err, repo.ErrNotFound) {
+			return nil, ErrAlreadyEnabled
+		}
 		return nil, err
 	}
 	img, err := key.Image(qrSize, qrSize)
@@ -147,29 +163,51 @@ func (s *Service) ConfirmSetup(ctx context.Context, userID int64, code string) (
 	if err != nil {
 		return nil, fmt.Errorf("decrypt secret: %w", err)
 	}
-	if !totp.Validate(code, secret) {
-		// Note: pquerna/otp's plain Validate uses skew=1; we replicate it via
-		// ValidateCustom to inject the test clock when needed.
-		if !s.validateAt(code, secret, s.now()) {
-			return nil, ErrInvalidCode
-		}
+	step, ok := s.matchedStep(code, secret, s.now())
+	if !ok {
+		return nil, ErrInvalidCode
+	}
+	// Burn the matched step before issuing recovery codes. The atomic CAS in
+	// AdvanceTOTPLastUsedStep also serializes concurrent ConfirmSetup calls so
+	// the recovery codes returned to the winning caller are the ones persisted.
+	advanced, err := s.users.AdvanceTOTPLastUsedStep(ctx, userID, step)
+	if err != nil {
+		return nil, err
+	}
+	if !advanced {
+		return nil, ErrInvalidCode
 	}
 	codes, hashes, err := s.generateRecoveryCodes()
 	if err != nil {
 		return nil, err
 	}
-	if err := s.recovery.Replace(ctx, userID, hashes); err != nil {
-		return nil, err
-	}
-	if err := s.users.EnableTOTP(ctx, userID); err != nil {
+	// Enable and recovery-code replacement run in one transaction so the user
+	// never ends up totp_enabled=1 without a fresh set of recovery codes — a
+	// partial commit would lock them out because ConfirmSetup rejects with
+	// ErrAlreadyEnabled on retry. The CAS on state.Secret inside the tx
+	// preserves the original guard against a concurrent BeginSetup, and the
+	// CAS on totp_enabled=0 serializes concurrent ConfirmSetup calls so two
+	// requests using codes from adjacent skew steps can't both succeed and
+	// race to overwrite each other's recovery-code set.
+	if err := s.users.EnableTOTPWithRecoveryCodes(ctx, userID, state.Secret, hashes); err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			// CAS lost: either totp_secret changed (concurrent BeginSetup) or
+			// totp_enabled was already 1 (concurrent ConfirmSetup). Re-read to
+			// surface the precise reason so the caller can show the right hint.
+			if cur, gerr := s.users.GetTOTPState(ctx, userID); gerr == nil && cur.Enabled {
+				return nil, ErrAlreadyEnabled
+			}
+			return nil, ErrNoPendingSetup
+		}
 		return nil, err
 	}
 	return codes, nil
 }
 
 // Verify checks code against the user's enabled TOTP secret. Returns
-// ErrInvalidCode when the code does not match and ErrNotEnabled when 2FA is
-// not active.
+// ErrInvalidCode when the code does not match, when it has already been used
+// (replay protection within the validity window), and ErrNotEnabled when 2FA
+// is not active.
 func (s *Service) Verify(ctx context.Context, userID int64, code string) error {
 	state, err := s.users.GetTOTPState(ctx, userID)
 	if err != nil {
@@ -180,9 +218,29 @@ func (s *Service) Verify(ctx context.Context, userID int64, code string) error {
 	}
 	secret, err := s.cipher.Decrypt(state.Secret)
 	if err != nil {
-		return fmt.Errorf("decrypt secret: %w", err)
+		// Treat decryption failure as an invalid code so callers naturally fall
+		// back to the recovery-code path — the user must not be locked out of
+		// their account when the stored secret becomes unreadable (e.g. a bad
+		// TOTP_SECRET_KEY rotation). Log so operators can detect the condition.
+		slog.ErrorContext(ctx, "totp: decrypt stored secret failed",
+			slog.Int64("user_id", userID),
+			slog.String("err", err.Error()),
+		)
+		return ErrInvalidCode
 	}
-	if !s.validateAt(code, secret, s.now()) {
+	step, ok := s.matchedStep(code, secret, s.now())
+	if !ok {
+		return ErrInvalidCode
+	}
+	if step <= state.LastUsedStep {
+		return ErrInvalidCode
+	}
+	advanced, err := s.users.AdvanceTOTPLastUsedStep(ctx, userID, step)
+	if err != nil {
+		return err
+	}
+	if !advanced {
+		// Concurrent verifier already consumed this (or a newer) step.
 		return ErrInvalidCode
 	}
 	return nil
@@ -191,33 +249,49 @@ func (s *Service) Verify(ctx context.Context, userID int64, code string) error {
 // ConsumeRecoveryCode finds an unused recovery code matching the plaintext
 // input and marks it used. Returns ErrInvalidCode when no match is found.
 func (s *Service) ConsumeRecoveryCode(ctx context.Context, userID int64, code string) error {
+	rc, err := s.findRecoveryCode(ctx, userID, code)
+	if err != nil {
+		return err
+	}
+	if err := s.recovery.MarkUsed(ctx, rc.ID); err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return ErrInvalidCode
+		}
+		return err
+	}
+	return nil
+}
+
+// findRecoveryCode locates the unused recovery code row matching the
+// plaintext input without mutating any state. Returns ErrInvalidCode when no
+// match exists. Used by callers that want to verify a recovery code before
+// performing an operation that will delete all recovery codes anyway (e.g.
+// Disable), so a transient failure between match and follow-up write doesn't
+// burn the code.
+func (s *Service) findRecoveryCode(ctx context.Context, userID int64, code string) (repo.TOTPRecoveryCode, error) {
 	code = normalizeRecoveryCode(code)
-	if code == "" {
-		return ErrInvalidCode
+	// Fast-fail anything that isn't shaped like a recovery code so a mistyped
+	// TOTP (or random garbage) doesn't trigger N Argon2id verifications.
+	if len(code) != recoveryCodeLength || !isRecoveryCodeAlphabet(code) {
+		return repo.TOTPRecoveryCode{}, ErrInvalidCode
 	}
 	state, err := s.users.GetTOTPState(ctx, userID)
 	if err != nil {
-		return err
+		return repo.TOTPRecoveryCode{}, err
 	}
 	if !state.Enabled {
-		return ErrNotEnabled
+		return repo.TOTPRecoveryCode{}, ErrNotEnabled
 	}
 	codes, err := s.recovery.ListUnused(ctx, userID)
 	if err != nil {
-		return err
+		return repo.TOTPRecoveryCode{}, err
 	}
 	for _, rc := range codes {
 		if err := auth.VerifyPassword(code, rc.CodeHash); err == nil {
-			if err := s.recovery.MarkUsed(ctx, rc.ID); err != nil {
-				if errors.Is(err, repo.ErrNotFound) {
-					return ErrInvalidCode
-				}
-				return err
-			}
-			return nil
+			return rc, nil
 		}
 	}
-	return ErrInvalidCode
+	return repo.TOTPRecoveryCode{}, ErrInvalidCode
 }
 
 // Disable turns off 2FA after verifying the supplied code (either a TOTP code
@@ -235,28 +309,44 @@ func (s *Service) Disable(ctx context.Context, userID int64, code string) error 
 		if !errors.Is(verr, ErrInvalidCode) {
 			return verr
 		}
-		// Fall back to recovery code.
-		if rerr := s.ConsumeRecoveryCode(ctx, userID, code); rerr != nil {
+		// Fall back to recovery code, but only verify the match — DisableTOTP +
+		// DeleteAll below wipes every recovery row anyway, so marking the
+		// matched code "used" here is redundant and would burn it if the
+		// downstream writes failed (a transient lockout when the user is on
+		// their last code with no working TOTP device).
+		if _, rerr := s.findRecoveryCode(ctx, userID, code); rerr != nil {
 			return rerr
 		}
 	}
-	if err := s.recovery.DeleteAll(ctx, userID); err != nil {
+	// Disable the user flag first. If DeleteAll then fails, any leftover
+	// recovery rows are inert because ConsumeRecoveryCode checks state.Enabled.
+	// The reverse order risks leaving the account 2FA-enabled with no recovery
+	// codes available, locking the user out.
+	if err := s.users.DisableTOTP(ctx, userID); err != nil {
 		return err
 	}
-	return s.users.DisableTOTP(ctx, userID)
+	return s.recovery.DeleteAll(ctx, userID)
 }
 
-// validateAt validates a code at a specific time with skew=1.
-func (s *Service) validateAt(code, secret string, t time.Time) bool {
-	ok, err := totp.ValidateCustom(code, secret, t, totp.ValidateOpts{
-		Period: 30,
-		Skew:   1,
-		Digits: 6,
-	})
-	if err != nil {
-		return false
+// matchedStep returns the TOTP time-step matched by code (within ±totpSkew) at
+// time t, or (0, false) when no step in the skew window produces the code.
+//
+// Unlike pquerna/otp's ValidateCustom, this also reports which step matched so
+// callers can persist it for replay protection.
+func (s *Service) matchedStep(code, secret string, t time.Time) (int64, bool) {
+	counter := t.Unix() / int64(totpPeriodSeconds)
+	for delta := int64(-totpSkew); delta <= int64(totpSkew); delta++ {
+		step := counter + delta
+		stepTime := time.Unix(step*int64(totpPeriodSeconds), 0)
+		expected, err := totp.GenerateCode(secret, stepTime)
+		if err != nil {
+			continue
+		}
+		if subtle.ConstantTimeCompare([]byte(expected), []byte(code)) == 1 {
+			return step, true
+		}
 	}
-	return ok
+	return 0, false
 }
 
 // generateRecoveryCodes returns a fresh batch of plaintext codes and their
@@ -279,13 +369,12 @@ func (s *Service) generateRecoveryCodes() (plaintexts []string, hashes []string,
 	return plaintexts, hashes, nil
 }
 
-// randomRecoveryCode returns a base32 (Crockford-style, no padding) string of
-// length recoveryCodeLength. Uses 7 random bytes (~56 bits) which encode to
-// ≥11 base32 chars; truncated to recoveryCodeLength for readability.
+// randomRecoveryCode returns a base32 (RFC 4648, no padding) string of length
+// recoveryCodeLength. Uses 8 random bytes which encode to 13 base32 chars;
+// truncated to recoveryCodeLength (≈50 bits retained after Argon2id hashing).
 func randomRecoveryCode() (string, error) {
 	const need = recoveryCodeLength
 	enc := base32.StdEncoding.WithPadding(base32.NoPadding)
-	// 7 bytes -> 12 chars, plenty to slice to need.
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err != nil {
 		return "", fmt.Errorf("read random: %w", err)
@@ -295,6 +384,21 @@ func randomRecoveryCode() (string, error) {
 		return "", fmt.Errorf("encoded length %d < %d", len(s), need)
 	}
 	return s[:need], nil
+}
+
+// isRecoveryCodeAlphabet reports whether s contains only RFC 4648 base32
+// characters (A–Z, 2–7). normalizeRecoveryCode has already stripped spaces and
+// dashes and uppercased letters, so this is a cheap final shape check.
+func isRecoveryCodeAlphabet(s string) bool {
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z':
+		case r >= '2' && r <= '7':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // normalizeRecoveryCode strips whitespace/hyphens and uppercases so that codes

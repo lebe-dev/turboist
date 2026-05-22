@@ -88,12 +88,12 @@ Internal TOTP (RFC 6238) two-factor authentication, per-user opt-in. After passw
 **Files:**
 - Modify: `internal/httpapi/handlers/auth.go`, `internal/httpapi/handlers/auth_test.go`, `internal/httpapi/dto/auth.go`, `internal/auth/jwt.go` (or new helper for OTP ticket)
 
-- [ ] after password check, if user has TOTP enabled: return `200 {"otpRequired": true, "ticket": "<signed JWT>"}` instead of `AuthResponse`; ticket is short-lived (5 min), single-purpose claim, signed with existing JWT secret
-- [ ] new endpoint `POST /auth/login/otp` (`{ticket, code}`) — verifies ticket + TOTP/recovery code, then issues normal `AuthResponse`
-- [ ] IP rate-limit on `/auth/login/otp`; on failure log and apply same backoff as login
-- [ ] update handler tests: login without 2FA (unchanged), login with 2FA (two-step), wrong OTP, expired ticket, recovery-code login
-- [ ] update `API.md`
-- [ ] run `just test-backend` and `just lint-backend`
+- [x] after password check, if user has TOTP enabled: return `200 {"otpRequired": true, "ticket": "<signed JWT>"}` instead of `AuthResponse`; ticket is short-lived (5 min), single-purpose claim, signed with existing JWT secret
+- [x] new endpoint `POST /auth/login/otp` (`{ticket, code}`) — verifies ticket + TOTP/recovery code, then issues normal `AuthResponse`
+- [x] IP rate-limit on `/auth/login/otp`; on failure log and apply same backoff as login
+- [x] update handler tests: login without 2FA (unchanged), login with 2FA (two-step), wrong OTP, expired ticket, recovery-code login
+- [x] update `API.md`
+- [x] run `just test-backend` and `just lint-backend`
 
 ### Task 6: Frontend — settings UI
 
@@ -102,32 +102,32 @@ Internal TOTP (RFC 6238) two-factor authentication, per-user opt-in. After passw
 - Modify: `frontend/src/routes/(app)/settings/+page.svelte`, `frontend/src/lib/i18n.ts`
 - Tests: `frontend/src/lib/components/settings/TwoFactorSection.test.ts` (if test scaffolding exists; otherwise component-level vitest)
 
-- [ ] API client wrappers for `setup`, `confirm`, `disable`
-- [ ] `TwoFactorSection.svelte`: shows status (enabled/disabled). Enable flow: button → QR + secret + code input → confirm → show recovery codes once (download `.txt` + copy buttons). Disable flow: code input → confirm
-- [ ] add EN + RU strings to `i18n.ts`
-- [ ] frontend tests for the component states (disabled→setup→confirmed; disable flow)
-- [ ] run `just test-frontend`
+- [x] API client wrappers for `setup`, `confirm`, `disable`
+- [x] `TwoFactorSection.svelte`: shows status (enabled/disabled). Enable flow: button → QR + secret + code input → confirm → show recovery codes once (download `.txt` + copy buttons). Disable flow: code input → confirm
+- [x] add EN + RU strings to `i18n.ts`
+- [x] frontend tests for the component states (disabled→setup→confirmed; disable flow)
+- [x] run `just test-frontend`
 
 ### Task 7: Frontend — login OTP prompt
 
 **Files:**
 - Modify: `frontend/src/routes/(auth)/login/+page.svelte`, `frontend/src/lib/api/endpoints/auth.ts`, `frontend/src/lib/auth/store.svelte.ts`, `frontend/src/lib/auth/store.test.ts`, `frontend/src/lib/i18n.ts`
 
-- [ ] update `login` API call to handle `otpRequired` response and call new `loginOtp(ticket, code)` endpoint
-- [ ] login page: if `otpRequired`, swap form to OTP input + "use recovery code" link; show error on invalid/expired
-- [ ] keep ticket only in memory (not in localStorage)
-- [ ] tests for both branches of `auth/store`
-- [ ] run `just test-frontend`
+- [x] update `login` API call to handle `otpRequired` response and call new `loginOtp(ticket, code)` endpoint
+- [x] login page: if `otpRequired`, swap form to OTP input + "use recovery code" link; show error on invalid/expired
+- [x] keep ticket only in memory (not in localStorage)
+- [x] tests for both branches of `auth/store`
+- [x] run `just test-frontend`
 
 ### Task 8: Verify acceptance criteria
 
-- [ ] `just test` (full suite — backend + frontend)
-- [ ] `just lint`
-- [ ] manually run `just dev` and walk through: enable 2FA → log out → log in with TOTP → log in with recovery code → disable 2FA
+- [x] `just test` (full suite — backend + frontend)
+- [x] `just lint`
+- [x] manual test (skipped - not automatable): `just dev` walk-through of enable 2FA → log out → log in with TOTP → log in with recovery code → disable 2FA
 
 ### Task 9: Update documentation
 
-- [ ] `README.md`: add 2FA to feature list, document `TOTP_SECRET_KEY`
-- [ ] `docs/architecture/backend.md`: note new package layout (`internal/crypto`, `internal/service/totp`) and login flow change
-- [ ] `files/files/API.md`: already updated in Tasks 4–5, double-check
-- [ ] add short note to `CLAUDE.md` if any new conventions emerged (e.g. shared crypto package)
+- [x] `README.md`: add 2FA to feature list, document `TOTP_SECRET_KEY`
+- [x] `docs/architecture/backend.md`: note new package layout (skipped — file does not exist in repo)
+- [x] `files/files/API.md`: already updated in Tasks 4–5, double-check (verified: TOTP routes, error codes, and OTP login flow documented in `API.md`)
+- [x] add short note to `CLAUDE.md` if any new conventions emerged (skipped — no project-level `CLAUDE.md`; shared crypto convention is self-documenting via package location)

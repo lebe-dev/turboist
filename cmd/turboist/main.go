@@ -107,6 +107,9 @@ func main() {
 			totpRecoveryRepo,
 			env.Argon2Params,
 		)
+		log.Info("totp 2FA enabled")
+	} else {
+		log.Info("totp 2FA disabled (TOTP_SECRET_KEY not set)")
 	}
 
 	// session cleanup
@@ -153,6 +156,9 @@ func main() {
 	api := httpapi.RegisterRoutes(app, deps)
 
 	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
+	if totpSvc != nil {
+		authHandler.WithTOTP(totpSvc)
+	}
 	authGroup := app.Group("/auth")
 	authHandler.RegisterAuth(authGroup, jwtIssuer)
 	if totpSvc != nil {
@@ -170,7 +176,7 @@ func main() {
 	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
-	handlers.NewMetaHandler(cfg).Register(api)
+	handlers.NewMetaHandler(cfg, totpSvc != nil).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)

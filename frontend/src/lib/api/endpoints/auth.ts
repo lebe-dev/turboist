@@ -1,6 +1,7 @@
 import type { ApiClient } from '../client';
 import type {
 	AuthLoginResponse,
+	AuthLoginSuccessResponse,
 	AuthRefreshResponse,
 	AuthSetupRequiredResponse,
 	ClientKind,
@@ -18,7 +19,7 @@ export const auth = {
 		return client.fetch('/auth/setup-required', { skipAuth: true, skipRefresh: true });
 	},
 
-	setup(client: ApiClient, credentials: AuthCredentials): Promise<AuthLoginResponse> {
+	setup(client: ApiClient, credentials: AuthCredentials): Promise<AuthLoginSuccessResponse> {
 		return client.fetch('/auth/setup', {
 			method: 'POST',
 			body: credentials,
@@ -32,6 +33,19 @@ export const auth = {
 		return client.fetch('/auth/login', {
 			method: 'POST',
 			body: credentials,
+			skipAuth: true,
+			skipRefresh: true,
+			credentials: 'include'
+		});
+	},
+
+	loginOtp(
+		client: ApiClient,
+		params: { ticket: string; code: string }
+	): Promise<AuthLoginSuccessResponse> {
+		return client.fetch('/auth/login/otp', {
+			method: 'POST',
+			body: params,
 			skipAuth: true,
 			skipRefresh: true,
 			credentials: 'include'
