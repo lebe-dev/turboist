@@ -187,13 +187,14 @@
 	{/snippet}
 	{#snippet actions()}
 		<Button
-			variant={onlyPlanned ? 'secondary' : 'outline'}
+			variant={onlyPlanned ? 'default' : 'outline'}
 			size="sm"
 			onclick={toggleOnlyPlanned}
 			aria-pressed={onlyPlanned}
 			title={$t('page.week.onlyPlannedTooltip')}
+			class={onlyPlanned ? 'ring-2 ring-primary/40' : ''}
 		>
-			<FunnelIcon />
+			<FunnelIcon weight={onlyPlanned ? 'fill' : 'regular'} />
 			<span>{$t('page.week.onlyPlanned')}</span>
 		</Button>
 		{#if limit !== null}
