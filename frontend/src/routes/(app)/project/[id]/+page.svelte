@@ -38,6 +38,7 @@
 
 
 	const projectId = $derived(Number(page.params.id));
+	const belongs = (t: Task) => t.projectId === projectId;
 
 	let project = $state<Project | null>(null);
 	let notFound = $state(false);
@@ -460,6 +461,7 @@
 								collapseCompletedChildren
 								collapsibleSubtasks
 								{mutator}
+								{belongs}
 								onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 							/>
 						</div>
@@ -468,6 +470,7 @@
 						<CompletedTasksGroup
 							tasks={tasksWithoutSectionSplit.done}
 							{mutator}
+							{belongs}
 							onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 						/>
 					{/if}
@@ -482,6 +485,7 @@
 					sections={sectionList}
 					{tasksBySection}
 					{mutator}
+					{belongs}
 					collapseCompletedChildren
 					collapsibleSubtasks
 					onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
