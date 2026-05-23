@@ -120,10 +120,13 @@
 		if (!task || submitting) return;
 		submitting = true;
 		try {
+			const sectionName = sectionId != null ? (sections.find((s) => s.id === sectionId)?.title ?? null) : null;
 			await moveTaskToProject(task, project.contextId, project.id, mutator, {
 				belongs,
 				projectCompleted: project.status === 'completed',
-				sectionId
+				sectionId,
+				projectName: project.title,
+				sectionName
 			});
 			open = false;
 		} finally {

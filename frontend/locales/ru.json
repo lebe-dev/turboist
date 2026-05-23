@@ -397,6 +397,8 @@
       "movedAndCompleted": "Перемещено и завершено",
       "movedToInbox": "Перемещено в Inbox",
       "movedToSection": "Перемещено в секцию",
+      "movedTitle": "Задача перемещена",
+      "movedTo": "Куда: {destination}",
       "failedMove": "Не удалось переместить задачу",
       "failedMoveToSection": "Не удалось переместить в секцию",
       "copied": "Скопировано",

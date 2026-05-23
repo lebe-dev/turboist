@@ -5,6 +5,7 @@
 	import { moveTaskToSection, type ListMutator } from '$lib/utils/taskActions';
 	import { toast } from 'svelte-sonner';
 	import { describeError } from '$lib/utils/taskActions';
+	import { projectsStore } from '$lib/stores/projects.svelte';
 	import type { ProjectSection, Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import { t } from '$lib/i18n';
@@ -54,7 +55,13 @@
 		if (projectId === null || contextId === null) return;
 		submitting = true;
 		try {
-			await moveTaskToSection(task, contextId, projectId, sectionId, mutator, { belongs });
+			const projectName = projectsStore.items.find((p) => p.id === projectId)?.title;
+			const sectionName = sectionId !== null ? (sections.find((s) => s.id === sectionId)?.title ?? null) : null;
+			await moveTaskToSection(task, contextId, projectId, sectionId, mutator, {
+				belongs,
+				projectName,
+				sectionName
+			});
 			open = false;
 		} finally {
 			submitting = false;

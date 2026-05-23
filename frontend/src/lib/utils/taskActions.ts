@@ -1,4 +1,4 @@
-import type { Task, TaskInput } from '$lib/api/types';
+import type { Task, TaskInput, TaskMoveInput } from '$lib/api/types';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
@@ -184,6 +184,34 @@ export async function duplicateTask(task: Task, mutator: ListMutator): Promise<v
 	}
 }
 
+function restoreInput(task: Task): TaskMoveInput {
+	if (task.inboxId !== null) return { inboxId: task.inboxId };
+	const input: { contextId: number; projectId?: number; sectionId?: number } = {
+		contextId: task.contextId as number
+	};
+	if (task.projectId !== null) input.projectId = task.projectId;
+	if (task.sectionId !== null) input.sectionId = task.sectionId;
+	return input;
+}
+
+function pushMoveUndo(
+	original: Task,
+	mutator: ListMutator,
+	destination: string,
+	wasJustCompleted: boolean
+): void {
+	const client = getApiClient();
+	const undoFn = async () => {
+		let restored = await tasksApi.move(client, original.id, restoreInput(original));
+		if (wasJustCompleted && restored.status === 'completed') {
+			restored = await tasksApi.uncomplete(client, original.id);
+		}
+		if (mutator.add) mutator.add(restored);
+		else mutator.replace(restored);
+	};
+	followUpStore.pushMove(original.title, destination, undoFn);
+}
+
 export async function moveTaskToInbox(
 	task: Task,
 	mutator: ListMutator,
@@ -191,10 +219,11 @@ export async function moveTaskToInbox(
 ): Promise<void> {
 	if (task.inboxId !== null) return;
 	const client = getApiClient();
+	const original = task;
 	try {
 		const updated = await tasksApi.move(client, task.id, { inboxId: 1 });
 		applyUpdate(updated, mutator, options.belongs);
-		toast.success(tr('task.toast.movedToInbox'));
+		pushMoveUndo(original, mutator, tr('nav.inbox'), false);
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedMove')));
 	}
@@ -205,23 +234,33 @@ export async function moveTaskToProject(
 	contextId: number,
 	projectId: number,
 	mutator: ListMutator,
-	options: BelongsOption & { projectCompleted?: boolean; sectionId?: number | null } = {}
+	options: BelongsOption & {
+		projectCompleted?: boolean;
+		sectionId?: number | null;
+		projectName?: string;
+		sectionName?: string | null;
+	} = {}
 ): Promise<void> {
 	if (task.projectId === projectId && (options.sectionId === undefined || task.sectionId === (options.sectionId ?? null))) return;
 	const client = getApiClient();
+	const original = task;
 	try {
 		const moveInput =
 			options.sectionId != null
 				? { contextId, projectId, sectionId: options.sectionId }
 				: { contextId, projectId };
 		let updated = await tasksApi.move(client, task.id, moveInput);
-		if (options.projectCompleted && updated.status !== 'completed') {
+		const completedHere = !!options.projectCompleted && updated.status !== 'completed';
+		if (completedHere) {
 			updated = await tasksApi.complete(client, updated.id);
 		}
 		applyUpdate(updated, mutator, options.belongs);
-		toast.success(
-			options.projectCompleted ? tr('task.toast.movedAndCompleted') : tr('task.toast.moved')
-		);
+		const destination = options.projectName
+			? options.sectionName
+				? `${options.projectName} › ${options.sectionName}`
+				: options.projectName
+			: tr('task.toast.moved');
+		pushMoveUndo(original, mutator, destination, completedHere);
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedMove')));
 	}
@@ -233,10 +272,11 @@ export async function moveTaskToSection(
 	projectId: number,
 	sectionId: number | null,
 	mutator: ListMutator,
-	options: BelongsOption = {}
+	options: BelongsOption & { projectName?: string; sectionName?: string | null } = {}
 ): Promise<void> {
 	if (task.sectionId === sectionId) return;
 	const client = getApiClient();
+	const original = task;
 	try {
 		const moveInput =
 			sectionId !== null
@@ -244,7 +284,12 @@ export async function moveTaskToSection(
 				: { contextId, projectId };
 		const updated = await tasksApi.move(client, task.id, moveInput);
 		applyUpdate(updated, mutator, options.belongs);
-		toast.success(tr('task.toast.movedToSection'));
+		const destination = options.projectName
+			? options.sectionName
+				? `${options.projectName} › ${options.sectionName}`
+				: options.projectName
+			: tr('task.toast.movedToSection');
+		pushMoveUndo(original, mutator, destination, false);
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedMoveToSection')));
 	}
