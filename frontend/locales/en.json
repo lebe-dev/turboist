@@ -643,7 +643,7 @@
       "limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected.",
       "daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}",
       "onlyPlanned": "Only planned",
-      "onlyPlannedTooltip": "Show only tasks scheduled within this week and calendar events"
+      "onlyPlannedTooltip": "Show only tasks planned for this week and calendar events"
     },
     "nextWeek": {
       "dateRangeLabel": "Next week: {range}",

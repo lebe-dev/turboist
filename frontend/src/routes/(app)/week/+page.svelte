@@ -64,7 +64,7 @@
 			: calendarEvents
 	);
 	const visibleTasks = $derived(
-		onlyPlanned ? list.items.filter((t) => dueInWeek(t)) : list.items
+		onlyPlanned ? list.items.filter((t) => t.planState === 'week') : list.items
 	);
 	const groups = $derived(groupByDay(visibleTasks, tz, nowStore.now));
 	const eventGroups = $derived(
