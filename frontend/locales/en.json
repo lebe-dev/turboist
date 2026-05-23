@@ -641,7 +641,9 @@
       "emptyDescription": "Plan tasks for this week from Backlog or by setting a due date.",
       "errorLoading": "Failed to load week",
       "limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected.",
-      "daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}"
+      "daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}",
+      "onlyPlanned": "Only planned",
+      "onlyPlannedTooltip": "Show only tasks scheduled within this week and calendar events"
     },
     "nextWeek": {
       "dateRangeLabel": "Next week: {range}",

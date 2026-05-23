@@ -1,5 +1,7 @@
 <script lang="ts">
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
+	import FunnelIcon from 'phosphor-svelte/lib/Funnel';
+	import { Button } from '$lib/components/ui/button';
 	import { t, locale } from '$lib/i18n';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { calendars as calendarsApi } from '$lib/api/endpoints/calendars';
@@ -33,9 +35,24 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 
 
+	const ONLY_PLANNED_KEY = 'turboist:week:only-planned';
+
+	function loadOnlyPlanned(): boolean {
+		if (typeof localStorage === 'undefined') return false;
+		return localStorage.getItem(ONLY_PLANNED_KEY) === '1';
+	}
+
 	let total = $state(0);
 	let calendarEvents = $state<CalendarEvent[]>([]);
 	let now = $state(new Date());
+	let onlyPlanned = $state(loadOnlyPlanned());
+
+	function toggleOnlyPlanned(): void {
+		onlyPlanned = !onlyPlanned;
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(ONLY_PLANNED_KEY, onlyPlanned ? '1' : '0');
+		}
+	}
 
 	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
 	const { mutator } = list;
@@ -46,7 +63,10 @@
 			? calendarEvents.filter((event) => !isPastCalendarEvent(event, now, tz))
 			: calendarEvents
 	);
-	const groups = $derived(groupByDay(list.items, tz, nowStore.now));
+	const visibleTasks = $derived(
+		onlyPlanned ? list.items.filter((t) => dueInWeek(t)) : list.items
+	);
+	const groups = $derived(groupByDay(visibleTasks, tz, nowStore.now));
 	const eventGroups = $derived(
 		groupCalendarEventsByDay(activeCalendarEvents, {
 			today: $t('common.today'),
@@ -166,6 +186,16 @@
 		{/if}
 	{/snippet}
 	{#snippet actions()}
+		<Button
+			variant={onlyPlanned ? 'secondary' : 'outline'}
+			size="sm"
+			onclick={toggleOnlyPlanned}
+			aria-pressed={onlyPlanned}
+			title={$t('page.week.onlyPlannedTooltip')}
+		>
+			<FunnelIcon />
+			<span>{$t('page.week.onlyPlanned')}</span>
+		</Button>
 		{#if limit !== null}
 			<LimitBadge count={total} {limit} />
 		{/if}
@@ -182,7 +212,7 @@
 <div class="px-2 py-2">
 	<ViewContent
 		loading={loader.loading}
-		isEmpty={list.items.length === 0 && activeCalendarEvents.length === 0}
+		isEmpty={visibleTasks.length === 0 && activeCalendarEvents.length === 0}
 		emptyIcon={CalendarIcon}
 		emptyTitle={$t('page.week.emptyTitle')}
 		emptyDescription={$t('page.week.emptyDescription')}
