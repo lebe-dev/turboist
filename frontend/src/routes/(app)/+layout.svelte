@@ -5,10 +5,8 @@
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
-	import FollowUpToasts from '$lib/components/task/FollowUpToasts.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
-	import type { FollowUpItem } from '$lib/stores/followUp.svelte';
-	import type { DayPart, Priority } from '$lib/api/types';
+	import type { DayPart, Priority, Task } from '$lib/api/types';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { getAuthStore } from '$lib/auth/store.svelte';
@@ -280,18 +278,26 @@
 		}
 	}
 
-	function onFollowUpNext(item: FollowUpItem): void {
-		const t = item.task;
+	function onFollowUpNext(task: Task): void {
 		followUpOverride = {
-			projectId: t.projectId,
-			labelIds: t.labels.map((l) => l.id),
-			priority: t.priority,
-			dayPart: t.dayPart,
-			parentId: t.parentId,
-			sectionId: t.sectionId
+			projectId: task.projectId,
+			labelIds: task.labels.map((l) => l.id),
+			priority: task.priority,
+			dayPart: task.dayPart,
+			parentId: task.parentId,
+			sectionId: task.sectionId
 		};
 		quickOpen = true;
 	}
+
+	$effect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent<{ task: Task }>).detail;
+			if (detail?.task) onFollowUpNext(detail.task);
+		};
+		window.addEventListener('turboist:followUpNext', handler);
+		return () => window.removeEventListener('turboist:followUpNext', handler);
+	});
 
 	const quickAddDefaults = $derived.by(() => {
 		const path = page.url.pathname;
@@ -500,11 +506,10 @@
 		/>
 	{/if}
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
-	<FollowUpToasts onNext={onFollowUpNext} />
 	{#if !quickAddHidden && !taskSelectionStore.mode}
 		<button
 			onclick={onQuickAdd}
-			class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
+			class="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
 			aria-label={$t('task.quickAdd')}
 		>
 			<PlusIcon class="h-7 w-7" />
