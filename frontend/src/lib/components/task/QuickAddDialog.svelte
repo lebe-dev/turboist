@@ -148,7 +148,11 @@
 		projectMenuOpen = false;
 	}
 
-	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
+	const allLabels = $derived.by(() => {
+		const byName = (a: { name: string }, b: { name: string }) =>
+			a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+		return [...labelsStore.favourites.toSorted(byName), ...labelsStore.rest.toSorted(byName)];
+	});
 	const selectedLabels = $derived(
 		labelIds
 			.map((id) => allLabels.find((l) => String(l.id) === id))
