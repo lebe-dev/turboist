@@ -21,9 +21,9 @@ Turboist is a task management app for the rest of us.
 ## Quick start
 
 ```sh
-cp .env.example .env          # fill JWT_SECRET, API_TOKEN_SALT, BASE_URL, BIND
+cp .env.example .env           # fill JWT_SECRET, API_TOKEN_SALT, BASE_URL
 cp config.example.yml config.yml
-just run-backend
+docker compose up -d
 ```
 
 See [docs/configuration.md](docs/configuration.md) for all environment variables and config options.
