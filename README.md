@@ -15,6 +15,7 @@ Turboist is a task management app for the rest of us.
 - [Troiki System support](docs/troiki-system.md)
 - Localized UI (English / Russian) — see [docs/locales.md](docs/locales.md)
 - Public View — hide private projects, tasks, and labels for screenshot-friendly sharing — see [docs/public-mode.md](docs/public-mode.md)
+- Google Calendar integration (read-only, live API + 2-min cache) — see [docs/google-calendar.md](docs/google-calendar.md)
 - [Public API](API.md)
 
 ## Nginx Configuration
