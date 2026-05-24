@@ -28,18 +28,9 @@ docker compose up -d
 
 See [docs/configuration.md](docs/configuration.md) for all environment variables and config options.
 
-## Nginx
-
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-}
-```
-
 ## Docs
 
+- [Installation](docs/install.md) — nginx config
 - [Configuration](docs/configuration.md) — env vars, log levels, config.yml
 - [Backend architecture](docs/architecture/backend.md) — endpoints, auth, storage, dev commands
 - [API reference](API.md)
