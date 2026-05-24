@@ -10,6 +10,7 @@ export default defineConfig({
 	},
 	plugins: [svelteIntlPrecompile('locales'), tailwindcss(), sveltekit()],
 	server: {
-		allowedHosts: ['test.home']
+		allowedHosts: ['test.home'],
+		fs: { allow: ['..'] }
 	}
 });

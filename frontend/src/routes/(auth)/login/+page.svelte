@@ -150,3 +150,13 @@
 		</Button>
 	</form>
 {/if}
+
+<div class="mt-6 flex justify-center gap-3 text-xs text-muted-foreground">
+	<a href={resolve('/terms-of-service')} class="hover:text-foreground hover:underline">
+		{$t('legal.tos.title')}
+	</a>
+	<span aria-hidden="true">·</span>
+	<a href={resolve('/privacy-policy')} class="hover:text-foreground hover:underline">
+		{$t('legal.privacy.title')}
+	</a>
+</div>

@@ -376,6 +376,21 @@
 				</label>
 			</section>
 
+			<section class="flex flex-col gap-2 rounded-lg border border-border bg-card px-5 py-4 shadow-sm">
+				<a
+					href={resolve('/terms-of-service')}
+					class="text-sm text-muted-foreground hover:text-foreground hover:underline"
+				>
+					{$t('legal.tos.title')}
+				</a>
+				<a
+					href={resolve('/privacy-policy')}
+					class="text-sm text-muted-foreground hover:text-foreground hover:underline"
+				>
+					{$t('legal.privacy.title')}
+				</a>
+			</section>
+
 			<section class="flex items-center justify-between rounded-lg border border-border bg-card px-5 py-4 shadow-sm">
 				<div class="flex flex-col gap-0.5">
 					<h2 class="text-sm font-semibold">{$t('settings.version.heading')}</h2>

@@ -797,5 +797,14 @@
     "createTask": "Create task",
     "taskCreated": "Task created",
     "taskCreateFailed": "Failed to create task"
+  },
+  "legal": {
+    "back": "Back",
+    "tos": {
+      "title": "Terms of Service"
+    },
+    "privacy": {
+      "title": "Privacy Policy"
+    }
   }
 }
