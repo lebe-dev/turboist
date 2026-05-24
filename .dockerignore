@@ -7,6 +7,8 @@
 /frontend/coverage
 /helm-chart
 *.md
+!ToS.md
+!privacy-policy.md
 *.tar.gz
 *.zip
 coverage.*
