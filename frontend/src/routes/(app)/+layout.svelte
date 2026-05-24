@@ -421,6 +421,11 @@
 	}
 
 	function onKeydown(e: KeyboardEvent): void {
+		if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'j' || e.key === 'J')) {
+			e.preventDefault();
+			sidebarStore.toggle();
+			return;
+		}
 		if (e.metaKey || e.ctrlKey || e.altKey) return;
 		const target = e.target as HTMLElement | null;
 		if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {

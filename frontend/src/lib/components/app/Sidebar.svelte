@@ -33,6 +33,7 @@
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { isLabelVisible, isProjectVisible } from '$lib/utils/visibility';
+	import { modShortcut } from '$lib/utils/platform';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { goto } from '$app/navigation';
@@ -51,6 +52,7 @@
 	const auth = getAuthStore();
 
 	const weekLimit = $derived(configStore.value?.weekly.limit);
+	const toggleShortcut = modShortcut('j');
 
 	type NavItem = {
 		href: string;
@@ -267,7 +269,7 @@
 			class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
 			onclick={() => sidebarStore.toggle()}
 			aria-label={$t('sidebar.collapse')}
-			title={$t('sidebar.collapse')}
+			title={`${$t('sidebar.collapse')} (${toggleShortcut})`}
 		>
 			<SidebarSimpleIcon class="size-4" />
 		</button>
