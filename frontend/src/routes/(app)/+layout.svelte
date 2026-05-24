@@ -552,7 +552,9 @@
 				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
-			<ContextFilterBanner />
+			{#if !page.url.pathname.startsWith('/settings')}
+				<ContextFilterBanner />
+			{/if}
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
 			{/if}
