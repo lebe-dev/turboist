@@ -4,6 +4,7 @@ WORKDIR /build
 
 COPY frontend/ /build
 COPY VERSION /build/VERSION
+COPY ToS.md privacy-policy.md /
 
 RUN APP_VERSION=$(cat /build/VERSION) && \
     sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$APP_VERSION\"/" /build/package.json && \
