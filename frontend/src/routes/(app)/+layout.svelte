@@ -36,6 +36,7 @@
 	import { nowStore } from '$lib/stores/now.svelte';
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
+	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
 
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 
@@ -167,6 +168,88 @@
 		}
 		if (auth.status !== 'authenticated' || loadStarted) return;
 		startLoad();
+	});
+
+	// Real-time invalidation channel. Started after the user is authenticated
+	// and the initial workspace load has finished — so that handlers for shell
+	// stores (which we re-load below) do not race the initial fetch. Page-level
+	// views subscribe via `useInvalidation` and receive their own scope events.
+	$effect(() => {
+		if (auth.status !== 'authenticated' || !dataReady) return;
+		eventsClient.start();
+
+		const dispatch = (scope: EventScope): void => {
+			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
+		};
+
+		const unsubs = [
+			eventsClient.on('contexts', () => {
+				void contextsStore.load();
+				dispatch('contexts');
+			}),
+			eventsClient.on('labels', () => {
+				void labelsStore.load();
+				dispatch('labels');
+			}),
+			eventsClient.on('projects', () => {
+				void projectsStore.load();
+				dispatch('projects');
+			}),
+			eventsClient.on('inbox', () => {
+				void inboxStatsStore.load();
+				dispatch('inbox');
+			}),
+			eventsClient.on('plan', () => {
+				void planStatsStore.load();
+				dispatch('plan');
+			}),
+			eventsClient.on('tasks', () => {
+				void pinnedTasksStore.load();
+				dispatch('tasks');
+			}),
+			eventsClient.on('calendar', () => dispatch('calendar')),
+			eventsClient.on('sections', () => dispatch('sections'))
+		];
+		return () => {
+			for (const u of unsubs) u();
+		};
+	});
+
+	// On SSE reconnect after a drop (e.g., the tab was suspended), the server
+	// has no replay — so refresh everything once and notify page-level views
+	// to revalidate.
+	let lastReconnect = $state<number | null>(null);
+	$effect(() => {
+		const at = eventsClient.reconnectedAt;
+		if (at === null || at === lastReconnect) return;
+		lastReconnect = at;
+		void Promise.all([
+			contextsStore.load(),
+			labelsStore.load(),
+			projectsStore.load(),
+			inboxStatsStore.load(),
+			planStatsStore.load(),
+			pinnedTasksStore.load()
+		]);
+		const scopes: EventScope[] = [
+			'tasks',
+			'calendar',
+			'inbox',
+			'projects',
+			'labels',
+			'contexts',
+			'sections',
+			'plan'
+		];
+		for (const scope of scopes) {
+			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
+		}
+	});
+
+	$effect(() => {
+		if (auth.status !== 'authenticated') {
+			eventsClient.stop();
+		}
 	});
 
 	function retryLoad(): void {

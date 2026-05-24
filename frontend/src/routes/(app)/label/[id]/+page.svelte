@@ -17,6 +17,7 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { t } from '$lib/i18n';
@@ -104,6 +105,8 @@
 	$effect(() => {
 		if (Number.isFinite(labelId)) void loader.refetch();
 	});
+
+	useInvalidation(['tasks', 'labels'], () => void loader.revalidate());
 </script>
 
 {#if loader.loading}

@@ -12,6 +12,7 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
 
@@ -39,6 +40,8 @@
 		list.items = res.tasks;
 		inboxStatsStore.set(res.count, res.warnThresholdExceeded);
 	}, { errorMessage: $t('page.inbox.errorLoading') });
+
+	useInvalidation(['tasks', 'inbox'], () => void loader.revalidate());
 
 	$effect(() => {
 		const handler = (e: Event) => {

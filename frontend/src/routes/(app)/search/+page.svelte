@@ -17,6 +17,7 @@
 	import { onDestroy } from 'svelte';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { t } from '$lib/i18n';
 	let q = $state('');
 	let active = $state<'tasks' | 'projects'>('tasks');
@@ -64,6 +65,10 @@
 			}
 			toast.error(describeError(err, $t('page.search.searchFailed')));
 		}
+	});
+
+	useInvalidation(['tasks', 'projects'], () => {
+		if (lastQuery.length >= 2) void loader.revalidate();
 	});
 
 	function onInput(e: Event) {

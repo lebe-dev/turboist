@@ -26,6 +26,7 @@
 	import { describeError } from '$lib/utils/taskActions';
 	import { followUpStore } from '$lib/stores/followUp.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { t } from '$lib/i18n';
 	import type { ListMutator } from '$lib/utils/taskActions';
 
@@ -34,6 +35,8 @@
 	}
 
 	const loader = usePageLoad(loadAll, { errorMessage: $t('troiki.toast.loadFailed') });
+
+	useInvalidation(['tasks'], () => void loader.revalidate());
 
 	const view = $derived(troikiStore.value);
 

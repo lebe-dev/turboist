@@ -17,6 +17,7 @@
 	import { nowStore } from '$lib/stores/now.svelte';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 
 	const DAYS = 30;
 
@@ -51,6 +52,8 @@
 		void userStateStore.activeContextId;
 		void loader.refetch();
 	});
+
+	useInvalidation(['tasks'], () => void loader.revalidate());
 </script>
 
 <div class="px-2 py-2">

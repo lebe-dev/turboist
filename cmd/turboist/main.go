@@ -21,6 +21,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
+	"github.com/lebe-dev/turboist/internal/service/events"
 	totpsvc "github.com/lebe-dev/turboist/internal/service/totp"
 	"golang.org/x/time/rate"
 )
@@ -117,6 +118,11 @@ func main() {
 	defer cleanupCancel()
 	auth.StartSessionCleanup(cleanupCtx, sessionRepo, log)
 
+	// events hub (SSE pub/sub) — owned by main so that Deps and the events
+	// handler share the same instance.
+	eventsHub := events.NewHub(log)
+	eventsTickets := events.NewTicketStore()
+
 	// HTTP app
 	deps := httpapi.Deps{
 		Log:          log,
@@ -136,6 +142,7 @@ func main() {
 		Cfg:          cfg,
 		BaseURL:      env.BaseURL,
 		Version:      Version,
+		EventsHub:    eventsHub,
 	}
 	app := httpapi.NewApp(deps)
 	calendarSvc := calendarsvc.NewService(
@@ -153,7 +160,12 @@ func main() {
 		log,
 	)
 	calendarHandler.RegisterPublic(app)
+
+	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets)
+	eventsHandler.RegisterPublic(app)
+
 	api := httpapi.RegisterRoutes(app, deps)
+	eventsHandler.Register(api)
 
 	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
 	if totpSvc != nil {
@@ -200,6 +212,7 @@ func main() {
 		log.Info("shutting down")
 		cleanupCancel()
 		authHandler.Stop()
+		eventsHub.Close()
 		if err := app.ShutdownWithTimeout(5 * time.Second); err != nil {
 			log.Error("shutdown error", "err", err)
 		}

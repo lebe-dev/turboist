@@ -24,6 +24,7 @@
 	import type { DayPartGroup } from '$lib/utils/viewGroup';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 
 	let total = $state(0);
 	let completedCount = $state(0);
@@ -138,9 +139,11 @@
 		const k = nowStore.todayKey;
 		if (k !== lastDayKey) {
 			lastDayKey = k;
-			void loader.refetch();
+			void loader.revalidate();
 		}
 	});
+
+	useInvalidation(['tasks', 'calendar'], () => void loader.revalidate());
 
 	$effect(() => {
 		const timer = window.setInterval(() => {

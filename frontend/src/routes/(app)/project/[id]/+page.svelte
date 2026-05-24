@@ -31,6 +31,7 @@
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
 	import { PROJECT_SECTIONS_KEY } from '$lib/context/projectSections';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -370,6 +371,8 @@
 	$effect(() => {
 		if (Number.isFinite(projectId)) void loader.refetch();
 	});
+
+	useInvalidation(['tasks', 'sections', 'projects'], () => void loader.revalidate());
 
 	$effect(() => {
 		if (project && project.isPrivate && settingsStore.publicView) {

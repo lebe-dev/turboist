@@ -13,3 +13,5 @@ export { views } from './endpoints/views';
 export { apiTokens } from './endpoints/api-tokens';
 export { backup } from './endpoints/backup';
 export { totp } from './endpoints/totp';
+export { events } from './endpoints/events';
+export type { EventsTicket } from './endpoints/events';
