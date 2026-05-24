@@ -104,6 +104,7 @@ type BackupTask struct {
 	PostponeCount         int     `json:"postponeCount"`
 	TroikiCategory        *string `json:"troikiCategory,omitempty"`
 	TroikiCapacityGranted bool    `json:"troikiCapacityGranted"`
+	SourceTaskID          *int64  `json:"sourceTaskId,omitempty"`
 	CreatedAt             string  `json:"createdAt"`
 	UpdatedAt             string  `json:"updatedAt"`
 }

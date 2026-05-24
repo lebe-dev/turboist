@@ -28,7 +28,7 @@ func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -43,7 +43,7 @@ const taskOrderBy = `is_pinned DESC,
 
 func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var t model.Task
-	var inboxID, contextID, projectID, sectionID, parentID sql.NullInt64
+	var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
 	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
 	var recurrenceRule, troikiCategory sql.NullString
 	var dueHasTime, deadlineHasTime, isPinned, isPrivate int
@@ -57,9 +57,14 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&isPinned, &pinnedAt, &isPrivate, &recurrenceRule, &completedAt,
 		&t.PostponeCount,
 		&troikiCategory,
+		&sourceTaskID,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
+	}
+	if sourceTaskID.Valid {
+		v := sourceTaskID.Int64
+		t.SourceTaskID = &v
 	}
 	t.IsPrivate = isPrivate == 1
 	if inboxID.Valid {
@@ -227,14 +232,14 @@ func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.T
 		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
 			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
 			day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule,
-			completed_at, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'completed', NULL, 0, NULL, 0, ?, 'none', 0, NULL, ?, NULL, ?, ?, ?)`,
+			completed_at, source_task_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'completed', NULL, 0, NULL, 0, ?, 'none', 0, NULL, ?, NULL, ?, ?, ?, ?)`,
 		base.Title, base.Description,
 		nullInt(base.InboxID), nullInt(base.ContextID), nullInt(base.ProjectID), nullInt(base.SectionID),
 		string(base.Priority),
 		string(base.DayPart),
 		boolInt(base.IsPrivate),
-		completedStr, now, now,
+		completedStr, base.ID, now, now,
 	)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("insert recurrence completion: %w", err))
@@ -253,6 +258,29 @@ func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.T
 		}
 	}
 	return r.Get(ctx, id)
+}
+
+// HasRecurrenceCompletionOnDay reports whether a completion snapshot pointing
+// at sourceID already exists with completed_at in [dayStart, dayEnd). Used by
+// the complete service to keep recurring-task completion idempotent: a second
+// Complete call within the same day must not produce a second snapshot.
+func (r *TaskRepo) HasRecurrenceCompletionOnDay(ctx context.Context, sourceID int64, dayStart, dayEnd time.Time) (bool, error) {
+	const op = "repo.tasks.HasRecurrenceCompletionOnDay"
+	logQuery(ctx, op, sourceID, dayStart, dayEnd)
+	var exists int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT 1 FROM tasks
+		 WHERE source_task_id = ? AND completed_at >= ? AND completed_at < ?
+		 LIMIT 1`,
+		sourceID, model.FormatUTC(dayStart), model.FormatUTC(dayEnd),
+	).Scan(&exists)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, logErr(ctx, op, err)
+	}
+	return true, nil
 }
 
 func (r *TaskRepo) Get(ctx context.Context, id int64) (*model.Task, error) {

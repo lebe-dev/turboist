@@ -12,6 +12,18 @@ import (
 	rrule "github.com/teambition/rrule-go"
 )
 
+// dayBounds returns midnight in `loc` for the calendar day containing `t`,
+// plus the midnight 24h later. Used to scope "snapshot already exists today"
+// idempotency checks to the user's clock.
+func dayBounds(t time.Time, loc *time.Location) (time.Time, time.Time) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	local := t.In(loc)
+	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	return start, start.Add(24 * time.Hour)
+}
+
 // RecurrenceError wraps RRULE parse or compute failures.
 type RecurrenceError struct{ Err error }
 
@@ -89,6 +101,25 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, completedAt *time.Time) (*model.Task, error) {
 	const op = "service.CompleteService.advanceRecurring"
 	log := logging.FromContext(ctx)
+
+	// Idempotency: if we already snapped a completion for this recurring task
+	// today (in the configured location), a second Complete call is a no-op —
+	// otherwise rapid double-clicks, retries, or any duplicate request would
+	// keep advancing the parent and snapping new rows, surfacing as duplicate
+	// entries on the "completed yesterday" view.
+	completionTS := time.Now()
+	if completedAt != nil {
+		completionTS = *completedAt
+	}
+	dayStart, dayEnd := dayBounds(completionTS, s.loc)
+	if has, err := s.tasks.HasRecurrenceCompletionOnDay(ctx, t.ID, dayStart, dayEnd); err != nil {
+		logRepoErr(ctx, op+": check recurrence completion", err, slog.Int64("task_id", t.ID))
+		return nil, err
+	} else if has {
+		log.DebugContext(ctx, op+": skip duplicate", slog.Int64("task_id", t.ID))
+		return t, nil
+	}
+
 	r, err := rrule.StrToRRule(*t.RecurrenceRule)
 	if err != nil {
 		log.WarnContext(ctx, op+": invalid RRULE", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
@@ -125,11 +156,7 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 	// next occurrence), so the completed view would never show this run. Snap
 	// off a completed history row so the user can see what they got done.
 	if !terminal {
-		ts := time.Now()
-		if completedAt != nil {
-			ts = *completedAt
-		}
-		if _, err := s.tasks.CreateRecurrenceCompletion(ctx, t, ts); err != nil {
+		if _, err := s.tasks.CreateRecurrenceCompletion(ctx, t, completionTS); err != nil {
 			log.ErrorContext(ctx, op+": create recurrence completion", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
 			return nil, err
 		}

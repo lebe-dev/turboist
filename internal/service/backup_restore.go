@@ -96,12 +96,12 @@ func insertTasks(ctx context.Context, tx *sql.Tx, rows []BackupTask) error {
 	                              priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
 	                              day_part, plan_state, is_pinned, pinned_at, is_private,
 	                              recurrence_rule, completed_at, postpone_count, troiki_category, troiki_capacity_granted,
-	                              created_at, updated_at)
+	                              source_task_id, created_at, updated_at)
 	           VALUES (?, ?, ?, ?, ?, ?, ?, ?,
 	                   ?, ?, ?, ?, ?, ?,
 	                   ?, ?, ?, ?, ?,
 	                   ?, ?, ?, ?, ?,
-	                   ?, ?)`
+	                   ?, ?, ?)`
 	for _, r := range rows {
 		if _, err := tx.ExecContext(ctx, q,
 			r.ID, r.Title, r.Description,
@@ -111,7 +111,7 @@ func insertTasks(ctx context.Context, tx *sql.Tx, rows []BackupTask) error {
 			r.DayPart, r.PlanState,
 			boolToInt(r.IsPinned), nullable(r.PinnedAt), boolToInt(r.IsPrivate),
 			nullable(r.RecurrenceRule), nullable(r.CompletedAt), r.PostponeCount, nullable(r.TroikiCategory), boolToInt(r.TroikiCapacityGranted),
-			r.CreatedAt, r.UpdatedAt); err != nil {
+			nullableID(r.SourceTaskID), r.CreatedAt, r.UpdatedAt); err != nil {
 			return err
 		}
 	}

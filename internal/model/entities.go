@@ -81,6 +81,10 @@ type Task struct {
 
 	RecurrenceRule *string
 
+	// SourceTaskID points snapshot rows back to the parent recurring task they
+	// were created from. Nil for non-snapshot rows.
+	SourceTaskID *int64
+
 	PostponeCount int
 
 	TroikiCategory *TroikiCategory
