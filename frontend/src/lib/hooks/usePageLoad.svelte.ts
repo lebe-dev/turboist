@@ -45,6 +45,21 @@ export function usePageLoad(
 		loading = false;
 	}
 
+	// revalidate performs a background fetch without touching the `loading`
+	// flag. Used by SSE-driven invalidation so views update in place instead of
+	// flashing a spinner. Errors are silently dropped — the user did not
+	// initiate this refresh, so a toast would be confusing; the next
+	// user-triggered refetch will surface real failures.
+	async function revalidate(): Promise<void> {
+		const my = ++requestSeq;
+		try {
+			await fetcher(() => my === requestSeq);
+		} catch (err) {
+			if (my !== requestSeq) return;
+			console.warn('usePageLoad: revalidate failed', err);
+		}
+	}
+
 	return {
 		get loading() {
 			return loading;
@@ -53,6 +68,7 @@ export function usePageLoad(
 			return error;
 		},
 		refetch,
+		revalidate,
 		cancel
 	};
 }

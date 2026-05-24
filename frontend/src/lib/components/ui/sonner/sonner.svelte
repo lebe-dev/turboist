@@ -14,6 +14,10 @@
 	theme={mode.current}
 	class="toaster group"
 	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);"
+	position="bottom-right"
+	offset={{ bottom: '1rem', right: '1rem' }}
+	mobileOffset={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))', right: '1rem' }}
+	visibleToasts={4}
 	{...restProps}
 >
 	{#snippet loadingIcon()}

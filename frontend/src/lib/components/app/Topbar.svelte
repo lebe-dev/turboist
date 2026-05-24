@@ -22,6 +22,7 @@
 	import { getApiClient } from '$lib/api/client';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
 	import { describeError } from '$lib/utils/taskActions';
+	import { modShortcut } from '$lib/utils/platform';
 	import type { Context } from '$lib/api/types';
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
@@ -35,6 +36,8 @@
 		'/next-week': 'nav.nextWeek',
 		'/search': 'nav.search'
 	};
+
+	const toggleShortcut = modShortcut('j');
 
 	let {
 		onQuickAdd,
@@ -150,7 +153,7 @@
 					class="hidden shrink-0 md:inline-flex"
 					onclick={() => sidebarStore.toggle()}
 					aria-label={$t('sidebar.expand')}
-					title={$t('sidebar.expand')}
+					title={`${$t('sidebar.expand')} (${toggleShortcut})`}
 				>
 					<SidebarSimpleIcon class="size-4" />
 				</Button>

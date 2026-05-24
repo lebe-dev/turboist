@@ -20,6 +20,7 @@
 	import type { DayPartGroup } from '$lib/utils/viewGroup';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 
 	let total = $state(0);
 	let calendarEvents = $state<CalendarEvent[]>([]);
@@ -74,9 +75,11 @@
 		const k = nowStore.todayKey;
 		if (k !== lastDayKey) {
 			lastDayKey = k;
-			void loader.refetch();
+			void loader.revalidate();
 		}
 	});
+
+	useInvalidation(['tasks', 'calendar'], () => void loader.revalidate());
 
 	function bulkMove(group: DayPartGroup, targetPart: DayPart): void {
 		for (const task of group.tasks) {

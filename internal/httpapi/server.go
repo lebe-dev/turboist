@@ -11,6 +11,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+	"github.com/lebe-dev/turboist/internal/service/events"
 )
 
 // Deps holds all dependencies injected into the HTTP layer.
@@ -32,6 +33,10 @@ type Deps struct {
 	Cfg          *config.Config
 	BaseURL      string
 	Version      string
+	// EventsHub is optional. When set, the API group emits coarse change
+	// notifications (see PublishMiddleware) so SSE subscribers can invalidate
+	// stale views without polling.
+	EventsHub *events.Hub
 }
 
 type errorEnvelope struct {
@@ -75,7 +80,11 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 		}
 		return c.JSON(fiber.Map{"version": v, "commit": "", "buildTime": ""})
 	})
-	return app.Group("/api/v1", APIAuthMiddleware(deps.JWTIssuer, deps.APITokenRepo, deps.APITokenSalt))
+	return app.Group(
+		"/api/v1",
+		APIAuthMiddleware(deps.JWTIssuer, deps.APITokenRepo, deps.APITokenSalt),
+		PublishMiddleware(deps.EventsHub),
+	)
 }
 
 func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {

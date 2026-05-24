@@ -61,7 +61,13 @@ func AccessLogMiddleware(log *slog.Logger) fiber.Handler {
 			slog.Int("status", status),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("request_id", rid),
-			slog.Int("bytes_out", len(c.Response().Body())),
+		}
+		// Reading Response.Body() on a streaming response (e.g. SSE) drains
+		// the stream synchronously and blocks until it ends — for long-lived
+		// streams that is effectively forever. Skip the byte count in that
+		// case so the middleware can return and fasthttp can start streaming.
+		if !c.Response().IsBodyStream() {
+			attrs = append(attrs, slog.Int("bytes_out", len(c.Response().Body())))
 		}
 		if userID != 0 {
 			attrs = append(attrs, slog.Int64("user_id", userID))

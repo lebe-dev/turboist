@@ -177,6 +177,34 @@
       "loggingOut": "Logging out…",
       "logoutAllFailed": "Failed to log out"
     },
+    "sessions": {
+      "heading": "Sessions",
+      "description": "Devices and browsers currently signed in to your account. End any of them individually or sign out everywhere at once.",
+      "empty": "No active sessions.",
+      "current": "Current",
+      "lastActive": "Last active",
+      "signedIn": "Signed in",
+      "ipAddress": "IP",
+      "showUserAgent": "Show user agent",
+      "hideUserAgent": "Hide user agent",
+      "clientWeb": "Web",
+      "clientIos": "iOS",
+      "clientCli": "CLI",
+      "revoke": "Revoke",
+      "revoking": "Revoking…",
+      "confirmRevokeTitle": "Revoke this session?",
+      "confirmRevokeDescription": "The device will be signed out immediately and must log in again.",
+      "logoutOthers": "Sign out of all other sessions",
+      "loggingOutOthers": "Signing out…",
+      "confirmLogoutOthersTitle": "Sign out of all other sessions?",
+      "confirmLogoutOthersDescription": "Every device except this one will be signed out. You'll stay logged in here.",
+      "logoutOthersDone": "Other sessions signed out",
+      "logoutOthersFailed": "Failed to sign out other sessions",
+      "confirmLogoutAllTitle": "Log out everywhere?",
+      "confirmLogoutAllDescription": "Every device, including this one, will be signed out. You'll be redirected to the login page.",
+      "revokeFailed": "Failed to revoke session",
+      "loadFailed": "Failed to load sessions"
+    },
     "privacy": {
       "heading": "Public view",
       "description": "Hide everything you've marked as private from the UI.",
@@ -397,6 +425,8 @@
       "movedAndCompleted": "Moved and completed",
       "movedToInbox": "Moved to Inbox",
       "movedToSection": "Moved to section",
+      "movedTitle": "Task moved",
+      "movedTo": "To: {destination}",
       "failedMove": "Failed to move task",
       "failedMoveToSection": "Failed to move to section",
       "copied": "Copied",
@@ -639,7 +669,9 @@
       "emptyDescription": "Plan tasks for this week from Backlog or by setting a due date.",
       "errorLoading": "Failed to load week",
       "limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected.",
-      "daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}"
+      "daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}",
+      "onlyPlanned": "Only planned",
+      "onlyPlannedTooltip": "Show only tasks planned for this week and calendar events"
     },
     "nextWeek": {
       "dateRangeLabel": "Next week: {range}",
@@ -793,5 +825,14 @@
     "createTask": "Create task",
     "taskCreated": "Task created",
     "taskCreateFailed": "Failed to create task"
+  },
+  "legal": {
+    "back": "Back",
+    "tos": {
+      "title": "Terms of Service"
+    },
+    "privacy": {
+      "title": "Privacy Policy"
+    }
   }
 }

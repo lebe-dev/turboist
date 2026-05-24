@@ -1,9 +1,14 @@
 import type { AuthStore } from './store.svelte';
 
 const AUTH_ROUTES = new Set<string>(['/login', '/setup']);
+const PUBLIC_ROUTES = new Set<string>(['/terms-of-service', '/privacy-policy']);
 
 export function isAuthRoute(pathname: string): boolean {
 	return AUTH_ROUTES.has(pathname);
+}
+
+export function isPublicRoute(pathname: string): boolean {
+	return PUBLIC_ROUTES.has(pathname);
 }
 
 export type AuthRedirect = '/login' | '/setup' | '/' | null;
@@ -12,6 +17,8 @@ export type AuthRedirect = '/login' | '/setup' | '/' | null;
 // can call goto() with a properly typed route and respect Svelte's resolve() rule.
 export function decideAuthRedirect(store: AuthStore, pathname: string): AuthRedirect {
 	if (store.status === 'loading') return null;
+
+	if (isPublicRoute(pathname)) return null;
 
 	if (store.setupRequired) {
 		return pathname === '/setup' ? null : '/setup';

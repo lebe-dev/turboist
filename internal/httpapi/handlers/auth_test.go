@@ -611,6 +611,53 @@ func TestLogoutAll_RevokesAllSessions(t *testing.T) {
 	}
 }
 
+func TestLogoutOthers_KeepsCurrentSession(t *testing.T) {
+	env := setupAuthTest(t)
+	ar := doSetup(t, env, "cli")
+
+	// Second login = "other" session that should get revoked.
+	req2 := httptest.NewRequest(http.MethodPost, "/auth/login", jsonBody(map[string]string{
+		"username":   "admin",
+		"password":   "secret123",
+		"clientKind": "cli",
+	}))
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, body2 := doReq(t, env.app, req2)
+	if resp2.StatusCode != 200 {
+		t.Fatalf("second login: got %d; body: %s", resp2.StatusCode, body2)
+	}
+	var ar2 authResp
+	_ = json.Unmarshal(body2, &ar2)
+
+	// Call logout-others with the first session's access token.
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout-others", nil)
+	req.Header.Set("Authorization", bearerHeader(ar.Access))
+	resp, _ := doReq(t, env.app, req)
+	if resp.StatusCode != 204 {
+		t.Fatalf("logout-others status: got %d", resp.StatusCode)
+	}
+
+	// First session's refresh must still work.
+	reqA := httptest.NewRequest(http.MethodPost, "/auth/refresh", jsonBody(map[string]string{
+		"refresh": ar.Refresh,
+	}))
+	reqA.Header.Set("Content-Type", "application/json")
+	rA, _ := doReq(t, env.app, reqA)
+	if rA.StatusCode != 200 {
+		t.Errorf("current session refresh: got %d, want 200", rA.StatusCode)
+	}
+
+	// Second session's refresh must be revoked.
+	reqB := httptest.NewRequest(http.MethodPost, "/auth/refresh", jsonBody(map[string]string{
+		"refresh": ar2.Refresh,
+	}))
+	reqB.Header.Set("Content-Type", "application/json")
+	rB, _ := doReq(t, env.app, reqB)
+	if rB.StatusCode != 401 {
+		t.Errorf("other session refresh: got %d, want 401", rB.StatusCode)
+	}
+}
+
 func TestEndToEnd_SetupLoginRefreshMeLogout(t *testing.T) {
 	env := setupAuthTest(t)
 

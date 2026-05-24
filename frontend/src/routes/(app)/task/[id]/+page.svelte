@@ -35,6 +35,7 @@
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
@@ -369,6 +370,8 @@ async function save(): Promise<void> {
 	$effect(() => {
 		if (Number.isFinite(taskId)) void loader.refetch();
 	});
+
+	useInvalidation(['tasks'], () => void loader.revalidate());
 </script>
 
 <header class="flex items-center justify-between gap-3 border-b border-border px-2 py-1 sm:px-5">

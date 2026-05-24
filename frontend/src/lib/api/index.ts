@@ -11,5 +11,8 @@ export { tasks } from './endpoints/tasks';
 export { labels } from './endpoints/labels';
 export { views } from './endpoints/views';
 export { apiTokens } from './endpoints/api-tokens';
+export { sessions } from './endpoints/sessions';
 export { backup } from './endpoints/backup';
 export { totp } from './endpoints/totp';
+export { events } from './endpoints/events';
+export type { EventsTicket } from './endpoints/events';

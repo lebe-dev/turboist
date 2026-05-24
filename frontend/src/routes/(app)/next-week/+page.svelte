@@ -18,6 +18,7 @@
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { formatDayKeyRange, nextWeekRangeKeys } from '$lib/utils/format';
 	import { t, locale } from '$lib/i18n';
 
@@ -63,6 +64,8 @@
 		void userStateStore.activeContextId;
 		void loader.refetch();
 	});
+
+	useInvalidation(['tasks', 'plan'], () => void loader.revalidate());
 
 	async function planForWeek(task: Task): Promise<void> {
 		if (weekFull) {

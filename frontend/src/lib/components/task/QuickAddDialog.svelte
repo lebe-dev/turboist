@@ -148,7 +148,11 @@
 		projectMenuOpen = false;
 	}
 
-	const allLabels = $derived([...labelsStore.favourites, ...labelsStore.rest]);
+	const allLabels = $derived.by(() => {
+		const byName = (a: { name: string }, b: { name: string }) =>
+			a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+		return [...labelsStore.favourites.toSorted(byName), ...labelsStore.rest.toSorted(byName)];
+	});
 	const selectedLabels = $derived(
 		labelIds
 			.map((id) => allLabels.find((l) => String(l.id) === id))
@@ -503,20 +507,22 @@
 									<button
 										type="button"
 										onclick={() => toggleLabel(id)}
-										class="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors"
+										class="inline-flex items-center rounded-md text-left transition-colors {isMobile.current
+											? 'gap-3 px-3 py-3 text-sm'
+											: 'gap-2 px-2 py-1.5 text-xs'}"
 										class:bg-accent={active}
 										class:text-accent-foreground={active}
 										class:hover:bg-accent={!active}
 									>
 										{#if label.color}
 											<span
-												class="size-2 rounded-full"
+												class="rounded-full {isMobile.current ? 'size-3' : 'size-2'}"
 												style={`background-color: ${label.color}`}
 											></span>
 										{/if}
 										<span class="flex-1 truncate">{label.name}</span>
 										{#if active}
-											<XIcon class="size-3 opacity-60" />
+											<XIcon class="opacity-60 {isMobile.current ? 'size-4' : 'size-3'}" />
 										{/if}
 									</button>
 								{/each}
@@ -535,12 +541,12 @@
 								<Sheet.Root bind:open={labelMenuOpen}>
 									<Sheet.Content
 										side="bottom"
-										class="max-h-[80vh] overflow-y-auto rounded-t-lg p-2"
+										class="max-h-[80vh] overflow-y-auto rounded-t-lg p-3"
 									>
-										<Sheet.Header class="px-2.5 pb-1 pt-0">
+										<Sheet.Header class="px-2 pb-2 pt-0">
 											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
 										</Sheet.Header>
-										<div class="flex flex-col gap-1 pb-4">
+										<div class="flex flex-col gap-2 pb-4">
 											{@render labelOptions()}
 										</div>
 									</Sheet.Content>

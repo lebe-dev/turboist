@@ -539,6 +539,139 @@ func TestCompleteService_Recurring_PreservesDayPart(t *testing.T) {
 	}
 }
 
+// nextWeekdayMidnight returns midnight UTC on the next occurrence of `target`
+// strictly after `from`. Used to build deterministic Friday/Saturday day
+// boundaries for recurring tests, independent of when the test happens to run.
+func nextWeekdayMidnight(from time.Time, target time.Weekday) time.Time {
+	days := (int(target) - int(from.Weekday()) + 7) % 7
+	if days == 0 {
+		days = 7
+	}
+	d := from.AddDate(0, 0, days)
+	return time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// Repro: weekday-recurring task postponed Friday→Saturday and then completed
+// must produce a single snapshot in the Saturday bucket. The user reported
+// seeing two completed entries for "yesterday" on Sunday after this sequence.
+func TestCompleteService_Recurring_PostponedOffPattern_NoDuplicateSnapshot(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	// Pick a Friday/Saturday in the near future so DueAt.After(now) holds (the
+	// service uses t.DueAt as the RRULE base whenever it sits in the future).
+	now := time.Now().UTC()
+	friday := nextWeekdayMidnight(now, time.Friday)
+	saturday := friday.AddDate(0, 0, 1)
+
+	rruleStr := "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Weekday task",
+		DueAt:          &friday,
+		RecurrenceRule: &rruleStr,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Simulate postpone Friday→Saturday (the PATCH endpoint just updates dueAt).
+	if _, err := f.tasks.Update(ctx, task.ID, repo.TaskUpdate{DueAt: &saturday, IncPostponeCount: true}); err != nil {
+		t.Fatalf("postpone: %v", err)
+	}
+
+	// Complete on Saturday with an explicit completedAt so the snapshot lands in
+	// a deterministic [start, end) window regardless of wall clock.
+	saturdayCompletion := saturday.Add(12 * time.Hour)
+	if _, err := f.svc.CompleteAt(ctx, task.ID, saturdayCompletion); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+
+	satStart := time.Date(saturday.Year(), saturday.Month(), saturday.Day(), 0, 0, 0, 0, time.UTC)
+	satEnd := satStart.AddDate(0, 0, 1)
+	items, total, err := f.tasks.ListCompletedInRange(ctx, satStart, satEnd, repo.TaskFilter{}, repo.Page{Limit: 50})
+	if err != nil {
+		t.Fatalf("list completed: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("completed total on Saturday: got %d, want 1", total)
+	}
+	snap := items[0]
+	if snap.ID == task.ID {
+		t.Errorf("snapshot id: got %d, want a fresh row", snap.ID)
+	}
+	if snap.SourceTaskID == nil || *snap.SourceTaskID != task.ID {
+		t.Errorf("snapshot source_task_id: got %v, want %d", snap.SourceTaskID, task.ID)
+	}
+
+	// The original recurring task must remain open and have advanced past Saturday.
+	parent, err := f.tasks.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("get parent: %v", err)
+	}
+	if parent.Status != model.TaskStatusOpen {
+		t.Errorf("parent status: got %q, want open", parent.Status)
+	}
+	if parent.CompletedAt != nil {
+		t.Errorf("parent completedAt: got %v, want nil", parent.CompletedAt)
+	}
+	if parent.DueAt == nil || !parent.DueAt.After(saturday) {
+		t.Errorf("parent dueAt: got %v, want a date strictly after %v", parent.DueAt, saturday)
+	}
+}
+
+// Codifies the idempotency invariant: completing a recurring task twice
+// (rapid double-click, retry, stale tab) must still produce at most one
+// snapshot per occurrence day.
+func TestCompleteService_Recurring_DoubleComplete_NoDuplicateSnapshot(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+
+	now := time.Now().UTC()
+	friday := nextWeekdayMidnight(now, time.Friday)
+	saturday := friday.AddDate(0, 0, 1)
+
+	rruleStr := "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+	task, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Weekday task",
+		DueAt:          &friday,
+		RecurrenceRule: &rruleStr,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := f.tasks.Update(ctx, task.ID, repo.TaskUpdate{DueAt: &saturday, IncPostponeCount: true}); err != nil {
+		t.Fatalf("postpone: %v", err)
+	}
+
+	saturdayCompletion := saturday.Add(12 * time.Hour)
+	if _, err := f.svc.CompleteAt(ctx, task.ID, saturdayCompletion); err != nil {
+		t.Fatalf("complete 1: %v", err)
+	}
+	// Second click — the parent has already advanced to Monday, so this call
+	// will operate on the next occurrence. The snapshot it would create lands
+	// at the same Saturday timestamp (if we keep passing it), exposing the
+	// non-idempotency.
+	if _, err := f.svc.CompleteAt(ctx, task.ID, saturdayCompletion); err != nil {
+		t.Fatalf("complete 2: %v", err)
+	}
+
+	satStart := time.Date(saturday.Year(), saturday.Month(), saturday.Day(), 0, 0, 0, 0, time.UTC)
+	satEnd := satStart.AddDate(0, 0, 1)
+	_, total, err := f.tasks.ListCompletedInRange(ctx, satStart, satEnd, repo.TaskFilter{}, repo.Page{Limit: 50})
+	if err != nil {
+		t.Fatalf("list completed: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("completed total on Saturday after double complete: got %d, want 1", total)
+	}
+}
+
 func TestCompleteService_Cancel(t *testing.T) {
 	f := setupCompleteService(t)
 	ctx := context.Background()

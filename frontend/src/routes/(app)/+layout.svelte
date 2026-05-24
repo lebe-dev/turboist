@@ -5,10 +5,8 @@
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
-	import FollowUpToasts from '$lib/components/task/FollowUpToasts.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
-	import type { FollowUpItem } from '$lib/stores/followUp.svelte';
-	import type { DayPart, Priority } from '$lib/api/types';
+	import type { DayPart, Priority, Task } from '$lib/api/types';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte';
 	import { getAuthStore } from '$lib/auth/store.svelte';
@@ -38,6 +36,7 @@
 	import { nowStore } from '$lib/stores/now.svelte';
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
+	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
 
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 
@@ -171,6 +170,88 @@
 		startLoad();
 	});
 
+	// Real-time invalidation channel. Started after the user is authenticated
+	// and the initial workspace load has finished — so that handlers for shell
+	// stores (which we re-load below) do not race the initial fetch. Page-level
+	// views subscribe via `useInvalidation` and receive their own scope events.
+	$effect(() => {
+		if (auth.status !== 'authenticated' || !dataReady) return;
+		eventsClient.start();
+
+		const dispatch = (scope: EventScope): void => {
+			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
+		};
+
+		const unsubs = [
+			eventsClient.on('contexts', () => {
+				void contextsStore.load();
+				dispatch('contexts');
+			}),
+			eventsClient.on('labels', () => {
+				void labelsStore.load();
+				dispatch('labels');
+			}),
+			eventsClient.on('projects', () => {
+				void projectsStore.load();
+				dispatch('projects');
+			}),
+			eventsClient.on('inbox', () => {
+				void inboxStatsStore.load();
+				dispatch('inbox');
+			}),
+			eventsClient.on('plan', () => {
+				void planStatsStore.load();
+				dispatch('plan');
+			}),
+			eventsClient.on('tasks', () => {
+				void pinnedTasksStore.load();
+				dispatch('tasks');
+			}),
+			eventsClient.on('calendar', () => dispatch('calendar')),
+			eventsClient.on('sections', () => dispatch('sections'))
+		];
+		return () => {
+			for (const u of unsubs) u();
+		};
+	});
+
+	// On SSE reconnect after a drop (e.g., the tab was suspended), the server
+	// has no replay — so refresh everything once and notify page-level views
+	// to revalidate.
+	let lastReconnect = $state<number | null>(null);
+	$effect(() => {
+		const at = eventsClient.reconnectedAt;
+		if (at === null || at === lastReconnect) return;
+		lastReconnect = at;
+		void Promise.all([
+			contextsStore.load(),
+			labelsStore.load(),
+			projectsStore.load(),
+			inboxStatsStore.load(),
+			planStatsStore.load(),
+			pinnedTasksStore.load()
+		]);
+		const scopes: EventScope[] = [
+			'tasks',
+			'calendar',
+			'inbox',
+			'projects',
+			'labels',
+			'contexts',
+			'sections',
+			'plan'
+		];
+		for (const scope of scopes) {
+			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
+		}
+	});
+
+	$effect(() => {
+		if (auth.status !== 'authenticated') {
+			eventsClient.stop();
+		}
+	});
+
 	function retryLoad(): void {
 		loadStarted = false;
 		startLoad();
@@ -280,18 +361,26 @@
 		}
 	}
 
-	function onFollowUpNext(item: FollowUpItem): void {
-		const t = item.task;
+	function onFollowUpNext(task: Task): void {
 		followUpOverride = {
-			projectId: t.projectId,
-			labelIds: t.labels.map((l) => l.id),
-			priority: t.priority,
-			dayPart: t.dayPart,
-			parentId: t.parentId,
-			sectionId: t.sectionId
+			projectId: task.projectId,
+			labelIds: task.labels.map((l) => l.id),
+			priority: task.priority,
+			dayPart: task.dayPart,
+			parentId: task.parentId,
+			sectionId: task.sectionId
 		};
 		quickOpen = true;
 	}
+
+	$effect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent<{ task: Task }>).detail;
+			if (detail?.task) onFollowUpNext(detail.task);
+		};
+		window.addEventListener('turboist:followUpNext', handler);
+		return () => window.removeEventListener('turboist:followUpNext', handler);
+	});
 
 	const quickAddDefaults = $derived.by(() => {
 		const path = page.url.pathname;
@@ -415,6 +504,11 @@
 	}
 
 	function onKeydown(e: KeyboardEvent): void {
+		if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'j' || e.key === 'J')) {
+			e.preventDefault();
+			sidebarStore.toggle();
+			return;
+		}
 		if (e.metaKey || e.ctrlKey || e.altKey) return;
 		const target = e.target as HTMLElement | null;
 		if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
@@ -458,7 +552,9 @@
 				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
-			<ContextFilterBanner />
+			{#if !page.url.pathname.startsWith('/settings')}
+				<ContextFilterBanner />
+			{/if}
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
 			{/if}
@@ -500,11 +596,10 @@
 		/>
 	{/if}
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
-	<FollowUpToasts onNext={onFollowUpNext} />
 	{#if !quickAddHidden && !taskSelectionStore.mode}
 		<button
 			onclick={onQuickAdd}
-			class="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
+			class="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
 			aria-label={$t('task.quickAdd')}
 		>
 			<PlusIcon class="h-7 w-7" />

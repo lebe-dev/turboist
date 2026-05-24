@@ -31,6 +31,7 @@
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
 	import { PROJECT_SECTIONS_KEY } from '$lib/context/projectSections';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -38,6 +39,7 @@
 
 
 	const projectId = $derived(Number(page.params.id));
+	const belongs = (t: Task) => t.projectId === projectId;
 
 	let project = $state<Project | null>(null);
 	let notFound = $state(false);
@@ -370,6 +372,8 @@
 		if (Number.isFinite(projectId)) void loader.refetch();
 	});
 
+	useInvalidation(['tasks', 'sections', 'projects'], () => void loader.revalidate());
+
 	$effect(() => {
 		if (project && project.isPrivate && settingsStore.publicView) {
 			toast.info($t('common.privateHidden'));
@@ -460,6 +464,7 @@
 								collapseCompletedChildren
 								collapsibleSubtasks
 								{mutator}
+								{belongs}
 								onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 							/>
 						</div>
@@ -468,6 +473,7 @@
 						<CompletedTasksGroup
 							tasks={tasksWithoutSectionSplit.done}
 							{mutator}
+							{belongs}
 							onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
 						/>
 					{/if}
@@ -482,6 +488,7 @@
 					sections={sectionList}
 					{tasksBySection}
 					{mutator}
+					{belongs}
 					collapseCompletedChildren
 					collapsibleSubtasks
 					onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}

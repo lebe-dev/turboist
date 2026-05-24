@@ -21,6 +21,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
+	"github.com/lebe-dev/turboist/internal/service/events"
 )
 
 const testBaseURL = "http://test"
@@ -37,7 +38,10 @@ type apiEnv struct {
 	tasks        *repo.TaskRepo
 	apiTokens    *repo.APITokenRepo
 	apiTokenSalt []byte
+	sessions     *repo.SessionRepo
 	calendarRepo *repo.CalendarRepo
+	eventsHub    *events.Hub
+	eventsTix    *events.TicketStore
 }
 
 func setupAPIEnv(t *testing.T) *apiEnv {
@@ -73,10 +77,25 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	}
 	apiTokens := repo.NewAPITokenRepo(d)
 	salt := []byte("test-api-token-salt-32-bytes-pad!")
+	sessions := repo.NewSessionRepo(d)
 
-	deps := httpapi.Deps{JWTIssuer: issuer, APITokenRepo: apiTokens, APITokenSalt: salt}
+	hub := events.NewHub(slog.Default())
+	t.Cleanup(hub.Close)
+	tix := events.NewTicketStore()
+
+	deps := httpapi.Deps{
+		JWTIssuer:    issuer,
+		APITokenRepo: apiTokens,
+		APITokenSalt: salt,
+		EventsHub:    hub,
+	}
 	app := httpapi.NewApp(deps)
+
+	eventsHandler := handlers.NewEventsHandler(hub, tix)
+	eventsHandler.RegisterPublic(app)
+
 	api := httpapi.RegisterRoutes(app, deps)
+	eventsHandler.Register(api)
 
 	pinSvc := service.NewPinService(tasks, projs, cfg.MaxPinned)
 	appSettings := repo.NewAppSettingsRepo(d)
@@ -104,6 +123,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewAppSettingsHandler(appSettings, lbls).Register(api)
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
+	handlers.NewSessionsHandler(sessions).
+		Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
 	handlers.NewBackupHandler(service.NewBackupService(d)).
 		Register(api.Group("", httpapi.RequireJWTAuth()))
 
@@ -124,7 +145,10 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		tasks:        tasks,
 		apiTokens:    apiTokens,
 		apiTokenSalt: salt,
+		sessions:     sessions,
 		calendarRepo: calendarRepo,
+		eventsHub:    hub,
+		eventsTix:    tix,
 	}
 }
 

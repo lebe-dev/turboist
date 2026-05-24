@@ -177,6 +177,34 @@
       "loggingOut": "Выход…",
       "logoutAllFailed": "Не удалось выйти"
     },
+    "sessions": {
+      "heading": "Сессии",
+      "description": "Устройства и браузеры, на которых вы сейчас залогинены. Завершите конкретную сессию или выйдите везде сразу.",
+      "empty": "Нет активных сессий.",
+      "current": "текущая",
+      "lastActive": "Последняя активность",
+      "signedIn": "Вход",
+      "ipAddress": "IP",
+      "showUserAgent": "Показать user agent",
+      "hideUserAgent": "Скрыть user agent",
+      "clientWeb": "Web",
+      "clientIos": "iOS",
+      "clientCli": "CLI",
+      "revoke": "Завершить",
+      "revoking": "Завершаем…",
+      "confirmRevokeTitle": "Завершить эту сессию?",
+      "confirmRevokeDescription": "Устройство будет немедленно отключено и должно будет войти заново.",
+      "logoutOthers": "Выйти на всех других устройствах",
+      "loggingOutOthers": "Выходим…",
+      "confirmLogoutOthersTitle": "Выйти на всех других устройствах?",
+      "confirmLogoutOthersDescription": "Все устройства, кроме текущего, будут разлогинены. Вы останетесь залогинены здесь.",
+      "logoutOthersDone": "Другие сессии завершены",
+      "logoutOthersFailed": "Не удалось завершить другие сессии",
+      "confirmLogoutAllTitle": "Выйти со всех устройств?",
+      "confirmLogoutAllDescription": "Все устройства, включая текущее, будут разлогинены. Вас перенаправит на страницу входа.",
+      "revokeFailed": "Не удалось завершить сессию",
+      "loadFailed": "Не удалось загрузить сессии"
+    },
     "privacy": {
       "heading": "Public view",
       "description": "Скрыть из интерфейса всё, что помечено приватным.",
@@ -397,6 +425,8 @@
       "movedAndCompleted": "Перемещено и завершено",
       "movedToInbox": "Перемещено в Inbox",
       "movedToSection": "Перемещено в секцию",
+      "movedTitle": "Задача перемещена",
+      "movedTo": "Куда: {destination}",
       "failedMove": "Не удалось переместить задачу",
       "failedMoveToSection": "Не удалось переместить в секцию",
       "copied": "Скопировано",
@@ -639,7 +669,9 @@
       "emptyDescription": "Запланируйте задачи на эту неделю из бэклога или установив дату.",
       "errorLoading": "Не удалось загрузить неделю",
       "limitReached": "Достигнут лимит недели ({total}/{limit}). Дальнейшее добавление будет отклоняться.",
-      "daysLeft": "{count, plural, one {остался # день недели} few {осталось # дня недели} many {осталось # дней недели} other {осталось # дней недели}}"
+      "daysLeft": "{count, plural, one {остался # день недели} few {осталось # дня недели} many {осталось # дней недели} other {осталось # дней недели}}",
+      "onlyPlanned": "Только запланированные",
+      "onlyPlannedTooltip": "Показать только запланированные на неделю задачи и календарные события"
     },
     "nextWeek": {
       "dateRangeLabel": "Следующая неделя: {range}",
@@ -793,5 +825,14 @@
     "createTask": "Создать задачу",
     "taskCreated": "Задача создана",
     "taskCreateFailed": "Не удалось создать задачу"
+  },
+  "legal": {
+    "back": "Назад",
+    "tos": {
+      "title": "Условия использования"
+    },
+    "privacy": {
+      "title": "Политика конфиденциальности"
+    }
   }
 }
