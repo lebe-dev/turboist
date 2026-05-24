@@ -194,6 +194,8 @@ func main() {
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
+	handlers.NewSessionsHandler(sessionRepo).
+		Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
 	handlers.NewBackupHandler(backupSvc).Register(api.Group("", httpapi.RequireJWTAuth()))
 	calendarHandler.Register(api.Group("/calendars"))
 

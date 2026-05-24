@@ -24,7 +24,7 @@ func scanSession(row interface{ Scan(...any) error }) (*model.Session, error) {
 	var createdAt, lastUsedAt, expiresAt string
 	var revokedAt sql.NullString
 	var clientKind string
-	if err := row.Scan(&s.ID, &s.UserID, &s.TokenHash, &clientKind, &s.UserAgent,
+	if err := row.Scan(&s.ID, &s.UserID, &s.TokenHash, &clientKind, &s.UserAgent, &s.IPAddress,
 		&createdAt, &lastUsedAt, &expiresAt, &revokedAt); err != nil {
 		return nil, err
 	}
@@ -59,6 +59,7 @@ type CreateSessionParams struct {
 	TokenHash  string
 	ClientKind model.ClientKind
 	UserAgent  string
+	IPAddress  string
 	ExpiresAt  time.Time
 }
 
@@ -67,9 +68,9 @@ func (r *SessionRepo) Create(ctx context.Context, p CreateSessionParams) (*model
 	logQuery(ctx, op, p.UserID, p.ClientKind)
 	now := model.FormatUTC(time.Now())
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO sessions (user_id, token_hash, client_kind, user_agent, created_at, last_used_at, expires_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		p.UserID, p.TokenHash, string(p.ClientKind), p.UserAgent, now, now, model.FormatUTC(p.ExpiresAt))
+		`INSERT INTO sessions (user_id, token_hash, client_kind, user_agent, ip_address, created_at, last_used_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.UserID, p.TokenHash, string(p.ClientKind), p.UserAgent, p.IPAddress, now, now, model.FormatUTC(p.ExpiresAt))
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, logErr(ctx, op, ErrConflict)
@@ -87,7 +88,7 @@ func (r *SessionRepo) Get(ctx context.Context, id int64) (*model.Session, error)
 	const op = "repo.sessions.Get"
 	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, token_hash, client_kind, user_agent, created_at, last_used_at, expires_at, revoked_at
+		`SELECT id, user_id, token_hash, client_kind, user_agent, ip_address, created_at, last_used_at, expires_at, revoked_at
 		 FROM sessions WHERE id = ?`, id)
 	s, err := scanSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -103,7 +104,7 @@ func (r *SessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*mo
 	const op = "repo.sessions.GetByTokenHash"
 	logQuery(ctx, op)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, token_hash, client_kind, user_agent, created_at, last_used_at, expires_at, revoked_at
+		`SELECT id, user_id, token_hash, client_kind, user_agent, ip_address, created_at, last_used_at, expires_at, revoked_at
 		 FROM sessions WHERE token_hash = ?`, tokenHash)
 	s, err := scanSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -170,6 +171,29 @@ func (r *SessionRepo) Revoke(ctx context.Context, id int64) error {
 	return nil
 }
 
+// RevokeForUser revokes the session only if it belongs to userID, returning
+// ErrNotFound otherwise. Prevents one account from touching another's session
+// via the public API even when the row id is guessed.
+func (r *SessionRepo) RevokeForUser(ctx context.Context, id, userID int64) error {
+	const op = "repo.sessions.RevokeForUser"
+	logQuery(ctx, op, id, userID)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+		now, id, userID)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("revoke session for user: %w", err))
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return logErr(ctx, op, err)
+	}
+	if n == 0 {
+		return logErr(ctx, op, ErrNotFound)
+	}
+	return nil
+}
+
 func (r *SessionRepo) RevokeAllForUser(ctx context.Context, userID int64) error {
 	const op = "repo.sessions.RevokeAllForUser"
 	logQuery(ctx, op, userID)
@@ -179,6 +203,21 @@ func (r *SessionRepo) RevokeAllForUser(ctx context.Context, userID int64) error 
 		now, userID)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("revoke all sessions: %w", err))
+	}
+	return nil
+}
+
+// RevokeAllForUserExcept revokes every active session of userID except exceptID.
+// Used by "sign out of all other sessions" so the caller stays logged in.
+func (r *SessionRepo) RevokeAllForUserExcept(ctx context.Context, userID, exceptID int64) error {
+	const op = "repo.sessions.RevokeAllForUserExcept"
+	logQuery(ctx, op, userID, exceptID)
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND id != ? AND revoked_at IS NULL`,
+		now, userID, exceptID)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("revoke other sessions: %w", err))
 	}
 	return nil
 }
@@ -215,7 +254,7 @@ func (r *SessionRepo) ListActiveForUser(ctx context.Context, userID int64) ([]mo
 	logQuery(ctx, op, userID)
 	now := model.FormatUTC(time.Now())
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, token_hash, client_kind, user_agent, created_at, last_used_at, expires_at, revoked_at
+		`SELECT id, user_id, token_hash, client_kind, user_agent, ip_address, created_at, last_used_at, expires_at, revoked_at
 		 FROM sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?
 		 ORDER BY last_used_at DESC`, userID, now)
 	if err != nil {

@@ -264,6 +264,15 @@ curl -X POST "$BASE/auth/logout-all" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### `POST /auth/logout-others` *(requires JWT)*
+
+Revokes every active session of the current user except the one that issued the request — useful for kicking forgotten devices while staying logged in here. Returns `204 No Content`.
+
+```sh
+curl -X POST "$BASE/auth/logout-others" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ### `GET /auth/me` *(requires JWT)*
 
 ```json
@@ -382,6 +391,47 @@ Revoke a token. Returns `204 No Content`.
 
 ```sh
 curl -X DELETE "$BASE/api/v1/api-tokens/1" \
+  -H "Authorization: Bearer $JWT"
+```
+
+---
+
+## Sessions
+
+Active sessions for the current user. All endpoints require JWT auth — long-lived API tokens are rejected so a leaked integration token can't drop your browsers.
+
+### `GET /api/v1/sessions`
+
+Returns active (non-revoked, non-expired) sessions ordered by `lastUsedAt` descending. The `isCurrent` flag marks the session that issued the request.
+
+```json
+[
+  {
+    "id": 12,
+    "clientKind": "web",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "displayName": "Chrome on macOS",
+    "ipAddress": "203.0.113.10",
+    "createdAt": "2026-05-01T10:00:00.000Z",
+    "lastUsedAt": "2026-05-24T09:30:00.000Z",
+    "isCurrent": true
+  }
+]
+```
+
+`ipAddress` is captured at session creation from Fiber's `c.IP()` and is not refreshed on token rotation — it represents *where the session was opened from*. Empty for sessions created before this field was added.
+
+```sh
+curl "$BASE/api/v1/sessions" \
+  -H "Authorization: Bearer $JWT"
+```
+
+### `DELETE /api/v1/sessions/:id`
+
+Revoke a single session by id. Only sessions owned by the current user can be revoked; unknown ids return `404`. Returns `204 No Content`.
+
+```sh
+curl -X DELETE "$BASE/api/v1/sessions/12" \
   -H "Authorization: Bearer $JWT"
 ```
 

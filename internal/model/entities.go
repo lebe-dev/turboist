@@ -119,6 +119,7 @@ type Session struct {
 	TokenHash  string
 	ClientKind ClientKind
 	UserAgent  string
+	IPAddress  string
 	CreatedAt  time.Time
 	LastUsedAt time.Time
 	ExpiresAt  time.Time

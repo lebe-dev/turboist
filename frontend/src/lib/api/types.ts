@@ -257,6 +257,17 @@ export interface APITokenWithSecret extends APIToken {
 	token: string;
 }
 
+export interface Session {
+	id: number;
+	clientKind: ClientKind;
+	userAgent: string;
+	displayName: string;
+	ipAddress: string;
+	createdAt: string;
+	lastUsedAt: string;
+	isCurrent: boolean;
+}
+
 export interface ConfigResponse {
 	timezone: string;
 	maxPinned: number;

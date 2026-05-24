@@ -77,6 +77,14 @@ export const auth = {
 		});
 	},
 
+	logoutOthers(client: ApiClient): Promise<void> {
+		return client.fetch('/auth/logout-others', {
+			method: 'POST',
+			skipRefresh: true,
+			credentials: 'include'
+		});
+	},
+
 	me(client: ApiClient): Promise<{ user: User }> {
 		return client.fetch('/auth/me');
 	}

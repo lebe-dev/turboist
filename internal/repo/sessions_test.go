@@ -123,6 +123,91 @@ func TestSessionRepo_RevokeAllForUser(t *testing.T) {
 	}
 }
 
+func TestSessionRepo_RevokeAllForUserExcept(t *testing.T) {
+	db := setupTestDB(t)
+	mustCreateUser(t, db)
+	r := NewSessionRepo(db)
+	ctx := context.Background()
+	exp := time.Now().Add(30 * 24 * time.Hour)
+
+	keep, err := r.Create(ctx, CreateSessionParams{
+		UserID: 1, TokenHash: "keep", ClientKind: model.ClientWeb, ExpiresAt: exp,
+	})
+	if err != nil {
+		t.Fatalf("create keep: %v", err)
+	}
+	gone, err := r.Create(ctx, CreateSessionParams{
+		UserID: 1, TokenHash: "gone", ClientKind: model.ClientIOS, ExpiresAt: exp,
+	})
+	if err != nil {
+		t.Fatalf("create gone: %v", err)
+	}
+
+	if err := r.RevokeAllForUserExcept(ctx, 1, keep.ID); err != nil {
+		t.Fatalf("revoke others: %v", err)
+	}
+
+	active, err := r.ListActiveForUser(ctx, 1)
+	if err != nil {
+		t.Fatalf("list active: %v", err)
+	}
+	if len(active) != 1 || active[0].ID != keep.ID {
+		t.Errorf("active sessions: got %+v, want only keep id=%d", active, keep.ID)
+	}
+
+	gotGone, err := r.Get(ctx, gone.ID)
+	if err != nil {
+		t.Fatalf("get gone: %v", err)
+	}
+	if gotGone.RevokedAt == nil {
+		t.Errorf("gone session: revoked_at is nil, want non-nil")
+	}
+}
+
+func TestSessionRepo_RevokeForUser_OwnershipEnforced(t *testing.T) {
+	db := setupTestDB(t)
+	mustCreateUser(t, db)
+	r := NewSessionRepo(db)
+	ctx := context.Background()
+	exp := time.Now().Add(30 * 24 * time.Hour)
+
+	s, err := r.Create(ctx, CreateSessionParams{
+		UserID: 1, TokenHash: "h", ClientKind: model.ClientWeb, ExpiresAt: exp,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Wrong user: must not revoke and must return ErrNotFound.
+	if err := r.RevokeForUser(ctx, s.ID, 99); !errors.Is(err, ErrNotFound) {
+		t.Errorf("revoke wrong user: got %v, want ErrNotFound", err)
+	}
+	got, err := r.Get(ctx, s.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.RevokedAt != nil {
+		t.Errorf("session revoked by wrong user")
+	}
+
+	// Correct user: revokes successfully.
+	if err := r.RevokeForUser(ctx, s.ID, 1); err != nil {
+		t.Fatalf("revoke correct user: %v", err)
+	}
+	got, err = r.Get(ctx, s.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.RevokedAt == nil {
+		t.Errorf("session not revoked")
+	}
+
+	// Already revoked: ErrNotFound.
+	if err := r.RevokeForUser(ctx, s.ID, 1); !errors.Is(err, ErrNotFound) {
+		t.Errorf("re-revoke: got %v, want ErrNotFound", err)
+	}
+}
+
 func TestSessionRepo_EnforceLimit_KeepsNewest(t *testing.T) {
 	db := setupTestDB(t)
 	mustCreateUser(t, db)

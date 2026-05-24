@@ -75,6 +75,7 @@ func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
 	r.Post("/refresh", h.refresh)
 	r.Post("/logout", httpapi.AuthMiddleware(jwtIssuer), h.logout)
 	r.Post("/logout-all", httpapi.AuthMiddleware(jwtIssuer), h.logoutAll)
+	r.Post("/logout-others", httpapi.AuthMiddleware(jwtIssuer), h.logoutOthers)
 	r.Get("/me", httpapi.AuthMiddleware(jwtIssuer), h.me)
 }
 
@@ -470,6 +471,30 @@ func (h *AuthHandler) logoutAll(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// logoutOthers revokes every active session for the user except the one that
+// issued the current request. Lets a user invalidate forgotten/shared-device
+// sessions without losing their own.
+func (h *AuthHandler) logoutOthers(c fiber.Ctx) error {
+	ctx := c.Context()
+	log := logging.FromContext(ctx)
+	claims := httpapi.GetClaims(c)
+	if claims == nil {
+		log.WarnContext(ctx, "auth: logoutOthers missing claims",
+			slog.String("op", "handler.Auth.LogoutOthers"),
+		)
+		return httpapi.ErrAuthInvalid("missing auth claims")
+	}
+	if err := h.sessions.RevokeAllForUserExcept(ctx, claims.UserID, claims.SessionID); err != nil {
+		return httpapi.ErrInternal("revoke other sessions").WithCause(err)
+	}
+	log.InfoContext(ctx, "auth: logoutOthers ok",
+		slog.String("op", "handler.Auth.LogoutOthers"),
+		slog.Int64("user_id", claims.UserID),
+		slog.Int64("session_id", claims.SessionID),
+	)
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func (h *AuthHandler) me(c fiber.Ctx) error {
 	claims := httpapi.GetClaims(c)
 	if claims == nil {
@@ -495,6 +520,7 @@ func (h *AuthHandler) issueSession(c fiber.Ctx, user *model.User, kind model.Cli
 		TokenHash:  tokenHash,
 		ClientKind: kind,
 		UserAgent:  truncateString(c.Get("User-Agent"), 512),
+		IPAddress:  truncateString(c.IP(), 64),
 		ExpiresAt:  auth.RefreshExpiry(time.Now()),
 	})
 	if err != nil {
