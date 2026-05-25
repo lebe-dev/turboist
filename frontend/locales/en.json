@@ -242,7 +242,36 @@
       "createFailed": "Failed to create token",
       "deleteFailed": "Failed to delete token",
       "loadFailed": "Failed to load tokens",
-      "docsLink": "Documentation"
+      "docsLink": "Documentation",
+      "scopes": {
+        "title": "Permissions",
+        "presetsLabel": "Presets:",
+        "presets": {
+          "full": "Full access",
+          "readonly": "Read-only",
+          "tasksFull": "Tasks (read + write)"
+        },
+        "headers": {
+          "resource": "Resource",
+          "read": "Read",
+          "write": "Write"
+        },
+        "resources": {
+          "tasks": "Tasks",
+          "projects": "Projects",
+          "contexts": "Contexts",
+          "labels": "Labels",
+          "sections": "Sections",
+          "troiki": "Troiki",
+          "settings": "Settings",
+          "search": "Search",
+          "calendars": "Calendars"
+        },
+        "fullBadge": "Full access",
+        "read": "read",
+        "write": "write",
+        "emptyError": "Select at least one permission"
+      }
     },
     "backup": {
       "heading": "Backup & Restore",

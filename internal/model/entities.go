@@ -135,5 +135,6 @@ type APIToken struct {
 	UserID    int64
 	Name      string
 	TokenHash string
+	Scopes    []string
 	CreatedAt time.Time
 }

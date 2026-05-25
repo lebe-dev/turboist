@@ -25,8 +25,8 @@ func NewAppSettingsHandler(r *repo.AppSettingsRepo, labels *repo.LabelRepo) *App
 }
 
 func (h *AppSettingsHandler) Register(r fiber.Router) {
-	r.Get("/app-settings", h.get)
-	r.Put("/app-settings/auto-labels", h.putAutoLabels)
+	r.Get("/app-settings", httpapi.RequireScope("settings:read"), h.get)
+	r.Put("/app-settings/auto-labels", httpapi.RequireScope("settings:write"), h.putAutoLabels)
 }
 
 type autoLabelDTO struct {

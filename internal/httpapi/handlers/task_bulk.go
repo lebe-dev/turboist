@@ -24,9 +24,9 @@ func NewTaskBulkHandler(completeSvc *service.CompleteService, moveSvc *service.M
 }
 
 func (h *TaskBulkHandler) Register(r fiber.Router) {
-	r.Post("/tasks/bulk/complete", h.bulkComplete)
-	r.Post("/tasks/bulk/move", h.bulkMove)
-	r.Post("/tasks/group", h.groupTasks)
+	r.Post("/tasks/bulk/complete", httpapi.RequireScope("tasks:write"), h.bulkComplete)
+	r.Post("/tasks/bulk/move", httpapi.RequireScope("tasks:write"), h.bulkMove)
+	r.Post("/tasks/group", httpapi.RequireScope("tasks:write"), h.groupTasks)
 }
 
 // BulkIDsRequest is the body for bulk complete.

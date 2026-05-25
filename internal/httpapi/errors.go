@@ -61,6 +61,14 @@ func ErrValidation(msg string, details ...any) *AppError {
 	return newErr(400, CodeValidationFailed, msg, details...)
 }
 
+// ErrUnprocessable signals that the request parsed cleanly but violates a
+// semantic rule (e.g. API-token scopes that fail auth.ValidateScopes). Maps
+// to HTTP 422 with the validation_failed code so frontend error handling
+// stays uniform with field-level ErrValidation.
+func ErrUnprocessable(msg string, details ...any) *AppError {
+	return newErr(422, CodeValidationFailed, msg, details...)
+}
+
 func ErrAuthInvalid(msg string) *AppError {
 	return newErr(401, CodeAuthInvalid, msg)
 }

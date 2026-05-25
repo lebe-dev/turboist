@@ -24,10 +24,10 @@ func NewTroikiHandler(svc *service.TroikiService, baseURL string) *TroikiHandler
 
 // Register wires routes onto the authenticated /api/v1 group.
 func (h *TroikiHandler) Register(r fiber.Router) {
-	r.Get("/troiki", h.view)
-	r.Post("/troiki/start", h.start)
-	r.Post("/troiki/reset", h.reset)
-	r.Post("/projects/:id/troiki", h.setProjectCategory)
+	r.Get("/troiki", httpapi.RequireScope("troiki:read"), h.view)
+	r.Post("/troiki/start", httpapi.RequireScope("troiki:write"), h.start)
+	r.Post("/troiki/reset", httpapi.RequireScope("troiki:write"), h.reset)
+	r.Post("/projects/:id/troiki", httpapi.RequireScope("projects:write"), h.setProjectCategory)
 }
 
 type troikiProjectDTO struct {

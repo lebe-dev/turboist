@@ -42,13 +42,13 @@ func NewTaskHandler(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskSvc *s
 
 // Register wires task routes onto r (the /api/v1 group).
 func (h *TaskHandler) Register(r fiber.Router) {
-	r.Get("/tasks/:id", h.get)
-	r.Patch("/tasks/:id", h.patch)
-	r.Delete("/tasks/:id", h.delete)
-	r.Get("/tasks/:id/subtasks", h.listSubtasks)
-	r.Post("/tasks/:id/subtasks", h.createSubtask)
-	r.Post("/tasks/:id/duplicate", h.duplicate)
-	r.Post("/tasks/:id/decompose", h.decompose)
+	r.Get("/tasks/:id", httpapi.RequireScope("tasks:read"), h.get)
+	r.Patch("/tasks/:id", httpapi.RequireScope("tasks:write"), h.patch)
+	r.Delete("/tasks/:id", httpapi.RequireScope("tasks:write"), h.delete)
+	r.Get("/tasks/:id/subtasks", httpapi.RequireScope("tasks:read"), h.listSubtasks)
+	r.Post("/tasks/:id/subtasks", httpapi.RequireScope("tasks:write"), h.createSubtask)
+	r.Post("/tasks/:id/duplicate", httpapi.RequireScope("tasks:write"), h.duplicate)
+	r.Post("/tasks/:id/decompose", httpapi.RequireScope("tasks:write"), h.decompose)
 }
 
 func (h *TaskHandler) get(c fiber.Ctx) error {

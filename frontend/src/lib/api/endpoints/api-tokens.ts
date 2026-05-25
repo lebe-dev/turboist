@@ -6,8 +6,8 @@ export const apiTokens = {
 		return client.fetch('/api/v1/api-tokens');
 	},
 
-	create(client: ApiClient, name: string): Promise<APITokenWithSecret> {
-		return client.fetch('/api/v1/api-tokens', { method: 'POST', body: { name } });
+	create(client: ApiClient, name: string, scopes: string[]): Promise<APITokenWithSecret> {
+		return client.fetch('/api/v1/api-tokens', { method: 'POST', body: { name, scopes } });
 	},
 
 	delete(client: ApiClient, id: number): Promise<void> {

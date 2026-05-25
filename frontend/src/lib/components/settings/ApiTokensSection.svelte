@@ -6,11 +6,38 @@
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import ArrowSquareOutIcon from 'phosphor-svelte/lib/ArrowSquareOut';
 	import { t } from '$lib/i18n';
-	import { getApiClient, apiTokens, type APIToken, type APITokenWithSecret } from '$lib/api';
+	import {
+		getApiClient,
+		apiTokens,
+		SCOPE_RESOURCES,
+		type APIToken,
+		type APITokenWithSecret
+	} from '$lib/api';
 	import { describeError } from '$lib/utils/taskActions';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { Badge } from '$lib/components/ui/badge';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+
+	type ResourceKey = (typeof SCOPE_RESOURCES)[number]['resource'];
+	type ScopeState = Record<ResourceKey, { read: boolean; write: boolean }>;
+
+	function makeEmptyScopes(): ScopeState {
+		const result = {} as ScopeState;
+		for (const r of SCOPE_RESOURCES) {
+			result[r.resource] = { read: false, write: false };
+		}
+		return result;
+	}
+
+	function makeReadonlyScopes(): ScopeState {
+		const result = {} as ScopeState;
+		for (const r of SCOPE_RESOURCES) {
+			result[r.resource] = { read: true, write: false };
+		}
+		return result;
+	}
 
 	let tokens = $state<APIToken[]>([]);
 	let loading = $state(true);
@@ -19,6 +46,71 @@
 	let createdToken = $state<APITokenWithSecret | null>(null);
 	let pendingDeleteId = $state<number | null>(null);
 	let deleteOpen = $state(false);
+
+	let fullAccess = $state(false);
+	let scopesState = $state<ScopeState>(makeReadonlyScopes());
+
+	const hasAnyScope = $derived(
+		fullAccess ||
+			SCOPE_RESOURCES.some((r) => scopesState[r.resource].read || scopesState[r.resource].write)
+	);
+
+	function normalizeScopes(): string[] {
+		if (fullAccess) return ['*'];
+		const result: string[] = [];
+		for (const r of SCOPE_RESOURCES) {
+			const s = scopesState[r.resource];
+			if (s.write && r.hasWrite) {
+				result.push(`${r.resource}:read`, `${r.resource}:write`);
+			} else if (s.read) {
+				result.push(`${r.resource}:read`);
+			}
+		}
+		return Array.from(new Set(result));
+	}
+
+	function applyPresetFull() {
+		fullAccess = true;
+	}
+
+	function applyPresetReadonly() {
+		fullAccess = false;
+		const next = makeEmptyScopes();
+		for (const r of SCOPE_RESOURCES) {
+			next[r.resource].read = true;
+		}
+		scopesState = next;
+	}
+
+	function applyPresetTasksFull() {
+		fullAccess = false;
+		const next = makeEmptyScopes();
+		next.tasks.read = true;
+		next.tasks.write = true;
+		scopesState = next;
+	}
+
+	function onReadToggle(resource: ResourceKey, checked: boolean) {
+		fullAccess = false;
+		scopesState[resource].read = checked;
+		if (!checked) {
+			scopesState[resource].write = false;
+		}
+	}
+
+	function onWriteToggle(resource: ResourceKey, checked: boolean) {
+		fullAccess = false;
+		scopesState[resource].write = checked;
+		if (checked) {
+			scopesState[resource].read = true;
+		}
+	}
+
+	function resetForm() {
+		newName = '';
+		fullAccess = false;
+		scopesState = makeReadonlyScopes();
+	}
 
 	onMount(async () => {
 		await load();
@@ -40,17 +132,27 @@
 	async function onGenerate() {
 		const name = newName.trim();
 		if (!name || creating) return;
+		const scopes = normalizeScopes();
+		if (scopes.length === 0) {
+			toast.error($t('settings.api.scopes.emptyError'));
+			return;
+		}
 		const client = getApiClient();
 		if (!client) return;
 		creating = true;
 		try {
-			const created = await apiTokens.create(client, name);
+			const created = await apiTokens.create(client, name, scopes);
 			createdToken = created;
 			tokens = [
-				{ id: created.id, name: created.name, createdAt: created.createdAt },
+				{
+					id: created.id,
+					name: created.name,
+					scopes: created.scopes,
+					createdAt: created.createdAt
+				},
 				...tokens
 			];
-			newName = '';
+			resetForm();
 		} catch (err) {
 			toast.error(describeError(err, $t('settings.api.createFailed')));
 		} finally {
@@ -100,6 +202,14 @@
 			return iso;
 		}
 	}
+
+	function scopeBadgeLabel(scope: string): string {
+		if (scope === '*') return $t('settings.api.scopes.fullBadge');
+		const [resource, action] = scope.split(':');
+		const resourceLabel = $t(`settings.api.scopes.resources.${resource}`);
+		const actionLabel = action === 'write' ? $t('settings.api.scopes.write') : $t('settings.api.scopes.read');
+		return `${resourceLabel}: ${actionLabel}`;
+	}
 </script>
 
 <section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
@@ -120,7 +230,7 @@
 	</div>
 
 	<form
-		class="flex flex-col gap-2 sm:flex-row sm:items-center"
+		class="flex flex-col gap-3"
 		onsubmit={(e) => {
 			e.preventDefault();
 			onGenerate();
@@ -134,10 +244,113 @@
 			maxlength={64}
 			class="sm:max-w-xs"
 		/>
-		<Button type="submit" variant="secondary" disabled={creating || newName.trim() === ''}>
-			<PlusIcon class="size-4" />
-			{creating ? $t('settings.api.generating') : $t('settings.api.generate')}
-		</Button>
+
+		<div class="flex flex-col gap-2">
+			<div class="flex flex-wrap items-center gap-2">
+				<span class="text-xs font-medium text-muted-foreground">
+					{$t('settings.api.scopes.presetsLabel')}
+				</span>
+				<Button
+					type="button"
+					variant={fullAccess ? 'default' : 'outline'}
+					size="sm"
+					onclick={applyPresetFull}
+					disabled={creating}
+				>
+					{$t('settings.api.scopes.presets.full')}
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onclick={applyPresetReadonly}
+					disabled={creating}
+				>
+					{$t('settings.api.scopes.presets.readonly')}
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onclick={applyPresetTasksFull}
+					disabled={creating}
+				>
+					{$t('settings.api.scopes.presets.tasksFull')}
+				</Button>
+			</div>
+
+			<div class="overflow-hidden rounded-md border border-border">
+				<table class="w-full text-sm">
+					<thead class="bg-muted/40 text-xs text-muted-foreground">
+						<tr>
+							<th class="px-3 py-1.5 text-left font-medium">
+								{$t('settings.api.scopes.headers.resource')}
+							</th>
+							<th class="w-20 px-3 py-1.5 text-center font-medium">
+								{$t('settings.api.scopes.headers.read')}
+							</th>
+							<th class="w-20 px-3 py-1.5 text-center font-medium">
+								{$t('settings.api.scopes.headers.write')}
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each SCOPE_RESOURCES as r (r.resource)}
+							{@const state = scopesState[r.resource]}
+							{@const readChecked = fullAccess || state.read}
+							{@const writeChecked = r.hasWrite && (fullAccess || state.write)}
+							{@const readDisabled =
+								creating || fullAccess || (r.hasWrite && state.write)}
+							{@const writeDisabled = creating || fullAccess}
+							<tr class="border-t border-border">
+								<td class="px-3 py-1.5">
+									{$t(`settings.api.scopes.resources.${r.resource}`)}
+								</td>
+								<td class="px-3 py-1.5 text-center">
+									<div class="flex justify-center">
+										<Checkbox
+											checked={readChecked}
+											disabled={readDisabled}
+											aria-label={$t(`settings.api.scopes.resources.${r.resource}`) +
+												' — ' +
+												$t('settings.api.scopes.headers.read')}
+											onCheckedChange={(v) => onReadToggle(r.resource, v === true)}
+										/>
+									</div>
+								</td>
+								<td class="px-3 py-1.5 text-center">
+									{#if r.hasWrite}
+										<div class="flex justify-center">
+											<Checkbox
+												checked={writeChecked}
+												disabled={writeDisabled}
+												aria-label={$t(`settings.api.scopes.resources.${r.resource}`) +
+													' — ' +
+													$t('settings.api.scopes.headers.write')}
+												onCheckedChange={(v) => onWriteToggle(r.resource, v === true)}
+											/>
+										</div>
+									{:else}
+										<span class="text-muted-foreground">—</span>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<div>
+			<Button
+				type="submit"
+				variant="secondary"
+				disabled={creating || newName.trim() === '' || !hasAnyScope}
+			>
+				<PlusIcon class="size-4" />
+				{creating ? $t('settings.api.generating') : $t('settings.api.generate')}
+			</Button>
+		</div>
 	</form>
 
 	{#if loading}
@@ -150,11 +363,22 @@
 				<li
 					class="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
 				>
-					<div class="flex flex-col">
+					<div class="flex min-w-0 flex-col gap-1">
 						<span class="text-sm font-medium">{tk.name}</span>
 						<span class="text-xs text-muted-foreground">
 							{$t('settings.api.created')}: {formatDate(tk.createdAt)}
 						</span>
+						{#if tk.scopes && tk.scopes.length > 0}
+							<div class="flex flex-wrap gap-1">
+								{#if tk.scopes.includes('*')}
+									<Badge variant="default">{$t('settings.api.scopes.fullBadge')}</Badge>
+								{:else}
+									{#each tk.scopes as scope (scope)}
+										<Badge variant="secondary">{scopeBadgeLabel(scope)}</Badge>
+									{/each}
+								{/if}
+							</div>
+						{/if}
 					</div>
 					<button
 						type="button"

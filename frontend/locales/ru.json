@@ -242,7 +242,36 @@
       "createFailed": "Не удалось создать токен",
       "deleteFailed": "Не удалось удалить токен",
       "loadFailed": "Не удалось загрузить токены",
-      "docsLink": "Документация"
+      "docsLink": "Документация",
+      "scopes": {
+        "title": "Права доступа",
+        "presetsLabel": "Пресеты:",
+        "presets": {
+          "full": "Полный доступ",
+          "readonly": "Только чтение",
+          "tasksFull": "Задачи (чтение + запись)"
+        },
+        "headers": {
+          "resource": "Ресурс",
+          "read": "Чтение",
+          "write": "Запись"
+        },
+        "resources": {
+          "tasks": "Задачи",
+          "projects": "Проекты",
+          "contexts": "Контексты",
+          "labels": "Метки",
+          "sections": "Секции",
+          "troiki": "Тройки",
+          "settings": "Настройки",
+          "search": "Поиск",
+          "calendars": "Календари"
+        },
+        "fullBadge": "Полный доступ",
+        "read": "чтение",
+        "write": "запись",
+        "emptyError": "Выберите хотя бы одно право"
+      }
     },
     "backup": {
       "heading": "Резервная копия",

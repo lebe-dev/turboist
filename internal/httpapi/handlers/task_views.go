@@ -24,14 +24,14 @@ func NewTaskViewHandler(tasks *repo.TaskRepo, cfg *config.Config, baseURL string
 }
 
 func (h *TaskViewHandler) Register(r fiber.Router) {
-	r.Get("/tasks/today", h.today)
-	r.Get("/tasks/tomorrow", h.tomorrow)
-	r.Get("/tasks/overdue", h.overdue)
-	r.Get("/tasks/week", h.week)
-	r.Get("/tasks/backlog", h.backlog)
-	r.Get("/tasks/pinned", h.pinned)
-	r.Get("/tasks/completed", h.completed)
-	r.Get("/stats/plan", h.statsPlan)
+	r.Get("/tasks/today", httpapi.RequireScope("tasks:read"), h.today)
+	r.Get("/tasks/tomorrow", httpapi.RequireScope("tasks:read"), h.tomorrow)
+	r.Get("/tasks/overdue", httpapi.RequireScope("tasks:read"), h.overdue)
+	r.Get("/tasks/week", httpapi.RequireScope("tasks:read"), h.week)
+	r.Get("/tasks/backlog", httpapi.RequireScope("tasks:read"), h.backlog)
+	r.Get("/tasks/pinned", httpapi.RequireScope("tasks:read"), h.pinned)
+	r.Get("/tasks/completed", httpapi.RequireScope("tasks:read"), h.completed)
+	r.Get("/stats/plan", httpapi.RequireScope("tasks:read"), h.statsPlan)
 }
 
 // todayStart returns the start of the current day in the configured timezone.

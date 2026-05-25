@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/config"
+	"github.com/lebe-dev/turboist/internal/httpapi"
 )
 
 // MetaHandler handles public meta and config endpoints.
@@ -22,7 +23,7 @@ func NewMetaHandler(cfg *config.Config, totpAvailable bool) *MetaHandler {
 
 // Register wires /config onto the authenticated API group r.
 func (h *MetaHandler) Register(r fiber.Router) {
-	r.Get("/config", h.config)
+	r.Get("/config", httpapi.RequireScope("settings:read"), h.config)
 }
 
 type dayPartResp struct {

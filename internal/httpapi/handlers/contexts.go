@@ -29,14 +29,14 @@ func NewContextHandler(ctxs *repo.ContextRepo, projects *repo.ProjectRepo, tasks
 
 // Register wires context routes onto r.
 func (h *ContextHandler) Register(r fiber.Router) {
-	r.Get("/", h.list)
-	r.Post("/", h.create)
-	r.Get("/:id", h.get)
-	r.Patch("/:id", h.patch)
-	r.Delete("/:id", h.delete)
-	r.Get("/:id/projects", h.listProjects)
-	r.Get("/:id/tasks", h.listTasks)
-	r.Post("/:id/tasks", h.createTask)
+	r.Get("/", httpapi.RequireScope("contexts:read"), h.list)
+	r.Post("/", httpapi.RequireScope("contexts:write"), h.create)
+	r.Get("/:id", httpapi.RequireScope("contexts:read"), h.get)
+	r.Patch("/:id", httpapi.RequireScope("contexts:write"), h.patch)
+	r.Delete("/:id", httpapi.RequireScope("contexts:write"), h.delete)
+	r.Get("/:id/projects", httpapi.RequireScope("projects:read"), h.listProjects)
+	r.Get("/:id/tasks", httpapi.RequireScope("tasks:read"), h.listTasks)
+	r.Post("/:id/tasks", httpapi.RequireScope("tasks:write"), h.createTask)
 }
 
 func (h *ContextHandler) list(c fiber.Ctx) error {

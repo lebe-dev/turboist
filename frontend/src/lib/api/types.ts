@@ -250,12 +250,46 @@ export interface CalendarEventsResponse {
 export interface APIToken {
 	id: number;
 	name: string;
+	scopes: string[];
 	createdAt: string;
 }
 
 export interface APITokenWithSecret extends APIToken {
 	token: string;
 }
+
+export const VALID_SCOPES = [
+	'tasks:read',
+	'tasks:write',
+	'projects:read',
+	'projects:write',
+	'contexts:read',
+	'contexts:write',
+	'labels:read',
+	'labels:write',
+	'sections:read',
+	'sections:write',
+	'troiki:read',
+	'troiki:write',
+	'settings:read',
+	'settings:write',
+	'search:read',
+	'calendars:read'
+] as const;
+
+export type Scope = (typeof VALID_SCOPES)[number] | '*';
+
+export const SCOPE_RESOURCES = [
+	{ resource: 'tasks', label: 'Задачи', hasWrite: true },
+	{ resource: 'projects', label: 'Проекты', hasWrite: true },
+	{ resource: 'contexts', label: 'Контексты', hasWrite: true },
+	{ resource: 'labels', label: 'Метки', hasWrite: true },
+	{ resource: 'sections', label: 'Секции', hasWrite: true },
+	{ resource: 'troiki', label: 'Тройки', hasWrite: true },
+	{ resource: 'settings', label: 'Настройки', hasWrite: true },
+	{ resource: 'search', label: 'Поиск', hasWrite: false },
+	{ resource: 'calendars', label: 'Календари', hasWrite: false }
+] as const;
 
 export interface Session {
 	id: number;

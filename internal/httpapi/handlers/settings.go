@@ -22,8 +22,8 @@ func NewSettingsHandler(users *repo.UserRepo) *SettingsHandler {
 }
 
 func (h *SettingsHandler) Register(r fiber.Router) {
-	r.Get("/settings", h.get)
-	r.Patch("/settings", h.patch)
+	r.Get("/settings", httpapi.RequireScope("settings:read"), h.get)
+	r.Patch("/settings", httpapi.RequireScope("settings:write"), h.patch)
 }
 
 type settingsResp struct {

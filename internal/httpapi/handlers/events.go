@@ -31,14 +31,12 @@ func NewEventsHandler(hub *events.Hub, tickets *events.TicketStore) *EventsHandl
 }
 
 // Register wires the events endpoints onto r (the authenticated /api/v1 group).
-// Note: /events itself authenticates via ticket query parameter, not the
-// group-level Authorization header — but it is mounted on the protected group
-// so the auth middleware runs first when a Bearer header is present. Browsers
-// using EventSource will not send the header, so the handler must accept
-// requests where group auth has not produced a user id and authenticate
-// solely via the ticket.
+// /events/ticket is restricted to JWT sessions: an API token must not be able
+// to mint a stream ticket, since the SSE stream itself bypasses per-route scope
+// checks and would otherwise let a narrowly-scoped token observe events across
+// every resource.
 func (h *EventsHandler) Register(r fiber.Router) {
-	r.Post("/events/ticket", h.issueTicket)
+	r.Post("/events/ticket", httpapi.RequireJWTAuth(), h.issueTicket)
 }
 
 // RegisterPublic wires the streaming endpoint onto app (no auth middleware).

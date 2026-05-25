@@ -152,7 +152,7 @@ func TestAPITokenRepo_LogsDebugOnHappyPath(t *testing.T) {
 	ar := NewAPITokenRepo(d)
 	ctx, cap := ctxWithCapture(t)
 
-	tok, err := ar.Create(ctx, 1, "ci", "hash-1")
+	tok, err := ar.Create(ctx, 1, "ci", "hash-1", []string{"*"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}

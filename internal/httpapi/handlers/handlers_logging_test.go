@@ -452,7 +452,7 @@ func TestAppSettings_PutAutoLabels_EmptyMask_LogsWarn(t *testing.T) {
 func TestAPITokens_Create_LogsInfoAndNoTokenValue(t *testing.T) {
 	env := setupAPIEnvWithLog(t)
 	req := env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/",
-		map[string]any{"name": "cli"})
+		map[string]any{"name": "cli", "scopes": []string{"*"}})
 	resp, body := doReq(t, env.app, req)
 	if resp.StatusCode != 201 {
 		t.Fatalf("status: got %d, want 201 body %s", resp.StatusCode, body)

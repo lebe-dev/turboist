@@ -475,7 +475,7 @@ func TestRequireJWTAuth_RejectsAPIToken(t *testing.T) {
 		t.Fatalf("gen token: %v", err)
 	}
 	hash := auth.HashAPIToken(rawToken, salt)
-	if _, err := apiTokens.Create(context.Background(), 1, "test", hash); err != nil {
+	if _, err := apiTokens.Create(context.Background(), 1, "test", hash, []string{"*"}); err != nil {
 		t.Fatalf("create api token: %v", err)
 	}
 
@@ -524,7 +524,7 @@ func TestAPIAuthMiddleware_AcceptsAPIToken(t *testing.T) {
 		t.Fatalf("gen token: %v", err)
 	}
 	hash := auth.HashAPIToken(rawToken, salt)
-	if _, err := apiTokens.Create(context.Background(), 1, "test", hash); err != nil {
+	if _, err := apiTokens.Create(context.Background(), 1, "test", hash, []string{"*"}); err != nil {
 		t.Fatalf("create api token: %v", err)
 	}
 
@@ -633,5 +633,187 @@ func TestAPIAuthMiddleware_RejectsBadHeader(t *testing.T) {
 	}
 	if !sawWarn {
 		t.Error("no WARN record for bad authorization header format")
+	}
+}
+
+// setupRequireScopeApp builds a minimal app that authenticates via either JWT
+// or API token, registers the given scope guard on /p, and returns the app
+// plus the raw token string callers should put in the Authorization header.
+func setupRequireScopeApp(t *testing.T, tokenScopes []string, required string) (*fiber.App, string, *captureHandler) {
+	t.Helper()
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "mw.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := db.RunMigrations(context.Background(), sqlDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := repo.NewUserRepo(sqlDB).Create(context.Background(), "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	apiTokens := repo.NewAPITokenRepo(sqlDB)
+	salt := []byte("test-api-token-salt-32-bytes-pad!")
+	rawToken, err := auth.GenerateAPIToken()
+	if err != nil {
+		t.Fatalf("gen token: %v", err)
+	}
+	if _, err := apiTokens.Create(context.Background(), 1, "test", auth.HashAPIToken(rawToken, salt), tokenScopes); err != nil {
+		t.Fatalf("create api token: %v", err)
+	}
+
+	cap := newCaptureHandler()
+	logger := slog.New(cap)
+	issuer := auth.NewJWTIssuer(testSecret)
+	app := fiber.New(fiber.Config{ErrorHandler: func(c fiber.Ctx, err error) error {
+		var ae *httpapi.AppError
+		if errors.As(err, &ae) {
+			return c.Status(ae.HTTPStatus).SendString(ae.Message)
+		}
+		return c.Status(500).SendString(err.Error())
+	}})
+	app.Use(httpapi.RequestIDMiddleware(logger))
+	app.Use(httpapi.APIAuthMiddleware(issuer, apiTokens, salt))
+	app.Get("/p", httpapi.RequireScope(required), func(c fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	})
+	return app, rawToken, cap
+}
+
+func TestRequireScope_AllowsJWT(t *testing.T) {
+	// JWT must bypass scope checks regardless of what scope is required.
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "mw.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := db.RunMigrations(context.Background(), sqlDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := repo.NewUserRepo(sqlDB).Create(context.Background(), "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	issuer := auth.NewJWTIssuer(testSecret)
+	jwtTok, _, err := issuer.Issue(1, 1)
+	if err != nil {
+		t.Fatalf("issue jwt: %v", err)
+	}
+
+	app := fiber.New()
+	app.Use(httpapi.RequestIDMiddleware(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	app.Use(httpapi.APIAuthMiddleware(issuer, repo.NewAPITokenRepo(sqlDB), []byte("salt")))
+	app.Get("/p", httpapi.RequireScope("tasks:write"), func(c fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.Header.Set("Authorization", "Bearer "+jwtTok)
+	resp := doRequest(t, app, req)
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status: got %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestRequireScope_TokenWithMatchingScope_Allows(t *testing.T) {
+	app, raw, _ := setupRequireScopeApp(t, []string{"tasks:read"}, "tasks:read")
+	req := httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.Header.Set("Authorization", "Bearer "+raw)
+	resp := doRequest(t, app, req)
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status: got %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestRequireScope_TokenWithoutScope_Forbidden(t *testing.T) {
+	app, raw, cap := setupRequireScopeApp(t, []string{"tasks:read"}, "tasks:write")
+	req := httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.Header.Set("Authorization", "Bearer "+raw)
+	resp := doRequest(t, app, req)
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status: got %d, want 403", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "insufficient scope") {
+		t.Errorf("body: got %q, want it to contain 'insufficient scope'", bodyStr)
+	}
+	// Must not leak the required scope name to the client.
+	if strings.Contains(bodyStr, "tasks:write") {
+		t.Errorf("body leaks required scope name: %q", bodyStr)
+	}
+
+	cap.mu.Lock()
+	defer cap.mu.Unlock()
+	var sawWarn bool
+	for _, r := range *cap.records {
+		if r.Level == slog.LevelWarn && r.Message == "scope check failed" {
+			sawWarn = true
+		}
+	}
+	if !sawWarn {
+		t.Error("no WARN record for scope check failure")
+	}
+}
+
+func TestRequireScope_TokenWithWildcard_Allows(t *testing.T) {
+	app, raw, _ := setupRequireScopeApp(t, []string{"*"}, "tasks:write")
+	req := httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.Header.Set("Authorization", "Bearer "+raw)
+	resp := doRequest(t, app, req)
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status: got %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestGetTokenScopes_FromAPIToken(t *testing.T) {
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "mw.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := db.RunMigrations(context.Background(), sqlDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := repo.NewUserRepo(sqlDB).Create(context.Background(), "admin", "h"); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	apiTokens := repo.NewAPITokenRepo(sqlDB)
+	salt := []byte("test-api-token-salt-32-bytes-pad!")
+	rawToken, err := auth.GenerateAPIToken()
+	if err != nil {
+		t.Fatalf("gen token: %v", err)
+	}
+	want := []string{"tasks:read", "projects:read"}
+	if _, err := apiTokens.Create(context.Background(), 1, "t", auth.HashAPIToken(rawToken, salt), want); err != nil {
+		t.Fatalf("create api token: %v", err)
+	}
+
+	issuer := auth.NewJWTIssuer(testSecret)
+	app := fiber.New()
+	app.Use(httpapi.RequestIDMiddleware(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	app.Use(httpapi.APIAuthMiddleware(issuer, apiTokens, salt))
+	var got []string
+	app.Get("/p", func(c fiber.Ctx) error {
+		got = httpapi.GetTokenScopes(c)
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/p", nil)
+	req.Header.Set("Authorization", "Bearer "+rawToken)
+	resp := doRequest(t, app, req)
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", resp.StatusCode)
+	}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("scopes: got %v, want %v", got, want)
 	}
 }

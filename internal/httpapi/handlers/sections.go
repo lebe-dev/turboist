@@ -28,12 +28,12 @@ func NewSectionHandler(sections *repo.ProjectSectionRepo, projects *repo.Project
 
 // Register wires section routes onto r.
 func (h *SectionHandler) Register(r fiber.Router) {
-	r.Get("/:id", h.get)
-	r.Patch("/:id", h.patch)
-	r.Delete("/:id", h.delete)
-	r.Get("/:id/tasks", h.listTasks)
-	r.Post("/:id/tasks", h.createTask)
-	r.Post("/:id/reorder", h.reorder)
+	r.Get("/:id", httpapi.RequireScope("sections:read"), h.get)
+	r.Patch("/:id", httpapi.RequireScope("sections:write"), h.patch)
+	r.Delete("/:id", httpapi.RequireScope("sections:write"), h.delete)
+	r.Get("/:id/tasks", httpapi.RequireScope("tasks:read"), h.listTasks)
+	r.Post("/:id/tasks", httpapi.RequireScope("tasks:write"), h.createTask)
+	r.Post("/:id/reorder", httpapi.RequireScope("sections:write"), h.reorder)
 }
 
 func (h *SectionHandler) reorder(c fiber.Ctx) error {

@@ -12,6 +12,20 @@ Authorization: Bearer <token>
 
 API tokens are created via `POST /api/v1/api-tokens` (requires a JWT session) and never expire. Store the plaintext token securely — it is only returned once.
 
+#### Scopes
+
+API tokens carry **granular permissions** (scopes). Each scope grants access to one resource and one action.
+
+- Scope format: `resource:action`, where `action` is either `read` or `write`
+- `write` is **not** implied by `read` and vice versa — both must be granted independently if both are needed
+- Special wildcard `*` grants full access (all current and future scopes)
+- A request whose scopes do not cover the called endpoint returns `403 Forbidden` with `code = "forbidden"` and message `"insufficient scope"` (the missing scope name is logged server-side but not exposed in the response)
+- Some endpoints are reserved for JWT sessions and are **never** reachable with an API token (token management, session management, TOTP, backup/restore, SSE `/events`) — calling them with a Bearer API token returns `401`
+
+JWT sessions are unaffected by scopes — a logged-in session always has full access. Only API tokens are checked against scopes.
+
+See the [Scopes Reference](#scopes-reference) below for the full list of scopes and the [Endpoint → Scope Mapping](#endpoint--scope-mapping) for the required scope of every endpoint.
+
 ### Using JWT (session-based)
 
 1. `POST /auth/login` → receive `access` (JWT, 15 min TTL) and `refresh` (30 days)
@@ -64,6 +78,7 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `CodeAuthInvalid` | 401 |
 | `CodeAuthRateLimited` | 429 |
 | `CodeValidation` | 422 |
+| `CodeForbidden` | 403 |
 | `CodeConflict` | 409 |
 | `CodeLimitExceeded` | 409 |
 | `CodeForbiddenPlacement` | 422 |
@@ -71,6 +86,21 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `totp_already_enabled` | 409 |
 | `totp_not_enabled` | 409 |
 | `CodeInternalError` | 500 |
+
+#### `403 Forbidden`
+
+Returned when an API token is missing a scope required by the endpoint. JWT sessions never receive this response.
+
+```json
+{
+  "error": {
+    "code": "forbidden",
+    "message": "insufficient scope"
+  }
+}
+```
+
+The response intentionally omits the required scope name — the missing scope is logged server-side but is not surfaced to the client, to avoid leaking the internal scope catalog via endpoint probing.
 
 ### Enum Values
 
@@ -345,40 +375,72 @@ Errors: `totp_invalid_code` (401), `totp_not_enabled` (409),
 
 ### `POST /api/v1/api-tokens`
 
-Create a new long-lived API token. The plaintext token is returned **only in this response**.
+Create a new long-lived API token with a fixed set of scopes. The plaintext token is returned **only in this response**.
 
 **Request:**
 ```json
-{ "name": "my-script" }
+{
+  "name": "my-script",
+  "scopes": ["tasks:read", "tasks:write", "projects:read"]
+}
 ```
+
+- `name` — required, non-empty
+- `scopes` — required, non-empty. Each entry must be a [valid scope](#scopes-reference) or the wildcard `"*"`. Validation is strict:
+  - Duplicates → `422`
+  - `"*"` combined with any other scope → `422`
+  - `<resource>:write` without `<resource>:read` for the same resource → `422`
+  - Unknown scope → `422`
+- Scopes are **immutable** after creation. To change permissions, delete the token and create a new one.
 
 **Response** `201`:
 ```json
 {
   "id": 1,
   "name": "my-script",
+  "scopes": ["tasks:read", "tasks:write", "projects:read"],
   "token": "abc123...",
   "createdAt": "2024-01-15T09:30:00.000Z"
 }
 ```
 
 ```sh
+# Read+write on tasks, read-only on projects
 curl -X POST "$BASE/api/v1/api-tokens" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
-  -d '{"name":"my-script"}'
+  -d '{"name":"my-script","scopes":["tasks:read","tasks:write","projects:read"]}'
+
+# Full access (wildcard)
+curl -X POST "$BASE/api/v1/api-tokens" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"admin-cli","scopes":["*"]}'
 ```
 
 ### `GET /api/v1/api-tokens`
 
-List all tokens (metadata only — plaintext is never returned after creation).
+List all tokens (metadata only — plaintext is never returned after creation). Each entry includes its scopes.
 
 **Response:**
 ```json
 [
-  { "id": 1, "name": "my-script", "createdAt": "2024-01-15T09:30:00.000Z" }
+  {
+    "id": 1,
+    "name": "my-script",
+    "scopes": ["tasks:read", "tasks:write", "projects:read"],
+    "createdAt": "2024-01-15T09:30:00.000Z"
+  },
+  {
+    "id": 2,
+    "name": "admin-cli",
+    "scopes": ["*"],
+    "createdAt": "2024-01-15T09:30:00.000Z"
+  }
 ]
 ```
+
+Tokens created before scopes were introduced are returned with `scopes: ["*"]` (full access) for backwards compatibility.
 
 ```sh
 curl "$BASE/api/v1/api-tokens" \
@@ -393,6 +455,177 @@ Revoke a token. Returns `204 No Content`.
 curl -X DELETE "$BASE/api/v1/api-tokens/1" \
   -H "Authorization: Bearer $JWT"
 ```
+
+### Scopes Reference
+
+The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tokens`:
+
+| Scope | Description |
+|-------|-------------|
+| `tasks:read` | Read tasks: get by id, all task views (`today`, `tomorrow`, `overdue`, `week`, `backlog`, `pinned`, `completed`), subtasks list, `stats/plan`, inbox list, tasks listed under a context / project / section / label |
+| `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; bulk operations (`bulk/complete`, `bulk/move`); `tasks/group`; create tasks in inbox / context / project / section |
+| `projects:read` | Read projects: list, get by id, list tasks/sections of a project, list projects in a context or by label |
+| `projects:write` | Create, update, delete projects; complete / uncomplete / cancel / archive / unarchive; pin / unpin; assign or clear Troiki category |
+| `contexts:read` | Read contexts: list, get by id |
+| `contexts:write` | Create, update, delete contexts |
+| `labels:read` | Read labels: list (with search), get by id |
+| `labels:write` | Create, update, delete labels |
+| `sections:read` | Read sections: get by id, list sections of a project |
+| `sections:write` | Create, update, delete sections; reorder |
+| `troiki:read` | Read current Troiki view |
+| `troiki:write` | Start a Troiki day; reset Troiki |
+| `settings:read` | Read user settings, server config, persisted UI state |
+| `settings:write` | Update user settings; merge UI state |
+| `search:read` | Full-text search across tasks and projects |
+| `calendars:read` | Read calendars and calendar events |
+| `*` | Full access — covers all current and future scopes |
+
+**Rules:**
+
+- `write` does **not** imply `read`. To both read and write a resource, grant both scopes explicitly.
+- The wildcard `*` may only appear alone (`["*"]`); combining it with concrete scopes is rejected.
+- Cross-resource endpoints are bound to the **target resource**, not the path parent. For example, `POST /projects/:id/tasks` requires `tasks:write` only — `projects:read` is **not** required even though the URL contains a project id.
+
+### Endpoint → Scope Mapping
+
+Required scope for every authenticated endpoint. Endpoints marked **JWT only** reject API tokens with `401` regardless of scopes — they are reserved for the session that owns them.
+
+#### Tasks
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/tasks/:id` | `tasks:read` |
+| `PATCH /api/v1/tasks/:id` | `tasks:write` |
+| `DELETE /api/v1/tasks/:id` | `tasks:write` |
+| `GET /api/v1/tasks/:id/subtasks` | `tasks:read` |
+| `POST /api/v1/tasks/:id/subtasks` | `tasks:write` |
+| `POST /api/v1/tasks/:id/duplicate` | `tasks:write` |
+| `POST /api/v1/tasks/:id/decompose` | `tasks:write` |
+| `POST /api/v1/tasks/:id/complete` | `tasks:write` |
+| `POST /api/v1/tasks/:id/uncomplete` | `tasks:write` |
+| `POST /api/v1/tasks/:id/cancel` | `tasks:write` |
+| `POST /api/v1/tasks/:id/pin` | `tasks:write` |
+| `POST /api/v1/tasks/:id/unpin` | `tasks:write` |
+| `POST /api/v1/tasks/:id/move` | `tasks:write` |
+| `POST /api/v1/tasks/:id/plan` | `tasks:write` |
+| `GET /api/v1/tasks/today` | `tasks:read` |
+| `GET /api/v1/tasks/tomorrow` | `tasks:read` |
+| `GET /api/v1/tasks/overdue` | `tasks:read` |
+| `GET /api/v1/tasks/week` | `tasks:read` |
+| `GET /api/v1/tasks/backlog` | `tasks:read` |
+| `GET /api/v1/tasks/pinned` | `tasks:read` |
+| `GET /api/v1/tasks/completed` | `tasks:read` |
+| `GET /api/v1/stats/plan` | `tasks:read` |
+| `POST /api/v1/tasks/bulk/complete` | `tasks:write` |
+| `POST /api/v1/tasks/bulk/move` | `tasks:write` |
+| `POST /api/v1/tasks/group` | `tasks:write` |
+
+#### Inbox
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/inbox` | `tasks:read` |
+| `POST /api/v1/inbox/tasks` | `tasks:write` |
+
+#### Projects
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/projects` | `projects:read` |
+| `GET /api/v1/projects/:id` | `projects:read` |
+| `PATCH /api/v1/projects/:id` | `projects:write` |
+| `DELETE /api/v1/projects/:id` | `projects:write` |
+| `GET /api/v1/projects/:id/tasks` | `tasks:read` |
+| `POST /api/v1/projects/:id/tasks` | `tasks:write` |
+| `GET /api/v1/projects/:id/sections` | `sections:read` |
+| `POST /api/v1/projects/:id/sections` | `sections:write` |
+| `POST /api/v1/projects/:id/complete` | `projects:write` |
+| `POST /api/v1/projects/:id/uncomplete` | `projects:write` |
+| `POST /api/v1/projects/:id/cancel` | `projects:write` |
+| `POST /api/v1/projects/:id/archive` | `projects:write` |
+| `POST /api/v1/projects/:id/unarchive` | `projects:write` |
+| `POST /api/v1/projects/:id/pin` | `projects:write` |
+| `POST /api/v1/projects/:id/unpin` | `projects:write` |
+| `POST /api/v1/projects/:id/troiki` | `projects:write` |
+
+#### Contexts
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/contexts` | `contexts:read` |
+| `GET /api/v1/contexts/:id` | `contexts:read` |
+| `POST /api/v1/contexts` | `contexts:write` |
+| `PATCH /api/v1/contexts/:id` | `contexts:write` |
+| `DELETE /api/v1/contexts/:id` | `contexts:write` |
+| `GET /api/v1/contexts/:id/tasks` | `tasks:read` |
+| `POST /api/v1/contexts/:id/tasks` | `tasks:write` |
+| `GET /api/v1/contexts/:id/projects` | `projects:read` |
+| `POST /api/v1/contexts/:id/projects` | `projects:write` |
+
+#### Labels
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/labels` | `labels:read` |
+| `GET /api/v1/labels/:id` | `labels:read` |
+| `POST /api/v1/labels` | `labels:write` |
+| `PATCH /api/v1/labels/:id` | `labels:write` |
+| `DELETE /api/v1/labels/:id` | `labels:write` |
+| `GET /api/v1/labels/:id/tasks` | `tasks:read` |
+| `GET /api/v1/labels/:id/projects` | `projects:read` |
+
+#### Sections
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/sections/:id` | `sections:read` |
+| `PATCH /api/v1/sections/:id` | `sections:write` |
+| `DELETE /api/v1/sections/:id` | `sections:write` |
+| `POST /api/v1/sections/:id/reorder` | `sections:write` |
+| `GET /api/v1/sections/:id/tasks` | `tasks:read` |
+| `POST /api/v1/sections/:id/tasks` | `tasks:write` |
+
+#### Troiki
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/troiki` | `troiki:read` |
+| `POST /api/v1/troiki/start` | `troiki:write` |
+| `POST /api/v1/troiki/reset` | `troiki:write` |
+
+#### Settings / Config / State
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/settings` | `settings:read` |
+| `PATCH /api/v1/settings` | `settings:write` |
+| `GET /api/v1/config` | `settings:read` |
+| `GET /api/v1/state` | `settings:read` |
+| `PATCH /api/v1/state` | `settings:write` |
+
+#### Search
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/search` | `search:read` |
+
+#### Calendars
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/calendars` and subroutes | `calendars:read` |
+
+#### JWT-only endpoints (no API-token access)
+
+These endpoints reject Bearer API tokens with `401`. They cannot be granted via any scope, including `*`.
+
+| Endpoint | Reason |
+|----------|--------|
+| `POST /api/v1/api-tokens`, `GET /api/v1/api-tokens`, `DELETE /api/v1/api-tokens/:id` | Token management — must come from a JWT session |
+| `GET /api/v1/sessions`, `DELETE /api/v1/sessions/:id` | Session management |
+| `POST /auth/totp/setup`, `POST /auth/totp/confirm`, `POST /auth/totp/disable` | 2FA management |
+| `GET /api/v1/backup`, `POST /api/v1/restore` | Backup contains the whole database |
+| `GET /api/v1/events` (SSE) | The event stream emits across all resources without per-scope filtering — exposing it to tokens would bypass read-scoping |
 
 ---
 
