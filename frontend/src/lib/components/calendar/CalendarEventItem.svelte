@@ -23,6 +23,8 @@
 	const timeLabel = $derived(event.allDay ? '' : eventTimeLabel(event, timezone, $t('calendar.allDay')));
 	const description = $derived(event.description?.trim() ?? '');
 	const hasMeta = $derived(timeLabel.length > 0 || description.length > 0);
+	const descriptionExpandable = $derived(description.length > 80);
+	let descriptionExpanded = $state(false);
 
 	function openInGoogle(): void {
 		if (!event.htmlLink || typeof window === 'undefined') return;
@@ -86,7 +88,15 @@
 		</div>
 
 		{#if timeLabel || description}
-			<p class="line-clamp-2 text-xs text-muted-foreground/70">
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+			<p
+				class="text-xs text-muted-foreground/70"
+				class:line-clamp-2={!descriptionExpanded}
+				class:cursor-pointer={descriptionExpandable && !descriptionExpanded}
+				onclick={descriptionExpandable && !descriptionExpanded
+					? (e) => { e.preventDefault(); e.stopPropagation(); descriptionExpanded = true; }
+					: undefined}
+			>
 				{#if timeLabel}<span class="tabular-nums">{timeLabel}</span>{/if}
 				{#if timeLabel && description}<span aria-hidden="true"> · </span>{/if}
 				{#if description}<span class="text-muted-foreground/50">{description}</span>{/if}
