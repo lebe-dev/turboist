@@ -34,6 +34,7 @@ type CreateSectionRequest struct {
 }
 
 type PatchSectionRequest struct {
-	Title    *string `json:"title"`
-	ClientID *string `json:"clientId"`
+	Title         *string `json:"title"`
+	ClientID      *string `json:"clientId"`
+	BaseUpdatedAt *string `json:"baseUpdatedAt"`
 }

@@ -34,9 +34,10 @@ type CreateLabelRequest struct {
 }
 
 type PatchLabelRequest struct {
-	Name        *string `json:"name"`
-	Color       *string `json:"color"`
-	IsFavourite *bool   `json:"isFavourite"`
-	IsPrivate   *bool   `json:"isPrivate"`
-	ClientID    *string `json:"clientId"`
+	Name          *string `json:"name"`
+	Color         *string `json:"color"`
+	IsFavourite   *bool   `json:"isFavourite"`
+	IsPrivate     *bool   `json:"isPrivate"`
+	ClientID      *string `json:"clientId"`
+	BaseUpdatedAt *string `json:"baseUpdatedAt"`
 }

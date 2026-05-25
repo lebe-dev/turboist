@@ -91,6 +91,13 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		logValidation(c, "handler.Task.Patch", "invalid request body")
 		return httpapi.ErrValidation("invalid request body")
 	}
+	base, appErr := readBaseUpdatedAt(c, req.BaseUpdatedAt)
+	if appErr != nil {
+		return appErr
+	}
+	if isStalePatch(base, t.UpdatedAt) {
+		return c.JSON(dto.TaskFromModel(*t, h.baseURL))
+	}
 
 	u := repo.TaskUpdate{}
 	if req.Title != nil {

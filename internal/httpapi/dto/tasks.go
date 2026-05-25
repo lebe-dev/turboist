@@ -129,4 +129,5 @@ type PatchTaskRequest struct {
 	RemovedAutoLabels []string         `json:"removedAutoLabels"`
 	IsPrivate         *bool            `json:"isPrivate"`
 	ClientID          *string          `json:"clientId"`
+	BaseUpdatedAt     *string          `json:"baseUpdatedAt"`
 }

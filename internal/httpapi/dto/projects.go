@@ -12,13 +12,14 @@ type CreateProjectRequest struct {
 }
 
 type PatchProjectRequest struct {
-	Title       *string   `json:"title"`
-	Description *string   `json:"description"`
-	Color       *string   `json:"color"`
-	Labels      *[]string `json:"labels"`
-	IsPrivate   *bool     `json:"isPrivate"`
-	ProjectType *string   `json:"projectType"`
-	ClientID    *string   `json:"clientId"`
+	Title         *string   `json:"title"`
+	Description   *string   `json:"description"`
+	Color         *string   `json:"color"`
+	Labels        *[]string `json:"labels"`
+	IsPrivate     *bool     `json:"isPrivate"`
+	ProjectType   *string   `json:"projectType"`
+	ClientID      *string   `json:"clientId"`
+	BaseUpdatedAt *string   `json:"baseUpdatedAt"`
 }
 
 type ProjectDTO struct {

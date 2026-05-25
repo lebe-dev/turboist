@@ -32,8 +32,9 @@ type CreateContextRequest struct {
 }
 
 type PatchContextRequest struct {
-	Name        *string `json:"name"`
-	Color       *string `json:"color"`
-	IsFavourite *bool   `json:"isFavourite"`
-	ClientID    *string `json:"clientId"`
+	Name          *string `json:"name"`
+	Color         *string `json:"color"`
+	IsFavourite   *bool   `json:"isFavourite"`
+	ClientID      *string `json:"clientId"`
+	BaseUpdatedAt *string `json:"baseUpdatedAt"`
 }

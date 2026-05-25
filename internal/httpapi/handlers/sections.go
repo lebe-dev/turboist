@@ -101,6 +101,13 @@ func (h *SectionHandler) patch(c fiber.Ctx) error {
 		logValidation(c, "handler.Section.Patch", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
+	base, appErr := readBaseUpdatedAt(c, req.BaseUpdatedAt)
+	if appErr != nil {
+		return appErr
+	}
+	if isStalePatch(base, existing.UpdatedAt) {
+		return c.JSON(dto.SectionFromModel(*existing))
+	}
 	s, err := h.sections.Update(c.Context(), id, repo.SectionUpdate{Title: req.Title, ClientID: req.ClientID})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {

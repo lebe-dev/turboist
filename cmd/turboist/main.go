@@ -189,6 +189,8 @@ func main() {
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
 	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)
+	syncSvc := service.NewSyncService(repo.NewSyncRepo(sqlDB, tlabels, plabels))
+	handlers.NewSyncHandler(syncSvc, env.BaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
 	handlers.NewMetaHandler(cfg, totpSvc != nil).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)

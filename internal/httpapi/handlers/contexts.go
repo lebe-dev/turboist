@@ -117,6 +117,13 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 		logValidation(c, "handler.Context.Patch", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
+	base, appErr := readBaseUpdatedAt(c, req.BaseUpdatedAt)
+	if appErr != nil {
+		return appErr
+	}
+	if isStalePatch(base, existing.UpdatedAt) {
+		return c.JSON(dto.ContextFromModel(*existing))
+	}
 	if req.Color != nil && !isValidColor(*req.Color) {
 		logValidation(c, "handler.Context.Patch", "invalid color")
 		return httpapi.ErrValidation("invalid color")

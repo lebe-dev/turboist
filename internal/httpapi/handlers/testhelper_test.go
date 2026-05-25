@@ -118,6 +118,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	troikiSvc := service.NewTroikiService(tasks, projs, users)
 	handlers.NewTroikiHandler(troikiSvc, testBaseURL).Register(api)
 	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
+	syncSvc := service.NewSyncService(repo.NewSyncRepo(d, tlabels, plabels))
+	handlers.NewSyncHandler(syncSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg, false).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
