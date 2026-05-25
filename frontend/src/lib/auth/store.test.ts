@@ -1,5 +1,50 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthStore } from './store.svelte';
+import type { OfflineAuthAdapter } from '../offline/auth';
+import type { User } from '../api/types';
+
+interface OfflineFake {
+	adapter: OfflineAuthAdapter;
+	saved: User[];
+	cleared: number;
+	authenticatedRefreshes: number;
+	stored: { id: number; user: User } | null;
+	dataPresent: boolean;
+}
+
+const makeOfflineFake = (
+	initial: { stored?: { id: number; user: User } | null; dataPresent?: boolean } = {}
+): OfflineFake => {
+	const state: OfflineFake = {
+		adapter: undefined as unknown as OfflineAuthAdapter,
+		saved: [],
+		cleared: 0,
+		authenticatedRefreshes: 0,
+		stored: initial.stored ?? null,
+		dataPresent: initial.dataPresent ?? false
+	};
+	state.adapter = {
+		async saveUser(user) {
+			state.saved.push(user);
+			state.stored = { id: user.id, user };
+		},
+		async loadUser() {
+			return state.stored;
+		},
+		async hasData() {
+			return state.dataPresent;
+		},
+		async clear() {
+			state.cleared += 1;
+			state.stored = null;
+			state.dataPresent = false;
+		},
+		async onAuthenticatedRefresh() {
+			state.authenticatedRefreshes += 1;
+		}
+	};
+	return state;
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -173,6 +218,125 @@ describe('AuthStore', () => {
 		expect(store.status).toBe('guest');
 		expect(store.user).toBeNull();
 		expect(store.accessToken).toBeNull();
+	});
+
+	it('bootstrap → refresh network error + offline data → authenticates from cache without token', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ required: false }))
+			.mockRejectedValueOnce(new TypeError('offline'));
+
+		const offline = makeOfflineFake({
+			stored: { id: 7, user: { id: 7, username: 'eu', totpEnabled: false } },
+			dataPresent: true
+		});
+
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			offline: offline.adapter
+		});
+		const result = await store.bootstrap();
+
+		expect(result).toEqual({ setupRequired: false, authenticated: true });
+		expect(store.status).toBe('authenticated');
+		expect(store.user).toEqual({ id: 7, username: 'eu', totpEnabled: false });
+		expect(store.accessToken).toBeNull();
+		expect(offline.cleared).toBe(0);
+		expect(offline.authenticatedRefreshes).toBe(0);
+	});
+
+	it('bootstrap → refresh network error + no offline data → guest', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ required: false }))
+			.mockRejectedValueOnce(new TypeError('offline'));
+
+		const offline = makeOfflineFake();
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			offline: offline.adapter
+		});
+		const result = await store.bootstrap();
+
+		expect(result).toEqual({ setupRequired: false, authenticated: false });
+		expect(store.status).toBe('guest');
+		expect(offline.cleared).toBe(0);
+	});
+
+	it('bootstrap → refresh 401 wipes cached offline data', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ required: false }))
+			.mockResolvedValueOnce(emptyResponse(401));
+
+		const offline = makeOfflineFake({
+			stored: { id: 7, user: { id: 7, username: 'eu', totpEnabled: false } },
+			dataPresent: true
+		});
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			offline: offline.adapter
+		});
+		await store.bootstrap();
+
+		expect(store.status).toBe('guest');
+		expect(offline.cleared).toBe(1);
+	});
+
+	it('bootstrap → refresh ok triggers onAuthenticatedRefresh and saves user', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ required: false }))
+			.mockResolvedValueOnce(jsonResponse({ access: 'A', refresh: 'R' }))
+			.mockResolvedValueOnce(jsonResponse({ user: { id: 9, username: 'eu', totpEnabled: false } }));
+
+		const offline = makeOfflineFake();
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			offline: offline.adapter
+		});
+		await store.bootstrap();
+
+		expect(store.status).toBe('authenticated');
+		expect(offline.saved).toEqual([{ id: 9, username: 'eu', totpEnabled: false }]);
+		expect(offline.authenticatedRefreshes).toBe(1);
+	});
+
+	it('login persists user into offline storage', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse({ access: 'A', refresh: 'R', user: { id: 1, username: 'eu', totpEnabled: false } })
+		);
+		const offline = makeOfflineFake();
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			offline: offline.adapter
+		});
+
+		await store.login({ username: 'eu', password: 'p' });
+
+		expect(offline.saved).toEqual([{ id: 1, username: 'eu', totpEnabled: false }]);
+	});
+
+	it('logout clears offline data even when API call fails', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+		const offline = makeOfflineFake({
+			stored: { id: 1, user: { id: 1, username: 'eu', totpEnabled: false } },
+			dataPresent: true
+		});
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			offline: offline.adapter
+		});
+		store.user = { id: 1, username: 'eu', totpEnabled: false };
+		store.accessToken = 'A';
+		store.status = 'authenticated';
+
+		await store.logout();
+
+		expect(store.status).toBe('guest');
+		expect(offline.cleared).toBe(1);
 	});
 
 	it('setup performs setup and authenticates', async () => {

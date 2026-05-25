@@ -12,13 +12,24 @@
 	import { initI18n, t } from '$lib/i18n';
 	import { getApiClient } from '$lib/api/client';
 	import { getDB } from '$lib/offline/db';
-	import { fetcherFromClient, pull } from '$lib/offline/sync';
+	import { fetcherFromClient, flush, pull } from '$lib/offline/sync';
+	import { createDexieAuthAdapter } from '$lib/offline/auth';
 
 	initI18n(null);
 
 	let { children } = $props();
 
-	const authStore = createAuthStore();
+	const authStore = createAuthStore({
+		offline: createDexieAuthAdapter({
+			onAuthenticatedRefresh: async () => {
+				try {
+					await flush(fetcherFromClient(getApiClient()), getDB());
+				} catch {
+					// Offline or transient — next online tick retries.
+				}
+			}
+		})
+	});
 
 	let bootstrapped = $state(false);
 

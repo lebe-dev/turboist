@@ -2,18 +2,22 @@ import { ApiClient, setApiClient } from '../api/client';
 import { ApiError } from '../api/errors';
 import { auth, type AuthCredentials } from '../api/endpoints/auth';
 import type { User } from '../api/types';
+import { NOOP_OFFLINE_AUTH_ADAPTER, type OfflineAuthAdapter } from '../offline/auth';
 
 export type AuthStatus = 'loading' | 'guest' | 'authenticated';
 
 export interface AuthStoreOptions {
 	baseUrl?: string;
 	fetchImpl?: typeof fetch;
+	offline?: OfflineAuthAdapter;
 }
 
 interface BootstrapResult {
 	setupRequired: boolean;
 	authenticated: boolean;
 }
+
+type RefreshOutcome = 'ok' | 'rejected' | 'offline';
 
 export class AuthStore {
 	user = $state<User | null>(null);
@@ -27,8 +31,10 @@ export class AuthStore {
 	private otpTicket: string | null = null;
 
 	readonly client: ApiClient;
+	private readonly offline: OfflineAuthAdapter;
 
 	constructor(options: AuthStoreOptions = {}) {
+		this.offline = options.offline ?? NOOP_OFFLINE_AUTH_ADAPTER;
 		this.client = new ApiClient({
 			baseUrl: options.baseUrl,
 			fetchImpl: options.fetchImpl,
@@ -40,6 +46,8 @@ export class AuthStore {
 				this.user = null;
 				this.accessToken = null;
 				this.status = 'guest';
+				// Real auth rejection mid-session: drop cached offline data.
+				void this.offline.clear();
 			}
 		});
 		setApiClient(this.client);
@@ -54,13 +62,24 @@ export class AuthStore {
 				this.status = 'guest';
 				return { setupRequired: true, authenticated: false };
 			}
-		} catch {
+		} catch (err) {
+			if (await this.tryAuthenticateOffline(err)) {
+				return { setupRequired: false, authenticated: true };
+			}
 			this.status = 'guest';
 			return { setupRequired: false, authenticated: false };
 		}
 
 		const refreshed = await this.tryRefresh();
-		if (!refreshed) {
+		if (refreshed === 'rejected') {
+			await this.offline.clear();
+			this.status = 'guest';
+			return { setupRequired: false, authenticated: false };
+		}
+		if (refreshed === 'offline') {
+			if (await this.tryAuthenticateOffline(null)) {
+				return { setupRequired: false, authenticated: true };
+			}
 			this.status = 'guest';
 			return { setupRequired: false, authenticated: false };
 		}
@@ -69,24 +88,38 @@ export class AuthStore {
 			const me = await auth.me(this.client);
 			this.user = me.user;
 			this.status = 'authenticated';
+			await this.offline.saveUser(me.user);
+			await this.offline.onAuthenticatedRefresh();
 			return { setupRequired: false, authenticated: true };
-		} catch {
+		} catch (err) {
+			if (await this.tryAuthenticateOffline(err)) {
+				return { setupRequired: false, authenticated: true };
+			}
 			this.accessToken = null;
 			this.status = 'guest';
 			return { setupRequired: false, authenticated: false };
 		}
 	}
 
-	private async tryRefresh(): Promise<boolean> {
+	private async tryAuthenticateOffline(err: unknown): Promise<boolean> {
+		if (err !== null && !isNetworkError(err)) return false;
+		const cached = await this.offline.loadUser();
+		if (!cached) return false;
+		if (!(await this.offline.hasData())) return false;
+		this.user = cached.user;
+		this.accessToken = null;
+		this.status = 'authenticated';
+		return true;
+	}
+
+	private async tryRefresh(): Promise<RefreshOutcome> {
 		try {
 			const res = await auth.refresh(this.client);
 			this.accessToken = res.access;
-			return true;
+			return 'ok';
 		} catch (err) {
-			if (err instanceof ApiError && err.status === 401) {
-				return false;
-			}
-			return false;
+			if (isNetworkError(err)) return 'offline';
+			return 'rejected';
 		}
 	}
 
@@ -105,6 +138,7 @@ export class AuthStore {
 		this.user = res.user;
 		this.status = 'authenticated';
 		this.setupRequired = false;
+		await this.offline.saveUser(res.user);
 		return { otpRequired: false };
 	}
 
@@ -119,6 +153,7 @@ export class AuthStore {
 		this.user = res.user;
 		this.status = 'authenticated';
 		this.setupRequired = false;
+		await this.offline.saveUser(res.user);
 	}
 
 	cancelOtp(): void {
@@ -132,6 +167,7 @@ export class AuthStore {
 		this.user = res.user;
 		this.status = 'authenticated';
 		this.setupRequired = false;
+		await this.offline.saveUser(res.user);
 	}
 
 	async logout(): Promise<void> {
@@ -140,6 +176,7 @@ export class AuthStore {
 		} catch {
 			// best-effort; clear local state regardless
 		}
+		await this.offline.clear();
 		this.clear();
 	}
 
@@ -149,6 +186,7 @@ export class AuthStore {
 		} catch {
 			// best-effort
 		}
+		await this.offline.clear();
 		this.clear();
 	}
 
@@ -160,6 +198,9 @@ export class AuthStore {
 		this.awaitingOtp = false;
 	}
 }
+
+const isNetworkError = (err: unknown): boolean =>
+	err instanceof ApiError && err.status === 0;
 
 let storeInstance: AuthStore | null = null;
 
