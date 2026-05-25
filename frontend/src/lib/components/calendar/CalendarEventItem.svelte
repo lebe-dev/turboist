@@ -85,11 +85,7 @@
 			</p>
 		</div>
 
-		{#if timeLabel && !description}
-			<p class="break-words text-xs text-muted-foreground/70 md:truncate">
-				<span class="tabular-nums">{timeLabel}</span>
-			</p>
-		{:else if timeLabel || description}
+		{#if timeLabel || description}
 			<p class="line-clamp-2 text-xs text-muted-foreground/70">
 				{#if timeLabel}<span class="tabular-nums">{timeLabel}</span>{/if}
 				{#if timeLabel && description}<span aria-hidden="true"> · </span>{/if}

@@ -18,7 +18,17 @@ import (
 	"google.golang.org/api/option"
 )
 
-var htmlTagRe = regexp.MustCompile(`<[^>]+>`)
+var (
+	// htmlScriptRe matches <script>…</script> and <style>…</style> blocks
+	// including their content, which must be removed rather than converted to text.
+	htmlScriptRe = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
+	// htmlBlockRe matches block-level and line-break tags that should become newlines.
+	htmlBlockRe = regexp.MustCompile(`(?i)<(/?(br|p|div|li|tr|h[1-6]|blockquote|pre|ul|ol|hr)[^>]*)>`)
+	// htmlTagRe strips any remaining HTML tags.
+	// Note: does not handle '>' inside attribute values (e.g. title="a > b"),
+	// which is not produced by Google Calendar's rich-text editor.
+	htmlTagRe = regexp.MustCompile(`<[^>]+>`)
+)
 
 // Service encapsulates the business logic for Google Calendar integration.
 type Service struct {
@@ -340,11 +350,32 @@ func googleEventToCalendarEvent(ev *gcal.Event, source model.CalendarSource) (Ca
 	}, true
 }
 
-// stripHTML removes HTML tags and decodes HTML entities, returning plain text.
+// stripHTML converts an HTML string to plain text suitable for display.
+// Block-level tags are converted to newlines so paragraph structure is
+// preserved (useful when the text is shown in a textarea for task prefill).
+// <script> and <style> blocks are removed entirely including their content.
+// The result is capped at 1000 characters to avoid pathologically large
+// descriptions blowing up the JSON response and the in-memory cache.
 func stripHTML(s string) string {
-	s = htmlTagRe.ReplaceAllString(s, " ")
+	const maxLen = 1000
+	s = htmlScriptRe.ReplaceAllString(s, "")
+	s = htmlBlockRe.ReplaceAllString(s, "\n")
+	s = htmlTagRe.ReplaceAllString(s, "")
 	s = html.UnescapeString(s)
-	return strings.Join(strings.Fields(s), " ")
+	// Normalise each line, drop blank lines.
+	parts := strings.Split(s, "\n")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.Join(strings.Fields(p), " ")
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	result := strings.Join(out, "\n")
+	if len(result) > maxLen {
+		result = result[:maxLen] + "…"
+	}
+	return result
 }
 
 func googleEventTimes(ev *gcal.Event) (time.Time, time.Time, string, string, bool, bool) {

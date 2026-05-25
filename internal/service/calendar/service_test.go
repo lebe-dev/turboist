@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"strings"
 	"testing"
 
 	gcal "google.golang.org/api/calendar/v3"
@@ -66,5 +67,110 @@ func TestGoogleEventTimesInvalidDateTime(t *testing.T) {
 	})
 	if ok {
 		t.Fatal("expected false for invalid datetime")
+	}
+}
+
+// --- stripHTML tests ---
+
+func TestStripHTML(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "plain text unchanged",
+			input: "hello world",
+			want:  "hello world",
+		},
+		{
+			name:  "simple inline tag removed",
+			input: "<b>bold</b> and <i>italic</i>",
+			want:  "bold and italic",
+		},
+		{
+			name:  "nested tags",
+			input: "<b><i>nested</i></b>",
+			want:  "nested",
+		},
+		{
+			name:  "HTML entities decoded",
+			input: "a &amp; b &lt;c&gt; &quot;d&quot; &#39;e&#39;",
+			want:  "a & b <c> \"d\" 'e'",
+		},
+		{
+			name:  "nbsp becomes space",
+			input: "a&nbsp;b",
+			want:  "a b",
+		},
+		{
+			name:  "br creates newline",
+			input: "line1<br>line2<br/>line3",
+			want:  "line1\nline2\nline3",
+		},
+		{
+			name:  "p tags create newlines",
+			input: "<p>paragraph one</p><p>paragraph two</p>",
+			want:  "paragraph one\nparagraph two",
+		},
+		{
+			name:  "div tags create newlines",
+			input: "<div>block one</div><div>block two</div>",
+			want:  "block one\nblock two",
+		},
+		{
+			name:  "li tags create newlines",
+			input: "<ul><li>item one</li><li>item two</li></ul>",
+			want:  "item one\nitem two",
+		},
+		{
+			name:  "script content removed entirely",
+			input: "<script>alert(1)</script>text",
+			want:  "text",
+		},
+		{
+			name:  "style content removed entirely",
+			input: "<style>.a { color: red }</style>text",
+			want:  "text",
+		},
+		{
+			name:  "multiline script removed",
+			input: "<script>\nfoo();\nbar();\n</script>after",
+			want:  "after",
+		},
+		{
+			name:  "mixed inline and block",
+			input: "<p><b>Title</b></p><p>Body with <a href=\"x\">link</a> text.</p>",
+			want:  "Title\nBody with link text.",
+		},
+		{
+			name:  "extra whitespace collapsed",
+			input: "  hello   world  ",
+			want:  "hello world",
+		},
+		{
+			name:  "blank lines dropped",
+			input: "<p>one</p><p></p><p>two</p>",
+			want:  "one\ntwo",
+		},
+		{
+			name:  "length capped at 1000 with ellipsis",
+			input: "<p>" + strings.Repeat("a", 1100) + "</p>",
+			want:  strings.Repeat("a", 1000) + "…",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stripHTML(tc.input)
+			if got != tc.want {
+				t.Errorf("stripHTML(%q)\n got  %q\n want %q", tc.input, got, tc.want)
+			}
+		})
 	}
 }
