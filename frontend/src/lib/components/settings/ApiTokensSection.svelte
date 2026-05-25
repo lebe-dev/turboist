@@ -31,14 +31,6 @@
 		return result;
 	}
 
-	function makeReadonlyScopes(): ScopeState {
-		const result = {} as ScopeState;
-		for (const r of SCOPE_RESOURCES) {
-			result[r.resource] = { read: true, write: false };
-		}
-		return result;
-	}
-
 	let tokens = $state<APIToken[]>([]);
 	let loading = $state(true);
 	let creating = $state(false);
@@ -48,7 +40,7 @@
 	let deleteOpen = $state(false);
 
 	let fullAccess = $state(false);
-	let scopesState = $state<ScopeState>(makeReadonlyScopes());
+	let scopesState = $state<ScopeState>(makeEmptyScopes());
 
 	const hasAnyScope = $derived(
 		fullAccess ||
@@ -109,7 +101,7 @@
 	function resetForm() {
 		newName = '';
 		fullAccess = false;
-		scopesState = makeReadonlyScopes();
+		scopesState = makeEmptyScopes();
 	}
 
 	onMount(async () => {
