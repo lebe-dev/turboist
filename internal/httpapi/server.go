@@ -22,17 +22,21 @@ type Deps struct {
 	SessionRepo  *repo.SessionRepo
 	APITokenRepo *repo.APITokenRepo
 	APITokenSalt []byte
-	IPLimiter    *auth.IPLimiter
-	ContextRepo  *repo.ContextRepo
-	LabelRepo    *repo.LabelRepo
-	SectionRepo  *repo.ProjectSectionRepo
-	ProjectRepo  *repo.ProjectRepo
-	TaskRepo     *repo.TaskRepo
-	PinService   *service.PinService
-	BackupSvc    *service.BackupService
-	Cfg          *config.Config
-	BaseURL      string
-	Version      string
+	// IdempotencyRepo is optional. When set, the API group caches successful
+	// responses to mutating requests carrying an Idempotency-Key header so
+	// the offline frontend can safely retry without creating duplicates.
+	IdempotencyRepo *repo.IdempotencyRepo
+	IPLimiter       *auth.IPLimiter
+	ContextRepo     *repo.ContextRepo
+	LabelRepo       *repo.LabelRepo
+	SectionRepo     *repo.ProjectSectionRepo
+	ProjectRepo     *repo.ProjectRepo
+	TaskRepo        *repo.TaskRepo
+	PinService      *service.PinService
+	BackupSvc       *service.BackupService
+	Cfg             *config.Config
+	BaseURL         string
+	Version         string
 	// EventsHub is optional. When set, the API group emits coarse change
 	// notifications (see PublishMiddleware) so SSE subscribers can invalidate
 	// stale views without polling.
@@ -83,6 +87,7 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 	return app.Group(
 		"/api/v1",
 		APIAuthMiddleware(deps.JWTIssuer, deps.APITokenRepo, deps.APITokenSalt),
+		IdempotencyMiddleware(deps.IdempotencyRepo),
 		PublishMiddleware(deps.EventsHub),
 	)
 }

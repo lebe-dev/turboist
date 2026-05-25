@@ -84,10 +84,11 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	tix := events.NewTicketStore()
 
 	deps := httpapi.Deps{
-		JWTIssuer:    issuer,
-		APITokenRepo: apiTokens,
-		APITokenSalt: salt,
-		EventsHub:    hub,
+		JWTIssuer:       issuer,
+		APITokenRepo:    apiTokens,
+		APITokenSalt:    salt,
+		IdempotencyRepo: repo.NewIdempotencyRepo(d),
+		EventsHub:       hub,
 	}
 	app := httpapi.NewApp(deps)
 

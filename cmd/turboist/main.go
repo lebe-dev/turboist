@@ -75,6 +75,7 @@ func main() {
 	sessionRepo := repo.NewSessionRepo(sqlDB)
 	appSettingsRepo := repo.NewAppSettingsRepo(sqlDB)
 	apiTokenRepo := repo.NewAPITokenRepo(sqlDB)
+	idempotencyRepo := repo.NewIdempotencyRepo(sqlDB)
 	calendarRepo := repo.NewCalendarRepo(sqlDB)
 	totpRecoveryRepo := repo.NewTOTPRecoveryRepo(sqlDB)
 	ctxRepo := repo.NewContextRepo(sqlDB)
@@ -125,24 +126,25 @@ func main() {
 
 	// HTTP app
 	deps := httpapi.Deps{
-		Log:          log,
-		JWTIssuer:    jwtIssuer,
-		UserRepo:     userRepo,
-		SessionRepo:  sessionRepo,
-		APITokenRepo: apiTokenRepo,
-		APITokenSalt: []byte(env.APITokenSalt),
-		IPLimiter:    ipLimiter,
-		ContextRepo:  ctxRepo,
-		LabelRepo:    labelRepo,
-		SectionRepo:  sectionRepo,
-		ProjectRepo:  projectRepo,
-		TaskRepo:     taskRepo,
-		PinService:   pinSvc,
-		BackupSvc:    backupSvc,
-		Cfg:          cfg,
-		BaseURL:      env.BaseURL,
-		Version:      Version,
-		EventsHub:    eventsHub,
+		Log:             log,
+		JWTIssuer:       jwtIssuer,
+		UserRepo:        userRepo,
+		SessionRepo:     sessionRepo,
+		APITokenRepo:    apiTokenRepo,
+		APITokenSalt:    []byte(env.APITokenSalt),
+		IdempotencyRepo: idempotencyRepo,
+		IPLimiter:       ipLimiter,
+		ContextRepo:     ctxRepo,
+		LabelRepo:       labelRepo,
+		SectionRepo:     sectionRepo,
+		ProjectRepo:     projectRepo,
+		TaskRepo:        taskRepo,
+		PinService:      pinSvc,
+		BackupSvc:       backupSvc,
+		Cfg:             cfg,
+		BaseURL:         env.BaseURL,
+		Version:         Version,
+		EventsHub:       eventsHub,
 	}
 	app := httpapi.NewApp(deps)
 	calendarSvc := calendarsvc.NewService(
