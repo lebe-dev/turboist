@@ -167,7 +167,6 @@ func (r *SessionRepo) Revoke(ctx context.Context, id int64) error {
 	}
 	if n == 0 {
 		return logErr(ctx, op, ErrNotFound)
-<<<<<<< HEAD
 	}
 	return nil
 }
@@ -191,8 +190,6 @@ func (r *SessionRepo) RevokeForUser(ctx context.Context, id, userID int64) error
 	}
 	if n == 0 {
 		return logErr(ctx, op, ErrNotFound)
-=======
->>>>>>> 049dc85 (v1.6.0 (#32))
 	}
 	return nil
 }
@@ -206,7 +203,6 @@ func (r *SessionRepo) RevokeAllForUser(ctx context.Context, userID int64) error 
 		now, userID)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("revoke all sessions: %w", err))
-<<<<<<< HEAD
 	}
 	return nil
 }
@@ -222,8 +218,6 @@ func (r *SessionRepo) RevokeAllForUserExcept(ctx context.Context, userID, except
 		now, userID, exceptID)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("revoke other sessions: %w", err))
-=======
->>>>>>> 049dc85 (v1.6.0 (#32))
 	}
 	return nil
 }

@@ -20,11 +20,7 @@ import (
 type Service struct {
 	calendars *repo.CalendarRepo
 	users     *repo.UserRepo
-<<<<<<< HEAD
 	cipher    *crypto.TokenCipher
-=======
-	cipher    *TokenCipher
->>>>>>> 049dc85 (v1.6.0 (#32))
 	cache     *EventCache
 	baseURL   string
 	log       *slog.Logger
@@ -41,11 +37,7 @@ func NewService(
 	return &Service{
 		calendars: calendars,
 		users:     users,
-<<<<<<< HEAD
 		cipher:    crypto.NewTokenCipher(calendarTokenKey),
-=======
-		cipher:    NewTokenCipher(calendarTokenKey),
->>>>>>> 049dc85 (v1.6.0 (#32))
 		cache:     NewEventCache(2 * time.Minute),
 		baseURL:   strings.TrimRight(baseURL, "/"),
 		log:       log,

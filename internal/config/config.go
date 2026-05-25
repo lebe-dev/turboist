@@ -130,7 +130,6 @@ func validateDayParts(parts map[string]DayPart) error {
 }
 
 type Env struct {
-<<<<<<< HEAD
 	Bind          string
 	LogLevel      string
 	BaseURL       string
@@ -139,20 +138,10 @@ type Env struct {
 	TOTPSecretKey string
 	DataPath      string
 	Argon2Params  auth.Argon2Params
-=======
-	Bind         string
-	LogLevel     string
-	BaseURL      string
-	JWTSecret    string
-	APITokenSalt string
-	DataPath     string
-	Argon2Params auth.Argon2Params
->>>>>>> 049dc85 (v1.6.0 (#32))
 }
 
 func LoadEnv() (*Env, error) {
 	e := &Env{
-<<<<<<< HEAD
 		Bind:          os.Getenv("BIND"),
 		LogLevel:      os.Getenv("LOG_LEVEL"),
 		BaseURL:       os.Getenv("BASE_URL"),
@@ -160,14 +149,6 @@ func LoadEnv() (*Env, error) {
 		APITokenSalt:  os.Getenv("API_TOKEN_SALT"),
 		TOTPSecretKey: os.Getenv("TOTP_SECRET_KEY"),
 		DataPath:      os.Getenv("DATA_PATH"),
-=======
-		Bind:         os.Getenv("BIND"),
-		LogLevel:     os.Getenv("LOG_LEVEL"),
-		BaseURL:      os.Getenv("BASE_URL"),
-		JWTSecret:    os.Getenv("JWT_SECRET"),
-		APITokenSalt: os.Getenv("API_TOKEN_SALT"),
-		DataPath:     os.Getenv("DATA_PATH"),
->>>>>>> 049dc85 (v1.6.0 (#32))
 	}
 	if e.LogLevel == "" {
 		e.LogLevel = "info"
@@ -193,12 +174,9 @@ func LoadEnv() (*Env, error) {
 	if len(e.APITokenSalt) < 32 {
 		return nil, fmt.Errorf("env: API_TOKEN_SALT must be at least 32 bytes")
 	}
-<<<<<<< HEAD
 	if e.TOTPSecretKey != "" && len(e.TOTPSecretKey) < 32 {
 		return nil, fmt.Errorf("env: TOTP_SECRET_KEY must be at least 32 bytes")
 	}
-=======
->>>>>>> 049dc85 (v1.6.0 (#32))
 	argon2Params, err := loadArgon2Params()
 	if err != nil {
 		return nil, err

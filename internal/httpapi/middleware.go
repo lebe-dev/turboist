@@ -62,7 +62,6 @@ func AccessLogMiddleware(log *slog.Logger) fiber.Handler {
 			slog.Int("status", status),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("request_id", rid),
-<<<<<<< HEAD
 		}
 		// Reading Response.Body() on a streaming response (e.g. SSE) drains
 		// the stream synchronously and blocks until it ends — for long-lived
@@ -70,9 +69,6 @@ func AccessLogMiddleware(log *slog.Logger) fiber.Handler {
 		// case so the middleware can return and fasthttp can start streaming.
 		if !c.Response().IsBodyStream() {
 			attrs = append(attrs, slog.Int("bytes_out", len(c.Response().Body())))
-=======
-			slog.Int("bytes_out", len(c.Response().Body())),
->>>>>>> 049dc85 (v1.6.0 (#32))
 		}
 		if userID != 0 {
 			attrs = append(attrs, slog.Int64("user_id", userID))
@@ -207,10 +203,7 @@ func APIAuthMiddleware(issuer *auth.JWTIssuer, apiTokens *repo.APITokenRepo, sal
 		}
 		c.Locals(localsAuthMethodKey, AuthMethodAPIToken)
 		c.Locals(localsUserIDKey, apiToken.UserID)
-<<<<<<< HEAD
 		c.Locals(localsTokenScopesKey, apiToken.Scopes)
-=======
->>>>>>> 049dc85 (v1.6.0 (#32))
 		enrichLogger(c,
 			slog.Int64("user_id", apiToken.UserID),
 			slog.String("auth_method", AuthMethodAPIToken),

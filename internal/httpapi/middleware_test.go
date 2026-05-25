@@ -475,11 +475,7 @@ func TestRequireJWTAuth_RejectsAPIToken(t *testing.T) {
 		t.Fatalf("gen token: %v", err)
 	}
 	hash := auth.HashAPIToken(rawToken, salt)
-<<<<<<< HEAD
 	if _, err := apiTokens.Create(context.Background(), 1, "test", hash, []string{"*"}); err != nil {
-=======
-	if _, err := apiTokens.Create(context.Background(), 1, "test", hash); err != nil {
->>>>>>> 049dc85 (v1.6.0 (#32))
 		t.Fatalf("create api token: %v", err)
 	}
 
@@ -528,11 +524,7 @@ func TestAPIAuthMiddleware_AcceptsAPIToken(t *testing.T) {
 		t.Fatalf("gen token: %v", err)
 	}
 	hash := auth.HashAPIToken(rawToken, salt)
-<<<<<<< HEAD
 	if _, err := apiTokens.Create(context.Background(), 1, "test", hash, []string{"*"}); err != nil {
-=======
-	if _, err := apiTokens.Create(context.Background(), 1, "test", hash); err != nil {
->>>>>>> 049dc85 (v1.6.0 (#32))
 		t.Fatalf("create api token: %v", err)
 	}
 
@@ -643,7 +635,6 @@ func TestAPIAuthMiddleware_RejectsBadHeader(t *testing.T) {
 		t.Error("no WARN record for bad authorization header format")
 	}
 }
-<<<<<<< HEAD
 
 // setupRequireScopeApp builds a minimal app that authenticates via either JWT
 // or API token, registers the given scope guard on /p, and returns the app
@@ -826,5 +817,3 @@ func TestGetTokenScopes_FromAPIToken(t *testing.T) {
 		t.Errorf("scopes: got %v, want %v", got, want)
 	}
 }
-=======
->>>>>>> 049dc85 (v1.6.0 (#32))

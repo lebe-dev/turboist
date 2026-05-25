@@ -101,7 +101,6 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, completedAt *time.Time) (*model.Task, error) {
 	const op = "service.CompleteService.advanceRecurring"
 	log := logging.FromContext(ctx)
-<<<<<<< HEAD
 
 	// Idempotency: if we already snapped a completion for this recurring task
 	// today (in the configured location), a second Complete call is a no-op —
@@ -121,8 +120,6 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 		return t, nil
 	}
 
-=======
->>>>>>> 049dc85 (v1.6.0 (#32))
 	r, err := rrule.StrToRRule(*t.RecurrenceRule)
 	if err != nil {
 		log.WarnContext(ctx, op+": invalid RRULE", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
@@ -159,15 +156,7 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 	// next occurrence), so the completed view would never show this run. Snap
 	// off a completed history row so the user can see what they got done.
 	if !terminal {
-<<<<<<< HEAD
 		if _, err := s.tasks.CreateRecurrenceCompletion(ctx, t, completionTS); err != nil {
-=======
-		ts := time.Now()
-		if completedAt != nil {
-			ts = *completedAt
-		}
-		if _, err := s.tasks.CreateRecurrenceCompletion(ctx, t, ts); err != nil {
->>>>>>> 049dc85 (v1.6.0 (#32))
 			log.ErrorContext(ctx, op+": create recurrence completion", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
 			return nil, err
 		}
