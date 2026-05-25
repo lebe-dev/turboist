@@ -10,6 +10,9 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { initI18n, t } from '$lib/i18n';
+	import { getApiClient } from '$lib/api/client';
+	import { getDB } from '$lib/offline/db';
+	import { fetcherFromClient, pull } from '$lib/offline/sync';
 
 	initI18n(null);
 
@@ -23,8 +26,22 @@
 		void (async () => {
 			await authStore.bootstrap();
 			bootstrapped = true;
+			if (authStore.status === 'authenticated') {
+				void backgroundSyncPull();
+			}
 		})();
 	});
+
+	async function backgroundSyncPull(): Promise<void> {
+		try {
+			const db = getDB();
+			const lastPulledAt = (await db.meta.get('lastPulledAt'))?.value as string | undefined;
+			await pull(lastPulledAt, fetcherFromClient(getApiClient()), db);
+		} catch {
+			// Offline / unauthenticated / transient — silent: stores keep working from
+			// REST and the next online tick will retry.
+		}
+	}
 
 	$effect(() => {
 		if (!bootstrapped) return;
