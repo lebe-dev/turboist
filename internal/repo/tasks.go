@@ -28,7 +28,7 @@ func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, client_id, deleted_at, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -45,7 +45,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var t model.Task
 	var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
 	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
-	var recurrenceRule, troikiCategory sql.NullString
+	var recurrenceRule, troikiCategory, clientID, deletedAt sql.NullString
 	var dueHasTime, deadlineHasTime, isPinned, isPrivate int
 	var createdAt, updatedAt string
 	if err := row.Scan(
@@ -58,9 +58,21 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&t.PostponeCount,
 		&troikiCategory,
 		&sourceTaskID,
+		&clientID, &deletedAt,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
+	}
+	if clientID.Valid {
+		v := clientID.String
+		t.ClientID = &v
+	}
+	if deletedAt.Valid {
+		ts, err := model.ParseUTC(deletedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse deleted_at: %w", err)
+		}
+		t.DeletedAt = &ts
 	}
 	if sourceTaskID.Valid {
 		v := sourceTaskID.Int64
@@ -176,6 +188,7 @@ type CreateTask struct {
 	DayPart         model.DayPart
 	PlanState       model.PlanState
 	RecurrenceRule  *string
+	ClientID        *string
 }
 
 func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, error) {
@@ -197,14 +210,15 @@ func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, erro
 	res, err := r.db.ExecContext(ctx,
 		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
 			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-			day_part, plan_state, is_pinned, pinned_at, recurrence_rule, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`,
+			day_part, plan_state, is_pinned, pinned_at, recurrence_rule, client_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?)`,
 		in.Title, in.Description,
 		nullInt(in.InboxID), nullInt(in.ContextID), nullInt(in.ProjectID), nullInt(in.SectionID), nullInt(in.ParentID),
 		string(in.Priority),
 		nullTime(in.DueAt), boolInt(in.DueHasTime), nullTime(in.DeadlineAt), boolInt(in.DeadlineHasTime),
 		string(in.DayPart), string(in.PlanState),
 		nullStr(in.RecurrenceRule),
+		nullStr(in.ClientID),
 		now, now,
 	)
 	if err != nil {
@@ -819,23 +833,23 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 // --- counters (limit checks) ---
 
 func (r *TaskRepo) CountWeek(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'week' AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'week' AND status = 'open' AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountBacklog(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'backlog' AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'backlog' AND status = 'open' AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountInbox(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE inbox_id IS NOT NULL AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE inbox_id IS NOT NULL AND status = 'open' AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountPinnedTasks(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE is_pinned = 1`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE is_pinned = 1 AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountPinnedProjects(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM projects WHERE is_pinned = 1`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM projects WHERE is_pinned = 1 AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) scalarCount(ctx context.Context, q string, args ...any) (int, error) {

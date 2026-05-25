@@ -19,14 +19,28 @@ func NewContextRepo(db *sql.DB) *ContextRepo {
 	return &ContextRepo{db: db}
 }
 
+const contextColumns = `id, name, color, is_favourite, client_id, deleted_at, created_at, updated_at`
+
 func scanContext(row interface{ Scan(...any) error }) (*model.Context, error) {
 	var c model.Context
 	var fav int
+	var clientID, deletedAt sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&c.ID, &c.Name, &c.Color, &fav, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&c.ID, &c.Name, &c.Color, &fav, &clientID, &deletedAt, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	c.IsFavourite = fav == 1
+	if clientID.Valid {
+		v := clientID.String
+		c.ClientID = &v
+	}
+	if deletedAt.Valid {
+		ts, err := model.ParseUTC(deletedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse deleted_at: %w", err)
+		}
+		c.DeletedAt = &ts
+	}
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
@@ -41,6 +55,10 @@ func scanContext(row interface{ Scan(...any) error }) (*model.Context, error) {
 }
 
 func (r *ContextRepo) Create(ctx context.Context, name, color string, isFavourite bool) (*model.Context, error) {
+	return r.CreateWithClientID(ctx, name, color, isFavourite, nil)
+}
+
+func (r *ContextRepo) CreateWithClientID(ctx context.Context, name, color string, isFavourite bool, clientID *string) (*model.Context, error) {
 	const op = "repo.contexts.Create"
 	logQuery(ctx, op, color, isFavourite)
 	now := model.FormatUTC(time.Now())
@@ -49,8 +67,8 @@ func (r *ContextRepo) Create(ctx context.Context, name, color string, isFavourit
 		favInt = 1
 	}
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO contexts (name, color, is_favourite, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		name, color, favInt, now, now)
+		`INSERT INTO contexts (name, color, is_favourite, client_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		name, color, favInt, nullStr(clientID), now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, logErr(ctx, op, ErrConflict)
@@ -68,7 +86,7 @@ func (r *ContextRepo) Get(ctx context.Context, id int64) (*model.Context, error)
 	const op = "repo.contexts.Get"
 	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, color, is_favourite, created_at, updated_at FROM contexts WHERE id = ?`, id)
+		`SELECT `+contextColumns+` FROM contexts WHERE id = ?`, id)
 	c, err := scanContext(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -84,11 +102,12 @@ func (r *ContextRepo) List(ctx context.Context, page Page) ([]model.Context, int
 	logQuery(ctx, op, page)
 	page = page.Normalize()
 	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM contexts`).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM contexts WHERE deleted_at IS NULL`).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count contexts: %w", err))
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, created_at, updated_at FROM contexts
+		`SELECT `+contextColumns+` FROM contexts
+		 WHERE deleted_at IS NULL
 		 ORDER BY is_favourite DESC, name ASC LIMIT ? OFFSET ?`, page.Limit, page.Offset)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("list contexts: %w", err))

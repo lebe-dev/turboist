@@ -22,7 +22,7 @@ type TaskFilter struct {
 }
 
 func (f TaskFilter) where() (string, []any) {
-	conds := []string{}
+	conds := []string{"t.deleted_at IS NULL"}
 	args := []any{}
 	if f.ContextID != nil {
 		conds = append(conds, "t.context_id = ?")
@@ -49,9 +49,6 @@ func (f TaskFilter) where() (string, []any) {
 		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q)
 		like := "%" + escaped + "%"
 		args = append(args, like, like)
-	}
-	if len(conds) == 0 {
-		return "", args
 	}
 	return " AND " + strings.Join(conds, " AND "), args
 }
@@ -118,6 +115,7 @@ func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64
 		 )
 		 SELECT `+taskColumns+` FROM tasks
 		 WHERE project_id IN (`+strings.Join(placeholders, ",")+`)
+		   AND deleted_at IS NULL
 		   AND id NOT IN (SELECT id FROM cancelled_subtree)
 		 ORDER BY `+taskOrderBy, args...)
 	if err != nil {
@@ -226,7 +224,7 @@ func (r *TaskRepo) ListPinned(ctx context.Context, filter TaskFilter) ([]model.T
 func (r *TaskRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCategory) ([]model.Task, int, error) {
 	const op = "repo.tasks.ListByTroikiCategory"
 	logQuery(ctx, op, cat)
-	base := "FROM tasks t WHERE t.troiki_category = ? AND t.status = 'open'"
+	base := "FROM tasks t WHERE t.troiki_category = ? AND t.status = 'open' AND t.deleted_at IS NULL"
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+base, string(cat)).Scan(&total); err != nil {
@@ -267,7 +265,7 @@ func (r *TaskRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCat
 
 func (r *TaskRepo) CountOpenByTroikiCategory(ctx context.Context, cat model.TroikiCategory) (int, error) {
 	return r.scalarCount(ctx,
-		`SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open'`,
+		`SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open' AND deleted_at IS NULL`,
 		string(cat))
 }
 

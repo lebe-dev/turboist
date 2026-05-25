@@ -24,9 +24,9 @@ func NewProjectRepo(db *sql.DB, labels *ProjectLabelsRepo) *ProjectRepo {
 func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	var p model.Project
 	var pinned, priv int
-	var pinnedAt, troikiCategory sql.NullString
+	var pinnedAt, troikiCategory, clientID, deletedAt sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &p.Type, &pinned, &pinnedAt, &priv, &troikiCategory, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &p.Type, &pinned, &pinnedAt, &priv, &troikiCategory, &clientID, &deletedAt, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	p.IsPinned = pinned == 1
@@ -42,6 +42,17 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 		c := model.TroikiCategory(troikiCategory.String)
 		p.TroikiCategory = &c
 	}
+	if clientID.Valid {
+		v := clientID.String
+		p.ClientID = &v
+	}
+	if deletedAt.Valid {
+		ts, err := model.ParseUTC(deletedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse deleted_at: %w", err)
+		}
+		p.DeletedAt = &ts
+	}
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
@@ -55,7 +66,7 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	return &p, nil
 }
 
-const projectColumns = `id, context_id, title, description, color, status, project_type, is_pinned, pinned_at, is_private, troiki_category, created_at, updated_at`
+const projectColumns = `id, context_id, title, description, color, status, project_type, is_pinned, pinned_at, is_private, troiki_category, client_id, deleted_at, created_at, updated_at`
 
 type CreateProject struct {
 	ContextID   int64
@@ -63,6 +74,7 @@ type CreateProject struct {
 	Description string
 	Color       string
 	Type        model.ProjectType
+	ClientID    *string
 }
 
 func (r *ProjectRepo) Create(ctx context.Context, in CreateProject) (*model.Project, error) {
@@ -74,9 +86,9 @@ func (r *ProjectRepo) Create(ctx context.Context, in CreateProject) (*model.Proj
 		pt = model.ProjectTypeGeneric
 	}
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO projects (context_id, title, description, color, status, project_type, is_pinned, pinned_at, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, 'open', ?, 0, NULL, ?, ?)`,
-		in.ContextID, in.Title, in.Description, in.Color, string(pt), now, now)
+		`INSERT INTO projects (context_id, title, description, color, status, project_type, is_pinned, pinned_at, client_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 'open', ?, 0, NULL, ?, ?, ?)`,
+		in.ContextID, in.Title, in.Description, in.Color, string(pt), nullStr(in.ClientID), now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, logErr(ctx, op, ErrConflict)
@@ -121,7 +133,7 @@ func (r *ProjectRepo) List(ctx context.Context, filter ProjectListFilter, page P
 	const op = "repo.projects.List"
 	logQuery(ctx, op, filter, page)
 	page = page.Normalize()
-	conds := []string{}
+	conds := []string{"deleted_at IS NULL"}
 	args := []any{}
 	if filter.ContextID != nil {
 		conds = append(conds, "context_id = ?")
@@ -131,10 +143,7 @@ func (r *ProjectRepo) List(ctx context.Context, filter ProjectListFilter, page P
 		conds = append(conds, "status = ?")
 		args = append(args, string(*filter.Status))
 	}
-	where := ""
-	if len(conds) > 0 {
-		where = " WHERE " + strings.Join(conds, " AND ")
-	}
+	where := " WHERE " + strings.Join(conds, " AND ")
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM projects`+where, args...).Scan(&total); err != nil {
@@ -390,14 +399,14 @@ func (r *ProjectRepo) ListByTroikiCategory(ctx context.Context, cat model.Troiki
 	logQuery(ctx, op, cat)
 	var total int
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open'`,
+		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open' AND deleted_at IS NULL`,
 		string(cat)).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count troiki projects: %w", err))
 	}
 
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT `+projectColumns+` FROM projects
-		 WHERE troiki_category = ? AND status = 'open'
+		 WHERE troiki_category = ? AND status = 'open' AND deleted_at IS NULL
 		 ORDER BY is_pinned DESC, pinned_at DESC, created_at DESC`,
 		string(cat))
 	if err != nil {
@@ -435,7 +444,7 @@ func (r *ProjectRepo) CountOpenByTroikiCategory(ctx context.Context, cat model.T
 	logQuery(ctx, op, cat)
 	var n int
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open'`,
+		`SELECT COUNT(*) FROM projects WHERE troiki_category = ? AND status = 'open' AND deleted_at IS NULL`,
 		string(cat)).Scan(&n); err != nil {
 		return 0, logErr(ctx, op, err)
 	}
@@ -450,15 +459,15 @@ func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page)
 	if err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM projects p
 		 JOIN project_labels pl ON pl.project_id = p.id
-		 WHERE pl.label_id = ?`, labelID).Scan(&total); err != nil {
+		 WHERE pl.label_id = ? AND p.deleted_at IS NULL`, labelID).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count projects by label: %w", err))
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status, p.project_type,
-		        p.is_pinned, p.pinned_at, p.is_private, p.troiki_category, p.created_at, p.updated_at
+		        p.is_pinned, p.pinned_at, p.is_private, p.troiki_category, p.client_id, p.deleted_at, p.created_at, p.updated_at
 		 FROM projects p
 		 JOIN project_labels pl ON pl.project_id = p.id
-		 WHERE pl.label_id = ?
+		 WHERE pl.label_id = ? AND p.deleted_at IS NULL
 		 ORDER BY p.is_pinned DESC, p.pinned_at DESC, p.created_at DESC
 		 LIMIT ? OFFSET ?`, labelID, page.Limit, page.Offset)
 	if err != nil {

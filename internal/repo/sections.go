@@ -19,11 +19,25 @@ func NewProjectSectionRepo(db *sql.DB) *ProjectSectionRepo {
 	return &ProjectSectionRepo{db: db}
 }
 
+const sectionColumns = `id, project_id, title, position, client_id, deleted_at, created_at, updated_at`
+
 func scanSection(row interface{ Scan(...any) error }) (*model.ProjectSection, error) {
 	var s model.ProjectSection
+	var clientID, deletedAt sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&s.ID, &s.ProjectID, &s.Title, &s.Position, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&s.ID, &s.ProjectID, &s.Title, &s.Position, &clientID, &deletedAt, &createdAt, &updatedAt); err != nil {
 		return nil, err
+	}
+	if clientID.Valid {
+		v := clientID.String
+		s.ClientID = &v
+	}
+	if deletedAt.Valid {
+		ts, err := model.ParseUTC(deletedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse deleted_at: %w", err)
+		}
+		s.DeletedAt = &ts
 	}
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
@@ -39,6 +53,10 @@ func scanSection(row interface{ Scan(...any) error }) (*model.ProjectSection, er
 }
 
 func (r *ProjectSectionRepo) Create(ctx context.Context, projectID int64, title string) (*model.ProjectSection, error) {
+	return r.CreateWithClientID(ctx, projectID, title, nil)
+}
+
+func (r *ProjectSectionRepo) CreateWithClientID(ctx context.Context, projectID int64, title string, clientID *string) (*model.ProjectSection, error) {
 	const op = "repo.project_sections.Create"
 	logQuery(ctx, op, projectID)
 	now := model.FormatUTC(time.Now())
@@ -49,8 +67,8 @@ func (r *ProjectSectionRepo) Create(ctx context.Context, projectID int64, title 
 		return nil, logErr(ctx, op, fmt.Errorf("next section position: %w", err))
 	}
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO project_sections (project_id, title, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		projectID, title, nextPos, now, now)
+		`INSERT INTO project_sections (project_id, title, position, client_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		projectID, title, nextPos, nullStr(clientID), now, now)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("insert section: %w", err))
 	}
@@ -65,7 +83,7 @@ func (r *ProjectSectionRepo) Get(ctx context.Context, id int64) (*model.ProjectS
 	const op = "repo.project_sections.Get"
 	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, project_id, title, position, created_at, updated_at FROM project_sections WHERE id = ?`, id)
+		`SELECT `+sectionColumns+` FROM project_sections WHERE id = ?`, id)
 	s, err := scanSection(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -82,12 +100,12 @@ func (r *ProjectSectionRepo) ListByProject(ctx context.Context, projectID int64,
 	page = page.Normalize()
 	var total int
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM project_sections WHERE project_id = ?`, projectID).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM project_sections WHERE project_id = ? AND deleted_at IS NULL`, projectID).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count sections: %w", err))
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, project_id, title, position, created_at, updated_at FROM project_sections
-		 WHERE project_id = ? ORDER BY position ASC, id ASC LIMIT ? OFFSET ?`,
+		`SELECT `+sectionColumns+` FROM project_sections
+		 WHERE project_id = ? AND deleted_at IS NULL ORDER BY position ASC, id ASC LIMIT ? OFFSET ?`,
 		projectID, page.Limit, page.Offset)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("list sections: %w", err))

@@ -10,6 +10,8 @@ type Context struct {
 	Name        string
 	Color       string
 	IsFavourite bool
+	ClientID    *string
+	DeletedAt   *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -20,6 +22,8 @@ type Label struct {
 	Color       string
 	IsFavourite bool
 	IsPrivate   bool
+	ClientID    *string
+	DeletedAt   *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -37,6 +41,8 @@ type Project struct {
 	IsPrivate      bool
 	TroikiCategory *TroikiCategory
 	Labels         []Label
+	ClientID       *string
+	DeletedAt      *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -46,6 +52,8 @@ type ProjectSection struct {
 	ProjectID int64
 	Title     string
 	Position  int
+	ClientID  *string
+	DeletedAt *time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -90,6 +98,9 @@ type Task struct {
 	TroikiCategory *TroikiCategory
 
 	Labels []Label
+
+	ClientID  *string
+	DeletedAt *time.Time
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

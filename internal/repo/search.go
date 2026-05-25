@@ -34,14 +34,14 @@ func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]mo
 
 	var total int
 	if err := r.tasks.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM tasks t WHERE t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\'`, args...).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM tasks t WHERE t.deleted_at IS NULL AND (t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\')`, args...).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count search tasks: %w", err))
 	}
 	listArgs := append([]any{}, args...)
 	listArgs = append(listArgs, page.Limit, page.Offset)
 	rows, err := r.tasks.db.QueryContext(ctx,
 		`SELECT `+taskColumns+
-			` FROM tasks t WHERE t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\'
+			` FROM tasks t WHERE t.deleted_at IS NULL AND (t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\')
 			  ORDER BY `+taskOrderBy+` LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("search tasks: %w", err))
@@ -86,12 +86,12 @@ func (r *SearchRepo) SearchProjects(ctx context.Context, q string, page Page) ([
 
 	var total int
 	if err := r.projects.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM projects WHERE title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'`, like, like).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM projects WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\')`, like, like).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count search projects: %w", err))
 	}
 	rows, err := r.projects.db.QueryContext(ctx,
 		`SELECT `+projectColumns+` FROM projects
-		 WHERE title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'
+		 WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\')
 		 ORDER BY is_pinned DESC, pinned_at DESC, created_at DESC LIMIT ? OFFSET ?`,
 		like, like, page.Limit, page.Offset)
 	if err != nil {
