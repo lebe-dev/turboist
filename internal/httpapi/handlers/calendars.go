@@ -104,6 +104,7 @@ type calendarEventResp struct {
 	Provider    string `json:"provider"`
 	ExternalID  string `json:"externalId"`
 	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
 	Location    string `json:"location"`
 	Start       string `json:"start"`
 	End         string `json:"end"`
@@ -146,6 +147,7 @@ func calendarEventToResp(e calendar.CalendarEvent) calendarEventResp {
 		Provider:    e.Provider,
 		ExternalID:  e.ExternalID,
 		Title:       e.Title,
+		Description: e.Description,
 		Location:    e.Location,
 		Start:       model.FormatUTC(e.Start),
 		End:         model.FormatUTC(e.End),

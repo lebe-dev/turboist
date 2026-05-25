@@ -234,6 +234,7 @@ export interface CalendarEvent {
 	provider: string;
 	externalId: string;
 	title: string;
+	description?: string;
 	location: string;
 	start: string;
 	end: string;

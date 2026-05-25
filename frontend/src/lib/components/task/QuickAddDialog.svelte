@@ -30,6 +30,7 @@
 	let {
 		open = $bindable(false),
 		defaultTitle = '',
+		defaultDescription = '',
 		defaultProjectId = null,
 		defaultLabelIds = [],
 		defaultDueDate = '',
@@ -43,6 +44,7 @@
 	}: {
 		open?: boolean;
 		defaultTitle?: string;
+		defaultDescription?: string;
 		defaultProjectId?: number | null;
 		defaultLabelIds?: Array<string | number>;
 		defaultDueDate?: string;
@@ -81,7 +83,8 @@
 
 	// svelte-ignore state_referenced_locally
 	let titles = $state(defaultTitle);
-	let description = $state('');
+	// svelte-ignore state_referenced_locally
+	let description = $state(defaultDescription);
 	// svelte-ignore state_referenced_locally
 	let priority = $state<Priority>(defaultPriority);
 	// svelte-ignore state_referenced_locally
@@ -269,6 +272,7 @@
 	$effect(() => {
 		if (open && !prevOpen) {
 			titles = defaultTitle;
+			description = defaultDescription;
 			dueDate = defaultDueDate ?? '';
 			projectId = defaultProjectId ? String(defaultProjectId) : '';
 			labelIds = initialLabelIds();
