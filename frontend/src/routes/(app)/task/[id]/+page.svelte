@@ -371,7 +371,26 @@ async function save(): Promise<void> {
 		if (Number.isFinite(taskId)) void loader.refetch();
 	});
 
-	useInvalidation(['tasks'], () => void loader.revalidate());
+	// Background revalidation via SSE: fetch and hydrate without nulling `task`
+	// so the textarea stays mounted and the mobile keyboard is not dismissed.
+	useInvalidation(['tasks'], () => {
+		if (!task) { void loader.revalidate(); return; }
+		const id = taskId;
+		void (async () => {
+			try {
+				const client = getApiClient();
+				const [t, subs] = await Promise.all([
+					tasksApi.get(client, id),
+					tasksApi.listSubtasks(client, id).catch(() => null)
+				]);
+				if (taskId !== id) return;
+				hydrate(t);
+				if (subs) subtasks.items = subs.items;
+			} catch {
+				// silently ignore background revalidation errors
+			}
+		})();
+	});
 </script>
 
 <header class="flex items-center justify-between gap-3 border-b border-border px-2 py-1 sm:px-5">
