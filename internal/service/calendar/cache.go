@@ -18,6 +18,7 @@ type CalendarEvent struct {
 	Provider    string
 	ExternalID  string
 	Title       string
+	Description string
 	Location    string
 	Start       time.Time
 	End         time.Time

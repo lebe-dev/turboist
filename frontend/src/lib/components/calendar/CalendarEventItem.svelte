@@ -21,7 +21,8 @@
 	} = $props();
 
 	const timeLabel = $derived(event.allDay ? '' : eventTimeLabel(event, timezone, $t('calendar.allDay')));
-	const hasMeta = $derived(timeLabel.length > 0);
+	const description = $derived(event.description?.trim() ?? '');
+	const hasMeta = $derived(timeLabel.length > 0 || description.length > 0);
 
 	function openInGoogle(): void {
 		if (!event.htmlLink || typeof window === 'undefined') return;
@@ -88,6 +89,10 @@
 			<p class="break-words text-xs text-muted-foreground/70 md:truncate">
 				<span class="tabular-nums">{timeLabel}</span>
 			</p>
+		{/if}
+
+		{#if description}
+			<p class="break-words text-xs text-muted-foreground/50 md:truncate">{description}</p>
 		{/if}
 	</div>
 

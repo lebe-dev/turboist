@@ -80,6 +80,7 @@
 	} | null>(null);
 	let quickAddPrefill = $state<{
 		title: string;
+		description: string;
 		dueDate: string;
 		dayPart: DayPart;
 	} | null>(null);
@@ -265,9 +266,10 @@
 
 	$effect(() => {
 		const handler = (e: Event) => {
-			const detail = (e as CustomEvent<{ title?: string; dueDate?: string; dayPart?: DayPart }>).detail;
+			const detail = (e as CustomEvent<{ title?: string; description?: string; dueDate?: string; dayPart?: DayPart }>).detail;
 			quickAddPrefill = {
 				title: detail?.title ?? '',
+				description: detail?.description ?? '',
 				dueDate: detail?.dueDate ?? '',
 				dayPart: detail?.dayPart ?? 'none'
 			};
@@ -577,6 +579,7 @@
 	<QuickAddDialog
 		bind:open={quickOpen}
 		defaultTitle={quickAddPrefill?.title ?? ''}
+		defaultDescription={followUpOverride ? '' : (quickAddPrefill?.description ?? '')}
 		defaultProjectId={followUpOverride ? followUpOverride.projectId : quickAddDefaults.projectId}
 		defaultLabelIds={followUpOverride ? followUpOverride.labelIds : quickAddDefaults.labelIds}
 		defaultDueDate={followUpOverride ? '' : quickAddPrefill?.dueDate ?? quickAddDefaults.dueDate}

@@ -3,7 +3,9 @@ package calendar
 import (
 	"context"
 	"errors"
+	"html"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,6 +17,8 @@ import (
 	gcal "google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 )
+
+var htmlTagRe = regexp.MustCompile(`<[^>]+>`)
 
 // Service encapsulates the business logic for Google Calendar integration.
 type Service struct {
@@ -325,6 +329,7 @@ func googleEventToCalendarEvent(ev *gcal.Event, source model.CalendarSource) (Ca
 		Provider:    string(model.CalendarProviderGoogle),
 		ExternalID:  ev.Id,
 		Title:       title,
+		Description: stripHTML(ev.Description),
 		Location:    ev.Location,
 		Start:       start,
 		End:         end,
@@ -333,6 +338,13 @@ func googleEventToCalendarEvent(ev *gcal.Event, source model.CalendarSource) (Ca
 		AllDay:      allDay,
 		HTMLLink:    ev.HtmlLink,
 	}, true
+}
+
+// stripHTML removes HTML tags and decodes HTML entities, returning plain text.
+func stripHTML(s string) string {
+	s = htmlTagRe.ReplaceAllString(s, " ")
+	s = html.UnescapeString(s)
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func googleEventTimes(ev *gcal.Event) (time.Time, time.Time, string, string, bool, bool) {
