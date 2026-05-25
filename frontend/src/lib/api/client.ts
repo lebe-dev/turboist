@@ -44,6 +44,22 @@ export class ApiClient {
 		return this.parseResponse<T>(response);
 	}
 
+	// rawFetch returns the response status and parsed JSON without throwing on
+	// non-2xx. The offline sync runner needs the raw status to distinguish 410
+	// (tombstone) and 4xx (permanent) from 5xx/network (retry).
+	async rawFetch(
+		path: string,
+		init: ApiFetchInit = {}
+	): Promise<{ status: number; data: unknown }> {
+		const url = this.buildUrl(path, init.query);
+		const response = await this.doRequest(url, init, /*isRetry*/ false);
+		if (response.status === 204) {
+			return { status: response.status, data: null };
+		}
+		const text = await response.text();
+		return { status: response.status, data: text ? safeJsonParse(text) : null };
+	}
+
 	private buildUrl(
 		path: string,
 		query: ApiFetchInit['query']
