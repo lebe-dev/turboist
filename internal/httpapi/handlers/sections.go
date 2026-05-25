@@ -74,6 +74,9 @@ func (h *SectionHandler) get(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get section").WithCause(err)
 	}
+	if s.DeletedAt != nil {
+		return httpapi.ErrNotFound("section not found")
+	}
 	return c.JSON(dto.SectionFromModel(*s))
 }
 
@@ -83,12 +86,22 @@ func (h *SectionHandler) patch(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Section.Patch", slog.Int64("section_id", id))
+	existing, err := h.sections.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("section not found")
+		}
+		return httpapi.ErrInternal("get section").WithCause(err)
+	}
+	if existing.DeletedAt != nil {
+		return httpapi.ErrGone("section is deleted")
+	}
 	var req dto.PatchSectionRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		logValidation(c, "handler.Section.Patch", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
-	s, err := h.sections.Update(c.Context(), id, repo.SectionUpdate{Title: req.Title})
+	s, err := h.sections.Update(c.Context(), id, repo.SectionUpdate{Title: req.Title, ClientID: req.ClientID})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
@@ -108,6 +121,9 @@ func (h *SectionHandler) delete(c fiber.Ctx) error {
 	if err := h.sections.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("section not found")
+		}
+		if errors.Is(err, repo.ErrGone) {
+			return httpapi.ErrGone("section is deleted")
 		}
 		return httpapi.ErrInternal("delete section").WithCause(err)
 	}

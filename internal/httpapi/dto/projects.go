@@ -8,6 +8,7 @@ type CreateProjectRequest struct {
 	Color       string   `json:"color"`
 	Labels      []string `json:"labels"`
 	ProjectType string   `json:"projectType"`
+	ClientID    *string  `json:"clientId"`
 }
 
 type PatchProjectRequest struct {
@@ -17,6 +18,7 @@ type PatchProjectRequest struct {
 	Labels      *[]string `json:"labels"`
 	IsPrivate   *bool     `json:"isPrivate"`
 	ProjectType *string   `json:"projectType"`
+	ClientID    *string   `json:"clientId"`
 }
 
 type ProjectDTO struct {
@@ -32,6 +34,7 @@ type ProjectDTO struct {
 	IsPrivate      bool       `json:"isPrivate"`
 	TroikiCategory *string    `json:"troikiCategory"`
 	Labels         []LabelDTO `json:"labels"`
+	ClientID       *string    `json:"clientId"`
 	CreatedAt      string     `json:"createdAt"`
 	UpdatedAt      string     `json:"updatedAt"`
 }
@@ -63,6 +66,7 @@ func ProjectFromModel(p model.Project) ProjectDTO {
 		IsPrivate:      p.IsPrivate,
 		TroikiCategory: troikiCat,
 		Labels:         labels,
+		ClientID:       p.ClientID,
 		CreatedAt:      FormatTime(p.CreatedAt),
 		UpdatedAt:      FormatTime(p.UpdatedAt),
 	}

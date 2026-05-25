@@ -195,6 +195,8 @@ type ProjectUpdate struct {
 
 	TroikiCategory      *model.TroikiCategory
 	TroikiCategoryClear bool
+
+	ClientID *string
 }
 
 func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*model.Project, error) {
@@ -235,6 +237,10 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 	} else if u.TroikiCategory != nil {
 		sets = append(sets, "troiki_category = ?")
 		args = append(args, string(*u.TroikiCategory))
+	}
+	if u.ClientID != nil {
+		sets = append(sets, "client_id = ?")
+		args = append(args, *u.ClientID)
 	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
@@ -330,10 +336,15 @@ func (r *ProjectRepo) ClearAllTroikiCategories(ctx context.Context) error {
 	return nil
 }
 
+// Delete soft-deletes the project. ErrGone signals an already-tombstoned row;
+// see TaskRepo.Delete for the rationale.
 func (r *ProjectRepo) Delete(ctx context.Context, id int64) error {
 	const op = "repo.projects.Delete"
 	logQuery(ctx, op, id)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+		now, now, id)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("delete project: %w", err))
 	}
@@ -341,10 +352,17 @@ func (r *ProjectRepo) Delete(ctx context.Context, id int64) error {
 	if err != nil {
 		return logErr(ctx, op, err)
 	}
-	if n == 0 {
-		return logErr(ctx, op, ErrNotFound)
+	if n > 0 {
+		return nil
 	}
-	return nil
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM projects WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return logErr(ctx, op, ErrNotFound)
+		}
+		return logErr(ctx, op, fmt.Errorf("delete project: %w", err))
+	}
+	return logErr(ctx, op, ErrGone)
 }
 
 func (r *ProjectRepo) SetLabels(ctx context.Context, projectID int64, labelIDs []int64) error {

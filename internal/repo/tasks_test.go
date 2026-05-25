@@ -208,19 +208,36 @@ func TestTaskRepo_SetPinnedAndDelete(t *testing.T) {
 	if err := f.tasks.SetPinned(ctx, task.ID, true); err != nil {
 		t.Fatalf("pin: %v", err)
 	}
-	got, _ := f.tasks.Get(ctx, task.ID)
+	got, err := f.tasks.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
 	if !got.IsPinned || got.PinnedAt == nil {
 		t.Errorf("expected pinned, got %+v", got)
 	}
 	if err := f.tasks.Delete(ctx, task.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := f.tasks.Get(ctx, task.ID); !errors.Is(err, ErrNotFound) {
-		t.Errorf("expected ErrNotFound, got %v", err)
+	// Soft-delete: row remains so the sync layer can ship the tombstone, but
+	// listings filter it out (asserted by offline_sync_test.go) and a second
+	// Delete returns ErrGone.
+	got, err = f.tasks.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("get after delete: %v", err)
+	}
+	if got.DeletedAt == nil {
+		t.Errorf("expected DeletedAt set after soft-delete, got nil")
+	}
+	if err := f.tasks.Delete(ctx, task.ID); !errors.Is(err, ErrGone) {
+		t.Errorf("second delete: got %v, want ErrGone", err)
 	}
 }
 
-func TestTaskRepo_Delete_CascadesSubtasks(t *testing.T) {
+// TestTaskRepo_Delete_LeavesSubtasksLive documents that soft-delete does NOT
+// cascade to descendants — the FK cascade only fires on physical deletes. The
+// sync layer is responsible for tombstoning each row individually so the
+// client outbox can drop each pending edit independently.
+func TestTaskRepo_Delete_LeavesSubtasksLive(t *testing.T) {
 	f := newTaskFixture(t)
 	ctx := context.Background()
 	parent, _ := f.tasks.Create(ctx, CreateTask{
@@ -231,17 +248,15 @@ func TestTaskRepo_Delete_CascadesSubtasks(t *testing.T) {
 		Placement: Placement{ContextID: &f.contextID, ParentID: &parent.ID},
 		Title:     "c",
 	})
-	grandchild, _ := f.tasks.Create(ctx, CreateTask{
-		Placement: Placement{ContextID: &f.contextID, ParentID: &child.ID},
-		Title:     "gc",
-	})
 	if err := f.tasks.Delete(ctx, parent.ID); err != nil {
 		t.Fatalf("delete parent: %v", err)
 	}
-	for _, id := range []int64{child.ID, grandchild.ID} {
-		if _, err := f.tasks.Get(ctx, id); !errors.Is(err, ErrNotFound) {
-			t.Errorf("expected cascade for %d, got %v", id, err)
-		}
+	got, err := f.tasks.Get(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("get child: %v", err)
+	}
+	if got.DeletedAt != nil {
+		t.Errorf("child should remain live after parent soft-delete, got DeletedAt=%v", got.DeletedAt)
 	}
 }
 

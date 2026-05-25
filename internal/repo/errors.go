@@ -5,6 +5,10 @@ import "errors"
 var (
 	ErrNotFound = errors.New("repo: not found")
 	ErrConflict = errors.New("repo: conflict")
+	// ErrGone signals the row exists but is tombstoned (deleted_at != NULL).
+	// Surfaces as 410 Gone at the API boundary so a sync client can drop the
+	// pending mutation rather than retrying.
+	ErrGone = errors.New("repo: gone")
 )
 
 type Page struct {

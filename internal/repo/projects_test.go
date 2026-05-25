@@ -163,12 +163,21 @@ func TestProjectRepo_Delete_CascadesSections(t *testing.T) {
 	if err := pr.Delete(ctx, p.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	_, total, err := sr.ListByProject(ctx, p.ID, Page{})
+	// Soft-delete does not cascade to child sections — the sync layer ships
+	// tombstones per-row instead. The project disappears from list filters.
+	_, projTotal, err := pr.List(ctx, ProjectListFilter{}, Page{})
 	if err != nil {
-		t.Fatalf("list sections: %v", err)
+		t.Fatalf("list projects: %v", err)
 	}
-	if total != 0 {
-		t.Errorf("expected cascade, got %d", total)
+	if projTotal != 0 {
+		t.Errorf("project list should hide tombstone, got total=%d", projTotal)
+	}
+	tomb, err := pr.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("get tombstone: %v", err)
+	}
+	if tomb.DeletedAt == nil {
+		t.Errorf("expected DeletedAt set on tombstoned project")
 	}
 }
 

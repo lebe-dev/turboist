@@ -67,7 +67,7 @@ func (h *ContextHandler) create(c fiber.Ctx) error {
 		logValidation(c, "handler.Context.Create", "invalid color")
 		return httpapi.ErrValidation("invalid color")
 	}
-	ctx, err := h.ctxs.Create(c.Context(), req.Name, req.Color, req.IsFavourite)
+	ctx, err := h.ctxs.CreateWithClientID(c.Context(), req.Name, req.Color, req.IsFavourite, req.ClientID)
 	if err != nil {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("context name already exists")
@@ -90,6 +90,9 @@ func (h *ContextHandler) get(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get context").WithCause(err)
 	}
+	if ctx.DeletedAt != nil {
+		return httpapi.ErrNotFound("context not found")
+	}
 	return c.JSON(dto.ContextFromModel(*ctx))
 }
 
@@ -99,6 +102,16 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Context.Patch", slog.Int64("context_id", id))
+	existing, err := h.ctxs.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("context not found")
+		}
+		return httpapi.ErrInternal("get context").WithCause(err)
+	}
+	if existing.DeletedAt != nil {
+		return httpapi.ErrGone("context is deleted")
+	}
 	var req dto.PatchContextRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		logValidation(c, "handler.Context.Patch", "invalid body")
@@ -112,6 +125,7 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 		Name:        req.Name,
 		Color:       req.Color,
 		IsFavourite: req.IsFavourite,
+		ClientID:    req.ClientID,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -135,6 +149,9 @@ func (h *ContextHandler) delete(c fiber.Ctx) error {
 	if err := h.ctxs.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("context not found")
+		}
+		if errors.Is(err, repo.ErrGone) {
+			return httpapi.ErrGone("context is deleted")
 		}
 		return httpapi.ErrInternal("delete context").WithCause(err)
 	}

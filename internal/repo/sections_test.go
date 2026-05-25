@@ -51,8 +51,17 @@ func TestSectionRepo_CRUD(t *testing.T) {
 	if err := sr.Delete(ctx, s.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := sr.Get(ctx, s.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
+	// Soft-delete: Get continues to return the tombstoned row; a second
+	// Delete returns ErrGone.
+	tomb, err := sr.Get(ctx, s.ID)
+	if err != nil {
+		t.Fatalf("get after delete: %v", err)
+	}
+	if tomb.DeletedAt == nil {
+		t.Errorf("expected DeletedAt set after soft-delete, got nil")
+	}
+	if err := sr.Delete(ctx, s.ID); !errors.Is(err, ErrGone) {
+		t.Errorf("second delete: got %v, want ErrGone", err)
 	}
 }
 

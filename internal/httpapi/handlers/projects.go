@@ -109,6 +109,9 @@ func (h *ProjectHandler) get(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get project").WithCause(err)
 	}
+	if p.DeletedAt != nil {
+		return httpapi.ErrNotFound("project not found")
+	}
 	return c.JSON(dto.ProjectFromModel(*p))
 }
 
@@ -156,6 +159,7 @@ func (h *ProjectHandler) createForContext(c fiber.Ctx) error {
 		Description: req.Description,
 		Color:       req.Color,
 		Type:        projectType,
+		ClientID:    req.ClientID,
 	})
 	if err != nil {
 		return httpapi.ErrInternal("create project").WithCause(err)
@@ -179,6 +183,16 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Project.Patch", slog.Int64("project_id", id))
+	existing, err := h.projects.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("project not found")
+		}
+		return httpapi.ErrInternal("get project").WithCause(err)
+	}
+	if existing.DeletedAt != nil {
+		return httpapi.ErrGone("project is deleted")
+	}
 	var req dto.PatchProjectRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		logValidation(c, "handler.Project.Patch", "invalid body")
@@ -203,6 +217,7 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 		Color:       req.Color,
 		IsPrivate:   req.IsPrivate,
 		Type:        projectType,
+		ClientID:    req.ClientID,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -236,6 +251,9 @@ func (h *ProjectHandler) delete(c fiber.Ctx) error {
 	if err := h.projects.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("project not found")
+		}
+		if errors.Is(err, repo.ErrGone) {
+			return httpapi.ErrGone("project is deleted")
 		}
 		return httpapi.ErrInternal("delete project").WithCause(err)
 	}
@@ -287,7 +305,7 @@ func (h *ProjectHandler) createSection(c fiber.Ctx) error {
 		logValidation(c, "handler.Project.CreateSection", "title required")
 		return httpapi.ErrValidation("title is required")
 	}
-	s, err := h.sections.Create(c.Context(), id, req.Title)
+	s, err := h.sections.CreateWithClientID(c.Context(), id, req.Title, req.ClientID)
 	if err != nil {
 		return httpapi.ErrInternal("create section").WithCause(err)
 	}

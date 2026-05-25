@@ -120,6 +120,7 @@ func buildTaskCreate(req dto.CreateTaskRequest, placement repo.Placement) (repo.
 		}
 	}
 	in.RecurrenceRule = req.RecurrenceRule
+	in.ClientID = req.ClientID
 	return in, nil
 }
 

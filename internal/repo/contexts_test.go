@@ -154,11 +154,21 @@ func TestContextRepo_Delete_CascadesProjects(t *testing.T) {
 	if err := r.Delete(ctx, c.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	_, total, err := pr.List(ctx, ProjectListFilter{}, Page{})
+	// Soft-delete leaves child projects in place — they would be hidden from
+	// listings by their own filter only when individually tombstoned. The
+	// context itself disappears from List but Get still returns the row.
+	_, ctxTotal, err := r.List(ctx, Page{})
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("list ctx: %v", err)
 	}
-	if total != 0 {
-		t.Errorf("expected cascade, got total=%d", total)
+	if ctxTotal != 0 {
+		t.Errorf("context list should hide tombstone, got total=%d", ctxTotal)
+	}
+	tomb, err := r.Get(ctx, c.ID)
+	if err != nil {
+		t.Fatalf("get tombstone: %v", err)
+	}
+	if tomb.DeletedAt == nil {
+		t.Errorf("expected DeletedAt set on tombstoned context")
 	}
 }

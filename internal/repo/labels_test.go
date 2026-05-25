@@ -89,8 +89,17 @@ func TestLabelRepo_Update_AndDelete(t *testing.T) {
 	if err := r.Delete(ctx, l.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := r.Get(ctx, l.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
+	// Soft-delete contract: row survives Get so the sync layer can ship the
+	// tombstone, but a second Delete returns ErrGone.
+	got, err := r.Get(ctx, l.ID)
+	if err != nil {
+		t.Fatalf("get after delete: %v", err)
+	}
+	if got.DeletedAt == nil {
+		t.Errorf("expected DeletedAt set after soft-delete, got nil")
+	}
+	if err := r.Delete(ctx, l.ID); !errors.Is(err, ErrGone) {
+		t.Errorf("second delete: got %v, want ErrGone", err)
 	}
 }
 

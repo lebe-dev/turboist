@@ -124,18 +124,31 @@ func (r *ProjectSectionRepo) ListByProject(ctx context.Context, projectID int64,
 }
 
 type SectionUpdate struct {
-	Title *string
+	Title    *string
+	ClientID *string
 }
 
 func (r *ProjectSectionRepo) Update(ctx context.Context, id int64, u SectionUpdate) (*model.ProjectSection, error) {
 	const op = "repo.project_sections.Update"
 	logQuery(ctx, op, id)
-	if u.Title == nil {
+	sets := make([]string, 0, 2)
+	args := make([]any, 0, 3)
+	if u.Title != nil {
+		sets = append(sets, "title = ?")
+		args = append(args, *u.Title)
+	}
+	if u.ClientID != nil {
+		sets = append(sets, "client_id = ?")
+		args = append(args, *u.ClientID)
+	}
+	if len(sets) == 0 {
 		return r.Get(ctx, id)
 	}
+	sets = append(sets, "updated_at = ?")
+	args = append(args, model.FormatUTC(time.Now()))
+	args = append(args, id)
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE project_sections SET title = ?, updated_at = ? WHERE id = ?`,
-		*u.Title, model.FormatUTC(time.Now()), id)
+		`UPDATE project_sections SET `+joinSets(sets)+` WHERE id = ?`, args...)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("update section: %w", err))
 	}
@@ -222,10 +235,14 @@ func (r *ProjectSectionRepo) Reorder(ctx context.Context, id int64, newPos int) 
 	return r.Get(ctx, id)
 }
 
+// Delete soft-deletes the section; ErrGone signals already-tombstoned.
 func (r *ProjectSectionRepo) Delete(ctx context.Context, id int64) error {
 	const op = "repo.project_sections.Delete"
 	logQuery(ctx, op, id)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM project_sections WHERE id = ?`, id)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE project_sections SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+		now, now, id)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("delete section: %w", err))
 	}
@@ -233,8 +250,15 @@ func (r *ProjectSectionRepo) Delete(ctx context.Context, id int64) error {
 	if err != nil {
 		return logErr(ctx, op, err)
 	}
-	if n == 0 {
-		return logErr(ctx, op, ErrNotFound)
+	if n > 0 {
+		return nil
 	}
-	return nil
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM project_sections WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return logErr(ctx, op, ErrNotFound)
+		}
+		return logErr(ctx, op, fmt.Errorf("delete section: %w", err))
+	}
+	return logErr(ctx, op, ErrGone)
 }

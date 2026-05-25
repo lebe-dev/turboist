@@ -29,6 +29,7 @@ type TaskDTO struct {
 	PostponeCount   int        `json:"postponeCount"`
 	Labels          []LabelDTO `json:"labels"`
 	URL             string     `json:"url"`
+	ClientID        *string    `json:"clientId"`
 	CreatedAt       string     `json:"createdAt"`
 	UpdatedAt       string     `json:"updatedAt"`
 }
@@ -63,6 +64,7 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		PostponeCount:   t.PostponeCount,
 		Labels:          labels,
 		URL:             t.URL(baseURL),
+		ClientID:        t.ClientID,
 		CreatedAt:       FormatTime(t.CreatedAt),
 		UpdatedAt:       FormatTime(t.UpdatedAt),
 	}
@@ -82,6 +84,7 @@ type CreateTaskRequest struct {
 	RecurrenceRule    *string  `json:"recurrenceRule"`
 	Labels            []string `json:"labels"`
 	RemovedAutoLabels []string `json:"removedAutoLabels"`
+	ClientID          *string  `json:"clientId"`
 }
 
 // GroupTasksRequest is the body for POST /tasks/group: it creates a new parent
@@ -125,4 +128,5 @@ type PatchTaskRequest struct {
 	Labels            *[]string        `json:"labels"`
 	RemovedAutoLabels []string         `json:"removedAutoLabels"`
 	IsPrivate         *bool            `json:"isPrivate"`
+	ClientID          *string          `json:"clientId"`
 }

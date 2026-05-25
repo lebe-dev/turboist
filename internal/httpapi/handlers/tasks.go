@@ -64,6 +64,9 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
 	}
+	if t.DeletedAt != nil {
+		return httpapi.ErrNotFound("task not found")
+	}
 	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -79,6 +82,9 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 			return httpapi.ErrNotFound("task not found")
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
+	}
+	if t.DeletedAt != nil {
+		return httpapi.ErrGone("task is deleted")
 	}
 	var req dto.PatchTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
@@ -182,6 +188,9 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 	if req.IsPrivate != nil {
 		u.IsPrivate = req.IsPrivate
 	}
+	if req.ClientID != nil {
+		u.ClientID = req.ClientID
+	}
 
 	u.IncPostponeCount = shouldIncPostpone(t, u, time.Now())
 
@@ -221,6 +230,9 @@ func (h *TaskHandler) delete(c fiber.Ctx) error {
 	if err := h.tasks.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("task not found")
+		}
+		if errors.Is(err, repo.ErrGone) {
+			return httpapi.ErrGone("task is deleted")
 		}
 		return httpapi.ErrInternal("delete task").WithCause(err)
 	}

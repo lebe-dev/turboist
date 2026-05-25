@@ -63,7 +63,7 @@ func (h *LabelHandler) create(c fiber.Ctx) error {
 		logValidation(c, "handler.Label.Create", "invalid color")
 		return httpapi.ErrValidation("invalid color")
 	}
-	l, err := h.labels.Create(c.Context(), req.Name, req.Color, req.IsFavourite)
+	l, err := h.labels.CreateWithClientID(c.Context(), req.Name, req.Color, req.IsFavourite, req.ClientID)
 	if err != nil {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("label name already exists")
@@ -86,6 +86,9 @@ func (h *LabelHandler) get(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get label").WithCause(err)
 	}
+	if l.DeletedAt != nil {
+		return httpapi.ErrNotFound("label not found")
+	}
 	return c.JSON(dto.LabelFromModel(*l))
 }
 
@@ -95,6 +98,16 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Label.Patch", slog.Int64("label_id", id))
+	existing, err := h.labels.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("label not found")
+		}
+		return httpapi.ErrInternal("get label").WithCause(err)
+	}
+	if existing.DeletedAt != nil {
+		return httpapi.ErrGone("label is deleted")
+	}
 	var req dto.PatchLabelRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		logValidation(c, "handler.Label.Patch", "invalid body")
@@ -109,6 +122,7 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 		Color:       req.Color,
 		IsFavourite: req.IsFavourite,
 		IsPrivate:   req.IsPrivate,
+		ClientID:    req.ClientID,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -132,6 +146,9 @@ func (h *LabelHandler) delete(c fiber.Ctx) error {
 	if err := h.labels.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("label not found")
+		}
+		if errors.Is(err, repo.ErrGone) {
+			return httpapi.ErrGone("label is deleted")
 		}
 		return httpapi.ErrInternal("delete label").WithCause(err)
 	}

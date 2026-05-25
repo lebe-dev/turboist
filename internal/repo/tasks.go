@@ -342,6 +342,8 @@ type TaskUpdate struct {
 
 	IncPostponeCount   bool
 	ResetPostponeCount bool
+
+	ClientID *string
 }
 
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
@@ -432,6 +434,10 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	} else if u.TroikiCategory != nil {
 		sets = append(sets, "troiki_category = ?", "troiki_capacity_granted = 0")
 		args = append(args, string(*u.TroikiCategory))
+	}
+	if u.ClientID != nil {
+		sets = append(sets, "client_id = ?")
+		args = append(args, *u.ClientID)
 	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
@@ -699,10 +705,16 @@ func (r *TaskRepo) SetPinned(ctx context.Context, id int64, pinned bool) error {
 	return nil
 }
 
+// Delete soft-deletes the task by stamping deleted_at and updated_at to now.
+// A second Delete on the same id returns ErrGone — the row exists but is
+// already tombstoned. ErrNotFound is returned when no row matches the id.
 func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 	const op = "repo.tasks.Delete"
 	logQuery(ctx, op, id)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+		now, now, id)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("delete task: %w", err))
 	}
@@ -710,10 +722,17 @@ func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 	if err != nil {
 		return logErr(ctx, op, err)
 	}
-	if n == 0 {
-		return logErr(ctx, op, ErrNotFound)
+	if n > 0 {
+		return nil
 	}
-	return nil
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return logErr(ctx, op, ErrNotFound)
+		}
+		return logErr(ctx, op, fmt.Errorf("delete task: %w", err))
+	}
+	return logErr(ctx, op, ErrGone)
 }
 
 // Move relocates a task and all its descendants atomically. Cycles (target ∈

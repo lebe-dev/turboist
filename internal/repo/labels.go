@@ -159,6 +159,7 @@ type LabelUpdate struct {
 	Color       *string
 	IsFavourite *bool
 	IsPrivate   *bool
+	ClientID    *string
 }
 
 func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model.Label, error) {
@@ -190,6 +191,10 @@ func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model
 		}
 		args = append(args, pv)
 	}
+	if u.ClientID != nil {
+		sets = append(sets, "client_id = ?")
+		args = append(args, *u.ClientID)
+	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
 	}
@@ -214,10 +219,14 @@ func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model
 	return r.Get(ctx, id)
 }
 
+// Delete soft-deletes the label; ErrGone signals already-tombstoned.
 func (r *LabelRepo) Delete(ctx context.Context, id int64) error {
 	const op = "repo.labels.Delete"
 	logQuery(ctx, op, id)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM labels WHERE id = ?`, id)
+	now := model.FormatUTC(time.Now())
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE labels SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+		now, now, id)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("delete label: %w", err))
 	}
@@ -225,10 +234,17 @@ func (r *LabelRepo) Delete(ctx context.Context, id int64) error {
 	if err != nil {
 		return logErr(ctx, op, err)
 	}
-	if n == 0 {
-		return logErr(ctx, op, ErrNotFound)
+	if n > 0 {
+		return nil
 	}
-	return nil
+	var exists int
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM labels WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return logErr(ctx, op, ErrNotFound)
+		}
+		return logErr(ctx, op, fmt.Errorf("delete label: %w", err))
+	}
+	return logErr(ctx, op, ErrGone)
 }
 
 func (r *LabelRepo) GetByIDs(ctx context.Context, ids []int64) ([]model.Label, error) {

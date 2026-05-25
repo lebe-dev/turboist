@@ -19,6 +19,7 @@ const (
 	CodeTOTPInvalidCode    = "totp_invalid_code"
 	CodeTOTPAlreadyEnabled = "totp_already_enabled"
 	CodeTOTPNotEnabled     = "totp_not_enabled"
+	CodeGone               = "gone"
 	CodeInternalError      = "internal_error"
 )
 
@@ -111,6 +112,12 @@ func ErrRecurrenceInvalid(msg string) *AppError {
 
 func ErrTroikiSlotFull(msg string) *AppError {
 	return newErr(409, CodeTroikiSlotFull, msg)
+}
+
+// ErrGone signals that the target resource has been soft-deleted. Offline
+// clients use 410 to drop a pending mutation from the outbox rather than retry.
+func ErrGone(msg string) *AppError {
+	return newErr(410, CodeGone, msg)
 }
 
 func ErrInternal(msg string) *AppError {
