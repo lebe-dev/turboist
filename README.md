@@ -41,7 +41,6 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 
 ## RoadMap
 
-- Feature: extended session management on Session page
 - Feature: Task templates
 - Feature: Federated Project Synchronization (Bridge Protocol) for Multi-Instance Collaboration
 - Offline-first
