@@ -255,7 +255,7 @@
 
 	function reset() {
 		titles = defaultTitle;
-		description = defaultDescription;
+		description = '';
 		priority = defaultPriority;
 		dayPart = defaultDayPart;
 		dueDate = defaultDueDate ?? '';
@@ -272,6 +272,7 @@
 	$effect(() => {
 		if (open && !prevOpen) {
 			titles = defaultTitle;
+			description = defaultDescription;
 			dueDate = defaultDueDate ?? '';
 			projectId = defaultProjectId ? String(defaultProjectId) : '';
 			labelIds = initialLabelIds();
