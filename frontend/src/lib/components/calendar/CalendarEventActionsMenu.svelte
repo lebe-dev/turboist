@@ -29,6 +29,7 @@
 			new CustomEvent('turboist:quick-add', {
 				detail: {
 					title: event.title,
+					description: event.description ?? '',
 					dueDate: eventDayKey(),
 					dayPart: event.allDay ? 'none' : dayPart
 				}
