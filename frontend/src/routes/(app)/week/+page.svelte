@@ -44,7 +44,6 @@
 		return localStorage.getItem(ONLY_PLANNED_KEY) === '1';
 	}
 
-	let total = $state(0);
 	let calendarEvents = $state<CalendarEvent[]>([]);
 	let now = $state(new Date());
 	let onlyPlanned = $state(loadOnlyPlanned());
@@ -56,8 +55,11 @@
 		}
 	}
 
-	const list = useListMutator<Task>({ onRemove: () => { total = Math.max(0, total - 1); } });
+	const list = useListMutator<Task>();
 	const { mutator } = list;
+	const plannedTotal = $derived(
+		list.items.filter((t) => t.planState === 'week' && t.status === 'open').length
+	);
 
 	const tz = $derived(configStore.value?.timezone ?? null);
 	const activeCalendarEvents = $derived(
@@ -114,7 +116,7 @@
 		});
 	});
 	const limit = $derived(configStore.value?.weekly.limit ?? null);
-	const exceeded = $derived(limit !== null && total >= limit);
+	const exceeded = $derived(limit !== null && plannedTotal >= limit);
 	const weekRange = $derived(weekRangeKeys(nowStore.now, tz));
 	const weekRangeLabel = $derived(
 		formatDayKeyRange(weekRange.startKey, weekRange.endKey, $locale, tz)
@@ -141,7 +143,6 @@
 		});
 		if (!isValid()) return;
 		list.items = res.items;
-		total = res.total;
 		void loadCalendarEvents(start, end, isValid);
 	}, {
 		errorMessage: $t('page.week.errorLoading'),
@@ -151,7 +152,6 @@
 			const res = await queryWeek(tz, userStateStore.activeContextId ?? null);
 			if (!isValid()) return;
 			list.items = res.items;
-			total = res.total;
 			calendarEvents = [];
 		}
 	});
@@ -213,13 +213,13 @@
 			<span>{$t('page.week.onlyPlanned')}</span>
 		</Button>
 		{#if limit !== null}
-			<LimitBadge count={total} {limit} />
+			<LimitBadge count={plannedTotal} {limit} />
 		{/if}
 	{/snippet}
 	{#snippet banner()}
 		{#if exceeded && limit !== null}
 			<LimitReachedBanner
-				message={$t('page.week.limitReached', { values: { total, limit } })}
+				message={$t('page.week.limitReached', { values: { total: plannedTotal, limit } })}
 			/>
 		{/if}
 	{/snippet}
