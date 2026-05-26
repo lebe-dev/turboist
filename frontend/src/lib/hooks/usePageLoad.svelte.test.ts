@@ -99,4 +99,29 @@ describe('usePageLoad', () => {
 		await page.refetch();
 		expect(page.error).toBe('second');
 	});
+
+	it('revalidate() called during refetch does not prevent loading from resetting', async () => {
+		let releaseRefetch: () => void;
+		const blockingRefetch = new Promise<void>((resolve) => {
+			releaseRefetch = resolve;
+		});
+		let call = 0;
+		const fetcher = vi.fn(async (isValid: () => boolean) => {
+			if (call++ === 0) {
+				// First call is the refetch — block it so revalidate can race
+				await blockingRefetch;
+			}
+		});
+		const page = usePageLoad(fetcher, { autoLoad: false });
+		const refetchDone = page.refetch();
+		expect(page.loading).toBe(true);
+		// Simulate SSE-driven revalidate arriving while refetch is still in flight
+		const revalidateDone = page.revalidate();
+		// Release the blocked refetch
+		releaseRefetch!();
+		await refetchDone;
+		await revalidateDone;
+		// loading must be false — revalidate() must not have prevented the reset
+		expect(page.loading).toBe(false);
+	});
 });
