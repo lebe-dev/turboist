@@ -681,7 +681,7 @@
 		<button
 			onclick={onQuickAdd}
 			class="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
-			aria-label={$t('task.quickAdd')}
+			aria-label={$t('task.quickAdd.title')}
 		>
 			<PlusIcon class="h-7 w-7" />
 		</button>

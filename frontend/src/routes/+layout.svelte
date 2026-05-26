@@ -9,7 +9,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { initI18n, t } from '$lib/i18n';
+	import { t } from '$lib/i18n';
 	import { getApiClient } from '$lib/api/client';
 	import { getDB } from '$lib/offline/db';
 	import { fetcherFromClient, pull } from '$lib/offline/sync';
@@ -17,8 +17,6 @@
 	import { createDexieAuthAdapter } from '$lib/offline/auth';
 	import { outboxStatusStore } from '$lib/offline/outboxStatus.svelte';
 	import FailedSyncToasts from '$lib/components/app/FailedSyncToasts.svelte';
-
-	initI18n(null);
 
 	let { children } = $props();
 
