@@ -10,6 +10,8 @@ import {
 	remove,
 	pendingCount,
 	remapClientId,
+	dropPendingFor,
+	dropPendingByPathSuffix,
 	nextBackoffMs,
 	INFLIGHT_TIMEOUT_MS,
 	RETRY_SCHEDULE_MS
@@ -142,6 +144,178 @@ describe('outbox', () => {
 		expect(nextBackoffMs(0)).toBe(RETRY_SCHEDULE_MS[0]);
 		expect(nextBackoffMs(2)).toBe(RETRY_SCHEDULE_MS[2]);
 		expect(nextBackoffMs(99)).toBe(RETRY_SCHEDULE_MS[RETRY_SCHEDULE_MS.length - 1]);
+	});
+
+	it('dropPendingFor removes pending entries with matching clientId, keeps keepId and skips inflight', async () => {
+		const a = await enqueue(
+			{ entity: 'tasks', op: 'update', clientId: 'cid', payload: { path: '/a' } },
+			db
+		);
+		const b = await enqueue(
+			{ entity: 'tasks', op: 'update', clientId: 'cid', payload: { path: '/b' } },
+			db
+		);
+		const c = await enqueue(
+			{ entity: 'tasks', op: 'update', clientId: 'cid', payload: { path: '/c' } },
+			db
+		);
+		const keep = await enqueue(
+			{ entity: 'tasks', op: 'delete', clientId: 'cid', payload: { path: '/del' } },
+			db
+		);
+		const other = await enqueue(
+			{ entity: 'tasks', op: 'update', clientId: 'other', payload: { path: '/x' } },
+			db
+		);
+		await markInflight(b.id, db);
+
+		const dropped = await dropPendingFor('tasks', 'cid', keep.id, db);
+		expect(dropped).toBe(2); // a and c
+		expect(await db.outbox.get(a.id)).toBeUndefined();
+		expect(await db.outbox.get(c.id)).toBeUndefined();
+		expect(await db.outbox.get(b.id)).toBeDefined(); // inflight skipped
+		expect(await db.outbox.get(keep.id)).toBeDefined();
+		expect(await db.outbox.get(other.id)).toBeDefined(); // other clientId
+	});
+
+	it('dropPendingFor ignores entries with different entity even if clientId matches', async () => {
+		const taskEntry = await enqueue(
+			{ entity: 'tasks', op: 'update', clientId: 'cid', payload: { path: '/t' } },
+			db
+		);
+		const projEntry = await enqueue(
+			{ entity: 'projects', op: 'update', clientId: 'cid', payload: { path: '/p' } },
+			db
+		);
+		const dropped = await dropPendingFor('tasks', 'cid', 'fake-keep-id', db);
+		expect(dropped).toBe(1);
+		expect(await db.outbox.get(taskEntry.id)).toBeUndefined();
+		expect(await db.outbox.get(projEntry.id)).toBeDefined();
+	});
+
+	it('dropPendingByPathSuffix matches any of the suffixes and skips inflight', async () => {
+		const complete = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/complete' }
+			},
+			db
+		);
+		const uncomplete = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/uncomplete' }
+			},
+			db
+		);
+		const move = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/move' }
+			},
+			db
+		);
+		const inflightComplete = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/complete' }
+			},
+			db
+		);
+		await markInflight(inflightComplete.id, db);
+		const keep = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/complete' }
+			},
+			db
+		);
+
+		const dropped = await dropPendingByPathSuffix(
+			'tasks',
+			'cid',
+			['/complete', '/uncomplete'],
+			keep.id,
+			db
+		);
+		expect(dropped).toBe(2); // complete, uncomplete (NOT inflight, NOT keep, NOT move)
+		expect(await db.outbox.get(complete.id)).toBeUndefined();
+		expect(await db.outbox.get(uncomplete.id)).toBeUndefined();
+		expect(await db.outbox.get(move.id)).toBeDefined();
+		expect(await db.outbox.get(inflightComplete.id)).toBeDefined();
+		expect(await db.outbox.get(keep.id)).toBeDefined();
+	});
+
+	it('dropPendingByPathSuffix with keepId=null drops all matching entries', async () => {
+		const a = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/complete' }
+			},
+			db
+		);
+		const b = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/complete' }
+			},
+			db
+		);
+		const dropped = await dropPendingByPathSuffix(
+			'tasks',
+			'cid',
+			['/complete'],
+			null,
+			db
+		);
+		expect(dropped).toBe(2);
+		expect(await db.outbox.get(a.id)).toBeUndefined();
+		expect(await db.outbox.get(b.id)).toBeUndefined();
+	});
+
+	it('dropPendingByPathSuffix only matches entries with the target entity', async () => {
+		const taskEntry = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/tasks/1/complete' }
+			},
+			db
+		);
+		const projEntry = await enqueue(
+			{
+				entity: 'projects',
+				op: 'update',
+				clientId: 'cid',
+				payload: { path: '/api/v1/projects/1/complete' }
+			},
+			db
+		);
+		const dropped = await dropPendingByPathSuffix(
+			'tasks',
+			'cid',
+			['/complete'],
+			null,
+			db
+		);
+		expect(dropped).toBe(1);
+		expect(await db.outbox.get(taskEntry.id)).toBeUndefined();
+		expect(await db.outbox.get(projEntry.id)).toBeDefined();
 	});
 
 	it('listReady reaps inflight entries older than INFLIGHT_TIMEOUT_MS', async () => {

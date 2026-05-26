@@ -8,6 +8,7 @@ import {
 	completeTaskOffline,
 	uncompleteTaskOffline,
 	moveTaskOffline,
+	planTaskOffline,
 	isSyntheticTaskId
 } from './taskMutations';
 import { flush, type FetchResponse, type SyncFetch } from './sync';
@@ -359,6 +360,162 @@ describe('taskMutations', () => {
 		const remaining = await db.outbox.toArray();
 		expect(remaining).toHaveLength(1);
 		expect(remaining[0].op).toBe('delete');
+	});
+
+	it('moveTaskOffline: inboxId branch clears context/project/section', async () => {
+		await db.tasks.put({
+			clientId: 'srv:30',
+			serverId: 30,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: {
+				id: 30,
+				inboxId: null,
+				contextId: 9,
+				projectId: 4,
+				sectionId: 2,
+				clientId: 'srv:30'
+			} as unknown as Record<string, unknown>
+		});
+		await moveTaskOffline({ id: 30 }, { inboxId: 1 }, { db });
+		const row = await db.tasks.get('srv:30');
+		const data = row?.data as {
+			inboxId: number | null;
+			contextId: number | null;
+			projectId: number | null;
+			sectionId: number | null;
+		};
+		expect(data.inboxId).toBe(1);
+		expect(data.contextId).toBeNull();
+		expect(data.projectId).toBeNull();
+		expect(data.sectionId).toBeNull();
+		const out = await db.outbox.toArray();
+		expect(out[0].payload.path).toBe('/api/v1/tasks/30/move');
+		expect(out[0].payload.body).toEqual({ inboxId: 1 });
+	});
+
+	it('moveTaskOffline: parentId branch only updates parentId', async () => {
+		await db.tasks.put({
+			clientId: 'srv:31',
+			serverId: 31,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: {
+				id: 31,
+				parentId: null,
+				inboxId: null,
+				contextId: 9,
+				projectId: 4,
+				sectionId: 2,
+				clientId: 'srv:31'
+			} as unknown as Record<string, unknown>
+		});
+		await moveTaskOffline({ id: 31 }, { parentId: 77 }, { db });
+		const row = await db.tasks.get('srv:31');
+		const data = row?.data as {
+			parentId: number | null;
+			inboxId: number | null;
+			contextId: number | null;
+		};
+		expect(data.parentId).toBe(77);
+		expect(data.contextId).toBe(9);
+		expect(data.inboxId).toBeNull();
+		const out = await db.outbox.toArray();
+		expect(out[0].payload.body).toEqual({ parentId: 77 });
+	});
+
+	it('planTaskOffline: updates planState and enqueues POST /plan', async () => {
+		await db.tasks.put({
+			clientId: 'srv:40',
+			serverId: 40,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: {
+				id: 40,
+				title: 't',
+				planState: 'none',
+				clientId: 'srv:40'
+			} as unknown as Record<string, unknown>
+		});
+		const next = await planTaskOffline({ id: 40 }, { state: 'week' }, { db });
+		expect(next.planState).toBe('week');
+		const row = await db.tasks.get('srv:40');
+		expect((row?.data as { planState: string }).planState).toBe('week');
+		const out = await db.outbox.toArray();
+		expect(out).toHaveLength(1);
+		expect(out[0].payload.path).toBe('/api/v1/tasks/40/plan');
+		expect(out[0].payload.method).toBe('POST');
+		expect(out[0].payload.body).toEqual({ state: 'week' });
+	});
+
+	it('planTaskOffline on synthetic task uses {serverId} placeholder', async () => {
+		const task = await createTaskOffline({ title: 's' }, { contextId: 1, db });
+		await planTaskOffline({ id: task.id, clientId: task.clientId }, { state: 'backlog' }, { db });
+		const planEntry = (await db.outbox.toArray()).find(
+			(e) => (e.payload as { path?: string }).path?.endsWith('/plan')
+		);
+		expect(planEntry?.payload.path).toBe('/api/v1/tasks/{serverId}/plan');
+	});
+
+	it('complete↔uncomplete multi-cycle collapses to a single last entry', async () => {
+		await db.tasks.put({
+			clientId: 'srv:202',
+			serverId: 202,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: {
+				id: 202,
+				title: 't',
+				status: 'open',
+				clientId: 'srv:202'
+			} as unknown as Record<string, unknown>
+		});
+		await completeTaskOffline({ id: 202 }, '2026-05-25T09:00:00.000Z', { db });
+		await uncompleteTaskOffline({ id: 202 }, { db });
+		await completeTaskOffline({ id: 202 }, '2026-05-25T09:01:00.000Z', { db });
+		await uncompleteTaskOffline({ id: 202 }, { db });
+		const out = await db.outbox.toArray();
+		expect(out).toHaveLength(1);
+		expect(out[0].payload.path).toBe('/api/v1/tasks/202/uncomplete');
+		const row = await db.tasks.get('srv:202');
+		expect((row?.data as { status: string }).status).toBe('open');
+	});
+
+	it('subtask under synthetic parent: full flush resolves ref to real serverId', async () => {
+		const parent = await createTaskOffline({ title: 'P' }, { contextId: 7, db });
+		const child = await createTaskOffline(
+			{ title: 'C' },
+			{ parentId: parent.id, db }
+		);
+		expect(child.clientId).toBeTruthy();
+
+		const { fetcher, calls } = makeFetcher([
+			{
+				status: 201,
+				data: {
+					id: 500,
+					clientId: parent.clientId,
+					updatedAt: '2026-05-25T10:00:00.000Z',
+					title: 'P'
+				}
+			},
+			{
+				status: 201,
+				data: {
+					id: 501,
+					clientId: child.clientId,
+					updatedAt: '2026-05-25T10:00:01.000Z',
+					title: 'C',
+					parentId: 500
+				}
+			}
+		]);
+		const r = await flush(fetcher, db);
+		expect(r.sent).toBe(2);
+		expect(calls[1].path).toBe('/api/v1/tasks/500/subtasks');
+		const childRow = await db.tasks.get(child.clientId);
+		expect(childRow?.serverId).toBe(501);
+		expect(await db.outbox.count()).toBe(0);
 	});
 
 	it('deleteTaskOffline: keeps row alive if enqueue fails', async () => {

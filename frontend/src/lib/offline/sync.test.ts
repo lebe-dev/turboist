@@ -533,6 +533,171 @@ describe('sync.flush', () => {
 		expect(await db.outbox.count()).toBe(0);
 	});
 
+	it('three-level ref chain: project → section → task resolves in a single flush', async () => {
+		// project (synthetic)
+		await db.projects.put({
+			clientId: 'proj-cid',
+			serverId: null,
+			updatedAt: '2026-05-25T10:00:00.000Z',
+			deletedAt: null,
+			data: { name: 'P' }
+		});
+		await enqueue(
+			{
+				entity: 'projects',
+				op: 'create',
+				clientId: 'proj-cid',
+				payload: {
+					method: 'POST',
+					path: '/api/v1/contexts/1/projects',
+					body: { name: 'P', clientId: 'proj-cid' }
+				}
+			},
+			db
+		);
+		// section (synthetic, refs project)
+		await db.sections.put({
+			clientId: 'sec-cid',
+			serverId: null,
+			updatedAt: '2026-05-25T10:00:00.001Z',
+			deletedAt: null,
+			data: { name: 'S' }
+		});
+		await enqueue(
+			{
+				entity: 'sections',
+				op: 'create',
+				clientId: 'sec-cid',
+				parentClientId: 'proj-cid',
+				payload: {
+					method: 'POST',
+					path: '/api/v1/projects/{ref:proj-cid}/sections',
+					body: { name: 'S', clientId: 'sec-cid', projectId: ref('proj-cid') }
+				}
+			},
+			db
+		);
+		// task (synthetic, refs section)
+		await db.tasks.put({
+			clientId: 'task-cid',
+			serverId: null,
+			updatedAt: '2026-05-25T10:00:00.002Z',
+			deletedAt: null,
+			data: { title: 'T' }
+		});
+		await enqueue(
+			{
+				entity: 'tasks',
+				op: 'create',
+				clientId: 'task-cid',
+				parentClientId: 'sec-cid',
+				payload: {
+					method: 'POST',
+					path: '/api/v1/contexts/1/tasks',
+					body: {
+						title: 'T',
+						clientId: 'task-cid',
+						sectionId: ref('sec-cid'),
+						projectId: ref('proj-cid')
+					}
+				}
+			},
+			db
+		);
+
+		const { fetcher, calls } = makeFetcher([
+			{ status: 201, data: { id: 10, clientId: 'proj-cid', updatedAt: '2026-05-25T10:01:00.000Z' } },
+			{ status: 201, data: { id: 20, clientId: 'sec-cid', updatedAt: '2026-05-25T10:02:00.000Z' } },
+			{ status: 201, data: { id: 30, clientId: 'task-cid', updatedAt: '2026-05-25T10:03:00.000Z' } }
+		]);
+
+		const result = await flush(fetcher, db);
+		expect(result.sent).toBe(3);
+		expect(calls[0].path).toBe('/api/v1/contexts/1/projects');
+		expect(calls[1].path).toBe('/api/v1/projects/10/sections');
+		expect(calls[1].body).toMatchObject({ projectId: 10 });
+		expect(calls[2].body).toMatchObject({ sectionId: 20, projectId: 10 });
+		expect(await db.outbox.count()).toBe(0);
+	});
+
+	it('multiple {ref:...} placeholders in path and body are all resolved', async () => {
+		await db.projects.put({
+			clientId: 'p',
+			serverId: 100,
+			updatedAt: 't',
+			deletedAt: null,
+			data: {}
+		});
+		await db.sections.put({
+			clientId: 's',
+			serverId: 200,
+			updatedAt: 't',
+			deletedAt: null,
+			data: {}
+		});
+		await db.tasks.put({
+			clientId: 'multi',
+			serverId: null,
+			updatedAt: '2026-05-25T10:00:00.000Z',
+			deletedAt: null,
+			data: {}
+		});
+		await enqueue(
+			{
+				entity: 'tasks',
+				op: 'create',
+				clientId: 'multi',
+				payload: {
+					method: 'POST',
+					path: '/api/v1/projects/{ref:p}/sections/{ref:s}/tasks',
+					body: {
+						title: 'T',
+						clientId: 'multi',
+						projectId: ref('p'),
+						sectionId: ref('s')
+					}
+				}
+			},
+			db
+		);
+		const { fetcher, calls } = makeFetcher([
+			{ status: 201, data: { id: 999, clientId: 'multi', updatedAt: 't' } }
+		]);
+		const result = await flush(fetcher, db);
+		expect(result.sent).toBe(1);
+		expect(calls[0].path).toBe('/api/v1/projects/100/sections/200/tasks');
+		expect(calls[0].body).toMatchObject({ projectId: 100, sectionId: 200 });
+	});
+
+	it('410 on create: drops entry and tombstones the local row', async () => {
+		await db.tasks.put({
+			clientId: 'gone',
+			serverId: null,
+			updatedAt: '2026-05-25T10:00:00.000Z',
+			deletedAt: null,
+			data: {}
+		});
+		await enqueue(
+			{
+				entity: 'tasks',
+				op: 'create',
+				clientId: 'gone',
+				payload: {
+					method: 'POST',
+					path: '/api/v1/contexts/1/tasks',
+					body: { title: 't', clientId: 'gone' }
+				}
+			},
+			db
+		);
+		const { fetcher } = makeFetcher([{ status: 410, data: null }]);
+		const result = await flush(fetcher, db);
+		expect(result.dropped).toBe(1);
+		expect(await db.outbox.count()).toBe(0);
+		const row = await db.tasks.get('gone');
+		expect(row?.deletedAt).not.toBeNull();
+	});
+
 	it('Idempotency-Key is stable across retries', async () => {
 		await db.tasks.put({
 			clientId: 'c1',
