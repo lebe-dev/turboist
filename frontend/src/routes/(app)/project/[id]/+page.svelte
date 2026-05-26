@@ -32,6 +32,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { queryProjectTasks, queryProjectSections, allProjects } from '$lib/offline/views';
 	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
 	import { PROJECT_SECTIONS_KEY } from '$lib/context/projectSections';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -129,6 +130,23 @@
 		initialLoading: true,
 		onError(err) {
 			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
+		},
+		offlineFallback: async (isValid) => {
+			if (!Number.isFinite(projectId)) return;
+			const [allP, secs, ts] = await Promise.all([
+				allProjects(),
+				queryProjectSections(projectId),
+				queryProjectTasks(projectId)
+			]);
+			if (!isValid()) return;
+			const p = allP.find((x) => x.id === projectId) ?? null;
+			if (!p) {
+				notFound = true;
+				return;
+			}
+			project = p;
+			sectionList = secs;
+			taskList.items = ts.items;
 		}
 	});
 

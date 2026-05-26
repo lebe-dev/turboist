@@ -1,6 +1,7 @@
 import { contexts as contextsApi } from '../api/endpoints/contexts';
 import { getApiClient } from '../api/client';
 import type { Context } from '../api/types';
+import { getDB } from '../offline/db';
 
 class ContextsStore {
 	items = $state<Context[]>([]);
@@ -11,6 +12,19 @@ class ContextsStore {
 		this.items = page.items;
 		this.loaded = true;
 		return page.items;
+	}
+
+	async loadCached(): Promise<boolean> {
+		const rows = await getDB().table('contexts').toArray();
+		const items: Context[] = [];
+		for (const row of rows) {
+			if (row.deletedAt !== null) continue;
+			items.push(row.data as Context);
+		}
+		if (items.length === 0) return false;
+		this.items = items;
+		this.loaded = true;
+		return true;
 	}
 
 	upsert(ctx: Context): void {

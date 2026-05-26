@@ -18,6 +18,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { queryCompletedToday } from '$lib/offline/views';
 
 	const DAYS = 30;
 
@@ -45,7 +46,20 @@
 			if (!isValid()) return;
 			list.items = res.items;
 		},
-		{ errorMessage: $t('page.completed.errorLoading'), autoLoad: false, initialLoading: true }
+		{
+			errorMessage: $t('page.completed.errorLoading'),
+			autoLoad: false,
+			initialLoading: true,
+			offlineFallback: async (isValid) => {
+				const res = await queryCompletedToday(
+					tz,
+					userStateStore.activeContextId ?? null,
+					DAYS
+				);
+				if (!isValid()) return;
+				list.items = res.items;
+			}
+		}
 	);
 
 	$effect(() => {

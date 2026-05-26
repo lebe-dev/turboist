@@ -18,6 +18,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { queryLabelTasks } from '$lib/offline/views';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { t } from '$lib/i18n';
@@ -53,6 +54,18 @@
 		initialLoading: true,
 		onError(err) {
 			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
+		},
+		offlineFallback: async (isValid) => {
+			if (!Number.isFinite(labelId)) return;
+			const l = labelsStore.items.find((x) => x.id === labelId) ?? null;
+			const ts = await queryLabelTasks(labelId);
+			if (!isValid()) return;
+			if (!l) {
+				notFound = true;
+				return;
+			}
+			label = l;
+			taskList.items = ts.items;
 		}
 	});
 

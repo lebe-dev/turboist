@@ -2,6 +2,7 @@
 	import Sidebar from '$lib/components/app/Sidebar.svelte';
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
+	import StaleDataBanner from '$lib/components/app/StaleDataBanner.svelte';
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
@@ -68,6 +69,7 @@
 	let dataReady = $state(false);
 	let loadStarted = $state(false);
 	let loadFailed = $state(false);
+	let staleData = $state(false);
 	let quickOpen = $state(false);
 	let mobileSidebarOpen = $state(false);
 	let followUpOverride = $state<{
@@ -131,33 +133,53 @@
 		};
 	});
 
+	async function loadStoreWithFallback(
+		load: () => Promise<unknown>,
+		loadCached: () => Promise<boolean>
+	): Promise<'api' | 'cache' | 'failed'> {
+		try {
+			await load();
+			return 'api';
+		} catch (err) {
+			console.warn('store load failed, trying cache', err);
+			try {
+				const ok = await loadCached();
+				return ok ? 'cache' : 'failed';
+			} catch (cacheErr) {
+				console.warn('cached load failed', cacheErr);
+				return 'failed';
+			}
+		}
+	}
+
 	function startLoad(): void {
 		loadStarted = true;
 		loadFailed = false;
 		void (async () => {
-			try {
-				await Promise.all([
-					configStore.load(),
-					contextsStore.load(),
-					projectsStore.load(),
-					labelsStore.load(),
-					planStatsStore.load(),
-					inboxStatsStore.load(),
-					pinnedTasksStore.load(),
-					userStateStore.load(),
-					troikiStore.load(),
-					settingsStore.load(),
-					appSettingsStore.load()
-				]);
-				if (isSupportedLocale(settingsStore.locale)) {
-					setLocale(settingsStore.locale);
-				}
-				dataReady = true;
-			} catch (err) {
-				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
-				toast.error(message);
-				loadFailed = true;
+			const outcomes = await Promise.all([
+				loadStoreWithFallback(() => configStore.load(), () => configStore.loadCached()),
+				loadStoreWithFallback(() => contextsStore.load(), () => contextsStore.loadCached()),
+				loadStoreWithFallback(() => projectsStore.load(), () => projectsStore.loadCached()),
+				loadStoreWithFallback(() => labelsStore.load(), () => labelsStore.loadCached()),
+				loadStoreWithFallback(() => planStatsStore.load(), () => planStatsStore.loadCached()),
+				loadStoreWithFallback(() => inboxStatsStore.load(), () => inboxStatsStore.loadCached()),
+				loadStoreWithFallback(() => pinnedTasksStore.load(), () => pinnedTasksStore.loadCached()),
+				loadStoreWithFallback(() => userStateStore.load(), () => userStateStore.loadCached()),
+				loadStoreWithFallback(() => troikiStore.load(), () => troikiStore.loadCached()),
+				loadStoreWithFallback(() => settingsStore.load(), () => settingsStore.loadCached()),
+				loadStoreWithFallback(() => appSettingsStore.load(), () => appSettingsStore.loadCached())
+			]);
+			if (isSupportedLocale(settingsStore.locale)) {
+				setLocale(settingsStore.locale);
 			}
+			const allFailed = outcomes.every((o) => o === 'failed');
+			if (allFailed) {
+				toast.error($t('app.workspaceFailed'));
+				loadFailed = true;
+				return;
+			}
+			staleData = outcomes.some((o) => o === 'cache');
+			dataReady = true;
 		})();
 	}
 
@@ -251,6 +273,45 @@
 		if (auth.status !== 'authenticated') {
 			eventsClient.stop();
 		}
+	});
+
+	// When the browser regains connectivity, refresh shell stores and notify all
+	// page-level views so cached data is replaced with fresh data.
+	$effect(() => {
+		if (auth.status !== 'authenticated') return;
+		const onOnline = (): void => {
+			void (async () => {
+				const outcomes = await Promise.all([
+					loadStoreWithFallback(() => configStore.load(), () => configStore.loadCached()),
+					loadStoreWithFallback(() => contextsStore.load(), () => contextsStore.loadCached()),
+					loadStoreWithFallback(() => projectsStore.load(), () => projectsStore.loadCached()),
+					loadStoreWithFallback(() => labelsStore.load(), () => labelsStore.loadCached()),
+					loadStoreWithFallback(() => planStatsStore.load(), () => planStatsStore.loadCached()),
+					loadStoreWithFallback(() => inboxStatsStore.load(), () => inboxStatsStore.loadCached()),
+					loadStoreWithFallback(() => pinnedTasksStore.load(), () => pinnedTasksStore.loadCached()),
+					loadStoreWithFallback(() => userStateStore.load(), () => userStateStore.loadCached()),
+					loadStoreWithFallback(() => troikiStore.load(), () => troikiStore.loadCached()),
+					loadStoreWithFallback(() => settingsStore.load(), () => settingsStore.loadCached()),
+					loadStoreWithFallback(() => appSettingsStore.load(), () => appSettingsStore.loadCached())
+				]);
+				staleData = outcomes.some((o) => o === 'cache');
+			})();
+			const scopes: EventScope[] = [
+				'tasks',
+				'calendar',
+				'inbox',
+				'projects',
+				'labels',
+				'contexts',
+				'sections',
+				'plan'
+			];
+			for (const scope of scopes) {
+				window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
+			}
+		};
+		window.addEventListener('online', onOnline);
+		return () => window.removeEventListener('online', onOnline);
 	});
 
 	function retryLoad(): void {
@@ -554,6 +615,7 @@
 				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
+			<StaleDataBanner visible={staleData} />
 			{#if !page.url.pathname.startsWith('/settings')}
 				<ContextFilterBanner />
 			{/if}

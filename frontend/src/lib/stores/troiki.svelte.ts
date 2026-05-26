@@ -8,6 +8,9 @@ import type {
 	TroikiSlot,
 	TroikiViewResponse
 } from '../api/types';
+import { cacheStoreValue, getCachedStoreValue } from '../offline/storeCache';
+
+const CACHE_KEY = 'troiki';
 
 const EMPTY: TroikiViewResponse = {
 	important: { capacity: 3, projects: [] },
@@ -37,7 +40,15 @@ class TroikiStore {
 	async load(): Promise<TroikiViewResponse> {
 		const v = await troikiApi.view(getApiClient());
 		this.value = v;
+		void cacheStoreValue(CACHE_KEY, v).catch(() => undefined);
 		return v;
+	}
+
+	async loadCached(): Promise<boolean> {
+		const cached = await getCachedStoreValue<TroikiViewResponse>(CACHE_KEY);
+		if (!cached) return false;
+		this.value = cached;
+		return true;
 	}
 
 	async start(): Promise<TroikiViewResponse> {

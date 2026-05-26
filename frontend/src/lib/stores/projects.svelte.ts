@@ -1,6 +1,7 @@
 import { projects as projectsApi } from '../api/endpoints/projects';
 import { getApiClient } from '../api/client';
 import type { Project } from '../api/types';
+import { getDB } from '../offline/db';
 
 class ProjectsStore {
 	items = $state<Project[]>([]);
@@ -17,6 +18,19 @@ class ProjectsStore {
 		this.items = page.items;
 		this.loaded = true;
 		return page.items;
+	}
+
+	async loadCached(): Promise<boolean> {
+		const rows = await getDB().table('projects').toArray();
+		const items: Project[] = [];
+		for (const row of rows) {
+			if (row.deletedAt !== null) continue;
+			items.push(row.data as Project);
+		}
+		if (items.length === 0) return false;
+		this.items = items;
+		this.loaded = true;
+		return true;
 	}
 
 	upsert(project: Project): void {

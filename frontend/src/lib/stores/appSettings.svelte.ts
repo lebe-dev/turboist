@@ -1,6 +1,9 @@
 import { appSettings as appSettingsApi } from '../api/endpoints/app-settings';
 import { getApiClient } from '../api/client';
 import type { AppSettings, AutoLabelRule } from '../api/types';
+import { cacheStoreValue, getCachedStoreValue } from '../offline/storeCache';
+
+const CACHE_KEY = 'appSettings';
 
 function createAppSettingsStore() {
 	let value = $state<AppSettings>({ autoLabels: [] });
@@ -15,7 +18,14 @@ function createAppSettingsStore() {
 		async load(): Promise<AppSettings> {
 			const v = await appSettingsApi.get(getApiClient());
 			value = v;
+			void cacheStoreValue(CACHE_KEY, v).catch(() => undefined);
 			return v;
+		},
+		async loadCached(): Promise<boolean> {
+			const cached = await getCachedStoreValue<AppSettings>(CACHE_KEY);
+			if (!cached) return false;
+			value = cached;
+			return true;
 		},
 		async setAutoLabels(rules: AutoLabelRule[]): Promise<void> {
 			const prev = value;

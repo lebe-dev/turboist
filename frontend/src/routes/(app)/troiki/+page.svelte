@@ -34,7 +34,12 @@
 		await troikiStore.load();
 	}
 
-	const loader = usePageLoad(loadAll, { errorMessage: $t('troiki.toast.loadFailed') });
+	const loader = usePageLoad(loadAll, {
+		errorMessage: $t('troiki.toast.loadFailed'),
+		offlineFallback: async () => {
+			await troikiStore.loadCached();
+		}
+	});
 
 	useInvalidation(['tasks'], () => void loader.revalidate());
 

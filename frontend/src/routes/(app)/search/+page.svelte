@@ -18,6 +18,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { searchTasks, searchProjects } from '$lib/offline/views';
 	import { t } from '$lib/i18n';
 	let q = $state('');
 	let active = $state<'tasks' | 'projects'>('tasks');
@@ -64,6 +65,19 @@
 				return;
 			}
 			toast.error(describeError(err, $t('page.search.searchFailed')));
+		},
+		offlineFallback: async (isValid) => {
+			const trimmed = q.trim();
+			if (trimmed.length < 2) return;
+			const [taskRes, projectRes] = await Promise.all([
+				searchTasks(trimmed),
+				searchProjects(trimmed)
+			]);
+			if (!isValid()) return;
+			lastQuery = trimmed;
+			taskList.items = taskRes.items;
+			projects = projectRes.items;
+			total = { tasks: taskRes.total, projects: projectRes.total };
 		}
 	});
 

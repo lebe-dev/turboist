@@ -25,6 +25,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { queryToday, queryOverdue, queryCompletedToday } from '$lib/offline/views';
 
 	let total = $state(0);
 	let completedCount = $state(0);
@@ -117,7 +118,31 @@
 			completedCount = completed.total;
 			void loadCalendarEvents(start, end, isValid);
 		},
-		{ errorMessage: $t('page.today.errorLoading'), autoLoad: false, initialLoading: true }
+		{
+			errorMessage: $t('page.today.errorLoading'),
+			autoLoad: false,
+			initialLoading: true,
+			offlineFallback: async (isValid) => {
+				const ctxId = userStateStore.activeContextId ?? null;
+				const [open, overdue, completed] = await Promise.all([
+					queryToday(tz, ctxId),
+					queryOverdue(tz, ctxId),
+					queryCompletedToday(tz, ctxId, 1)
+				]);
+				if (!isValid()) return;
+				const seen: Record<number, true> = {};
+				const merged: Task[] = [];
+				for (const t of [...overdue.items, ...open.items]) {
+					if (seen[t.id]) continue;
+					seen[t.id] = true;
+					merged.push(t);
+				}
+				list.items = merged;
+				total = open.total + overdue.total;
+				completedCount = completed.total;
+				calendarEvents = [];
+			}
+		}
 	);
 
 	async function loadCalendarEvents(

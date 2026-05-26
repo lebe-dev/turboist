@@ -1,6 +1,7 @@
 import { labels as labelsApi } from '../api/endpoints/labels';
 import { getApiClient } from '../api/client';
 import type { Label } from '../api/types';
+import { getDB } from '../offline/db';
 
 class LabelsStore {
 	items = $state<Label[]>([]);
@@ -14,6 +15,19 @@ class LabelsStore {
 		this.items = page.items;
 		this.loaded = true;
 		return page.items;
+	}
+
+	async loadCached(): Promise<boolean> {
+		const rows = await getDB().table('labels').toArray();
+		const items: Label[] = [];
+		for (const row of rows) {
+			if (row.deletedAt !== null) continue;
+			items.push(row.data as Label);
+		}
+		if (items.length === 0) return false;
+		this.items = items;
+		this.loaded = true;
+		return true;
 	}
 
 	upsert(label: Label): void {

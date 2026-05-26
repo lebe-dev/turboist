@@ -34,6 +34,7 @@
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { queryWeek } from '$lib/offline/views';
 
 
 	const ONLY_PLANNED_KEY = 'turboist:week:only-planned';
@@ -142,7 +143,18 @@
 		list.items = res.items;
 		total = res.total;
 		void loadCalendarEvents(start, end, isValid);
-	}, { errorMessage: $t('page.week.errorLoading'), autoLoad: false, initialLoading: true });
+	}, {
+		errorMessage: $t('page.week.errorLoading'),
+		autoLoad: false,
+		initialLoading: true,
+		offlineFallback: async (isValid) => {
+			const res = await queryWeek(tz, userStateStore.activeContextId ?? null);
+			if (!isValid()) return;
+			list.items = res.items;
+			total = res.total;
+			calendarEvents = [];
+		}
+	});
 
 	async function loadCalendarEvents(
 		start: string,

@@ -21,6 +21,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { queryTomorrow } from '$lib/offline/views';
 
 	let total = $state(0);
 	let calendarEvents = $state<CalendarEvent[]>([]);
@@ -54,7 +55,19 @@
 		list.items = res.items;
 		total = res.total;
 		void loadCalendarEvents(start, end, isValid);
-	}, { errorMessage: $t('page.tomorrow.errorLoading'), autoLoad: false, initialLoading: true });
+	}, {
+		errorMessage: $t('page.tomorrow.errorLoading'),
+		autoLoad: false,
+		initialLoading: true,
+		offlineFallback: async (isValid) => {
+			const ctxId = userStateStore.activeContextId ?? null;
+			const res = await queryTomorrow(tz, ctxId);
+			if (!isValid()) return;
+			list.items = res.items;
+			total = res.total;
+			calendarEvents = [];
+		}
+	});
 
 	async function loadCalendarEvents(
 		start: string,

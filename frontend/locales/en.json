@@ -869,6 +869,7 @@
       "label": "Offline",
       "title": "You are offline. Changes will sync when the connection is restored."
     },
+    "staleData": "Showing cached data. May be out of date.",
     "pending": {
       "title": "{count} changes waiting to sync"
     },

@@ -19,6 +19,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { queryBacklog, queryWeek, queryPlanStats } from '$lib/offline/views';
 	import { formatDayKeyRange, nextWeekRangeKeys } from '$lib/utils/format';
 	import { t, locale } from '$lib/i18n';
 
@@ -57,7 +58,23 @@
 			backlog.items = backlogRes.items;
 			week.items = weekRes.items;
 		},
-		{ errorMessage: $t('page.nextWeek.errorLoading'), autoLoad: false, initialLoading: true }
+		{
+			errorMessage: $t('page.nextWeek.errorLoading'),
+			autoLoad: false,
+			initialLoading: true,
+			offlineFallback: async (isValid) => {
+				const ctxId = userStateStore.activeContextId ?? null;
+				const [backlogRes, weekRes, stats] = await Promise.all([
+					queryBacklog(ctxId),
+					queryWeek(tz, ctxId),
+					queryPlanStats(ctxId)
+				]);
+				if (!isValid()) return;
+				backlog.items = backlogRes.items;
+				week.items = weekRes.items;
+				planStatsStore.set(stats);
+			}
+		}
 	);
 
 	$effect(() => {

@@ -2,6 +2,9 @@ import { settings as settingsApi } from '../api/endpoints/settings';
 import { getApiClient } from '../api/client';
 import type { UserSettings } from '../api/types';
 import { setLocale, type SupportedLocale } from '../i18n';
+import { cacheStoreValue, getCachedStoreValue } from '../offline/storeCache';
+
+const CACHE_KEY = 'settings';
 
 const EMPTY: UserSettings = {
 	weeklyUnplannedExcludedLabelIds: [],
@@ -20,7 +23,15 @@ class SettingsStore {
 	async load(): Promise<UserSettings> {
 		const v = await settingsApi.get(getApiClient());
 		this.value = v;
+		void cacheStoreValue(CACHE_KEY, v).catch(() => undefined);
 		return v;
+	}
+
+	async loadCached(): Promise<boolean> {
+		const cached = await getCachedStoreValue<UserSettings>(CACHE_KEY);
+		if (!cached) return false;
+		this.value = cached;
+		return true;
 	}
 
 	get weeklyUnplannedExcludedLabelIds(): number[] {
