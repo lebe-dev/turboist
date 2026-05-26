@@ -236,8 +236,10 @@
 	const loader = usePageLoad(
 		async (isValid) => {
 			notFound = false;
-			task = null;
-			subtasks.items = [];
+			if (task?.id !== taskId) {
+				task = null;
+				subtasks.items = [];
+			}
 			if (!Number.isFinite(taskId)) {
 				notFound = true;
 				return;
