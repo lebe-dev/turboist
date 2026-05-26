@@ -95,6 +95,11 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	eventsHandler := handlers.NewEventsHandler(hub, tix)
 	eventsHandler.RegisterPublic(app)
 
+	calendarRepo := repo.NewCalendarRepo(d)
+	calendarSvc := calendarsvc.NewService(calendarRepo, users, testBaseURL, "test-token-key-32bytes-padding!!", slog.Default())
+	calendarHandler := handlers.NewCalendarHandler(calendarSvc, calendarRepo, users, testBaseURL, slog.Default())
+	calendarHandler.RegisterPublic(app)
+
 	api := httpapi.RegisterRoutes(app, deps)
 	eventsHandler.Register(api)
 
@@ -131,10 +136,6 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewBackupHandler(service.NewBackupService(d)).
 		Register(api.Group("", httpapi.RequireJWTAuth()))
 
-	calendarRepo := repo.NewCalendarRepo(d)
-	calendarSvc := calendarsvc.NewService(calendarRepo, users, testBaseURL, "test-token-key-32bytes-padding!!", slog.Default())
-	calendarHandler := handlers.NewCalendarHandler(calendarSvc, calendarRepo, users, testBaseURL, slog.Default())
-	calendarHandler.RegisterPublic(app)
 	calendarHandler.Register(api.Group("/calendars"))
 
 	return &apiEnv{

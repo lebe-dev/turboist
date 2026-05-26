@@ -198,3 +198,89 @@ func TestLoadEnv_APITokenSaltTooShort(t *testing.T) {
 		t.Fatalf("expected API_TOKEN_SALT length error, got %v", err)
 	}
 }
+
+// --- Argon2 params ---
+
+func loadEnvWithRequiredVars(t *testing.T) {
+	t.Helper()
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+}
+
+func TestLoadEnv_Argon2_DefaultsWhenUnset(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_MEMORY_KIB", "")
+	t.Setenv("ARGON2_TIME", "")
+	t.Setenv("ARGON2_THREADS", "")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if e.Argon2Params.Memory != 19*1024 || e.Argon2Params.Time != 2 || e.Argon2Params.Threads != 1 {
+		t.Errorf("defaults: got %+v, want m=19MiB t=2 p=1", e.Argon2Params)
+	}
+}
+
+func TestLoadEnv_Argon2_CustomValues(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_MEMORY_KIB", "65536")
+	t.Setenv("ARGON2_TIME", "3")
+	t.Setenv("ARGON2_THREADS", "4")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if e.Argon2Params.Memory != 65536 || e.Argon2Params.Time != 3 || e.Argon2Params.Threads != 4 {
+		t.Errorf("custom: got %+v", e.Argon2Params)
+	}
+}
+
+func TestLoadEnv_Argon2_ZeroMemoryRejected(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_MEMORY_KIB", "0")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "ARGON2_MEMORY_KIB") {
+		t.Errorf("expected ARGON2_MEMORY_KIB error, got %v", err)
+	}
+}
+
+func TestLoadEnv_Argon2_NegativeMemoryRejected(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_MEMORY_KIB", "-1")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "ARGON2_MEMORY_KIB") {
+		t.Errorf("expected ARGON2_MEMORY_KIB error, got %v", err)
+	}
+}
+
+func TestLoadEnv_Argon2_NonNumericMemoryRejected(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_MEMORY_KIB", "abc")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "ARGON2_MEMORY_KIB") {
+		t.Errorf("expected ARGON2_MEMORY_KIB error, got %v", err)
+	}
+}
+
+func TestLoadEnv_Argon2_ZeroTimeRejected(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_TIME", "0")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "ARGON2_TIME") {
+		t.Errorf("expected ARGON2_TIME error, got %v", err)
+	}
+}
+
+func TestLoadEnv_Argon2_ZeroThreadsRejected(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_THREADS", "0")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "ARGON2_THREADS") {
+		t.Errorf("expected ARGON2_THREADS error, got %v", err)
+	}
+}
+
+func TestLoadEnv_Argon2_ThreadsOverflowRejected(t *testing.T) {
+	loadEnvWithRequiredVars(t)
+	t.Setenv("ARGON2_THREADS", "256")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "ARGON2_THREADS") {
+		t.Errorf("expected ARGON2_THREADS error (overflow uint8), got %v", err)
+	}
+}

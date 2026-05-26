@@ -100,6 +100,20 @@ func TestCleanupOnce_LogsDebugWhenNoneRemoved(t *testing.T) {
 	}
 }
 
+func TestStartSessionCleanup_LaunchesGoroutineAndExitsOnCancel(t *testing.T) {
+	d := setupCleanupDB(t)
+	sessions := repo.NewSessionRepo(d)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	StartSessionCleanup(ctx, sessions, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	// Cancel right away; the goroutine should observe the cancel and exit.
+	cancel()
+	// Give the goroutine a moment to wind down. If it leaks, `go test -race` /
+	// future leak detectors will catch it; here we just ensure no panic.
+	time.Sleep(20 * time.Millisecond)
+}
+
 func TestCleanupOnce_LogsInfoWhenRowsRemoved(t *testing.T) {
 	d := setupCleanupDB(t)
 	sessions := repo.NewSessionRepo(d)

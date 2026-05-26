@@ -186,6 +186,154 @@ func TestTaskViews_Backlog_HasTask(t *testing.T) {
 	}
 }
 
+func TestTaskViews_Pinned_Empty(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/pinned", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result viewResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Total != 0 || len(result.Items) != 0 {
+		t.Errorf("expected empty, got %+v", result)
+	}
+}
+
+func TestTaskViews_Pinned_HasTask(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, ctx.ID, "Pin me")
+
+	pinResp, pinBody := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/pin", task.ID), nil))
+	if pinResp.StatusCode != 200 && pinResp.StatusCode != 204 {
+		t.Fatalf("pin: got %d; body: %s", pinResp.StatusCode, pinBody)
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/pinned", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("pinned: got %d; body: %s", resp.StatusCode, body)
+	}
+	var result viewResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Total != 1 {
+		t.Errorf("total: got %d, want 1", result.Total)
+	}
+	if len(result.Items) != 1 || result.Items[0].Title != "Pin me" {
+		t.Errorf("items: got %+v", result.Items)
+	}
+}
+
+func TestTaskViews_Completed_Empty(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/completed", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.PagedResponse[dto.TaskDTO]
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Total != 0 {
+		t.Errorf("total: got %d, want 0", result.Total)
+	}
+}
+
+func TestTaskViews_Completed_TodayOnly(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, ctx.ID, "Done today")
+
+	completeResp, completeBody := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", task.ID), nil))
+	if completeResp.StatusCode != 200 && completeResp.StatusCode != 204 {
+		t.Fatalf("complete: got %d; body: %s", completeResp.StatusCode, completeBody)
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/completed", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("completed: got %d; body: %s", resp.StatusCode, body)
+	}
+	var result dto.PagedResponse[dto.TaskDTO]
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Total != 1 {
+		t.Errorf("total: got %d, want 1", result.Total)
+	}
+	if len(result.Items) != 1 || result.Items[0].Title != "Done today" {
+		t.Errorf("items: got %+v", result.Items)
+	}
+}
+
+func TestTaskViews_Completed_DaysParamClampedTo90(t *testing.T) {
+	e := setupAPIEnv(t)
+	for _, q := range []string{"?days=0", "?days=-1", "?days=abc", "?days=9999"} {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/completed"+q, nil))
+		if resp.StatusCode != 200 {
+			t.Errorf("days %q: got %d, want 200; body: %s", q, resp.StatusCode, body)
+		}
+	}
+}
+
+func TestTaskViews_StatsPlan_EmptyDB(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/stats/plan", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result struct {
+		Week    int `json:"week"`
+		Backlog int `json:"backlog"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Week != 0 || result.Backlog != 0 {
+		t.Errorf("expected zero counts, got %+v", result)
+	}
+}
+
+func TestTaskViews_StatsPlan_CountsWeekAndBacklog(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	w1 := createTestTask(t, e, ctx.ID, "w1")
+	w2 := createTestTask(t, e, ctx.ID, "w2")
+	b1 := createTestTask(t, e, ctx.ID, "b1")
+
+	for _, id := range []int64{w1.ID, w2.ID} {
+		doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/plan", id),
+			map[string]any{"state": "week"}))
+	}
+	doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/plan", b1.ID),
+		map[string]any{"state": "backlog"}))
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/stats/plan", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result struct {
+		Week    int `json:"week"`
+		Backlog int `json:"backlog"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Week != 2 {
+		t.Errorf("week: got %d, want 2", result.Week)
+	}
+	if result.Backlog != 1 {
+		t.Errorf("backlog: got %d, want 1", result.Backlog)
+	}
+}
+
 func TestTaskViews_FilterByContext(t *testing.T) {
 	e := setupAPIEnv(t)
 	ctx1 := createTestContext(t, e, "Work")

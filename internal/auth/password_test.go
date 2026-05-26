@@ -75,3 +75,61 @@ func TestVerifyPassword_InvalidFormat(t *testing.T) {
 		t.Errorf("expected error on unsupported algorithm")
 	}
 }
+
+func TestHashToken_DeterministicAndHexEncoded(t *testing.T) {
+	got := HashToken("tok-abc")
+	again := HashToken("tok-abc")
+	if got != again {
+		t.Errorf("HashToken must be deterministic: %q vs %q", got, again)
+	}
+	if len(got) != 64 {
+		t.Errorf("hex sha256 length: got %d, want 64", len(got))
+	}
+	for _, c := range got {
+		isHex := (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
+		if !isHex {
+			t.Errorf("non-hex char %q in %q", c, got)
+			break
+		}
+	}
+}
+
+func TestHashToken_DifferentInputsDifferentHashes(t *testing.T) {
+	cases := []string{"", "a", "b", "tok-abc", "tok-abcd", strings.Repeat("x", 1024)}
+	seen := make(map[string]string, len(cases))
+	for _, in := range cases {
+		h := HashToken(in)
+		if prev, ok := seen[h]; ok {
+			t.Errorf("collision: HashToken(%q) == HashToken(%q)", in, prev)
+		}
+		seen[h] = in
+	}
+}
+
+func TestVerifyToken_Match(t *testing.T) {
+	tok := "01HXYZAPIKEY00000000000000"
+	if !VerifyToken(tok, HashToken(tok)) {
+		t.Errorf("matching token must verify")
+	}
+}
+
+func TestVerifyToken_Mismatch(t *testing.T) {
+	if VerifyToken("a", HashToken("b")) {
+		t.Errorf("non-matching token must not verify")
+	}
+}
+
+func TestVerifyToken_EmptyToken(t *testing.T) {
+	if !VerifyToken("", HashToken("")) {
+		t.Errorf("empty token must verify against hash of empty")
+	}
+	if VerifyToken("", HashToken("non-empty")) {
+		t.Errorf("empty token must not verify against hash of non-empty")
+	}
+}
+
+func TestVerifyToken_LengthMismatchHash(t *testing.T) {
+	if VerifyToken("tok", "deadbeef") {
+		t.Errorf("hash of wrong length must not verify")
+	}
+}
