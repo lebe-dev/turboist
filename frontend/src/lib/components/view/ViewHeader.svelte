@@ -6,20 +6,22 @@
 		subtitle,
 		meta,
 		actions,
-		banner
+		banner,
+		stackOnMobile = false
 	}: {
 		title?: string;
 		subtitle?: string;
 		meta?: Snippet;
 		actions?: Snippet;
 		banner?: Snippet;
+		stackOnMobile?: boolean;
 	} = $props();
 </script>
 
 {#if title || subtitle || meta || actions || banner}
 <header class="flex flex-col gap-3 px-4 pt-4 pb-3 sm:px-8">
 	{#if title || subtitle || meta || actions}
-		<div class="flex items-start justify-between gap-3">
+		<div class={stackOnMobile ? 'flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3' : 'flex items-start justify-between gap-3'}>
 			{#if title || subtitle || meta}
 				<div class="min-w-0 flex-1">
 					{#if title}

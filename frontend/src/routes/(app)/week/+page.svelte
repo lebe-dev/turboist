@@ -177,7 +177,7 @@
 	});
 </script>
 
-<ViewHeader>
+<ViewHeader stackOnMobile>
 	{#snippet meta()}
 		<p class="text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
 			{weekRangeLabel}
