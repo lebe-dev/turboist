@@ -17,6 +17,7 @@ Turboist is a task management app for the rest of us.
 - Public View — [docs/public-mode.md](docs/public-mode.md)
 - Google Calendar integration (read-only) — [docs/google-calendar.md](docs/google-calendar.md)
 - [Public API](API.md)
+- Offline-first PWA with IndexedDB cache, outbox-backed mutations and LWW sync — [docs/architecture/offline.md](docs/architecture/offline.md)
 
 ## Quick start
 
@@ -33,6 +34,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [Installation](docs/install.md) — nginx config
 - [Configuration](docs/configuration.md) — env vars, log levels, config.yml
 - [Backend architecture](docs/architecture/backend.md) — endpoints, auth, storage, dev commands
+- [Offline & PWA](docs/architecture/offline.md) — sync contract, Dexie/outbox layout, conflict resolution
 - [API reference](API.md)
 - [Troiki System](docs/troiki-system.md)
 - [Localization](docs/locales.md)
@@ -43,6 +45,5 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 
 - Feature: Task templates
 - Feature: Federated Project Synchronization (Bridge Protocol) for Multi-Instance Collaboration
-- Offline-first
 - iOS Native App
 - Feature: Constraints

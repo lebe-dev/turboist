@@ -27,6 +27,8 @@
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
+	import OfflineIndicator from './OfflineIndicator.svelte';
+	import PendingSyncBadge from './PendingSyncBadge.svelte';
 	import { t } from '$lib/i18n';
 
 	const TITLE_KEYS: Record<string, string> = {
@@ -258,6 +260,8 @@
 		</div>
 	</div>
 	<div class="flex shrink-0 items-center gap-1 sm:gap-1.5">
+		<OfflineIndicator />
+		<PendingSyncBadge />
 		<!-- Mobile search icon -->
 		{#if !mobileSearchOpen}
 			<Button

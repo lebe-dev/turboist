@@ -14,6 +14,8 @@
 	import { getDB } from '$lib/offline/db';
 	import { fetcherFromClient, flush, pull } from '$lib/offline/sync';
 	import { createDexieAuthAdapter } from '$lib/offline/auth';
+	import { outboxStatusStore } from '$lib/offline/outboxStatus.svelte';
+	import FailedSyncToasts from '$lib/components/app/FailedSyncToasts.svelte';
 
 	initI18n(null);
 
@@ -34,6 +36,7 @@
 	let bootstrapped = $state(false);
 
 	onMount(() => {
+		outboxStatusStore.start();
 		void (async () => {
 			await authStore.bootstrap();
 			bootstrapped = true;
@@ -41,6 +44,7 @@
 				void backgroundSyncPull();
 			}
 		})();
+		return () => outboxStatusStore.stop();
 	});
 
 	async function backgroundSyncPull(): Promise<void> {
@@ -67,6 +71,7 @@
 
 <ModeWatcher />
 <Toaster />
+<FailedSyncToasts />
 
 {#if !bootstrapped || authStore.status === 'loading'}
 	<div class="flex h-screen items-center justify-center text-sm text-muted-foreground">

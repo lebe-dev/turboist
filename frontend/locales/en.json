@@ -863,5 +863,20 @@
     "privacy": {
       "title": "Privacy Policy"
     }
+  },
+  "offline": {
+    "indicator": {
+      "label": "Offline",
+      "title": "You are offline. Changes will sync when the connection is restored."
+    },
+    "pending": {
+      "title": "{count} changes waiting to sync"
+    },
+    "failed": {
+      "title": "Sync failed",
+      "unknown": "Unknown error",
+      "retry": "Retry",
+      "discard": "Discard"
+    }
   }
 }
