@@ -12,7 +12,8 @@
 	import { initI18n, t } from '$lib/i18n';
 	import { getApiClient } from '$lib/api/client';
 	import { getDB } from '$lib/offline/db';
-	import { fetcherFromClient, flush, pull } from '$lib/offline/sync';
+	import { fetcherFromClient, pull } from '$lib/offline/sync';
+	import { syncRunner } from '$lib/offline/runner';
 	import { createDexieAuthAdapter } from '$lib/offline/auth';
 	import { outboxStatusStore } from '$lib/offline/outboxStatus.svelte';
 	import FailedSyncToasts from '$lib/components/app/FailedSyncToasts.svelte';
@@ -24,11 +25,7 @@
 	const authStore = createAuthStore({
 		offline: createDexieAuthAdapter({
 			onAuthenticatedRefresh: async () => {
-				try {
-					await flush(fetcherFromClient(getApiClient()), getDB());
-				} catch {
-					// Offline or transient — next online tick retries.
-				}
+				await syncRunner.notify();
 			}
 		})
 	});
@@ -37,6 +34,7 @@
 
 	onMount(() => {
 		outboxStatusStore.start();
+		syncRunner.start(fetcherFromClient(getApiClient()), getDB());
 		void (async () => {
 			await authStore.bootstrap();
 			bootstrapped = true;
@@ -44,7 +42,10 @@
 				void backgroundSyncPull();
 			}
 		})();
-		return () => outboxStatusStore.stop();
+		return () => {
+			syncRunner.stop();
+			outboxStatusStore.stop();
+		};
 	});
 
 	async function backgroundSyncPull(): Promise<void> {

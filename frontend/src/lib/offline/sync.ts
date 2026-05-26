@@ -107,10 +107,20 @@ const upsertEntity = async (
 	await table.put(stored);
 };
 
-export const flush = async (
+let flushInflight: Promise<FlushResult> | null = null;
+
+export const flush = (
 	fetcher: SyncFetch,
 	db: TurboistDB = getDB()
 ): Promise<FlushResult> => {
+	if (flushInflight) return flushInflight;
+	flushInflight = doFlush(fetcher, db).finally(() => {
+		flushInflight = null;
+	});
+	return flushInflight;
+};
+
+const doFlush = async (fetcher: SyncFetch, db: TurboistDB): Promise<FlushResult> => {
 	const result: FlushResult = { sent: 0, failed: 0, dropped: 0 };
 	const MAX_PASSES = 8;
 	for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -272,11 +282,15 @@ const applyServerResponse = async (
 ): Promise<void> => {
 	const tbl = db.table(entry.entity);
 	const existing = (await tbl.get(entry.clientId)) as StoredEntity | undefined;
+	if (entry.op !== 'create' && existing && existing.updatedAt > server.updatedAt) {
+		await tbl.put({ ...existing, serverId: server.id });
+		return;
+	}
 	const stored: StoredEntity = {
 		clientId: existing?.clientId ?? entry.clientId,
 		serverId: server.id,
 		updatedAt: server.updatedAt,
-		deletedAt: server.deletedAt ?? null,
+		deletedAt: existing?.deletedAt ?? server.deletedAt ?? null,
 		data: server as Record<string, unknown>
 	};
 	await tbl.put(stored);

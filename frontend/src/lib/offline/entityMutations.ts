@@ -10,7 +10,7 @@ import type {
 } from '$lib/api/types';
 import { getDB, type EntityKind, type StoredEntity, type TurboistDB } from './db';
 import { newClientId } from './ids';
-import { enqueue } from './outbox';
+import { dropPendingFor, enqueue } from './outbox';
 import { emitDbChanged } from './stores';
 
 const SYNTHETIC_ID_BASE = -2_000_000_000;
@@ -19,6 +19,18 @@ let syntheticCounter = 0;
 const mintSyntheticId = (): number => {
 	syntheticCounter += 1;
 	return SYNTHETIC_ID_BASE - syntheticCounter;
+};
+
+const findClientIdBySyntheticId = async (
+	db: TurboistDB,
+	kind: EntityKind,
+	syntheticId: number
+): Promise<string | null> => {
+	const row = await db
+		.table(kind)
+		.filter((r: StoredEntity) => (r.data as { id?: number }).id === syntheticId)
+		.first();
+	return row?.clientId ?? null;
 };
 
 const nowIso = (): string => new Date().toISOString();
@@ -104,20 +116,24 @@ const createOffline = async <T extends EntityRecord, I extends Record<string, un
 		deletedAt: null,
 		data: entity
 	};
-	await db.table(cfg.kind).put(toStored(row));
-	await enqueue(
-		{
-			entity: cfg.kind,
-			op: 'create',
-			clientId,
-			payload: {
-				method: 'POST',
-				path: cfg.listPath(input, opts),
-				body: { ...input, clientId }
-			}
-		},
-		db
-	);
+	const parentClientId = (opts.parentClientId as string | null | undefined) ?? null;
+	await db.transaction('rw', db.table(cfg.kind), db.outbox, async () => {
+		await db.table(cfg.kind).put(toStored(row));
+		await enqueue(
+			{
+				entity: cfg.kind,
+				op: 'create',
+				clientId,
+				parentClientId,
+				payload: {
+					method: 'POST',
+					path: cfg.listPath(input, opts),
+					body: { ...input, clientId }
+				}
+			},
+			db
+		);
+	});
 	emitDbChanged(cfg.kind);
 	return entity;
 };
@@ -140,20 +156,22 @@ const updateOffline = async <T extends EntityRecord, I extends Record<string, un
 		clientId: row.clientId
 	} as T;
 	const next: StoredEntityRow<T> = { ...row, updatedAt: ts, data: nextData };
-	await db.table(cfg.kind).put(toStored(next));
-	await enqueue(
-		{
-			entity: cfg.kind,
-			op: 'update',
-			clientId: row.clientId,
-			payload: {
-				method: 'PATCH',
-				path: row.serverId ? cfg.itemPath(row.serverId) : cfg.itemPath('{serverId}'),
-				body: { ...patch, baseUpdatedAt }
-			}
-		},
-		db
-	);
+	await db.transaction('rw', db.table(cfg.kind), db.outbox, async () => {
+		await db.table(cfg.kind).put(toStored(next));
+		await enqueue(
+			{
+				entity: cfg.kind,
+				op: 'update',
+				clientId: row.clientId,
+				payload: {
+					method: 'PATCH',
+					path: row.serverId ? cfg.itemPath(row.serverId) : cfg.itemPath('{serverId}'),
+					body: { ...patch, baseUpdatedAt }
+				}
+			},
+			db
+		);
+	});
 	emitDbChanged(cfg.kind);
 	return nextData;
 };
@@ -167,19 +185,22 @@ const deleteOffline = async <T extends EntityRecord, I extends Record<string, un
 	const row = await loadRow<T>(db, cfg.kind, ref);
 	if (!row) return;
 	const ts = nowIso();
-	await db.table(cfg.kind).put(toStored({ ...row, deletedAt: ts, updatedAt: ts }));
-	await enqueue(
-		{
-			entity: cfg.kind,
-			op: 'delete',
-			clientId: row.clientId,
-			payload: {
-				method: 'DELETE',
-				path: row.serverId ? cfg.itemPath(row.serverId) : cfg.itemPath('{serverId}')
-			}
-		},
-		db
-	);
+	await db.transaction('rw', db.table(cfg.kind), db.outbox, async () => {
+		await db.table(cfg.kind).put(toStored({ ...row, deletedAt: ts, updatedAt: ts }));
+		const entry = await enqueue(
+			{
+				entity: cfg.kind,
+				op: 'delete',
+				clientId: row.clientId,
+				payload: {
+					method: 'DELETE',
+					path: row.serverId ? cfg.itemPath(row.serverId) : cfg.itemPath('{serverId}')
+				}
+			},
+			db
+		);
+		await dropPendingFor(cfg.kind, row.clientId, entry.id, db);
+	});
 	emitDbChanged(cfg.kind);
 };
 
@@ -221,6 +242,10 @@ const sectionConfig: EntityConfig<
 	listPath: (_input, opts) => {
 		const projectId = opts.projectId as number | undefined;
 		if (!projectId) throw new Error('createSectionOffline: projectId required');
+		const projectClientId = opts.projectClientId as string | undefined;
+		if (isSyntheticEntityId(projectId) && projectClientId) {
+			return `/api/v1/projects/{ref:${projectClientId}}/sections`;
+		}
 		return `/api/v1/projects/${projectId}/sections`;
 	},
 	itemPath: (id) => `/api/v1/sections/${id}`,
@@ -310,14 +335,23 @@ export interface CreateSectionOptions extends OfflineMutationOptions {
 	projectId: number;
 }
 
-export const createSectionOffline = (
+export const createSectionOffline = async (
 	input: SectionInput,
 	opts: CreateSectionOptions
-): Promise<ProjectSection & { clientId: string }> =>
-	createOffline(sectionConfig, input as SectionInput & Record<string, unknown>, {
+): Promise<ProjectSection & { clientId: string }> => {
+	const db = opts.db ?? getDB();
+	let projectClientId: string | null = null;
+	if (isSyntheticEntityId(opts.projectId)) {
+		projectClientId = await findClientIdBySyntheticId(db, 'projects', opts.projectId);
+	}
+	return createOffline(sectionConfig, input as SectionInput & Record<string, unknown>, {
 		...opts,
-		projectId: opts.projectId
+		db,
+		projectId: opts.projectId,
+		projectClientId,
+		parentClientId: projectClientId
 	}) as Promise<ProjectSection & { clientId: string }>;
+};
 
 export const updateSectionOffline = (
 	ref: { id: number; clientId?: string },

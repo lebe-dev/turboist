@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TurboistDB } from './db';
 import {
 	createProjectOffline,
@@ -152,6 +152,18 @@ describe('entityMutations: sections', () => {
 		expect(row?.serverId).toBe(99);
 	});
 
+	it('section under synthetic project uses {ref:<clientId>} in path', async () => {
+		const proj = await createProjectOffline({ title: 'P' }, { contextId: 1, db });
+		expect(isSyntheticEntityId(proj.id)).toBe(true);
+		const sec = await createSectionOffline({ title: 'S' }, { projectId: proj.id, db });
+		expect(sec.clientId).toBeTruthy();
+		const sectionEntry = (await db.outbox.toArray()).find((e) => e.entity === 'sections');
+		expect(sectionEntry?.payload.path).toBe(
+			`/api/v1/projects/{ref:${proj.clientId}}/sections`
+		);
+		expect(sectionEntry?.parentClientId).toBe(proj.clientId);
+	});
+
 	it('update + delete enqueue correct paths', async () => {
 		await db.sections.put({
 			clientId: 'srv:20',
@@ -163,8 +175,9 @@ describe('entityMutations: sections', () => {
 		await updateSectionOffline({ id: 20 }, { title: 'new' }, { db });
 		await deleteSectionOffline({ id: 20 }, { db });
 		const out = await db.outbox.toArray();
-		expect(out.every((e) => e.payload.path === '/api/v1/sections/20')).toBe(true);
-		expect(out.map((e) => e.op).sort()).toEqual(['delete', 'update']);
+		expect(out).toHaveLength(1);
+		expect(out[0].op).toBe('delete');
+		expect(out[0].payload.path).toBe('/api/v1/sections/20');
 	});
 });
 
@@ -212,8 +225,9 @@ describe('entityMutations: labels', () => {
 		const row = await db.labels.get('srv:30');
 		expect(row?.deletedAt).not.toBeNull();
 		const out = await db.outbox.toArray();
-		expect(out.every((e) => e.payload.path === '/api/v1/labels/30')).toBe(true);
-		expect(out.map((e) => e.op).sort()).toEqual(['delete', 'update']);
+		expect(out).toHaveLength(1);
+		expect(out[0].op).toBe('delete');
+		expect(out[0].payload.path).toBe('/api/v1/labels/30');
 	});
 });
 
@@ -259,30 +273,97 @@ describe('entityMutations: contexts', () => {
 		await updateContextOffline({ id: 40 }, { name: 'new' }, { db });
 		await deleteContextOffline({ id: 40 }, { db });
 		const out = await db.outbox.toArray();
-		const ops = out.map((e) => e.op).sort();
-		expect(ops).toEqual(['delete', 'update']);
-		expect(out.every((e) => e.payload.path === '/api/v1/contexts/40')).toBe(true);
+		expect(out).toHaveLength(1);
+		expect(out[0].op).toBe('delete');
+		expect(out[0].payload.path).toBe('/api/v1/contexts/40');
 	});
 
-	it('create then delete offline before flush: both flushed, row tombstoned', async () => {
+	it('create then delete offline before flush: collapses to a single noop-delete', async () => {
 		const ctx = await createContextOffline({ name: 'tmp' }, { db });
 		await deleteContextOffline({ id: ctx.id, clientId: ctx.clientId }, { db });
-		expect(await db.outbox.count()).toBe(2);
+		expect(await db.outbox.count()).toBe(1);
+		const remaining = await db.outbox.toArray();
+		expect(remaining[0].op).toBe('delete');
 
-		const { fetcher } = makeFetcher([
-			{
-				status: 201,
-				data: {
-					id: 1234,
-					clientId: ctx.clientId,
-					updatedAt: '2026-05-25T10:00:00.000Z',
-					name: 'tmp'
-				}
-			},
-			{ status: 200, data: null }
-		]);
+		const { fetcher, calls } = makeFetcher([]);
 		const result = await flush(fetcher, db);
-		expect(result.sent + result.dropped).toBeGreaterThanOrEqual(1);
+		expect(calls).toHaveLength(0);
+		expect(result.dropped).toBe(1);
+		expect(await db.outbox.count()).toBe(0);
+		const row = await db.contexts.get(ctx.clientId);
+		expect(row?.deletedAt).not.toBeNull();
+	});
+});
+
+describe('entityMutations: rollback on enqueue failure', () => {
+	let db: TurboistDB;
+
+	beforeEach(async () => {
+		db = new TurboistDB(`test-${Math.random().toString(36).slice(2)}`);
+		await db.open();
+	});
+
+	it('deleteProjectOffline: drops pending update mutations for the same project', async () => {
+		await db.projects.put({
+			clientId: 'srv:90',
+			serverId: 90,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: { id: 90, title: 'p', clientId: 'srv:90' }
+		});
+		await updateProjectOffline({ id: 90 }, { title: 'p2' }, { db });
+		expect(await db.outbox.count()).toBe(1);
+		await deleteProjectOffline({ id: 90 }, { db });
+		const remaining = await db.outbox.toArray();
+		expect(remaining).toHaveLength(1);
+		expect(remaining[0].op).toBe('delete');
+	});
+
+	it('createProjectOffline: rolls back projects row if enqueue fails', async () => {
+		const spy = vi
+			.spyOn(db.outbox, 'put')
+			.mockRejectedValueOnce(new Error('outbox-down'));
+		await expect(
+			createProjectOffline({ title: 'will rollback' }, { contextId: 7, db })
+		).rejects.toThrow();
+		spy.mockRestore();
+		expect(await db.projects.count()).toBe(0);
+		expect(await db.outbox.count()).toBe(0);
+	});
+
+	it('updateLabelOffline: rolls back local patch if enqueue fails', async () => {
+		await db.labels.put({
+			clientId: 'srv:60',
+			serverId: 60,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: { id: 60, name: 'before', clientId: 'srv:60' }
+		});
+		const spy = vi
+			.spyOn(db.outbox, 'put')
+			.mockRejectedValueOnce(new Error('outbox-down'));
+		await expect(updateLabelOffline({ id: 60 }, { name: 'after' }, { db })).rejects.toThrow();
+		spy.mockRestore();
+		const row = await db.labels.get('srv:60');
+		expect((row?.data as { name: string }).name).toBe('before');
+		expect(await db.outbox.count()).toBe(0);
+	});
+
+	it('deleteSectionOffline: keeps row alive if enqueue fails', async () => {
+		await db.sections.put({
+			clientId: 'srv:70',
+			serverId: 70,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: { id: 70, title: 's', clientId: 'srv:70' }
+		});
+		const spy = vi
+			.spyOn(db.outbox, 'put')
+			.mockRejectedValueOnce(new Error('outbox-down'));
+		await expect(deleteSectionOffline({ id: 70 }, { db })).rejects.toThrow();
+		spy.mockRestore();
+		const row = await db.sections.get('srv:70');
+		expect(row?.deletedAt).toBeNull();
 		expect(await db.outbox.count()).toBe(0);
 	});
 });

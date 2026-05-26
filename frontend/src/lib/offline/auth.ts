@@ -24,6 +24,22 @@ export const NOOP_OFFLINE_AUTH_ADAPTER: OfflineAuthAdapter = {
 const USER_ID_KEY = 'userId';
 const USER_INFO_KEY = 'user';
 
+interface CachedUserFields {
+	id: number;
+	username: string;
+}
+
+const pickCachedFields = (user: User): CachedUserFields => ({
+	id: user.id,
+	username: user.username
+});
+
+const hydrateFromCache = (cached: CachedUserFields): User => ({
+	id: cached.id,
+	username: cached.username,
+	totpEnabled: false
+});
+
 export interface DexieAuthAdapterOptions {
 	db?: TurboistDB;
 	onAuthenticatedRefresh?: () => Promise<void> | void;
@@ -37,16 +53,18 @@ export const createDexieAuthAdapter = (
 		async saveUser(user) {
 			const db = getDb();
 			await db.meta.put({ key: USER_ID_KEY, value: user.id });
-			await db.meta.put({ key: USER_INFO_KEY, value: user });
+			await db.meta.put({ key: USER_INFO_KEY, value: pickCachedFields(user) });
 		},
 		async loadUser() {
 			const db = getDb();
 			const idEntry = await db.meta.get(USER_ID_KEY);
 			const userEntry = await db.meta.get(USER_INFO_KEY);
 			const id = idEntry?.value;
-			const user = userEntry?.value;
-			if (typeof id !== 'number' || !user || typeof user !== 'object') return null;
-			return { id, user: user as User };
+			const cached = userEntry?.value as Partial<CachedUserFields> | undefined;
+			if (typeof id !== 'number' || !cached || typeof cached.username !== 'string') {
+				return null;
+			}
+			return { id, user: hydrateFromCache({ id, username: cached.username }) };
 		},
 		async hasData() {
 			const db = getDb();

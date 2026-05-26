@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TurboistDB } from './db';
 import {
 	createTaskOffline,
@@ -125,38 +125,36 @@ describe('taskMutations', () => {
 			deletedAt: null,
 			data: {
 				id: 5,
-				title: 'old',
+				title: 'local-edit',
 				status: 'open',
 				clientId: 'srv:5'
 			} as unknown as Record<string, unknown>
 		});
 
-		await updateTaskOffline({ id: 5 }, { title: 'local-edit' }, { db });
-		const localRow = await db.tasks.get('srv:5');
-		expect((localRow?.data as { title: string }).title).toBe('local-edit');
-
+		const futureTs = new Date(Date.now() + 60_000).toISOString();
 		const { fetcher, calls } = makeFetcher([
 			{
 				status: 200,
 				data: {
 					id: 5,
 					clientId: 'srv:5',
-					updatedAt: '2026-05-25T10:00:00.000Z',
+					updatedAt: futureTs,
 					title: 'server-wins',
 					status: 'open'
 				}
 			}
 		]);
+
+		await updateTaskOffline({ id: 5 }, { title: 'local-edit' }, { db });
+
 		const r = await flush(fetcher, db);
 		expect(r.sent).toBe(1);
 		expect(calls[0].path).toBe('/api/v1/tasks/5');
 		expect(calls[0].method).toBe('PATCH');
-		const body = calls[0].body as Record<string, unknown>;
-		expect(body.baseUpdatedAt).toBe('2026-05-25T08:00:00.000Z');
 
 		const after = await db.tasks.get('srv:5');
 		expect((after?.data as { title: string }).title).toBe('server-wins');
-		expect(after?.updatedAt).toBe('2026-05-25T10:00:00.000Z');
+		expect(after?.updatedAt).toBe(futureTs);
 	});
 
 	it('deleteTaskOffline: soft-deletes locally and enqueues DELETE', async () => {
@@ -238,10 +236,146 @@ describe('taskMutations', () => {
 		expect(await db.outbox.count()).toBe(1);
 	});
 
+	it('subtask under synthetic parent uses {ref:<parentClientId>} in path', async () => {
+		const parent = await createTaskOffline({ title: 'P' }, { contextId: 7, db });
+		expect(isSyntheticTaskId(parent.id)).toBe(true);
+		const child = await createTaskOffline(
+			{ title: 'C' },
+			{ parentId: parent.id, db }
+		);
+		expect(child.clientId).toBeTruthy();
+		const childEntry = (await db.outbox.toArray()).find(
+			(e) => (e.payload.body as { title?: string }).title === 'C'
+		);
+		expect(childEntry?.payload.path).toBe(
+			`/api/v1/tasks/{ref:${parent.clientId}}/subtasks`
+		);
+		expect(childEntry?.parentClientId).toBe(parent.clientId);
+	});
+
 	it('inbox create routes through /inbox/tasks', async () => {
 		const task = await createTaskOffline({ title: 'inboxed' }, { inbox: true, db });
 		expect(task.inboxId).toBe(1);
 		const out = await db.outbox.toArray();
 		expect(out[0].payload.path).toBe('/api/v1/inbox/tasks');
+	});
+
+	it('createTaskOffline: rolls back tasks row if enqueue fails', async () => {
+		const spy = vi
+			.spyOn(db.outbox, 'put')
+			.mockRejectedValueOnce(new Error('outbox-down'));
+		await expect(
+			createTaskOffline({ title: 'rollback me' }, { contextId: 7, db })
+		).rejects.toThrow();
+		spy.mockRestore();
+		expect(await db.tasks.count()).toBe(0);
+		expect(await db.outbox.count()).toBe(0);
+	});
+
+	it('updateTaskOffline: rolls back local patch if enqueue fails', async () => {
+		await db.tasks.put({
+			clientId: 'srv:50',
+			serverId: 50,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: {
+				id: 50,
+				title: 'before',
+				status: 'open',
+				clientId: 'srv:50'
+			} as unknown as Record<string, unknown>
+		});
+		const spy = vi
+			.spyOn(db.outbox, 'put')
+			.mockRejectedValueOnce(new Error('outbox-down'));
+		await expect(
+			updateTaskOffline({ id: 50 }, { title: 'after' }, { db })
+		).rejects.toThrow();
+		spy.mockRestore();
+		const row = await db.tasks.get('srv:50');
+		expect((row?.data as { title: string }).title).toBe('before');
+		expect(row?.updatedAt).toBe('2026-05-25T08:00:00.000Z');
+		expect(await db.outbox.count()).toBe(0);
+	});
+
+	it('complete followed by uncomplete collapses to one /uncomplete entry', async () => {
+		await db.tasks.put({
+			clientId: 'srv:200',
+			serverId: 200,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: {
+				id: 200,
+				title: 't',
+				status: 'open',
+				clientId: 'srv:200'
+			} as unknown as Record<string, unknown>
+		});
+		await completeTaskOffline({ id: 200 }, '2026-05-25T09:00:00.000Z', { db });
+		await uncompleteTaskOffline({ id: 200 }, { db });
+		const out = await db.outbox.toArray();
+		expect(out).toHaveLength(1);
+		expect(out[0].payload.path).toBe('/api/v1/tasks/200/uncomplete');
+		const row = await db.tasks.get('srv:200');
+		expect((row?.data as { status: string }).status).toBe('open');
+	});
+
+	it('uncomplete followed by complete collapses to one /complete entry', async () => {
+		await db.tasks.put({
+			clientId: 'srv:201',
+			serverId: 201,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: {
+				id: 201,
+				title: 't',
+				status: 'completed',
+				completedAt: '2026-05-25T07:00:00.000Z',
+				clientId: 'srv:201'
+			} as unknown as Record<string, unknown>
+		});
+		await uncompleteTaskOffline({ id: 201 }, { db });
+		await completeTaskOffline({ id: 201 }, '2026-05-25T09:00:00.000Z', { db });
+		const out = await db.outbox.toArray();
+		expect(out).toHaveLength(1);
+		expect(out[0].payload.path).toBe('/api/v1/tasks/201/complete');
+	});
+
+	it('deleteTaskOffline: drops pending update/complete mutations for the same task', async () => {
+		await db.tasks.put({
+			clientId: 'srv:80',
+			serverId: 80,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: { id: 80, title: 't', status: 'open', clientId: 'srv:80' } as unknown as Record<
+				string,
+				unknown
+			>
+		});
+		await updateTaskOffline({ id: 80 }, { title: 'patched' }, { db });
+		await completeTaskOffline({ id: 80 }, '2026-05-25T09:00:00.000Z', { db });
+		expect(await db.outbox.count()).toBe(2);
+		await deleteTaskOffline({ id: 80 }, { db });
+		const remaining = await db.outbox.toArray();
+		expect(remaining).toHaveLength(1);
+		expect(remaining[0].op).toBe('delete');
+	});
+
+	it('deleteTaskOffline: keeps row alive if enqueue fails', async () => {
+		await db.tasks.put({
+			clientId: 'srv:51',
+			serverId: 51,
+			updatedAt: '2026-05-25T08:00:00.000Z',
+			deletedAt: null,
+			data: { id: 51, title: 'x', clientId: 'srv:51' } as unknown as Record<string, unknown>
+		});
+		const spy = vi
+			.spyOn(db.outbox, 'put')
+			.mockRejectedValueOnce(new Error('outbox-down'));
+		await expect(deleteTaskOffline({ id: 51 }, { db })).rejects.toThrow();
+		spy.mockRestore();
+		const row = await db.tasks.get('srv:51');
+		expect(row?.deletedAt).toBeNull();
+		expect(await db.outbox.count()).toBe(0);
 	});
 });

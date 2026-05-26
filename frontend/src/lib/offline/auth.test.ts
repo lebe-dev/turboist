@@ -11,14 +11,23 @@ describe('createDexieAuthAdapter', () => {
 		await db.open();
 	});
 
-	it('saveUser then loadUser round-trips id and user', async () => {
+	it('saveUser then loadUser round-trips only whitelisted fields', async () => {
 		const adapter = createDexieAuthAdapter({ db });
-		await adapter.saveUser({ id: 42, username: 'eu', totpEnabled: false });
-		const loaded = await adapter.loadUser();
-		expect(loaded).toEqual({
+		await adapter.saveUser({
 			id: 42,
-			user: { id: 42, username: 'eu', totpEnabled: false }
-		});
+			username: 'eu',
+			totpEnabled: true,
+			// extra fields that should not be persisted
+			email: 'eu@example.com'
+		} as unknown as Parameters<typeof adapter.saveUser>[0]);
+		const stored = await db.meta.get('user');
+		expect(stored?.value).toEqual({ id: 42, username: 'eu' });
+
+		const loaded = await adapter.loadUser();
+		expect(loaded?.id).toBe(42);
+		expect(loaded?.user.username).toBe('eu');
+		expect(loaded?.user.totpEnabled).toBe(false);
+		expect((loaded?.user as unknown as { email?: string }).email).toBeUndefined();
 	});
 
 	it('loadUser returns null when no user has been stored', async () => {

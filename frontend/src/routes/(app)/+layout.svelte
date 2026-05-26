@@ -246,14 +246,21 @@
 		const at = eventsClient.reconnectedAt;
 		if (at === null || at === lastReconnect) return;
 		lastReconnect = at;
-		void Promise.all([
-			contextsStore.load(),
-			labelsStore.load(),
-			projectsStore.load(),
-			inboxStatsStore.load(),
-			planStatsStore.load(),
-			pinnedTasksStore.load()
-		]);
+		void (async () => {
+			const results = await Promise.allSettled([
+				contextsStore.load(),
+				labelsStore.load(),
+				projectsStore.load(),
+				inboxStatsStore.load(),
+				planStatsStore.load(),
+				pinnedTasksStore.load()
+			]);
+			for (const r of results) {
+				if (r.status === 'rejected') {
+					console.warn('shell store reload failed on SSE reconnect', r.reason);
+				}
+			}
+		})();
 		const scopes: EventScope[] = [
 			'tasks',
 			'calendar',
@@ -281,7 +288,7 @@
 		if (auth.status !== 'authenticated') return;
 		const onOnline = (): void => {
 			void (async () => {
-				const outcomes = await Promise.all([
+				const settled = await Promise.allSettled([
 					loadStoreWithFallback(() => configStore.load(), () => configStore.loadCached()),
 					loadStoreWithFallback(() => contextsStore.load(), () => contextsStore.loadCached()),
 					loadStoreWithFallback(() => projectsStore.load(), () => projectsStore.loadCached()),
@@ -294,7 +301,16 @@
 					loadStoreWithFallback(() => settingsStore.load(), () => settingsStore.loadCached()),
 					loadStoreWithFallback(() => appSettingsStore.load(), () => appSettingsStore.loadCached())
 				]);
-				staleData = outcomes.some((o) => o === 'cache');
+				let hasCache = false;
+				for (const r of settled) {
+					if (r.status === 'rejected') {
+						console.warn('shell store reload failed on online event', r.reason);
+						hasCache = true;
+						continue;
+					}
+					if (r.value === 'cache' || r.value === 'failed') hasCache = true;
+				}
+				staleData = hasCache;
 			})();
 			const scopes: EventScope[] = [
 				'tasks',

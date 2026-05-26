@@ -11,6 +11,7 @@ import {
 	pendingCount,
 	remapClientId,
 	nextBackoffMs,
+	INFLIGHT_TIMEOUT_MS,
 	RETRY_SCHEDULE_MS
 } from './outbox';
 
@@ -141,5 +142,19 @@ describe('outbox', () => {
 		expect(nextBackoffMs(0)).toBe(RETRY_SCHEDULE_MS[0]);
 		expect(nextBackoffMs(2)).toBe(RETRY_SCHEDULE_MS[2]);
 		expect(nextBackoffMs(99)).toBe(RETRY_SCHEDULE_MS[RETRY_SCHEDULE_MS.length - 1]);
+	});
+
+	it('listReady reaps inflight entries older than INFLIGHT_TIMEOUT_MS', async () => {
+		const e = await enqueue(
+			{ entity: 'tasks', op: 'create', clientId: 'reaper', payload: {} },
+			db
+		);
+		await markInflight(e.id, db);
+
+		const justAfter = await listReady(Date.now() + 1_000, db);
+		expect(justAfter.find((r) => r.id === e.id)).toBeUndefined();
+
+		const wayLater = await listReady(Date.now() + INFLIGHT_TIMEOUT_MS + 1_000, db);
+		expect(wayLater.find((r) => r.id === e.id)).toBeDefined();
 	});
 });

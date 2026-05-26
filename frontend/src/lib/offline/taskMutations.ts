@@ -1,8 +1,10 @@
 import type { Task, TaskInput, TaskMoveInput, TaskPlanInput } from '$lib/api/types';
 import { getDB, type StoredEntity, type TurboistDB } from './db';
 import { newClientId } from './ids';
-import { enqueue } from './outbox';
+import { dropPendingByPathSuffix, dropPendingFor, enqueue } from './outbox';
 import { emitDbChanged } from './stores';
+
+const COMPLETE_TOGGLE_SUFFIXES = ['/complete', '/uncomplete'] as const;
 
 const SYNTHETIC_ID_BASE = -1_000_000_000;
 let syntheticCounter = 0;
@@ -115,13 +117,26 @@ const buildOptimisticTask = (
 	};
 };
 
-const buildCreatePath = (opts: CreateTaskOptions): string => {
+const buildCreatePath = (opts: CreateTaskOptions, parentClientId: string | null): string => {
 	if (opts.inbox) return '/api/v1/inbox/tasks';
 	if (opts.parentId != null && opts.parentId > 0) {
 		return `/api/v1/tasks/${opts.parentId}/subtasks`;
 	}
+	if (opts.parentId != null && parentClientId) {
+		return `/api/v1/tasks/{ref:${parentClientId}}/subtasks`;
+	}
 	if (opts.contextId != null) return `/api/v1/contexts/${opts.contextId}/tasks`;
 	throw new Error('createTaskOffline: contextId, parentId or inbox flag required');
+};
+
+const findTaskClientIdBySyntheticId = async (
+	db: TurboistDB,
+	syntheticId: number
+): Promise<string | null> => {
+	const row = await db.tasks
+		.filter((r) => (r.data as { id?: number }).id === syntheticId)
+		.first();
+	return row?.clientId ?? null;
 };
 
 export const createTaskOffline = async (
@@ -139,21 +154,28 @@ export const createTaskOffline = async (
 		deletedAt: null,
 		data: task
 	};
-	await db.tasks.put(toStored(row));
-	await enqueue(
-		{
-			entity: 'tasks',
-			op: 'create',
-			clientId,
-			parentClientId: null,
-			payload: {
-				method: 'POST',
-				path: buildCreatePath(opts),
-				body: { ...input, clientId }
-			}
-		},
-		db
-	);
+	let parentClientId: string | null = null;
+	if (opts.parentId != null && opts.parentId <= SYNTHETIC_ID_BASE) {
+		parentClientId = await findTaskClientIdBySyntheticId(db, opts.parentId);
+	}
+	const path = buildCreatePath(opts, parentClientId);
+	await db.transaction('rw', db.tasks, db.outbox, async () => {
+		await db.tasks.put(toStored(row));
+		await enqueue(
+			{
+				entity: 'tasks',
+				op: 'create',
+				clientId,
+				parentClientId,
+				payload: {
+					method: 'POST',
+					path,
+					body: { ...input, clientId }
+				}
+			},
+			db
+		);
+	});
 	emitDbChanged('tasks');
 	return task;
 };
@@ -187,24 +209,27 @@ export const updateTaskOffline = async (
 	const row = await resolveTaskRow(db, task);
 	if (!row) throw new Error(`updateTaskOffline: task not found in Dexie (id=${task.id})`);
 	const baseUpdatedAt = row.updatedAt;
-	const next = await mergeAndStore(db, row, patch as Partial<Task>);
-	await enqueue(
-		{
-			entity: 'tasks',
-			op: 'update',
-			clientId: row.clientId,
-			payload: {
-				method: 'PATCH',
-				path: row.serverId
-					? `/api/v1/tasks/${row.serverId}`
-					: '/api/v1/tasks/{serverId}',
-				body: { ...patch, baseUpdatedAt }
-			}
-		},
-		db
-	);
+	let next: TaskData;
+	await db.transaction('rw', db.tasks, db.outbox, async () => {
+		next = await mergeAndStore(db, row, patch as Partial<Task>);
+		await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: row.clientId,
+				payload: {
+					method: 'PATCH',
+					path: row.serverId
+						? `/api/v1/tasks/${row.serverId}`
+						: '/api/v1/tasks/{serverId}',
+					body: { ...patch, baseUpdatedAt }
+				}
+			},
+			db
+		);
+	});
 	emitDbChanged('tasks');
-	return next;
+	return next!;
 };
 
 export const deleteTaskOffline = async (
@@ -215,21 +240,24 @@ export const deleteTaskOffline = async (
 	const row = await resolveTaskRow(db, task);
 	if (!row) return;
 	const ts = nowIso();
-	await db.tasks.put(toStored({ ...row, deletedAt: ts, updatedAt: ts }));
-	await enqueue(
-		{
-			entity: 'tasks',
-			op: 'delete',
-			clientId: row.clientId,
-			payload: {
-				method: 'DELETE',
-				path: row.serverId
-					? `/api/v1/tasks/${row.serverId}`
-					: '/api/v1/tasks/{serverId}'
-			}
-		},
-		db
-	);
+	await db.transaction('rw', db.tasks, db.outbox, async () => {
+		await db.tasks.put(toStored({ ...row, deletedAt: ts, updatedAt: ts }));
+		const entry = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'delete',
+				clientId: row.clientId,
+				payload: {
+					method: 'DELETE',
+					path: row.serverId
+						? `/api/v1/tasks/${row.serverId}`
+						: '/api/v1/tasks/{serverId}'
+				}
+			},
+			db
+		);
+		await dropPendingFor('tasks', row.clientId, entry.id, db);
+	});
 	emitDbChanged('tasks');
 };
 
@@ -242,24 +270,34 @@ export const completeTaskOffline = async (
 	const row = await resolveTaskRow(db, task);
 	if (!row) throw new Error(`completeTaskOffline: task not found (id=${task.id})`);
 	const ts = completedAt ?? nowIso();
-	const next = await mergeAndStore(db, row, { status: 'completed', completedAt: ts });
-	await enqueue(
-		{
-			entity: 'tasks',
-			op: 'update',
-			clientId: row.clientId,
-			payload: {
-				method: 'POST',
-				path: row.serverId
-					? `/api/v1/tasks/${row.serverId}/complete`
-					: '/api/v1/tasks/{serverId}/complete',
-				body: completedAt ? { completedAt } : {}
-			}
-		},
-		db
-	);
+	let next: TaskData;
+	await db.transaction('rw', db.tasks, db.outbox, async () => {
+		next = await mergeAndStore(db, row, { status: 'completed', completedAt: ts });
+		const entry = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: row.clientId,
+				payload: {
+					method: 'POST',
+					path: row.serverId
+						? `/api/v1/tasks/${row.serverId}/complete`
+						: '/api/v1/tasks/{serverId}/complete',
+					body: completedAt ? { completedAt } : {}
+				}
+			},
+			db
+		);
+		await dropPendingByPathSuffix(
+			'tasks',
+			row.clientId,
+			COMPLETE_TOGGLE_SUFFIXES,
+			entry.id,
+			db
+		);
+	});
 	emitDbChanged('tasks');
-	return next;
+	return next!;
 };
 
 export const uncompleteTaskOffline = async (
@@ -269,24 +307,34 @@ export const uncompleteTaskOffline = async (
 	const db = opts.db ?? getDB();
 	const row = await resolveTaskRow(db, task);
 	if (!row) throw new Error(`uncompleteTaskOffline: task not found (id=${task.id})`);
-	const next = await mergeAndStore(db, row, { status: 'open', completedAt: null });
-	await enqueue(
-		{
-			entity: 'tasks',
-			op: 'update',
-			clientId: row.clientId,
-			payload: {
-				method: 'POST',
-				path: row.serverId
-					? `/api/v1/tasks/${row.serverId}/uncomplete`
-					: '/api/v1/tasks/{serverId}/uncomplete',
-				body: {}
-			}
-		},
-		db
-	);
+	let next: TaskData;
+	await db.transaction('rw', db.tasks, db.outbox, async () => {
+		next = await mergeAndStore(db, row, { status: 'open', completedAt: null });
+		const entry = await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: row.clientId,
+				payload: {
+					method: 'POST',
+					path: row.serverId
+						? `/api/v1/tasks/${row.serverId}/uncomplete`
+						: '/api/v1/tasks/{serverId}/uncomplete',
+					body: {}
+				}
+			},
+			db
+		);
+		await dropPendingByPathSuffix(
+			'tasks',
+			row.clientId,
+			COMPLETE_TOGGLE_SUFFIXES,
+			entry.id,
+			db
+		);
+	});
 	emitDbChanged('tasks');
-	return next;
+	return next!;
 };
 
 export const moveTaskOffline = async (
@@ -311,24 +359,27 @@ export const moveTaskOffline = async (
 		patch.projectId = move.projectId ?? null;
 		patch.sectionId = move.sectionId ?? null;
 	}
-	const next = await mergeAndStore(db, row, patch);
-	await enqueue(
-		{
-			entity: 'tasks',
-			op: 'update',
-			clientId: row.clientId,
-			payload: {
-				method: 'POST',
-				path: row.serverId
-					? `/api/v1/tasks/${row.serverId}/move`
-					: '/api/v1/tasks/{serverId}/move',
-				body: move as unknown as Record<string, unknown>
-			}
-		},
-		db
-	);
+	let next: TaskData;
+	await db.transaction('rw', db.tasks, db.outbox, async () => {
+		next = await mergeAndStore(db, row, patch);
+		await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: row.clientId,
+				payload: {
+					method: 'POST',
+					path: row.serverId
+						? `/api/v1/tasks/${row.serverId}/move`
+						: '/api/v1/tasks/{serverId}/move',
+					body: move as unknown as Record<string, unknown>
+				}
+			},
+			db
+		);
+	});
 	emitDbChanged('tasks');
-	return next;
+	return next!;
 };
 
 export const planTaskOffline = async (
@@ -339,24 +390,27 @@ export const planTaskOffline = async (
 	const db = opts.db ?? getDB();
 	const row = await resolveTaskRow(db, task);
 	if (!row) throw new Error(`planTaskOffline: task not found (id=${task.id})`);
-	const next = await mergeAndStore(db, row, { planState: plan.state });
-	await enqueue(
-		{
-			entity: 'tasks',
-			op: 'update',
-			clientId: row.clientId,
-			payload: {
-				method: 'POST',
-				path: row.serverId
-					? `/api/v1/tasks/${row.serverId}/plan`
-					: '/api/v1/tasks/{serverId}/plan',
-				body: { state: plan.state }
-			}
-		},
-		db
-	);
+	let next: TaskData;
+	await db.transaction('rw', db.tasks, db.outbox, async () => {
+		next = await mergeAndStore(db, row, { planState: plan.state });
+		await enqueue(
+			{
+				entity: 'tasks',
+				op: 'update',
+				clientId: row.clientId,
+				payload: {
+					method: 'POST',
+					path: row.serverId
+						? `/api/v1/tasks/${row.serverId}/plan`
+						: '/api/v1/tasks/{serverId}/plan',
+					body: { state: plan.state }
+				}
+			},
+			db
+		);
+	});
 	emitDbChanged('tasks');
-	return next;
+	return next!;
 };
 
 export const isSyntheticTaskId = (id: number): boolean => id <= SYNTHETIC_ID_BASE;
