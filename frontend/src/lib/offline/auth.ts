@@ -23,6 +23,8 @@ export const NOOP_OFFLINE_AUTH_ADAPTER: OfflineAuthAdapter = {
 
 const USER_ID_KEY = 'userId';
 const USER_INFO_KEY = 'user';
+const LS_USER_KEY = 'turboist_offline_user';
+const LS_HAS_DATA_KEY = 'turboist_offline_has_data';
 
 interface CachedUserFields {
 	id: number;
@@ -40,6 +42,30 @@ const hydrateFromCache = (cached: CachedUserFields): User => ({
 	totpEnabled: false
 });
 
+function lsSet(key: string, value: string): void {
+	try {
+		localStorage.setItem(key, value);
+	} catch {
+		// Safari private mode or quota — best-effort
+	}
+}
+
+function lsGet(key: string): string | null {
+	try {
+		return localStorage.getItem(key);
+	} catch {
+		return null;
+	}
+}
+
+function lsRemove(key: string): void {
+	try {
+		localStorage.removeItem(key);
+	} catch {
+		// best-effort
+	}
+}
+
 export interface DexieAuthAdapterOptions {
 	db?: TurboistDB;
 	onAuthenticatedRefresh?: () => Promise<void> | void;
@@ -54,6 +80,7 @@ export const createDexieAuthAdapter = (
 			const db = getDb();
 			await db.meta.put({ key: USER_ID_KEY, value: user.id });
 			await db.meta.put({ key: USER_INFO_KEY, value: pickCachedFields(user) });
+			lsSet(LS_USER_KEY, JSON.stringify(pickCachedFields(user)));
 		},
 		async loadUser() {
 			const db = getDb();
@@ -61,18 +88,31 @@ export const createDexieAuthAdapter = (
 			const userEntry = await db.meta.get(USER_INFO_KEY);
 			const id = idEntry?.value;
 			const cached = userEntry?.value as Partial<CachedUserFields> | undefined;
-			if (typeof id !== 'number' || !cached || typeof cached.username !== 'string') {
+			if (typeof id === 'number' && cached && typeof cached.username === 'string') {
+				return { id, user: hydrateFromCache({ id, username: cached.username }) };
+			}
+			// iOS WebKit can evict IndexedDB while localStorage survives
+			const raw = lsGet(LS_USER_KEY);
+			if (!raw) return null;
+			try {
+				const parsed = JSON.parse(raw) as Partial<CachedUserFields>;
+				if (typeof parsed.id !== 'number' || typeof parsed.username !== 'string') return null;
+				return { id: parsed.id, user: hydrateFromCache({ id: parsed.id, username: parsed.username }) };
+			} catch {
 				return null;
 			}
-			return { id, user: hydrateFromCache({ id, username: cached.username }) };
 		},
 		async hasData() {
 			const db = getDb();
 			for (const t of ENTITY_TABLES) {
 				const count = await db.table(t).count();
-				if (count > 0) return true;
+				if (count > 0) {
+					lsSet(LS_HAS_DATA_KEY, '1');
+					return true;
+				}
 			}
-			return false;
+			// IndexedDB was evicted but we know data existed before
+			return lsGet(LS_HAS_DATA_KEY) === '1';
 		},
 		async clear() {
 			const db = getDb();
@@ -81,6 +121,8 @@ export const createDexieAuthAdapter = (
 				db.outbox.clear(),
 				db.meta.clear()
 			]);
+			lsRemove(LS_USER_KEY);
+			lsRemove(LS_HAS_DATA_KEY);
 		},
 		async onAuthenticatedRefresh() {
 			if (opts.onAuthenticatedRefresh) await opts.onAuthenticatedRefresh();

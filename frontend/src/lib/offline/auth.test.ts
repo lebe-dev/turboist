@@ -1,7 +1,19 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TurboistDB } from './db';
 import { createDexieAuthAdapter } from './auth';
+
+const lsStore = new Map<string, string>();
+Object.defineProperty(globalThis, 'localStorage', {
+	value: {
+		getItem: (key: string) => lsStore.get(key) ?? null,
+		setItem: (key: string, value: string) => lsStore.set(key, value),
+		removeItem: (key: string) => lsStore.delete(key),
+		clear: () => lsStore.clear()
+	},
+	writable: true,
+	configurable: true
+});
 
 describe('createDexieAuthAdapter', () => {
 	let db: TurboistDB;
@@ -9,6 +21,11 @@ describe('createDexieAuthAdapter', () => {
 	beforeEach(async () => {
 		db = new TurboistDB(`auth-test-${Math.random().toString(36).slice(2)}`);
 		await db.open();
+		lsStore.clear();
+	});
+
+	afterEach(() => {
+		lsStore.clear();
 	});
 
 	it('saveUser then loadUser round-trips only whitelisted fields', async () => {
@@ -35,6 +52,17 @@ describe('createDexieAuthAdapter', () => {
 		expect(await adapter.loadUser()).toBeNull();
 	});
 
+	it('loadUser falls back to localStorage when IndexedDB is empty', async () => {
+		const adapter = createDexieAuthAdapter({ db });
+		await adapter.saveUser({ id: 7, username: 'alice', totpEnabled: false });
+
+		await db.meta.clear();
+
+		const loaded = await adapter.loadUser();
+		expect(loaded?.id).toBe(7);
+		expect(loaded?.user.username).toBe('alice');
+	});
+
 	it('hasData returns true only when an entity table has rows', async () => {
 		const adapter = createDexieAuthAdapter({ db });
 		expect(await adapter.hasData()).toBe(false);
@@ -48,7 +76,25 @@ describe('createDexieAuthAdapter', () => {
 		expect(await adapter.hasData()).toBe(true);
 	});
 
-	it('clear wipes entity tables, outbox and meta', async () => {
+	it('hasData returns true via localStorage when IndexedDB was evicted', async () => {
+		const adapter = createDexieAuthAdapter({ db });
+		await db.projects.put({
+			clientId: 'p1',
+			serverId: 2,
+			updatedAt: 'x',
+			deletedAt: null,
+			data: {}
+		});
+		expect(await adapter.hasData()).toBe(true);
+
+		for (const t of ['tasks', 'projects', 'sections', 'labels', 'contexts'] as const) {
+			await db.table(t).clear();
+		}
+
+		expect(await adapter.hasData()).toBe(true);
+	});
+
+	it('clear wipes entity tables, outbox, meta, and localStorage', async () => {
 		const adapter = createDexieAuthAdapter({ db });
 		await adapter.saveUser({ id: 1, username: 'eu', totpEnabled: false });
 		await db.tasks.put({
@@ -72,6 +118,7 @@ describe('createDexieAuthAdapter', () => {
 			createdAt: 0,
 			parentClientId: null
 		});
+		expect(await adapter.hasData()).toBe(true);
 
 		await adapter.clear();
 
@@ -79,6 +126,7 @@ describe('createDexieAuthAdapter', () => {
 		expect(await db.outbox.count()).toBe(0);
 		expect(await db.meta.count()).toBe(0);
 		expect(await adapter.loadUser()).toBeNull();
+		expect(await adapter.hasData()).toBe(false);
 	});
 
 	it('onAuthenticatedRefresh delegates to the provided callback', async () => {
