@@ -89,7 +89,8 @@
       "security": "Security",
       "api": "API",
       "backup": "Backup & Restore",
-      "calendars": "Calendar (beta)"
+      "calendars": "Calendar (beta)",
+      "logs": "Logs"
     },
     "project": {
       "bugLabelsHeading": "Bug labels",
@@ -293,6 +294,18 @@
       "confirmDescription": "All your current data will be permanently replaced with the contents of \"{name}\". This cannot be undone. The Restore button will unlock in {seconds}s.",
       "confirmReady": "Read carefully, then confirm.",
       "cancel": "Cancel"
+    },
+    "logs": {
+      "heading": "API Logs",
+      "description": "All backend API requests from this session. Logs are stored in memory and cleared on page reload.",
+      "enable": "Enable logging",
+      "disabled": "Logging is off. Enable the toggle to start capturing API requests.",
+      "clear": "Clear",
+      "empty": "No API requests logged yet.",
+      "error": "Error",
+      "requestBody": "Request body",
+      "responseBody": "Response body",
+      "noDetails": "No additional details."
     },
     "calendars": {
       "heading": "Google Calendar integration",

@@ -11,6 +11,7 @@
 	import ApiTokensSection from '$lib/components/settings/ApiTokensSection.svelte';
 	import BackupRestoreSection from '$lib/components/settings/BackupRestoreSection.svelte';
 	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
+	import LogsSection from '$lib/components/settings/LogsSection.svelte';
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
 	import TwoFactorSection from '$lib/components/settings/TwoFactorSection.svelte';
 	import { Switch } from '$lib/components/ui/switch';
@@ -32,7 +33,7 @@
 	const appVersion = __APP_VERSION__;
 	const totpAvailable = $derived(configStore.value?.totpAvailable ?? false);
 
-	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'security', 'api', 'backup'] as const;
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -120,7 +121,8 @@
 		{ value: 'privacy', labelKey: 'settings.tabs.privacy' },
 		{ value: 'security', labelKey: 'settings.tabs.security' },
 		{ value: 'api', labelKey: 'settings.tabs.api' },
-		{ value: 'backup', labelKey: 'settings.tabs.backup' }
+		{ value: 'backup', labelKey: 'settings.tabs.backup' },
+		{ value: 'logs', labelKey: 'settings.tabs.logs' }
 	]);
 
 	const activeTabLabel = $derived(
@@ -276,6 +278,7 @@
 			<Tabs.Trigger value="security">{$t('settings.tabs.security')}</Tabs.Trigger>
 			<Tabs.Trigger value="api">{$t('settings.tabs.api')}</Tabs.Trigger>
 			<Tabs.Trigger value="backup">{$t('settings.tabs.backup')}</Tabs.Trigger>
+			<Tabs.Trigger value="logs">{$t('settings.tabs.logs')}</Tabs.Trigger>
 		</Tabs.List>
 
 		<Tabs.Content value="general" class="flex flex-col gap-4">
@@ -588,6 +591,10 @@
 
 		<Tabs.Content value="backup" class="flex flex-col gap-4">
 			<BackupRestoreSection />
+		</Tabs.Content>
+
+		<Tabs.Content value="logs" class="flex flex-col gap-4">
+			<LogsSection />
 		</Tabs.Content>
 	</Tabs.Root>
 </div>

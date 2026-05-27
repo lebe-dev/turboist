@@ -1,11 +1,23 @@
 import { ApiError, isApiErrorEnvelope } from './errors';
 
+export interface ApiLogEntry {
+	timestamp: Date;
+	method: string;
+	url: string;
+	status: number | null;
+	durationMs: number;
+	error: string | null;
+	requestBody: string | null;
+	responseBody: string | null;
+}
+
 export interface ApiClientOptions {
 	baseUrl?: string;
 	getAccessToken: () => string | null;
 	setAccessToken: (token: string | null) => void;
 	onRefreshFailure: () => void;
 	fetchImpl?: typeof fetch;
+	onLog?: (entry: ApiLogEntry) => void;
 }
 
 export type QueryValue = string | number | boolean | undefined | null;
@@ -28,6 +40,7 @@ export class ApiClient {
 	private readonly setAccessToken: (token: string | null) => void;
 	private readonly onRefreshFailure: () => void;
 	private readonly fetchImpl: typeof fetch;
+	private readonly onLog?: (entry: ApiLogEntry) => void;
 	private refreshInflight: Promise<string | null> | null = null;
 
 	constructor(options: ApiClientOptions) {
@@ -36,12 +49,57 @@ export class ApiClient {
 		this.setAccessToken = options.setAccessToken;
 		this.onRefreshFailure = options.onRefreshFailure;
 		this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+		this.onLog = options.onLog;
 	}
 
 	async fetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
 		const url = this.buildUrl(path, init.query);
-		const response = await this.doRequest(url, init, /*isRetry*/ false);
-		return this.parseResponse<T>(response);
+		const method = (init.method ?? 'GET').toUpperCase();
+		const reqBody = init.body != null
+			? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body))
+			: null;
+		const start = performance.now();
+
+		try {
+			const response = await this.doRequest(url, init, /*isRetry*/ false);
+			const result = await this.parseResponse<T>(response);
+			this.emitLog(method, url, response.status, start, reqBody, result, null);
+			return result;
+		} catch (err) {
+			const status = err instanceof ApiError ? err.status : null;
+			const errMsg = err instanceof Error ? err.message : String(err);
+			this.emitLog(method, url, status, start, reqBody, null, errMsg);
+			throw err;
+		}
+	}
+
+	private emitLog(
+		method: string,
+		url: string,
+		status: number | null,
+		start: number,
+		requestBody: string | null,
+		result: unknown,
+		error: string | null
+	): void {
+		if (!this.onLog) return;
+		let responseBody: string | null = null;
+		if (result !== undefined && result !== null) {
+			try {
+				const s = JSON.stringify(result);
+				responseBody = s.length > 2000 ? s.slice(0, 2000) + '…' : s;
+			} catch { /* skip */ }
+		}
+		this.onLog({
+			timestamp: new Date(),
+			method,
+			url,
+			status: status || null,
+			durationMs: Math.round(performance.now() - start),
+			error,
+			requestBody: requestBody ? (requestBody.length > 2000 ? requestBody.slice(0, 2000) + '…' : requestBody) : null,
+			responseBody
+		});
 	}
 
 	private buildUrl(
@@ -86,13 +144,18 @@ export class ApiClient {
 
 		let response: Response;
 		try {
+			const signal = init.signal ?? AbortSignal.timeout(15_000);
 			response = await this.fetchImpl(url, {
 				...init,
 				headers,
 				body,
+				signal,
 				credentials: init.credentials ?? 'same-origin'
 			});
 		} catch (err) {
+			if (err instanceof DOMException && err.name === 'TimeoutError') {
+				throw new ApiError('timeout', 'request timed out', 0);
+			}
 			throw new ApiError(
 				'network_error',
 				err instanceof Error ? err.message : 'network error',

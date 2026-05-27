@@ -2,6 +2,7 @@ import { ApiClient, setApiClient } from '../api/client';
 import { ApiError } from '../api/errors';
 import { auth, type AuthCredentials } from '../api/endpoints/auth';
 import type { User } from '../api/types';
+import { addApiLogEntry } from '../stores/apiLog.svelte';
 
 export type AuthStatus = 'loading' | 'guest' | 'authenticated';
 
@@ -40,7 +41,8 @@ export class AuthStore {
 				this.user = null;
 				this.accessToken = null;
 				this.status = 'guest';
-			}
+			},
+			onLog: (entry) => addApiLogEntry(entry)
 		});
 		setApiClient(this.client);
 	}

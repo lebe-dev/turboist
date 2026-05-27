@@ -221,6 +221,19 @@ describe('ApiClient.fetch', () => {
 		await expect(client.fetch('/api/v1/config')).rejects.toBeInstanceOf(ApiError);
 	});
 
+	it('wraps timeout as ApiError(timeout)', async () => {
+		const { client, fetchMock } = makeClient();
+		const err = new DOMException('signal timed out', 'TimeoutError');
+		fetchMock.mockRejectedValueOnce(err);
+
+		await expect(client.fetch('/api/v1/config')).rejects.toMatchObject({
+			name: 'ApiError',
+			code: 'timeout',
+			message: 'request timed out',
+			status: 0
+		});
+	});
+
 	it('does not retry refresh recursively when refresh itself returns 401', async () => {
 		// Sanity: skipRefresh on /auth/refresh prevents a refresh-loop.
 		const { client, fetchMock, tokens } = makeClient(null);
