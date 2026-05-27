@@ -42,7 +42,7 @@
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
 
@@ -370,7 +370,7 @@ async function save(): Promise<void> {
 	}
 
 	$effect(() => {
-		if (Number.isFinite(taskId)) void loader.refetch();
+		if (Number.isFinite(taskId)) untrack(() => void loader.refetch());
 	});
 
 	useInvalidation(['tasks'], () => void loader.revalidate());
