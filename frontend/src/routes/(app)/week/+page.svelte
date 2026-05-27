@@ -108,11 +108,17 @@
 				});
 			}
 		}
-		return [...byKey.values()].sort((a, b) => {
-			if (a.dayKey === 'no-date') return 1;
-			if (b.dayKey === 'no-date') return -1;
-			return a.dayKey < b.dayKey ? -1 : a.dayKey > b.dayKey ? 1 : 0;
-		});
+		return [...byKey.values()]
+			.filter(
+				(g) =>
+					g.dayKey === 'no-date' ||
+					(g.dayKey >= weekRange.startKey && g.dayKey < weekRange.endKey)
+			)
+			.sort((a, b) => {
+				if (a.dayKey === 'no-date') return 1;
+				if (b.dayKey === 'no-date') return -1;
+				return a.dayKey < b.dayKey ? -1 : a.dayKey > b.dayKey ? 1 : 0;
+			});
 	});
 	const limit = $derived(configStore.value?.weekly.limit ?? null);
 	const exceeded = $derived(limit !== null && plannedTotal >= limit);
