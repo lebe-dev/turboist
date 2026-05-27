@@ -19,10 +19,7 @@
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
 	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
-	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
-	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
-	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -136,18 +133,16 @@
 		loadFailed = false;
 		void (async () => {
 			try {
+				// configStore.load() pulls contexts, projects, labels, settings,
+				// appSettings, userState and troiki in the same response and fans
+				// them out to the per-domain stores. The stats stores stay
+				// separate — they change frequently and have their own SSE
+				// invalidation channels.
 				await Promise.all([
 					configStore.load(),
-					contextsStore.load(),
-					projectsStore.load(),
-					labelsStore.load(),
 					planStatsStore.load(),
 					inboxStatsStore.load(),
-					pinnedTasksStore.load(),
-					userStateStore.load(),
-					troikiStore.load(),
-					settingsStore.load(),
-					appSettingsStore.load()
+					pinnedTasksStore.load()
 				]);
 				if (isSupportedLocale(settingsStore.locale)) {
 					setLocale(settingsStore.locale);

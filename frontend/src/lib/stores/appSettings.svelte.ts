@@ -17,6 +17,9 @@ function createAppSettingsStore() {
 			value = v;
 			return v;
 		},
+		setValue(v: AppSettings): void {
+			value = v;
+		},
 		async setAutoLabels(rules: AutoLabelRule[]): Promise<void> {
 			const prev = value;
 			value = { ...value, autoLabels: rules };

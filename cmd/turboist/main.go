@@ -188,7 +188,7 @@ func main() {
 	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
-	handlers.NewMetaHandler(cfg, totpSvc != nil).Register(api)
+	handlers.NewMetaHandler(cfg, totpSvc != nil, ctxRepo, projectRepo, labelRepo, userRepo, appSettingsRepo, troikiSvc, env.BaseURL).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)

@@ -13,6 +13,11 @@ class ContextsStore {
 		return page.items;
 	}
 
+	setItems(items: Context[]): void {
+		this.items = items;
+		this.loaded = true;
+	}
+
 	upsert(ctx: Context): void {
 		const i = this.items.findIndex((c) => c.id === ctx.id);
 		if (i >= 0) this.items[i] = ctx;

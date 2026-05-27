@@ -11,6 +11,10 @@ class UserStateStore {
 		return this.value;
 	}
 
+	setValue(v: UserState): void {
+		this.value = v ?? {};
+	}
+
 	get activeContextId(): number | null {
 		return this.value.activeContextId ?? null;
 	}

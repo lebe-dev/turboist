@@ -318,6 +318,13 @@ export interface ConfigResponse {
 		evening: { start: number; end: number };
 	};
 	totpAvailable: boolean;
+	contexts: Context[];
+	projects: Project[];
+	labels: Label[];
+	settings: UserSettings;
+	appSettings: AppSettings;
+	userState: UserState;
+	troiki: TroikiViewResponse;
 }
 
 export interface AutoLabelRule {

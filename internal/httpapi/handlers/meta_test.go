@@ -29,6 +29,46 @@ func TestMetaConfig_Success(t *testing.T) {
 	if result["inbox"] == nil {
 		t.Error("inbox missing from config")
 	}
+	for _, key := range []string{"contexts", "projects", "labels", "settings", "appSettings", "userState", "troiki"} {
+		if _, ok := result[key]; !ok {
+			t.Errorf("%s missing from config", key)
+		}
+	}
+	if _, ok := result["contexts"].([]any); !ok {
+		t.Errorf("contexts: got %T, want []any", result["contexts"])
+	}
+	if _, ok := result["projects"].([]any); !ok {
+		t.Errorf("projects: got %T, want []any", result["projects"])
+	}
+	if _, ok := result["labels"].([]any); !ok {
+		t.Errorf("labels: got %T, want []any", result["labels"])
+	}
+	settings, ok := result["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("settings: got %T, want map[string]any", result["settings"])
+	}
+	if _, ok := settings["locale"]; !ok {
+		t.Error("settings.locale missing")
+	}
+	appSettings, ok := result["appSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("appSettings: got %T, want map[string]any", result["appSettings"])
+	}
+	if _, ok := appSettings["autoLabels"]; !ok {
+		t.Error("appSettings.autoLabels missing")
+	}
+	if _, ok := result["userState"].(map[string]any); !ok {
+		t.Errorf("userState: got %T, want map[string]any", result["userState"])
+	}
+	troiki, ok := result["troiki"].(map[string]any)
+	if !ok {
+		t.Fatalf("troiki: got %T, want map[string]any", result["troiki"])
+	}
+	for _, slot := range []string{"important", "medium", "rest"} {
+		if _, ok := troiki[slot]; !ok {
+			t.Errorf("troiki.%s missing", slot)
+		}
+	}
 }
 
 func TestMetaConfig_RequiresAuth(t *testing.T) {

@@ -23,6 +23,10 @@ class SettingsStore {
 		return v;
 	}
 
+	setValue(v: UserSettings): void {
+		this.value = v;
+	}
+
 	get weeklyUnplannedExcludedLabelIds(): number[] {
 		return this.value.weeklyUnplannedExcludedLabelIds ?? [];
 	}

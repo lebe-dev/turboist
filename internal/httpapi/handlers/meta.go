@@ -1,24 +1,66 @@
 package handlers
 
 import (
+	"encoding/json"
+
 	"github.com/gofiber/fiber/v3"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
+	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/repo"
+	"github.com/lebe-dev/turboist/internal/service"
 )
+
+// configListLimit caps the number of contexts/projects/labels returned in the
+// embedded bootstrap sections. Frontend used a 500-row limit for the same
+// lists when they were fetched via dedicated endpoints; keep parity.
+const configListLimit = 500
 
 // MetaHandler handles public meta and config endpoints.
 // /healthz and /version are registered inline in server.go.
-// This handler exposes /api/v1/config (requires auth).
+// This handler exposes /api/v1/config (requires auth) which doubles as the
+// workspace-bootstrap endpoint: a single round-trip returns the static config
+// values plus the user's contexts, projects, labels, settings, app settings,
+// UI state and troiki view.
 type MetaHandler struct {
-	cfg           *config.Config
-	totpAvailable bool
+	cfg             *config.Config
+	totpAvailable   bool
+	contexts        *repo.ContextRepo
+	projects        *repo.ProjectRepo
+	labels          *repo.LabelRepo
+	users           *repo.UserRepo
+	appSettingsRepo *repo.AppSettingsRepo
+	troikiSvc       *service.TroikiService
+	baseURL         string
 }
 
 // NewMetaHandler constructs a MetaHandler. totpAvailable reports whether
 // the TOTP feature is wired up on this deploy (TOTP_SECRET_KEY non-empty);
 // the frontend uses it to hide the 2FA UI when the routes are not mounted.
-func NewMetaHandler(cfg *config.Config, totpAvailable bool) *MetaHandler {
-	return &MetaHandler{cfg: cfg, totpAvailable: totpAvailable}
+func NewMetaHandler(
+	cfg *config.Config,
+	totpAvailable bool,
+	contexts *repo.ContextRepo,
+	projects *repo.ProjectRepo,
+	labels *repo.LabelRepo,
+	users *repo.UserRepo,
+	appSettingsRepo *repo.AppSettingsRepo,
+	troikiSvc *service.TroikiService,
+	baseURL string,
+) *MetaHandler {
+	return &MetaHandler{
+		cfg:             cfg,
+		totpAvailable:   totpAvailable,
+		contexts:        contexts,
+		projects:        projects,
+		labels:          labels,
+		users:           users,
+		appSettingsRepo: appSettingsRepo,
+		troikiSvc:       troikiSvc,
+		baseURL:         baseURL,
+	}
 }
 
 // Register wires /config onto the authenticated API group r.
@@ -53,6 +95,14 @@ type configResp struct {
 	Inbox         inboxResp              `json:"inbox"`
 	DayParts      map[string]dayPartResp `json:"dayParts"`
 	TOTPAvailable bool                   `json:"totpAvailable"`
+
+	Contexts    []dto.ContextDTO `json:"contexts"`
+	Projects    []dto.ProjectDTO `json:"projects"`
+	Labels      []dto.LabelDTO   `json:"labels"`
+	Settings    settingsResp     `json:"settings"`
+	AppSettings appSettingsResp  `json:"appSettings"`
+	UserState   json.RawMessage  `json:"userState"`
+	Troiki      any              `json:"troiki"`
 }
 
 func (h *MetaHandler) config(c fiber.Ctx) error {
@@ -61,6 +111,106 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 	for name, dp := range cfg.DayParts {
 		dayParts[name] = dayPartResp{Start: dp.Start, End: dp.End}
 	}
+
+	userID := httpapi.GetUserID(c)
+	if userID == 0 {
+		return httpapi.ErrAuthInvalid("missing auth claims")
+	}
+
+	ctx := c.Context()
+	page := repo.Page{Limit: configListLimit, Offset: 0}
+
+	var (
+		contexts    []dto.ContextDTO
+		projects    []dto.ProjectDTO
+		labels      []dto.LabelDTO
+		settings    settingsResp
+		appSettings appSettingsResp
+		userState   json.RawMessage
+		troiki      any
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		items, _, err := h.contexts.List(gctx, page)
+		if err != nil {
+			return err
+		}
+		contexts = make([]dto.ContextDTO, len(items))
+		for i, ctx := range items {
+			contexts[i] = dto.ContextFromModel(ctx)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		items, _, err := h.projects.List(gctx, repo.ProjectListFilter{}, page)
+		if err != nil {
+			return err
+		}
+		projects = make([]dto.ProjectDTO, len(items))
+		for i, p := range items {
+			projects[i] = dto.ProjectFromModel(p)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		items, _, err := h.labels.List(gctx, repo.LabelListFilter{}, page)
+		if err != nil {
+			return err
+		}
+		labels = make([]dto.LabelDTO, len(items))
+		for i, l := range items {
+			labels[i] = dto.LabelFromModel(l)
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		s, err := h.users.GetSettings(gctx, userID)
+		if err != nil {
+			return err
+		}
+		settings = toResp(s)
+		return nil
+	})
+
+	g.Go(func() error {
+		s, err := h.appSettingsRepo.Get(gctx)
+		if err != nil {
+			return err
+		}
+		appSettings = toAppSettingsResp(s)
+		return nil
+	})
+
+	g.Go(func() error {
+		raw, err := h.users.GetState(gctx, userID)
+		if err != nil {
+			return err
+		}
+		if raw == "" {
+			raw = "{}"
+		}
+		userState = json.RawMessage(raw)
+		return nil
+	})
+
+	g.Go(func() error {
+		v, err := h.troikiSvc.View(gctx)
+		if err != nil {
+			return err
+		}
+		troiki = RenderTroikiView(v, h.baseURL)
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return httpapi.ErrInternal("load config").WithCause(err)
+	}
+
 	return c.JSON(configResp{
 		Timezone:  cfg.Timezone,
 		MaxPinned: cfg.MaxPinned,
@@ -75,5 +225,12 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		},
 		DayParts:      dayParts,
 		TOTPAvailable: h.totpAvailable,
+		Contexts:      contexts,
+		Projects:      projects,
+		Labels:        labels,
+		Settings:      settings,
+		AppSettings:   appSettings,
+		UserState:     userState,
+		Troiki:        troiki,
 	})
 }

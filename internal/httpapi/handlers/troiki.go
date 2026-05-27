@@ -72,6 +72,14 @@ func (h *TroikiHandler) renderView(v service.TroikiView) troikiViewDTO {
 	}
 }
 
+// RenderTroikiView formats a service.TroikiView using the given baseURL for
+// task attachment links. Shared with MetaHandler so /api/v1/config can embed
+// the troiki view without re-fetching it through a separate endpoint.
+func RenderTroikiView(v service.TroikiView, baseURL string) any {
+	h := &TroikiHandler{baseURL: baseURL}
+	return h.renderView(v)
+}
+
 func (h *TroikiHandler) view(c fiber.Ctx) error {
 	v, err := h.svc.View(c.Context())
 	if err != nil {
