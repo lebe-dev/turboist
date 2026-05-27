@@ -14,7 +14,9 @@ import {
 	queryCompletedToday,
 	queryProjectTasks,
 	queryLabelTasks,
-	searchTasks
+	searchTasks,
+	queryTaskById,
+	querySubtasks
 } from './views';
 
 const TZ = 'UTC';
@@ -209,5 +211,32 @@ describe('offline/views', () => {
 
 		const res = await queryBacklog(1, db);
 		expect(res.items.map((t) => t.id)).toEqual([130]);
+	});
+
+	it('queryTaskById returns task by server id', async () => {
+		await putTask(db, task({ id: 42, title: 'found' }));
+
+		const found = await queryTaskById(42, db);
+		expect(found).not.toBeNull();
+		expect(found!.title).toBe('found');
+	});
+
+	it('queryTaskById returns null for missing task', async () => {
+		expect(await queryTaskById(999, db)).toBeNull();
+	});
+
+	it('queryTaskById returns null for deleted task', async () => {
+		await putTask(db, task({ id: 50 }), '2026-01-01T00:00:00.000Z');
+
+		expect(await queryTaskById(50, db)).toBeNull();
+	});
+
+	it('querySubtasks returns children of a parent task', async () => {
+		await putTask(db, task({ id: 10, parentId: 5 }));
+		await putTask(db, task({ id: 11, parentId: 5 }));
+		await putTask(db, task({ id: 12, parentId: 6 }));
+
+		const res = await querySubtasks(5, db);
+		expect(res.items.map((t) => t.id).sort()).toEqual([10, 11]);
 	});
 });

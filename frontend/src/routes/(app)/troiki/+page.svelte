@@ -252,6 +252,8 @@
 	</div>
 	{#if loader.loading}
 		<div class="px-4 py-8 text-sm text-muted-foreground">{$t('app.loading')}</div>
+	{:else if loader.error}
+		<div class="px-4 py-8 text-sm text-muted-foreground">{loader.error}</div>
 	{:else}
 		<header class="flex items-center justify-between px-3 pb-1">
 			<div class="text-xs text-muted-foreground">

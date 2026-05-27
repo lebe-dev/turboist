@@ -42,6 +42,7 @@
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
+	import { queryTaskById, querySubtasks } from '$lib/offline/views';
 	import { tick, untrack } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
@@ -265,6 +266,13 @@
 					return;
 				}
 				toast.error(describeError(err, $t('page.task.errorLoading')));
+			},
+			offlineFallback: async (isValid) => {
+				const cached = await queryTaskById(taskId);
+				if (!cached || !isValid()) return;
+				hydrate(cached);
+				const subs = await querySubtasks(taskId);
+				if (isValid()) subtasks.items = subs.items;
 			}
 		}
 	);

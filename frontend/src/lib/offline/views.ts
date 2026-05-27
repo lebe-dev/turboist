@@ -242,6 +242,24 @@ export async function searchTasks(
 	return pack(items);
 }
 
+export async function queryTaskById(
+	id: number,
+	db: TurboistDB = getDB()
+): Promise<Task | null> {
+	const row = await db.tasks.where('serverId').equals(id).first();
+	if (!row || row.deletedAt !== null) return null;
+	return row.data as unknown as Task;
+}
+
+export async function querySubtasks(
+	parentId: number,
+	db: TurboistDB = getDB()
+): Promise<ViewList<Task>> {
+	const tasks = await allTasks(db);
+	const items = tasks.filter((t) => t.parentId === parentId);
+	return pack(items);
+}
+
 export async function searchProjects(
 	query: string,
 	db: TurboistDB = getDB()
