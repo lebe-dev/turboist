@@ -3,6 +3,7 @@
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
 	import StaleDataBanner from '$lib/components/app/StaleDataBanner.svelte';
+	import UpdateBanner from '$lib/components/app/UpdateBanner.svelte';
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
@@ -631,6 +632,7 @@
 				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
+			<UpdateBanner />
 			<StaleDataBanner visible={staleData} />
 			{#if !page.url.pathname.startsWith('/settings')}
 				<ContextFilterBanner />

@@ -5,7 +5,9 @@
     "loadingWorkspace": "Загрузка рабочего пространства…",
     "workspaceFailed": "Не удалось загрузить рабочее пространство.",
     "retry": "Повторить",
-    "redirecting": "Перенаправление…"
+    "redirecting": "Перенаправление…",
+    "updateAvailable": "Доступна новая версия.",
+    "updateNow": "Обновить"
   },
   "common": {
     "markPrivate": "Сделать приватным",
