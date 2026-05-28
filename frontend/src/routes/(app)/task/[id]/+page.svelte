@@ -476,9 +476,9 @@ async function save(): Promise<void> {
 					{/if}
 				</div>
 			</div>
-			<div class="relative">
+			<div class="relative pl-2">
 				{#if !description && !descriptionFocused}
-					<TextAlignStartIcon class="pointer-events-none absolute left-0 top-[2px] size-3.5 text-muted-foreground/40" />
+					<TextAlignStartIcon class="pointer-events-none absolute left-2 top-[2px] size-3.5 text-muted-foreground/40" />
 				{/if}
 				{#if showDescriptionRendered}
 					<div
@@ -492,7 +492,7 @@ async function save(): Promise<void> {
 								void focusDescription();
 							}
 						}}
-						class="block w-full cursor-text break-words text-sm leading-relaxed text-foreground outline-none"
+						class="block w-full cursor-text break-words text-sm leading-relaxed text-foreground/70 outline-none"
 					>
 						<MarkdownRich text={description} />
 					</div>
@@ -509,7 +509,7 @@ async function save(): Promise<void> {
 						}}
 						onfocus={() => (descriptionFocused = true)}
 						onblur={() => (descriptionFocused = false)}
-						class="block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
+						class="block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground/70 outline-none placeholder:text-muted-foreground/60"
 						class:pl-5={!description && !descriptionFocused}
 					></textarea>
 				{/if}
@@ -517,11 +517,11 @@ async function save(): Promise<void> {
 
 			<section class="flex flex-col gap-2">
 				<div class="flex items-baseline justify-between gap-2">
-					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+					<span class="ml-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 						{$t('page.task.subtasks')}
 					</span>
 					{#if !inInbox && subtasks.items.length > 0}
-						<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
+						<span class="mr-2 text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
 					{/if}
 				</div>
 				{#if inInbox}
