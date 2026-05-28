@@ -113,7 +113,8 @@
 	const descriptionExpandable = $derived(description.length > 100);
 	const isRecurring = $derived(!!task.recurrenceRule);
 	const showTroikiBadge = $derived(
-		!!project?.troikiCategory &&
+		settingsStore.troikiEnabled &&
+			!!project?.troikiCategory &&
 			page.url.pathname !== '/troiki' &&
 			!page.url.pathname.startsWith('/task/') &&
 			!page.url.pathname.startsWith('/project/')
@@ -129,7 +130,7 @@
 	const showCalendarSlash = $derived(
 		showUnplannedBadge &&
 			task.planState !== 'week' &&
-			!project?.troikiCategory &&
+			(!settingsStore.troikiEnabled || !project?.troikiCategory) &&
 			!task.labels.some((l) => settingsStore.weeklyUnplannedExcludedLabelIds.includes(l.id))
 	);
 	const hasMeta = $derived(

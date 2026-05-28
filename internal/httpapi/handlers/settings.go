@@ -35,6 +35,7 @@ type settingsResp struct {
 	BannerPublished                 bool    `json:"bannerPublished"`
 	CalendarEnabled                 bool    `json:"calendarEnabled"`
 	CalendarHidePastEvents          bool    `json:"calendarHidePastEvents"`
+	TroikiEnabled                   bool    `json:"troikiEnabled"`
 }
 
 type settingsPatchReq struct {
@@ -46,6 +47,7 @@ type settingsPatchReq struct {
 	BannerPublished                 *bool    `json:"bannerPublished"`
 	CalendarEnabled                 *bool    `json:"calendarEnabled"`
 	CalendarHidePastEvents          *bool    `json:"calendarHidePastEvents"`
+	TroikiEnabled                   *bool    `json:"troikiEnabled"`
 }
 
 // supportedLocales is the whitelist accepted by PATCH /settings. Empty string
@@ -74,6 +76,7 @@ func toResp(s *model.UserSettings) settingsResp {
 		BannerPublished:                 s.BannerPublished,
 		CalendarEnabled:                 s.CalendarEnabled,
 		CalendarHidePastEvents:          s.CalendarHidePastEvents,
+		TroikiEnabled:                   s.TroikiEnabled,
 	}
 }
 
@@ -133,6 +136,9 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	if req.CalendarHidePastEvents != nil {
 		current.CalendarHidePastEvents = *req.CalendarHidePastEvents
+	}
+	if req.TroikiEnabled != nil {
+		current.TroikiEnabled = *req.TroikiEnabled
 	}
 	if err := h.users.SetSettings(c.Context(), userID, current); err != nil {
 		return httpapi.ErrInternal("save settings").WithCause(err)

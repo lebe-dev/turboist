@@ -148,7 +148,9 @@
 		const projectId = t.projectId;
 		return projectsStore.items.find((p) => p.id === projectId)?.troikiCategory ?? null;
 	});
-	const projectTroikiLocked = $derived(projectTroikiCategory !== null);
+	const projectTroikiLocked = $derived(
+		settingsStore.troikiEnabled && projectTroikiCategory !== null
+	);
 	const inInbox = $derived(task?.inboxId !== null && task?.inboxId !== undefined);
 
 	let moveDialogOpen = $state(false);
@@ -407,7 +409,7 @@ async function save(): Promise<void> {
 					class="size-2 shrink-0 rounded-full"
 					style={`background-color: ${project.color}`}
 				></span>
-				<span class="truncate">{project.title}{#if project.troikiCategory}<TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50" />{/if}</span>
+				<span class="truncate">{project.title}{#if settingsStore.troikiEnabled && project.troikiCategory}<TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50" />{/if}</span>
 			</a>
 		{/if}
 	</div>

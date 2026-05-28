@@ -154,7 +154,7 @@
 								<LockSimpleIcon class="size-3 text-muted-foreground/50" />
 							</span>
 						{/if}
-						{#if project.troikiCategory}
+						{#if settingsStore.troikiEnabled && project.troikiCategory}
 							<TroikiTriggerIcon class="size-3 shrink-0 text-muted-foreground/60" />
 						{/if}
 						{#if ctxName}

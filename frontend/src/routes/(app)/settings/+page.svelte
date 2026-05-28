@@ -33,7 +33,7 @@
 	const appVersion = __APP_VERSION__;
 	const totpAvailable = $derived(configStore.value?.totpAvailable ?? false);
 
-	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -113,11 +113,22 @@
 		}
 	}
 
+	async function setTroikiEnabled(v: boolean): Promise<void> {
+		try {
+			await settingsStore.setTroikiEnabled(v);
+			toast.success($t('settings.troiki.updated'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.troiki.updateFailed');
+			toast.error(message);
+		}
+	}
+
 	const tabItems = $derived([
 		{ value: 'general', labelKey: 'settings.tabs.general' },
 		{ value: 'labels', labelKey: 'settings.tabs.labels' },
 		{ value: 'calendars', labelKey: 'settings.tabs.calendars' },
 		{ value: 'project', labelKey: 'settings.tabs.project' },
+		{ value: 'troiki', labelKey: 'settings.tabs.troiki' },
 		{ value: 'privacy', labelKey: 'settings.tabs.privacy' },
 		{ value: 'security', labelKey: 'settings.tabs.security' },
 		{ value: 'api', labelKey: 'settings.tabs.api' },
@@ -274,6 +285,7 @@
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
 			<Tabs.Trigger value="calendars">{$t('settings.tabs.calendars')}</Tabs.Trigger>
 			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
+			<Tabs.Trigger value="troiki">{$t('settings.tabs.troiki')}</Tabs.Trigger>
 			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
 			<Tabs.Trigger value="security">{$t('settings.tabs.security')}</Tabs.Trigger>
 			<Tabs.Trigger value="api">{$t('settings.tabs.api')}</Tabs.Trigger>
@@ -599,6 +611,22 @@
 						{/each}
 					</div>
 				{/if}
+			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="troiki">
+			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+				<div class="flex items-start justify-between gap-3">
+					<div class="flex flex-col gap-0.5">
+						<h2 class="text-sm font-semibold">{$t('settings.troiki.heading')}</h2>
+						<p class="text-xs text-muted-foreground">{$t('settings.troiki.description')}</p>
+					</div>
+					<Switch
+						checked={settingsStore.troikiEnabled}
+						onCheckedChange={setTroikiEnabled}
+						aria-label={$t('settings.troiki.toggle')}
+					/>
+				</div>
 			</section>
 		</Tabs.Content>
 

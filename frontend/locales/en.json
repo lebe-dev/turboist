@@ -85,6 +85,7 @@
       "general": "General",
       "labels": "Labels",
       "project": "Project",
+      "troiki": "Troiki",
       "privacy": "Privacy",
       "security": "Security",
       "api": "API",
@@ -96,6 +97,13 @@
       "bugLabelsHeading": "Bug labels",
       "bugLabelsDescription": "Labels applied automatically when filing a bug from a Software project.",
       "bugLabelsEmpty": "No labels yet. Create labels first to configure bug filing."
+    },
+    "troiki": {
+      "heading": "Troiki System",
+      "description": "Enable the Troiki productivity system to organise projects into priority categories and lock task priority by category. When disabled, existing Troiki assignments stay linked but all related icons and menu items are hidden, and task priority is no longer locked.",
+      "toggle": "Enable Troiki System",
+      "updated": "Troiki system updated",
+      "updateFailed": "Failed to update Troiki system"
     },
     "theme": {
       "heading": "Theme",

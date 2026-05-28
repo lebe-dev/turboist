@@ -132,7 +132,7 @@
 				aria-hidden="true"
 			></span>
 			<h1 class="truncate text-xl font-semibold">{project.title}</h1>
-			{#if project.troikiCategory}
+			{#if settingsStore.troikiEnabled && project.troikiCategory}
 				<span class="inline-flex" title={$t('task.inTroikiTitle')}>
 					<TroikiTriggerIcon class="size-3.5 text-muted-foreground/50" />
 				</span>
@@ -228,7 +228,7 @@
 							{/if}
 						</DropdownMenu.Item>
 					{/if}
-					{#if onSetTroiki && project.status === 'open'}
+					{#if onSetTroiki && project.status === 'open' && settingsStore.troikiEnabled}
 						<DropdownMenu.Sub>
 							<DropdownMenu.SubTrigger>
 								<TriangleIcon class="size-4" /> {$t('project.assignToTroiki')}

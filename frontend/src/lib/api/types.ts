@@ -201,6 +201,7 @@ export interface UserSettings {
 	bannerPublished: boolean;
 	calendarEnabled: boolean;
 	calendarHidePastEvents: boolean;
+	troikiEnabled: boolean;
 }
 
 export interface CalendarAccount {
