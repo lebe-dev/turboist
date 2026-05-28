@@ -398,24 +398,21 @@
 				{#if labelsStore.items.length === 0}
 					<p class="text-sm text-muted-foreground">{$t('settings.weekly.empty')}</p>
 				{:else}
-					<div class="flex flex-col gap-1">
+					<div class="flex flex-wrap gap-2">
 						{#each labelsStore.items as label (label.id)}
 							{@const excluded = settingsStore.weeklyUnplannedExcludedLabelIds.includes(label.id)}
 							<button
 								type="button"
 								onclick={() => toggleLabel(label.id)}
-								class="flex items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-								class:bg-muted={excluded}
+								class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 {excluded
+									? 'border-foreground/20 bg-muted text-foreground'
+									: 'border-border bg-accent/50 text-muted-foreground hover:bg-accent'}"
 								aria-pressed={excluded}
 							>
-								<span
-									class="inline-flex items-center rounded-full bg-accent/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-								>
-									{label.name}
-								</span>
 								{#if excluded}
-									<CheckIcon class="size-4 text-foreground/50" weight="bold" />
+									<CheckIcon class="size-3" weight="bold" />
 								{/if}
+								{label.name}
 							</button>
 						{/each}
 					</div>
@@ -432,7 +429,7 @@
 					<p class="text-sm text-muted-foreground">{$t('settings.autoLabels.empty')}</p>
 				{:else}
 					<div class="flex flex-col gap-2">
-						<div class="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 px-1 text-[11px] font-medium text-muted-foreground">
+						<div class="hidden sm:grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 px-1 text-[11px] font-medium text-muted-foreground">
 							<span>{$t('settings.autoLabels.mask')}</span>
 							<span>{$t('settings.autoLabels.labels')}</span>
 							<span>{$t('settings.autoLabels.ignoreCase')}</span>
@@ -442,7 +439,61 @@
 							{@const selectedNames = rule.labelIds
 								.map((id) => labelNameById.get(id))
 								.filter((n): n is string => !!n)}
-							<div class="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
+							<!-- mobile card -->
+							<div class="flex flex-col gap-2 rounded-md border border-border p-3 sm:hidden">
+								<div class="flex items-center gap-2">
+									<input
+										type="text"
+										bind:value={rule.mask}
+										placeholder={$t('settings.autoLabels.maskPlaceholder')}
+										class="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+									/>
+									<Switch
+										checked={rule.ignoreCase}
+										onCheckedChange={(v) => (rule.ignoreCase = v)}
+										aria-label={$t('settings.autoLabels.ignoreCase')}
+									/>
+									<button
+										type="button"
+										onclick={() => removeAutoLabelRule(idx)}
+										aria-label={$t('settings.autoLabels.remove')}
+										class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+									>
+										<TrashIcon class="size-4" />
+									</button>
+								</div>
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger
+										class="flex w-full items-center justify-between gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+									>
+										<span class="truncate text-left {selectedNames.length === 0 ? 'text-muted-foreground' : ''}">
+											{selectedNames.length === 0
+												? $t('settings.autoLabels.labelsPlaceholder')
+												: selectedNames.join(', ')}
+										</span>
+										<CaretDownIcon class="size-3.5 shrink-0 text-muted-foreground" />
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content class="max-h-60 w-56 overflow-auto">
+										{#if allLabels.length === 0}
+											<div class="px-2 py-1.5 text-xs text-muted-foreground">
+												{$t('settings.autoLabels.noLabelsAvailable')}
+											</div>
+										{:else}
+											{#each allLabels as label (label.id)}
+												<DropdownMenu.CheckboxItem
+													checked={rule.labelIds.includes(label.id)}
+													onCheckedChange={() => toggleRuleLabel(idx, label.id)}
+													closeOnSelect={false}
+												>
+													{label.name}
+												</DropdownMenu.CheckboxItem>
+											{/each}
+										{/if}
+									</DropdownMenu.Content>
+								</DropdownMenu.Root>
+							</div>
+							<!-- desktop row (unchanged) -->
+							<div class="hidden sm:grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
 								<input
 									type="text"
 									bind:value={rule.mask}
