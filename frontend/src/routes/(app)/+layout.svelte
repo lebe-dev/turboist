@@ -21,6 +21,7 @@
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
@@ -388,6 +389,9 @@
 			dueDate = todayKey;
 		} else if (path === '/tomorrow') {
 			dueDate = tomorrowKey;
+		} else if (path.startsWith('/task/')) {
+			projectId = currentTaskStore.projectId;
+			labelIds = currentTaskStore.labelIds;
 		} else if (path.startsWith('/project/')) {
 			const id = Number(page.params.id);
 			if (Number.isFinite(id)) projectId = id;

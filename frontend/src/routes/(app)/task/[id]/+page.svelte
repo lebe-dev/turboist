@@ -38,6 +38,7 @@
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
 	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
@@ -247,6 +248,11 @@
 	$effect(() => {
 		if (task) viewFilterStore.setTitle(task.title);
 		return () => viewFilterStore.clear();
+	});
+
+	$effect(() => {
+		if (task) currentTaskStore.set(task.projectId, task.labels.map((l) => l.id));
+		return () => currentTaskStore.clear();
 	});
 
 	const loader = usePageLoad(
