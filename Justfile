@@ -3,6 +3,13 @@
 version := `cat VERSION`
 imageName := 'tinyops/turboist'
 
+# --- Demo environment (init-env / reset-env) ---
+# Override via env vars on the command line if you run a different setup.
+turboistUrl  := env_var_or_default("TURBOIST_URL",       "http://127.0.0.1:18080")
+seedUser     := env_var_or_default("TURBOIST_SEED_USER", "eugene")
+seedPass     := env_var_or_default("TURBOIST_SEED_PASS", "test")
+dbPath       := env_var_or_default("DATA_PATH",          "data/turboist.db")
+
 # --- Dependencies ---
 bump-backend-deps:
     go get -u ./...
@@ -80,6 +87,56 @@ start-env: stop-env
 
 stop-env:
     docker compose down
+
+# --- Demo data ---
+# init-env populates the SQLite database with demo contexts/projects/labels/tasks
+# and switches on the Troiki system with 9 projects (3-3-3 across slots).
+# Requires the backend to be running so /auth/setup can create the single user.
+init-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    URL="{{ turboistUrl }}"
+    DB="{{ dbPath }}"
+    USER="{{ seedUser }}"
+    PASS="{{ seedPass }}"
+
+    echo "==> ensuring user exists at $URL"
+    body=$(printf '{"username":"%s","password":"%s","clientKind":"cli"}' "$USER" "$PASS")
+    tmp=$(mktemp)
+    code=$(curl -sS -o "$tmp" -w '%{http_code}' \
+        -X POST "$URL/auth/setup" \
+        -H 'Content-Type: application/json' \
+        -d "$body" || echo "000")
+    case "$code" in
+        200) echo "    created user '$USER'" ;;
+        410) echo "    user already exists — skipping /auth/setup" ;;
+        000) echo "    cannot reach $URL — is the backend running?" >&2; rm -f "$tmp"; exit 1 ;;
+        *)   echo "    /auth/setup returned HTTP $code:" >&2; cat "$tmp" >&2; echo >&2; rm -f "$tmp"; exit 1 ;;
+    esac
+    rm -f "$tmp"
+
+    echo "==> seeding $DB from scripts/seed-env.sql"
+    sqlite3 "$DB" < scripts/seed-env.sql
+
+    echo "==> done. Login with $USER / $PASS at $URL"
+
+# reset-env wipes the SQLite database. The backend must be stopped first so it
+# releases the WAL/SHM files; restart it afterwards to re-run migrations.
+reset-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DB="{{ dbPath }}"
+    if [ ! -f "$DB" ]; then
+        echo "no db at $DB — nothing to remove"
+        exit 0
+    fi
+    if lsof "$DB" >/dev/null 2>&1; then
+        echo "error: $DB is open by another process (likely the backend) — stop it first" >&2
+        exit 1
+    fi
+    echo "==> removing $DB (+ -shm/-wal)"
+    rm -f "$DB" "$DB-shm" "$DB-wal"
+    echo "==> done. Start the backend to re-run migrations: just run-backend"
 
 # --- Image ---
 build-image: test-all && lint
