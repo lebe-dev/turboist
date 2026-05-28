@@ -50,7 +50,7 @@
 			<XIcon class="size-3.5" />
 		</button>
 	</div>
-	<div class="flex items-center gap-1.5">
+	<div class="flex items-center justify-end gap-1.5">
 		<button
 			type="button"
 			onclick={handleUndo}
