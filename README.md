@@ -2,6 +2,8 @@
 
 Turboist is a task management app for the rest of us.
 
+![Turboist Screenshot](screenshot.png)
+
 ## Features
 
 - Contexts, projects, sections, labels (with auto-label rules)
