@@ -261,7 +261,7 @@
 	<Tabs.Root bind:value={activeTab} class="flex flex-col gap-4">
 		<div class="sm:hidden">
 			<Select.Root type="single" bind:value={activeTab}>
-				<Select.Trigger class="h-11 w-full text-sm font-medium" aria-label={$t('settings.title')}>{activeTabLabel}</Select.Trigger>
+				<Select.Trigger class="!h-13 w-full text-sm font-medium" aria-label={$t('settings.title')}>{activeTabLabel}</Select.Trigger>
 				<Select.Content>
 					{#each tabItems as item (item.value)}
 						<Select.Item class="py-3 text-sm" value={item.value} label={$t(item.labelKey)}>{$t(item.labelKey)}</Select.Item>
