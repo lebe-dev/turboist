@@ -70,22 +70,26 @@
 
 {#if displayCount > 0}
 	<div class="flex flex-col items-stretch gap-2 pt-6">
-		<button
-			type="button"
-			class="mx-auto inline-flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
-			onclick={toggle}
-			aria-expanded={expanded}
-		>
-			<span>{$t('view.completedToday')}</span>
-			<span
-				class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground"
+		<div class="flex items-center gap-3">
+			<div class="h-px flex-1 bg-border"></div>
+			<button
+				type="button"
+				class="inline-flex items-center gap-2 rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+				onclick={toggle}
+				aria-expanded={expanded}
 			>
-				{displayCount}
-			</span>
-			<CaretDownIcon
-				class="size-3.5 transition-transform {expanded ? 'rotate-180' : ''}"
-			/>
-		</button>
+				<span>{$t('view.completedToday')}</span>
+				<span
+					class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground"
+				>
+					{displayCount}
+				</span>
+				<CaretDownIcon
+					class="size-3.5 transition-transform {expanded ? 'rotate-180' : ''}"
+				/>
+			</button>
+			<div class="h-px flex-1 bg-border"></div>
+		</div>
 
 		{#if expanded}
 			<div class="px-1">
