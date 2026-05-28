@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
@@ -75,14 +77,68 @@ func parseViewFilter(c fiber.Ctx) repo.TaskFilter {
 	return f
 }
 
+// todayBundleResponse groups every list the Today page needs into one
+// response. Previously the page issued three parallel requests (today,
+// overdue, completed?limit=1) — now it is one round-trip.
+type todayBundleResponse struct {
+	Today          dto.PagedResponse[dto.TaskDTO] `json:"today"`
+	Overdue        dto.PagedResponse[dto.TaskDTO] `json:"overdue"`
+	CompletedToday dto.PagedResponse[dto.TaskDTO] `json:"completedToday"`
+}
+
 func (h *TaskViewHandler) today(c fiber.Ctx) error {
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := parseViewFilter(c)
-	items, total, err := h.tasks.ListToday(c.Context(), h.todayStart(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
-	if err != nil {
-		return httpapi.ErrInternal("list today").WithCause(err)
+	todayStart := h.todayStart()
+	ctx := c.Context()
+
+	var (
+		todayResp     dto.PagedResponse[dto.TaskDTO]
+		overdueResp   dto.PagedResponse[dto.TaskDTO]
+		completedResp dto.PagedResponse[dto.TaskDTO]
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListToday(gctx, todayStart, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
+		if err != nil {
+			return err
+		}
+		todayResp = dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset)
+		return nil
+	})
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListOverdue(gctx, todayStart, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
+		if err != nil {
+			return err
+		}
+		overdueResp = dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset)
+		return nil
+	})
+
+	g.Go(func() error {
+		// Completed window is the same one /tasks/completed?days=1 returns:
+		// from start-of-today (in the configured timezone) through start-of-tomorrow.
+		end := todayStart.Add(24 * time.Hour)
+		items, total, err := h.tasks.ListCompletedInRange(gctx, todayStart, end, filter, repo.Page{Limit: 1, Offset: 0})
+		if err != nil {
+			return err
+		}
+		completedResp = dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, 1, 0)
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return httpapi.ErrInternal("list today bundle").WithCause(err)
 	}
-	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
+
+	return c.JSON(todayBundleResponse{
+		Today:          todayResp,
+		Overdue:        overdueResp,
+		CompletedToday: completedResp,
+	})
 }
 
 func (h *TaskViewHandler) tomorrow(c fiber.Ctx) error {

@@ -11,6 +11,10 @@ class PlanStatsStore {
 		return stats;
 	}
 
+	setValue(v: PlanStatsResponse): void {
+		this.value = v;
+	}
+
 	clear(): void {
 		this.value = null;
 	}

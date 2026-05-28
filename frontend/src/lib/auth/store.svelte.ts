@@ -49,22 +49,17 @@ export class AuthStore {
 
 	async bootstrap(): Promise<BootstrapResult> {
 		this.status = 'loading';
-		try {
-			const setup = await auth.setupRequired(this.client);
-			this.setupRequired = setup.required;
-			if (setup.required) {
-				this.status = 'guest';
-				return { setupRequired: true, authenticated: false };
-			}
-		} catch {
-			this.status = 'guest';
-			return { setupRequired: false, authenticated: false };
-		}
 
 		const refreshed = await this.tryRefresh();
 		if (!refreshed) {
+			// Refresh failed (no cookie or expired): probe /api/v1/config without
+			// auth. SetupCheckMiddleware runs before the auth middleware on the
+			// /api/v1 group, so an un-set-up instance returns 503 setup_required;
+			// a set-up instance returns 401 (which we treat as plain guest).
+			const setupNeeded = await this.probeSetupRequired();
+			this.setupRequired = setupNeeded;
 			this.status = 'guest';
-			return { setupRequired: false, authenticated: false };
+			return { setupRequired: setupNeeded, authenticated: false };
 		}
 
 		try {
@@ -76,6 +71,22 @@ export class AuthStore {
 			this.accessToken = null;
 			this.status = 'guest';
 			return { setupRequired: false, authenticated: false };
+		}
+	}
+
+	// probeSetupRequired hits /api/v1/config without auth to learn whether the
+	// instance still needs the initial admin user. The endpoint requires auth in
+	// general; we only care about the SetupCheckMiddleware response in front of
+	// it, which short-circuits with 503 setup_required when the DB has no users.
+	private async probeSetupRequired(): Promise<boolean> {
+		try {
+			await this.client.fetch('/api/v1/config', { skipAuth: true, skipRefresh: true });
+			return false;
+		} catch (err) {
+			if (err instanceof ApiError && err.code === 'setup_required') {
+				return true;
+			}
+			return false;
 		}
 	}
 

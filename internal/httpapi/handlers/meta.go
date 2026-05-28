@@ -30,6 +30,7 @@ type MetaHandler struct {
 	contexts        *repo.ContextRepo
 	projects        *repo.ProjectRepo
 	labels          *repo.LabelRepo
+	tasks           *repo.TaskRepo
 	users           *repo.UserRepo
 	appSettingsRepo *repo.AppSettingsRepo
 	troikiSvc       *service.TroikiService
@@ -45,6 +46,7 @@ func NewMetaHandler(
 	contexts *repo.ContextRepo,
 	projects *repo.ProjectRepo,
 	labels *repo.LabelRepo,
+	tasks *repo.TaskRepo,
 	users *repo.UserRepo,
 	appSettingsRepo *repo.AppSettingsRepo,
 	troikiSvc *service.TroikiService,
@@ -56,6 +58,7 @@ func NewMetaHandler(
 		contexts:        contexts,
 		projects:        projects,
 		labels:          labels,
+		tasks:           tasks,
 		users:           users,
 		appSettingsRepo: appSettingsRepo,
 		troikiSvc:       troikiSvc,
@@ -87,6 +90,16 @@ type limitResp struct {
 	Limit int `json:"limit"`
 }
 
+type planStatsResp struct {
+	Week    int `json:"week"`
+	Backlog int `json:"backlog"`
+}
+
+type inboxStatsResp struct {
+	Count                 int  `json:"count"`
+	WarnThresholdExceeded bool `json:"warnThresholdExceeded"`
+}
+
 type configResp struct {
 	Timezone      string                 `json:"timezone"`
 	MaxPinned     int                    `json:"maxPinned"`
@@ -103,6 +116,9 @@ type configResp struct {
 	AppSettings appSettingsResp  `json:"appSettings"`
 	UserState   json.RawMessage  `json:"userState"`
 	Troiki      any              `json:"troiki"`
+	PlanStats   planStatsResp    `json:"planStats"`
+	InboxStats  inboxStatsResp   `json:"inboxStats"`
+	PinnedTasks []dto.TaskDTO    `json:"pinnedTasks"`
 }
 
 func (h *MetaHandler) config(c fiber.Ctx) error {
@@ -128,6 +144,9 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		appSettings appSettingsResp
 		userState   json.RawMessage
 		troiki      any
+		planStats   planStatsResp
+		inboxStats  inboxStatsResp
+		pinnedTasks []dto.TaskDTO
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -207,6 +226,43 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		return nil
 	})
 
+	g.Go(func() error {
+		week, err := h.tasks.CountWeek(gctx)
+		if err != nil {
+			return err
+		}
+		backlog, err := h.tasks.CountBacklog(gctx)
+		if err != nil {
+			return err
+		}
+		planStats = planStatsResp{Week: week, Backlog: backlog}
+		return nil
+	})
+
+	g.Go(func() error {
+		_, total, err := h.tasks.ListInbox(gctx, repo.TaskFilter{}, repo.Page{Limit: 0})
+		if err != nil {
+			return err
+		}
+		inboxStats = inboxStatsResp{
+			Count:                 total,
+			WarnThresholdExceeded: total > h.cfg.Inbox.WarnThreshold,
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		items, _, err := h.tasks.ListPinned(gctx, repo.TaskFilter{})
+		if err != nil {
+			return err
+		}
+		pinnedTasks = make([]dto.TaskDTO, len(items))
+		for i, t := range items {
+			pinnedTasks[i] = dto.TaskFromModel(t, h.baseURL)
+		}
+		return nil
+	})
+
 	if err := g.Wait(); err != nil {
 		return httpapi.ErrInternal("load config").WithCause(err)
 	}
@@ -232,5 +288,8 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		AppSettings:   appSettings,
 		UserState:     userState,
 		Troiki:        troiki,
+		PlanStats:     planStats,
+		InboxStats:    inboxStats,
+		PinnedTasks:   pinnedTasks,
 	})
 }

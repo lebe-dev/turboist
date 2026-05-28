@@ -133,17 +133,12 @@
 		loadFailed = false;
 		void (async () => {
 			try {
-				// configStore.load() pulls contexts, projects, labels, settings,
-				// appSettings, userState and troiki in the same response and fans
-				// them out to the per-domain stores. The stats stores stay
-				// separate — they change frequently and have their own SSE
-				// invalidation channels.
-				await Promise.all([
-					configStore.load(),
-					planStatsStore.load(),
-					inboxStatsStore.load(),
-					pinnedTasksStore.load()
-				]);
+				// configStore.load() pulls everything the workspace needs in one
+				// round-trip and fans it out to the per-domain stores: contexts,
+				// projects, labels, settings, appSettings, userState, troiki,
+				// planStats, inboxStats and pinnedTasks. Per-domain stores keep
+				// their own load() / SSE invalidation channels for refreshes.
+				await configStore.load();
 				if (isSupportedLocale(settingsStore.locale)) {
 					setLocale(settingsStore.locale);
 				}

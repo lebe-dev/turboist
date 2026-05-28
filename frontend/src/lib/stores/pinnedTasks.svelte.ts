@@ -11,6 +11,10 @@ class PinnedTasksStore {
 		return res.items;
 	}
 
+	setItems(items: Task[]): void {
+		this.items = items;
+	}
+
 	addItem(task: Task): void {
 		if (!this.items.some((t) => t.id === task.id)) {
 			this.items = [...this.items, task];

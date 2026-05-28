@@ -3,7 +3,6 @@ import type {
 	AuthLoginResponse,
 	AuthLoginSuccessResponse,
 	AuthRefreshResponse,
-	AuthSetupRequiredResponse,
 	ClientKind,
 	User
 } from '../types';
@@ -15,10 +14,6 @@ export interface AuthCredentials {
 }
 
 export const auth = {
-	setupRequired(client: ApiClient): Promise<AuthSetupRequiredResponse> {
-		return client.fetch('/auth/setup-required', { skipAuth: true, skipRefresh: true });
-	},
-
 	setup(client: ApiClient, credentials: AuthCredentials): Promise<AuthLoginSuccessResponse> {
 		return client.fetch('/auth/setup', {
 			method: 'POST',

@@ -7,6 +7,7 @@ export type ApiErrorCode =
 	| 'not_found'
 	| 'conflict'
 	| 'setup_already_done'
+	| 'setup_required'
 	| 'limit_exceeded'
 	| 'forbidden_placement'
 	| 'recurrence_invalid'

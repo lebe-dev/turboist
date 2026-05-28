@@ -29,10 +29,34 @@ func TestMetaConfig_Success(t *testing.T) {
 	if result["inbox"] == nil {
 		t.Error("inbox missing from config")
 	}
-	for _, key := range []string{"contexts", "projects", "labels", "settings", "appSettings", "userState", "troiki"} {
+	for _, key := range []string{
+		"contexts", "projects", "labels",
+		"settings", "appSettings", "userState", "troiki",
+		"planStats", "inboxStats", "pinnedTasks",
+	} {
 		if _, ok := result[key]; !ok {
 			t.Errorf("%s missing from config", key)
 		}
+	}
+	planStats, ok := result["planStats"].(map[string]any)
+	if !ok {
+		t.Fatalf("planStats: got %T, want map[string]any", result["planStats"])
+	}
+	if _, ok := planStats["week"]; !ok {
+		t.Error("planStats.week missing")
+	}
+	if _, ok := planStats["backlog"]; !ok {
+		t.Error("planStats.backlog missing")
+	}
+	inboxStats, ok := result["inboxStats"].(map[string]any)
+	if !ok {
+		t.Fatalf("inboxStats: got %T, want map[string]any", result["inboxStats"])
+	}
+	if _, ok := inboxStats["count"]; !ok {
+		t.Error("inboxStats.count missing")
+	}
+	if _, ok := result["pinnedTasks"].([]any); !ok {
+		t.Errorf("pinnedTasks: got %T, want []any", result["pinnedTasks"])
 	}
 	if _, ok := result["contexts"].([]any); !ok {
 		t.Errorf("contexts: got %T, want []any", result["contexts"])

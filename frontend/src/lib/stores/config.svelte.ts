@@ -8,6 +8,9 @@ import { settingsStore } from './settings.svelte';
 import { appSettingsStore } from './appSettings.svelte';
 import { userStateStore } from './userState.svelte';
 import { troikiStore } from './troiki.svelte';
+import { planStatsStore } from './planStats.svelte';
+import { inboxStatsStore } from './inboxStats.svelte';
+import { pinnedTasksStore } from './pinnedTasks.svelte';
 
 class ConfigStore {
 	value = $state<ConfigResponse | null>(null);
@@ -26,6 +29,9 @@ class ConfigStore {
 		appSettingsStore.setValue(cfg.appSettings);
 		userStateStore.setValue(cfg.userState);
 		troikiStore.setValue(cfg.troiki);
+		planStatsStore.setValue(cfg.planStats);
+		inboxStatsStore.set(cfg.inboxStats.count, cfg.inboxStats.warnThresholdExceeded);
+		pinnedTasksStore.setItems(cfg.pinnedTasks);
 		return cfg;
 	}
 

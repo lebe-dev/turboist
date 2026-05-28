@@ -20,6 +20,7 @@ const (
 	CodeTOTPAlreadyEnabled = "totp_already_enabled"
 	CodeTOTPNotEnabled     = "totp_not_enabled"
 	CodeInternalError      = "internal_error"
+	CodeSetupRequired      = "setup_required"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -115,6 +116,13 @@ func ErrTroikiSlotFull(msg string) *AppError {
 
 func ErrInternal(msg string) *AppError {
 	return newErr(500, CodeInternalError, msg)
+}
+
+// ErrSetupRequired signals that the instance has no admin user yet — the
+// frontend should redirect to /setup. Returned by SetupCheckMiddleware before
+// auth runs, so callers do not need a token.
+func ErrSetupRequired() *AppError {
+	return newErr(503, CodeSetupRequired, "setup required")
 }
 
 func ErrTOTPInvalidCode() *AppError {

@@ -28,10 +28,6 @@ export interface TOTPConfirmResponse {
 	recoveryCodes: string[];
 }
 
-export interface AuthSetupRequiredResponse {
-	required: boolean;
-}
-
 export interface AuthLoginSuccessResponse {
 	access: string;
 	refresh: string;
@@ -148,6 +144,12 @@ export interface Page<T> {
 export interface ViewList<T> {
 	items: T[];
 	total: number;
+}
+
+export interface TodayBundle {
+	today: ViewList<Task>;
+	overdue: ViewList<Task>;
+	completedToday: ViewList<Task>;
 }
 
 export interface InboxResponse {
@@ -325,6 +327,9 @@ export interface ConfigResponse {
 	appSettings: AppSettings;
 	userState: UserState;
 	troiki: TroikiViewResponse;
+	planStats: PlanStatsResponse;
+	inboxStats: { count: number; warnThresholdExceeded: boolean };
+	pinnedTasks: Task[];
 }
 
 export interface AutoLabelRule {
