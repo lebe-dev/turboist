@@ -56,7 +56,8 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Task.Get", slog.Int64("task_id", id))
+	includeSubtasks := c.Query("subtasks") == "true"
+	logEntry(c, "handler.Task.Get", slog.Int64("task_id", id), slog.Bool("subtasks", includeSubtasks))
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -64,7 +65,20 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
 	}
-	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
+	out := dto.TaskFromModel(*t, h.baseURL)
+	if includeSubtasks {
+		items, err := h.tasks.ListSubtasks(c.Context(), id)
+		if err != nil {
+			return httpapi.ErrInternal("list subtasks").WithCause(err)
+		}
+		dtos := make([]dto.TaskDTO, len(items))
+		for i, st := range items {
+			dtos[i] = dto.TaskFromModel(st, h.baseURL)
+		}
+		page := dto.NewPagedResponse(dtos, len(dtos), len(dtos), 0)
+		out.Subtasks = &page
+	}
+	return c.JSON(out)
 }
 
 func (h *TaskHandler) patch(c fiber.Ctx) error {

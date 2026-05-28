@@ -132,6 +132,10 @@ export interface Task {
 	url: string;
 	createdAt: string;
 	updatedAt: string;
+
+	// Populated only by GET /tasks/:id?subtasks=true so the task detail page
+	// can fetch parent + children in one round-trip. Omitted otherwise.
+	subtasks?: Page<Task>;
 }
 
 export interface Page<T> {

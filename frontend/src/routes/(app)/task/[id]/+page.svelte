@@ -245,16 +245,10 @@
 				return;
 			}
 			const client = getApiClient();
-			const [t, subs] = await Promise.all([
-				tasksApi.get(client, taskId),
-				tasksApi.listSubtasks(client, taskId).catch((err) => {
-					if (err instanceof ApiError && err.code === 'not_found') return null;
-					throw err;
-				})
-			]);
+			const t = await tasksApi.get(client, taskId, { includeSubtasks: true });
 			if (!isValid()) return;
 			hydrate(t);
-			if (subs) subtasks.items = subs.items;
+			subtasks.items = t.subtasks?.items ?? [];
 		},
 		{
 			autoLoad: false,

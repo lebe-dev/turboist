@@ -11,8 +11,14 @@ import type {
 } from '../types';
 
 export const tasks = {
-	get(client: ApiClient, id: number): Promise<Task> {
-		return client.fetch(`/api/v1/tasks/${id}`);
+	get(
+		client: ApiClient,
+		id: number,
+		options: { includeSubtasks?: boolean } = {}
+	): Promise<Task> {
+		return client.fetch(`/api/v1/tasks/${id}`, {
+			query: options.includeSubtasks ? { subtasks: 'true' } : undefined
+		});
 	},
 
 	update(client: ApiClient, id: number, input: TaskInput): Promise<Task> {

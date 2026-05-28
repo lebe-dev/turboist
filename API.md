@@ -714,6 +714,13 @@ curl "$BASE/api/v1/tasks/42" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+Pass `?subtasks=true` to receive the children inline under a `subtasks` paged envelope — the task detail page uses this so it can render in one round-trip instead of two.
+
+```sh
+curl "$BASE/api/v1/tasks/42?subtasks=true" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ### `PATCH /api/v1/tasks/:id`
 
 All fields are optional. Omit a field to leave it unchanged.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -97,6 +98,73 @@ func TestTaskGet_Success(t *testing.T) {
 	}
 	if result.URL == "" {
 		t.Error("url must not be empty")
+	}
+}
+
+func TestTaskGet_WithSubtasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+
+	for _, title := range []string{"Child A", "Child B"} {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID),
+			map[string]any{"title": title}))
+		if resp.StatusCode != 201 {
+			t.Fatalf("create %q: got %d; body: %s", title, resp.StatusCode, body)
+		}
+	}
+	// Sibling in the same context — must not appear under parent.subtasks.
+	createTestTask(t, e, ctx.ID, "Sibling")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/tasks/%d?subtasks=true", parent.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Subtasks == nil {
+		t.Fatalf("subtasks: must be set when subtasks=true")
+	}
+	if len(result.Subtasks.Items) != 2 {
+		t.Fatalf("subtasks.items: got %d, want 2", len(result.Subtasks.Items))
+	}
+	for _, item := range result.Subtasks.Items {
+		if item.ParentID == nil || *item.ParentID != parent.ID {
+			t.Errorf("parentId: got %v, want %d", item.ParentID, parent.ID)
+		}
+	}
+}
+
+func TestTaskGet_WithoutSubtasksParam_OmitsField(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID),
+		map[string]any{"title": "Child"}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create child: got %d; body: %s", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/tasks/%d", parent.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Subtasks != nil {
+		t.Errorf("subtasks: got %+v, want nil when query param omitted", result.Subtasks)
+	}
+	// Sanity-check the raw bytes too — the field must be entirely absent.
+	if strings.Contains(string(body), `"subtasks"`) {
+		t.Errorf("response body must not contain subtasks key: %s", body)
 	}
 }
 
