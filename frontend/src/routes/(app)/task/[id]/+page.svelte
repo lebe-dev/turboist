@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
+	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
@@ -120,6 +121,21 @@
 		autoGrow(titleEl);
 	});
 	let priority = $state<Priority>('no-priority');
+
+	const checkboxClass = $derived.by(() => {
+		const base = 'mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+		const completed = task?.status === 'completed';
+		if (completed) {
+			if (priority === 'high') return `${base} border-red-500 bg-red-500 text-white`;
+			if (priority === 'medium') return `${base} border-amber-500 bg-amber-500 text-white`;
+			if (priority === 'low') return `${base} border-blue-500 bg-blue-500 text-white`;
+			return `${base} border-zinc-500 bg-zinc-500 text-white dark:border-zinc-600 dark:bg-zinc-600`;
+		}
+		if (priority === 'high') return `${base} border-red-500`;
+		if (priority === 'medium') return `${base} border-amber-500`;
+		if (priority === 'low') return `${base} border-blue-500`;
+		return `${base} border-border hover:border-primary`;
+	});
 	let dayPart = $state<DayPart>('none');
 	let dueDate = $state('');
 	let recurrence = $state<string | null>(null);
@@ -408,44 +424,58 @@ async function save(): Promise<void> {
 		class="grid gap-8 p-6 sm:grid-cols-[1fr_16rem] sm:p-8"
 	>
 		<div class="flex min-w-0 flex-col gap-4">
-			{#if showTitleRendered}
-				<div
-					role="textbox"
-					tabindex="0"
-					aria-label={$t('common.title')}
-					onclick={() => void focusTitle()}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							void focusTitle();
-						}
-					}}
-					class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none"
+			<div class="flex items-start gap-3">
+				<button
+					type="button"
+					onclick={() => task && void toggleComplete(task, pageMutator, { removeWhenCompleted: false })}
+					aria-label={task?.status === 'completed' ? $t('task.markIncomplete') : $t('task.markComplete')}
+					class={checkboxClass}
 				>
-					<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />
+					{#if task?.status === 'completed'}
+						<CheckIcon class="size-3" weight="bold" />
+					{/if}
+				</button>
+				<div class="min-w-0 flex-1">
+					{#if showTitleRendered}
+						<div
+							role="textbox"
+							tabindex="0"
+							aria-label={$t('common.title')}
+							onclick={() => void focusTitle()}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									void focusTitle();
+								}
+							}}
+							class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
+						>
+							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />
+						</div>
+					{:else}
+						<textarea
+							bind:this={titleEl}
+							bind:value={title}
+							aria-label={$t('common.title')}
+							placeholder={$t('page.task.namePlaceholder')}
+							rows="1"
+							oninput={(e) => {
+								autoGrow(e.currentTarget as HTMLTextAreaElement);
+								scheduleSave();
+							}}
+							onfocus={() => (titleFocused = true)}
+							onblur={() => (titleFocused = false)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									(e.currentTarget as HTMLTextAreaElement).blur();
+								}
+							}}
+							class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60 {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
+						></textarea>
+					{/if}
 				</div>
-			{:else}
-				<textarea
-					bind:this={titleEl}
-					bind:value={title}
-					aria-label={$t('common.title')}
-					placeholder={$t('page.task.namePlaceholder')}
-					rows="1"
-					oninput={(e) => {
-						autoGrow(e.currentTarget as HTMLTextAreaElement);
-						scheduleSave();
-					}}
-					onfocus={() => (titleFocused = true)}
-					onblur={() => (titleFocused = false)}
-					onkeydown={(e) => {
-						if (e.key === 'Enter') {
-							e.preventDefault();
-							(e.currentTarget as HTMLTextAreaElement).blur();
-						}
-					}}
-					class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
-				></textarea>
-			{/if}
+			</div>
 			<div class="relative">
 				{#if !description && !descriptionFocused}
 					<TextAlignStartIcon class="pointer-events-none absolute left-0 top-[2px] size-3.5 text-muted-foreground/40" />
