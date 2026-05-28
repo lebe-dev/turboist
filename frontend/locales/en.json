@@ -89,7 +89,7 @@
       "security": "Security",
       "api": "API",
       "backup": "Backup & Restore",
-      "calendars": "Calendar (beta)",
+      "calendars": "Calendar",
       "logs": "Logs"
     },
     "project": {
