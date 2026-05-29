@@ -205,23 +205,35 @@
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
 
+	function arrayEquals(a: readonly string[], b: readonly string[]): boolean {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) return false;
+		}
+		return true;
+	}
+
 	function hydrate(t: Task): void {
+		// Server returned the exact revision we already have (typical for the SSE
+		// echo that follows our own save). Skip everything — assigning identical
+		// values still flushes derived/effects and causes a visible flicker.
+		if (task && task.id === t.id && task.updatedAt === t.updatedAt) return;
+
 		allowSave = false;
 		task = t;
 		if (title !== t.title) title = t.title;
 		const nextDescription = t.description ?? '';
 		if (description !== nextDescription) description = nextDescription;
-		priority = t.priority;
-		dayPart = t.dayPart;
-		recurrence = t.recurrenceRule ?? null;
+		if (priority !== t.priority) priority = t.priority;
+		if (dayPart !== t.dayPart) dayPart = t.dayPart;
+		const nextRecurrence = t.recurrenceRule ?? null;
+		if (recurrence !== nextRecurrence) recurrence = nextRecurrence;
 		const dt = parseIso(t.dueAt);
-		if (dt) {
-			dueDate = dayKeyInTz(dt, configStore.value?.timezone ?? null);
-		} else {
-			dueDate = '';
-		}
-		labelIds = t.labels.map((l) => String(l.id));
-		removedAuto = [];
+		const nextDueDate = dt ? dayKeyInTz(dt, configStore.value?.timezone ?? null) : '';
+		if (dueDate !== nextDueDate) dueDate = nextDueDate;
+		const nextLabelIds = t.labels.map((l) => String(l.id));
+		if (!arrayEquals(labelIds, nextLabelIds)) labelIds = nextLabelIds;
+		if (removedAuto.length > 0) removedAuto = [];
 		// Permit auto-save only after all reactive effects from hydration have flushed
 		setTimeout(() => {
 			allowSave = true;
