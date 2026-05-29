@@ -45,6 +45,14 @@ func (h *EventsHandler) RegisterPublic(app *fiber.App) {
 	app.Get("/api/v1/events", h.stream)
 }
 
+type ticketRequest struct {
+	// Origin is the caller's per-tab client id. When present it is bound to the
+	// ticket so the hub can skip echoing this client's own mutations back to
+	// its stream (see Hub.Publish). Optional and best-effort — an empty origin
+	// simply disables echo suppression for the stream.
+	Origin string `json:"origin"`
+}
+
 type ticketResponse struct {
 	Ticket    string `json:"ticket"`
 	ExpiresIn int    `json:"expiresIn"`
@@ -57,7 +65,10 @@ func (h *EventsHandler) issueTicket(c fiber.Ctx) error {
 		return httpapi.ErrAuthInvalid("authentication required")
 	}
 	logEntry(c, op)
-	tok, err := h.tickets.Issue(userID)
+	var req ticketRequest
+	// Body is optional; ignore bind errors and treat as no origin.
+	_ = c.Bind().JSON(&req)
+	tok, err := h.tickets.Issue(userID, req.Origin)
 	if err != nil {
 		return httpapi.ErrInternal("issue events ticket").WithCause(err)
 	}
@@ -73,13 +84,13 @@ func (h *EventsHandler) stream(c fiber.Ctx) error {
 	log := logging.FromContext(ctx)
 
 	token := c.Query("ticket")
-	userID, err := h.tickets.Consume(token)
+	userID, origin, err := h.tickets.Consume(token)
 	if err != nil {
 		log.WarnContext(ctx, op+": invalid ticket")
 		return httpapi.ErrAuthInvalid("invalid or expired events ticket")
 	}
 
-	ch, cancel := h.hub.Subscribe(userID)
+	ch, cancel := h.hub.Subscribe(userID, origin)
 
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache, no-transform")

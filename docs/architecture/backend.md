@@ -35,6 +35,21 @@ Single-user app. First request must be `POST /auth/setup` with `{username, passw
 
 Optional TOTP 2FA (RFC 6238) with single-use recovery codes. Requires `TOTP_SECRET_KEY` env var.
 
+## Real-time invalidation (SSE)
+
+Clients keep their views fresh over a Server-Sent Events stream. EventSource cannot send an `Authorization` header, so a client first `POST`s `/api/v1/events/ticket` (JWT only) to mint a short-lived single-use ticket, then opens `GET /api/v1/events?ticket=...`. Events carry only a coarse `scope` (`tasks`, `projects`, `plan`, `inbox`, …); the client refetches the affected views via the regular REST endpoints. There is no persistence or replay — after a reconnect the client does a one-shot catch-up refetch.
+
+Mutations publish their scopes through `PublishMiddleware` (after a successful `2xx` on a mutating method), fanning out to every active subscriber of that user via the in-memory `events.Hub`.
+
+### SSE echo suppression
+
+Each browser tab generates a per-tab origin id and:
+
+- sends it on every mutating request via the `X-Client-Origin` header, and
+- passes the same origin in the body of `POST /api/v1/events/ticket`, binding it to its stream.
+
+`Hub.Publish` skips any subscriber whose origin matches the mutation's `X-Client-Origin`. The tab that made a change therefore never receives the echo of its own mutation — it already applied the change from the mutation's own response, so re-fetching would only cost a round-trip and cause a visible re-render. Other tabs and devices still receive the event. An empty origin (older clients, server-side) disables suppression. To refresh data it can no longer derive from the echo, the originating client refetches the [`GET /api/v1/stats/sidebar`](../../API.md) bundle once after its own mutation.
+
 ## Storage
 
 All data lives in the SQLite file pointed to by `-db`. WAL mode is enabled — back up `*.db`, `*.db-wal`, and `*.db-shm` together, or use `VACUUM INTO` for a single-file snapshot.
