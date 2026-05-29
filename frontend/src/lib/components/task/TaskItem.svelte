@@ -247,7 +247,7 @@
 		{#if descriptionPreview}
 			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 			<p
-				class="break-words text-xs text-muted-foreground/70"
+				class="[overflow-wrap:anywhere] text-xs text-muted-foreground/70"
 				class:line-clamp-2={!descriptionExpanded}
 				class:cursor-pointer={descriptionExpandable && !descriptionExpanded}
 				onclick={descriptionExpandable && !descriptionExpanded

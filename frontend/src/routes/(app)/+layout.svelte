@@ -554,7 +554,7 @@
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
 			{/if}
-			<main class="flex-1 overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
+			<main class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
 				{@render children()}
 			</main>
 		</div>

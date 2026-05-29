@@ -512,7 +512,7 @@ async function save(): Promise<void> {
 								void focusDescription();
 							}
 						}}
-						class="block w-full cursor-text break-words text-sm leading-relaxed text-foreground/70 outline-none"
+						class="block w-full cursor-text [overflow-wrap:anywhere] text-sm leading-relaxed text-foreground/70 outline-none"
 					>
 						<MarkdownRich text={description} />
 					</div>
