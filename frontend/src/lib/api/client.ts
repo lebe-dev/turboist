@@ -18,6 +18,13 @@ export interface ApiClientOptions {
 	onRefreshFailure: () => void;
 	fetchImpl?: typeof fetch;
 	onLog?: (entry: ApiLogEntry) => void;
+	// clientOrigin tags mutating requests with the `X-Client-Origin` header so
+	// the backend can suppress this client's own SSE echoes. Empty disables it.
+	clientOrigin?: string;
+	// onMutation fires after a successful (2xx) mutating request. Because the
+	// originating client no longer receives the SSE echo of its own change, this
+	// is the hook that refreshes derived data (sidebar counts etc.) locally.
+	onMutation?: (path: string, method: string) => void;
 }
 
 export type QueryValue = string | number | boolean | undefined | null;
@@ -41,6 +48,8 @@ export class ApiClient {
 	private readonly onRefreshFailure: () => void;
 	private readonly fetchImpl: typeof fetch;
 	private readonly onLog?: (entry: ApiLogEntry) => void;
+	private readonly clientOrigin?: string;
+	private readonly onMutation?: (path: string, method: string) => void;
 	private refreshInflight: Promise<string | null> | null = null;
 
 	constructor(options: ApiClientOptions) {
@@ -50,7 +59,11 @@ export class ApiClient {
 		this.onRefreshFailure = options.onRefreshFailure;
 		this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
 		this.onLog = options.onLog;
+		this.clientOrigin = options.clientOrigin;
+		this.onMutation = options.onMutation;
 	}
+
+	private static readonly mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 	async fetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
 		const url = this.buildUrl(path, init.query);
@@ -64,6 +77,9 @@ export class ApiClient {
 			const response = await this.doRequest(url, init, /*isRetry*/ false);
 			const result = await this.parseResponse<T>(response);
 			this.emitLog(method, url, response.status, start, reqBody, result, null);
+			if (this.onMutation && ApiClient.mutatingMethods.has(method)) {
+				this.onMutation(path, method);
+			}
 			return result;
 		} catch (err) {
 			const status = err instanceof ApiError ? err.status : null;
@@ -140,6 +156,11 @@ export class ApiClient {
 		if (!init.skipAuth) {
 			const token = this.getAccessToken();
 			if (token) headers.set('Authorization', `Bearer ${token}`);
+		}
+
+		// Tag mutations so the backend can suppress this client's own SSE echo.
+		if (this.clientOrigin && ApiClient.mutatingMethods.has((init.method ?? 'GET').toUpperCase())) {
+			headers.set('X-Client-Origin', this.clientOrigin);
 		}
 
 		let response: Response;

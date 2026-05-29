@@ -17,6 +17,7 @@ var ErrTicketInvalid = errors.New("events: invalid or expired ticket")
 
 type ticket struct {
 	userID    int64
+	origin    string
 	expiresAt time.Time
 }
 
@@ -42,8 +43,10 @@ func NewTicketStore() *TicketStore {
 	}
 }
 
-// Issue creates a fresh ticket bound to userID.
-func (s *TicketStore) Issue(userID int64) (string, error) {
+// Issue creates a fresh ticket bound to userID. An optional origin identifies
+// the client opening the stream; it is returned by Consume so the hub can
+// suppress that client's own mutation echoes (see Hub.Publish).
+func (s *TicketStore) Issue(userID int64, origin ...string) (string, error) {
 	token, err := s.randHex()
 	if err != nil {
 		return "", err
@@ -51,27 +54,28 @@ func (s *TicketStore) Issue(userID int64) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sweepLocked()
-	s.items[token] = ticket{userID: userID, expiresAt: s.now().Add(s.ttl)}
+	s.items[token] = ticket{userID: userID, origin: firstOrigin(origin), expiresAt: s.now().Add(s.ttl)}
 	return token, nil
 }
 
-// Consume validates and removes the ticket, returning the bound user id.
-// Returns ErrTicketInvalid for unknown, expired, or already-consumed tickets.
-func (s *TicketStore) Consume(token string) (int64, error) {
+// Consume validates and removes the ticket, returning the bound user id and the
+// origin supplied at Issue time (empty when none was given). Returns
+// ErrTicketInvalid for unknown, expired, or already-consumed tickets.
+func (s *TicketStore) Consume(token string) (int64, string, error) {
 	if token == "" {
-		return 0, ErrTicketInvalid
+		return 0, "", ErrTicketInvalid
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t, ok := s.items[token]
 	if !ok {
-		return 0, ErrTicketInvalid
+		return 0, "", ErrTicketInvalid
 	}
 	delete(s.items, token)
 	if s.now().After(t.expiresAt) {
-		return 0, ErrTicketInvalid
+		return 0, "", ErrTicketInvalid
 	}
-	return t.userID, nil
+	return t.userID, t.origin, nil
 }
 
 func (s *TicketStore) sweepLocked() {

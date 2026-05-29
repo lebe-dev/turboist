@@ -41,6 +41,7 @@ const subscriberBufferSize = 16
 type subscriber struct {
 	id      uint64
 	userID  int64
+	origin  string
 	ch      chan Event
 	closeCh sync.Once
 }
@@ -75,10 +76,16 @@ func NewHub(log *slog.Logger) *Hub {
 // receives events until cancel is called or the hub is closed. cancel is
 // idempotent and safe to call from any goroutine. If the hub is already
 // closed, the returned channel is closed immediately.
-func (h *Hub) Subscribe(userID int64) (<-chan Event, func()) {
+//
+// An optional origin tags the subscriber with the client that owns this
+// stream. Publish skips subscribers whose origin matches the publishing
+// request's origin, so a client never receives the echo of its own mutation
+// (see Publish). An empty origin disables this suppression for the subscriber.
+func (h *Hub) Subscribe(userID int64, origin ...string) (<-chan Event, func()) {
 	s := &subscriber{
 		id:     h.nextID.Add(1),
 		userID: userID,
+		origin: firstOrigin(origin),
 		ch:     make(chan Event, subscriberBufferSize),
 	}
 	h.mu.Lock()
@@ -131,7 +138,14 @@ func (h *Hub) Close() {
 // Publish delivers an event to every subscriber of userID. Non-blocking: if a
 // subscriber's buffer is full the event is dropped for that subscriber and a
 // warning is logged.
-func (h *Hub) Publish(ctx context.Context, userID int64, scope Scope) {
+//
+// An optional origin identifies the client that triggered the change.
+// Subscribers tagged with the same origin are skipped — a client must not
+// receive the echo of its own mutation, since it already applies the change
+// from the mutation's own response. An empty origin delivers to everyone.
+func (h *Hub) Publish(ctx context.Context, userID int64, scope Scope, origin ...string) {
+	skip := firstOrigin(origin)
+
 	h.mu.RLock()
 	bucket := h.subs[userID]
 	if len(bucket) == 0 {
@@ -140,6 +154,9 @@ func (h *Hub) Publish(ctx context.Context, userID int64, scope Scope) {
 	}
 	targets := make([]*subscriber, 0, len(bucket))
 	for _, s := range bucket {
+		if skip != "" && s.origin == skip {
+			continue
+		}
 		targets = append(targets, s)
 	}
 	h.mu.RUnlock()
@@ -165,6 +182,15 @@ func (h *Hub) SubscriberCount(userID int64) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.subs[userID])
+}
+
+// firstOrigin extracts the optional origin from a variadic argument,
+// returning "" when none was supplied.
+func firstOrigin(origin []string) string {
+	if len(origin) == 0 {
+		return ""
+	}
+	return origin[0]
 }
 
 func (h *Hub) logger(ctx context.Context) *slog.Logger {

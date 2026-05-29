@@ -48,6 +48,41 @@ func TestHub_PublishFansOutToAllSubscribersOfSameUser(t *testing.T) {
 	}
 }
 
+func TestHub_PublishSkipsMatchingOrigin(t *testing.T) {
+	h := NewHub(slog.Default())
+	self, cancelSelf := h.Subscribe(1, "tab-self")
+	defer cancelSelf()
+	other, cancelOther := h.Subscribe(1, "tab-other")
+	defer cancelOther()
+	plain, cancelPlain := h.Subscribe(1) // no origin
+	defer cancelPlain()
+
+	h.Publish(context.Background(), 1, ScopeTasks, "tab-self")
+
+	if _, ok := recvWithin(t, self, 100*time.Millisecond); ok {
+		t.Fatal("origin tab-self: should not receive echo of its own mutation")
+	}
+	if _, ok := recvWithin(t, other, time.Second); !ok {
+		t.Fatal("origin tab-other: expected event")
+	}
+	if _, ok := recvWithin(t, plain, time.Second); !ok {
+		t.Fatal("no-origin subscriber: expected event")
+	}
+}
+
+func TestHub_PublishEmptyOriginDeliversToAll(t *testing.T) {
+	h := NewHub(slog.Default())
+	tagged, cancel := h.Subscribe(1, "tab-self")
+	defer cancel()
+
+	// An empty publishing origin must never suppress (back-compat with clients
+	// that do not send X-Client-Origin).
+	h.Publish(context.Background(), 1, ScopeTasks)
+	if _, ok := recvWithin(t, tagged, time.Second); !ok {
+		t.Fatal("expected event when publish origin is empty")
+	}
+}
+
 func TestHub_PublishDoesNotCrossUsers(t *testing.T) {
 	h := NewHub(slog.Default())
 	ch1, cancel1 := h.Subscribe(1)

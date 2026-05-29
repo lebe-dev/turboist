@@ -172,6 +172,12 @@ export interface PlanStatsResponse {
 	backlog: number;
 }
 
+export interface SidebarStatsResponse {
+	planStats: PlanStatsResponse;
+	inboxStats: { count: number; warnThresholdExceeded: boolean };
+	pinned: ViewList<Task>;
+}
+
 export interface TroikiProject extends Project {
 	tasks: Task[];
 }

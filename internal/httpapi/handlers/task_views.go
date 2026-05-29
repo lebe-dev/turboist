@@ -34,6 +34,7 @@ func (h *TaskViewHandler) Register(r fiber.Router) {
 	r.Get("/tasks/pinned", httpapi.RequireScope("tasks:read"), h.pinned)
 	r.Get("/tasks/completed", httpapi.RequireScope("tasks:read"), h.completed)
 	r.Get("/stats/plan", httpapi.RequireScope("tasks:read"), h.statsPlan)
+	r.Get("/stats/sidebar", httpapi.RequireScope("tasks:read"), h.statsSidebar)
 }
 
 // todayStart returns the start of the current day in the configured timezone.
@@ -233,6 +234,78 @@ func (h *TaskViewHandler) statsPlan(c fiber.Ctx) error {
 		return httpapi.ErrInternal("count backlog").WithCause(err)
 	}
 	return c.JSON(statsPlanResponse{Week: week, Backlog: backlog})
+}
+
+type sidebarInboxStats struct {
+	Count                 int  `json:"count"`
+	WarnThresholdExceeded bool `json:"warnThresholdExceeded"`
+}
+
+// sidebarStatsResponse bundles every aggregate the app shell shows in the
+// sidebar: plan counters, the inbox badge and the pinned list. A client that
+// just mutated its own data refetches this once (its own SSE echo is
+// suppressed) instead of issuing the three separate /stats/plan + /inbox +
+// /tasks/pinned requests the SSE handlers would otherwise trigger.
+type sidebarStatsResponse struct {
+	PlanStats  statsPlanResponse `json:"planStats"`
+	InboxStats sidebarInboxStats `json:"inboxStats"`
+	Pinned     viewResponse      `json:"pinned"`
+}
+
+func (h *TaskViewHandler) statsSidebar(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	var (
+		planStats  statsPlanResponse
+		inboxStats sidebarInboxStats
+		pinned     viewResponse
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		week, err := h.tasks.CountWeek(gctx)
+		if err != nil {
+			return err
+		}
+		backlog, err := h.tasks.CountBacklog(gctx)
+		if err != nil {
+			return err
+		}
+		planStats = statsPlanResponse{Week: week, Backlog: backlog}
+		return nil
+	})
+
+	g.Go(func() error {
+		_, total, err := h.tasks.ListInbox(gctx, repo.TaskFilter{}, repo.Page{Limit: 0})
+		if err != nil {
+			return err
+		}
+		inboxStats = sidebarInboxStats{
+			Count:                 total,
+			WarnThresholdExceeded: total > h.cfg.Inbox.WarnThreshold,
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListPinned(gctx, repo.TaskFilter{})
+		if err != nil {
+			return err
+		}
+		pinned = viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return httpapi.ErrInternal("load sidebar stats").WithCause(err)
+	}
+
+	return c.JSON(sidebarStatsResponse{
+		PlanStats:  planStats,
+		InboxStats: inboxStats,
+		Pinned:     pinned,
+	})
 }
 
 func tasksToDTO(tasks []model.Task, baseURL string) []dto.TaskDTO {

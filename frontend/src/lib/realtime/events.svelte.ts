@@ -1,5 +1,6 @@
 import { events as eventsApi } from '../api/endpoints/events';
 import { getApiClient } from '../api/client';
+import { clientOrigin } from './origin';
 
 export type EventScope =
 	| 'tasks'
@@ -71,7 +72,7 @@ function createEventsClient() {
 		if (!started || connecting || source) return;
 		connecting = true;
 		try {
-			const { ticket } = await eventsApi.issueTicket(getApiClient());
+			const { ticket } = await eventsApi.issueTicket(getApiClient(), clientOrigin);
 			if (!started) return;
 			const url = `/api/v1/events?ticket=${encodeURIComponent(ticket)}`;
 			const es = new EventSource(url);

@@ -3,6 +3,8 @@ import { ApiError } from '../api/errors';
 import { auth, type AuthCredentials } from '../api/endpoints/auth';
 import type { User } from '../api/types';
 import { addApiLogEntry } from '../stores/apiLog.svelte';
+import { clientOrigin } from '../realtime/origin';
+import { onSelfMutation } from '../realtime/selfRefresh';
 
 export type AuthStatus = 'loading' | 'guest' | 'authenticated';
 
@@ -42,7 +44,9 @@ export class AuthStore {
 				this.accessToken = null;
 				this.status = 'guest';
 			},
-			onLog: (entry) => addApiLogEntry(entry)
+			onLog: (entry) => addApiLogEntry(entry),
+			clientOrigin,
+			onMutation: (path) => onSelfMutation(path)
 		});
 		setApiClient(this.client);
 	}

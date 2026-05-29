@@ -1056,6 +1056,28 @@ curl "$BASE/api/v1/stats/plan" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### `GET /api/v1/stats/sidebar`
+
+Bundles every aggregate the app shell shows in the sidebar — plan counters, the
+inbox badge and the pinned list — in one round-trip. A client that just mutated
+its own data refetches this once (its own SSE echo is suppressed — see
+_Real-time invalidation_ in [docs/architecture/backend.md](docs/architecture/backend.md))
+instead of issuing the three separate `stats/plan` + `inbox` + `tasks/pinned`
+requests.
+
+```json
+{
+  "planStats": { "week": 8, "backlog": 14 },
+  "inboxStats": { "count": 3, "warnThresholdExceeded": false },
+  "pinned": { "items": [], "total": 0 }
+}
+```
+
+```sh
+curl "$BASE/api/v1/stats/sidebar" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ---
 
 ## Task Bulk Operations

@@ -29,12 +29,20 @@ func PublishMiddleware(hub *events.Hub) fiber.Handler {
 		if userID == 0 {
 			return nil
 		}
+		// The originating client tags its mutations with X-Client-Origin; the
+		// hub skips that client's own stream so it never receives the echo of
+		// a change it already applied locally from the response.
+		origin := c.Get(clientOriginHeader)
 		for _, scope := range scopesForPath(c.Path()) {
-			hub.Publish(c.Context(), userID, scope)
+			hub.Publish(c.Context(), userID, scope, origin)
 		}
 		return nil
 	}
 }
+
+// clientOriginHeader carries the caller's per-tab client id on mutating
+// requests. See Hub.Publish for how it suppresses self-echo.
+const clientOriginHeader = "X-Client-Origin"
 
 func isMutatingMethod(m string) bool {
 	switch m {
