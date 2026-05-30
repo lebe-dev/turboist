@@ -533,6 +533,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 |----------|-------|
 | `GET /api/v1/projects` | `projects:read` |
 | `GET /api/v1/projects/:id` | `projects:read` |
+| `GET /api/v1/projects/:id/bundle` | `projects:read` + `sections:read` + `tasks:read` |
 | `PATCH /api/v1/projects/:id` | `projects:write` |
 | `DELETE /api/v1/projects/:id` | `projects:write` |
 | `GET /api/v1/projects/:id/tasks` | `tasks:read` |
@@ -1322,6 +1323,27 @@ curl "$BASE/api/v1/projects?contextId=1&status=open" \
 ```sh
 curl "$BASE/api/v1/projects/10" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+### `GET /api/v1/projects/:id/bundle`
+
+Single round-trip aggregate for the project page. Returns the project, its
+sections and all its tasks (subtasks included, flattened — re-parent client-side
+by `parentId`) instead of three separate `GET` calls. Because it exposes data
+across three domains, an API token must hold **all** of `projects:read`,
+`sections:read` and `tasks:read` (JWT sessions are unrestricted).
+
+```sh
+curl "$BASE/api/v1/projects/10/bundle" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "project": { "id": 10, "title": "...", "...": "..." },
+  "sections": { "items": [ { "id": 3, "title": "Backlog", "...": "..." } ], "total": 1, "limit": 200, "offset": 0 },
+  "tasks": { "items": [ { "id": 42, "title": "...", "parentId": null, "...": "..." } ], "total": 12, "limit": 500, "offset": 0 }
+}
 ```
 
 ### `PATCH /api/v1/projects/:id`

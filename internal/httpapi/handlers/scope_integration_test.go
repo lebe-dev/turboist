@@ -276,3 +276,24 @@ func TestScope_CrossResource_ListTasksInContext(t *testing.T) {
 		t.Fatalf("GET /contexts/:id/tasks: got %d, want 200; body: %s", resp.StatusCode, body)
 	}
 }
+
+func TestScope_Bundle_RequiresAllDomains(t *testing.T) {
+	e := setupAPIEnv(t)
+	projID := seedProjectForScope(t, e)
+	url := "/api/v1/projects/" + itoa(projID) + "/bundle"
+
+	// Only tasks:read — missing projects:read + sections:read → forbidden, even
+	// though the bundle returns task data the token could read on its own.
+	partial := issueAPIToken(t, e, "tasks-only", []string{"tasks:read"})
+	resp, body := runRequest(t, e.app, tokenReq(http.MethodGet, url, partial, nil))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("partial scope: got %d, want 403; body: %s", resp.StatusCode, body)
+	}
+
+	// All three read scopes → allowed.
+	full := issueAPIToken(t, e, "bundle-reader", []string{"projects:read", "sections:read", "tasks:read"})
+	resp, body = runRequest(t, e.app, tokenReq(http.MethodGet, url, full, nil))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("full scope: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+}

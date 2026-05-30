@@ -156,6 +156,16 @@ export interface TodayBundle {
 	completedToday: ViewList<Task>;
 }
 
+// ProjectBundle is the single-round-trip payload for the project page: the
+// project, its sections and all its tasks (subtasks included, flattened — the
+// client re-parents them via buildTree). Mirrors the backend
+// projectBundleResponse behind GET /api/v1/projects/:id/bundle.
+export interface ProjectBundle {
+	project: Project;
+	sections: Page<ProjectSection>;
+	tasks: Page<Task>;
+}
+
 export interface InboxResponse {
 	count: number;
 	warnThresholdExceeded: boolean;

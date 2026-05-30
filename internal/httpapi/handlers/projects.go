@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/model"
@@ -52,6 +54,7 @@ func (h *ProjectHandler) Register(r fiber.Router) {
 	p := r.Group("/projects")
 	p.Get("/", httpapi.RequireScope("projects:read"), h.list)
 	p.Get("/:id", httpapi.RequireScope("projects:read"), h.get)
+	p.Get("/:id/bundle", httpapi.RequireAllScopes("projects:read", "sections:read", "tasks:read"), h.bundle)
 	p.Patch("/:id", httpapi.RequireScope("projects:write"), h.patch)
 	p.Delete("/:id", httpapi.RequireScope("projects:write"), h.delete)
 	p.Get("/:id/sections", httpapi.RequireScope("sections:read"), h.listSections)
@@ -110,6 +113,78 @@ func (h *ProjectHandler) get(c fiber.Ctx) error {
 		return httpapi.ErrInternal("get project").WithCause(err)
 	}
 	return c.JSON(dto.ProjectFromModel(*p))
+}
+
+// projectBundleResponse groups everything the project page needs — the project
+// itself, its sections and all its tasks (subtasks included, flattened) — into
+// a single response. Previously the page issued three parallel requests
+// (project + sections + tasks); now it is one round-trip, mirroring the
+// today/sidebar bundles.
+type projectBundleResponse struct {
+	Project  dto.ProjectDTO                    `json:"project"`
+	Sections dto.PagedResponse[dto.SectionDTO] `json:"sections"`
+	Tasks    dto.PagedResponse[dto.TaskDTO]    `json:"tasks"`
+}
+
+// projectBundleSectionLimit / projectBundleTaskLimit mirror the limits the
+// frontend used when it called the separate list endpoints (sections?limit=200,
+// tasks?limit=500). They cover any realistic single project.
+const (
+	projectBundleSectionLimit = 200
+	projectBundleTaskLimit    = 500
+)
+
+func (h *ProjectHandler) bundle(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+	p, err := h.projects.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("project not found")
+		}
+		return httpapi.ErrInternal("get project").WithCause(err)
+	}
+
+	var (
+		sectionsResp dto.PagedResponse[dto.SectionDTO]
+		tasksResp    dto.PagedResponse[dto.TaskDTO]
+	)
+
+	g, gctx := errgroup.WithContext(c.Context())
+
+	g.Go(func() error {
+		items, total, err := h.sections.ListByProject(gctx, id, repo.Page{Limit: projectBundleSectionLimit})
+		if err != nil {
+			return err
+		}
+		dtos := make([]dto.SectionDTO, len(items))
+		for i, s := range items {
+			dtos[i] = dto.SectionFromModel(s)
+		}
+		sectionsResp = dto.NewPagedResponse(dtos, total, projectBundleSectionLimit, 0)
+		return nil
+	})
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListByProject(gctx, id, repo.TaskFilter{}, repo.Page{Limit: projectBundleTaskLimit})
+		if err != nil {
+			return err
+		}
+		tasksResp = dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, projectBundleTaskLimit, 0)
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return httpapi.ErrInternal("load project bundle").WithCause(err)
+	}
+
+	return c.JSON(projectBundleResponse{
+		Project:  dto.ProjectFromModel(*p),
+		Sections: sectionsResp,
+		Tasks:    tasksResp,
+	})
 }
 
 func (h *ProjectHandler) createForContext(c fiber.Ctx) error {

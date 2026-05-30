@@ -237,6 +237,31 @@ func RequireScope(scope string) fiber.Handler {
 	}
 }
 
+// RequireAllScopes is RequireScope for endpoints that expose data across
+// several domains (e.g. aggregate/bundle reads): the caller must hold every
+// listed scope, not just one. JWT sessions bypass scope checks as usual.
+func RequireAllScopes(scopes ...string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if GetAuthMethod(c) == AuthMethodJWT {
+			return c.Next()
+		}
+		granted, _ := c.Locals(localsTokenScopesKey).([]string)
+		for _, scope := range scopes {
+			if auth.HasScope(granted, scope) {
+				continue
+			}
+			ctx := c.Context()
+			logging.FromContext(ctx).WarnContext(ctx, "scope check failed",
+				slog.String("op", "httpapi.RequireAllScopes"),
+				slog.String("required", scope),
+				slog.Any("granted", granted),
+			)
+			return ErrForbidden("insufficient scope")
+		}
+		return c.Next()
+	}
+}
+
 // GetTokenScopes returns the scopes attached to the current API-token request,
 // or nil for JWT-authenticated requests / when no auth middleware ran.
 func GetTokenScopes(c fiber.Ctx) []string {
