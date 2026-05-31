@@ -357,7 +357,7 @@
 						weight="fill"
 					/>
 					<span class="min-w-0 break-words">
-						{project.title}{#if project.troikiCategory}<TroikiTriggerIcon
+						{project.title}{#if settingsStore.troikiEnabled && project.troikiCategory}<TroikiTriggerIcon
 								class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 md:size-2.5"
 							/>{/if}{#if project.isPrivate && !settingsStore.publicView}<span
 								class="inline-flex align-middle"

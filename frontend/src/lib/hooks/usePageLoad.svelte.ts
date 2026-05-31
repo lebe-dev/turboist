@@ -14,16 +14,21 @@ export function usePageLoad(
 	const autoLoad = opts?.autoLoad !== false;
 	let loading = $state(opts?.initialLoading ?? autoLoad);
 	let error = $state<string | null>(null);
-	let requestSeq = 0;
+	// Two independent counters so revalidate() can never prevent refetch() from
+	// resetting the loading flag. refetchSeq guards loading; revalSeq guards
+	// background revalidations. refetch() bumps both to cancel stale revals.
+	let refetchSeq = 0;
+	let revalSeq = 0;
 
 	async function refetch(): Promise<void> {
-		const my = ++requestSeq;
+		const myFetch = ++refetchSeq;
+		++revalSeq; // cancel any in-flight revalidation
 		loading = true;
 		error = null;
 		try {
-			await fetcher(() => my === requestSeq);
+			await fetcher(() => myFetch === refetchSeq);
 		} catch (err) {
-			if (my !== requestSeq) return;
+			if (myFetch !== refetchSeq) return;
 			const msg = describeError(err, opts?.errorMessage ?? 'Failed to load');
 			error = msg;
 			if (opts?.onError) {
@@ -32,7 +37,7 @@ export function usePageLoad(
 				toast.error(msg);
 			}
 		} finally {
-			if (my === requestSeq) loading = false;
+			if (myFetch === refetchSeq) loading = false;
 		}
 	}
 
@@ -41,7 +46,8 @@ export function usePageLoad(
 	}
 
 	function cancel(): void {
-		requestSeq++;
+		++refetchSeq;
+		++revalSeq;
 		loading = false;
 	}
 
@@ -51,11 +57,11 @@ export function usePageLoad(
 	// initiate this refresh, so a toast would be confusing; the next
 	// user-triggered refetch will surface real failures.
 	async function revalidate(): Promise<void> {
-		const my = ++requestSeq;
+		const my = ++revalSeq;
 		try {
-			await fetcher(() => my === requestSeq);
+			await fetcher(() => my === revalSeq);
 		} catch (err) {
-			if (my !== requestSeq) return;
+			if (my !== revalSeq) return;
 			console.warn('usePageLoad: revalidate failed', err);
 		}
 	}

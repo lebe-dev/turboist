@@ -31,6 +31,11 @@ type TaskDTO struct {
 	URL             string     `json:"url"`
 	CreatedAt       string     `json:"createdAt"`
 	UpdatedAt       string     `json:"updatedAt"`
+	// Subtasks is populated only by GET /tasks/:id?subtasks=true so the
+	// task detail page can fetch the parent task and its children in one
+	// round-trip. Other endpoints leave it nil and the `omitempty` tag
+	// keeps it out of the wire format.
+	Subtasks *PagedResponse[TaskDTO] `json:"subtasks,omitempty"`
 }
 
 func TaskFromModel(t model.Task, baseURL string) TaskDTO {

@@ -23,8 +23,8 @@ func NewStateHandler(users *repo.UserRepo) *StateHandler {
 }
 
 func (h *StateHandler) Register(r fiber.Router) {
-	r.Get("/state", h.get)
-	r.Patch("/state", h.patch)
+	r.Get("/state", httpapi.RequireScope("settings:read"), h.get)
+	r.Patch("/state", httpapi.RequireScope("settings:write"), h.patch)
 }
 
 func (h *StateHandler) get(c fiber.Ctx) error {

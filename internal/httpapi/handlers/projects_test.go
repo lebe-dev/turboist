@@ -690,3 +690,68 @@ func TestProjectListFilter_ByStatus(t *testing.T) {
 		t.Errorf("open count: got %d, want 0", result2.Total)
 	}
 }
+
+func TestProjectBundle_AggregatesProjectSectionsAndTasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	proj := createTestProject(t, e, ctx.ID, "Alpha")
+
+	// one section
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/sections", proj.ID), map[string]any{"title": "Backlog"}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create section: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var sec dto.SectionDTO
+	if err := json.Unmarshal(body, &sec); err != nil {
+		t.Fatalf("parse section: %v", err)
+	}
+
+	// a root task and a subtask of it, both in the project
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/tasks", proj.ID), map[string]any{"title": "Root task"}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create task: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var root dto.TaskDTO
+	if err := json.Unmarshal(body, &root); err != nil {
+		t.Fatalf("parse task: %v", err)
+	}
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/tasks", proj.ID), map[string]any{"title": "Child task", "parentId": root.ID}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create subtask: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/projects/%d/bundle", proj.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("bundle: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var bundle struct {
+		Project  dto.ProjectDTO                    `json:"project"`
+		Sections dto.PagedResponse[dto.SectionDTO] `json:"sections"`
+		Tasks    dto.PagedResponse[dto.TaskDTO]    `json:"tasks"`
+	}
+	if err := json.Unmarshal(body, &bundle); err != nil {
+		t.Fatalf("parse bundle: %v", err)
+	}
+	if bundle.Project.ID != proj.ID {
+		t.Errorf("project id: got %d, want %d", bundle.Project.ID, proj.ID)
+	}
+	if bundle.Sections.Total != 1 || len(bundle.Sections.Items) != 1 || bundle.Sections.Items[0].ID != sec.ID {
+		t.Errorf("sections: got total=%d items=%d", bundle.Sections.Total, len(bundle.Sections.Items))
+	}
+	// flattened: root + subtask are both returned so the client can buildTree.
+	if bundle.Tasks.Total != 2 || len(bundle.Tasks.Items) != 2 {
+		t.Errorf("tasks: got total=%d items=%d, want 2", bundle.Tasks.Total, len(bundle.Tasks.Items))
+	}
+}
+
+func TestProjectBundle_NotFound(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/projects/9999/bundle", nil))
+	if resp.StatusCode != 404 {
+		t.Fatalf("got %d, want 404; body: %s", resp.StatusCode, body)
+	}
+}

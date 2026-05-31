@@ -42,13 +42,13 @@ func NewTaskActionHandler(
 }
 
 func (h *TaskActionHandler) Register(r fiber.Router) {
-	r.Post("/tasks/:id/complete", h.complete)
-	r.Post("/tasks/:id/uncomplete", h.uncomplete)
-	r.Post("/tasks/:id/cancel", h.cancel)
-	r.Post("/tasks/:id/pin", h.pin)
-	r.Post("/tasks/:id/unpin", h.unpin)
-	r.Post("/tasks/:id/move", h.move)
-	r.Post("/tasks/:id/plan", h.plan)
+	r.Post("/tasks/:id/complete", httpapi.RequireScope("tasks:write"), h.complete)
+	r.Post("/tasks/:id/uncomplete", httpapi.RequireScope("tasks:write"), h.uncomplete)
+	r.Post("/tasks/:id/cancel", httpapi.RequireScope("tasks:write"), h.cancel)
+	r.Post("/tasks/:id/pin", httpapi.RequireScope("tasks:write"), h.pin)
+	r.Post("/tasks/:id/unpin", httpapi.RequireScope("tasks:write"), h.unpin)
+	r.Post("/tasks/:id/move", httpapi.RequireScope("tasks:write"), h.move)
+	r.Post("/tasks/:id/plan", httpapi.RequireScope("tasks:write"), h.plan)
 }
 
 // CompleteRequest is the optional body for POST /tasks/:id/complete. When

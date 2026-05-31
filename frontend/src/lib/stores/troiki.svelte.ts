@@ -40,6 +40,10 @@ class TroikiStore {
 		return v;
 	}
 
+	setValue(v: TroikiViewResponse): void {
+		this.value = v;
+	}
+
 	async start(): Promise<TroikiViewResponse> {
 		const v = await troikiApi.start(getApiClient());
 		this.value = v;

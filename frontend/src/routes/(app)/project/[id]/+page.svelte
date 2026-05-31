@@ -32,6 +32,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { reconcileByVersion } from '$lib/utils/reconcile';
 	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
 	import { PROJECT_SECTIONS_KEY } from '$lib/context/projectSections';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -108,21 +109,26 @@
 	});
 
 	const loader = usePageLoad(async (isValid) => {
-		project = null;
-		notFound = false;
-		sectionList = [];
-		taskList.items = [];
-		if (!Number.isFinite(projectId)) return;
-		const client = getApiClient();
-		const [p, sec, ts] = await Promise.all([
-			projectsApi.get(client, projectId),
-			projectsApi.listSections(client, projectId, { limit: 200 }),
-			projectsApi.listTasks(client, projectId, { limit: 500 })
-		]);
+		if (!Number.isFinite(projectId)) {
+			project = null;
+			notFound = false;
+			sectionList = [];
+			taskList.items = [];
+			return;
+		}
+		// One round-trip for project + sections + tasks (subtasks flattened).
+		const data = await projectsApi.bundle(getApiClient(), projectId);
 		if (!isValid()) return;
-		project = p;
-		sectionList = sec.items;
-		taskList.items = ts.items;
+		notFound = false;
+		// Reconcile by version so background revalidations (SSE catch-up,
+		// reconnect) reuse unchanged object references and don't re-render the
+		// whole tree. Refetch on navigation shows a spinner (loading=true), so we
+		// never flash stale data while the previous project's state lingers here.
+		if (!project || project.id !== data.project.id || project.updatedAt !== data.project.updatedAt) {
+			project = data.project;
+		}
+		sectionList = reconcileByVersion(sectionList, data.sections.items);
+		taskList.items = reconcileByVersion(taskList.items, data.tasks.items);
 	}, {
 		errorMessage: $t('page.project.errorLoading'),
 		autoLoad: false,

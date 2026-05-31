@@ -3,14 +3,19 @@ import type {
 	PlanStatsResponse,
 	SearchQuery,
 	SearchResponse,
+	SidebarStatsResponse,
 	Task,
+	TodayBundle,
 	ViewList,
 	ViewPageQuery,
 	ViewQuery
 } from '../types';
 
 export const views = {
-	today(client: ApiClient, query: ViewPageQuery = {}): Promise<ViewList<Task>> {
+	// today returns the bundle the Today page needs (today + overdue +
+	// completedToday) in a single request. Backend handler combines them
+	// behind `/api/v1/tasks/today`.
+	today(client: ApiClient, query: ViewPageQuery = {}): Promise<TodayBundle> {
 		return client.fetch('/api/v1/tasks/today', { query });
 	},
 
@@ -47,6 +52,14 @@ export const views = {
 
 	planStats(client: ApiClient): Promise<PlanStatsResponse> {
 		return client.fetch('/api/v1/stats/plan');
+	},
+
+	// sidebarStats bundles plan counters, the inbox badge and the pinned list in
+	// one request. The originating client refetches this once after its own
+	// mutation (its SSE echo is suppressed) instead of the three separate
+	// /stats/plan + /inbox + /tasks/pinned round-trips.
+	sidebarStats(client: ApiClient): Promise<SidebarStatsResponse> {
+		return client.fetch('/api/v1/stats/sidebar');
 	},
 
 	search(client: ApiClient, query: SearchQuery): Promise<SearchResponse> {

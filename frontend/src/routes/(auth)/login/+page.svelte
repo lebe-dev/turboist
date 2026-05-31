@@ -127,7 +127,6 @@
 	</form>
 {:else}
 	<form class="flex flex-col gap-4" onsubmit={onSubmit}>
-		<h1 class="text-lg font-semibold">{$t('auth.signIn')}</h1>
 		<div class="flex flex-col gap-1.5">
 			<Label for="username">{$t('auth.username')}</Label>
 			<Input id="username" bind:value={username} autocomplete="username" required />

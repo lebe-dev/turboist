@@ -15,20 +15,65 @@ type viewResp struct {
 	Total int           `json:"total"`
 }
 
-// TestTaskViews_Today creates a task due today and checks it appears in today view.
+type todayBundleResp struct {
+	Today          dto.PagedResponse[dto.TaskDTO] `json:"today"`
+	Overdue        dto.PagedResponse[dto.TaskDTO] `json:"overdue"`
+	CompletedToday dto.PagedResponse[dto.TaskDTO] `json:"completedToday"`
+}
+
+type sidebarStatsResp struct {
+	PlanStats struct {
+		Week    int `json:"week"`
+		Backlog int `json:"backlog"`
+	} `json:"planStats"`
+	InboxStats struct {
+		Count                 int  `json:"count"`
+		WarnThresholdExceeded bool `json:"warnThresholdExceeded"`
+	} `json:"inboxStats"`
+	Pinned viewResp `json:"pinned"`
+}
+
+func TestTaskViews_StatsSidebar_Empty(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/stats/sidebar", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result sidebarStatsResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.PlanStats.Week != 0 || result.PlanStats.Backlog != 0 {
+		t.Errorf("plan stats: got %+v, want zero", result.PlanStats)
+	}
+	if result.InboxStats.Count != 0 || result.InboxStats.WarnThresholdExceeded {
+		t.Errorf("inbox stats: got %+v, want zero", result.InboxStats)
+	}
+	if result.Pinned.Total != 0 || len(result.Pinned.Items) != 0 {
+		t.Errorf("pinned: got total=%d items=%d, want empty", result.Pinned.Total, len(result.Pinned.Items))
+	}
+}
+
+// TestTaskViews_Today_Empty hits the today bundle endpoint with an empty DB and
+// expects all three sub-lists to be empty.
 func TestTaskViews_Today_Empty(t *testing.T) {
 	e := setupAPIEnv(t)
 	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/today", nil))
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
 	}
-	var result dto.PagedResponse[dto.TaskDTO]
+	var result todayBundleResp
 	if err := json.Unmarshal(body, &result); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	// No tasks created, so empty.
-	if result.Total != 0 {
-		t.Errorf("total: got %d, want 0", result.Total)
+	if result.Today.Total != 0 {
+		t.Errorf("today total: got %d, want 0", result.Today.Total)
+	}
+	if result.Overdue.Total != 0 {
+		t.Errorf("overdue total: got %d, want 0", result.Overdue.Total)
+	}
+	if result.CompletedToday.Total != 0 {
+		t.Errorf("completedToday total: got %d, want 0", result.CompletedToday.Total)
 	}
 }
 

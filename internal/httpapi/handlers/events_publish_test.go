@@ -51,6 +51,31 @@ func TestPublishMiddleware_EmitsOnContextCreate(t *testing.T) {
 	}
 }
 
+func TestPublishMiddleware_SuppressesOwnOrigin(t *testing.T) {
+	e := setupAPIEnv(t)
+	self, cancelSelf := e.eventsHub.Subscribe(1, "tab-self")
+	defer cancelSelf()
+	other, cancelOther := e.eventsHub.Subscribe(1, "tab-other")
+	defer cancelOther()
+
+	req := e.authedReq(t, http.MethodPost, "/api/v1/contexts/", map[string]any{
+		"name":  "Home",
+		"color": "blue",
+	})
+	req.Header.Set("X-Client-Origin", "tab-self")
+	resp, body := doReq(t, e.app, req)
+	if resp.StatusCode != 201 && resp.StatusCode != 200 {
+		t.Fatalf("create context: got %d, body %s", resp.StatusCode, body)
+	}
+
+	if got := drain(self, 150*time.Millisecond); len(got) != 0 {
+		t.Fatalf("originating stream should not receive its own echo, got %v", got)
+	}
+	if got := drain(other, 150*time.Millisecond); len(got) == 0 {
+		t.Fatal("other stream should still receive the event")
+	}
+}
+
 func TestPublishMiddleware_NoEmitOnGet(t *testing.T) {
 	e := setupAPIEnv(t)
 	ch, cancel := e.eventsHub.Subscribe(1)

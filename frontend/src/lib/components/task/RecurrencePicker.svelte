@@ -252,7 +252,7 @@
 	>
 		<button
 			type="button"
-			onclick={onToggle}
+			onclick={(e) => { e.stopPropagation(); onToggle(); }}
 			aria-expanded={open}
 			class={`inline-flex h-full items-center gap-1.5 px-2.5 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 ${hasRepeat ? 'rounded-l-md' : 'rounded-md'}`}
 		>

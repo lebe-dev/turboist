@@ -42,13 +42,13 @@ func NewTaskHandler(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskSvc *s
 
 // Register wires task routes onto r (the /api/v1 group).
 func (h *TaskHandler) Register(r fiber.Router) {
-	r.Get("/tasks/:id", h.get)
-	r.Patch("/tasks/:id", h.patch)
-	r.Delete("/tasks/:id", h.delete)
-	r.Get("/tasks/:id/subtasks", h.listSubtasks)
-	r.Post("/tasks/:id/subtasks", h.createSubtask)
-	r.Post("/tasks/:id/duplicate", h.duplicate)
-	r.Post("/tasks/:id/decompose", h.decompose)
+	r.Get("/tasks/:id", httpapi.RequireScope("tasks:read"), h.get)
+	r.Patch("/tasks/:id", httpapi.RequireScope("tasks:write"), h.patch)
+	r.Delete("/tasks/:id", httpapi.RequireScope("tasks:write"), h.delete)
+	r.Get("/tasks/:id/subtasks", httpapi.RequireScope("tasks:read"), h.listSubtasks)
+	r.Post("/tasks/:id/subtasks", httpapi.RequireScope("tasks:write"), h.createSubtask)
+	r.Post("/tasks/:id/duplicate", httpapi.RequireScope("tasks:write"), h.duplicate)
+	r.Post("/tasks/:id/decompose", httpapi.RequireScope("tasks:write"), h.decompose)
 }
 
 func (h *TaskHandler) get(c fiber.Ctx) error {
@@ -56,7 +56,8 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Task.Get", slog.Int64("task_id", id))
+	includeSubtasks := c.Query("subtasks") == "true"
+	logEntry(c, "handler.Task.Get", slog.Int64("task_id", id), slog.Bool("subtasks", includeSubtasks))
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -64,7 +65,20 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
 	}
-	return c.JSON(dto.TaskFromModel(*t, h.baseURL))
+	out := dto.TaskFromModel(*t, h.baseURL)
+	if includeSubtasks {
+		items, err := h.tasks.ListSubtasks(c.Context(), id)
+		if err != nil {
+			return httpapi.ErrInternal("list subtasks").WithCause(err)
+		}
+		dtos := make([]dto.TaskDTO, len(items))
+		for i, st := range items {
+			dtos[i] = dto.TaskFromModel(st, h.baseURL)
+		}
+		page := dto.NewPagedResponse(dtos, len(dtos), len(dtos), 0)
+		out.Subtasks = &page
+	}
+	return c.JSON(out)
 }
 
 func (h *TaskHandler) patch(c fiber.Ctx) error {

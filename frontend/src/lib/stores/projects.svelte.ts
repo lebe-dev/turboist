@@ -19,6 +19,11 @@ class ProjectsStore {
 		return page.items;
 	}
 
+	setItems(items: Project[]): void {
+		this.items = items;
+		this.loaded = true;
+	}
+
 	upsert(project: Project): void {
 		const i = this.items.findIndex((p) => p.id === project.id);
 		if (i >= 0) this.items[i] = project;

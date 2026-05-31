@@ -67,8 +67,11 @@ func (h *AuthHandler) WithTOTP(svc *totp.Service) *AuthHandler {
 func (h *AuthHandler) Stop() { h.theft.stop() }
 
 // RegisterAuth wires /auth routes onto r. Protected routes (logout, me) use jwtIssuer middleware.
+//
+// Setup discovery is no longer a dedicated endpoint — `SetupCheckMiddleware`
+// on the /api/v1 group answers `/api/v1/config` with HTTP 503 `setup_required`
+// while the instance has no admin user, and the frontend reacts to that code.
 func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
-	r.Get("/setup-required", h.setupRequired)
 	r.Post("/setup", h.setup)
 	r.Post("/login", h.login)
 	r.Post("/login/otp", h.loginOTP)
@@ -77,14 +80,6 @@ func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
 	r.Post("/logout-all", httpapi.AuthMiddleware(jwtIssuer), h.logoutAll)
 	r.Post("/logout-others", httpapi.AuthMiddleware(jwtIssuer), h.logoutOthers)
 	r.Get("/me", httpapi.AuthMiddleware(jwtIssuer), h.me)
-}
-
-func (h *AuthHandler) setupRequired(c fiber.Ctx) error {
-	exists, err := h.users.Exists(c.Context())
-	if err != nil {
-		return httpapi.ErrInternal("check user existence").WithCause(err)
-	}
-	return c.JSON(fiber.Map{"required": !exists})
 }
 
 func (h *AuthHandler) setup(c fiber.Ctx) error {

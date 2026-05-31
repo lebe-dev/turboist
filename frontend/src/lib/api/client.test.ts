@@ -55,6 +55,57 @@ describe('ApiClient.fetch', () => {
 		expect(headers.get('Authorization')).toBe('Bearer tok-A');
 	});
 
+	it('adds X-Client-Origin only on mutating requests when clientOrigin is set', async () => {
+		const tokens = { access: 'tok' as string | null };
+		const fetchMock = vi.fn<typeof fetch>();
+		const client = new ApiClient({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			getAccessToken: () => tokens.access,
+			setAccessToken: () => {},
+			onRefreshFailure: () => {},
+			clientOrigin: 'tab-xyz'
+		});
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+		await client.fetch('/api/v1/tasks');
+		let headers = fetchMock.mock.calls[0][1]!.headers as Headers;
+		expect(headers.get('X-Client-Origin')).toBeNull();
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+		await client.fetch('/api/v1/tasks/1', { method: 'PATCH', body: { title: 'x' } });
+		headers = fetchMock.mock.calls[1][1]!.headers as Headers;
+		expect(headers.get('X-Client-Origin')).toBe('tab-xyz');
+	});
+
+	it('invokes onMutation only after a successful mutating request', async () => {
+		const calls: Array<[string, string]> = [];
+		const fetchMock = vi.fn<typeof fetch>();
+		const client = new ApiClient({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			getAccessToken: () => 'tok',
+			setAccessToken: () => {},
+			onRefreshFailure: () => {},
+			onMutation: (path, method) => calls.push([path, method])
+		});
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+		await client.fetch('/api/v1/tasks/1'); // GET → no onMutation
+		expect(calls).toHaveLength(0);
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+		await client.fetch('/api/v1/tasks/1', { method: 'PATCH', body: { title: 'x' } });
+		expect(calls).toEqual([['/api/v1/tasks/1', 'PATCH']]);
+
+		// Failed mutation must not fire onMutation.
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse({ error: { code: 'validation', message: 'bad' } }, 422)
+		);
+		await expect(
+			client.fetch('/api/v1/tasks/1', { method: 'PATCH', body: {} })
+		).rejects.toBeInstanceOf(ApiError);
+		expect(calls).toHaveLength(1);
+	});
+
 	it('parses error envelope into ApiError', async () => {
 		const { client, fetchMock } = makeClient();
 		fetchMock.mockResolvedValueOnce(
@@ -219,6 +270,19 @@ describe('ApiClient.fetch', () => {
 		fetchMock.mockRejectedValueOnce(new TypeError('network down'));
 
 		await expect(client.fetch('/api/v1/config')).rejects.toBeInstanceOf(ApiError);
+	});
+
+	it('wraps timeout as ApiError(timeout)', async () => {
+		const { client, fetchMock } = makeClient();
+		const err = new DOMException('signal timed out', 'TimeoutError');
+		fetchMock.mockRejectedValueOnce(err);
+
+		await expect(client.fetch('/api/v1/config')).rejects.toMatchObject({
+			name: 'ApiError',
+			code: 'timeout',
+			message: 'request timed out',
+			status: 0
+		});
 	});
 
 	it('does not retry refresh recursively when refresh itself returns 401', async () => {

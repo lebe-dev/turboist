@@ -50,16 +50,19 @@ func (h *CalendarHandler) RegisterPublic(app fiber.Router) {
 }
 
 // Register registers authenticated calendar routes under the given router.
+// Mutation endpoints (Patch/Post/Delete) cover account/source/OAuth config that
+// has no `calendars:write` scope by design — they are admin operations, so we
+// gate them with RequireJWTAuth instead of a scope check.
 func (h *CalendarHandler) Register(r fiber.Router) {
-	r.Get("/", h.list)
-	r.Patch("/settings", h.patchSettings)
-	r.Get("/events", h.events)
-	r.Patch("/google/config", h.patchGoogleConfig)
-	r.Delete("/google/config", h.deleteGoogleConfig)
-	r.Get("/google/start", h.googleStart)
-	r.Post("/google/sync", h.googleSync)
-	r.Patch("/sources/:id", h.patchSource)
-	r.Delete("/accounts/:id", h.deleteAccount)
+	r.Get("/", httpapi.RequireScope("calendars:read"), h.list)
+	r.Patch("/settings", httpapi.RequireJWTAuth(), h.patchSettings)
+	r.Get("/events", httpapi.RequireScope("calendars:read"), h.events)
+	r.Patch("/google/config", httpapi.RequireJWTAuth(), h.patchGoogleConfig)
+	r.Delete("/google/config", httpapi.RequireJWTAuth(), h.deleteGoogleConfig)
+	r.Get("/google/start", httpapi.RequireScope("calendars:read"), h.googleStart)
+	r.Post("/google/sync", httpapi.RequireJWTAuth(), h.googleSync)
+	r.Patch("/sources/:id", httpapi.RequireJWTAuth(), h.patchSource)
+	r.Delete("/accounts/:id", httpapi.RequireJWTAuth(), h.deleteAccount)
 }
 
 // --- HTTP response types (stay in the handler layer) ---

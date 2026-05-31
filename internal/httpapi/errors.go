@@ -20,6 +20,7 @@ const (
 	CodeTOTPAlreadyEnabled = "totp_already_enabled"
 	CodeTOTPNotEnabled     = "totp_not_enabled"
 	CodeInternalError      = "internal_error"
+	CodeSetupRequired      = "setup_required"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -59,6 +60,14 @@ func newErr(status int, code, msg string, details ...any) *AppError {
 
 func ErrValidation(msg string, details ...any) *AppError {
 	return newErr(400, CodeValidationFailed, msg, details...)
+}
+
+// ErrUnprocessable signals that the request parsed cleanly but violates a
+// semantic rule (e.g. API-token scopes that fail auth.ValidateScopes). Maps
+// to HTTP 422 with the validation_failed code so frontend error handling
+// stays uniform with field-level ErrValidation.
+func ErrUnprocessable(msg string, details ...any) *AppError {
+	return newErr(422, CodeValidationFailed, msg, details...)
 }
 
 func ErrAuthInvalid(msg string) *AppError {
@@ -107,6 +116,13 @@ func ErrTroikiSlotFull(msg string) *AppError {
 
 func ErrInternal(msg string) *AppError {
 	return newErr(500, CodeInternalError, msg)
+}
+
+// ErrSetupRequired signals that the instance has no admin user yet — the
+// frontend should redirect to /setup. Returned by SetupCheckMiddleware before
+// auth runs, so callers do not need a token.
+func ErrSetupRequired() *AppError {
+	return newErr(503, CodeSetupRequired, "setup required")
 }
 
 func ErrTOTPInvalidCode() *AppError {

@@ -24,10 +24,10 @@ func NewTroikiHandler(svc *service.TroikiService, baseURL string) *TroikiHandler
 
 // Register wires routes onto the authenticated /api/v1 group.
 func (h *TroikiHandler) Register(r fiber.Router) {
-	r.Get("/troiki", h.view)
-	r.Post("/troiki/start", h.start)
-	r.Post("/troiki/reset", h.reset)
-	r.Post("/projects/:id/troiki", h.setProjectCategory)
+	r.Get("/troiki", httpapi.RequireScope("troiki:read"), h.view)
+	r.Post("/troiki/start", httpapi.RequireScope("troiki:write"), h.start)
+	r.Post("/troiki/reset", httpapi.RequireScope("troiki:write"), h.reset)
+	r.Post("/projects/:id/troiki", httpapi.RequireScope("projects:write"), h.setProjectCategory)
 }
 
 type troikiProjectDTO struct {
@@ -70,6 +70,14 @@ func (h *TroikiHandler) renderView(v service.TroikiView) troikiViewDTO {
 		Rest:      h.toSlot(v.Rest),
 		Started:   v.Started,
 	}
+}
+
+// RenderTroikiView formats a service.TroikiView using the given baseURL for
+// task attachment links. Shared with MetaHandler so /api/v1/config can embed
+// the troiki view without re-fetching it through a separate endpoint.
+func RenderTroikiView(v service.TroikiView, baseURL string) any {
+	h := &TroikiHandler{baseURL: baseURL}
+	return h.renderView(v)
 }
 
 func (h *TroikiHandler) view(c fiber.Ctx) error {

@@ -10,4 +10,5 @@ type UserSettings struct {
 	BannerPublished                 bool    `json:"bannerPublished"`
 	CalendarEnabled                 bool    `json:"calendarEnabled"`
 	CalendarHidePastEvents          bool    `json:"calendarHidePastEvents"`
+	TroikiEnabled                   bool    `json:"troikiEnabled"`
 }

@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
+	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
@@ -37,12 +38,13 @@
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
 	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
 
@@ -120,6 +122,21 @@
 		autoGrow(titleEl);
 	});
 	let priority = $state<Priority>('no-priority');
+
+	const checkboxClass = $derived.by(() => {
+		const base = 'mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+		const completed = task?.status === 'completed';
+		if (completed) {
+			if (priority === 'high') return `${base} border-red-500 bg-red-500 text-white`;
+			if (priority === 'medium') return `${base} border-amber-500 bg-amber-500 text-white`;
+			if (priority === 'low') return `${base} border-blue-500 bg-blue-500 text-white`;
+			return `${base} border-zinc-500 bg-zinc-500 text-white dark:border-zinc-600 dark:bg-zinc-600`;
+		}
+		if (priority === 'high') return `${base} border-red-500`;
+		if (priority === 'medium') return `${base} border-amber-500`;
+		if (priority === 'low') return `${base} border-blue-500`;
+		return `${base} border-border hover:border-primary`;
+	});
 	let dayPart = $state<DayPart>('none');
 	let dueDate = $state('');
 	let recurrence = $state<string | null>(null);
@@ -131,7 +148,9 @@
 		const projectId = t.projectId;
 		return projectsStore.items.find((p) => p.id === projectId)?.troikiCategory ?? null;
 	});
-	const projectTroikiLocked = $derived(projectTroikiCategory !== null);
+	const projectTroikiLocked = $derived(
+		settingsStore.troikiEnabled && projectTroikiCategory !== null
+	);
 	const inInbox = $derived(task?.inboxId !== null && task?.inboxId !== undefined);
 
 	let moveDialogOpen = $state(false);
@@ -186,23 +205,35 @@
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
 
+	function arrayEquals(a: readonly string[], b: readonly string[]): boolean {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) return false;
+		}
+		return true;
+	}
+
 	function hydrate(t: Task): void {
+		// Server returned the exact revision we already have (typical for the SSE
+		// echo that follows our own save). Skip everything — assigning identical
+		// values still flushes derived/effects and causes a visible flicker.
+		if (task && task.id === t.id && task.updatedAt === t.updatedAt) return;
+
 		allowSave = false;
 		task = t;
 		if (title !== t.title) title = t.title;
 		const nextDescription = t.description ?? '';
 		if (description !== nextDescription) description = nextDescription;
-		priority = t.priority;
-		dayPart = t.dayPart;
-		recurrence = t.recurrenceRule ?? null;
+		if (priority !== t.priority) priority = t.priority;
+		if (dayPart !== t.dayPart) dayPart = t.dayPart;
+		const nextRecurrence = t.recurrenceRule ?? null;
+		if (recurrence !== nextRecurrence) recurrence = nextRecurrence;
 		const dt = parseIso(t.dueAt);
-		if (dt) {
-			dueDate = dayKeyInTz(dt, configStore.value?.timezone ?? null);
-		} else {
-			dueDate = '';
-		}
-		labelIds = t.labels.map((l) => String(l.id));
-		removedAuto = [];
+		const nextDueDate = dt ? dayKeyInTz(dt, configStore.value?.timezone ?? null) : '';
+		if (dueDate !== nextDueDate) dueDate = nextDueDate;
+		const nextLabelIds = t.labels.map((l) => String(l.id));
+		if (!arrayEquals(labelIds, nextLabelIds)) labelIds = nextLabelIds;
+		if (removedAuto.length > 0) removedAuto = [];
 		// Permit auto-save only after all reactive effects from hydration have flushed
 		setTimeout(() => {
 			allowSave = true;
@@ -233,26 +264,27 @@
 		return () => viewFilterStore.clear();
 	});
 
+	$effect(() => {
+		if (task) currentTaskStore.set(task.projectId, task.labels.map((l) => l.id));
+		return () => currentTaskStore.clear();
+	});
+
 	const loader = usePageLoad(
 		async (isValid) => {
 			notFound = false;
-			task = null;
-			subtasks.items = [];
+			if (task?.id !== taskId) {
+				task = null;
+				subtasks.items = [];
+			}
 			if (!Number.isFinite(taskId)) {
 				notFound = true;
 				return;
 			}
 			const client = getApiClient();
-			const [t, subs] = await Promise.all([
-				tasksApi.get(client, taskId),
-				tasksApi.listSubtasks(client, taskId).catch((err) => {
-					if (err instanceof ApiError && err.code === 'not_found') return null;
-					throw err;
-				})
-			]);
+			const t = await tasksApi.get(client, taskId, { includeSubtasks: true });
 			if (!isValid()) return;
 			hydrate(t);
-			if (subs) subtasks.items = subs.items;
+			subtasks.items = t.subtasks?.items ?? [];
 		},
 		{
 			autoLoad: false,
@@ -368,29 +400,10 @@ async function save(): Promise<void> {
 	}
 
 	$effect(() => {
-		if (Number.isFinite(taskId)) void loader.refetch();
+		if (Number.isFinite(taskId)) untrack(() => void loader.refetch());
 	});
 
-	// Background revalidation via SSE: fetch and hydrate without nulling `task`
-	// so the textarea stays mounted and the mobile keyboard is not dismissed.
-	useInvalidation(['tasks'], () => {
-		if (!task) { void loader.revalidate(); return; }
-		const id = taskId;
-		void (async () => {
-			try {
-				const client = getApiClient();
-				const [t, subs] = await Promise.all([
-					tasksApi.get(client, id),
-					tasksApi.listSubtasks(client, id).catch(() => null)
-				]);
-				if (taskId !== id) return;
-				hydrate(t);
-				if (subs) subtasks.items = subs.items;
-			} catch {
-				// silently ignore background revalidation errors
-			}
-		})();
-	});
+	useInvalidation(['tasks'], () => void loader.revalidate());
 </script>
 
 <header class="flex items-center justify-between gap-3 border-b border-border px-2 py-1 sm:px-5">
@@ -408,7 +421,7 @@ async function save(): Promise<void> {
 					class="size-2 shrink-0 rounded-full"
 					style={`background-color: ${project.color}`}
 				></span>
-				<span class="truncate">{project.title}{#if project.troikiCategory}<TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50" />{/if}</span>
+				<span class="truncate">{project.title}{#if settingsStore.troikiEnabled && project.troikiCategory}<TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50" />{/if}</span>
 			</a>
 		{/if}
 	</div>
@@ -431,47 +444,61 @@ async function save(): Promise<void> {
 		class="grid gap-8 p-6 sm:grid-cols-[1fr_16rem] sm:p-8"
 	>
 		<div class="flex min-w-0 flex-col gap-4">
-			{#if showTitleRendered}
-				<div
-					role="textbox"
-					tabindex="0"
-					aria-label={$t('common.title')}
-					onclick={() => void focusTitle()}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							void focusTitle();
-						}
-					}}
-					class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none"
+			<div class="flex items-start gap-3">
+				<button
+					type="button"
+					onclick={() => task && void toggleComplete(task, pageMutator, { removeWhenCompleted: false })}
+					aria-label={task?.status === 'completed' ? $t('task.markIncomplete') : $t('task.markComplete')}
+					class={checkboxClass}
 				>
-					<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />
+					{#if task?.status === 'completed'}
+						<CheckIcon class="size-3" weight="bold" />
+					{/if}
+				</button>
+				<div class="min-w-0 flex-1">
+					{#if showTitleRendered}
+						<div
+							role="textbox"
+							tabindex="0"
+							aria-label={$t('common.title')}
+							onclick={() => void focusTitle()}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									void focusTitle();
+								}
+							}}
+							class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
+						>
+							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />
+						</div>
+					{:else}
+						<textarea
+							bind:this={titleEl}
+							bind:value={title}
+							aria-label={$t('common.title')}
+							placeholder={$t('page.task.namePlaceholder')}
+							rows="1"
+							oninput={(e) => {
+								autoGrow(e.currentTarget as HTMLTextAreaElement);
+								scheduleSave();
+							}}
+							onfocus={() => (titleFocused = true)}
+							onblur={() => (titleFocused = false)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									(e.currentTarget as HTMLTextAreaElement).blur();
+								}
+							}}
+							class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60 {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
+						></textarea>
+					{/if}
 				</div>
-			{:else}
-				<textarea
-					bind:this={titleEl}
-					bind:value={title}
-					aria-label={$t('common.title')}
-					placeholder={$t('page.task.namePlaceholder')}
-					rows="1"
-					oninput={(e) => {
-						autoGrow(e.currentTarget as HTMLTextAreaElement);
-						scheduleSave();
-					}}
-					onfocus={() => (titleFocused = true)}
-					onblur={() => (titleFocused = false)}
-					onkeydown={(e) => {
-						if (e.key === 'Enter') {
-							e.preventDefault();
-							(e.currentTarget as HTMLTextAreaElement).blur();
-						}
-					}}
-					class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60"
-				></textarea>
-			{/if}
-			<div class="relative">
+			</div>
+			<div class="relative pl-2">
 				{#if !description && !descriptionFocused}
-					<TextAlignStartIcon class="pointer-events-none absolute left-0 top-[2px] size-3.5 text-muted-foreground/40" />
+					<TextAlignStartIcon class="pointer-events-none absolute left-2 top-[2px] size-3.5 text-muted-foreground/40" />
 				{/if}
 				{#if showDescriptionRendered}
 					<div
@@ -485,7 +512,7 @@ async function save(): Promise<void> {
 								void focusDescription();
 							}
 						}}
-						class="block w-full cursor-text break-words text-sm leading-relaxed text-foreground outline-none"
+						class="block w-full cursor-text [overflow-wrap:anywhere] text-sm leading-relaxed text-foreground/70 outline-none"
 					>
 						<MarkdownRich text={description} />
 					</div>
@@ -502,7 +529,7 @@ async function save(): Promise<void> {
 						}}
 						onfocus={() => (descriptionFocused = true)}
 						onblur={() => (descriptionFocused = false)}
-						class="block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
+						class="block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground/70 outline-none placeholder:text-muted-foreground/60"
 						class:pl-5={!description && !descriptionFocused}
 					></textarea>
 				{/if}
@@ -510,11 +537,11 @@ async function save(): Promise<void> {
 
 			<section class="flex flex-col gap-2">
 				<div class="flex items-baseline justify-between gap-2">
-					<span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+					<span class="ml-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 						{$t('page.task.subtasks')}
 					</span>
 					{#if !inInbox && subtasks.items.length > 0}
-						<span class="text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
+						<span class="mr-2 text-[11px] text-muted-foreground/70">{subtasks.items.length}</span>
 					{/if}
 				</div>
 				{#if inInbox}

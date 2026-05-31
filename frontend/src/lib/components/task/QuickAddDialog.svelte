@@ -147,6 +147,14 @@
 
 	function selectProject(id: string): void {
 		if (isWrap && id === '') return;
+		const oldProjectLabels = new Set(
+			projectsStore.items.find((p) => String(p.id) === projectId)?.labels.map((l) => String(l.id)) ?? []
+		);
+		const newProjectLabels = projectsStore.items
+			.find((p) => String(p.id) === id)
+			?.labels.map((l) => String(l.id)) ?? [];
+		const custom = labelIds.filter((l) => !oldProjectLabels.has(l));
+		labelIds = [...new Set([...custom, ...newProjectLabels])];
 		projectId = id;
 		projectMenuOpen = false;
 	}

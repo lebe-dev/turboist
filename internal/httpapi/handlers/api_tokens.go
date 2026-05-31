@@ -39,26 +39,30 @@ func (h *APITokensHandler) Register(r fiber.Router) {
 const apiTokenNameMaxLen = 64
 
 type apiTokenResp struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt string `json:"createdAt"`
+	ID        int64    `json:"id"`
+	Name      string   `json:"name"`
+	Scopes    []string `json:"scopes"`
+	CreatedAt string   `json:"createdAt"`
 }
 
 type apiTokenCreateResp struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	Token     string `json:"token"`
-	CreatedAt string `json:"createdAt"`
+	ID        int64    `json:"id"`
+	Name      string   `json:"name"`
+	Scopes    []string `json:"scopes"`
+	Token     string   `json:"token"`
+	CreatedAt string   `json:"createdAt"`
 }
 
 type apiTokenCreateReq struct {
-	Name string `json:"name"`
+	Name   string   `json:"name"`
+	Scopes []string `json:"scopes"`
 }
 
 func toAPITokenResp(t *model.APIToken) apiTokenResp {
 	return apiTokenResp{
 		ID:        t.ID,
 		Name:      t.Name,
+		Scopes:    t.Scopes,
 		CreatedAt: model.FormatUTC(t.CreatedAt),
 	}
 }
@@ -83,13 +87,17 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 		logValidation(c, "handler.APIToken.Create", "name too long", slog.Int("len", len(name)))
 		return httpapi.ErrValidation("name is too long")
 	}
+	if err := auth.ValidateScopes(req.Scopes); err != nil {
+		logValidation(c, "handler.APIToken.Create", "invalid scopes", slog.String("err", err.Error()))
+		return httpapi.ErrUnprocessable(err.Error())
+	}
 
 	plain, err := auth.GenerateAPIToken()
 	if err != nil {
 		return httpapi.ErrInternal("generate token").WithCause(err)
 	}
 	hash := auth.HashAPIToken(plain, h.salt)
-	created, err := h.repo.Create(c.Context(), userID, name, hash)
+	created, err := h.repo.Create(c.Context(), userID, name, hash, req.Scopes)
 	if err != nil {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("token already exists")
@@ -105,6 +113,7 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(apiTokenCreateResp{
 		ID:        created.ID,
 		Name:      created.Name,
+		Scopes:    created.Scopes,
 		Token:     plain,
 		CreatedAt: model.FormatUTC(created.CreatedAt),
 	})

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import PlayIcon from 'phosphor-svelte/lib/Play';
@@ -29,6 +30,12 @@
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { t } from '$lib/i18n';
 	import type { ListMutator } from '$lib/utils/taskActions';
+
+	$effect(() => {
+		if (!settingsStore.troikiEnabled) {
+			void goto(resolve('/'));
+		}
+	});
 
 	async function loadAll(): Promise<void> {
 		await troikiStore.load();

@@ -99,12 +99,9 @@
 			const todayKey = dayKeyInTz(new Date(), tz);
 			const start = toIsoUtc(dayStartUtcInTz(todayKey, tz));
 			const end = toIsoUtc(dayStartUtcInTz(shiftDayKey(todayKey, 1), tz));
-			const [open, overdue, completed] = await Promise.all([
-				viewsApi.today(getApiClient(), { contextId: ctxId }),
-				viewsApi.overdue(getApiClient(), { contextId: ctxId }),
-				viewsApi.completedToday(getApiClient(), { limit: 1, contextId: ctxId })
-			]);
+			const bundle = await viewsApi.today(getApiClient(), { contextId: ctxId });
 			if (!isValid()) return;
+			const { today: open, overdue, completedToday: completed } = bundle;
 			const seen: Record<number, true> = {};
 			const merged: Task[] = [];
 			for (const t of [...overdue.items, ...open.items]) {

@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	localsClaimsKey     = "auth_claims"
-	localsRequestIDKey  = "request_id"
-	localsAuthMethodKey = "auth_method"
-	localsUserIDKey     = "auth_user_id"
+	localsClaimsKey      = "auth_claims"
+	localsRequestIDKey   = "request_id"
+	localsAuthMethodKey  = "auth_method"
+	localsUserIDKey      = "auth_user_id"
+	localsTokenScopesKey = "token_scopes"
 
 	AuthMethodJWT      = "jwt"
 	AuthMethodAPIToken = "api_token"
@@ -202,12 +203,70 @@ func APIAuthMiddleware(issuer *auth.JWTIssuer, apiTokens *repo.APITokenRepo, sal
 		}
 		c.Locals(localsAuthMethodKey, AuthMethodAPIToken)
 		c.Locals(localsUserIDKey, apiToken.UserID)
+		c.Locals(localsTokenScopesKey, apiToken.Scopes)
 		enrichLogger(c,
 			slog.Int64("user_id", apiToken.UserID),
 			slog.String("auth_method", AuthMethodAPIToken),
 		)
 		return c.Next()
 	}
+}
+
+// RequireScope enforces a granular permission on the authenticated API token.
+// JWT-authenticated requests always pass (full access). For API tokens the
+// granted set is read from Locals and matched against the required scope via
+// auth.HasScope (wildcard "*" satisfies any). On rejection the response stays
+// generic ("insufficient scope") to avoid leaking the scope catalogue via
+// enumeration; the actual required/granted pair is logged at WARN server-side.
+func RequireScope(scope string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if GetAuthMethod(c) == AuthMethodJWT {
+			return c.Next()
+		}
+		scopes, _ := c.Locals(localsTokenScopesKey).([]string)
+		if auth.HasScope(scopes, scope) {
+			return c.Next()
+		}
+		ctx := c.Context()
+		logging.FromContext(ctx).WarnContext(ctx, "scope check failed",
+			slog.String("op", "httpapi.RequireScope"),
+			slog.String("required", scope),
+			slog.Any("granted", scopes),
+		)
+		return ErrForbidden("insufficient scope")
+	}
+}
+
+// RequireAllScopes is RequireScope for endpoints that expose data across
+// several domains (e.g. aggregate/bundle reads): the caller must hold every
+// listed scope, not just one. JWT sessions bypass scope checks as usual.
+func RequireAllScopes(scopes ...string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		if GetAuthMethod(c) == AuthMethodJWT {
+			return c.Next()
+		}
+		granted, _ := c.Locals(localsTokenScopesKey).([]string)
+		for _, scope := range scopes {
+			if auth.HasScope(granted, scope) {
+				continue
+			}
+			ctx := c.Context()
+			logging.FromContext(ctx).WarnContext(ctx, "scope check failed",
+				slog.String("op", "httpapi.RequireAllScopes"),
+				slog.String("required", scope),
+				slog.Any("granted", granted),
+			)
+			return ErrForbidden("insufficient scope")
+		}
+		return c.Next()
+	}
+}
+
+// GetTokenScopes returns the scopes attached to the current API-token request,
+// or nil for JWT-authenticated requests / when no auth middleware ran.
+func GetTokenScopes(c fiber.Ctx) []string {
+	scopes, _ := c.Locals(localsTokenScopesKey).([]string)
+	return scopes
 }
 
 // RequireJWTAuth rejects requests authenticated via API token. Use it on

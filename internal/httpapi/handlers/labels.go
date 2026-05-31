@@ -25,13 +25,13 @@ func NewLabelHandler(labels *repo.LabelRepo, projects *repo.ProjectRepo, tasks *
 
 // Register wires label routes onto r.
 func (h *LabelHandler) Register(r fiber.Router) {
-	r.Get("/", h.list)
-	r.Post("/", h.create)
-	r.Get("/:id", h.get)
-	r.Patch("/:id", h.patch)
-	r.Delete("/:id", h.delete)
-	r.Get("/:id/tasks", h.listTasks)
-	r.Get("/:id/projects", h.listProjects)
+	r.Get("/", httpapi.RequireScope("labels:read"), h.list)
+	r.Post("/", httpapi.RequireScope("labels:write"), h.create)
+	r.Get("/:id", httpapi.RequireScope("labels:read"), h.get)
+	r.Patch("/:id", httpapi.RequireScope("labels:write"), h.patch)
+	r.Delete("/:id", httpapi.RequireScope("labels:write"), h.delete)
+	r.Get("/:id/tasks", httpapi.RequireScope("tasks:read"), h.listTasks)
+	r.Get("/:id/projects", httpapi.RequireScope("projects:read"), h.listProjects)
 }
 
 func (h *LabelHandler) list(c fiber.Ctx) error {

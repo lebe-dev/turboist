@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
@@ -24,14 +26,15 @@ func NewTaskViewHandler(tasks *repo.TaskRepo, cfg *config.Config, baseURL string
 }
 
 func (h *TaskViewHandler) Register(r fiber.Router) {
-	r.Get("/tasks/today", h.today)
-	r.Get("/tasks/tomorrow", h.tomorrow)
-	r.Get("/tasks/overdue", h.overdue)
-	r.Get("/tasks/week", h.week)
-	r.Get("/tasks/backlog", h.backlog)
-	r.Get("/tasks/pinned", h.pinned)
-	r.Get("/tasks/completed", h.completed)
-	r.Get("/stats/plan", h.statsPlan)
+	r.Get("/tasks/today", httpapi.RequireScope("tasks:read"), h.today)
+	r.Get("/tasks/tomorrow", httpapi.RequireScope("tasks:read"), h.tomorrow)
+	r.Get("/tasks/overdue", httpapi.RequireScope("tasks:read"), h.overdue)
+	r.Get("/tasks/week", httpapi.RequireScope("tasks:read"), h.week)
+	r.Get("/tasks/backlog", httpapi.RequireScope("tasks:read"), h.backlog)
+	r.Get("/tasks/pinned", httpapi.RequireScope("tasks:read"), h.pinned)
+	r.Get("/tasks/completed", httpapi.RequireScope("tasks:read"), h.completed)
+	r.Get("/stats/plan", httpapi.RequireScope("tasks:read"), h.statsPlan)
+	r.Get("/stats/sidebar", httpapi.RequireScope("tasks:read"), h.statsSidebar)
 }
 
 // todayStart returns the start of the current day in the configured timezone.
@@ -75,14 +78,68 @@ func parseViewFilter(c fiber.Ctx) repo.TaskFilter {
 	return f
 }
 
+// todayBundleResponse groups every list the Today page needs into one
+// response. Previously the page issued three parallel requests (today,
+// overdue, completed?limit=1) — now it is one round-trip.
+type todayBundleResponse struct {
+	Today          dto.PagedResponse[dto.TaskDTO] `json:"today"`
+	Overdue        dto.PagedResponse[dto.TaskDTO] `json:"overdue"`
+	CompletedToday dto.PagedResponse[dto.TaskDTO] `json:"completedToday"`
+}
+
 func (h *TaskViewHandler) today(c fiber.Ctx) error {
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := parseViewFilter(c)
-	items, total, err := h.tasks.ListToday(c.Context(), h.todayStart(), filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
-	if err != nil {
-		return httpapi.ErrInternal("list today").WithCause(err)
+	todayStart := h.todayStart()
+	ctx := c.Context()
+
+	var (
+		todayResp     dto.PagedResponse[dto.TaskDTO]
+		overdueResp   dto.PagedResponse[dto.TaskDTO]
+		completedResp dto.PagedResponse[dto.TaskDTO]
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListToday(gctx, todayStart, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
+		if err != nil {
+			return err
+		}
+		todayResp = dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset)
+		return nil
+	})
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListOverdue(gctx, todayStart, filter, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
+		if err != nil {
+			return err
+		}
+		overdueResp = dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset)
+		return nil
+	})
+
+	g.Go(func() error {
+		// Completed window is the same one /tasks/completed?days=1 returns:
+		// from start-of-today (in the configured timezone) through start-of-tomorrow.
+		end := todayStart.Add(24 * time.Hour)
+		items, total, err := h.tasks.ListCompletedInRange(gctx, todayStart, end, filter, repo.Page{Limit: 1, Offset: 0})
+		if err != nil {
+			return err
+		}
+		completedResp = dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, 1, 0)
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return httpapi.ErrInternal("list today bundle").WithCause(err)
 	}
-	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
+
+	return c.JSON(todayBundleResponse{
+		Today:          todayResp,
+		Overdue:        overdueResp,
+		CompletedToday: completedResp,
+	})
 }
 
 func (h *TaskViewHandler) tomorrow(c fiber.Ctx) error {
@@ -177,6 +234,78 @@ func (h *TaskViewHandler) statsPlan(c fiber.Ctx) error {
 		return httpapi.ErrInternal("count backlog").WithCause(err)
 	}
 	return c.JSON(statsPlanResponse{Week: week, Backlog: backlog})
+}
+
+type sidebarInboxStats struct {
+	Count                 int  `json:"count"`
+	WarnThresholdExceeded bool `json:"warnThresholdExceeded"`
+}
+
+// sidebarStatsResponse bundles every aggregate the app shell shows in the
+// sidebar: plan counters, the inbox badge and the pinned list. A client that
+// just mutated its own data refetches this once (its own SSE echo is
+// suppressed) instead of issuing the three separate /stats/plan + /inbox +
+// /tasks/pinned requests the SSE handlers would otherwise trigger.
+type sidebarStatsResponse struct {
+	PlanStats  statsPlanResponse `json:"planStats"`
+	InboxStats sidebarInboxStats `json:"inboxStats"`
+	Pinned     viewResponse      `json:"pinned"`
+}
+
+func (h *TaskViewHandler) statsSidebar(c fiber.Ctx) error {
+	ctx := c.Context()
+
+	var (
+		planStats  statsPlanResponse
+		inboxStats sidebarInboxStats
+		pinned     viewResponse
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		week, err := h.tasks.CountWeek(gctx)
+		if err != nil {
+			return err
+		}
+		backlog, err := h.tasks.CountBacklog(gctx)
+		if err != nil {
+			return err
+		}
+		planStats = statsPlanResponse{Week: week, Backlog: backlog}
+		return nil
+	})
+
+	g.Go(func() error {
+		_, total, err := h.tasks.ListInbox(gctx, repo.TaskFilter{}, repo.Page{Limit: 0})
+		if err != nil {
+			return err
+		}
+		inboxStats = sidebarInboxStats{
+			Count:                 total,
+			WarnThresholdExceeded: total > h.cfg.Inbox.WarnThreshold,
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListPinned(gctx, repo.TaskFilter{})
+		if err != nil {
+			return err
+		}
+		pinned = viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return httpapi.ErrInternal("load sidebar stats").WithCause(err)
+	}
+
+	return c.JSON(sidebarStatsResponse{
+		PlanStats:  planStats,
+		InboxStats: inboxStats,
+		Pinned:     pinned,
+	})
 }
 
 func tasksToDTO(tasks []model.Task, baseURL string) []dto.TaskDTO {

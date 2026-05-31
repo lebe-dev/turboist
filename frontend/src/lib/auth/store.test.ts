@@ -15,9 +15,13 @@ function emptyResponse(status = 204): Response {
 describe('AuthStore', () => {
 	afterEach(() => vi.restoreAllMocks());
 
-	it('bootstrap → setup-required=true sets status=guest and setupRequired=true', async () => {
+	it('bootstrap → refresh fails + /config returns 503 setup_required → setupRequired=true', async () => {
 		const fetchMock = vi.fn<typeof fetch>();
-		fetchMock.mockResolvedValueOnce(jsonResponse({ required: true }));
+		fetchMock
+			.mockResolvedValueOnce(emptyResponse(401))
+			.mockResolvedValueOnce(
+				jsonResponse({ error: { code: 'setup_required', message: 'setup required' } }, 503)
+			);
 
 		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
 		const result = await store.bootstrap();
@@ -26,13 +30,11 @@ describe('AuthStore', () => {
 		expect(store.status).toBe('guest');
 		expect(store.setupRequired).toBe(true);
 		expect(store.user).toBeNull();
-		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('bootstrap → setup-required=false, refresh ok, /auth/me returns user → authenticated', async () => {
+	it('bootstrap → refresh ok, /auth/me returns user → authenticated', async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 		fetchMock
-			.mockResolvedValueOnce(jsonResponse({ required: false }))
 			.mockResolvedValueOnce(jsonResponse({ access: 'A', refresh: 'R' }))
 			.mockResolvedValueOnce(jsonResponse({ user: { id: 1, username: 'eu' } }));
 
@@ -45,10 +47,10 @@ describe('AuthStore', () => {
 		expect(store.user).toEqual({ id: 1, username: 'eu' });
 	});
 
-	it('bootstrap → refresh 401 sets guest', async () => {
+	it('bootstrap → refresh 401 + /config 401 → plain guest', async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 		fetchMock
-			.mockResolvedValueOnce(jsonResponse({ required: false }))
+			.mockResolvedValueOnce(emptyResponse(401))
 			.mockResolvedValueOnce(emptyResponse(401));
 
 		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
@@ -58,6 +60,7 @@ describe('AuthStore', () => {
 		expect(store.status).toBe('guest');
 		expect(store.user).toBeNull();
 		expect(store.accessToken).toBeNull();
+		expect(store.setupRequired).toBe(false);
 	});
 
 	it('login stores access + user and flips status to authenticated', async () => {

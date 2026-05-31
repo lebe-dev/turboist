@@ -128,44 +128,6 @@ func bearerHeader(token string) string {
 
 // --- Tests ---
 
-func TestSetupRequired_NoUser(t *testing.T) {
-	env := setupAuthTest(t)
-	req := httptest.NewRequest(http.MethodGet, "/auth/setup-required", nil)
-	resp, body := doReq(t, env.app, req)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d, want 200", resp.StatusCode)
-	}
-	var result struct {
-		Required bool `json:"required"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if !result.Required {
-		t.Error("required: got false, want true")
-	}
-}
-
-func TestSetupRequired_WithUser(t *testing.T) {
-	env := setupAuthTest(t)
-	doSetup(t, env, "cli")
-
-	req := httptest.NewRequest(http.MethodGet, "/auth/setup-required", nil)
-	resp, body := doReq(t, env.app, req)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d, want 200", resp.StatusCode)
-	}
-	var result struct {
-		Required bool `json:"required"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if result.Required {
-		t.Error("required: got true, want false")
-	}
-}
-
 func TestSetup_Success(t *testing.T) {
 	env := setupAuthTest(t)
 	ar := doSetup(t, env, "cli")

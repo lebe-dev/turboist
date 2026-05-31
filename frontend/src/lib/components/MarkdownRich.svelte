@@ -30,20 +30,20 @@
 			</h4>
 		{/if}
 	{:else if block.type === 'paragraph'}
-		<p class="whitespace-pre-wrap break-words [&:not(:first-child)]:mt-2">
+		<p class="whitespace-pre-wrap [overflow-wrap:anywhere] [&:not(:first-child)]:mt-2">
 			<MarkdownInline segments={block.segments} {linkClass} />
 		</p>
 	{:else if block.type === 'list'}
 		{#if block.ordered}
 			<ol class="ml-5 list-decimal [&:not(:first-child)]:mt-2">
 				{#each block.items as item, j (j)}
-					<li><MarkdownInline segments={item} {linkClass} /></li>
+					<li class="[overflow-wrap:anywhere]"><MarkdownInline segments={item} {linkClass} /></li>
 				{/each}
 			</ol>
 		{:else}
 			<ul class="ml-5 list-disc [&:not(:first-child)]:mt-2">
 				{#each block.items as item, j (j)}
-					<li><MarkdownInline segments={item} {linkClass} /></li>
+					<li class="[overflow-wrap:anywhere]"><MarkdownInline segments={item} {linkClass} /></li>
 				{/each}
 			</ul>
 		{/if}

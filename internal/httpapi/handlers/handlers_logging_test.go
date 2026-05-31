@@ -62,7 +62,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	cap := newCaptureHandler()
 	logger := slog.New(cap)
 
-	deps := httpapi.Deps{Log: logger, JWTIssuer: issuer, APITokenRepo: apiTokens, APITokenSalt: salt}
+	deps := httpapi.Deps{Log: logger, JWTIssuer: issuer, UserRepo: users, APITokenRepo: apiTokens, APITokenSalt: salt}
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)
 
@@ -87,7 +87,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	handlers.NewTroikiHandler(troikiSvc, testBaseURL).Register(api)
 	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
-	handlers.NewMetaHandler(cfg, false).Register(api)
+	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings, troikiSvc, testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewStateHandler(users).Register(api)
 	handlers.NewAppSettingsHandler(appSettings, lbls).Register(api)
@@ -452,7 +452,7 @@ func TestAppSettings_PutAutoLabels_EmptyMask_LogsWarn(t *testing.T) {
 func TestAPITokens_Create_LogsInfoAndNoTokenValue(t *testing.T) {
 	env := setupAPIEnvWithLog(t)
 	req := env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/",
-		map[string]any{"name": "cli"})
+		map[string]any{"name": "cli", "scopes": []string{"*"}})
 	resp, body := doReq(t, env.app, req)
 	if resp.StatusCode != 201 {
 		t.Fatalf("status: got %d, want 201 body %s", resp.StatusCode, body)

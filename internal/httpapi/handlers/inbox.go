@@ -26,8 +26,8 @@ func NewInboxHandler(tasks *repo.TaskRepo, taskSvc *service.TaskService, cfg *co
 
 // Register wires inbox routes onto r.
 func (h *InboxHandler) Register(r fiber.Router) {
-	r.Get("/", h.get)
-	r.Post("/tasks", h.createTask)
+	r.Get("/", httpapi.RequireScope("tasks:read"), h.get)
+	r.Post("/tasks", httpapi.RequireScope("tasks:write"), h.createTask)
 }
 
 type inboxResponse struct {

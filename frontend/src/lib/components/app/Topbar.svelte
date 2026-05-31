@@ -18,6 +18,7 @@
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { toast } from 'svelte-sonner';
 	import { getApiClient } from '$lib/api/client';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
@@ -283,18 +284,20 @@
 				<PlusIcon class="size-4" />
 			</Button>
 		{/if}
-		<a
-			href={resolve('/troiki')}
-			aria-label={$t('topbar.troikiSystem')}
-			title={$t('topbar.troikiSystem')}
-			aria-current={troikiActive ? 'page' : undefined}
-			class="inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-			class:text-muted-foreground={!troikiActive}
-			class:hover:text-primary={!troikiActive}
-			class:text-foreground={troikiActive}
-		>
-			<TroikiTriggerIcon class="size-4" />
-		</a>
+		{#if settingsStore.troikiEnabled}
+			<a
+				href={resolve('/troiki')}
+				aria-label={$t('topbar.troikiSystem')}
+				title={$t('topbar.troikiSystem')}
+				aria-current={troikiActive ? 'page' : undefined}
+				class="inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+				class:text-muted-foreground={!troikiActive}
+				class:hover:text-primary={!troikiActive}
+				class:text-foreground={troikiActive}
+			>
+				<TroikiTriggerIcon class="size-4" />
+			</a>
+		{/if}
 	</div>
 </header>
 

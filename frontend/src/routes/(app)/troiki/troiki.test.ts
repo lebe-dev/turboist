@@ -2,12 +2,17 @@ import { render, screen } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { troikiStore } from '$lib/stores/troiki.svelte';
 import { configStore } from '$lib/stores/config.svelte';
+import { settingsStore } from '$lib/stores/settings.svelte';
 import { projectsStore } from '$lib/stores/projects.svelte';
 import type { Project, Task, TroikiCategory, TroikiViewResponse } from '$lib/api/types';
 import TroikiPage from './+page.svelte';
 
 vi.mock('$lib/api/client', () => ({
 	getApiClient: () => ({ fetch: vi.fn() })
+}));
+
+vi.mock('$app/navigation', () => ({
+	goto: vi.fn(async () => {})
 }));
 
 vi.mock('$lib/api/endpoints/troiki', () => ({
@@ -100,9 +105,11 @@ beforeEach(() => {
 	troikiStore.clear();
 	projectsStore.clear();
 	configStore.value = null;
+	settingsStore.setValue({ ...settingsStore.value, troikiEnabled: true });
 });
 
 afterEach(() => {
+	settingsStore.clear();
 	vi.clearAllMocks();
 });
 

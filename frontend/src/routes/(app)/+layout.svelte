@@ -19,11 +19,9 @@
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
 	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
-	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
-	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
-	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
+	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
@@ -136,19 +134,12 @@
 		loadFailed = false;
 		void (async () => {
 			try {
-				await Promise.all([
-					configStore.load(),
-					contextsStore.load(),
-					projectsStore.load(),
-					labelsStore.load(),
-					planStatsStore.load(),
-					inboxStatsStore.load(),
-					pinnedTasksStore.load(),
-					userStateStore.load(),
-					troikiStore.load(),
-					settingsStore.load(),
-					appSettingsStore.load()
-				]);
+				// configStore.load() pulls everything the workspace needs in one
+				// round-trip and fans it out to the per-domain stores: contexts,
+				// projects, labels, settings, appSettings, userState, troiki,
+				// planStats, inboxStats and pinnedTasks. Per-domain stores keep
+				// their own load() / SSE invalidation channels for refreshes.
+				await configStore.load();
 				if (isSupportedLocale(settingsStore.locale)) {
 					setLocale(settingsStore.locale);
 				}
@@ -398,6 +389,9 @@
 			dueDate = todayKey;
 		} else if (path === '/tomorrow') {
 			dueDate = tomorrowKey;
+		} else if (path.startsWith('/task/')) {
+			projectId = currentTaskStore.projectId;
+			labelIds = currentTaskStore.labelIds;
 		} else if (path.startsWith('/project/')) {
 			const id = Number(page.params.id);
 			if (Number.isFinite(id)) projectId = id;
@@ -560,7 +554,7 @@
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
 			{/if}
-			<main class="flex-1 overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
+			<main class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
 				{@render children()}
 			</main>
 		</div>

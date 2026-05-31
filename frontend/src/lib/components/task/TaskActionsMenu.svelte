@@ -9,6 +9,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { toast } from 'svelte-sonner';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
@@ -69,7 +70,7 @@
 	const parentProject = $derived(
 		task.projectId !== null ? projectsStore.items.find((p) => p.id === task.projectId) : null
 	);
-	const priorityLocked = $derived(!!parentProject?.troikiCategory);
+	const priorityLocked = $derived(settingsStore.troikiEnabled && !!parentProject?.troikiCategory);
 
 	const tz = $derived(configStore.value?.timezone ?? null);
 	const todayKey = $derived(nowStore.todayKey);

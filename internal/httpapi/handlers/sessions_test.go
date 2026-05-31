@@ -181,7 +181,7 @@ func TestSessionsHandler_RejectsAPITokenAuth(t *testing.T) {
 		t.Fatalf("generate api token: %v", err)
 	}
 	hash := auth.HashAPIToken(plain, e.apiTokenSalt)
-	if _, err := e.apiTokens.Create(context.Background(), 1, "test", hash); err != nil {
+	if _, err := e.apiTokens.Create(context.Background(), 1, "test", hash, []string{"*"}); err != nil {
 		t.Fatalf("create api token: %v", err)
 	}
 

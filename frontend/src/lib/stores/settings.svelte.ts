@@ -11,7 +11,8 @@ const EMPTY: UserSettings = {
 	bannerText: '',
 	bannerPublished: false,
 	calendarEnabled: false,
-	calendarHidePastEvents: true
+	calendarHidePastEvents: true,
+	troikiEnabled: false
 };
 
 class SettingsStore {
@@ -21,6 +22,10 @@ class SettingsStore {
 		const v = await settingsApi.get(getApiClient());
 		this.value = v;
 		return v;
+	}
+
+	setValue(v: UserSettings): void {
+		this.value = v;
 	}
 
 	get weeklyUnplannedExcludedLabelIds(): number[] {
@@ -53,6 +58,10 @@ class SettingsStore {
 
 	get calendarHidePastEvents(): boolean {
 		return this.value.calendarHidePastEvents ?? true;
+	}
+
+	get troikiEnabled(): boolean {
+		return this.value.troikiEnabled ?? false;
 	}
 
 	async setWeeklyUnplannedExcludedLabelIds(ids: number[]): Promise<void> {
@@ -94,6 +103,11 @@ class SettingsStore {
 	async setCalendarHidePastEvents(v: boolean): Promise<void> {
 		this.value = { ...this.value, calendarHidePastEvents: v };
 		await settingsApi.patch(getApiClient(), { calendarHidePastEvents: v });
+	}
+
+	async setTroikiEnabled(v: boolean): Promise<void> {
+		this.value = { ...this.value, troikiEnabled: v };
+		await settingsApi.patch(getApiClient(), { troikiEnabled: v });
 	}
 
 	clear(): void {

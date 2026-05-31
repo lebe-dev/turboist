@@ -28,10 +28,6 @@ export interface TOTPConfirmResponse {
 	recoveryCodes: string[];
 }
 
-export interface AuthSetupRequiredResponse {
-	required: boolean;
-}
-
 export interface AuthLoginSuccessResponse {
 	access: string;
 	refresh: string;
@@ -136,6 +132,10 @@ export interface Task {
 	url: string;
 	createdAt: string;
 	updatedAt: string;
+
+	// Populated only by GET /tasks/:id?subtasks=true so the task detail page
+	// can fetch parent + children in one round-trip. Omitted otherwise.
+	subtasks?: Page<Task>;
 }
 
 export interface Page<T> {
@@ -148,6 +148,22 @@ export interface Page<T> {
 export interface ViewList<T> {
 	items: T[];
 	total: number;
+}
+
+export interface TodayBundle {
+	today: ViewList<Task>;
+	overdue: ViewList<Task>;
+	completedToday: ViewList<Task>;
+}
+
+// ProjectBundle is the single-round-trip payload for the project page: the
+// project, its sections and all its tasks (subtasks included, flattened — the
+// client re-parents them via buildTree). Mirrors the backend
+// projectBundleResponse behind GET /api/v1/projects/:id/bundle.
+export interface ProjectBundle {
+	project: Project;
+	sections: Page<ProjectSection>;
+	tasks: Page<Task>;
 }
 
 export interface InboxResponse {
@@ -164,6 +180,12 @@ export interface SearchResponse {
 export interface PlanStatsResponse {
 	week: number;
 	backlog: number;
+}
+
+export interface SidebarStatsResponse {
+	planStats: PlanStatsResponse;
+	inboxStats: { count: number; warnThresholdExceeded: boolean };
+	pinned: ViewList<Task>;
 }
 
 export interface TroikiProject extends Project {
@@ -195,6 +217,7 @@ export interface UserSettings {
 	bannerPublished: boolean;
 	calendarEnabled: boolean;
 	calendarHidePastEvents: boolean;
+	troikiEnabled: boolean;
 }
 
 export interface CalendarAccount {
@@ -251,12 +274,46 @@ export interface CalendarEventsResponse {
 export interface APIToken {
 	id: number;
 	name: string;
+	scopes: string[];
 	createdAt: string;
 }
 
 export interface APITokenWithSecret extends APIToken {
 	token: string;
 }
+
+export const VALID_SCOPES = [
+	'tasks:read',
+	'tasks:write',
+	'projects:read',
+	'projects:write',
+	'contexts:read',
+	'contexts:write',
+	'labels:read',
+	'labels:write',
+	'sections:read',
+	'sections:write',
+	'troiki:read',
+	'troiki:write',
+	'settings:read',
+	'settings:write',
+	'search:read',
+	'calendars:read'
+] as const;
+
+export type Scope = (typeof VALID_SCOPES)[number] | '*';
+
+export const SCOPE_RESOURCES = [
+	{ resource: 'tasks', label: 'Задачи', hasWrite: true },
+	{ resource: 'projects', label: 'Проекты', hasWrite: true },
+	{ resource: 'contexts', label: 'Контексты', hasWrite: true },
+	{ resource: 'labels', label: 'Метки', hasWrite: true },
+	{ resource: 'sections', label: 'Секции', hasWrite: true },
+	{ resource: 'troiki', label: 'Тройки', hasWrite: true },
+	{ resource: 'settings', label: 'Настройки', hasWrite: true },
+	{ resource: 'search', label: 'Поиск', hasWrite: false },
+	{ resource: 'calendars', label: 'Календари', hasWrite: false }
+] as const;
 
 export interface Session {
 	id: number;
@@ -284,6 +341,16 @@ export interface ConfigResponse {
 		evening: { start: number; end: number };
 	};
 	totpAvailable: boolean;
+	contexts: Context[];
+	projects: Project[];
+	labels: Label[];
+	settings: UserSettings;
+	appSettings: AppSettings;
+	userState: UserState;
+	troiki: TroikiViewResponse;
+	planStats: PlanStatsResponse;
+	inboxStats: { count: number; warnThresholdExceeded: boolean };
+	pinnedTasks: Task[];
 }
 
 export interface AutoLabelRule {

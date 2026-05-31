@@ -19,7 +19,7 @@ func NewSearchHandler(search *repo.SearchRepo, baseURL string) *SearchHandler {
 }
 
 func (h *SearchHandler) Register(r fiber.Router) {
-	r.Get("/search", h.search_)
+	r.Get("/search", httpapi.RequireScope("search:read"), h.search_)
 }
 
 type searchResponse struct {

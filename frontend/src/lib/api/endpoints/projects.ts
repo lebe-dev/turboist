@@ -3,6 +3,7 @@ import type {
 	ListQuery,
 	Page,
 	Project,
+	ProjectBundle,
 	ProjectInput,
 	ProjectSection,
 	ProjectsQuery,
@@ -20,6 +21,13 @@ export const projects = {
 
 	get(client: ApiClient, id: number): Promise<Project> {
 		return client.fetch(`/api/v1/projects/${id}`);
+	},
+
+	// bundle returns the project, its sections and all its tasks in one request.
+	// The project page uses it instead of the three separate get/listSections/
+	// listTasks round-trips.
+	bundle(client: ApiClient, id: number): Promise<ProjectBundle> {
+		return client.fetch(`/api/v1/projects/${id}/bundle`);
 	},
 
 	update(client: ApiClient, id: number, input: ProjectInput): Promise<Project> {

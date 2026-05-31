@@ -82,6 +82,7 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 	})
 	return app.Group(
 		"/api/v1",
+		SetupCheckMiddleware(deps.UserRepo),
 		APIAuthMiddleware(deps.JWTIssuer, deps.APITokenRepo, deps.APITokenSalt),
 		PublishMiddleware(deps.EventsHub),
 	)

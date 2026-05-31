@@ -18,32 +18,53 @@ func TestTickets_IssueAndConsume(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Issue: %v", err)
 	}
-	uid, err := s.Consume(tok)
+	uid, origin, err := s.Consume(tok)
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
 	}
 	if uid != 42 {
 		t.Fatalf("user id: want 42, got %d", uid)
 	}
+	if origin != "" {
+		t.Fatalf("origin: want empty, got %q", origin)
+	}
+}
+
+func TestTickets_IssueAndConsume_Origin(t *testing.T) {
+	s := NewTicketStore()
+	tok, err := s.Issue(42, "tab-abc")
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+	uid, origin, err := s.Consume(tok)
+	if err != nil {
+		t.Fatalf("Consume: %v", err)
+	}
+	if uid != 42 {
+		t.Fatalf("user id: want 42, got %d", uid)
+	}
+	if origin != "tab-abc" {
+		t.Fatalf("origin: want %q, got %q", "tab-abc", origin)
+	}
 }
 
 func TestTickets_ConsumeIsOneShot(t *testing.T) {
 	s := NewTicketStore()
 	tok, _ := s.Issue(1)
-	if _, err := s.Consume(tok); err != nil {
+	if _, _, err := s.Consume(tok); err != nil {
 		t.Fatalf("first consume: %v", err)
 	}
-	if _, err := s.Consume(tok); !errors.Is(err, ErrTicketInvalid) {
+	if _, _, err := s.Consume(tok); !errors.Is(err, ErrTicketInvalid) {
 		t.Fatalf("second consume: want ErrTicketInvalid, got %v", err)
 	}
 }
 
 func TestTickets_ConsumeUnknownInvalid(t *testing.T) {
 	s := NewTicketStore()
-	if _, err := s.Consume("nope"); !errors.Is(err, ErrTicketInvalid) {
+	if _, _, err := s.Consume("nope"); !errors.Is(err, ErrTicketInvalid) {
 		t.Fatalf("want ErrTicketInvalid, got %v", err)
 	}
-	if _, err := s.Consume(""); !errors.Is(err, ErrTicketInvalid) {
+	if _, _, err := s.Consume(""); !errors.Is(err, ErrTicketInvalid) {
 		t.Fatalf("empty: want ErrTicketInvalid, got %v", err)
 	}
 }
@@ -54,7 +75,7 @@ func TestTickets_ConsumeExpired(t *testing.T) {
 	tok, _ := s.Issue(7)
 
 	now = now.Add(TicketTTL + time.Second)
-	if _, err := s.Consume(tok); !errors.Is(err, ErrTicketInvalid) {
+	if _, _, err := s.Consume(tok); !errors.Is(err, ErrTicketInvalid) {
 		t.Fatalf("expired: want ErrTicketInvalid, got %v", err)
 	}
 }

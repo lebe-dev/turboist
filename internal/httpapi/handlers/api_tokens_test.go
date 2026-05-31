@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,7 +14,11 @@ import (
 
 func TestAPITokensHandler_CreateReturnsTokenOnce(t *testing.T) {
 	env := setupAPIEnv(t)
-	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{"name": "n8n"}))
+	wantScopes := []string{"tasks:read", "tasks:write", "projects:read"}
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{
+		"name":   "n8n",
+		"scopes": wantScopes,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,8 +39,11 @@ func TestAPITokensHandler_CreateReturnsTokenOnce(t *testing.T) {
 	if name, _ := body["name"].(string); name != "n8n" {
 		t.Errorf("name: got %q, want %q", name, "n8n")
 	}
+	if gotScopes := scopesFromJSON(body["scopes"]); !reflect.DeepEqual(gotScopes, wantScopes) {
+		t.Errorf("scopes: got %v, want %v", gotScopes, wantScopes)
+	}
 
-	// list must not include the plaintext token
+	// list must not include the plaintext token and must include scopes
 	listResp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/api-tokens/", nil))
 	if err != nil {
 		t.Fatal(err)
@@ -53,12 +61,36 @@ func TestAPITokensHandler_CreateReturnsTokenOnce(t *testing.T) {
 	if _, ok := list[0]["tokenHash"]; ok {
 		t.Errorf("list must not expose tokenHash")
 	}
+	if gotScopes := scopesFromJSON(list[0]["scopes"]); !reflect.DeepEqual(gotScopes, wantScopes) {
+		t.Errorf("list scopes: got %v, want %v", gotScopes, wantScopes)
+	}
+}
+
+func TestAPITokensHandler_CreateWithWildcard(t *testing.T) {
+	env := setupAPIEnv(t)
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{
+		"name":   "full",
+		"scopes": []string{"*"},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusCreated)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if got := scopesFromJSON(body["scopes"]); !reflect.DeepEqual(got, []string{"*"}) {
+		t.Errorf("scopes: got %v, want [*]", got)
+	}
 }
 
 func TestAPITokensHandler_CreateValidation(t *testing.T) {
 	env := setupAPIEnv(t)
 
-	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{"name": ""}))
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{"name": "", "scopes": []string{"*"}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +98,7 @@ func TestAPITokensHandler_CreateValidation(t *testing.T) {
 		t.Errorf("empty name: got %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
 
-	resp2, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{"name": strings.Repeat("a", 65)}))
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{"name": strings.Repeat("a", 65), "scopes": []string{"*"}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,10 +107,40 @@ func TestAPITokensHandler_CreateValidation(t *testing.T) {
 	}
 }
 
+func TestAPITokensHandler_CreateScopesValidation(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	cases := []struct {
+		name    string
+		payload map[string]any
+	}{
+		{"missing scopes", map[string]any{"name": "n"}},
+		{"empty scopes", map[string]any{"name": "n", "scopes": []string{}}},
+		{"invalid scope", map[string]any{"name": "n", "scopes": []string{"foo:bar"}}},
+		{"write without read", map[string]any{"name": "n", "scopes": []string{"tasks:write"}}},
+		{"duplicate scope", map[string]any{"name": "n", "scopes": []string{"tasks:read", "tasks:read"}}},
+		{"wildcard with other", map[string]any{"name": "n", "scopes": []string{"*", "tasks:read"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", tc.payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode != http.StatusUnprocessableEntity {
+				t.Errorf("status: got %d, want 422", resp.StatusCode)
+			}
+		})
+	}
+}
+
 func TestAPITokensHandler_Delete(t *testing.T) {
 	env := setupAPIEnv(t)
 
-	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{"name": "n8n"}))
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{
+		"name":   "n8n",
+		"scopes": []string{"*"},
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +173,10 @@ func TestAPITokensHandler_APITokenForbiddenOnTokenRoutes(t *testing.T) {
 	env := setupAPIEnv(t)
 
 	// create a token via JWT
-	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{"name": "n8n"}))
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPost, "/api/v1/api-tokens/", map[string]any{
+		"name":   "n8n",
+		"scopes": []string{"*"},
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +208,7 @@ func TestAPITokensHandler_APITokenAccessesOtherRoutes(t *testing.T) {
 		t.Fatalf("generate: %v", err)
 	}
 	hash := auth.HashAPIToken(plain, env.apiTokenSalt)
-	if _, err := env.apiTokens.Create(context.Background(), 1, "n8n", hash); err != nil {
+	if _, err := env.apiTokens.Create(context.Background(), 1, "n8n", hash, []string{"*"}); err != nil {
 		t.Fatalf("repo create: %v", err)
 	}
 
@@ -171,4 +236,19 @@ func TestAPITokensHandler_InvalidTokenRejected(t *testing.T) {
 	if r.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("garbage token: got %d, want 401", r.StatusCode)
 	}
+}
+
+// scopesFromJSON extracts a []string from a JSON-decoded "scopes" field which
+// arrives as []any (encoding/json default for arrays).
+func scopesFromJSON(v any) []string {
+	arr, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, x := range arr {
+		s, _ := x.(string)
+		out = append(out, s)
+	}
+	return out
 }

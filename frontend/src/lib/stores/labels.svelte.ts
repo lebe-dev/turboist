@@ -16,6 +16,11 @@ class LabelsStore {
 		return page.items;
 	}
 
+	setItems(items: Label[]): void {
+		this.items = items;
+		this.loaded = true;
+	}
+
 	upsert(label: Label): void {
 		const i = this.items.findIndex((l) => l.id === label.id);
 		if (i >= 0) this.items[i] = label;
