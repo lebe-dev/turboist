@@ -170,6 +170,15 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		}
 		u.PlanState = &ps
 	}
+
+	// Assigning a due date pulls a task out of the backlog: a scheduled task no
+	// longer belongs to the unscheduled backlog. This is the inverse of planning
+	// into backlog, which clears due (see service.PlanService.SetPlanState). An
+	// explicit planState in the same request wins.
+	if u.DueAt != nil && req.PlanState == nil && t.PlanState == model.PlanStateBacklog {
+		none := model.PlanStateNone
+		u.PlanState = &none
+	}
 	if req.RecurrenceRule.IsNull() {
 		u.RecurrenceClear = true
 	} else if v, ok := req.RecurrenceRule.Value(); ok {
