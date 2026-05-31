@@ -801,7 +801,7 @@ curl -X POST "$BASE/api/v1/tasks/42/subtasks" \
 
 ### `POST /api/v1/tasks/:id/duplicate`
 
-Creates a copy of the task with title suffixed `(2)`. Returns `201` with the new task.
+Creates a copy of the task with title suffixed `(2)`. Subtasks are cloned recursively under the new task (keeping their original titles). Returns `201` with the new task.
 
 ```sh
 curl -X POST "$BASE/api/v1/tasks/42/duplicate" \
