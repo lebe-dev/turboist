@@ -123,6 +123,7 @@
 				hasSubtasks={node.children.length > 0}
 				{subtasksCollapsed}
 				onToggleCollapse={collapsibleSubtasks && node.children.length > 0 ? () => toggleCollapse(node.task.id) : undefined}
+				collapsible={collapsibleSubtasks}
 				visibleIds={effectiveVisibleIds}
 			/>
 			{#if openChildren.length > 0 && !subtasksCollapsed}

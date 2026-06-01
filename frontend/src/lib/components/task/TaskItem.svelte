@@ -43,6 +43,7 @@
 		hasSubtasks = false,
 		subtasksCollapsed = false,
 		onToggleCollapse,
+		collapsible = false,
 		visibleIds
 	}: {
 		task: Task;
@@ -59,6 +60,7 @@
 		hasSubtasks?: boolean;
 		subtasksCollapsed?: boolean;
 		onToggleCollapse?: () => void;
+		collapsible?: boolean;
 		visibleIds?: number[];
 	} = $props();
 
@@ -174,7 +176,7 @@
 	class:py-2.5={hasMeta}
 	class:py-1.5={!hasMeta}
 	class:bg-accent={taskSelectionStore.mode && selected}
-	style:padding-left={onToggleCollapse && hasSubtasks ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
+	style:padding-left={collapsible ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
 	draggable={draggable && !taskSelectionStore.mode}
 	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
@@ -183,21 +185,25 @@
 	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
 	role={draggable ? 'listitem' : undefined}
 >
-	{#if onToggleCollapse && hasSubtasks}
-		<button
-			type="button"
-			onclick={onToggleCollapse}
-			class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-			class:mt-0.5={hasMeta}
-			aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
-			aria-expanded={!subtasksCollapsed}
-		>
-			{#if subtasksCollapsed}
-				<CaretRightIcon class="size-3" />
-			{:else}
-				<CaretDownIcon class="size-3" />
-			{/if}
-		</button>
+	{#if collapsible}
+		{#if onToggleCollapse && hasSubtasks}
+			<button
+				type="button"
+				onclick={onToggleCollapse}
+				class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+				class:mt-0.5={hasMeta}
+				aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
+				aria-expanded={!subtasksCollapsed}
+			>
+				{#if subtasksCollapsed}
+					<CaretRightIcon class="size-3" />
+				{:else}
+					<CaretDownIcon class="size-3" />
+				{/if}
+			</button>
+		{:else}
+			<span class="size-4 shrink-0" aria-hidden="true"></span>
+		{/if}
 	{/if}
 	{#if taskSelectionStore.mode}
 		<button
