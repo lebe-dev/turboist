@@ -14,6 +14,7 @@ type PatchProjectRequest struct {
 	Title       *string   `json:"title"`
 	Description *string   `json:"description"`
 	Color       *string   `json:"color"`
+	ContextID   *int64    `json:"contextId"`
 	Labels      *[]string `json:"labels"`
 	IsPrivate   *bool     `json:"isPrivate"`
 	ProjectType *string   `json:"projectType"`
