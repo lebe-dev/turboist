@@ -10,7 +10,12 @@ export type EventScope =
 	| 'labels'
 	| 'contexts'
 	| 'sections'
-	| 'plan';
+	| 'plan'
+	// federation is published when a federated project's per-peer sync health
+	// transitions (Federation v1 F4.3, US-4.3): a key mismatch is observed, a peer
+	// goes unreachable, or an undelivered batch crosses the pending threshold. The
+	// app shell reloads the federation status store on this scope.
+	| 'federation';
 
 export type EventHandler = (scope: EventScope) => void;
 

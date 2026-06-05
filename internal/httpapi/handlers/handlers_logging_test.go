@@ -13,11 +13,13 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/auth"
+	"github.com/lebe-dev/turboist/internal/crypto"
 	"github.com/lebe-dev/turboist/internal/db"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/handlers"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+	fedsvc "github.com/lebe-dev/turboist/internal/service/federation"
 )
 
 // loggingEnv wraps apiEnv with the captureHandler so tests can inspect emitted
@@ -78,7 +80,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	handlers.NewContextHandler(ctxs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(lbls, projs, tasks, testBaseURL).Register(api.Group("/labels"))
 	handlers.NewSectionHandler(secs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/sections"))
-	handlers.NewProjectHandler(projs, secs, tasks, taskSvc, lbls, ctxs, pinSvc, testBaseURL).Register(api)
+	handlers.NewProjectHandler(projs, secs, tasks, taskSvc, lbls, ctxs, pinSvc, repo.NewFederatedProjectRepo(d), testBaseURL).Register(api)
 	handlers.NewInboxHandler(tasks, taskSvc, cfg, testBaseURL).Register(api.Group("/inbox"))
 	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, testBaseURL).Register(api)
 	handlers.NewTaskViewHandler(tasks, cfg, testBaseURL).Register(api)
@@ -95,6 +97,15 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewBackupHandler(service.NewBackupService(d)).
 		Register(api.Group("", httpapi.RequireJWTAuth()))
+
+	// Federation admin control plane, so the access-log secret-redaction test
+	// (US-1.2 AC6) can exercise invite creation under the capture handler.
+	fedKeys := repo.NewFederationKeysRepo(d)
+	fedProjects := repo.NewFederatedProjectRepo(d)
+	fedInvites := repo.NewFederationInviteRepo(d)
+	fedInstances := repo.NewFederatedInstanceRepo(d)
+	federationSvc := fedsvc.NewService(d, projs, fedProjects, fedKeys, fedInvites, fedInstances, crypto.NewTokenCipher(fedTestKey), testBaseURL)
+	handlers.NewFederationAdminHandler(federationSvc).Register(api.Group("", httpapi.RequireJWTAuth()))
 
 	env := &apiEnv{
 		app:          app,
@@ -229,6 +240,55 @@ func TestProjectHandler_Create_BadTitle_LogsWarn(t *testing.T) {
 	}
 	if !hasRecord(env.cap.snapshot(), slog.LevelWarn, "handler.Project.Create: validation failed") {
 		t.Error("missing WARN validation record for handler.Project.Create")
+	}
+}
+
+// TestProjectHandler_FederationSurfaceFailure_LogsError asserts that an
+// unexpected repo/SQL fault while resolving the federation surface is logged at
+// ERROR (not mislabeled as a WARN validation failure) while the read path still
+// degrades gracefully and returns the project (F2.4 #10). The fault is forced by
+// dropping federated_projects after the project is marked federated.
+func TestProjectHandler_FederationSurfaceFailure_LogsError(t *testing.T) {
+	env := setupAPIEnvWithLog(t)
+	jwt := env.token(t)
+	ctxID := createContextForTest(t, env.app, jwt)
+
+	req := env.authedReq(t, http.MethodPost,
+		"/api/v1/contexts/"+itoa64(ctxID)+"/projects",
+		map[string]any{"title": "Shared", "color": "blue"})
+	resp, body := doReq(t, env.app, req)
+	if resp.StatusCode != 201 {
+		t.Fatalf("create project: got %d, want 201 body=%s", resp.StatusCode, body)
+	}
+	var p struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(body, &p); err != nil {
+		t.Fatalf("parse project: %v", err)
+	}
+
+	// Mark the project federated so the read path resolves the surface, then drop
+	// the federated_projects table so the surface query fails with a real SQL fault.
+	if _, err := env.db.Exec(`UPDATE projects SET is_federated = 1 WHERE id = ?`, p.ID); err != nil {
+		t.Fatalf("mark federated: %v", err)
+	}
+	if _, err := env.db.Exec(`DROP TABLE federated_projects`); err != nil {
+		t.Fatalf("drop federated_projects: %v", err)
+	}
+
+	// The read still succeeds (graceful degradation — un-enriched DTO).
+	getResp, getBody := doReq(t, env.app,
+		env.authedReq(t, http.MethodGet, "/api/v1/projects/"+itoa64(p.ID), nil))
+	if getResp.StatusCode != 200 {
+		t.Fatalf("get project: got %d, want 200 body=%s", getResp.StatusCode, getBody)
+	}
+
+	// The fault is logged at ERROR, not as a WARN validation failure.
+	if !hasRecord(env.cap.snapshot(), slog.LevelError, "federation surface resolve failed") {
+		t.Error("missing ERROR 'federation surface resolve failed' record")
+	}
+	if hasRecord(env.cap.snapshot(), slog.LevelWarn, "handler.Project.FederationSurface: validation failed") {
+		t.Error("surface fault mislabeled as WARN validation failure")
 	}
 }
 
@@ -529,6 +589,63 @@ func TestBackup_Restore_EmptyBody_LogsWarn(t *testing.T) {
 	}
 	if !hasRecord(env.cap.snapshot(), slog.LevelWarn, "handler.Backup.Restore: validation failed") {
 		t.Error("missing WARN handler.Backup.Restore validation")
+	}
+}
+
+// --- federation_admin.go (invite secret must never reach logs) ---
+
+// TestFederationAdmin_CreateInvite_LogsNoSecret asserts the plaintext invite
+// secret never appears in any emitted log record — message or attribute (US-1.2
+// AC6). The secret leaves the process only in the response body / URL fragment;
+// the handler, service, and repo log ids only.
+func TestFederationAdmin_CreateInvite_LogsNoSecret(t *testing.T) {
+	env := setupAPIEnvWithLog(t)
+	jwt := env.token(t)
+	ctxID := createContextForTest(t, env.app, jwt)
+
+	presp, pbody := doReq(t, env.app, env.authedReq(t, http.MethodPost,
+		"/api/v1/contexts/"+itoa64(ctxID)+"/projects", map[string]any{"title": "Shared", "color": "blue"}))
+	if presp.StatusCode != 201 {
+		t.Fatalf("create project: %d body %s", presp.StatusCode, pbody)
+	}
+	var proj struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(pbody, &proj); err != nil {
+		t.Fatalf("parse project: %v", err)
+	}
+
+	eresp, ebody := doReq(t, env.app, env.authedReq(t, http.MethodPost,
+		"/api/v1/projects/"+itoa64(proj.ID)+"/federation/enable", nil))
+	if eresp.StatusCode != 200 {
+		t.Fatalf("enable federation: %d body %s", eresp.StatusCode, ebody)
+	}
+
+	iresp, ibody := doReq(t, env.app, env.authedReq(t, http.MethodPost,
+		"/api/v1/projects/"+itoa64(proj.ID)+"/invites", map[string]any{"permissions": "write"}))
+	if iresp.StatusCode != 200 {
+		t.Fatalf("create invite: %d body %s", iresp.StatusCode, ibody)
+	}
+	var inv struct {
+		Secret string `json:"secret"`
+	}
+	if err := json.Unmarshal(ibody, &inv); err != nil {
+		t.Fatalf("parse invite: %v", err)
+	}
+	if inv.Secret == "" {
+		t.Fatal("expected a non-empty secret in the create-invite response")
+	}
+
+	for _, rec := range env.cap.snapshot() {
+		if strings.Contains(rec.Message, inv.Secret) {
+			t.Errorf("plaintext invite secret leaked in log message %q", rec.Message)
+		}
+		rec.Attrs(func(a slog.Attr) bool {
+			if strings.Contains(a.Value.String(), inv.Secret) {
+				t.Errorf("plaintext invite secret leaked in log attr %q", a.Key)
+			}
+			return true
+		})
 	}
 }
 

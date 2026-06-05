@@ -16,6 +16,8 @@
 	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
+	import { visiblePeers, peerNamesLabel } from '$lib/federation/projectSurface';
+	import GlobeIcon from 'phosphor-svelte/lib/Globe';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -205,6 +207,17 @@
 	);
 	const isInbox = $derived(projectId === '');
 
+	// federationPeerNames is the named peer audience the selected federated project
+	// is shared with (Federation v1 F6.4, US-7.1 AC3). When non-empty, the editor
+	// renders the explicit instance hint ("will be visible to peers: alice.example,
+	// bob.example") — the NAMED list, not a bare count. Sourced from the project's
+	// bootstrap peerInstances array; empty for the inbox or a non-federated project.
+	const selectedProjectPeers = $derived.by(() => {
+		const project = projectsStore.items.find((p) => String(p.id) === projectId);
+		return project ? visiblePeers(project) : [];
+	});
+	const federationPeerNames = $derived(peerNamesLabel(selectedProjectPeers));
+
 	const todayKey = $derived(nowStore.todayKey);
 	const tomorrowKey = $derived(shiftDayKey(todayKey, 1));
 	const isToday = $derived(dueDate === todayKey);
@@ -378,6 +391,19 @@
 					</div>
 				{/if}
 				<div class="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-3">
+					{#if selectedProjectPeers.length > 0}
+						<div
+							class="mb-3 flex items-start gap-2 rounded-md border border-sky-300/50 bg-sky-500/10 px-3 py-2 text-xs text-sky-900 dark:border-sky-700/50 dark:text-sky-200"
+							data-testid="federation-new-task-hint"
+						>
+							<GlobeIcon class="mt-0.5 size-3.5 shrink-0" weight="fill" />
+							<span>
+								{$t('federation.visibility.newTaskHint', {
+									values: { peers: federationPeerNames }
+								})}
+							</span>
+						</div>
+					{/if}
 					<!-- svelte-ignore a11y_autofocus -->
 					<textarea
 						bind:this={titlesEl}

@@ -7,6 +7,7 @@
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
+	import ArrowsClockwiseIcon from 'phosphor-svelte/lib/ArrowsClockwise';
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import { Popover as PopoverPrimitive } from 'bits-ui';
@@ -39,6 +40,7 @@
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
+	import { createRemoteEditWatcher } from '$lib/realtime/remoteEdit';
 	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
@@ -65,6 +67,11 @@
 
 	let title = $state('');
 	let description = $state('');
+	// baseline holds the last-hydrated server values so we can tell whether the
+	// editor currently has in-flight (unsaved) edits. It powers the F3.4 "updated
+	// remotely" affordance: a remote change must not silently clobber a dirty
+	// editor (US-3.1 AC3).
+	let baseline = $state<{ title: string; description: string }>({ title: '', description: '' });
 	let descriptionFocused = $state(false);
 	let titleFocused = $state(false);
 	let descriptionEl = $state<HTMLTextAreaElement | undefined>();
@@ -234,6 +241,12 @@
 		const nextLabelIds = t.labels.map((l) => String(l.id));
 		if (!arrayEquals(labelIds, nextLabelIds)) labelIds = nextLabelIds;
 		if (removedAuto.length > 0) removedAuto = [];
+		// Snapshot the freshly-hydrated text fields as the clean baseline. The
+		// editor is "dirty" only when the live values diverge from this.
+		baseline = { title: t.title, description: t.description ?? '' };
+		// A successful (re)hydrate resolves any pending remote-edit notice — the
+		// editor is back in sync with the server.
+		remoteEdit.clear();
 		// Permit auto-save only after all reactive effects from hydration have flushed
 		setTimeout(() => {
 			allowSave = true;
@@ -266,7 +279,10 @@
 
 	$effect(() => {
 		if (task) currentTaskStore.set(task.projectId, task.labels.map((l) => l.id));
-		return () => currentTaskStore.clear();
+		return () => {
+			currentTaskStore.clear();
+			remoteEdit.clear();
+		};
 	});
 
 	const loader = usePageLoad(
@@ -290,7 +306,12 @@
 			autoLoad: false,
 			initialLoading: true,
 			onError(err) {
-				if (err instanceof ApiError && err.code === 'not_found') {
+				// A peer that deleted this task returns a 410 'gone' tombstone (F3.3
+				// re-edit/get of a soft-deleted entity is final). Treat it like a plain
+				// not_found: surface the "not found" view rather than a generic toast,
+				// so an explicit F3.4 Reload on the deleted-by-peer path lands on a clear
+				// terminal state instead of leaving stale editor content on screen.
+				if (err instanceof ApiError && (err.code === 'not_found' || err.code === 'gone')) {
 					notFound = true;
 					return;
 				}
@@ -403,7 +424,40 @@ async function save(): Promise<void> {
 		if (Number.isFinite(taskId)) untrack(() => void loader.refetch());
 	});
 
-	useInvalidation(['tasks'], () => void loader.revalidate());
+	// dirty reports whether the open editor holds unsaved, in-flight text edits
+	// that a refresh would overwrite. We track the editable text fields (title /
+	// description) — the pickers (priority, date, labels) auto-save on change, so
+	// the load-bearing in-flight risk is the free-text the user is typing.
+	const dirty = $derived(
+		!!task && (title !== baseline.title || description !== baseline.description)
+	);
+
+	// remotePending mirrors the watcher's notice flag into reactive state so the
+	// banner renders. A federation-origin change reaches this open card on the
+	// `tasks` SSE scope without echo-suppression (see
+	// service/federation/inbox_notify.go); when the editor is dirty we surface a
+	// non-destructive notice instead of re-hydrating over the user's draft
+	// (US-3.1 AC3). A clean editor follows the normal F3.2 refresh (US-3.1 AC2).
+	let remotePending = $state(false);
+	const remoteEdit = createRemoteEditWatcher({
+		isDirty: () => dirty,
+		// Background clean-editor path (US-3.1 AC2): the user did not initiate it, so
+		// swallow failures via revalidate() — a toast here would be confusing.
+		refresh: () => loader.revalidate(),
+		// Explicit user-initiated Reload: route through refetch() so the loader's
+		// onError runs (410/not_found → notFound view, other errors toasted). refetch()
+		// resolves to false when the fetch failed; throw so the watcher keeps the banner
+		// up — a failed reload on a federation rejection path is never a silent failure.
+		reload: async () => {
+			const ok = await loader.refetch();
+			if (!ok) throw new Error('reload failed');
+		},
+		onChange: (pending) => {
+			remotePending = pending;
+		}
+	});
+
+	useInvalidation(['tasks'], () => remoteEdit.onRemoteChange());
 </script>
 
 <header class="flex items-center justify-between gap-3 border-b border-border px-2 py-1 sm:px-5">
@@ -437,6 +491,32 @@ async function save(): Promise<void> {
 {:else if notFound || !task}
 	<div class="px-6 py-8 text-sm text-muted-foreground">{$t('page.task.notFound')}</div>
 {:else}
+	{#if remotePending}
+		<div
+			role="status"
+			class="mx-6 mt-4 flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700/60 dark:bg-amber-950/40 sm:mx-8"
+		>
+			<div class="flex items-start gap-2">
+				<ArrowsClockwiseIcon class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+				<div class="flex min-w-0 flex-col gap-0.5">
+					<span class="font-medium text-amber-900 dark:text-amber-200">
+						{$t('federation.remoteEdit.title')}
+					</span>
+					<span class="text-amber-800/90 dark:text-amber-200/80">
+						{$t('federation.remoteEdit.body')}
+					</span>
+				</div>
+			</div>
+			<div class="flex items-center gap-2 self-end">
+				<Button type="button" size="xs" variant="ghost" onclick={() => remoteEdit.keepEditing()}>
+					{$t('federation.remoteEdit.keepEditing')}
+				</Button>
+				<Button type="button" size="xs" variant="secondary" onclick={() => void remoteEdit.reload()}>
+					{$t('federation.remoteEdit.reload')}
+				</Button>
+			</div>
+		</div>
+	{/if}
 	<form
 		onsubmit={(e) => {
 			e.preventDefault();

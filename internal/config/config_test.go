@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const validYAML = `
@@ -196,5 +197,125 @@ func TestLoadEnv_APITokenSaltTooShort(t *testing.T) {
 	t.Setenv("API_TOKEN_SALT", "short")
 	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "32 bytes") {
 		t.Fatalf("expected API_TOKEN_SALT length error, got %v", err)
+	}
+}
+
+func TestLoadEnv_FederationKeyEmptyIsOK(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+	t.Setenv("FEDERATION_KEY", "")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if e.FederationKey != "" {
+		t.Fatalf("FederationKey: got %q, want empty", e.FederationKey)
+	}
+}
+
+func TestLoadEnv_FederationKeyTooShort(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+	t.Setenv("FEDERATION_KEY", "tooshort")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "FEDERATION_KEY") {
+		t.Fatalf("expected FEDERATION_KEY length error, got %v", err)
+	}
+}
+
+func TestLoadEnv_FederationKeyOK(t *testing.T) {
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+	t.Setenv("FEDERATION_KEY", "federation-federation-federation-key")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if got := e.FederationKey; len(got) < 32 {
+		t.Fatalf("FederationKey: got %q (len %d), want ≥32 bytes", got, len(got))
+	}
+}
+
+func TestFederationPullInterval_DefaultAndOverride(t *testing.T) {
+	var c Config
+	if got := c.FederationPullInterval(); got.Seconds() != 60 {
+		t.Errorf("default pull interval: got %s, want 60s", got)
+	}
+	c.Federation.PullIntervalSeconds = 15
+	if got := c.FederationPullInterval(); got.Seconds() != 15 {
+		t.Errorf("override pull interval: got %s, want 15s", got)
+	}
+}
+
+func TestFederationPullBatchLimit_DefaultAndOverride(t *testing.T) {
+	var c Config
+	if got := c.FederationPullBatchLimit(); got != 500 {
+		t.Errorf("default pull batch limit: got %d, want 500", got)
+	}
+	c.Federation.PullBatchLimit = 100
+	if got := c.FederationPullBatchLimit(); got != 100 {
+		t.Errorf("override pull batch limit: got %d, want 100", got)
+	}
+}
+
+func TestFederationInboundRatePerMinute_DefaultOverrideAndDisable(t *testing.T) {
+	var c Config
+	if got := c.FederationInboundRatePerMinute(); got != 600 {
+		t.Errorf("default inbound rate: got %d, want 600 (US-8.3 AC1)", got)
+	}
+	c.Federation.InboundRatePerMinute = 1200
+	if got := c.FederationInboundRatePerMinute(); got != 1200 {
+		t.Errorf("override inbound rate: got %d, want 1200", got)
+	}
+	c.Federation.InboundRatePerMinute = -1
+	if got := c.FederationInboundRatePerMinute(); got != 0 {
+		t.Errorf("negative inbound rate disables limiting: got %d, want 0", got)
+	}
+}
+
+func TestFederationInboundBurst_DefaultsToRate(t *testing.T) {
+	var c Config
+	if got := c.FederationInboundBurst(); got != 600 {
+		t.Errorf("default burst tracks the rate: got %d, want 600", got)
+	}
+	c.Federation.InboundBurst = 50
+	if got := c.FederationInboundBurst(); got != 50 {
+		t.Errorf("override burst: got %d, want 50", got)
+	}
+}
+
+func TestFederationMaxBatchEvents_DefaultAndOverride(t *testing.T) {
+	var c Config
+	if got := c.FederationMaxBatchEvents(); got != 500 {
+		t.Errorf("default max batch events: got %d, want 500 (US-8.3 AC3)", got)
+	}
+	c.Federation.MaxBatchEvents = 200
+	if got := c.FederationMaxBatchEvents(); got != 200 {
+		t.Errorf("override max batch events: got %d, want 200", got)
+	}
+}
+
+// TestFederationOwnerTimeout_DefaultAndOverride covers the owner-death timeout
+// (Federation v1 F5.6a, US-6.5 AC1): a joiner whose owner has not been contacted
+// within this window flags the project "owner offline" so local edits queue
+// instead of silently failing. The default is 30 days; a positive override is
+// honoured; a non-positive value falls back to the default.
+func TestFederationOwnerTimeout_DefaultAndOverride(t *testing.T) {
+	var c Config
+	if got := c.FederationOwnerTimeout(); got != 30*24*time.Hour {
+		t.Errorf("default owner timeout: got %s, want 720h (30d, US-6.5 AC1)", got)
+	}
+	c.Federation.OwnerTimeoutDays = 7
+	if got := c.FederationOwnerTimeout(); got != 7*24*time.Hour {
+		t.Errorf("override owner timeout: got %s, want 168h (7d)", got)
+	}
+	c.Federation.OwnerTimeoutDays = -1
+	if got := c.FederationOwnerTimeout(); got != 30*24*time.Hour {
+		t.Errorf("non-positive owner timeout falls back to default: got %s, want 720h", got)
 	}
 }

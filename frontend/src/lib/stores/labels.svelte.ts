@@ -1,6 +1,7 @@
 import { labels as labelsApi } from '../api/endpoints/labels';
 import { getApiClient } from '../api/client';
 import type { Label } from '../api/types';
+import { dropTombstones, isLive } from '../utils/tombstone';
 
 class LabelsStore {
 	items = $state<Label[]>([]);
@@ -11,17 +12,22 @@ class LabelsStore {
 
 	async load(): Promise<Label[]> {
 		const page = await labelsApi.list(getApiClient(), { limit: 500 });
-		this.items = page.items;
+		const live = dropTombstones(page.items);
+		this.items = live;
 		this.loaded = true;
-		return page.items;
+		return live;
 	}
 
 	setItems(items: Label[]): void {
-		this.items = items;
+		this.items = dropTombstones(items);
 		this.loaded = true;
 	}
 
 	upsert(label: Label): void {
+		if (!isLive(label)) {
+			this.remove(label.id);
+			return;
+		}
 		const i = this.items.findIndex((l) => l.id === label.id);
 		if (i >= 0) this.items[i] = label;
 		else this.items = [...this.items, label];

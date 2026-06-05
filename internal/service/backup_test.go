@@ -112,6 +112,114 @@ func seedSample(t *testing.T, f *backupFixtures) {
 	}
 }
 
+// TestBackupService_Export_ExcludesTombstones asserts that soft-deleted
+// entities are not written to a backup export (Federation v1 F0.1).
+func TestBackupService_Export_ExcludesTombstones(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	work, err := f.ctxs.Create(ctx, "work", "blue", false)
+	if err != nil {
+		t.Fatalf("ctx: %v", err)
+	}
+	keepLabel, err := f.labels.Create(ctx, "keep", "green", false)
+	if err != nil {
+		t.Fatalf("label: %v", err)
+	}
+	goneLabel, err := f.labels.Create(ctx, "gone", "red", false)
+	if err != nil {
+		t.Fatalf("label2: %v", err)
+	}
+	keepProj, err := f.projects.Create(ctx, repo.CreateProject{ContextID: work.ID, Title: "keep", Color: "blue"})
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	goneProj, err := f.projects.Create(ctx, repo.CreateProject{ContextID: work.ID, Title: "gone", Color: "blue"})
+	if err != nil {
+		t.Fatalf("project2: %v", err)
+	}
+	keepSec, err := f.sections.Create(ctx, keepProj.ID, "keepSec")
+	if err != nil {
+		t.Fatalf("section: %v", err)
+	}
+	goneSec, err := f.sections.Create(ctx, keepProj.ID, "goneSec")
+	if err != nil {
+		t.Fatalf("section2: %v", err)
+	}
+	keepTask, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: ptr(work.ID), ProjectID: ptr(keepProj.ID)},
+		Title:     "keepTask",
+	})
+	if err != nil {
+		t.Fatalf("task: %v", err)
+	}
+	goneTask, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: ptr(work.ID), ProjectID: ptr(keepProj.ID)},
+		Title:     "goneTask",
+	})
+	if err != nil {
+		t.Fatalf("task2: %v", err)
+	}
+
+	// Soft-delete the "gone" entities. Deleting goneProj would cascade-tombstone
+	// its tasks/sections, so it is left standalone; we delete the individual
+	// gone* rows to isolate the export filter.
+	if err := f.tasks.Delete(ctx, goneTask.ID); err != nil {
+		t.Fatalf("delete task: %v", err)
+	}
+	if err := f.sections.Delete(ctx, goneSec.ID); err != nil {
+		t.Fatalf("delete section: %v", err)
+	}
+	if err := f.labels.Delete(ctx, goneLabel.ID); err != nil {
+		t.Fatalf("delete label: %v", err)
+	}
+	if err := f.projects.Delete(ctx, goneProj.ID); err != nil {
+		t.Fatalf("delete project: %v", err)
+	}
+
+	p, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	hasTaskID := func(id int64) bool {
+		for _, x := range p.Data.Tasks {
+			if x.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasTaskID(keepTask.ID) {
+		t.Errorf("export missing live task %d", keepTask.ID)
+	}
+	if hasTaskID(goneTask.ID) {
+		t.Errorf("export must exclude tombstoned task %d", goneTask.ID)
+	}
+
+	for _, l := range p.Data.Labels {
+		if l.ID == goneLabel.ID {
+			t.Errorf("export must exclude tombstoned label %d", goneLabel.ID)
+		}
+	}
+	for _, pr := range p.Data.Projects {
+		if pr.ID == goneProj.ID {
+			t.Errorf("export must exclude tombstoned project %d", goneProj.ID)
+		}
+	}
+	for _, s := range p.Data.ProjectSections {
+		if s.ID == goneSec.ID {
+			t.Errorf("export must exclude tombstoned section %d", goneSec.ID)
+		}
+	}
+	if len(p.Data.Labels) != 1 || p.Data.Labels[0].ID != keepLabel.ID {
+		t.Errorf("expected only keepLabel in export, got %+v", p.Data.Labels)
+	}
+	if len(p.Data.ProjectSections) != 1 || p.Data.ProjectSections[0].ID != keepSec.ID {
+		t.Errorf("expected only keepSec in export, got %+v", p.Data.ProjectSections)
+	}
+}
+
 func TestBackupService_RoundTrip(t *testing.T) {
 	f := setupBackupFixtures(t)
 	seedSample(t, f)

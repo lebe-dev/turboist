@@ -3,13 +3,15 @@ package dto
 import "github.com/lebe-dev/turboist/internal/model"
 
 type LabelDTO struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	Color       string `json:"color"`
-	IsFavourite bool   `json:"isFavourite"`
-	IsPrivate   bool   `json:"isPrivate"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
+	ID          int64   `json:"id"`
+	Name        string  `json:"name"`
+	Color       string  `json:"color"`
+	IsFavourite bool    `json:"isFavourite"`
+	IsPrivate   bool    `json:"isPrivate"`
+	ClientID    string  `json:"clientId"`
+	DeletedAt   *string `json:"deletedAt"`
+	CreatedAt   string  `json:"createdAt"`
+	UpdatedAt   string  `json:"updatedAt"`
 }
 
 func LabelFromModel(l model.Label) LabelDTO {
@@ -19,6 +21,8 @@ func LabelFromModel(l model.Label) LabelDTO {
 		Color:       l.Color,
 		IsFavourite: l.IsFavourite,
 		IsPrivate:   l.IsPrivate,
+		ClientID:    l.ClientID,
+		DeletedAt:   FormatTimePtr(l.DeletedAt),
 		CreatedAt:   FormatTime(l.CreatedAt),
 		UpdatedAt:   FormatTime(l.UpdatedAt),
 	}

@@ -20,15 +20,26 @@ func NewLabelRepo(db *sql.DB) *LabelRepo {
 	return &LabelRepo{db: db}
 }
 
+const labelColumns = `id, name, color, is_favourite, is_private, client_id, deleted_at, created_at, updated_at`
+
 func scanLabel(row interface{ Scan(...any) error }) (*model.Label, error) {
 	var l model.Label
 	var fav, priv int
+	var clientID, deletedAt sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&l.ID, &l.Name, &l.Color, &fav, &priv, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&l.ID, &l.Name, &l.Color, &fav, &priv, &clientID, &deletedAt, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	l.IsFavourite = fav == 1
 	l.IsPrivate = priv == 1
+	l.ClientID = clientID.String
+	if deletedAt.Valid {
+		t, err := model.ParseUTC(deletedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse deleted_at: %w", err)
+		}
+		l.DeletedAt = &t
+	}
 	t, err := model.ParseUTC(createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
@@ -51,8 +62,8 @@ func (r *LabelRepo) Create(ctx context.Context, name, color string, isFavourite 
 		favInt = 1
 	}
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO labels (name, color, is_favourite, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		name, color, favInt, now, now)
+		`INSERT INTO labels (name, color, is_favourite, client_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		name, color, favInt, model.NewClientID(), now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, logErr(ctx, op, ErrConflict)
@@ -70,7 +81,7 @@ func (r *LabelRepo) Get(ctx context.Context, id int64) (*model.Label, error) {
 	const op = "repo.labels.Get"
 	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE id = ?`, id)
+		`SELECT `+labelColumns+` FROM labels WHERE id = ? AND deleted_at IS NULL`, id)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -85,7 +96,7 @@ func (r *LabelRepo) GetByName(ctx context.Context, name string) (*model.Label, e
 	const op = "repo.labels.GetByName"
 	logQuery(ctx, op)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE name = ?`, name)
+		`SELECT `+labelColumns+` FROM labels WHERE name = ? AND deleted_at IS NULL`, name)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -104,10 +115,10 @@ func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page)
 	const op = "repo.labels.List"
 	logQuery(ctx, op, filter, page)
 	page = page.Normalize()
-	where := ""
+	where := " WHERE deleted_at IS NULL"
 	args := []any{}
 	if q := strings.TrimSpace(filter.Query); q != "" {
-		where = " WHERE name LIKE ?"
+		where += " AND name LIKE ?"
 		args = append(args, "%"+q+"%")
 	}
 
@@ -118,7 +129,7 @@ func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page)
 
 	args = append(args, page.Limit, page.Offset)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels`+where+
+		`SELECT `+labelColumns+` FROM labels`+where+
 			` ORDER BY is_favourite DESC, name ASC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("list labels: %w", err))
@@ -179,7 +190,7 @@ func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model
 	args = append(args, model.FormatUTC(time.Now()))
 	args = append(args, id)
 
-	res, err := r.db.ExecContext(ctx, `UPDATE labels SET `+joinSets(sets)+` WHERE id = ?`, args...)
+	res, err := r.db.ExecContext(ctx, `UPDATE labels SET `+joinSets(sets)+` WHERE id = ? AND deleted_at IS NULL`, args...)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, logErr(ctx, op, ErrConflict)
@@ -191,24 +202,45 @@ func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model
 		return nil, logErr(ctx, op, err)
 	}
 	if n == 0 {
-		return nil, logErr(ctx, op, ErrNotFound)
+		return nil, logErr(ctx, op, notFoundOrGone(ctx, r.db, "labels", id))
 	}
 	return r.Get(ctx, id)
 }
 
+// Delete soft-deletes the label. The task_labels/project_labels junctions
+// previously cleaned up via FK CASCADE; since the label row now survives, the
+// junction rows are hard-deleted so the label disappears from every task and
+// project it was attached to (Federation v1 F0.1).
 func (r *LabelRepo) Delete(ctx context.Context, id int64) error {
 	const op = "repo.labels.Delete"
 	logQuery(ctx, op, id)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM labels WHERE id = ?`, id)
+	now := model.FormatUTC(time.Now())
+	err := withTx(ctx, r.db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE labels SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`, now, now, id)
+		if err != nil {
+			return fmt.Errorf("soft-delete label: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return ErrNotFound
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM task_labels WHERE label_id = ?`, id); err != nil {
+			return fmt.Errorf("detach task labels: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM project_labels WHERE label_id = ?`, id); err != nil {
+			return fmt.Errorf("detach project labels: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return logErr(ctx, op, ErrNotFound)
+		}
 		return logErr(ctx, op, fmt.Errorf("delete label: %w", err))
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return logErr(ctx, op, err)
-	}
-	if n == 0 {
-		return logErr(ctx, op, ErrNotFound)
 	}
 	return nil
 }
@@ -225,7 +257,7 @@ func (r *LabelRepo) GetByIDs(ctx context.Context, ids []int64) ([]model.Label, e
 		placeholders[i] = "?"
 		args[i] = id
 	}
-	q := `SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE id IN (` +
+	q := `SELECT ` + labelColumns + ` FROM labels WHERE deleted_at IS NULL AND id IN (` +
 		strings.Join(placeholders, ",") + `)`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

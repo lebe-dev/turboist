@@ -33,6 +33,10 @@ function task(
 		postponeCount: 0,
 		labels: [],
 		url: '',
+		federated: false,
+		visibleToPeers: 0,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: ''
 	};

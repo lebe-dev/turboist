@@ -58,7 +58,7 @@ func (r *ProjectLabelsRepo) LabelsByProjectIDs(ctx context.Context, projectIDs [
 	q := `SELECT pl.project_id, l.id, l.name, l.color, l.is_favourite, l.created_at, l.updated_at
 	      FROM project_labels pl
 	      JOIN labels l ON l.id = pl.label_id
-	      WHERE pl.project_id IN (` + strings.Join(placeholders, ",") + `)
+	      WHERE l.deleted_at IS NULL AND pl.project_id IN (` + strings.Join(placeholders, ",") + `)
 	      ORDER BY l.name ASC`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

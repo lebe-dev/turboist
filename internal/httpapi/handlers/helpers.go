@@ -38,6 +38,22 @@ func logMutation(c fiber.Ctx, op string, attrs ...any) {
 	logging.FromContext(ctx).InfoContext(ctx, op+": ok", args...)
 }
 
+// mutationErr maps a repo error from a mutation (PATCH/DELETE) to the right
+// typed API error: a soft-deleted (tombstoned) entity is final, so re-editing
+// it returns 410 Gone (Federation v1 F0.1, US-3.7 AC2), while a genuinely
+// missing entity returns 404. Returns nil if err is neither, so callers fall
+// through to their default handling. notFoundMsg is the entity-specific 404/410
+// message (e.g. "task not found").
+func mutationErr(err error, notFoundMsg string) *httpapi.AppError {
+	if errors.Is(err, repo.ErrGone) {
+		return httpapi.ErrGone(notFoundMsg)
+	}
+	if errors.Is(err, repo.ErrNotFound) {
+		return httpapi.ErrNotFound(notFoundMsg)
+	}
+	return nil
+}
+
 func parseID(c fiber.Ctx) (int64, error) {
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil || id <= 0 {

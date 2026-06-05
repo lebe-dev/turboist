@@ -69,11 +69,17 @@ func scopesForPath(p string) []events.Scope {
 		return nil
 	}
 	// First path segment determines the domain.
-	domain, _, _ := strings.Cut(rest, "/")
+	domain, tail, _ := strings.Cut(rest, "/")
 	switch domain {
 	case "events":
 		return nil
 	case "tasks":
+		// Task sub-resources publish their own coarse scope on top of the task
+		// scopes so the open card refetches comments/checklist (Federation v1
+		// F0.2). tail here is e.g. "42/comments" or "42/checklist/7".
+		if scope, ok := taskSubResourceScope(tail); ok {
+			return []events.Scope{scope, events.ScopeTasks}
+		}
 		return []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}
 	case "inbox":
 		return []events.Scope{events.ScopeTasks, events.ScopeInbox, events.ScopePlan}
@@ -94,4 +100,23 @@ func scopesForPath(p string) []events.Scope {
 		return []events.Scope{events.ScopeLabels, events.ScopeTasks}
 	}
 	return nil
+}
+
+// taskSubResourceScope maps the path tail after "tasks/" (e.g. "42/comments" or
+// "42/checklist/7") to its dedicated change scope. It returns false when the
+// tail is not a comments/checklist sub-resource, so the caller falls back to the
+// plain task scopes (Federation v1 F0.2).
+func taskSubResourceScope(tail string) (events.Scope, bool) {
+	_, sub, ok := strings.Cut(tail, "/")
+	if !ok {
+		return "", false
+	}
+	resource, _, _ := strings.Cut(sub, "/")
+	switch resource {
+	case "comments":
+		return events.ScopeComments, true
+	case "checklist":
+		return events.ScopeChecklist, true
+	}
+	return "", false
 }

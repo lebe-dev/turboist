@@ -17,10 +17,24 @@ type TaskBulkHandler struct {
 	moveSvc     *service.MoveService
 	groupSvc    *service.GroupService
 	baseURL     string
+
+	// fedGuard rejects a bulk operation that touches a task in a read-only
+	// federated project with 403 federation_read_only (Federation v1 F5.2, US-5.1
+	// AC4). A bulk op is rejected WHOLE — the guard runs before any task is
+	// mutated, so there is no partial apply. nil/unwired is a no-op.
+	fedGuard *FederationReadOnlyGuard
 }
 
 func NewTaskBulkHandler(completeSvc *service.CompleteService, moveSvc *service.MoveService, groupSvc *service.GroupService, baseURL string) *TaskBulkHandler {
 	return &TaskBulkHandler{completeSvc: completeSvc, moveSvc: moveSvc, groupSvc: groupSvc, baseURL: baseURL}
+}
+
+// WithFederationGuard wires the read-only federated-project guard so every bulk
+// entry point rejects a batch that touches a read-only federated task with 403
+// (Federation v1 F5.2, US-5.1 AC4). Returns the handler for chaining.
+func (h *TaskBulkHandler) WithFederationGuard(g *FederationReadOnlyGuard) *TaskBulkHandler {
+	h.fedGuard = g
+	return h
 }
 
 func (h *TaskBulkHandler) Register(r fiber.Router) {
@@ -70,6 +84,9 @@ func (h *TaskBulkHandler) bulkComplete(c fiber.Ctx) error {
 		logValidation(c, "handler.Task.BulkComplete", "too many ids", slog.Int("count", len(req.IDs)))
 		return httpapi.ErrValidation("too many ids")
 	}
+	if appErr := h.fedGuard.GuardTasks(c, req.IDs); appErr != nil {
+		return appErr
+	}
 
 	resp := bulkResponse{
 		Succeeded: make([]int64, 0),
@@ -110,6 +127,16 @@ func (h *TaskBulkHandler) bulkMove(c fiber.Ctx) error {
 		logValidation(c, "handler.Task.BulkMove", "invalid placement")
 		return httpapi.ErrForbiddenPlacement("invalid task placement")
 	}
+	// Guard both legs (Federation v1 F5.2): no task may leave a read-only
+	// federated project, and none may be moved INTO one.
+	if appErr := h.fedGuard.GuardTasks(c, req.IDs); appErr != nil {
+		return appErr
+	}
+	if req.ProjectID != nil {
+		if appErr := h.fedGuard.GuardProject(c, *req.ProjectID); appErr != nil {
+			return appErr
+		}
+	}
 
 	resp := bulkResponse{
 		Succeeded: make([]int64, 0),
@@ -140,6 +167,20 @@ func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
 	if err := c.Bind().JSON(&req); err != nil {
 		logValidation(c, "handler.Task.Group", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
+	}
+
+	// Guard both legs (Federation v1 F5.2) BEFORE placement validation: no child
+	// may be re-parented out of a read-only federated project, and the new parent
+	// may not land in one. Running the read-only check first means a group that
+	// touches a read-only federated task is rejected 403 rather than masked by a
+	// placement error.
+	if appErr := h.fedGuard.GuardTasks(c, req.ChildIDs); appErr != nil {
+		return appErr
+	}
+	if req.ProjectID != nil {
+		if appErr := h.fedGuard.GuardProject(c, *req.ProjectID); appErr != nil {
+			return appErr
+		}
 	}
 
 	placement := repo.Placement{

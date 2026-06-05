@@ -9,17 +9,40 @@ import (
 	"github.com/lebe-dev/turboist/internal/repo"
 )
 
+// TaskCreator routes a task insert through the federation Emitter so a create in
+// a FEDERATED project emits a signed op=create event in the SAME tx as the row
+// insert (Federation v1 F3.1, US-3.1 AC1 / US-3.2 AC1). It returns the new task's
+// local id. A create in a non-federated project (or with no project) incurs zero
+// federation overhead. service.TaskService depends on this narrow interface so it
+// does not import the federation service package (avoids an import cycle).
+type TaskCreator interface {
+	Create(ctx context.Context, in repo.CreateTask, clientID string) (int64, error)
+}
+
 // TaskService orchestrates task creation and label management.
 type TaskService struct {
 	tasks      *repo.TaskRepo
 	projects   *repo.ProjectRepo
 	taskLabels *repo.TaskLabelsRepo
 	autoLabels *AutoLabelsService
+
+	// fedCreate routes the row insert through the federation Emitter when wired
+	// (production, FEDERATION_KEY set). nil → the service inserts via the plain
+	// repo, so the single-user / federation-off path is untouched.
+	fedCreate TaskCreator
 }
 
 // NewTaskService constructs a TaskService.
 func NewTaskService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskLabels *repo.TaskLabelsRepo, autoLabels *AutoLabelsService) *TaskService {
 	return &TaskService{tasks: tasks, projects: projects, taskLabels: taskLabels, autoLabels: autoLabels}
+}
+
+// WithFederation wires the federation task creator so a create in a federated
+// project emits its op=create event (US-3.1 AC1). Returns the service for
+// chaining. A nil creator leaves the service on the plain repo insert path.
+func (s *TaskService) WithFederation(c TaskCreator) *TaskService {
+	s.fedCreate = c
+	return s
 }
 
 // Create creates a task and applies explicit labels and auto-label rules.
@@ -40,7 +63,7 @@ func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLa
 			in.Priority = PriorityForCategory(*p.TroikiCategory)
 		}
 	}
-	t, err := s.tasks.Create(ctx, in)
+	t, err := s.create(ctx, in)
 	if err != nil {
 		logRepoErr(ctx, op+": create task", err)
 		return nil, err
@@ -71,6 +94,22 @@ func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLa
 	}
 	log.InfoContext(ctx, "task created", slog.String("op", op), slog.Int64("task_id", t.ID))
 	return t, nil
+}
+
+// create inserts the task row, routing through the federation creator when wired
+// (so a federated-project create emits its op=create event atomically with the
+// insert) and falling back to the plain repo otherwise. The federation path mints
+// the cross-instance client_id; the plain path lets the repo mint it. Either way
+// the hydrated task is re-read so callers see the assigned client_id + defaults.
+func (s *TaskService) create(ctx context.Context, in repo.CreateTask) (*model.Task, error) {
+	if s.fedCreate == nil {
+		return s.tasks.Create(ctx, in)
+	}
+	id, err := s.fedCreate.Create(ctx, in, model.NewClientID())
+	if err != nil {
+		return nil, err
+	}
+	return s.tasks.Get(ctx, id)
 }
 
 // PatchLabels applies label changes to an existing task.

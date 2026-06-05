@@ -26,6 +26,16 @@ const (
 	ScopeContexts Scope = "contexts"
 	ScopeSections Scope = "sections"
 	ScopePlan     Scope = "plan"
+	// ScopeComments and ScopeChecklist are emitted when a task's comments or
+	// checklist items change (Federation v1 F0.2). The frontend uses them as
+	// invalidation hints for the open task card.
+	ScopeComments  Scope = "comments"
+	ScopeChecklist Scope = "checklist"
+	// ScopeFederation is published when a federated project's per-peer sync health
+	// transitions (Federation v1 F4.3, US-4.3): an undelivered batch crosses the
+	// pending threshold, a peer goes unreachable, or a peer's key stops validating.
+	// The frontend federation store reloads its sync-status badges on this scope.
+	ScopeFederation Scope = "federation"
 )
 
 // Event is a single change notification. Payload is intentionally empty;

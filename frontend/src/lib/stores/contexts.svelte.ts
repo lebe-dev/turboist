@@ -1,6 +1,7 @@
 import { contexts as contextsApi } from '../api/endpoints/contexts';
 import { getApiClient } from '../api/client';
 import type { Context } from '../api/types';
+import { dropTombstones, isLive } from '../utils/tombstone';
 
 class ContextsStore {
 	items = $state<Context[]>([]);
@@ -8,17 +9,22 @@ class ContextsStore {
 
 	async load(): Promise<Context[]> {
 		const page = await contextsApi.list(getApiClient(), { limit: 200 });
-		this.items = page.items;
+		const live = dropTombstones(page.items);
+		this.items = live;
 		this.loaded = true;
-		return page.items;
+		return live;
 	}
 
 	setItems(items: Context[]): void {
-		this.items = items;
+		this.items = dropTombstones(items);
 		this.loaded = true;
 	}
 
 	upsert(ctx: Context): void {
+		if (!isLive(ctx)) {
+			this.remove(ctx.id);
+			return;
+		}
 		const i = this.items.findIndex((c) => c.id === ctx.id);
 		if (i >= 0) this.items[i] = ctx;
 		else this.items = [...this.items, ctx];

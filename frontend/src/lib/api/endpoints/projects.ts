@@ -71,6 +71,13 @@ export const projects = {
 			method: 'POST',
 			body: { category }
 		});
+	},
+
+	// enableFederation turns on federation for a project (Federation v1 F1.1,
+	// US-1.1). It returns the updated project (now isFederated=true). This is an
+	// owner-only JWT control-plane action, not a synced entity mutation.
+	enableFederation(client: ApiClient, id: number): Promise<Project> {
+		return client.fetch(`/api/v1/projects/${id}/federation/enable`, { method: 'POST' });
 	}
 };
 

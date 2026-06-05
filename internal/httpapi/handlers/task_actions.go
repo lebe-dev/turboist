@@ -21,6 +21,11 @@ type TaskActionHandler struct {
 	pinSvc      *service.PinService
 	moveSvc     *service.MoveService
 	baseURL     string
+
+	// fedGuard rejects an action against a task in a read-only federated project
+	// with 403 federation_read_only (Federation v1 F5.2, US-5.1 AC4). nil/unwired
+	// is a no-op so the single-user path is untouched.
+	fedGuard *FederationReadOnlyGuard
 }
 
 func NewTaskActionHandler(
@@ -39,6 +44,14 @@ func NewTaskActionHandler(
 		moveSvc:     moveSvc,
 		baseURL:     baseURL,
 	}
+}
+
+// WithFederationGuard wires the read-only federated-project guard so every task
+// action entry point rejects an edit of a read-only federated task with 403
+// (Federation v1 F5.2, US-5.1 AC4). Returns the handler for chaining.
+func (h *TaskActionHandler) WithFederationGuard(g *FederationReadOnlyGuard) *TaskActionHandler {
+	h.fedGuard = g
+	return h
 }
 
 func (h *TaskActionHandler) Register(r fiber.Router) {
@@ -65,6 +78,9 @@ func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Task.Complete", slog.Int64("task_id", id))
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
 	var completedAt *time.Time
 	if len(c.Body()) > 0 {
 		var req CompleteRequest
@@ -88,8 +104,8 @@ func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 		t, err = h.completeSvc.Complete(c.Context(), id)
 	}
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		var re *service.RecurrenceError
 		if errors.As(err, &re) {
@@ -107,10 +123,13 @@ func (h *TaskActionHandler) uncomplete(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Task.Uncomplete", slog.Int64("task_id", id))
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
 	t, err := h.completeSvc.Uncomplete(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		if errors.Is(err, service.ErrTroikiSlotFull) {
 			return httpapi.ErrTroikiSlotFull("troiki slot is full")
@@ -127,10 +146,13 @@ func (h *TaskActionHandler) cancel(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Task.Cancel", slog.Int64("task_id", id))
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
 	t, err := h.completeSvc.Cancel(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		return httpapi.ErrInternal("cancel task").WithCause(err)
 	}
@@ -158,6 +180,16 @@ func (h *TaskActionHandler) move(c fiber.Ctx) error {
 		logValidation(c, "handler.Task.Move", "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
+	// Guard BOTH legs of the move (Federation v1 F5.2): the task may not leave a
+	// read-only federated project, and a writable task may not be moved INTO one.
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
+	if req.ProjectID != nil {
+		if appErr := h.fedGuard.GuardProject(c, *req.ProjectID); appErr != nil {
+			return appErr
+		}
+	}
 	target := repo.Placement{
 		InboxID:   req.InboxID,
 		ContextID: req.ContextID,
@@ -167,8 +199,8 @@ func (h *TaskActionHandler) move(c fiber.Ctx) error {
 	}
 	t, err := h.moveSvc.Move(c.Context(), id, target)
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		if errors.Is(err, repo.ErrInvalidPlacement) || errors.Is(err, repo.ErrCycle) {
 			logValidation(c, "handler.Task.Move", "invalid placement")
@@ -191,6 +223,9 @@ func (h *TaskActionHandler) plan(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Task.Plan", slog.Int64("task_id", id))
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
 	var req PlanRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		logValidation(c, "handler.Task.Plan", "invalid body")
@@ -203,8 +238,8 @@ func (h *TaskActionHandler) plan(c fiber.Ctx) error {
 	}
 	t, err := h.planSvc.SetPlanState(c.Context(), id, state)
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		if errors.Is(err, service.ErrPlanLimitExceeded) {
 			return httpapi.ErrLimitExceeded("plan limit exceeded")
@@ -225,9 +260,12 @@ func (h *TaskActionHandler) pin(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Task.Pin", slog.Int64("task_id", id))
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
 	if err := h.pinSvc.PinTask(c.Context(), id); err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		if errors.Is(err, service.ErrPinLimitExceeded) {
 			return httpapi.ErrLimitExceeded("max-pinned limit reached")
@@ -248,9 +286,12 @@ func (h *TaskActionHandler) unpin(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Task.Unpin", slog.Int64("task_id", id))
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
 	if err := h.pinSvc.UnpinTask(c.Context(), id); err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		return httpapi.ErrInternal("unpin task").WithCause(err)
 	}

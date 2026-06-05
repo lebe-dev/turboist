@@ -28,6 +28,10 @@ function makeTask(overrides: Partial<Task>): Task {
 		postponeCount: 0,
 		labels: [],
 		url: '',
+		federated: false,
+		visibleToPeers: 0,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides

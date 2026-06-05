@@ -14,6 +14,8 @@ function makeContext(over: Partial<Context> = {}): Context {
 		name: 'Personal',
 		color: '#fff',
 		isFavourite: false,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: '',
 		...over
@@ -31,8 +33,19 @@ function makeProject(over: Partial<Project> = {}): Project {
 		isPinned: false,
 		pinnedAt: null,
 		isPrivate: false,
+		isFederated: false,
+		originInstance: null,
+		federationPermissions: null,
+		isOwner: false,
+		reBootstrappedAt: null,
+		federationLost: false,
+		federationLostReason: null,
+		ownerOffline: false,
+		peerInstances: [],
 		labels: [],
 		troikiCategory: null,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: '',
 		...over
@@ -68,6 +81,10 @@ function makeTask(
 		postponeCount: 0,
 		labels: [],
 		url: '',
+		federated: false,
+		visibleToPeers: 0,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: '',
 		...over
@@ -81,6 +98,8 @@ function makeLabel(over: Partial<Label> = {}): Label {
 		color: '#fff',
 		isFavourite: false,
 		isPrivate: false,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: '',
 		...over
@@ -109,6 +128,20 @@ describe('contextsStore', () => {
 		contextsStore.remove(1);
 		expect(contextsStore.items.map((c) => c.id)).toEqual([2]);
 	});
+
+	it('setItems filters out tombstoned contexts', () => {
+		contextsStore.setItems([
+			makeContext({ id: 1 }),
+			makeContext({ id: 2, deletedAt: '2026-06-01T00:00:00.000Z' })
+		]);
+		expect(contextsStore.items.map((c) => c.id)).toEqual([1]);
+	});
+
+	it('upsert of a tombstone removes the entity', () => {
+		contextsStore.upsert(makeContext({ id: 1 }));
+		contextsStore.upsert(makeContext({ id: 1, deletedAt: '2026-06-01T00:00:00.000Z' }));
+		expect(contextsStore.items.map((c) => c.id)).toEqual([]);
+	});
 });
 
 describe('projectsStore', () => {
@@ -118,6 +151,22 @@ describe('projectsStore', () => {
 		expect(projectsStore.byContext(1).map((p) => p.id)).toEqual([1]);
 		expect(projectsStore.pinned.map((p) => p.id)).toEqual([1]);
 	});
+
+	it('setItems filters out tombstoned projects', () => {
+		projectsStore.setItems([
+			makeProject({ id: 1 }),
+			makeProject({ id: 2, deletedAt: '2026-06-01T00:00:00.000Z' })
+		]);
+		expect(projectsStore.items.map((p) => p.id)).toEqual([1]);
+	});
+
+	it('upsert preserves the isFederated flag so the list can render the badge (US-1.1 AC2)', () => {
+		projectsStore.upsert(makeProject({ id: 1, isFederated: false }));
+		expect(projectsStore.items.find((p) => p.id === 1)?.isFederated).toBe(false);
+		// Re-upsert with federation enabled (as returned by enableFederation).
+		projectsStore.upsert(makeProject({ id: 1, isFederated: true }));
+		expect(projectsStore.items.find((p) => p.id === 1)?.isFederated).toBe(true);
+	});
 });
 
 describe('labelsStore', () => {
@@ -126,6 +175,14 @@ describe('labelsStore', () => {
 		labelsStore.upsert(makeLabel({ id: 2, isFavourite: false }));
 		expect(labelsStore.favourites.map((l) => l.id)).toEqual([1]);
 		expect(labelsStore.rest.map((l) => l.id)).toEqual([2]);
+	});
+
+	it('setItems filters out tombstoned labels', () => {
+		labelsStore.setItems([
+			makeLabel({ id: 1 }),
+			makeLabel({ id: 2, deletedAt: '2026-06-01T00:00:00.000Z' })
+		]);
+		expect(labelsStore.items.map((l) => l.id)).toEqual([1]);
 	});
 });
 

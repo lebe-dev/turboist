@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import GlobeSimpleIcon from 'phosphor-svelte/lib/GlobeSimple';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -12,6 +13,7 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { isProjectVisible } from '$lib/utils/visibility';
+	import { isReadOnlyFederated } from '$lib/federation/projectSurface';
 	import type { Project, ProjectStatus } from '$lib/api/types';
 	import { t } from '$lib/i18n';
 
@@ -152,6 +154,24 @@
 								aria-label={$t('common.privateMarker')}
 							>
 								<LockSimpleIcon class="size-3 text-muted-foreground/50" />
+							</span>
+						{/if}
+						{#if project.isFederated}
+							<span
+								class="inline-flex shrink-0"
+								title={$t('federation.badgeTooltip')}
+								aria-label={$t('federation.badge')}
+							>
+								<GlobeSimpleIcon class="size-3 text-muted-foreground/60" />
+							</span>
+						{/if}
+						{#if isReadOnlyFederated(project)}
+							<span
+								class="inline-flex shrink-0"
+								title={$t('federation.readOnlyTooltip')}
+								aria-label={$t('federation.readOnly')}
+							>
+								<LockSimpleIcon class="size-3 text-muted-foreground/60" weight="fill" />
 							</span>
 						{/if}
 						{#if settingsStore.troikiEnabled && project.troikiCategory}

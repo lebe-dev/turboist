@@ -20,8 +20,19 @@ function project(id: number, isPrivate = false): Project {
 		isPinned: false,
 		pinnedAt: null,
 		isPrivate,
+		isFederated: false,
+		originInstance: null,
+		federationPermissions: null,
+		isOwner: false,
+		reBootstrappedAt: null,
+		federationLost: false,
+		federationLostReason: null,
+		ownerOffline: false,
+		peerInstances: [],
 		labels: [],
 		troikiCategory: null,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: ''
 	};
@@ -53,6 +64,10 @@ function task(id: number, over: Partial<Task> = {}): Task {
 		postponeCount: 0,
 		labels: [],
 		url: '',
+		federated: false,
+		visibleToPeers: 0,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: '',
 		...over
@@ -66,6 +81,8 @@ function label(id: number, isPrivate = false): Label {
 		color: '#fff',
 		isFavourite: false,
 		isPrivate,
+		clientId: '',
+		deletedAt: null,
 		createdAt: '',
 		updatedAt: ''
 	};

@@ -19,6 +19,7 @@
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
 	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
 	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
+	import { federationStore, swallowFederationLoadError } from '$lib/stores/federation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
@@ -143,6 +144,11 @@
 				if (isSupportedLocale(settingsStore.locale)) {
 					setLocale(settingsStore.locale);
 				}
+				// Federation sync-status (Federation v1 F4.3, US-4.3): a best-effort
+				// load so federated project headers can render their badge immediately.
+				// Only the expected federation-off `federation_key_missing` is swallowed;
+				// any other failure is warned (a broken status surface stays diagnosable).
+				void federationStore.load().catch(swallowFederationLoadError);
 				dataReady = true;
 			} catch (err) {
 				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
@@ -200,7 +206,14 @@
 				dispatch('tasks');
 			}),
 			eventsClient.on('calendar', () => dispatch('calendar')),
-			eventsClient.on('sections', () => dispatch('sections'))
+			eventsClient.on('sections', () => dispatch('sections')),
+			// Federation sync-status transition (Federation v1 F4.3, US-4.3): reload
+			// the per-project status so the header badge flips colour. Errors are
+			// swallowed — a federation-off instance simply has no status to show.
+			eventsClient.on('federation', () => {
+				void federationStore.load().catch(swallowFederationLoadError);
+				dispatch('federation');
+			})
 		];
 		return () => {
 			for (const u of unsubs) u();
@@ -221,7 +234,8 @@
 			projectsStore.load(),
 			inboxStatsStore.load(),
 			planStatsStore.load(),
-			pinnedTasksStore.load()
+			pinnedTasksStore.load(),
+			federationStore.load().catch(swallowFederationLoadError)
 		]);
 		const scopes: EventScope[] = [
 			'tasks',
@@ -231,7 +245,8 @@
 			'labels',
 			'contexts',
 			'sections',
-			'plan'
+			'plan',
+			'federation'
 		];
 		for (const scope of scopes) {
 			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));

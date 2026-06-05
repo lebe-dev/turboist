@@ -29,8 +29,19 @@ type TaskDTO struct {
 	PostponeCount   int        `json:"postponeCount"`
 	Labels          []LabelDTO `json:"labels"`
 	URL             string     `json:"url"`
-	CreatedAt       string     `json:"createdAt"`
-	UpdatedAt       string     `json:"updatedAt"`
+	// Federated reports whether this task belongs to a federated project, and
+	// VisibleToPeers is the count of non-revoked peer instances that project is
+	// shared with (Federation v1 F6.4, US-7.1 AC2). Together they back the
+	// "federated, visible to N peers" task-header badge. They are false / 0 for a
+	// task in a non-federated project; the task DTO carries them only where the
+	// handler resolved the project's federation surface (the task detail GET), so
+	// the badge has a self-contained source without a second round-trip.
+	Federated      bool    `json:"federated"`
+	VisibleToPeers int     `json:"visibleToPeers"`
+	ClientID       string  `json:"clientId"`
+	DeletedAt      *string `json:"deletedAt"`
+	CreatedAt      string  `json:"createdAt"`
+	UpdatedAt      string  `json:"updatedAt"`
 	// Subtasks is populated only by GET /tasks/:id?subtasks=true so the
 	// task detail page can fetch the parent task and its children in one
 	// round-trip. Other endpoints leave it nil and the `omitempty` tag
@@ -68,9 +79,22 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		PostponeCount:   t.PostponeCount,
 		Labels:          labels,
 		URL:             t.URL(baseURL),
+		ClientID:        t.ClientID,
+		DeletedAt:       FormatTimePtr(t.DeletedAt),
 		CreatedAt:       FormatTime(t.CreatedAt),
 		UpdatedAt:       FormatTime(t.UpdatedAt),
 	}
+}
+
+// WithFederationVisibility overlays the federated flag + visible-to-peers count
+// onto a task DTO (Federation v1 F6.4, US-7.1 AC2). A non-federated task leaves
+// both zero-valued; the count is the named peer audience length of the task's
+// project. It is additive — the caller passes the already-resolved values (the DTO
+// layer holds no repo).
+func (t TaskDTO) WithFederationVisibility(federated bool, visibleToPeers int) TaskDTO {
+	t.Federated = federated
+	t.VisibleToPeers = visibleToPeers
+	return t
 }
 
 // CreateTaskRequest is the shared body for all task creation endpoints.

@@ -80,12 +80,29 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `CodeValidation` | 422 |
 | `CodeForbidden` | 403 |
 | `CodeConflict` | 409 |
+| `gone` | 410 |
 | `CodeLimitExceeded` | 409 |
 | `CodeForbiddenPlacement` | 422 |
 | `totp_invalid_code` | 401 |
 | `totp_already_enabled` | 409 |
 | `totp_not_enabled` | 409 |
+| `federation_signature_invalid` | 401 |
+| `federation_replay` | 401 |
+| `federation_timestamp_stale` | 401 |
+| `federation_untrusted` | 403 |
+| `federation_key_missing` | 409 |
+| `federation_not_enabled` | 400 |
+| `federation_digest_mismatch` | 400 |
+| `federation_author_mismatch` | 400 |
+| `federation_clock_skew` | 400 |
+| `federation_key_unresolved` | 503 |
+| `federation_version_unsupported` | 400 |
+| `federation_stale_pull` | 410 |
+| `federation_rate_limited` | 429 |
+| `federation_payload_too_large` | 413 |
 | `CodeInternalError` | 500 |
+
+Most `federation_*` codes are returned only by the server-to-server federation trust plane (signed peer requests). The exceptions are `federation_key_missing` and `federation_not_enabled`, which the JWT-only owner control plane (e.g. enable / create-invite) returns to the browser. See **Federation** below.
 
 #### `403 Forbidden`
 
@@ -147,6 +164,365 @@ curl "$BASE/healthz"
 ```sh
 curl "$BASE/version"
 ```
+
+### `GET /federation/.well-known/instance`
+
+Federation discovery document (Federation v1). Public, reachable before setup,
+and only mounted when `FEDERATION_KEY` is configured. Returns this instance's
+trust-plane identity. The Ed25519 keypair is generated lazily on the first
+request (a stable per-install `node_id` and the keypair are persisted; the
+private seed is encrypted at rest with `FEDERATION_KEY`). `display_name`
+defaults to the host of `BASE_URL`.
+
+```json
+{
+  "instance_url": "https://me.example",
+  "public_key": "<base64-std Ed25519 public key>",
+  "display_name": "me.example",
+  "protocol_versions": [1]
+}
+```
+
+```sh
+curl "$BASE/federation/.well-known/instance"
+```
+
+---
+
+## Federation
+
+The federation trust plane is a **separate, peer-to-peer signing scheme**
+(Ed25519), independent of the JWT / API-token auth planes. Signed peer requests
+carry these headers, and the Ed25519 signature covers the pinned canonical
+string `METHOD\nPATH\ninstance_url\ntimestamp\nnonce\nprotocol_version\nSHA256(body)`
+(concrete request path; empty body digest = `SHA256("")`):
+
+| Header | Meaning |
+|--------|---------|
+| `X-Federation-Instance` | Sender's `instance_url` (base URL) |
+| `X-Federation-Timestamp` | ISO-8601 UTC request time (±5 min window) |
+| `X-Federation-Nonce` | Per-request anti-replay nonce |
+| `X-Federation-Protocol-Version` | Negotiated protocol version (in the signed set — anti-downgrade) |
+| `X-Federation-Digest` | base64-std `SHA-256` of the request body |
+| `X-Federation-Signature` | base64-std Ed25519 signature over the canonical string |
+
+Signed requests are validated by the HTTP-signature middleware in this order:
+body **digest** constant-time compare (mismatch → `400 federation_digest_mismatch`),
+**timestamp window** (out of ±5 min → `401 federation_timestamp_stale`, checked
+before the nonce), **nonce** anti-replay (`401 federation_replay`), then peer-key
+resolution + **signature** verification (`401 federation_signature_invalid`).
+
+**Per-event payload validation.** The transport signature above authenticates the
+HTTP *request*; each federation *event* in the body carries its own, separate
+authenticity proof, validated before any inbox/domain write (a transport-valid
+request can still carry a forged or stale event, and under owner-hub relay the
+request signer is not the event author). In order: per-event **Ed25519** over the
+canonical event-minus-signature, verified against the *author* instance's key
+(fail → `401 federation_signature_invalid`); if the author's key cannot be
+*resolved* at all — a transient `.well-known` fetch error — the event is rejected
+with a retryable `503 federation_key_unresolved` instead, which (unlike a real
+verify failure) does **not** stamp the sticky `key_mismatch` marker, so a brief
+network blip never turns the sync badge permanently red; **author == origin** equality
+(mismatch → `400 federation_author_mismatch`); **HLC clock-skew** — the event's
+clock may be at most 10 minutes in the future or 1 hour in the past, asymmetric
+(out of bounds or unparseable → `400 federation_clock_skew`); and **membership +
+permission** — the sending peer must be a non-revoked write/admin member of the
+target project (otherwise `403 federation_untrusted`). A rejected event leaves
+zero inbox and domain rows.
+
+**Protocol version negotiation.** The `.well-known` document advertises the
+versions this build speaks (`protocol_versions`, currently `[1]`). Peers
+negotiate the highest version present in both sets; the chosen version is
+carried in the signed `X-Federation-Protocol-Version` header (and is therefore
+part of the signature — a downgrade cannot be forced in transit). If the two
+instances share no common version the handshake is rejected with
+`400 federation_version_unsupported` **before** the invite is consumed.
+
+F0.3 ships the trust-plane foundation (`.well-known`, signature middleware, nonce
++ peer-key caches); F0.4 adds protocol version negotiation; F2.2/F2.3 add the
+signed handshake + snapshot; F3.2 adds the signed event push + catch-up pull
+documented below.
+
+### `POST /federation/events`
+
+Signed **peer-to-peer** endpoint (transport signature required). Accepts a batch
+of canonical signed events `{ "events": [ <event>, ... ] }` (Federation v1 F3.2,
+US-3.1/US-3.2). Each event is run through the per-event payload validation above
+**before** any write; the whole batch is rejected on the first invalid event so a
+forged event cannot ride alongside valid ones (rejected request → zero inbox /
+domain rows, US-7.2 AC1). Accepted events are recorded in `federation_inbox`
+`ON CONFLICT(event_id) DO NOTHING` (at-least-once + dedup, NFR-2) and handed to a
+single inbox-apply goroutine off the request path; the endpoint returns
+`202 Accepted` fast without waiting for the merge. A duplicate `event_id` (push +
+pull, or a retried POST) is a silent no-op. After an apply that changes local
+state, the change is published to the local SSE hub **without** echo-suppression
+(a remote edit is not the user's own mutation — US-3.1 AC2), so every open tab
+refreshes.
+
+**Inbound backpressure (Federation v1 F4.4, US-8.3).** The endpoint protects
+itself from a peer sending too much or too big:
+
+- A batch with **more than `max-batch-events` events** (default 500) is rejected
+  **`413` (`federation_payload_too_large`)** WHOLE — never partially applied
+  (US-8.3 AC3). The cap is inclusive (a batch exactly at the cap is accepted).
+- A peer exceeding its **inbound event rate** (`inbound-rate-per-minute`, default
+  600/min, per-peer token bucket) is rejected **`429` (`federation_rate_limited`)**
+  with a `Retry-After` header so it backs off (US-8.3 AC1). The limiter is
+  in-memory and resets on restart (an accepted v1 gap). Both checks run before any
+  validation/inbox write, so a rejected batch leaves zero rows.
+
+### `GET /federation/projects/:id/events?since_hlc=&limit=`
+
+Signed **peer-to-peer** catch-up pull (Federation v1 F3.2, US-3.2 AC3 / US-4.1).
+`:id` is the **owner's** local project id (the joiner stored it as the remote id);
+the caller must be a non-revoked member of it (`403 federation_untrusted`
+otherwise). Returns the project's outbox events whose greatest per-field HLC is
+**strictly greater** than `since_hlc`, in HLC-ascending order, plus the cursor to
+advance to:
+
+```json
+{ "events": [ { "event_id": "...", "op": "update", "fields": { ... } } ], "next_hlc": "..." }
+```
+
+`limit` defaults to 500 (clamped to 1000). An empty `since_hlc` returns every
+event (a fresh peer). Replaying a pull converges to exactly the same state a push
+would, because the HLC compare is the same lexical total order the per-field LWW
+uses, and duplicate events dedup on `event_id`.
+
+If `since_hlc` is **older than the oldest retained event** for the project — the
+intervening events have aged out of the retention window and been GC'd — the pull
+returns **`410 Gone`** (`federation_stale_pull`, Federation v1 F3.3, US-3.7 AC4)
+so the peer re-bootstraps instead of silently missing the pruned changes:
+
+```json
+{ "error": { "code": "federation_stale_pull",
+             "details": { "snapshot_url": "https://owner.example/federation/projects/42/snapshot",
+                          "as_of_hlc": "..." } } }
+```
+
+This milestone emits the 410; consuming it (fetch the snapshot, re-bootstrap, and
+**preserve the unsent outbox**) lands in F4.2. An empty `since_hlc` is never
+stale — a fresh peer is served the full retained log.
+
+**Tombstones & retention GC.** A federated `op=delete` writes a soft-delete
+tombstone plus a synthetic `_deleted` field HLC, so the deletion participates in
+per-field LWW and a later stale update cannot resurrect the entity. Deleting a
+task also cascade-tombstones its comments and checklist items in the same outbox
+transaction (the origin emits one `op=delete` per child; receivers mark children
+deleted locally without re-emitting). A daily retention GC hard-deletes tombstones
+older than `tombstone-retention-days` (default 90, the resurrection-safety
+horizon) and purges aged outbox/applied-inbox rows.
+
+The publisher worker delivers locally-originated events to each non-revoked peer
+in the background: it batch-reads undelivered events per `(project, peer)`,
+POSTs them, and stamps `delivered_to` — never holding the single DB connection
+across a peer POST (read-batch → release → network → short tx to mark delivered).
+A failed peer is isolated (its events stay pending for retry); one peer's 5xx
+never blocks delivery to a healthy peer. A commit-ping fired the moment a
+federated mutation commits makes delivery immediate (push < 5s, NFR-1.1) rather
+than waiting for the safety-net tick.
+
+**Outbound backpressure (Federation v1 F4.4, US-4.4).** The worker classifies a
+push failure and applies the matching policy: a **`429`** honors the peer's
+`Retry-After` verbatim (AC1); a **`5xx`/network drop** backs off exponentially
+(1s → 2s → … → 1h, AC2); a **`4xx` (≠429)** is a permanent reject — the events
+are parked in a **dead-letter** queue (not retried, AC3) and the peer is gated. A
+delivery batch is **chunked by count (500) + bytes (5 MB)** so a single POST never
+overruns the receiver's inbound `413` (AC4). The per-peer retry gate is persisted
+and restored on restart, so a restart does not re-hammer a down/rejecting peer.
+
+### `GET /api/v1/federation/dead-letter`
+
+Owner-facing **JWT-only** route (Federation v1 F4.4, US-4.4 AC3). Returns the
+parked, permanently-failed outbound events for the diagnostics view, newest-first,
+as a stable JSON array (empty when nothing failed). Each entry carries only
+metadata — never the event payload:
+
+```json
+[ { "eventId": "...", "peerInstanceUrl": "https://peer.example", "projectId": 42,
+    "statusCode": 403, "reason": "federation_read_only", "failedAt": "2026-06-03T10:00:00.000Z" } ]
+```
+
+A dead-lettered event is excluded from the per-peer pending-delivery count, so a
+`4xx`-rejected event never keeps a project's sync status stuck "pending".
+
+### `POST /api/v1/projects/:id/federation/enable`
+
+Owner-facing **JWT-only** control-plane route (not part of the signed peer
+trust plane, not API-token-scoped). Turns federation on for a single local
+project (F1.1, US-1.1): it lazily generates this instance's keypair if needed
+(`409 federation_key_missing` when `FEDERATION_KEY` is unset), flips
+`projects.is_federated`, and records the owner self-row in `federated_projects`.
+Idempotent — re-enabling an already-federated project is a no-op. Returns the
+updated project (now `isFederated: true`); `404 not_found` for an unknown
+project. Enabling only flips the flag; the project is not actually syncable
+until the sync core lands in a later phase.
+
+### `POST /api/v1/projects/:id/invites`
+
+Owner-facing **JWT-only** control-plane route. Mints a one-time share invite for
+a federated project (F1.2, US-1.2). The project must already be federated
+(`400 federation_not_enabled` otherwise); `404 not_found` for an unknown project.
+
+Request body:
+
+```json
+{ "permissions": "write", "maxUses": 1, "expiresAt": "2030-01-01T00:00:00.000Z" }
+```
+
+- `permissions` (required): `read` | `write` | `admin`.
+- `maxUses` (optional): defaults to `1`.
+- `expiresAt` (optional, ISO-8601 UTC): defaults to **now + 7 days**.
+
+Response:
+
+```json
+{
+  "inviteId": "0192...",
+  "secret": "<256-bit hex secret>",
+  "link": "https://your-instance.tld/federation/join#invite=0192....<secret>",
+  "permissions": "write",
+  "maxUses": 1,
+  "expiresAt": "2030-01-08T00:00:00.000Z"
+}
+```
+
+The 256-bit secret is generated with `crypto/rand`; only its SHA-256 hash is
+stored (never the plaintext). The `secret` and `link` are returned **once** to
+the owner — the secret cannot be recovered later. In the `link` the secret rides
+in the URL **fragment** (`#invite=<id>.<secret>`), so it is never sent to the
+server in the request line and never appears in access logs.
+
+---
+
+### `GET /api/v1/projects/:id/invites`
+
+Owner-facing **JWT-only** route. Lists every invite for a project with its
+server-derived lifecycle status (F1.3, US-1.3). The response carries **no
+secret** — only id + metadata + status — so the secret is shown to the owner
+exactly once at creation and is never re-served. `404 not_found` for an unknown
+project.
+
+Response (array):
+
+```json
+[
+  {
+    "inviteId": "0192...",
+    "permissions": "write",
+    "maxUses": 1,
+    "usedCount": 0,
+    "status": "active",
+    "expiresAt": "2030-01-08T00:00:00.000Z",
+    "revokedAt": "",
+    "consumedAt": "",
+    "createdAt": "2026-06-01T00:00:00.000Z"
+  }
+]
+```
+
+`status` is one of `active` | `revoked` | `consumed` | `expired`, derived with
+the precedence **revoked > consumed > expired > active** (the same canonical
+helper the handshake consume path uses). Optional timestamp fields are empty
+strings when unset.
+
+---
+
+### `POST /api/v1/projects/:id/invites/:inviteId/revoke`
+
+Owner-facing **JWT-only** route. Stamps `revoked_at` on an invite, flipping its
+derived status to `revoked` (F1.3, US-1.3 AC2). **Idempotent** — re-revoking
+returns `204` without moving the timestamp. Returns `204 No Content`.
+`404 not_found` for an unknown invite or one belonging to another project.
+
+---
+
+### `DELETE /api/v1/projects/:id/invites/:inviteId`
+
+Owner-facing **JWT-only** route. Hard-removes an invite row (F1.3, US-1.3 AC3).
+Does **not** touch `federated_projects` — a peer that already consumed the
+invite stays joined. Returns `204 No Content`. `404 not_found` for an unknown
+invite or one belonging to another project.
+
+---
+
+### `GET /api/v1/projects/:id/federation/peers`
+
+Owner-facing **JWT-only** route. Lists every **remote** instance joined to a
+federated project (F1.4, US-1.4). The owner self-row is excluded server-side.
+Each row joins the peer's handshake-supplied `displayName` from the instance
+directory (so the UI renders `displayName @ instanceUrl`, AC2) and a
+server-derived collaboration `status` (AC1, AC3). `404 not_found` for an unknown
+project.
+
+Response (array):
+
+```json
+[
+  {
+    "instanceUrl": "https://bob.example",
+    "displayName": "Bob's Box",
+    "permissions": "write",
+    "status": "active",
+    "lastSentHlc": "0000000000000-00000-node",
+    "lastContactAt": "2026-06-01T00:00:00.000Z",
+    "joinedAt": "2026-01-01T00:00:00.000Z",
+    "pendingDelivery": 0
+  }
+]
+```
+
+`status` is one of `active` | `paused` | `stale` | `revoked`, derived with the
+precedence **revoked > paused > stale(>24h) > active** (the canonical
+`model.DerivePeerStatus` helper). A peer with no contact, or last contact older
+than 24h, is `stale`. `pendingDelivery` is the count of outbox events not yet
+delivered to the peer (the delivery-overdue signal, US-3.2 AC4); it drops to `0`
+once the publisher worker has delivered them. Optional timestamp fields are empty
+strings when unset.
+
+### `GET /api/v1/federation/status`
+
+Owner-facing **JWT-only** route. Returns the **server-derived** sync status of
+every federation-enabled (shared) project for the UI indicator (F4.3, US-4.3).
+The status is a pure server read — there is no client outbox. Non-federated
+projects are absent from the response (the badge is hidden for them).
+
+Response (array):
+
+```json
+[
+  {
+    "projectId": 7,
+    "status": "key_mismatch",
+    "pendingCount": 0,
+    "unreachablePeer": "",
+    "keyMismatchPeer": "https://bob.example"
+  }
+]
+```
+
+`status` is one of `synced` | `pending` | `unreachable` | `key_mismatch`, derived
+with the precedence **key_mismatch > unreachable > pending > synced** (the
+canonical `model.DeriveSyncStatus` helper rolling up the project's per-peer
+health):
+
+- `synced` (green) — outbox empty/delivered, every peer fresh (AC1);
+- `pending` (yellow) — an undelivered outbox event is older than 5 minutes;
+  `pendingCount` is how many (AC2);
+- `unreachable` (orange) — a peer has not been contacted in over 24h;
+  `unreachablePeer` names it (AC3);
+- `key_mismatch` (red, **sticky**) — a peer's inbound event signature was
+  verified against its *resolved* key and did **not** match (the key genuinely
+  rotated); `keyMismatchPeer` names it and its events are **not applied** until an
+  operator re-trusts the new key (AC4). A *transient* author-key resolution
+  failure (`503 federation_key_unresolved`) is deliberately **not** treated as a
+  rotation and never stamps this marker; the in-memory peer-key cache is warmed
+  from the pinned `federated_instances` keys at startup so a real mismatch is a
+  true key change rather than a cold-cache fetch error.
+
+The badge also refreshes live: the server publishes a `federation` SSE scope on a
+status transition (e.g. a key mismatch is first observed). Companion fields are
+empty / `0` unless they apply to the current `status`.
 
 ---
 
@@ -501,6 +877,13 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `POST /api/v1/tasks/:id/subtasks` | `tasks:write` |
 | `POST /api/v1/tasks/:id/duplicate` | `tasks:write` |
 | `POST /api/v1/tasks/:id/decompose` | `tasks:write` |
+| `GET /api/v1/tasks/:id/comments` | `tasks:read` |
+| `POST /api/v1/tasks/:id/comments` | `tasks:write` |
+| `DELETE /api/v1/tasks/:id/comments/:commentId` | `tasks:write` |
+| `GET /api/v1/tasks/:id/checklist` | `tasks:read` |
+| `POST /api/v1/tasks/:id/checklist` | `tasks:write` |
+| `PATCH /api/v1/tasks/:id/checklist/:itemId` | `tasks:write` |
+| `DELETE /api/v1/tasks/:id/checklist/:itemId` | `tasks:write` |
 | `POST /api/v1/tasks/:id/complete` | `tasks:write` |
 | `POST /api/v1/tasks/:id/uncomplete` | `tasks:write` |
 | `POST /api/v1/tasks/:id/cancel` | `tasks:write` |
@@ -828,6 +1211,57 @@ curl -X POST "$BASE/api/v1/tasks/42/decompose" \
   -H "Content-Type: application/json" \
   -d '{"titles":["Design","Implement","Test"]}'
 ```
+
+### `GET /api/v1/tasks/:id/comments`
+
+List a task's comments, oldest first. Soft-deleted comments are excluded. Paginated (`limit`/`offset`).
+
+A comment carries `clientId` + `deletedAt` (offline-sync / federation overlay) plus the federated author line fields `authorDisplayName` / `authorInstance` — both `null` for locally-authored comments (the peer display name is supplied at handshake; until federation is wired these are empty).
+
+### `POST /api/v1/tasks/:id/comments`
+
+Add a comment to the task. Comments are **immutable** — there is no PATCH; once created a body never changes (so cross-instance federation never has to merge a comment body).
+
+**Request:**
+```json
+{ "body": "Looks good to me." }
+```
+
+**Response** `201` with the comment object.
+
+### `DELETE /api/v1/tasks/:id/comments/:commentId`
+
+Soft-delete a comment (`204`). The tombstone is final; re-deleting returns `410 Gone`.
+
+### `GET /api/v1/tasks/:id/checklist`
+
+List a task's checklist items ordered by `position`. Soft-deleted items are excluded. Paginated.
+
+Each item carries `title`, `isCompleted`, `position` (integer order), `fracPosition` (fractional-index key reserved for federated conflict-free ordering — empty in v1), plus `clientId` + `deletedAt`.
+
+### `POST /api/v1/tasks/:id/checklist`
+
+Append a checklist item at the next position.
+
+**Request:**
+```json
+{ "title": "Write tests" }
+```
+
+**Response** `201` with the item object (`isCompleted: false`).
+
+### `PATCH /api/v1/tasks/:id/checklist/:itemId`
+
+Update a checklist item's `title` and/or `isCompleted` (omitted fields are left unchanged). Toggling one item does not affect siblings. A re-edit of a soft-deleted item returns `410 Gone`.
+
+**Request:**
+```json
+{ "isCompleted": true }
+```
+
+### `DELETE /api/v1/tasks/:id/checklist/:itemId`
+
+Soft-delete a checklist item (`204`). The tombstone is final.
 
 ---
 

@@ -33,6 +33,40 @@ describe('usePageLoad', () => {
 		expect(page.error).toBeNull();
 	});
 
+	it('refetch resolves to true on success and false on failure', async () => {
+		// The success flag lets a user-initiated caller (e.g. the F3.4 explicit
+		// Reload) react to a failure, unlike the error-swallowing revalidate() path.
+		const ok = usePageLoad(vi.fn(async () => undefined), { autoLoad: false });
+		expect(await ok.refetch()).toBe(true);
+
+		const bad = usePageLoad(
+			vi.fn(async () => {
+				throw new Error('boom');
+			}),
+			{ autoLoad: false, onError: vi.fn() }
+		);
+		expect(await bad.refetch()).toBe(false);
+	});
+
+	it('refetch resolves to false when it was superseded by a later refetch', async () => {
+		// A cancelled/superseded refetch must not report success — a Reload racing a
+		// route change should not clear its banner on a stale resolution.
+		let release: () => void;
+		const blocking = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let call = 0;
+		const fetcher = vi.fn(async () => {
+			if (call++ === 0) await blocking;
+		});
+		const page = usePageLoad(fetcher, { autoLoad: false });
+		const first = page.refetch();
+		const second = page.refetch();
+		release!();
+		expect(await first).toBe(false);
+		expect(await second).toBe(true);
+	});
+
 	it('records error and shows toast on failure', async () => {
 		const fetcher = vi.fn(async () => {
 			throw new Error('nope');

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/sync/errgroup"
@@ -9,6 +11,8 @@ import (
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/logging"
+	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
@@ -35,6 +39,13 @@ type MetaHandler struct {
 	appSettingsRepo *repo.AppSettingsRepo
 	troikiSvc       *service.TroikiService
 	baseURL         string
+
+	// fedProjects resolves the per-project named peer audience exposed on the
+	// bootstrap projects (Federation v1 F6.4, US-7.1 AC3 data contract — peerInstances
+	// computed ONCE at bootstrap). nil when federation is off (no FEDERATION_KEY) — the
+	// /config projects then carry an empty peerInstances array, so the single-user
+	// bootstrap is untouched. Wired additively by WithFederation.
+	fedProjects *repo.FederatedProjectRepo
 }
 
 // NewMetaHandler constructs a MetaHandler. totpAvailable reports whether
@@ -64,6 +75,15 @@ func NewMetaHandler(
 		troikiSvc:       troikiSvc,
 		baseURL:         baseURL,
 	}
+}
+
+// WithFederation wires the federated-projects repo so the /config bootstrap
+// exposes the per-project peerInstances array (Federation v1 F6.4, US-7.1 AC3).
+// Returns the handler for chaining. A nil repo leaves the bootstrap projects with
+// an empty peerInstances array (federation off).
+func (h *MetaHandler) WithFederation(fedProjects *repo.FederatedProjectRepo) *MetaHandler {
+	h.fedProjects = fedProjects
+	return h
 }
 
 // Register wires /config onto the authenticated API group r.
@@ -168,10 +188,7 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
-		projects = make([]dto.ProjectDTO, len(items))
-		for i, p := range items {
-			projects[i] = dto.ProjectFromModel(p)
-		}
+		projects = h.bootstrapProjects(gctx, items)
 		return nil
 	})
 
@@ -292,4 +309,64 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		InboxStats:    inboxStats,
 		PinnedTasks:   pinnedTasks,
 	})
+}
+
+// bootstrapProjects renders the bootstrap project list, enriching each federated
+// project with its federation surface (origin/role/lost/owner-offline) AND its
+// per-project named peer audience (Federation v1 F6.4, US-7.1 AC3 data contract:
+// peerInstances computed ONCE at bootstrap). Both are resolved in ONE batched query
+// each (no N+1). Federation-off (nil fedProjects) returns the plain DTOs with an
+// empty peerInstances array. Enrichment is best-effort: a resolve failure logs at
+// ERROR (it is a repo/SQL fault, not client validation) and the bootstrap still
+// returns the un-enriched projects so the workspace loads.
+func (h *MetaHandler) bootstrapProjects(ctx context.Context, items []model.Project) []dto.ProjectDTO {
+	dtos := make([]dto.ProjectDTO, len(items))
+	for i, p := range items {
+		dtos[i] = dto.ProjectFromModel(p)
+	}
+	if h.fedProjects == nil {
+		return dtos
+	}
+	ids := make([]int64, 0, len(items))
+	for _, p := range items {
+		if p.IsFederated {
+			ids = append(ids, p.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return dtos
+	}
+
+	surfaces, err := h.fedProjects.FederationSurfaceByProjectIDs(ctx, ids)
+	if err != nil {
+		logging.FromContext(ctx).ErrorContext(ctx, "federation surface resolve failed (bootstrap)",
+			slog.String("op", "handler.Meta.Config"),
+			slog.String("err", err.Error()),
+		)
+		return dtos
+	}
+	peersByID, err := h.fedProjects.PeerInstancesByProjectIDs(ctx, ids, h.baseURL)
+	if err != nil {
+		logging.FromContext(ctx).ErrorContext(ctx, "federation peer-instances resolve failed (bootstrap)",
+			slog.String("op", "handler.Meta.Config"),
+			slog.String("err", err.Error()),
+		)
+		peersByID = nil
+	}
+	for i := range dtos {
+		s, ok := surfaces[dtos[i].ID]
+		if !ok {
+			continue
+		}
+		peers := make([]dto.PeerInstanceDTO, 0, len(peersByID[dtos[i].ID]))
+		for _, p := range peersByID[dtos[i].ID] {
+			peers = append(peers, dto.PeerInstanceDTO{InstanceUrl: p.InstanceURL, DisplayName: p.DisplayName})
+		}
+		dtos[i] = dtos[i].
+			WithFederationSurface(s.OriginInstanceURL, string(s.Permissions), s.IsOwner).
+			WithReBootstrapMarker(s.RebootstrappedAt).
+			WithFederationLost(s.Lost, string(s.LostReason)).
+			WithPeerInstances(peers)
+	}
+	return dtos
 }

@@ -114,8 +114,8 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 		IsFavourite: req.IsFavourite,
 	})
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+		if appErr := mutationErr(err, "context not found"); appErr != nil {
+			return appErr
 		}
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("context name already exists")
@@ -133,8 +133,8 @@ func (h *ContextHandler) delete(c fiber.Ctx) error {
 	}
 	logEntry(c, "handler.Context.Delete", slog.Int64("context_id", id))
 	if err := h.ctxs.Delete(c.Context(), id); err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+		if appErr := mutationErr(err, "context not found"); appErr != nil {
+			return appErr
 		}
 		return httpapi.ErrInternal("delete context").WithCause(err)
 	}

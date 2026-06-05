@@ -56,6 +56,16 @@ frontend-test-watch:
 
 test-all: test && test-frontend
 
+# bench-federation runs the NFR-1 federation performance benchmarks (F7.6):
+# inbox apply p95 < 50ms @100k, snapshot 10k < 30s, bootstrap 1k < 60s, push < 5s
+# with commit-ping, and the buffer-first no-write-stall availability check. These
+# are ADVISORY and gated behind FEDERATION_BENCH=1 so they never run under
+# `just test` / CI (whose absolute wall-clock thresholds would be flaky on shared
+# runners) — run them on demand here. They use explicit p95 percentile sampling,
+# not the framework's ns/op mean; -v surfaces the measured latencies.
+bench-federation:
+    FEDERATION_BENCH=1 go test -run 'TestF76' -v -count=1 -timeout 600s ./internal/federation/fedtest/
+
 # --- Coverage ---
 coverage:
     go test ./... -coverprofile=coverage.out

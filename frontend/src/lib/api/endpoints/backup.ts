@@ -45,8 +45,30 @@ export const backup = {
 		});
 		if (response.status === 204) return;
 		throw await asApiError(response);
+	},
+
+	// downloadFederation fetches the federation-aware VACUUM INTO physical backup
+	// (Federation v1 F6.5, US-8.5): the whole DB including the federation tables +
+	// keypair, as a .db SQLite file. Like the logical download it bypasses the typed
+	// client (binary payload) but applies the same access-token auth.
+	async downloadFederation(): Promise<{ blob: Blob; filename: string }> {
+		const response = await fetch('/api/v1/federation/backup', { headers: authHeader() });
+		if (!response.ok) {
+			throw await asApiError(response);
+		}
+		const blob = await response.blob();
+		const filename = filenameFromDisposition(response.headers.get('Content-Disposition')) ?? defaultFederationFilename();
+		return { blob, filename };
 	}
 };
+
+function defaultFederationFilename(): string {
+	const d = new Date();
+	const yyyy = d.getUTCFullYear();
+	const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+	const dd = String(d.getUTCDate()).padStart(2, '0');
+	return `turboist-federation-backup-${yyyy}${mm}${dd}.db`;
+}
 
 function filenameFromDisposition(value: string | null): string | null {
 	if (!value) return null;

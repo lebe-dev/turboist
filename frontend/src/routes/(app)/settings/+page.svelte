@@ -10,6 +10,10 @@
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import ApiTokensSection from '$lib/components/settings/ApiTokensSection.svelte';
 	import BackupRestoreSection from '$lib/components/settings/BackupRestoreSection.svelte';
+	import DeadLetterSection from '$lib/components/settings/DeadLetterSection.svelte';
+	import AuditSection from '$lib/components/settings/AuditSection.svelte';
+	import OverviewSection from '$lib/components/settings/OverviewSection.svelte';
+	import OpsSection from '$lib/components/settings/OpsSection.svelte';
 	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
 	import LogsSection from '$lib/components/settings/LogsSection.svelte';
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
@@ -33,7 +37,7 @@
 	const appVersion = __APP_VERSION__;
 	const totpAvailable = $derived(configStore.value?.totpAvailable ?? false);
 
-	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
+	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'federation', 'logs'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -133,6 +137,7 @@
 		{ value: 'security', labelKey: 'settings.tabs.security' },
 		{ value: 'api', labelKey: 'settings.tabs.api' },
 		{ value: 'backup', labelKey: 'settings.tabs.backup' },
+		{ value: 'federation', labelKey: 'settings.tabs.federation' },
 		{ value: 'logs', labelKey: 'settings.tabs.logs' }
 	]);
 
@@ -670,6 +675,13 @@
 
 		<Tabs.Content value="backup" class="flex flex-col gap-4">
 			<BackupRestoreSection />
+		</Tabs.Content>
+
+		<Tabs.Content value="federation" class="flex flex-col gap-4">
+			<OverviewSection />
+			<OpsSection />
+			<DeadLetterSection />
+			<AuditSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="logs" class="flex flex-col gap-4">

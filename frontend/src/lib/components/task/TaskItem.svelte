@@ -19,10 +19,12 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { isOverdue } from '$lib/utils/format';
+	import { isReadOnlyFederated, visiblePeers } from '$lib/federation/projectSurface';
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import LabelChips from './LabelChips.svelte';
 	import DateBadge from './DateBadge.svelte';
 	import PostponeBadge from './PostponeBadge.svelte';
+	import VisibleToPeersBadge from './VisibleToPeersBadge.svelte';
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
@@ -106,6 +108,19 @@
 	const project = $derived(
 		task.projectId ? projectsStore.items.find((p) => p.id === task.projectId) : null
 	);
+	// readOnly is true when this task belongs to a JOINED read-only federated
+	// project (Federation v1 F5.2, US-5.1 AC4 UI leg). Every edit affordance is
+	// disabled and a lock badge is shown; the backend 403 federation_read_only
+	// guard remains authoritative for anything that slips past the disabled UI.
+	const readOnly = $derived(project ? isReadOnlyFederated(project) : false);
+	// peers is the named peer audience the task's federated project is shared with
+	// (Federation v1 F6.4, US-7.1 AC2). The "visible to N peers" badge derives its
+	// count + tooltip from it; an empty array (non-federated / owner with no peers)
+	// renders nothing. Sourced from the project's bootstrap peerInstances array.
+	const peers = $derived(project ? visiblePeers(project) : []);
+	// A read-only federated task may not be dragged (drag drives a move/reorder,
+	// which the backend rejects with 403 anyway).
+	const canDrag = $derived(draggable && !readOnly);
 	const overdue = $derived(
 		task.status === 'open' && isOverdue(task.dueAt, configStore.value?.timezone ?? null)
 	);
@@ -144,7 +159,8 @@
 			isRecurring ||
 			showCalendarSlash ||
 			showWeekBadge ||
-			showBacklogBadge
+			showBacklogBadge ||
+			peers.length > 0
 	);
 
 	const checkboxClass = $derived.by(() => {
@@ -178,11 +194,11 @@
 	class:bg-accent={taskSelectionStore.mode && selected}
 	style:padding-left={collapsible ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
-	draggable={draggable && !taskSelectionStore.mode}
-	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
-	ontouchstart={draggable && !taskSelectionStore.mode ? onTaskTouchStart : undefined}
-	ontouchmove={draggable && !taskSelectionStore.mode ? onTaskTouchMove : undefined}
-	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
+	draggable={canDrag && !taskSelectionStore.mode}
+	ondragstart={canDrag && !taskSelectionStore.mode ? onTaskDragStart : undefined}
+	ontouchstart={canDrag && !taskSelectionStore.mode ? onTaskTouchStart : undefined}
+	ontouchmove={canDrag && !taskSelectionStore.mode ? onTaskTouchMove : undefined}
+	ontouchend={canDrag && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
 	role={draggable ? 'listitem' : undefined}
 >
 	{#if collapsible}
@@ -228,6 +244,9 @@
 		onclick={() => onToggle?.(task)}
 		class={checkboxClass}
 		class:mt-0.5={hasMeta}
+		class:cursor-not-allowed={readOnly}
+		class:opacity-50={readOnly}
+		disabled={readOnly}
 		aria-pressed={checked}
 		aria-label={checked ? $t('task.markIncomplete') : $t('task.markComplete')}
 	>
@@ -246,7 +265,7 @@
 				class:text-muted-foreground={checked || depth > 0}
 				class:text-foreground={!checked && depth === 0}
 			>
-				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
+				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}{#if readOnly}<span class="inline-flex align-middle" title={$t('federation.readOnlyTooltip')} aria-label={$t('federation.taskReadOnly')} data-testid="task-readonly-lock"><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-amber-500/70" /></span>{/if}
 			</a>
 		</div>
 
@@ -262,7 +281,7 @@
 			>{descriptionPreview}</p>
 		{/if}
 
-		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showCalendarSlash || showWeekBadge || showBacklogBadge}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showCalendarSlash || showWeekBadge || showBacklogBadge || peers.length > 0}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -294,6 +313,9 @@
 				{/if}
 				{#if task.labels.length > 0}
 					<LabelChips labels={task.labels} />
+				{/if}
+				{#if peers.length > 0}
+					<VisibleToPeersBadge {peers} />
 				{/if}
 				{#if showCalendarSlash}
 					<span
@@ -332,7 +354,7 @@
 		{/if}
 	</div>
 
-	{#if mutator}
+	{#if mutator && !readOnly}
 		<div class="flex items-center self-center">
 			<TaskActionsMenu {task} {mutator} {belongs} {hasSubtasks} />
 		</div>

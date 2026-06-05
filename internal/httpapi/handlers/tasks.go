@@ -12,9 +12,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+	fedsvc "github.com/lebe-dev/turboist/internal/service/federation"
 	rrule "github.com/teambition/rrule-go"
 )
 
@@ -34,11 +36,90 @@ type TaskHandler struct {
 	projects *repo.ProjectRepo
 	taskSvc  *service.TaskService
 	baseURL  string
+
+	// fedTasks routes a delete of a FEDERATED task through the federation Emitter
+	// so it emits the op=delete tombstone + child cascade to federation_outbox
+	// (US-3.7 AC3). nil when federation is off (no FEDERATION_KEY) — the handler
+	// then falls back to the plain repo delete, so the single-user path is untouched.
+	fedTasks *fedsvc.TaskMutator
+
+	// fedGuard rejects a local mutation against a read-only federated project with
+	// 403 federation_read_only (Federation v1 F5.2, US-5.1 AC4). nil/unwired is a
+	// no-op so the single-user path is untouched.
+	fedGuard *FederationReadOnlyGuard
+
+	// fedProjects resolves the task's project federation surface so the task detail
+	// GET can carry federated + visibleToPeers for the "federated, visible to N
+	// peers" header badge (Federation v1 F6.4, US-7.1 AC2). nil when federation is
+	// off — the task DTO then carries federated=false / 0, untouched. Wired
+	// additively by WithVisibility.
+	fedProjects *repo.FederatedProjectRepo
 }
 
 // NewTaskHandler constructs a TaskHandler.
 func NewTaskHandler(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskSvc *service.TaskService, baseURL string) *TaskHandler {
 	return &TaskHandler{tasks: tasks, projects: projects, taskSvc: taskSvc, baseURL: baseURL}
+}
+
+// WithFederation wires the federation task mutator so a delete of a federated task
+// emits through the Emitter (op=delete + child cascade, US-3.7 AC3). Returns the
+// handler for chaining. A nil mutator leaves the handler on the plain repo path.
+func (h *TaskHandler) WithFederation(m *fedsvc.TaskMutator) *TaskHandler {
+	h.fedTasks = m
+	return h
+}
+
+// WithFederationGuard wires the read-only federated-project guard so every task
+// mutation entry point rejects an edit of a read-only federated task with 403
+// (Federation v1 F5.2, US-5.1 AC4). Returns the handler for chaining.
+func (h *TaskHandler) WithFederationGuard(g *FederationReadOnlyGuard) *TaskHandler {
+	h.fedGuard = g
+	return h
+}
+
+// WithVisibility wires the federated-projects repo so the task detail GET carries
+// the federated flag + the visible-to-peers count for the "federated, visible to N
+// peers" header badge (Federation v1 F6.4, US-7.1 AC2). Returns the handler for
+// chaining. A nil repo leaves the task DTO with federated=false / 0.
+func (h *TaskHandler) WithVisibility(fedProjects *repo.FederatedProjectRepo) *TaskHandler {
+	h.fedProjects = fedProjects
+	return h
+}
+
+// federationVisibility resolves whether a task's project is federated and, if so,
+// how many non-revoked peer instances it is visible to (Federation v1 F6.4, US-7.1
+// AC2). It is best-effort: a resolve failure (or no project / federation off)
+// returns (false, 0) so the read path never breaks. One batched query is issued
+// for the single project id.
+func (h *TaskHandler) federationVisibility(c fiber.Ctx, t *model.Task) (bool, int) {
+	if h.fedProjects == nil || t.ProjectID == nil {
+		return false, 0
+	}
+	ids := []int64{*t.ProjectID}
+	surfaces, err := h.fedProjects.FederationSurfaceByProjectIDs(c.Context(), ids)
+	if err != nil {
+		ctx := c.Context()
+		logging.FromContext(ctx).ErrorContext(ctx, "federation visibility surface resolve failed",
+			slog.String("op", "handler.Task.FederationVisibility"),
+			slog.Int64("project_id", *t.ProjectID),
+			slog.String("err", err.Error()),
+		)
+		return false, 0
+	}
+	if _, ok := surfaces[*t.ProjectID]; !ok {
+		return false, 0
+	}
+	peersByID, err := h.fedProjects.PeerInstancesByProjectIDs(c.Context(), ids, h.baseURL)
+	if err != nil {
+		ctx := c.Context()
+		logging.FromContext(ctx).ErrorContext(ctx, "federation visibility peers resolve failed",
+			slog.String("op", "handler.Task.FederationVisibility"),
+			slog.Int64("project_id", *t.ProjectID),
+			slog.String("err", err.Error()),
+		)
+		return true, 0
+	}
+	return true, len(peersByID[*t.ProjectID])
 }
 
 // Register wires task routes onto r (the /api/v1 group).
@@ -67,6 +148,11 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		return httpapi.ErrInternal("get task").WithCause(err)
 	}
 	out := dto.TaskFromModel(*t, h.baseURL)
+	// Federated-visibility enrichment for the task-header badge (Federation v1 F6.4,
+	// US-7.1 AC2): federated + the visible-to-peers count, resolved from the task's
+	// project. No-op (false / 0) for a non-federated task or a federation-off build.
+	federated, visibleToPeers := h.federationVisibility(c, t)
+	out = out.WithFederationVisibility(federated, visibleToPeers)
 	if includeSubtasks {
 		items, err := h.tasks.ListSubtasks(c.Context(), id)
 		if err != nil {
@@ -74,7 +160,7 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		}
 		dtos := make([]dto.TaskDTO, len(items))
 		for i, st := range items {
-			dtos[i] = dto.TaskFromModel(st, h.baseURL)
+			dtos[i] = dto.TaskFromModel(st, h.baseURL).WithFederationVisibility(federated, visibleToPeers)
 		}
 		page := dto.NewPagedResponse(dtos, len(dtos), len(dtos), 0)
 		out.Subtasks = &page
@@ -91,9 +177,22 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			// A tombstoned task is invisible to Get; re-editing it is a 410, not
+			// a 404 (US-3.7 AC2 foundation). A DB failure during disambiguation
+			// is neither ErrGone nor ErrNotFound, so it must surface as a 500 —
+			// never be masked as a 404 (Federation v1 F0.1 follow-up).
+			resolveErr := h.tasks.NotFoundOrGone(c.Context(), id)
+			if appErr := mutationErr(resolveErr, "task not found"); appErr != nil {
+				return appErr
+			}
+			return httpapi.ErrInternal("resolve task tombstone").WithCause(resolveErr)
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
+	}
+	if t.ProjectID != nil {
+		if appErr := h.fedGuard.GuardProject(c, *t.ProjectID); appErr != nil {
+			return appErr
+		}
 	}
 	var req dto.PatchTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
@@ -209,12 +308,27 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 
 	u.IncPostponeCount = shouldIncPostpone(t, u, time.Now())
 
-	updated, err := h.tasks.Update(c.Context(), id, u)
-	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+	// Federation-on: route through the Emitter so a PATCH of a federated task
+	// emits a signed op=update event carrying the changed federated fields
+	// (US-3.2 AC1). The mutator no-ops the federation sidecar for a non-federated
+	// project (and when no federated field changed), so the single-user path is
+	// untouched. Federation-off (nil mutator) keeps the plain repo update.
+	if h.fedTasks != nil {
+		if err := h.fedTasks.Update(c.Context(), t, u); err != nil {
+			if appErr := mutationErr(err, "task not found"); appErr != nil {
+				return appErr
+			}
+			return httpapi.ErrInternal("update task").WithCause(err)
+		}
+	} else if _, err := h.tasks.Update(c.Context(), id, u); err != nil {
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		return httpapi.ErrInternal("update task").WithCause(err)
+	}
+	updated, err := h.tasks.Get(c.Context(), id)
+	if err != nil {
+		return httpapi.ErrInternal("get task after patch").WithCause(err)
 	}
 
 	needsLabelUpdate := req.Title != nil || req.Labels != nil || len(req.RemovedAutoLabels) > 0
@@ -242,9 +356,46 @@ func (h *TaskHandler) delete(c fiber.Ctx) error {
 		return err
 	}
 	logEntry(c, "handler.Task.Delete", slog.Int64("task_id", id))
+
+	// Reject a delete of a task in a read-only federated project (Federation v1
+	// F5.2, US-5.1 AC4) before any work — a joined read peer may not delete the
+	// owner's tasks; the tombstone arrives via the owner's relayed fan-out.
+	if appErr := h.fedGuard.GuardTask(c, id); appErr != nil {
+		return appErr
+	}
+
+	// Federation-on: route through the Emitter so a delete of a federated task
+	// emits the op=delete tombstone + child cascade to federation_outbox (US-3.7
+	// AC3). We must load the task first to know its project + cross-instance
+	// client_id; the mutator no-ops the federation sidecar for a non-federated
+	// project. Federation-off keeps the plain repo path (zero overhead).
+	if h.fedTasks != nil {
+		t, err := h.tasks.Get(c.Context(), id)
+		if err != nil {
+			if errors.Is(err, repo.ErrNotFound) {
+				// A tombstoned task is invisible to Get; re-deleting it is a 410, not
+				// a 404 (US-3.7 AC2 foundation), mirroring patch's disambiguation.
+				resolveErr := h.tasks.NotFoundOrGone(c.Context(), id)
+				if appErr := mutationErr(resolveErr, "task not found"); appErr != nil {
+					return appErr
+				}
+				return httpapi.ErrInternal("resolve task tombstone").WithCause(resolveErr)
+			}
+			return httpapi.ErrInternal("get task").WithCause(err)
+		}
+		if err := h.fedTasks.Delete(c.Context(), t); err != nil {
+			if appErr := mutationErr(err, "task not found"); appErr != nil {
+				return appErr
+			}
+			return httpapi.ErrInternal("delete task").WithCause(err)
+		}
+		logMutation(c, "handler.Task.Delete", slog.Int64("task_id", id))
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+
 	if err := h.tasks.Delete(c.Context(), id); err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+		if appErr := mutationErr(err, "task not found"); appErr != nil {
+			return appErr
 		}
 		return httpapi.ErrInternal("delete task").WithCause(err)
 	}
@@ -290,6 +441,11 @@ func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
 	if parent.InboxID != nil {
 		logValidation(c, "handler.Task.CreateSubtask", "subtask in inbox")
 		return httpapi.ErrForbiddenPlacement("subtasks cannot be placed in inbox")
+	}
+	if parent.ProjectID != nil {
+		if appErr := h.fedGuard.GuardProject(c, *parent.ProjectID); appErr != nil {
+			return appErr
+		}
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
@@ -340,6 +496,11 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 			return httpapi.ErrNotFound("task not found")
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
+	}
+	if src.ProjectID != nil {
+		if appErr := h.fedGuard.GuardProject(c, *src.ProjectID); appErr != nil {
+			return appErr
+		}
 	}
 	t, err := h.cloneTask(c.Context(), src, src.ParentID, duplicateTitle(src.Title))
 	if err != nil {
@@ -440,6 +601,11 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
 	}
+	if src.ProjectID != nil {
+		if appErr := h.fedGuard.GuardProject(c, *src.ProjectID); appErr != nil {
+			return appErr
+		}
+	}
 	subs, err := h.tasks.ListSubtasks(c.Context(), id)
 	if err != nil {
 		return httpapi.ErrInternal("list subtasks").WithCause(err)
@@ -464,7 +630,18 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 	createdIDs := make([]int64, 0, len(titles))
 	rollback := func() {
 		for _, cid := range createdIDs {
-			_ = h.tasks.Delete(c.Context(), cid)
+			if err := h.tasks.Delete(c.Context(), cid); err != nil {
+				// Compensating delete failed: a partially-created decomposition is left
+				// behind. We keep unwinding the rest (best-effort), but surface each
+				// failure at WARN so an orphaned subtask is observable rather than
+				// silently swallowed.
+				logging.FromContext(c.Context()).WarnContext(c.Context(), "federation: decompose rollback compensating delete failed",
+					slog.String("op", "handler.Task.Decompose"),
+					slog.Int64("source_id", id),
+					slog.Int64("task_id", cid),
+					slog.String("err", err.Error()),
+				)
+			}
 		}
 	}
 	for _, title := range titles {

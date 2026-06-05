@@ -13,7 +13,7 @@ import (
 
 func (s *BackupService) readContexts(ctx context.Context) ([]BackupContext, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, created_at, updated_at FROM contexts ORDER BY id`)
+		`SELECT id, name, color, is_favourite, created_at, updated_at FROM contexts WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (s *BackupService) readContexts(ctx context.Context) ([]BackupContext, erro
 
 func (s *BackupService) readLabels(ctx context.Context) ([]BackupLabel, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels ORDER BY id`)
+		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *BackupService) readProjects(ctx context.Context) ([]BackupProject, erro
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, context_id, title, description, color, status, is_pinned, pinned_at,
 				is_private, project_type, troiki_category, created_at, updated_at
-		 FROM projects ORDER BY id`)
+		 FROM projects WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (s *BackupService) readProjects(ctx context.Context) ([]BackupProject, erro
 func (s *BackupService) readProjectSections(ctx context.Context) ([]BackupProjectSection, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, project_id, title, position, created_at, updated_at
-		 FROM project_sections ORDER BY id`)
+		 FROM project_sections WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 				day_part, plan_state, is_pinned, pinned_at, is_private,
 				recurrence_rule, completed_at, postpone_count, troiki_category, troiki_capacity_granted,
 				source_task_id, created_at, updated_at
-		 FROM tasks ORDER BY id`)
+		 FROM tasks WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,10 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 
 func (s *BackupService) readTaskLabels(ctx context.Context) ([]BackupTaskLabel, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT task_id, label_id FROM task_labels ORDER BY task_id, label_id`)
+		`SELECT tl.task_id, tl.label_id FROM task_labels tl
+		 JOIN tasks t ON t.id = tl.task_id AND t.deleted_at IS NULL
+		 JOIN labels l ON l.id = tl.label_id AND l.deleted_at IS NULL
+		 ORDER BY tl.task_id, tl.label_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +213,10 @@ func (s *BackupService) readTaskLabels(ctx context.Context) ([]BackupTaskLabel, 
 
 func (s *BackupService) readProjectLabels(ctx context.Context) ([]BackupProjectLabel, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT project_id, label_id FROM project_labels ORDER BY project_id, label_id`)
+		`SELECT pl.project_id, pl.label_id FROM project_labels pl
+		 JOIN projects p ON p.id = pl.project_id AND p.deleted_at IS NULL
+		 JOIN labels l ON l.id = pl.label_id AND l.deleted_at IS NULL
+		 ORDER BY pl.project_id, pl.label_id`)
 	if err != nil {
 		return nil, err
 	}

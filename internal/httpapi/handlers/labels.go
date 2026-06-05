@@ -111,8 +111,8 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 		IsPrivate:   req.IsPrivate,
 	})
 	if err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("label not found")
+		if appErr := mutationErr(err, "label not found"); appErr != nil {
+			return appErr
 		}
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("label name already exists")
@@ -130,8 +130,8 @@ func (h *LabelHandler) delete(c fiber.Ctx) error {
 	}
 	logEntry(c, "handler.Label.Delete", slog.Int64("label_id", id))
 	if err := h.labels.Delete(c.Context(), id); err != nil {
-		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("label not found")
+		if appErr := mutationErr(err, "label not found"); appErr != nil {
+			return appErr
 		}
 		return httpapi.ErrInternal("delete label").WithCause(err)
 	}

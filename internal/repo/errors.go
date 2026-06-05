@@ -5,6 +5,11 @@ import "errors"
 var (
 	ErrNotFound = errors.New("repo: not found")
 	ErrConflict = errors.New("repo: conflict")
+	// ErrGone signals that a row exists but has been soft-deleted (its
+	// deleted_at tombstone is set). A tombstone is final, so any attempt to
+	// re-edit it is rejected; handlers map this to HTTP 410 Gone (Federation
+	// v1 F0.1, US-3.7 AC2 foundation).
+	ErrGone = errors.New("repo: gone")
 )
 
 type Page struct {

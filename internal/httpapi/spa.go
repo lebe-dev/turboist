@@ -39,11 +39,31 @@ func RegisterSPA(app *fiber.App, embeddedFS fs.FS, buildDir string) error {
 			p := c.Path()
 			return strings.HasPrefix(p, "/api/") ||
 				strings.HasPrefix(p, "/auth/") ||
+				isFederationAPIPath(p) ||
 				p == "/healthz" ||
+				p == "/metrics" ||
 				p == "/version"
 		},
 		NotFoundHandler: serveIndex,
 	}))
 
 	return nil
+}
+
+// isFederationAPIPath reports whether p is a server-to-server federation JSON
+// route that must pass through to the router (returning its JSON envelope)
+// rather than falling back to the SPA index.html (Federation v1 F0.3).
+//
+// Everything under /federation/ is a JSON API route EXCEPT /federation/join,
+// which is a browser-facing SvelteKit page that must serve the SPA shell
+// (Federation v1 F2.1). The carve-out is here so the join route already serves
+// the SPA when F2.1 adds the page.
+func isFederationAPIPath(p string) bool {
+	if !strings.HasPrefix(p, "/federation/") {
+		return false
+	}
+	if p == "/federation/join" || strings.HasPrefix(p, "/federation/join/") {
+		return false
+	}
+	return true
 }

@@ -94,7 +94,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, baseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, baseURL).Register(api.Group("/labels"))
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, baseURL).Register(api.Group("/sections"))
-	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, baseURL).Register(api)
+	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, repo.NewFederatedProjectRepo(sqlDB), baseURL).Register(api)
 	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, baseURL).Register(api.Group("/inbox"))
 	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, baseURL).Register(api)
 	handlers.NewTaskViewHandler(taskRepo, cfg, baseURL).Register(api)

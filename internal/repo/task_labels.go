@@ -27,6 +27,20 @@ func (r *TaskLabelsRepo) SetForTask(ctx context.Context, taskID int64, labelIDs 
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := r.SetForTaskTx(ctx, tx, taskID, labelIDs); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// SetForTaskTx replaces a task's label set inside a caller's transaction, so a
+// federated mutation can copy labels onto a newly-inserted local row (e.g. a
+// recurrence-completion snapshot) atomically with the insert. Labels are a LOCAL
+// concern — they are excluded only from the federated event field set (§3), not
+// from the local row.
+func (r *TaskLabelsRepo) SetForTaskTx(ctx context.Context, tx *sql.Tx, taskID int64, labelIDs []int64) error {
+	const op = "repo.task_labels.SetForTaskTx"
+	logQuery(ctx, op, taskID, labelIDs)
 	if _, err := tx.ExecContext(ctx, `DELETE FROM task_labels WHERE task_id = ?`, taskID); err != nil {
 		return logErr(ctx, op, fmt.Errorf("clear task_labels: %w", err))
 	}
@@ -35,7 +49,7 @@ func (r *TaskLabelsRepo) SetForTask(ctx context.Context, taskID int64, labelIDs 
 			return logErr(ctx, op, fmt.Errorf("insert task_label: %w", err))
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (r *TaskLabelsRepo) LabelsByTaskIDs(ctx context.Context, taskIDs []int64) (map[int64][]model.Label, error) {
@@ -53,7 +67,7 @@ func (r *TaskLabelsRepo) LabelsByTaskIDs(ctx context.Context, taskIDs []int64) (
 	q := `SELECT tl.task_id, l.id, l.name, l.color, l.is_favourite, l.created_at, l.updated_at
 	      FROM task_labels tl
 	      JOIN labels l ON l.id = tl.label_id
-	      WHERE tl.task_id IN (` + strings.Join(placeholders, ",") + `)
+	      WHERE l.deleted_at IS NULL AND tl.task_id IN (` + strings.Join(placeholders, ",") + `)
 	      ORDER BY l.name ASC`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

@@ -28,7 +28,7 @@ func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, client_id, deleted_at, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -45,7 +45,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var t model.Task
 	var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
 	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
-	var recurrenceRule, troikiCategory sql.NullString
+	var recurrenceRule, troikiCategory, clientID, deletedAt sql.NullString
 	var dueHasTime, deadlineHasTime, isPinned, isPrivate int
 	var createdAt, updatedAt string
 	if err := row.Scan(
@@ -58,6 +58,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&t.PostponeCount,
 		&troikiCategory,
 		&sourceTaskID,
+		&clientID, &deletedAt,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
@@ -65,6 +66,14 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	if sourceTaskID.Valid {
 		v := sourceTaskID.Int64
 		t.SourceTaskID = &v
+	}
+	t.ClientID = clientID.String
+	if deletedAt.Valid {
+		ts, err := model.ParseUTC(deletedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse deleted_at: %w", err)
+		}
+		t.DeletedAt = &ts
 	}
 	t.IsPrivate = isPrivate == 1
 	if inboxID.Valid {
@@ -181,8 +190,30 @@ type CreateTask struct {
 func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, error) {
 	const op = "repo.tasks.Create"
 	logQuery(ctx, op, in.Placement)
+	var id int64
+	err := withTx(ctx, r.db, func(tx *sql.Tx) error {
+		newID, err := r.CreateTx(ctx, tx, in, model.NewClientID())
+		if err != nil {
+			return err
+		}
+		id = newID
+		return nil
+	})
+	if err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	return r.Get(ctx, id)
+}
+
+// CreateTx inserts a task inside a caller's transaction with the supplied
+// cross-instance client_id, so a federated create can run the domain write in
+// the SAME tx as the outbox emit (atomicity, NFR-2 — see service/federation.
+// Emitter.EmitMutation). It returns the new task's local id (NOT a hydrated
+// model) so the caller can re-read after the tx commits. clientID must be a
+// fresh ULID for a create; do not mint a new one on update.
+func (r *TaskRepo) CreateTx(ctx context.Context, tx *sql.Tx, in CreateTask, clientID string) (int64, error) {
 	if err := in.Validate(); err != nil {
-		return nil, err
+		return 0, err
 	}
 	if in.Priority == "" {
 		in.Priority = model.PriorityNone
@@ -194,27 +225,28 @@ func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, erro
 		in.PlanState = model.PlanStateNone
 	}
 	now := model.FormatUTC(time.Now())
-	res, err := r.db.ExecContext(ctx,
+	res, err := tx.ExecContext(ctx,
 		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
 			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-			day_part, plan_state, is_pinned, pinned_at, recurrence_rule, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`,
+			day_part, plan_state, is_pinned, pinned_at, recurrence_rule, client_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?)`,
 		in.Title, in.Description,
 		nullInt(in.InboxID), nullInt(in.ContextID), nullInt(in.ProjectID), nullInt(in.SectionID), nullInt(in.ParentID),
 		string(in.Priority),
 		nullTime(in.DueAt), boolInt(in.DueHasTime), nullTime(in.DeadlineAt), boolInt(in.DeadlineHasTime),
 		string(in.DayPart), string(in.PlanState),
 		nullStr(in.RecurrenceRule),
+		clientID,
 		now, now,
 	)
 	if err != nil {
-		return nil, logErr(ctx, op, fmt.Errorf("insert task: %w", err))
+		return 0, fmt.Errorf("insert task: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, logErr(ctx, op, err)
+		return 0, err
 	}
-	return r.Get(ctx, id)
+	return id, nil
 }
 
 // CreateRecurrenceCompletion inserts a completed snapshot of a recurring task
@@ -232,14 +264,14 @@ func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.T
 		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
 			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
 			day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule,
-			completed_at, source_task_id, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'completed', NULL, 0, NULL, 0, ?, 'none', 0, NULL, ?, NULL, ?, ?, ?, ?)`,
+			completed_at, source_task_id, client_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'completed', NULL, 0, NULL, 0, ?, 'none', 0, NULL, ?, NULL, ?, ?, ?, ?, ?)`,
 		base.Title, base.Description,
 		nullInt(base.InboxID), nullInt(base.ContextID), nullInt(base.ProjectID), nullInt(base.SectionID),
 		string(base.Priority),
 		string(base.DayPart),
 		boolInt(base.IsPrivate),
-		completedStr, base.ID, now, now,
+		completedStr, base.ID, model.NewClientID(), now, now,
 	)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("insert recurrence completion: %w", err))
@@ -260,6 +292,50 @@ func (r *TaskRepo) CreateRecurrenceCompletion(ctx context.Context, base *model.T
 	return r.Get(ctx, id)
 }
 
+// CreateRecurrenceCompletionTx inserts a recurring-task completion snapshot
+// inside a caller's transaction with the supplied cross-instance client_id, so a
+// federated recurring complete can emit the snapshot's op=create event in the
+// SAME tx as the insert (atomicity, NFR-2 — see service/federation.CompleteMutator).
+// It returns the new snapshot's local id; the caller re-reads after the tx
+// commits. clientID must be a fresh ULID. The parent's labels ARE copied onto the
+// local snapshot row (labels are a LOCAL concern, so this path must match the
+// non-tx CreateRecurrenceCompletion); they are excluded only from the federated
+// EVENT field set (§3), so emit↔apply stays in agreement.
+func (r *TaskRepo) CreateRecurrenceCompletionTx(ctx context.Context, tx *sql.Tx, base *model.Task, completedAt time.Time, clientID string) (int64, error) {
+	now := model.FormatUTC(time.Now())
+	completedStr := model.FormatUTC(completedAt)
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
+			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
+			day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule,
+			completed_at, source_task_id, client_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'completed', NULL, 0, NULL, 0, ?, 'none', 0, NULL, ?, NULL, ?, ?, ?, ?, ?)`,
+		base.Title, base.Description,
+		nullInt(base.InboxID), nullInt(base.ContextID), nullInt(base.ProjectID), nullInt(base.SectionID),
+		string(base.Priority),
+		string(base.DayPart),
+		boolInt(base.IsPrivate),
+		completedStr, base.ID, clientID, now, now,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("insert recurrence completion: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if r.labels != nil && len(base.Labels) > 0 {
+		labelIDs := make([]int64, 0, len(base.Labels))
+		for _, l := range base.Labels {
+			labelIDs = append(labelIDs, l.ID)
+		}
+		if err := r.labels.SetForTaskTx(ctx, tx, id, labelIDs); err != nil {
+			return 0, fmt.Errorf("copy labels for recurrence completion: %w", err)
+		}
+	}
+	return id, nil
+}
+
 // HasRecurrenceCompletionOnDay reports whether a completion snapshot pointing
 // at sourceID already exists with completed_at in [dayStart, dayEnd). Used by
 // the complete service to keep recurring-task completion idempotent: a second
@@ -270,7 +346,7 @@ func (r *TaskRepo) HasRecurrenceCompletionOnDay(ctx context.Context, sourceID in
 	var exists int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT 1 FROM tasks
-		 WHERE source_task_id = ? AND completed_at >= ? AND completed_at < ?
+		 WHERE source_task_id = ? AND completed_at >= ? AND completed_at < ? AND deleted_at IS NULL
 		 LIMIT 1`,
 		sourceID, model.FormatUTC(dayStart), model.FormatUTC(dayEnd),
 	).Scan(&exists)
@@ -286,7 +362,7 @@ func (r *TaskRepo) HasRecurrenceCompletionOnDay(ctx context.Context, sourceID in
 func (r *TaskRepo) Get(ctx context.Context, id int64) (*model.Task, error) {
 	const op = "repo.tasks.Get"
 	logQuery(ctx, op, id)
-	row := r.db.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)
+	row := r.db.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM tasks WHERE id = ? AND deleted_at IS NULL`, id)
 	t, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -333,6 +409,22 @@ type TaskUpdate struct {
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
 	const op = "repo.tasks.Update"
 	logQuery(ctx, op, id)
+	err := withTx(ctx, r.db, func(tx *sql.Tx) error {
+		return r.UpdateTx(ctx, tx, id, u)
+	})
+	if err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	return r.Get(ctx, id)
+}
+
+// UpdateTx applies a task field update inside a caller's transaction, so a
+// federated update can run the domain write in the SAME tx as the outbox emit
+// (atomicity, NFR-2 — see service/federation.Emitter.EmitMutation). It does NOT
+// re-read the row; the caller re-reads after the tx commits. A
+// missing/already-tombstoned task returns ErrNotFound/ErrGone (notFoundOrGone).
+// The client_id is never touched here — a create assigns it once.
+func (r *TaskRepo) UpdateTx(ctx context.Context, tx *sql.Tx, id int64, u TaskUpdate) error {
 	sets := make([]string, 0, 8)
 	args := make([]any, 0, 12)
 	if u.Title != nil {
@@ -420,24 +512,26 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 		args = append(args, string(*u.TroikiCategory))
 	}
 	if len(sets) == 0 {
-		return r.Get(ctx, id)
+		// No-op update: still verify the row is live so a PATCH on a tombstone
+		// surfaces 410, not a silent success (US-3.7 AC2). A live row → nil.
+		return requireLiveTx(ctx, tx, "tasks", id)
 	}
 	sets = append(sets, "updated_at = ?")
 	args = append(args, model.FormatUTC(time.Now()))
 	args = append(args, id)
 
-	res, err := r.db.ExecContext(ctx, `UPDATE tasks SET `+joinSets(sets)+` WHERE id = ?`, args...)
+	res, err := tx.ExecContext(ctx, `UPDATE tasks SET `+joinSets(sets)+` WHERE id = ? AND deleted_at IS NULL`, args...)
 	if err != nil {
-		return nil, logErr(ctx, op, fmt.Errorf("update task: %w", err))
+		return fmt.Errorf("update task: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return nil, logErr(ctx, op, err)
+		return err
 	}
 	if n == 0 {
-		return nil, logErr(ctx, op, ErrNotFound)
+		return notFoundOrGoneTx(ctx, tx, "tasks", id)
 	}
-	return r.Get(ctx, id)
+	return nil
 }
 
 // ResetTroikiGrantedByProject clears the troiki_capacity_granted flag on every
@@ -492,10 +586,10 @@ func (r *TaskRepo) ReopenAndPinProjectPriority(ctx context.Context, id int64) (*
 		        WHEN 'rest' THEN 'low'
 		      END
 		      FROM projects p
-		      WHERE p.id = tasks.project_id AND p.troiki_category IS NOT NULL),
+		      WHERE p.id = tasks.project_id AND p.troiki_category IS NOT NULL AND p.deleted_at IS NULL),
 		     priority),
 		   updated_at = ?
-		 WHERE id = ?`, now, id)
+		 WHERE id = ? AND deleted_at IS NULL`, now, id)
 	if err != nil {
 		return nil, fmt.Errorf("reopen task: %w", err)
 	}
@@ -505,7 +599,7 @@ func (r *TaskRepo) ReopenAndPinProjectPriority(ctx context.Context, id int64) (*
 	}
 	if n == 0 {
 		var exists int
-		if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, id).Scan(&exists); err != nil {
+		if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NULL`, id).Scan(&exists); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, ErrNotFound
 			}
@@ -513,6 +607,42 @@ func (r *TaskRepo) ReopenAndPinProjectPriority(ctx context.Context, id int64) (*
 		}
 	}
 	return r.Get(ctx, id)
+}
+
+// ReopenAndPinProjectPriorityTx is the tx-aware variant of
+// ReopenAndPinProjectPriority, so a federated uncomplete can run the reopen +
+// priority pin in the SAME tx as the outbox emit (atomicity, NFR-2 — see
+// service/federation.CompleteMutator). It does NOT re-read the row; the caller
+// re-reads after the tx commits. Returns ErrNotFound if the task id does not
+// exist (live).
+func (r *TaskRepo) ReopenAndPinProjectPriorityTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	now := model.FormatUTC(time.Now())
+	res, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET
+		   status = 'open',
+		   completed_at = NULL,
+		   priority = COALESCE(
+		     (SELECT CASE p.troiki_category
+		        WHEN 'important' THEN 'high'
+		        WHEN 'medium' THEN 'medium'
+		        WHEN 'rest' THEN 'low'
+		      END
+		      FROM projects p
+		      WHERE p.id = tasks.project_id AND p.troiki_category IS NOT NULL AND p.deleted_at IS NULL),
+		     priority),
+		   updated_at = ?
+		 WHERE id = ? AND deleted_at IS NULL`, now, id)
+	if err != nil {
+		return fmt.Errorf("reopen task: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return notFoundOrGoneTx(ctx, tx, "tasks", id)
+	}
+	return nil
 }
 
 // UpdatePriorityByProject pins every open task of the project to `priority`
@@ -551,7 +681,8 @@ func (r *TaskRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat mo
 		 WHERE id = ?
 		   AND parent_id IS NULL
 		   AND status = 'open'
-		   AND (SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open') < ?`,
+		   AND deleted_at IS NULL
+		   AND (SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open' AND deleted_at IS NULL) < ?`,
 		string(cat), now, id, string(cat), capacity)
 	if err != nil {
 		return false, fmt.Errorf("set troiki category: %w", err)
@@ -568,7 +699,7 @@ func (r *TaskRepo) SetTroikiCategoryIfRoom(ctx context.Context, id int64, cat mo
 	// to disambiguate — slot-full vs. concurrent state change look identical
 	// from here.
 	var exists int
-	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, id).Scan(&exists); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NULL`, id).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, ErrNotFound
 		}
@@ -593,7 +724,8 @@ func (r *TaskRepo) ReopenIfTroikiRoom(ctx context.Context, id int64, cat model.T
 		 SET status = 'open', completed_at = NULL, updated_at = ?
 		 WHERE id = ?
 		   AND status != 'open'
-		   AND (SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open') < ?`,
+		   AND deleted_at IS NULL
+		   AND (SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open' AND deleted_at IS NULL) < ?`,
 		now, id, string(cat), capacity)
 	if err != nil {
 		return false, fmt.Errorf("reopen if troiki room: %w", err)
@@ -606,7 +738,7 @@ func (r *TaskRepo) ReopenIfTroikiRoom(ctx context.Context, id int64, cat model.T
 		return true, nil
 	}
 	var exists int
-	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, id).Scan(&exists); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NULL`, id).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, ErrNotFound
 		}
@@ -623,15 +755,30 @@ func (r *TaskRepo) ReopenIfTroikiRoom(ctx context.Context, id int64, cat model.T
 // targetCol must be "troiki_medium_capacity" or "troiki_rest_capacity".
 // Returns true iff the grant was performed (flag transitioned 0→1).
 func (r *TaskRepo) GrantAndBumpTroikiCapacity(ctx context.Context, taskID, userID int64, targetCol string) (bool, error) {
-	if targetCol != "troiki_medium_capacity" && targetCol != "troiki_rest_capacity" {
-		return false, fmt.Errorf("grant+bump troiki capacity: unsupported target column %q", targetCol)
-	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, fmt.Errorf("grant+bump troiki capacity: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	granted, err := r.GrantAndBumpTroikiCapacityTx(ctx, tx, taskID, userID, targetCol)
+	if err != nil {
+		return false, err
+	}
+	return granted, tx.Commit()
+}
+
+// GrantAndBumpTroikiCapacityTx flips the task's troiki_capacity_granted flag and
+// bumps the user's next-tier capacity column inside a caller's transaction, so a
+// federated complete can run the troiki capacity grant in the SAME tx as the
+// status emit (atomicity, NFR-2 — see service/federation.CompleteMutator). The
+// flag flip + counter bump succeed or roll back together. Returns true when the
+// grant was applied (false when already granted — the idempotent no-op). The
+// flag/counter are turboist-local columns; nothing here is federated.
+func (r *TaskRepo) GrantAndBumpTroikiCapacityTx(ctx context.Context, tx *sql.Tx, taskID, userID int64, targetCol string) (bool, error) {
+	if targetCol != "troiki_medium_capacity" && targetCol != "troiki_rest_capacity" {
+		return false, fmt.Errorf("grant+bump troiki capacity: unsupported target column %q", targetCol)
+	}
 	res, err := tx.ExecContext(ctx,
 		`UPDATE tasks SET troiki_capacity_granted = 1 WHERE id = ? AND troiki_capacity_granted = 0`, taskID)
 	if err != nil {
@@ -642,7 +789,7 @@ func (r *TaskRepo) GrantAndBumpTroikiCapacity(ctx context.Context, taskID, userI
 		return false, err
 	}
 	if n == 0 {
-		return false, tx.Commit()
+		return false, nil
 	}
 
 	now := model.FormatUTC(time.Now())
@@ -658,22 +805,66 @@ func (r *TaskRepo) GrantAndBumpTroikiCapacity(ctx context.Context, taskID, userI
 	if un == 0 {
 		return false, ErrNotFound
 	}
-	return true, tx.Commit()
+	return true, nil
 }
 
 func (r *TaskRepo) SetPinned(ctx context.Context, id int64, pinned bool) error {
+	const op = "repo.tasks.SetPinned"
+	logQuery(ctx, op, id, pinned)
 	now := model.FormatUTC(time.Now())
 	var res sql.Result
 	var err error
 	if pinned {
 		res, err = r.db.ExecContext(ctx,
-			`UPDATE tasks SET is_pinned = 1, pinned_at = ?, updated_at = ? WHERE id = ?`, now, now, id)
+			`UPDATE tasks SET is_pinned = 1, pinned_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`, now, now, id)
 	} else {
 		res, err = r.db.ExecContext(ctx,
-			`UPDATE tasks SET is_pinned = 0, pinned_at = NULL, updated_at = ? WHERE id = ?`, now, id)
+			`UPDATE tasks SET is_pinned = 0, pinned_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NULL`, now, id)
 	}
 	if err != nil {
-		return fmt.Errorf("set pinned: %w", err)
+		return logErr(ctx, op, fmt.Errorf("set pinned: %w", err))
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return logErr(ctx, op, err)
+	}
+	if n == 0 {
+		// A soft-deleted task is invisible; pinning a tombstone must surface as a
+		// 410 (re-edit of a final tombstone), never a silent success
+		// (Federation v1 F0.1, US-3.7 AC2).
+		return logErr(ctx, op, notFoundOrGone(ctx, r.db, "tasks", id))
+	}
+	return nil
+}
+
+// Delete soft-deletes the task and its whole subtree. The former FK was
+// tasks.parent_id ON DELETE CASCADE; since the rows now survive, the descendant
+// tombstones are written here in one transaction (Federation v1 F0.1).
+func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
+	const op = "repo.tasks.Delete"
+	logQuery(ctx, op, id)
+	err := withTx(ctx, r.db, func(tx *sql.Tx) error {
+		return r.DeleteTx(ctx, tx, id)
+	})
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return logErr(ctx, op, ErrNotFound)
+		}
+		return logErr(ctx, op, fmt.Errorf("delete task: %w", err))
+	}
+	return nil
+}
+
+// DeleteTx soft-deletes the task and its whole subtree inside a caller's
+// transaction, so a federated delete can run the domain write in the SAME tx as
+// the outbox emit (atomicity, NFR-2 — see service/federation.Emitter.
+// EmitDeleteCascade). A missing/already-tombstoned task returns ErrNotFound.
+func (r *TaskRepo) DeleteTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	now := model.FormatUTC(time.Now())
+	res, err := tx.ExecContext(ctx,
+		`UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`, now, now, id)
+	if err != nil {
+		return fmt.Errorf("soft-delete task: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
@@ -682,24 +873,79 @@ func (r *TaskRepo) SetPinned(ctx context.Context, id int64, pinned bool) error {
 	if n == 0 {
 		return ErrNotFound
 	}
+	descendants, err := collectDescendants(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	for _, did := range descendants {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+			now, now, did); err != nil {
+			return fmt.Errorf("cascade subtask tombstone %d: %w", did, err)
+		}
+	}
 	return nil
 }
 
-func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
-	const op = "repo.tasks.Delete"
-	logQuery(ctx, op, id)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id)
-	if err != nil {
-		return logErr(ctx, op, fmt.Errorf("delete task: %w", err))
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return logErr(ctx, op, err)
-	}
-	if n == 0 {
-		return logErr(ctx, op, ErrNotFound)
+// CascadeDeleteChildrenTx soft-deletes a task's direct comments + checklist_items
+// inside a caller's transaction (§8.4 origin leg of US-3.7 AC3). It mirrors the
+// receiver's cascadeChildTombstones so the origin's local state matches what a
+// peer derives from the task's op=delete event. The child tables may be empty (no
+// F0.2 carriage) — the UPDATE is then a no-op.
+func (r *TaskRepo) CascadeDeleteChildrenTx(ctx context.Context, tx *sql.Tx, taskID int64) error {
+	now := model.FormatUTC(time.Now())
+	for _, table := range []string{"comments", "checklist_items"} {
+		if _, err := tx.ExecContext(ctx,
+			fmt.Sprintf(`UPDATE %s SET deleted_at = ?, updated_at = ? WHERE task_id = ? AND deleted_at IS NULL`, table),
+			now, now, taskID); err != nil {
+			return fmt.Errorf("cascade %s for task %d: %w", table, taskID, err)
+		}
 	}
 	return nil
+}
+
+// FederatedChild is one comment / checklist_item child of a task, identified by
+// its cross-instance client_id, so the federated delete cascade can emit a
+// tombstone event per child (§8.4, US-3.7 AC3). Kind is "comment" or
+// "checklist_item" (the federation entity_type).
+type FederatedChild struct {
+	Kind     string
+	ClientID string
+}
+
+// ListFederatedDeleteChildren returns the cross-instance client_ids of a task's
+// live (non-tombstoned) comments + checklist_items, so the caller can emit one
+// op=delete event per child when the task is deleted. Children without a
+// client_id (never federated) are skipped — they carry no cross-instance identity.
+func (r *TaskRepo) ListFederatedDeleteChildren(ctx context.Context, taskID int64) ([]FederatedChild, error) {
+	const op = "repo.tasks.ListFederatedDeleteChildren"
+	out := []FederatedChild{}
+	for _, q := range []struct{ kind, table string }{
+		{"comment", "comments"},
+		{"checklist_item", "checklist_items"},
+	} {
+		rows, err := r.db.QueryContext(ctx,
+			fmt.Sprintf(`SELECT client_id FROM %s WHERE task_id = ? AND deleted_at IS NULL AND client_id IS NOT NULL`, q.table),
+			taskID)
+		if err != nil {
+			return nil, fmt.Errorf("%s %s: %w", op, q.table, err)
+		}
+		for rows.Next() {
+			var clientID string
+			if err := rows.Scan(&clientID); err != nil {
+				logging.LogClose(ctx, op+".rows", rows)
+				return nil, fmt.Errorf("%s scan %s: %w", op, q.table, err)
+			}
+			out = append(out, FederatedChild{Kind: q.kind, ClientID: clientID})
+		}
+		if err := rows.Close(); err != nil {
+			return nil, fmt.Errorf("%s close %s: %w", op, q.table, err)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("%s rows %s: %w", op, q.table, err)
+		}
+	}
+	return out, nil
 }
 
 // Move relocates a task and all its descendants atomically. Cycles (target ∈
@@ -732,7 +978,7 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 			troiki_category = CASE WHEN ? IS NULL THEN troiki_category ELSE NULL END,
 			troiki_capacity_granted = CASE WHEN ? IS NULL THEN troiki_capacity_granted ELSE 0 END,
 			updated_at = ?
-		 WHERE id = ?`,
+		 WHERE id = ? AND deleted_at IS NULL`,
 		nullInt(target.InboxID), nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID),
 		nullInt(target.ParentID), nullInt(target.ParentID), nullInt(target.ParentID), now, taskID,
 	); err != nil {
@@ -765,7 +1011,7 @@ func assertNoCycle(ctx context.Context, tx *sql.Tx, taskID, candidateParent int6
 			return ErrCycle
 		}
 		var pid sql.NullInt64
-		err := tx.QueryRowContext(ctx, `SELECT parent_id FROM tasks WHERE id = ?`, cur).Scan(&pid)
+		err := tx.QueryRowContext(ctx, `SELECT parent_id FROM tasks WHERE id = ? AND deleted_at IS NULL`, cur).Scan(&pid)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -791,7 +1037,7 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 			args[i] = v
 		}
 		rows, err := tx.QueryContext(ctx,
-			`SELECT id FROM tasks WHERE parent_id IN (`+strings.Join(placeholders, ",")+`)`, args...)
+			`SELECT id FROM tasks WHERE deleted_at IS NULL AND parent_id IN (`+strings.Join(placeholders, ",")+`)`, args...)
 		if err != nil {
 			return nil, fmt.Errorf("collect descendants: %w", err)
 		}
@@ -819,23 +1065,23 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 // --- counters (limit checks) ---
 
 func (r *TaskRepo) CountWeek(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'week' AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'week' AND status = 'open' AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountBacklog(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'backlog' AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'backlog' AND status = 'open' AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountInbox(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE inbox_id IS NOT NULL AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE inbox_id IS NOT NULL AND status = 'open' AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountPinnedTasks(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE is_pinned = 1`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE is_pinned = 1 AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) CountPinnedProjects(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM projects WHERE is_pinned = 1`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM projects WHERE is_pinned = 1 AND deleted_at IS NULL`)
 }
 
 func (r *TaskRepo) scalarCount(ctx context.Context, q string, args ...any) (int, error) {

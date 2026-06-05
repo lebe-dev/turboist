@@ -20,15 +20,21 @@ export function usePageLoad(
 	let refetchSeq = 0;
 	let revalSeq = 0;
 
-	async function refetch(): Promise<void> {
+	// refetch runs the user-initiated load. It resolves to `true` on success and
+	// `false` when the fetch failed (after running onError / toasting). The result
+	// lets a caller that DID initiate the fetch (e.g. the F3.4 explicit Reload)
+	// react to a failure — unlike the error-swallowing revalidate() background
+	// path. A superseded/cancelled refetch also resolves to `false`.
+	async function refetch(): Promise<boolean> {
 		const myFetch = ++refetchSeq;
 		++revalSeq; // cancel any in-flight revalidation
 		loading = true;
 		error = null;
 		try {
 			await fetcher(() => myFetch === refetchSeq);
+			return myFetch === refetchSeq;
 		} catch (err) {
-			if (myFetch !== refetchSeq) return;
+			if (myFetch !== refetchSeq) return false;
 			const msg = describeError(err, opts?.errorMessage ?? 'Failed to load');
 			error = msg;
 			if (opts?.onError) {
@@ -36,6 +42,7 @@ export function usePageLoad(
 			} else {
 				toast.error(msg);
 			}
+			return false;
 		} finally {
 			if (myFetch === refetchSeq) loading = false;
 		}

@@ -59,13 +59,13 @@ func (f TaskFilter) where() (string, []any) {
 // ListInbox returns open inbox tasks; subtasks are forbidden in inbox so all
 // rows here are root-level.
 func (r *TaskRepo) ListInbox(ctx context.Context, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.inbox_id IS NOT NULL AND t.status = 'open'"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.inbox_id IS NOT NULL AND t.status = 'open'"
 	return r.listWithBase(ctx, base, filter, page, true)
 }
 
 // ListByContext lists tasks attached directly to a context (without project).
 func (r *TaskRepo) ListByContext(ctx context.Context, contextID int64, withinProject bool, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.context_id = ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.context_id = ?"
 	args := []any{contextID}
 	if !withinProject {
 		base += " AND t.project_id IS NULL"
@@ -74,17 +74,17 @@ func (r *TaskRepo) ListByContext(ctx context.Context, contextID int64, withinPro
 }
 
 func (r *TaskRepo) ListByProject(ctx context.Context, projectID int64, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.project_id = ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.project_id = ?"
 	return r.listWithBaseArgs(ctx, base, []any{projectID}, filter, page, true)
 }
 
 func (r *TaskRepo) ListBySection(ctx context.Context, sectionID int64, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.section_id = ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.section_id = ?"
 	return r.listWithBaseArgs(ctx, base, []any{sectionID}, filter, page, true)
 }
 
 func (r *TaskRepo) ListByLabel(ctx context.Context, labelID int64, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE EXISTS (SELECT 1 FROM task_labels tl WHERE tl.task_id = t.id AND tl.label_id = ?)"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND EXISTS (SELECT 1 FROM task_labels tl WHERE tl.task_id = t.id AND tl.label_id = ?)"
 	return r.listWithBaseArgs(ctx, base, []any{labelID}, filter, page, true)
 }
 
@@ -117,7 +117,8 @@ func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64
 		     SELECT t.id FROM tasks t JOIN cancelled_subtree cs ON t.parent_id = cs.id
 		 )
 		 SELECT `+taskColumns+` FROM tasks
-		 WHERE project_id IN (`+strings.Join(placeholders, ",")+`)
+		 WHERE deleted_at IS NULL
+		   AND project_id IN (`+strings.Join(placeholders, ",")+`)
 		   AND id NOT IN (SELECT id FROM cancelled_subtree)
 		 ORDER BY `+taskOrderBy, args...)
 	if err != nil {
@@ -156,7 +157,7 @@ func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64
 }
 
 func (r *TaskRepo) ListSubtasks(ctx context.Context, parentID int64) ([]model.Task, error) {
-	base := "FROM tasks t WHERE t.parent_id = ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.parent_id = ?"
 	out, _, err := r.listWithBaseArgs(ctx, base, []any{parentID}, TaskFilter{}, Page{Limit: 200}, false)
 	return out, err
 }
@@ -166,25 +167,25 @@ func (r *TaskRepo) ListSubtasks(ctx context.Context, parentID int64) ([]model.Ta
 // ListToday returns open tasks with due_at within [start, start+24h).
 func (r *TaskRepo) ListToday(ctx context.Context, start time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
 	end := start.Add(24 * time.Hour)
-	base := "FROM tasks t WHERE t.status = 'open' AND t.due_at >= ? AND t.due_at < ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.status = 'open' AND t.due_at >= ? AND t.due_at < ?"
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true)
 }
 
 func (r *TaskRepo) ListTomorrow(ctx context.Context, todayStart time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
 	start := todayStart.Add(24 * time.Hour)
 	end := start.Add(24 * time.Hour)
-	base := "FROM tasks t WHERE t.status = 'open' AND t.due_at >= ? AND t.due_at < ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.status = 'open' AND t.due_at >= ? AND t.due_at < ?"
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true)
 }
 
 // ListCompletedInRange returns tasks marked completed within [start, end).
 func (r *TaskRepo) ListCompletedInRange(ctx context.Context, start, end time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.status = 'completed' AND t.completed_at >= ? AND t.completed_at < ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.status = 'completed' AND t.completed_at >= ? AND t.completed_at < ?"
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true)
 }
 
 func (r *TaskRepo) ListOverdue(ctx context.Context, todayStart time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.status = 'open' AND t.due_at IS NOT NULL AND t.due_at < ?"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.status = 'open' AND t.due_at IS NOT NULL AND t.due_at < ?"
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(todayStart)}, filter, page, true)
 }
 
@@ -193,13 +194,13 @@ func (r *TaskRepo) ListOverdue(ctx context.Context, todayStart time.Time, filter
 // The returned `total` counts only planned-for-week tasks — it drives the
 // weekly limit badge, so due-in-week additions must not consume the limit.
 func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter TaskFilter) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.status = 'open' AND (t.plan_state = 'week' OR (t.due_at >= ? AND t.due_at < ?))"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.status = 'open' AND (t.plan_state = 'week' OR (t.due_at >= ? AND t.due_at < ?))"
 	args := []any{model.FormatUTC(start), model.FormatUTC(end)}
 	items, _, err := r.listWithBaseArgs(ctx, base, args, filter, Page{Limit: 200}, true)
 	if err != nil {
 		return nil, 0, err
 	}
-	plannedBase := "FROM tasks t WHERE t.status = 'open' AND t.plan_state = 'week'"
+	plannedBase := "FROM tasks t WHERE t.deleted_at IS NULL AND t.status = 'open' AND t.plan_state = 'week'"
 	whereExtra, extraArgs := filter.where()
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+plannedBase+whereExtra, extraArgs...).Scan(&total); err != nil {
@@ -209,12 +210,12 @@ func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter Ta
 }
 
 func (r *TaskRepo) ListBacklog(ctx context.Context, filter TaskFilter) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.plan_state = 'backlog' AND t.status = 'open'"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.plan_state = 'backlog' AND t.status = 'open'"
 	return r.listWithBase(ctx, base, filter, Page{Limit: 200}, true)
 }
 
 func (r *TaskRepo) ListPinned(ctx context.Context, filter TaskFilter) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.is_pinned = 1 AND t.status = 'open'"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.is_pinned = 1 AND t.status = 'open'"
 	return r.listWithBase(ctx, base, filter, Page{Limit: 200}, true)
 }
 
@@ -226,7 +227,7 @@ func (r *TaskRepo) ListPinned(ctx context.Context, filter TaskFilter) ([]model.T
 func (r *TaskRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCategory) ([]model.Task, int, error) {
 	const op = "repo.tasks.ListByTroikiCategory"
 	logQuery(ctx, op, cat)
-	base := "FROM tasks t WHERE t.troiki_category = ? AND t.status = 'open'"
+	base := "FROM tasks t WHERE t.deleted_at IS NULL AND t.troiki_category = ? AND t.status = 'open'"
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+base, string(cat)).Scan(&total); err != nil {
@@ -267,7 +268,7 @@ func (r *TaskRepo) ListByTroikiCategory(ctx context.Context, cat model.TroikiCat
 
 func (r *TaskRepo) CountOpenByTroikiCategory(ctx context.Context, cat model.TroikiCategory) (int, error) {
 	return r.scalarCount(ctx,
-		`SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open'`,
+		`SELECT COUNT(*) FROM tasks WHERE troiki_category = ? AND status = 'open' AND deleted_at IS NULL`,
 		string(cat))
 }
 

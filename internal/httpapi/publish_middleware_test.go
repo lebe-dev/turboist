@@ -15,6 +15,12 @@ func TestScopesForPath(t *testing.T) {
 		{"/api/v1/tasks", []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}},
 		{"/api/v1/tasks/123", []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}},
 		{"/api/v1/tasks/123/complete", []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}},
+		// Task comment / checklist sub-resources publish their own coarse scope
+		// alongside the task scope (Federation v1 F0.2).
+		{"/api/v1/tasks/123/comments", []events.Scope{events.ScopeComments, events.ScopeTasks}},
+		{"/api/v1/tasks/123/comments/9", []events.Scope{events.ScopeComments, events.ScopeTasks}},
+		{"/api/v1/tasks/123/checklist", []events.Scope{events.ScopeChecklist, events.ScopeTasks}},
+		{"/api/v1/tasks/123/checklist/9", []events.Scope{events.ScopeChecklist, events.ScopeTasks}},
 		{"/api/v1/inbox", []events.Scope{events.ScopeTasks, events.ScopeInbox, events.ScopePlan}},
 		{"/api/v1/projects/7", []events.Scope{events.ScopeProjects, events.ScopeTasks}},
 		{"/api/v1/labels", []events.Scope{events.ScopeLabels, events.ScopeTasks}},

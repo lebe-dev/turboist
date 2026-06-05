@@ -9,6 +9,7 @@
 	import { getApiClient } from '$lib/api/client';
 	import { ApiError } from '$lib/api/errors';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
+	import { federation as federationApi } from '$lib/api/endpoints/federation';
 	import { sections as sectionsApi } from '$lib/api/endpoints/sections';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
@@ -25,7 +26,11 @@
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
+	import CreateInviteDialog from '$lib/components/project/CreateInviteDialog.svelte';
+	import FederationSection from '$lib/components/project/FederationSection.svelte';
+	import ResyncBanner from '$lib/components/project/ResyncBanner.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { isReadOnlyFederated, isReadOnlyFederationError } from '$lib/federation/projectSurface';
 	import { t } from '$lib/i18n';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
@@ -43,6 +48,11 @@
 	const belongs = (t: Task) => t.projectId === projectId;
 
 	let project = $state<Project | null>(null);
+	// readOnly is true for a joined read-only federated project (Federation v1
+	// F2.4, US-2.4 AC4 UI leg). It hides the inline add-task affordance; the
+	// backend 403 federation_read_only guard is authoritative and is mapped to a
+	// graceful toast in the mutation handlers below.
+	const readOnly = $derived(project ? isReadOnlyFederated(project) : false);
 	let notFound = $state(false);
 	let sectionList = $state<ProjectSection[]>([]);
 	let confirmDeleteOpen = $state(false);
@@ -50,6 +60,17 @@
 	let confirmSectionOpen = $state(false);
 	let pendingSectionDelete = $state<ProjectSection | null>(null);
 	let editProjectOpen = $state(false);
+	let createInviteOpen = $state(false);
+	// Confirm dialog for voluntarily leaving a joined federated project (Federation
+	// v1 F5.5, US-6.3): leaving sends the owner a federation_leave and turns the copy
+	// into a plain local project. It is offered through a confirm so an accidental
+	// click does not silently sever federation.
+	let confirmLeaveOpen = $state(false);
+	// Links of invites minted this session, keyed by invite id, so InvitesTable can
+	// offer copy-link ONLY for them (the secret is never re-served — US-1.3 AC4/AC5).
+	let inviteSessionLinks = $state<Record<string, string>>({});
+	// Bumped to force InvitesTable to reload after a create.
+	let invitesReloadKey = $state(0);
 	let sectionDialogOpen = $state(false);
 	let editingSection = $state<ProjectSection | null>(null);
 	let sectionQuickAddOpen = $state(false);
@@ -138,6 +159,18 @@
 		}
 	});
 
+	// describeMutationError maps a backend rejection to a user-facing string,
+	// surfacing the read-only message for a federation_read_only 403 (Federation v1
+	// F2.4, US-2.4 AC4) so a write attempt on a read-only federated project is a
+	// graceful toast rather than a generic error. The backend guard is
+	// authoritative; the UI also disables the affordances upstream.
+	function describeMutationError(err: unknown, fallback: string): string {
+		if (isReadOnlyFederationError(err)) {
+			return $t('federation.readOnlyToast');
+		}
+		return describeError(err, fallback);
+	}
+
 	const ACTION_SUCCESS: Record<string, string> = {
 		uncomplete: 'page.project.actionUncomplete',
 		cancel: 'page.project.actionCancel',
@@ -162,7 +195,7 @@
 			projectsStore.upsert(updated);
 			toast.success($t('page.project.completed'));
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedComplete')));
+			toast.error(describeMutationError(err, $t('page.project.failedComplete')));
 		}
 	}
 
@@ -175,7 +208,7 @@
 			projectsStore.upsert(updated);
 			toast.success($t(ACTION_SUCCESS[name]));
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedAction', { values: { action: name } })));
+			toast.error(describeMutationError(err, $t('page.project.failedAction', { values: { action: name } })));
 		}
 	}
 
@@ -188,7 +221,38 @@
 			projectsStore.upsert(updated);
 			toast.success($t('common.privacyUpdated'));
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedUpdatePrivacy')));
+			toast.error(describeMutationError(err, $t('page.project.failedUpdatePrivacy')));
+		}
+	}
+
+	async function enableFederation() {
+		if (!project) return;
+		try {
+			const updated = await projectsApi.enableFederation(getApiClient(), project.id);
+			project = updated;
+			projectsStore.upsert(updated);
+			toast.success($t('federation.enabled'));
+		} catch (err) {
+			toast.error(describeError(err, $t('federation.enableFailed')));
+		}
+	}
+
+	// leaveFederation voluntarily leaves a JOINED federated project (Federation v1
+	// F5.5, US-6.3): the owner is sent a federation_leave and the local copy becomes
+	// a plain editable local project (lost reason "left"). After the 204 we re-fetch
+	// the project so the surface (the lost-left badge, the re-enabled controls)
+	// updates without a reload.
+	async function leaveFederation() {
+		if (!project) return;
+		try {
+			const client = getApiClient();
+			await federationApi.leaveProject(client, project.id);
+			const updated = await projectsApi.get(client, project.id);
+			project = updated;
+			projectsStore.upsert(updated);
+			toast.success($t('federation.leave.done'));
+		} catch (err) {
+			toast.error(describeError(err, $t('federation.leave.failed')));
 		}
 	}
 
@@ -209,7 +273,7 @@
 					: $t('page.project.removedFromTroiki')
 			);
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedSetTroiki')));
+			toast.error(describeMutationError(err, $t('page.project.failedSetTroiki')));
 		}
 	}
 
@@ -221,7 +285,7 @@
 			toast.success($t('page.project.deleted'));
 			void goto(resolve('/inbox'));
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedDelete')));
+			toast.error(describeMutationError(err, $t('page.project.failedDelete')));
 		}
 	}
 
@@ -235,7 +299,7 @@
 			toast.success($t('page.project.sectionDeleted'));
 			pendingSectionDelete = null;
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedDeleteSection')));
+			toast.error(describeMutationError(err, $t('page.project.failedDeleteSection')));
 		}
 	}
 
@@ -265,7 +329,7 @@
 			taskList.items = [...taskList.items, created];
 			toast.success($t('page.project.taskAdded'));
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedAddTask')));
+			toast.error(describeMutationError(err, $t('page.project.failedAddTask')));
 		}
 	}
 
@@ -278,7 +342,7 @@
 			taskList.items = [...taskList.items, created];
 			toast.success($t('page.project.taskAdded'));
 		} catch (err) {
-			toast.error(describeError(err, $t('page.project.failedAddTask')));
+			toast.error(describeMutationError(err, $t('page.project.failedAddTask')));
 		}
 	}
 
@@ -340,7 +404,7 @@
 			taskList.items = taskList.items.map((t) => (t.id === taskId ? updated : t));
 		} catch (err) {
 			taskList.items = oldItems;
-			toast.error(describeError(err, $t('page.project.failedMove')));
+			toast.error(describeMutationError(err, $t('page.project.failedMove')));
 		}
 	}
 
@@ -365,7 +429,7 @@
 			sectionList = sectionList.map((s) => (s.id === updated.id ? updated : s));
 		} catch (err) {
 			sectionList = oldList;
-			toast.error(describeError(err, $t('page.project.failedReorder')));
+			toast.error(describeMutationError(err, $t('page.project.failedReorder')));
 		}
 	}
 
@@ -437,8 +501,26 @@
 		onDelete={() => (confirmDeleteOpen = true)}
 		onSetTroiki={setTroiki}
 		onTogglePrivate={togglePrivate}
+		onEnableFederation={enableFederation}
+		onCreateInvite={() => (createInviteOpen = true)}
+		onLeaveFederation={() => (confirmLeaveOpen = true)}
 		{onCreateBug}
 	/>
+
+	<ResyncBanner {project} />
+
+	{#if project.isFederated && project.status === 'open'}
+		<section class="border-b border-border px-4 py-3 sm:px-6">
+			<h2 class="mb-3 text-sm font-medium text-foreground">
+				{$t('federation.section.title')}
+			</h2>
+			<FederationSection
+				projectId={project.id}
+				sessionLinks={inviteSessionLinks}
+				reloadKey={invitesReloadKey}
+			/>
+		</section>
+	{/if}
 
 	<div class="px-2">
 		<ViewContent
@@ -509,7 +591,7 @@
 				/>
 			{/if}
 		</ViewContent>
-		{#if project.status === 'open' && !settingsStore.publicView}
+		{#if project.status === 'open' && !settingsStore.publicView && !readOnly}
 			<button
 				class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 				onclick={() => (rootQuickAddOpen = true)}
@@ -547,6 +629,14 @@
 		projectId={project.id}
 		onSaved={onSectionSaved}
 	/>
+	<CreateInviteDialog
+		bind:open={createInviteOpen}
+		projectId={project.id}
+		onCreated={(inv) => {
+			inviteSessionLinks = { ...inviteSessionLinks, [inv.inviteId]: inv.link };
+			invitesReloadKey += 1;
+		}}
+	/>
 	<ConfirmDestructiveDialog
 		bind:open={confirmCompleteOpen}
 		title={$t('page.project.confirmCompleteTitle')}
@@ -567,5 +657,13 @@
 		title={$t('page.project.confirmDeleteSectionTitle')}
 		description={$t('page.project.confirmDeleteSectionDesc')}
 		onConfirm={deleteSection}
+	/>
+	<ConfirmDestructiveDialog
+		bind:open={confirmLeaveOpen}
+		title={$t('federation.leave.confirmTitle')}
+		description={$t('federation.leave.confirmBody')}
+		confirmLabel={$t('federation.leave.action')}
+		variant="default"
+		onConfirm={leaveFederation}
 	/>
 {/if}

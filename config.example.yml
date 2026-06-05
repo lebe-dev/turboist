@@ -31,3 +31,44 @@ day-parts:
   evening:
     start: 17
     end: 22
+
+# Federation sync workers (optional; only active when FEDERATION_KEY is set).
+federation:
+  # Publisher worker safety-net tick. A commit-ping makes a freshly emitted
+  # federated event push immediately; this interval is only the catch-up backstop
+  # for anything left undelivered (e.g. after a peer outage). 0 → default 60s.
+  publish-interval-seconds: 60
+  # Recovery pull loop catch-up tick (F4.1): how often a joined peer is re-pulled
+  # from its last_received_hlc cursor so an instance back from a short outage
+  # auto-catches-up. Push is the fast path; this is the pull backstop. 0 → 60s.
+  pull-interval-seconds: 60
+  # Max events one recovery pull pass requests from a peer (F4.1). A larger backlog
+  # drains over successive passes as the cursor advances. 0 → default 500.
+  pull-batch-limit: 500
+  # Inbound event endpoint backpressure (F4.4). Per-peer steady rate the signed
+  # event endpoint accepts before answering 429 + Retry-After. 0 → default 600/min;
+  # a negative value disables limiting.
+  inbound-rate-per-minute: 600
+  # Per-peer token-bucket burst (a short spike a peer may send before throttling).
+  # 0 → equal to one minute's steady rate.
+  inbound-burst: 600
+  # Max events one inbound batch may carry before the endpoint rejects it WHOLE with
+  # 413 (F4.4). 0 → default 500.
+  max-batch-events: 500
+  # Retention GC (runs daily). Tombstones (soft-deleted federated entities) are
+  # kept this long before being hard-deleted — the resurrection-safety horizon for
+  # a returning offline peer. 0 → default 90 days (the documented minimum).
+  tombstone-retention-days: 90
+  # How long delivered/aged outbox rows are kept as the recovery + pull-replay
+  # buffer. 0 → 30 days; values above 30 are clamped to the 30-day hardcap.
+  outbox-retention-days: 30
+  # How long APPLIED inbox rows are kept as the dedup window (un-applied rows are
+  # never purged — they are still being retried). 0 → 30 days.
+  inbox-retention-days: 30
+  # Per-peer rate limit on the signed handshake endpoint (invite brute-force / DoS
+  # defence, NFR-3). A handshake is rare and trust-establishing, so its budget is
+  # tighter than the event endpoint's. 0 → default 30/min; negative disables it.
+  handshake-rate-per-minute: 30
+  # Per-peer handshake token-bucket burst (a short spike a peer may send before
+  # being throttled with 429 + Retry-After). 0 → default 5.
+  handshake-burst: 5
