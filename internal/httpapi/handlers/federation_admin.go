@@ -559,20 +559,26 @@ func (h *FederationAdminHandler) trustKey(c fiber.Ctx) error {
 // no-op success). The project id rides in the path; there is no body. → 204.
 // Leaving the owner's OWN project (or a non-federated project) → 409
 // federation_not_joined; an unknown project → 404.
+//
+// The optional ?delete=true query selects "delete" over the default "keep
+// locally": the local copy is soft-deleted (cascading to tasks/sections) in the
+// same transaction that marks it left. The delete is local-only — the owner still
+// only receives the leave event, never an op=delete (US-6.3).
 func (h *FederationAdminHandler) leave(c fiber.Ctx) error {
 	const op = "handler.FederationAdmin.Leave"
 	id, err := parseID(c)
 	if err != nil {
 		return err
 	}
-	logEntry(c, op, slog.Int64("project_id", id))
+	deleteLocal := c.Query("delete") == "true"
+	logEntry(c, op, slog.Int64("project_id", id), slog.Bool("delete", deleteLocal))
 
 	if h.svc == nil {
 		logValidation(c, op, "federation not configured")
 		return httpapi.ErrFederationKeyMissing()
 	}
 
-	if err := h.svc.LeaveProject(c.Context(), id); err != nil {
+	if err := h.svc.LeaveProject(c.Context(), id, deleteLocal); err != nil {
 		if errors.Is(err, fedsvc.ErrProjectNotFound) {
 			return httpapi.ErrNotFound("project not found")
 		}

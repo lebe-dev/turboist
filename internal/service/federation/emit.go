@@ -333,7 +333,7 @@ func (e *Emitter) buildEvent(spec MutationSpec, projectClientID, hlcStr string) 
 // owner keeps emitting normally.
 func (e *Emitter) projectFederation(ctx context.Context, projectID int64) (bool, string, error) {
 	var isFederated int
-	var clientID string
+	var clientID sql.NullString
 	err := e.db.QueryRowContext(ctx,
 		`SELECT is_federated, client_id FROM projects WHERE id = ? AND deleted_at IS NULL`, projectID).
 		Scan(&isFederated, &clientID)
@@ -343,7 +343,10 @@ func (e *Emitter) projectFederation(ctx context.Context, projectID int64) (bool,
 	if err != nil {
 		return false, "", fmt.Errorf("emit project federation lookup: %w", err)
 	}
-	if isFederated != 1 {
+	// A non-federated project (the common case) may carry a NULL client_id —
+	// e.g. a row that predates the 024 backfill or was created via a path that
+	// never stamped one. It is not federated, so the missing id is harmless.
+	if isFederated != 1 || !clientID.Valid {
 		return false, "", nil
 	}
 	// Stop emitting once a joined copy is lost (left/revoked): it is a local project
@@ -359,7 +362,7 @@ func (e *Emitter) projectFederation(ctx context.Context, projectID int64) (bool,
 	if lost > 0 {
 		return false, "", nil
 	}
-	return true, clientID, nil
+	return true, clientID.String, nil
 }
 
 // loadPrivateKey loads and decrypts this instance's Ed25519 signing key. The

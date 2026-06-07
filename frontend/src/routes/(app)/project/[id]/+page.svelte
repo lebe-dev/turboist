@@ -24,6 +24,7 @@
 	import { compareTaskOrder } from '$lib/utils/priority';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
+	import LeaveFederationDialog from '$lib/components/federation/LeaveFederationDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
 	import CreateInviteDialog from '$lib/components/project/CreateInviteDialog.svelte';
@@ -241,16 +242,23 @@
 	}
 
 	// leaveFederation voluntarily leaves a JOINED federated project (Federation v1
-	// F5.5, US-6.3): the owner is sent a federation_leave and the local copy becomes
-	// a plain editable local project (lost reason "left"). After the 204 we re-fetch
-	// the project so the surface (the lost-left badge, the re-enabled controls)
-	// updates without a reload.
-	async function leaveFederation() {
+	// F5.5, US-6.3): the owner is sent a federation_leave. The user picks what happens
+	// to the local copy — keep it (deleteLocal=false → a plain editable local project,
+	// re-fetched so the surface updates) or delete it (deleteLocal=true → project + its
+	// tasks removed, then we navigate away to inbox).
+	async function leaveFederation(deleteLocal: boolean) {
 		if (!project) return;
+		const projectId = project.id;
 		try {
 			const client = getApiClient();
-			await federationApi.leaveProject(client, project.id);
-			const updated = await projectsApi.get(client, project.id);
+			await federationApi.leaveProject(client, projectId, deleteLocal);
+			if (deleteLocal) {
+				projectsStore.remove(projectId);
+				toast.success($t('federation.leave.deletedDone'));
+				void goto(resolve('/inbox'));
+				return;
+			}
+			const updated = await projectsApi.get(client, projectId);
 			project = updated;
 			projectsStore.upsert(updated);
 			toast.success($t('federation.leave.done'));
@@ -667,12 +675,9 @@
 		description={$t('page.project.confirmDeleteSectionDesc')}
 		onConfirm={deleteSection}
 	/>
-	<ConfirmDestructiveDialog
+	<LeaveFederationDialog
 		bind:open={confirmLeaveOpen}
-		title={$t('federation.leave.confirmTitle')}
-		description={$t('federation.leave.confirmBody')}
-		confirmLabel={$t('federation.leave.action')}
-		variant="default"
-		onConfirm={leaveFederation}
+		onKeepLocal={() => leaveFederation(false)}
+		onDelete={() => leaveFederation(true)}
 	/>
 {/if}

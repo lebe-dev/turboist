@@ -140,6 +140,20 @@ describe('federation peers list (Federation v1 F1.4)', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		const [url, init] = fetchMock.mock.calls[0];
 		expect(String(url)).toContain('/api/v1/projects/7/federation/leave');
+		expect(String(url)).not.toContain('delete=');
+		expect((init as RequestInit | undefined)?.method).toMatch(/POST/i);
+	});
+
+	it('leaveProject with deleteLocal appends ?delete=true (US-6.3 delete instead of keep-locally)', async () => {
+		const { client, fetchMock } = makeClient();
+		fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+		await federationApi.leaveProject(client, 7, true);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [url, init] = fetchMock.mock.calls[0];
+		expect(String(url)).toContain('/api/v1/projects/7/federation/leave');
+		expect(String(url)).toContain('delete=true');
 		expect((init as RequestInit | undefined)?.method).toMatch(/POST/i);
 	});
 });

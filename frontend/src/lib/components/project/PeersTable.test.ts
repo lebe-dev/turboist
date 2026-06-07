@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAuthStore } from '$lib/auth/store.svelte';
 import type { Peer } from '$lib/api/types';
@@ -71,7 +71,14 @@ function setupAuth(fetchImpl: typeof fetch) {
 	return store;
 }
 
-afterEach(() => {
+afterEach(async () => {
+	// The revoke / trust-key tests open a ConfirmDestructiveDialog (bits-ui), which
+	// on unmount schedules a deferred body-scroll-lock reset (a ~24ms setTimeout).
+	// Unmount now and let that timer fire while `document` still exists — otherwise
+	// it runs after jsdom is torn down and throws "document is not defined" as an
+	// unhandled error (flaky, surfacing only in the full-suite run).
+	cleanup();
+	await new Promise((resolve) => setTimeout(resolve, 50));
 	vi.restoreAllMocks();
 });
 

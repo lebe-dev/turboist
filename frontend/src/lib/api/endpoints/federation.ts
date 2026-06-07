@@ -125,9 +125,15 @@ export const federation = {
 	// federation_lost with reason="left" — a plain editable local project with no
 	// further outbound sync (US-6.3 AC1/AC3). It is idempotent server-side; the
 	// project id is in the path and there is no body. → 204.
-	leaveProject(client: ApiClient, projectId: number): Promise<void> {
+	//
+	// When deleteLocal is true the local copy is ALSO deleted (the user chose "delete"
+	// over "keep locally" when ending the link): the project + its tasks/sections are
+	// soft-deleted server-side. This stays local — the owner still only learns we left,
+	// never receiving a project delete (US-6.3).
+	leaveProject(client: ApiClient, projectId: number, deleteLocal = false): Promise<void> {
 		return client.fetch(`/api/v1/projects/${projectId}/federation/leave`, {
-			method: 'POST'
+			method: 'POST',
+			query: deleteLocal ? { delete: 'true' } : undefined
 		});
 	},
 

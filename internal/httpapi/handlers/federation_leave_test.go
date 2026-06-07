@@ -120,3 +120,76 @@ func TestLeaveProject_UnknownProject(t *testing.T) {
 		t.Fatalf("leave unknown project: got %d, want 404; body: %s", resp.StatusCode, body)
 	}
 }
+
+// TestLeaveProject_ReadOnlyCopyAcceptsWritesAfterLeave is the regression test for
+// the read-only-after-leave bug: a READ-permission joined copy that is left must
+// accept local writes (creating a task), because a left copy is a plain editable
+// local project — the former read grant no longer gates it (US-6.3 AC3). Before the
+// guard fix this returned 403 federation_read_only.
+func TestLeaveProject_ReadOnlyCopyAcceptsWritesAfterLeave(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	p := createTestProject(t, e, ctx.ID, "ReadOnly joined")
+	seedJoinedProject(t, e, p.ID, "https://owner.example", model.FederationPermissionRead)
+
+	// Sanity: while still joined read-only, a task create is blocked.
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/tasks", p.ID), map[string]any{"title": "blocked"}))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("create task while joined read-only: got %d, want 403", resp.StatusCode)
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/federation/leave", p.ID), nil))
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("leave: got %d, want 204; body: %s", resp.StatusCode, body)
+	}
+
+	// After leaving (keep-locally), the same create must now succeed.
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/tasks", p.ID), map[string]any{"title": "now allowed"}))
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create task after leave: got %d, want 201 (left copy is editable); body: %s", resp.StatusCode, body)
+	}
+}
+
+// TestLeaveProject_DeleteRemovesProject asserts POST .../leave?delete=true leaves the
+// federation AND deletes the local copy: the project is gone (404 on a subsequent
+// GET) — the user chose "delete" over "keep locally" (US-6.3).
+func TestLeaveProject_DeleteRemovesProject(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	p := createTestProject(t, e, ctx.ID, "Joined to delete")
+	seedJoinedProject(t, e, p.ID, "https://owner.example", model.FederationPermissionRead)
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/federation/leave?delete=true", p.ID), nil))
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("leave?delete=true: got %d, want 204; body: %s", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/projects/%d", p.ID), nil))
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("get project after leave+delete: got %d, want 404 (deleted); body: %s", resp.StatusCode, body)
+	}
+}
+
+// TestLeaveProject_DefaultKeepsProject asserts the default leave (no delete flag)
+// keeps the project: it stays readable and becomes a plain local copy.
+func TestLeaveProject_DefaultKeepsProject(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	p := createTestProject(t, e, ctx.ID, "Joined to keep")
+	seedJoinedProject(t, e, p.ID, "https://owner.example", model.FederationPermissionRead)
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/projects/%d/federation/leave", p.ID), nil))
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("leave: got %d, want 204; body: %s", resp.StatusCode, body)
+	}
+	dtoP := getProjectDTO(t, e, p.ID) // still 200 — not deleted
+	if !dtoP.FederationLost {
+		t.Errorf("kept project after leave: federationLost got false, want true")
+	}
+}

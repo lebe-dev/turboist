@@ -28,7 +28,15 @@ import (
 // the reason is not overwritten and no second leave is enqueued. A missing project
 // → ErrProjectNotFound; the owner's OWN project (or a non-federated project) →
 // ErrNotJoined.
-func (s *Service) LeaveProject(ctx context.Context, projectID int64) error {
+//
+// When deleteLocal is true the local copy is ALSO soft-deleted (cascading to its
+// tasks + sections) in the SAME transaction that marks it left — the user chose
+// "delete" instead of "keep locally" when ending the link. The delete is purely
+// LOCAL: it does NOT emit an op=delete tombstone to the owner (a member can never
+// delete the owner's project — the owner only learns we LEFT, via the leave event
+// which is still sent). This is the reason leave+delete is one server operation
+// rather than a leave followed by the ordinary federated DELETE (which would emit).
+func (s *Service) LeaveProject(ctx context.Context, projectID int64, deleteLocal bool) error {
 	proj, err := s.projects.Get(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -87,6 +95,15 @@ func (s *Service) LeaveProject(ctx context.Context, projectID int64) error {
 				// to a clean no-op by leaving outboxID at 0.
 				return errAlreadyLost
 			}
+			// "Delete" instead of "keep locally": soft-delete the local copy + cascade to
+			// its tasks/sections in this same tx (atomic with the leave). Crucially this is
+			// the repo delete (local-only) — NOT the federated emitter — so no op=delete
+			// event is produced; the owner only ever learns we left.
+			if deleteLocal {
+				if derr := s.projects.DeleteTx(ctx, tx, projectID); derr != nil {
+					return derr
+				}
+			}
 			// Pre-stamp delivered to every OTHER peer so the leave never fans out beyond
 			// the owner. In v1 a joiner has no other peers, so this is empty and only the
 			// owner stays pending.
@@ -100,9 +117,25 @@ func (s *Service) LeaveProject(ctx context.Context, projectID int64) error {
 		if errors.Is(err, errAlreadyLost) {
 			return nil
 		}
+	} else if deleteLocal {
+		// No sync store wired (a federation-off build / unit harness) AND the user chose
+		// delete: mark left + local soft-delete cascade in one tx (still no emit).
+		err = db.WithTx(ctx, s.db, func(tx *sql.Tx) error {
+			transitioned, ferr := s.fedProjects.MarkLostTx(ctx, tx, projectID, ownerURL, model.FederationLostLeft)
+			if ferr != nil {
+				return ferr
+			}
+			if !transitioned {
+				return errAlreadyLost
+			}
+			return s.projects.DeleteTx(ctx, tx, projectID)
+		})
+		if errors.Is(err, errAlreadyLost) {
+			return nil
+		}
 	} else {
-		// No sync store wired (a federation-off build / unit harness): flip the marker
-		// only. The local copy still becomes an editable local project.
+		// No sync store wired: flip the marker only. The local copy still becomes an
+		// editable local project (keep-locally).
 		var transitioned bool
 		transitioned, err = s.fedProjects.MarkLost(ctx, projectID, ownerURL, model.FederationLostLeft)
 		if err == nil && !transitioned {

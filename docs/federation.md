@@ -147,6 +147,8 @@ All routes require a valid JWT.
 
 Pause/resume/revoke take `{"instance_url": "https://peer.example.com"}` in the body. Revoke is **irreversible** — the peer loses access permanently and receives a signed `federation_revoke` control event.
 
+Leave ends the link from the joiner side: the owner is sent a signed `federation_leave` and the local copy becomes a plain editable local project (it is no longer read-only, regardless of the original grant). By default the copy is **kept locally**; pass `?delete=true` to also delete it — the project and its tasks/sections are soft-deleted in the same transaction. The delete is local-only: the owner still only learns that you left and is never sent a project-delete event.
+
 ## Key mismatch
 
 If a peer rotated its `FEDERATION_KEY` (and therefore its Ed25519 keypair), this instance will reject its events with `401` and record a sticky `key_mismatch` incident. To re-trust the peer after verifying the rotation is genuine:

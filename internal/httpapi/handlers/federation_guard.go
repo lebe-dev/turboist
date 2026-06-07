@@ -60,17 +60,22 @@ func (g *FederationReadOnlyGuard) GuardProject(c fiber.Ctx, projectID int64) *ht
 	if !ok || s.IsOwner {
 		return nil
 	}
-	// A LOST copy with a read-only reason (revoked / owner-dead) is read-only
-	// regardless of the original permission grant (Federation v1 F5.4, US-6.2 AC3 /
-	// F5.6a, US-6.5): a write/admin peer that was revoked may no longer edit its
-	// copy. A voluntarily-LEFT copy (US-6.3, F5.5) is NOT read-only — it becomes a
-	// plain editable local project — so LostReason.IsReadOnly gates this, not Lost
-	// alone. Checked before the read-permission gate so a revoked write peer is
-	// still rejected.
-	if s.Lost && s.LostReason.IsReadOnly() {
-		logValidation(c, "handler.Federation.GuardReadOnly", "lost (read-only) federated mutation rejected",
-			slog.Int64("project_id", projectID), slog.String("origin", s.OriginInstanceURL), slog.String("reason", string(s.LostReason)))
-		return httpapi.ErrFederationReadOnly()
+	// A LOST copy is no longer an active joined membership, so the original
+	// permission grant no longer gates it. The only question is WHY it was lost:
+	//   - revoked / owner-dead (US-6.2 AC3, US-6.5) → read-only regardless of the
+	//     former grant — a write/admin peer that was revoked may no longer edit.
+	//   - voluntarily LEFT (US-6.3, F5.5) → NOT read-only — it becomes a plain
+	//     editable local project, even when the former grant was "read".
+	// So a lost copy is decided entirely by LostReason.IsReadOnly and the
+	// read-permission gate below is SKIPPED for it — otherwise a left read-copy
+	// would stay wrongly read-only (the former grant outliving the membership).
+	if s.Lost {
+		if s.LostReason.IsReadOnly() {
+			logValidation(c, "handler.Federation.GuardReadOnly", "lost (read-only) federated mutation rejected",
+				slog.Int64("project_id", projectID), slog.String("origin", s.OriginInstanceURL), slog.String("reason", string(s.LostReason)))
+			return httpapi.ErrFederationReadOnly()
+		}
+		return nil
 	}
 	if s.Permissions == model.FederationPermissionRead {
 		logValidation(c, "handler.Federation.GuardReadOnly", "read-only federated mutation rejected",

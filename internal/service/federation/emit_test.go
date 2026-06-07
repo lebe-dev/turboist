@@ -201,6 +201,47 @@ func TestEmitMutation_NonFederatedWritesNoOutbox(t *testing.T) {
 	}
 }
 
+// TestEmitMutation_NonFederatedNullClientID asserts that a mutation on a task in
+// a non-federated project whose projects.client_id is NULL (a row predating the
+// 024 backfill or never stamped one) performs the domain write and does not error
+// during the federation lookup — regression for the "converting NULL to string is
+// unsupported" Scan failure that blocked task creation after federation landed.
+func TestEmitMutation_NonFederatedNullClientID(t *testing.T) {
+	env := newEmitEnv(t)
+	ctx := context.Background()
+
+	if _, err := env.db.ExecContext(ctx,
+		`UPDATE projects SET client_id = NULL WHERE id = ?`, env.plainProj); err != nil {
+		t.Fatalf("null out client_id: %v", err)
+	}
+
+	clientID := taskClientID(t, env.db, env.plainTaskID)
+	err := env.emitter.EmitMutation(ctx, fedsvc.MutationSpec{
+		LocalProjectID: env.plainProj,
+		EntityType:     events.EntityTask,
+		EntityID:       clientID,
+		Op:             events.OpUpdate,
+		Fields:         map[string]any{"title": "Renamed null-cid"},
+	}, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE tasks SET title = ? WHERE id = ?`, "Renamed null-cid", env.plainTaskID)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("emit with NULL project client_id: %v", err)
+	}
+
+	tk, err := env.tasks.Get(ctx, env.plainTaskID)
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if tk.Title != "Renamed null-cid" {
+		t.Errorf("title: got %q, want Renamed null-cid", tk.Title)
+	}
+	if got := outboxCount(t, env.db, env.plainProj); got != 0 {
+		t.Errorf("non-federated outbox count: got %d, want 0", got)
+	}
+}
+
 // TestEmitMutation_CommitPingFires asserts the commit-ping callback fires exactly
 // once after a federated event is committed (the immediate-push trigger, NFR-1.1)
 // and does NOT fire for a non-federated mutation (no outbox event to push).

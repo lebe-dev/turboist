@@ -1001,8 +1001,11 @@
 		"leave": {
 			"action": "Leave federation",
 			"confirmTitle": "Leave this federated project?",
-			"confirmBody": "You will stop receiving updates from the owner, and your local copy becomes a plain local project you can edit freely. The owner will see that you left. You will need a new invite to rejoin.",
+			"confirmBody": "You will stop receiving updates from the owner, and the owner will see that you left. Choose what to do with your local copy. You will need a new invite to rejoin.",
+			"keepLocal": "Keep locally",
+			"deleteProject": "Delete project",
 			"done": "Left the federated project — it is now a local copy",
+			"deletedDone": "Left the federation and deleted the local copy",
 			"failed": "Could not leave the federated project"
 		},
 		"invite": {

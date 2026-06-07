@@ -52,7 +52,7 @@ func TestLeaveProject_EnqueuesAndMarksLost(t *testing.T) {
 		return nil
 	})
 
-	if err := svc.LeaveProject(ctx, pid); err != nil {
+	if err := svc.LeaveProject(ctx, pid, false); err != nil {
 		t.Fatalf("LeaveProject: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestLeaveProject_OfflineLeavesEventPending(t *testing.T) {
 		return errors.New("owner offline")
 	})
 
-	if err := svc.LeaveProject(ctx, pid); err != nil {
+	if err := svc.LeaveProject(ctx, pid, false); err != nil {
 		t.Fatalf("LeaveProject must succeed even when delivery fails: %v", err)
 	}
 	row, err := fp.Get(ctx, pid, ownerURL)
@@ -159,7 +159,7 @@ func TestLeaveProject_AlreadyLostIsNoOp(t *testing.T) {
 		return nil
 	})
 
-	if err := svc.LeaveProject(ctx, pid); err != nil {
+	if err := svc.LeaveProject(ctx, pid, false); err != nil {
 		t.Fatalf("LeaveProject on already-lost: %v", err)
 	}
 	if called {
@@ -193,7 +193,7 @@ func TestLeaveProject_NotJoined(t *testing.T) {
 	if _, err := svc.EnableForProject(ctx, pid); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
-	if err := svc.LeaveProject(ctx, pid); !errors.Is(err, fedsvc.ErrNotJoined) {
+	if err := svc.LeaveProject(ctx, pid, false); !errors.Is(err, fedsvc.ErrNotJoined) {
 		t.Fatalf("leaving an owned project must be ErrNotJoined, got %v", err)
 	}
 }
@@ -202,7 +202,7 @@ func TestLeaveProject_NotJoined(t *testing.T) {
 // ErrProjectNotFound.
 func TestLeaveProject_ProjectNotFound(t *testing.T) {
 	svc, _, _, _, _, _ := newLeaveSvc(t, "https://me.example")
-	if err := svc.LeaveProject(context.Background(), 99999); !errors.Is(err, fedsvc.ErrProjectNotFound) {
+	if err := svc.LeaveProject(context.Background(), 99999, false); !errors.Is(err, fedsvc.ErrProjectNotFound) {
 		t.Fatalf("leaving an unknown project must be ErrProjectNotFound, got %v", err)
 	}
 }
@@ -233,7 +233,7 @@ func TestLeaveProject_StopsEmittingAfterLeave(t *testing.T) {
 	}
 
 	svc = svc.WithLeaveSender(func(_ context.Context, _ string, _ []string) error { return nil })
-	if err := svc.LeaveProject(ctx, pid); err != nil {
+	if err := svc.LeaveProject(ctx, pid, false); err != nil {
 		t.Fatalf("LeaveProject: %v", err)
 	}
 	// After the leave there is exactly the leave control event in the outbox.
@@ -259,6 +259,227 @@ func TestLeaveProject_StopsEmittingAfterLeave(t *testing.T) {
 		t.Errorf("outbox after editing a LEFT project: got %d rows, want %d (no new emit — stop sending, US-6.3 AC3)", got, leaveRows)
 	}
 	_ = st
+}
+
+// --- Leave-and-delete (US-6.3 "delete instead of keep locally") ----------------
+
+// leaveDeleteFixture seeds a joined project with one task + one section and returns
+// the service (with a recording leave sender), the project id, and the owner URL.
+func leaveDeleteFixture(t *testing.T, sendErr error) (svc *fedsvc.Service, d *sql.DB, st *store.Store, pid int64, ownerURL string, sent *[]string) {
+	t.Helper()
+	svc, d, projects, fp, instances, st := newLeaveSvc(t, "https://me.example")
+	ctx := context.Background()
+	keys := repo.NewFederationKeysRepo(d)
+	if _, err := keys.Ensure(ctx, crypto.NewTokenCipher(fedSvcKey), "me"); err != nil {
+		t.Fatalf("ensure keys: %v", err)
+	}
+	pid = seedProject(t, projects)
+	ownerURL = "https://alice.example"
+	markProjectFederated(t, d, pid)
+	recent := time.Now().Add(-1 * time.Hour)
+	seedOwnerMapping(t, fp, instances, pid, ownerURL, "owner-cid", &recent)
+
+	tasks := repo.NewTaskRepo(d, repo.NewTaskLabelsRepo(d))
+	cx := int64(1)
+	if _, err := tasks.Create(ctx, repo.CreateTask{Placement: repo.Placement{ContextID: &cx, ProjectID: &pid}, Title: "Joined task"}); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if _, err := repo.NewProjectSectionRepo(d).Create(ctx, pid, "A section"); err != nil {
+		t.Fatalf("create section: %v", err)
+	}
+
+	captured := []string{}
+	sent = &captured
+	svc = svc.WithLeaveSender(func(_ context.Context, _ string, payloads []string) error {
+		captured = append(captured, payloads...)
+		return sendErr
+	})
+	return svc, d, st, pid, ownerURL, sent
+}
+
+func liveCount(t *testing.T, d *sql.DB, table string, pid int64) int {
+	t.Helper()
+	var n int
+	//nolint:gosec // table is a test-controlled literal, never user input.
+	q := "SELECT COUNT(*) FROM " + table + " WHERE project_id = ? AND deleted_at IS NULL"
+	if err := d.QueryRow(q, pid).Scan(&n); err != nil {
+		t.Fatalf("count live %s: %v", table, err)
+	}
+	return n
+}
+
+func projectIsDeleted(t *testing.T, d *sql.DB, pid int64) bool {
+	t.Helper()
+	var deletedAt sql.NullString
+	if err := d.QueryRow(`SELECT deleted_at FROM projects WHERE id = ?`, pid).Scan(&deletedAt); err != nil {
+		t.Fatalf("select project deleted_at: %v", err)
+	}
+	return deletedAt.Valid
+}
+
+// TestLeaveProject_DeleteSoftDeletesLocalCopy asserts leave(delete=true) soft-deletes
+// the local project copy (the user chose "delete" over "keep locally", US-6.3).
+func TestLeaveProject_DeleteSoftDeletesLocalCopy(t *testing.T) {
+	svc, d, _, pid, _, _ := leaveDeleteFixture(t, nil)
+	if err := svc.LeaveProject(context.Background(), pid, true); err != nil {
+		t.Fatalf("LeaveProject(delete): %v", err)
+	}
+	if !projectIsDeleted(t, d, pid) {
+		t.Errorf("project after leave+delete: got live, want soft-deleted (deleted_at set)")
+	}
+}
+
+// TestLeaveProject_DeleteCascadesTasksAndSections asserts leave+delete cascades the
+// soft-delete to the project's tasks and sections (same contract as a normal
+// project delete — ProjectRepo.DeleteTx).
+func TestLeaveProject_DeleteCascadesTasksAndSections(t *testing.T) {
+	svc, d, _, pid, _, _ := leaveDeleteFixture(t, nil)
+	if n := liveCount(t, d, "tasks", pid); n != 1 {
+		t.Fatalf("precondition live tasks: got %d, want 1", n)
+	}
+	if n := liveCount(t, d, "project_sections", pid); n != 1 {
+		t.Fatalf("precondition live sections: got %d, want 1", n)
+	}
+	if err := svc.LeaveProject(context.Background(), pid, true); err != nil {
+		t.Fatalf("LeaveProject(delete): %v", err)
+	}
+	if n := liveCount(t, d, "tasks", pid); n != 0 {
+		t.Errorf("live tasks after leave+delete: got %d, want 0 (cascade)", n)
+	}
+	if n := liveCount(t, d, "project_sections", pid); n != 0 {
+		t.Errorf("live sections after leave+delete: got %d, want 0 (cascade)", n)
+	}
+}
+
+// TestLeaveProject_DeleteEmitsLeaveNotProjectDelete asserts that leave+delete sends
+// ONLY the federation_leave event to the owner — never an op=delete project
+// tombstone. A member deletes only its OWN local copy; the owner must not be told
+// to delete the project (US-6.3). The outbox holds exactly the one leave event.
+func TestLeaveProject_DeleteEmitsLeaveNotProjectDelete(t *testing.T) {
+	svc, d, _, pid, _, sent := leaveDeleteFixture(t, nil)
+	if err := svc.LeaveProject(context.Background(), pid, true); err != nil {
+		t.Fatalf("LeaveProject(delete): %v", err)
+	}
+	if got := outboxCount(t, d, pid); got != 1 {
+		t.Fatalf("outbox rows after leave+delete: got %d, want 1 (only the leave event)", got)
+	}
+	// The single outbox event is the leave — assert no op=delete leaked in.
+	var payload string
+	if err := d.QueryRow(`SELECT payload FROM federation_outbox WHERE local_project_id = ?`, pid).Scan(&payload); err != nil {
+		t.Fatalf("read outbox event: %v", err)
+	}
+	var evt events.Event
+	if err := json.Unmarshal([]byte(payload), &evt); err != nil {
+		t.Fatalf("decode outbox event: %v", err)
+	}
+	if evt.Op != events.OpLeave {
+		t.Errorf("outbox event op: got %q, want %q (leave+delete must not emit op=delete)", evt.Op, events.OpLeave)
+	}
+	// And the leave was actually delivered to the owner.
+	if len(*sent) != 1 {
+		t.Fatalf("payloads delivered to owner: got %d, want 1", len(*sent))
+	}
+}
+
+// TestLeaveProject_DeleteOfflineStillDeletesLocally asserts that when the owner is
+// offline (the direct leave delivery fails) the local copy is STILL deleted — the
+// local soft-delete is committed in the leave tx, independent of delivery — and the
+// leave event stays pending to flush later.
+func TestLeaveProject_DeleteOfflineStillDeletesLocally(t *testing.T) {
+	svc, d, st, pid, ownerURL, _ := leaveDeleteFixture(t, errors.New("owner offline"))
+	if err := svc.LeaveProject(context.Background(), pid, true); err != nil {
+		t.Fatalf("LeaveProject(delete) must succeed even when delivery fails: %v", err)
+	}
+	if !projectIsDeleted(t, d, pid) {
+		t.Errorf("project after offline leave+delete: got live, want soft-deleted")
+	}
+	n, err := st.PendingDeliveryCount(context.Background(), pid, ownerURL)
+	if err != nil {
+		t.Fatalf("pending count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("leave pending after failed delivery: got %d, want 1 (flushes later)", n)
+	}
+}
+
+// TestLeaveProject_KeepLocalDoesNotDelete asserts the DEFAULT (delete=false) leaves
+// the project alive and editable (keep-locally) — the delete path must be opt-in.
+func TestLeaveProject_KeepLocalDoesNotDelete(t *testing.T) {
+	svc, d, _, pid, _, _ := leaveDeleteFixture(t, nil)
+	if err := svc.LeaveProject(context.Background(), pid, false); err != nil {
+		t.Fatalf("LeaveProject(keep): %v", err)
+	}
+	if projectIsDeleted(t, d, pid) {
+		t.Errorf("project after keep-local leave: got soft-deleted, want live")
+	}
+	if n := liveCount(t, d, "tasks", pid); n != 1 {
+		t.Errorf("live tasks after keep-local leave: got %d, want 1 (untouched)", n)
+	}
+}
+
+// TestLeaveProject_DeleteAlreadyLostIsNoOp asserts leave+delete on an already-lost
+// copy is a no-op success — the prior reason is not overwritten and the project is
+// NOT deleted (idempotent; leave-after-revoke does nothing, even with delete=true).
+func TestLeaveProject_DeleteAlreadyLostIsNoOp(t *testing.T) {
+	svc, d, projects, fp, instances, _ := newLeaveSvc(t, "https://me.example")
+	ctx := context.Background()
+	pid := seedProject(t, projects)
+	const ownerURL = "https://alice.example"
+	markProjectFederated(t, d, pid)
+	recent := time.Now().Add(-1 * time.Hour)
+	seedOwnerMapping(t, fp, instances, pid, ownerURL, "owner-cid", &recent)
+	if _, err := fp.MarkLost(ctx, pid, ownerURL, model.FederationLostRevoked); err != nil {
+		t.Fatalf("pre-mark lost: %v", err)
+	}
+
+	if err := svc.LeaveProject(ctx, pid, true); err != nil {
+		t.Fatalf("LeaveProject(delete) on already-lost: %v", err)
+	}
+	if projectIsDeleted(t, d, pid) {
+		t.Errorf("already-lost project must NOT be deleted by leave+delete (no-op)")
+	}
+	row, err := fp.Get(ctx, pid, ownerURL)
+	if err != nil {
+		t.Fatalf("get joiner row: %v", err)
+	}
+	if row.LostReason != model.FederationLostRevoked {
+		t.Errorf("lost reason after no-op leave+delete: got %q, want revoked (not overwritten)", row.LostReason)
+	}
+}
+
+// TestLeaveProject_DeleteNoSyncStore asserts leave+delete works on a federation-off
+// build (no sync store wired): the copy is marked left AND soft-deleted locally.
+func TestLeaveProject_DeleteNoSyncStore(t *testing.T) {
+	d, projects, fedProjects, keys := setup(t)
+	seedContext(t, d)
+	ctx := context.Background()
+	if _, err := keys.Ensure(ctx, crypto.NewTokenCipher(fedSvcKey), "me"); err != nil {
+		t.Fatalf("ensure keys: %v", err)
+	}
+	instances := repo.NewFederatedInstanceRepo(d)
+	svc := fedsvc.NewService(d, projects, fedProjects, keys, repo.NewFederationInviteRepo(d), instances, crypto.NewTokenCipher(fedSvcKey), "https://me.example")
+	pid := seedProject(t, projects)
+	const ownerURL = "https://alice.example"
+	markProjectFederated(t, d, pid)
+	recent := time.Now().Add(-1 * time.Hour)
+	seedOwnerMapping(t, fedProjects, instances, pid, ownerURL, "owner-cid", &recent)
+
+	if err := svc.LeaveProject(ctx, pid, true); err != nil {
+		t.Fatalf("LeaveProject(delete) no-sync-store: %v", err)
+	}
+	if !projectIsDeleted(t, d, pid) {
+		t.Errorf("project after no-sync-store leave+delete: got live, want soft-deleted")
+	}
+	// The federated_projects Get joins live projects, so after the soft-delete it
+	// can't resolve the row — query the marker row directly to confirm lost=left.
+	var lost int
+	var reason string
+	if err := d.QueryRow(`SELECT lost, lost_reason FROM federated_projects WHERE local_project_id = ? AND is_owner = 0`, pid).Scan(&lost, &reason); err != nil {
+		t.Fatalf("read joiner marker: %v", err)
+	}
+	if lost != 1 || reason != string(model.FederationLostLeft) {
+		t.Errorf("joiner state after no-sync-store leave+delete: got (lost=%d, reason=%q), want (1, left)", lost, reason)
+	}
 }
 
 // markProjectFederated flips is_federated on a project without adding a self-row
