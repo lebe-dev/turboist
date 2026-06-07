@@ -381,6 +381,14 @@ type Env struct {
 	FederationKey string
 	DataPath      string
 	Argon2Params  auth.Argon2Params
+
+	// Sentry error reporting. All optional; a blank DSN disables that side.
+	// SentryDSN drives backend reporting; SentryFrontendDSN is served to the
+	// browser via GET /api/config (so it is never baked into the static bundle);
+	// SentryEnvironment is shared by both planes.
+	SentryDSN         string
+	SentryFrontendDSN string
+	SentryEnvironment string
 }
 
 func LoadEnv() (*Env, error) {
@@ -393,6 +401,10 @@ func LoadEnv() (*Env, error) {
 		TOTPSecretKey: os.Getenv("TOTP_SECRET_KEY"),
 		FederationKey: os.Getenv("FEDERATION_KEY"),
 		DataPath:      os.Getenv("DATA_PATH"),
+
+		SentryDSN:         os.Getenv("SENTRY_DSN"),
+		SentryFrontendDSN: os.Getenv("SENTRY_FRONTEND_DSN"),
+		SentryEnvironment: os.Getenv("SENTRY_ENVIRONMENT"),
 	}
 	if e.LogLevel == "" {
 		e.LogLevel = "info"

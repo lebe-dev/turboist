@@ -524,6 +524,18 @@ The badge also refreshes live: the server publishes a `federation` SSE scope on 
 status transition (e.g. a key mismatch is first observed). Companion fields are
 empty / `0` unless they apply to the current `status`.
 
+### `GET /api/config`
+
+Public runtime configuration for the SPA (kept unauthenticated so the browser can initialise error reporting before login). A blank `dsn` means the frontend leaves Sentry disabled.
+
+```json
+{ "sentry": { "dsn": "https://<key>@<host>/<project>", "environment": "production" } }
+```
+
+```sh
+curl "$BASE/api/config"
+```
+
 ---
 
 ## Auth
