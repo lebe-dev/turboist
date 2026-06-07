@@ -22,8 +22,12 @@ type captureTransport struct {
 	events []*sentry.Event
 }
 
-func (t *captureTransport) Configure(sentry.ClientOptions)        {}
-func (t *captureTransport) SendEvent(e *sentry.Event)             { t.mu.Lock(); t.events = append(t.events, e); t.mu.Unlock() }
+func (t *captureTransport) Configure(sentry.ClientOptions) {}
+func (t *captureTransport) SendEvent(e *sentry.Event) {
+	t.mu.Lock()
+	t.events = append(t.events, e)
+	t.mu.Unlock()
+}
 func (t *captureTransport) Flush(time.Duration) bool              { return true }
 func (t *captureTransport) FlushWithContext(context.Context) bool { return true }
 func (t *captureTransport) Close()                                {}
@@ -57,6 +61,7 @@ func sentryTestApp() *fiber.App {
 		return httpapi.ErrInternal("internal server error").WithCause(errBoom)
 	})
 	app.Get("/panic", func(c fiber.Ctx) error { panic("kaboom") })
+	app.Get("/items/:id", func(c fiber.Ctx) error { return httpapi.ErrNotFound("missing item") })
 	return app
 }
 
@@ -130,6 +135,80 @@ func TestSentryMiddleware_CapturesPanic(t *testing.T) {
 	if !eventMentions(events[0], "kaboom") {
 		t.Errorf("panic event should mention the panic value, got %+v", events[0].Exception)
 	}
+}
+
+func TestSentryMiddleware_EnrichesEvent(t *testing.T) {
+	tr := bindSentry(t)
+	app := sentryTestApp()
+	if status := get(t, app, "/notfound?q=1"); status != http.StatusNotFound {
+		t.Fatalf("status: got %d, want 404", status)
+	}
+	events := tr.all()
+	if len(events) != 1 {
+		t.Fatalf("captured events: got %d, want 1", len(events))
+	}
+	e := events[0]
+
+	if e.Transaction != "GET /notfound" {
+		t.Errorf("transaction: got %q, want %q", e.Transaction, "GET /notfound")
+	}
+	if got := e.Tags["error.code"]; got != httpapi.CodeNotFound {
+		t.Errorf("error.code tag: got %q, want %q", got, httpapi.CodeNotFound)
+	}
+	if got := e.Tags["http.route"]; got != "/notfound" {
+		t.Errorf("http.route tag: got %q, want /notfound", got)
+	}
+	if e.Request == nil || e.Request.Method != http.MethodGet {
+		t.Errorf("request: got %+v, want a GET request attached", e.Request)
+	}
+	if e.Request != nil && e.Request.QueryString != "q=1" {
+		t.Errorf("request query: got %q, want q=1", e.Request.QueryString)
+	}
+	wantFingerprint := []string{http.MethodGet, "/notfound", "404", httpapi.CodeNotFound}
+	if !equalStrings(e.Fingerprint, wantFingerprint) {
+		t.Errorf("fingerprint: got %v, want %v", e.Fingerprint, wantFingerprint)
+	}
+}
+
+func TestSentryMiddleware_GroupsByRouteTemplate(t *testing.T) {
+	tr := bindSentry(t)
+	app := sentryTestApp()
+	if status := get(t, app, "/items/abc"); status != http.StatusNotFound {
+		t.Fatalf("status: got %d, want 404", status)
+	}
+	events := tr.all()
+	if len(events) != 1 {
+		t.Fatalf("captured events: got %d, want 1", len(events))
+	}
+	e := events[0]
+
+	// Concrete ids must collapse to the route template so every id does not spawn
+	// its own issue; the concrete value is preserved as a route param + target.
+	if e.Transaction != "GET /items/:id" {
+		t.Errorf("transaction: got %q, want %q", e.Transaction, "GET /items/:id")
+	}
+	if got := e.Tags["http.target"]; got != "/items/abc" {
+		t.Errorf("http.target tag: got %q, want /items/abc", got)
+	}
+	params, ok := e.Contexts["route_params"]
+	if !ok {
+		t.Fatalf("route_params context missing, got contexts %v", e.Contexts)
+	}
+	if got := params["id"]; got != "abc" {
+		t.Errorf("route_params id: got %v, want abc", got)
+	}
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestAPIConfig_ServesFrontendSentryConfig(t *testing.T) {
