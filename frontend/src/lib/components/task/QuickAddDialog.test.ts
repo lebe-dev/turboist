@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { projectsStore } from '$lib/stores/projects.svelte';
 import { labelsStore } from '$lib/stores/labels.svelte';
@@ -45,7 +45,13 @@ describe('QuickAddDialog federation new-task hint (Federation v1 F6.4, US-7.1 AC
 		projectsStore.setItems([]);
 		labelsStore.setItems?.([]);
 	});
-	afterEach(() => {
+	afterEach(async () => {
+		// Unmount the dialog now and let bits-ui's deferred body-scroll-lock reset
+		// (a ~24ms setTimeout) fire while `document` still exists. Without this the
+		// timer fires after jsdom is torn down and throws "document is not defined"
+		// as an unhandled error — flaky, surfacing only in the full-suite run.
+		cleanup();
+		await new Promise((resolve) => setTimeout(resolve, 50));
 		vi.restoreAllMocks();
 		projectsStore.setItems([]);
 	});
