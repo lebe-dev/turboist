@@ -16,7 +16,7 @@
 	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
-	import { visiblePeers, peerNamesLabel } from '$lib/federation/projectSurface';
+	import { visiblePeers, peerNamesLabel, isReadOnlyFederated } from '$lib/federation/projectSurface';
 	import GlobeIcon from 'phosphor-svelte/lib/Globe';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -112,7 +112,10 @@
 
 	const visibleProjects = $derived(
 		projectsStore.items
-			.filter((p) => p.status !== 'completed')
+			// A joined read-only federated project cannot accept new tasks (the backend
+			// 403 federation_read_only guard rejects the write), so it is not offered as
+			// a target in the picker.
+			.filter((p) => p.status !== 'completed' && !isReadOnlyFederated(p))
 			.slice()
 			.sort((a, b) => {
 				if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;

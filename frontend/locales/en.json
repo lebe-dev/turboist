@@ -1058,6 +1058,7 @@
 			"signInPrompt": "Sign in to your instance to accept this invitation.",
 			"signIn": "Sign in to continue",
 			"crossInstanceTitle": "This invite opens on your own instance",
+			"crossInstanceFrom": "Invite from {owner}",
 			"crossInstancePrompt": "Enter the address of your turboist instance to open this invite there.",
 			"instancePlaceholder": "your-instance.example",
 			"openInYourInstance": "Open in your instance",

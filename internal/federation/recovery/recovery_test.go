@@ -655,6 +655,156 @@ func TestRecovery_StalePullWithoutConsumerDoesNotPanic(t *testing.T) {
 	}
 }
 
+// fakeClock is a deterministic wall-clock for the permanent-reject backoff gate.
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *fakeClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
+// permPullErr is a PERMANENT pull rejection (a revoked/untrusted 403, a signature-
+// rejected 401) — it satisfies the FederationPermanent() seam the recovery loop
+// reads to gate a peer that would reject every identical pull, mirroring the
+// service-layer *RemoteHandshakeError. A transient error (a plain error / network
+// drop) does NOT implement it and is retried each tick.
+type permPullErr struct{ msg string }
+
+func (e *permPullErr) Error() string             { return e.msg }
+func (e *permPullErr) FederationPermanent() bool { return true }
+
+// TestRecovery_PermanentPullRejectGatesPeer asserts a PERMANENT pull rejection
+// (401/403) gates the peer so the loop does NOT re-issue the identical failing pull
+// every tick (F4.1 pull-error classification): the gated peer is skipped inside the
+// backoff window and re-probed only once the window elapses.
+func TestRecovery_PermanentPullRejectGatesPeer(t *testing.T) {
+	targets := &stubTargets{targets: []store.PullTarget{{
+		LocalProjectID: 7, PeerInstanceURL: "https://owner.example", RemoteProjectID: "r", LastReceivedHLC: "00000000010000-0000-nodeO",
+	}}}
+	puller := &stubPuller{err: &permPullErr{msg: "403 revoked"}}
+	sink := newRecordingSink()
+	clock := &fakeClock{t: time.Unix(1_700_000_000, 0)}
+	loop := NewLoop(targets, puller, sink, nil).WithValidator(newStubValidator(7)).WithClock(clock.now)
+
+	// Pass 1: permanent 403 → the peer is gated; the pull was attempted once.
+	if err := loop.RunOnce(context.Background()); err != nil {
+		t.Fatalf("pass 1: %v", err)
+	}
+	if got := len(puller.sinceSeen); got != 1 {
+		t.Fatalf("first pass should pull once: got %d", got)
+	}
+
+	// Pass 2 inside the backoff window: the gated peer is SKIPPED — no re-pull.
+	if err := loop.RunOnce(context.Background()); err != nil {
+		t.Fatalf("pass 2: %v", err)
+	}
+	if got := len(puller.sinceSeen); got != 1 {
+		t.Errorf("gated peer must not be re-pulled inside the backoff window: got %d pulls, want 1", got)
+	}
+
+	// Pass 3 past the backoff window: the peer is re-probed.
+	clock.advance(time.Hour + time.Minute)
+	if err := loop.RunOnce(context.Background()); err != nil {
+		t.Fatalf("pass 3: %v", err)
+	}
+	if got := len(puller.sinceSeen); got != 2 {
+		t.Errorf("gated peer must be re-probed after the backoff window: got %d pulls, want 2", got)
+	}
+
+	// The failed pulls never advanced the cursor.
+	if _, _, adv := sink.snapshot(); len(adv) != 0 {
+		t.Errorf("permanent reject must not advance the cursor: got %v", adv)
+	}
+}
+
+// TestRecovery_TransientPullErrorNotGated asserts a TRANSIENT pull error (peer
+// unreachable, no FederationPermanent seam) does NOT gate the peer: it is re-pulled
+// on the very next pass so catch-up resumes the moment the peer recovers (F4.1 —
+// only a permanent reject is gated, transient is retried each tick).
+func TestRecovery_TransientPullErrorNotGated(t *testing.T) {
+	targets := &stubTargets{targets: []store.PullTarget{{
+		LocalProjectID: 7, PeerInstanceURL: "https://owner.example", RemoteProjectID: "r", LastReceivedHLC: "00000000010000-0000-nodeO",
+	}}}
+	puller := &stubPuller{err: errors.New("peer unreachable")}
+	sink := newRecordingSink()
+	clock := &fakeClock{t: time.Unix(1_700_000_000, 0)}
+	loop := NewLoop(targets, puller, sink, nil).WithValidator(newStubValidator(7)).WithClock(clock.now)
+
+	// Two passes with NO clock advance: a transient error is retried each tick, so
+	// the peer is pulled both times (never gated).
+	for i := range 2 {
+		if err := loop.RunOnce(context.Background()); err != nil {
+			t.Fatalf("pass %d: %v", i+1, err)
+		}
+	}
+	if got := len(puller.sinceSeen); got != 2 {
+		t.Errorf("transient error must not gate the peer: got %d pulls, want 2", got)
+	}
+}
+
+// TestRecovery_SuccessfulPullClearsPermanentGate asserts a peer gated by a permanent
+// reject resumes the normal tick cadence after a later pull SUCCEEDS (e.g. trust
+// was restored): the gate is cleared so the peer is no longer skipped.
+func TestRecovery_SuccessfulPullClearsPermanentGate(t *testing.T) {
+	targets := &stubTargets{targets: []store.PullTarget{{
+		LocalProjectID: 7, PeerInstanceURL: "https://owner.example", RemoteProjectID: "r", LastReceivedHLC: "00000000010000-0000-nodeO",
+	}}}
+	// First call: permanent reject. After the window elapses the peer recovers and
+	// the toggling puller serves an empty caught-up response.
+	puller := &togglePuller{firstErr: &permPullErr{msg: "403 revoked"}}
+	sink := newRecordingSink()
+	clock := &fakeClock{t: time.Unix(1_700_000_000, 0)}
+	loop := NewLoop(targets, puller, sink, nil).WithValidator(newStubValidator(7)).WithClock(clock.now)
+
+	// Pass 1: permanent reject → gated.
+	if err := loop.RunOnce(context.Background()); err != nil {
+		t.Fatalf("pass 1: %v", err)
+	}
+	// Pass 2 past the window: re-probe SUCCEEDS → gate cleared.
+	clock.advance(time.Hour + time.Minute)
+	if err := loop.RunOnce(context.Background()); err != nil {
+		t.Fatalf("pass 2: %v", err)
+	}
+	// Pass 3 with NO further advance: a cleared gate means the peer is pulled again
+	// immediately (it is not still gated from the original reject).
+	if err := loop.RunOnce(context.Background()); err != nil {
+		t.Fatalf("pass 3: %v", err)
+	}
+	if got := len(puller.sinceSeen); got != 3 {
+		t.Errorf("a successful pull must clear the gate: got %d pulls, want 3", got)
+	}
+}
+
+// togglePuller returns firstErr on its first call, then empty caught-up responses.
+type togglePuller struct {
+	mu        sync.Mutex
+	firstErr  error
+	sinceSeen []string
+	calls     int
+}
+
+func (p *togglePuller) Pull(_ context.Context, _, _, sinceHLC string, _ int) (*events.PullResponse, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.sinceSeen = append(p.sinceSeen, sinceHLC)
+	idx := p.calls
+	p.calls++
+	if idx == 0 && p.firstErr != nil {
+		return nil, p.firstErr
+	}
+	return &events.PullResponse{NextHLC: sinceHLC}, nil
+}
+
 // projectCapturingSink captures the localProjectID Record was called with.
 type projectCapturingSink struct {
 	*recordingSink

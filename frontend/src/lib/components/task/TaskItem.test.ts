@@ -173,8 +173,9 @@ describe('TaskItem "visible to N peers" badge (Federation v1 F6.4, US-7.1 AC2)',
 		render(TaskItem, { task: makeTask({ projectId: 1 }), mutator: {} as never, onToggle: vi.fn() });
 
 		const badge = screen.getByTestId('visible-to-peers-badge');
-		expect(badge.textContent).toContain('2');
-		// The badge tooltip names the actual instances (US-7.1 AC3 — not a bare count).
+		// The badge is icon-only; the count and the named instances (US-7.1 AC3 — not
+		// a bare count) both live in the title/aria-label.
+		expect(badge.getAttribute('title')).toContain('2');
 		expect(badge.getAttribute('title')).toContain('Alice');
 		expect(badge.getAttribute('title')).toContain('Bob');
 	});

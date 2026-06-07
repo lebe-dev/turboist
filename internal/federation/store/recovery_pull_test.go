@@ -79,6 +79,33 @@ func TestListPullTargets_OnlyJoinedReachablePeers(t *testing.T) {
 	}
 }
 
+// TestListPullTargets_SkipsLostProject asserts a JOINED peer whose mapping has
+// been marked federation_lost (the joiner voluntarily LEFT, F5.5/US-6.3; or the
+// owner revoked it, or the owner died) is NOT a pull target. A lost copy is a
+// plain local project with a severed trust link — the recovery loop must stop
+// pulling from it, otherwise a left project keeps catching up and (on a 410 stale
+// pull) re-bootstrapping, silently resurrecting the federation the user removed.
+func TestListPullTargets_SkipsLostProject(t *testing.T) {
+	d, s := openMigratedDB(t)
+	ctx := context.Background()
+
+	pid := seedProjectRow(t, d, "Left")
+	seedFedPeerRow(t, d, pid, "https://owner.example", "remote-abc", false, false, false, "00000000010000-0000-nodeO")
+	if _, err := d.Exec(
+		`UPDATE federated_projects SET lost = 1, lost_reason = 'left' WHERE local_project_id = ? AND is_owner = 0`,
+		pid); err != nil {
+		t.Fatalf("mark federated_projects lost: %v", err)
+	}
+
+	targets, err := s.ListPullTargets(ctx)
+	if err != nil {
+		t.Fatalf("list pull targets: %v", err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("pull targets for lost (left) project: got %d, want 0", len(targets))
+	}
+}
+
 // TestListPullTargets_SkipsTombstonedProject asserts a soft-deleted parent
 // project's joined peer is NOT a pull target — a tombstoned project must not be
 // re-bootstrapped from its peer.

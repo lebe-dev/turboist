@@ -29,6 +29,18 @@
 // — detection is symmetric across both transports, best-effort and never changing
 // the rejection itself.
 //
+// Pull-error classification (F4.1): a failed pull is NOT all-or-nothing-retried.
+// A 410 stale_pull is CONSUMED (re-bootstrap, see below). A PERMANENT reject — a
+// 4xx the peer would return identically forever (a revoked/untrusted 403, a
+// signature-rejected 401), surfaced by the service-layer *RemoteHandshakeError's
+// FederationPermanent seam — GATES the (peer, project) target for
+// permanentPullBackoff so the loop stops re-issuing the same failing pull every
+// 60s tick; it is re-probed hourly and the gate clears the moment a pull succeeds
+// (trust restored). A TRANSIENT error (peer unreachable, 5xx, 429, a reversible
+// paused 403, DB busy) is NOT gated — it is retried on the very next tick so
+// catch-up resumes the instant the peer recovers. The gate is per (peer, project)
+// (a 403 can be project-scoped) and in-memory (R18 — a restart re-probes once).
+//
 // Connection discipline (R1 — SetMaxOpenConns(1)): a pass reads its targets on
 // the store's connection, then RELEASES it before the per-peer network GET. The
 // signed pull, the durable inbox record, and the cursor advance never hold the
@@ -47,6 +59,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/lebe-dev/turboist/internal/federation/events"
@@ -63,6 +76,45 @@ const defaultInterval = time.Minute
 // spec's 500 limit). A peer with a larger backlog is drained over successive
 // passes as the cursor advances.
 const defaultBatchLimit = 500
+
+// permanentPullBackoff is how long a peer is gated after a PERMANENT pull rejection
+// (a revoked/untrusted 403, a signature-rejected 401) before the loop re-probes it
+// (F4.1 pull-error classification). A permanent reject would fail identically every
+// 60s tick, so the loop must not re-issue it each tick; an hourly re-probe lets a
+// peer whose trust was restored (re-invite / trust-key) resume catch-up without a
+// restart, while a still-dead peer is hit at most hourly instead of every minute.
+const permanentPullBackoff = time.Hour
+
+// permanentPullError is the classification seam a pull rejection implements to
+// signal a PERMANENT (do-not-retry) reject — a 4xx (≠429, ≠paused) the loop cannot
+// fix by re-issuing the identical request each tick (a revoked/untrusted 403, a
+// signature-rejected 401). The service-layer *RemoteHandshakeError satisfies it. A
+// transient error (network drop, 5xx, 429, a reversible paused 403, DB busy) does
+// NOT implement it (or returns false) and is retried on the next tick. Defined here
+// (not imported) so the dependency direction stays service→recovery.
+type permanentPullError interface {
+	FederationPermanent() bool
+}
+
+// isPermanentPull reports whether a pull error is a permanent (do-not-retry) reject.
+// A transient error (no seam, or a 429 / paused 403 the seam reports false for) is
+// retried on the next tick instead of gating the peer.
+func isPermanentPull(err error) bool {
+	var pe permanentPullError
+	if errors.As(err, &pe) {
+		return pe.FederationPermanent()
+	}
+	return false
+}
+
+// pullKey identifies a (peer, project) pull target for the permanent-reject gate. A
+// 403 on pull can be project-specific (revoked from project X but still a member of
+// project Y), so the gate is keyed per (project, peer) — never the whole peer — so
+// one project's permanent reject never silently stops catch-up for another.
+type pullKey struct {
+	localProjectID int64
+	peerURL        string
+}
 
 // TargetLister enumerates the joined peers the loop pulls from (satisfied by
 // *store.Store). It runs on the store's own connection, before any network I/O.
@@ -152,6 +204,17 @@ type Loop struct {
 	interval   time.Duration
 	batchLimit int
 
+	now func() time.Time
+
+	// gateMu guards gated; the loop is single-goroutine but RunOnce is exported for
+	// synchronous test/harness use, so the gate is mutex-protected (matches the
+	// outbox worker's peer-gate discipline).
+	gateMu sync.Mutex
+	// gated maps a (project, peer) target to the earliest wall-clock it may be
+	// re-pulled after a PERMANENT reject. In-memory by design (R18): a restart loses
+	// the gate and re-probes the peer once, then re-gates if it still rejects.
+	gated map[pullKey]time.Time
+
 	doneCh chan struct{}
 }
 
@@ -170,8 +233,19 @@ func NewLoop(targets TargetLister, puller Puller, sink EventSink, log *slog.Logg
 		log:        log,
 		interval:   defaultInterval,
 		batchLimit: defaultBatchLimit,
+		now:        time.Now,
+		gated:      map[pullKey]time.Time{},
 		doneCh:     make(chan struct{}),
 	}
+}
+
+// WithClock overrides the loop's wall-clock (default time.Now), for deterministic
+// permanent-reject backoff-gating tests. Must be set before Start.
+func (l *Loop) WithClock(now func() time.Time) *Loop {
+	if now != nil {
+		l.now = now
+	}
+	return l
 }
 
 // WithValidator wires the F3.2a per-event payload validator the loop runs over
@@ -286,6 +360,19 @@ func (l *Loop) RunOnce(ctx context.Context) error {
 // resolved by RunOnce's store read, the pull runs with nothing held, then each
 // record + the cursor advance are short store writes.
 func (l *Loop) pullTarget(ctx context.Context, tgt store.PullTarget) {
+	if !l.pullReady(tgt) {
+		// The peer returned a PERMANENT reject (a revoked/untrusted 403, a signature-
+		// rejected 401) recently and is gated, so the loop does not re-issue the
+		// identical failing pull every tick. It is re-probed once the backoff window
+		// elapses (F4.1 pull-error classification).
+		l.log.DebugContext(ctx, "federation: recovery skipping peer inside permanent-reject backoff",
+			slog.String("op", "federation.recovery.Pull"),
+			slog.Int64("project_id", tgt.LocalProjectID),
+			slog.String("peer", tgt.PeerInstanceURL),
+		)
+		return
+	}
+
 	resp, err := l.puller.Pull(ctx, tgt.PeerInstanceURL, tgt.RemoteProjectID, tgt.LastReceivedHLC, l.batchLimit)
 	if err != nil {
 		// A 410 stale_pull means the cursor predates the owner's retained history
@@ -294,15 +381,34 @@ func (l *Loop) pullTarget(ctx context.Context, tgt store.PullTarget) {
 		// the F4.2 re-bootstrap, which overwrites local state from a fresh snapshot
 		// WITHOUT touching the outbox and advances last_received_hlc itself (so the
 		// failed pull never advances the cursor here). The peer DID respond (410), so
-		// it counts as a successful contact for owner-offline freshness (US-6.5 AC3).
+		// it counts as a successful contact for owner-offline freshness (US-6.5 AC3)
+		// and clears any permanent-reject gate.
 		var staleErr *events.StalePullError
 		if errors.As(err, &staleErr) {
+			l.clearGate(tgt)
 			l.touchContact(ctx, tgt.PeerInstanceURL)
 			l.consumeStalePull(ctx, tgt, staleErr)
 			return
 		}
-		// Any other peer error (unreachable, signature reject, DB busy) is isolated:
-		// the cursor is NOT advanced, so the same range is re-pulled next pass.
+		// A PERMANENT reject (a revoked/untrusted 403, a signature-rejected 401) would
+		// fail identically on every tick. Gate the peer so the loop stops re-issuing
+		// the same failing pull each minute; it is re-probed after the backoff window
+		// (F4.1). The cursor is NOT advanced.
+		if isPermanentPull(err) {
+			wait := l.gatePeer(tgt)
+			l.log.WarnContext(ctx, "federation: recovery pull permanently rejected — gating peer to stop re-issuing the identical failing pull each tick",
+				slog.String("op", "federation.recovery.Pull"),
+				slog.Int64("project_id", tgt.LocalProjectID),
+				slog.String("peer", tgt.PeerInstanceURL),
+				slog.Duration("backoff", wait),
+				slog.String("remediation", "a 403 likely means the peer revoked/forbade this instance, a 401 a transport-key mismatch — restore the trust relationship (re-invite / trust-key) to resume catch-up"),
+				slog.String("err", err.Error()),
+			)
+			return
+		}
+		// A TRANSIENT error (peer unreachable, 5xx, 429, a reversible paused 403, DB
+		// busy) is isolated and retried next tick: the cursor is NOT advanced and the
+		// peer is NOT gated, so catch-up resumes the moment the peer recovers.
 		l.log.WarnContext(ctx, "federation: recovery pull failed",
 			slog.String("op", "federation.recovery.Pull"),
 			slog.Int64("project_id", tgt.LocalProjectID),
@@ -312,10 +418,12 @@ func (l *Loop) pullTarget(ctx context.Context, tgt store.PullTarget) {
 		return
 	}
 
-	// The peer answered 2xx — a successful contact. Refresh its last_contact_at so a
-	// joiner stops flagging the OWNER "offline" the moment a pull reaches it again
-	// (Federation v1 F5.6a, US-6.5 AC1/AC3). This runs even on an empty (caught-up)
-	// response — reachability, not new events, is what clears the owner-offline flag.
+	// The peer answered 2xx — a successful contact. Clear any permanent-reject gate
+	// (trust restored), then refresh its last_contact_at so a joiner stops flagging
+	// the OWNER "offline" the moment a pull reaches it again (Federation v1 F5.6a,
+	// US-6.5 AC1/AC3). This runs even on an empty (caught-up) response — reachability,
+	// not new events, is what clears the owner-offline flag.
+	l.clearGate(tgt)
 	l.touchContact(ctx, tgt.PeerInstanceURL)
 
 	if resp == nil || len(resp.Events) == 0 {
@@ -410,6 +518,38 @@ func (l *Loop) consumeStalePull(ctx context.Context, tgt store.PullTarget, stale
 			slog.String("err", err.Error()),
 		)
 	}
+}
+
+// pullReady reports whether a (peer, project) target may be pulled now: it has no
+// permanent-reject gate, or its backoff window has elapsed (F4.1).
+func (l *Loop) pullReady(tgt store.PullTarget) bool {
+	l.gateMu.Lock()
+	defer l.gateMu.Unlock()
+	until, gated := l.gated[pullKey{tgt.LocalProjectID, tgt.PeerInstanceURL}]
+	if !gated {
+		return true
+	}
+	return !l.now().Before(until)
+}
+
+// gatePeer marks a (peer, project) target gated for permanentPullBackoff after a
+// PERMANENT pull rejection, so the identical failing pull is not re-issued every
+// tick (F4.1). Returns the window applied. The gate is in-memory (R18) and cleared
+// by clearGate on the next successful (or 410) pull.
+func (l *Loop) gatePeer(tgt store.PullTarget) time.Duration {
+	l.gateMu.Lock()
+	defer l.gateMu.Unlock()
+	l.gated[pullKey{tgt.LocalProjectID, tgt.PeerInstanceURL}] = l.now().Add(permanentPullBackoff)
+	return permanentPullBackoff
+}
+
+// clearGate removes a (peer, project) permanent-reject gate after the peer responds
+// again (a 2xx pull or a 410 stale-pull), so a peer whose trust was restored resumes
+// the normal tick cadence without a restart. A no-op for an un-gated target.
+func (l *Loop) clearGate(tgt store.PullTarget) {
+	l.gateMu.Lock()
+	defer l.gateMu.Unlock()
+	delete(l.gated, pullKey{tgt.LocalProjectID, tgt.PeerInstanceURL})
 }
 
 // touchContact refreshes a peer's last_contact_at after a successful pull

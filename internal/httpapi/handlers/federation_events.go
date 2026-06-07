@@ -465,6 +465,13 @@ func mapEventValidationError(c fiber.Ctx, e events.Event, err error) error {
 	case errors.Is(err, inbox.ErrEventClockSkew):
 		logValidation(c, "handler.Federation.ReceiveEvents", "event clock skew")
 		return httpapi.ErrFederationClockSkew()
+	case errors.Is(err, inbox.ErrEventNoFields):
+		// A field-less op=create/op=update is malformed (it would materialise an empty
+		// ghost row). Reject with a 400 so the sending peer's outbox worker classifies
+		// it event-scoped permanent and dead-letters just this event (the link stays
+		// healthy — F4.4), never head-of-line-blocking its other events.
+		logValidation(c, "handler.Federation.ReceiveEvents", "event carries no field HLC")
+		return httpapi.ErrFederationInvalidEvent()
 	case errors.Is(err, inbox.ErrPeerRevoked):
 		// Permanent revoke (Federation v1 F5.4, US-6.2 AC2/AC4): reject with the
 		// distinct, terminal 403 federation_revoked (NOT the generic untrusted 403 or

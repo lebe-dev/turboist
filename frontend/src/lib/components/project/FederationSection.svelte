@@ -1,4 +1,6 @@
 <script lang="ts">
+	import UsersThreeIcon from 'phosphor-svelte/lib/UsersThree';
+	import TicketIcon from 'phosphor-svelte/lib/Ticket';
 	import { t } from '$lib/i18n';
 	import InvitesTable from './InvitesTable.svelte';
 	import PeersTable from './PeersTable.svelte';
@@ -18,19 +20,22 @@
 	} = $props();
 </script>
 
-<div class="flex flex-col gap-4">
-	<div>
-		<h3 class="mb-2 text-sm font-medium text-muted-foreground">
+<div class="flex flex-col gap-5">
+	<section class="flex flex-col gap-2">
+		<h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+			<UsersThreeIcon class="size-3.5" />
 			{$t('federation.peers.title')}
 		</h3>
 		<PeersTable {projectId} />
-	</div>
-	<div>
-		<h3 class="mb-2 text-sm font-medium text-muted-foreground">
+	</section>
+
+	<section class="flex flex-col gap-2">
+		<h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+			<TicketIcon class="size-3.5" />
 			{$t('federation.invite.list.title')}
 		</h3>
 		{#key reloadKey}
 			<InvitesTable {projectId} {sessionLinks} />
 		{/key}
-	</div>
+	</section>
 </div>

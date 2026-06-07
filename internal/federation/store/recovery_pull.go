@@ -29,22 +29,26 @@ type PullTarget struct {
 	LastReceivedHLC string
 }
 
-// ListPullTargets returns every JOINED (is_owner=0), non-revoked, non-paused
-// federated_projects row whose parent project is live (not soft-deleted), each
-// carrying its remote_project_id + last_received_hlc cursor. It is the recovery
-// loop's pull-scope read (US-4.1): the owner self-row (is_owner=1) is never a
-// target (the owner does not pull from itself); a revoked peer (trust terminated)
-// and a paused peer (events accumulate, no pull) are both excluded — mirroring
-// the publisher's PeersForProject fan-out filter on the outbound side. A
-// tombstoned parent project is excluded so a soft-deleted project is never
-// re-bootstrapped from its peer.
+// ListPullTargets returns every JOINED (is_owner=0), non-revoked, non-paused,
+// non-lost federated_projects row whose parent project is live (not soft-deleted),
+// each carrying its remote_project_id + last_received_hlc cursor. It is the
+// recovery loop's pull-scope read (US-4.1): the owner self-row (is_owner=1) is
+// never a target (the owner does not pull from itself); a revoked peer (trust
+// terminated) and a paused peer (events accumulate, no pull) are both excluded —
+// mirroring the publisher's PeersForProject fan-out filter on the outbound side. A
+// LOST copy (lost=1 — the joiner voluntarily LEFT per F5.5/US-6.3, or was revoked,
+// or its owner died) is excluded too: its trust link is severed and it is now a
+// plain local project, so pulling from it would keep catching it up and, on a 410
+// stale pull, re-bootstrap it — silently resurrecting the federation the user
+// removed. A tombstoned parent project is excluded so a soft-deleted project is
+// never re-bootstrapped from its peer.
 func (s *Store) ListPullTargets(ctx context.Context) ([]PullTarget, error) {
 	const op = "store.ListPullTargets"
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT fp.local_project_id, fp.peer_instance_url, fp.remote_project_id, fp.last_received_hlc
 		   FROM federated_projects fp
 		   JOIN projects p ON p.id = fp.local_project_id AND p.deleted_at IS NULL
-		  WHERE fp.is_owner = 0 AND fp.revoked = 0 AND fp.paused = 0
+		  WHERE fp.is_owner = 0 AND fp.revoked = 0 AND fp.paused = 0 AND fp.lost = 0
 		  ORDER BY fp.local_project_id ASC, fp.peer_instance_url ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("%s query: %w", op, err)

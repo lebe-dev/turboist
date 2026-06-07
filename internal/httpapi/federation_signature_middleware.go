@@ -68,6 +68,18 @@ type FederationSignatureDeps struct {
 //     which binds the protocol version (anti-downgrade);
 //  6. on success, stash the verified peer (incl. display_name) in Locals.
 //
+// Nonce-before-verify is a DELIBERATE ordering decision (F4.4 review / R18), not an
+// oversight: the nonce is consumed at step 4, BEFORE the step-5 key resolution +
+// signature verify. A valid-timestamp / valid-digest request with a GARBAGE
+// signature therefore burns its nonce-cache slot before the signature is checked.
+// This is accepted because the alternative — consuming the nonce only AFTER a
+// successful verify — would let a replayed request reach the peer-key Resolve
+// (a potential .well-known fetch) on EVERY replay instead of being rejected cheaply
+// at the nonce gate, turning replay into a key-resolution amplification vector. The
+// burn cost is bounded: a nonce-cache entry expires with the ±5min timestamp window
+// and a fresh-nonce probe gains the attacker nothing (the request still fails
+// verify). See docs/architecture/federation-threat-model.md (R18).
+//
 // The canonical string uses the CONCRETE request path (Request().URI().Path()),
 // never the Fiber route template (R4). Generic 401/400 messages avoid leaking
 // which check failed; the precise reason is logged server-side.
@@ -93,6 +105,17 @@ func HTTPSignatureMiddleware(deps FederationSignatureDeps) fiber.Handler {
 	}
 
 	return func(c fiber.Ctx) error {
+		// /federation/join (and its client-side subpaths) is the browser-facing
+		// SvelteKit invite page, NOT a signed server-to-server route. The signed
+		// group shares the /federation prefix, so this prefix-scoped middleware
+		// would otherwise fire on the invite-link navigation and return
+		// federation_signature_invalid instead of letting the request fall through
+		// to the SPA shell. Skip it for the join carve-out (the same boundary
+		// isFederationAPIPath draws for the SPA fallback — Federation v1 F2.1).
+		if !isFederationAPIPath(c.Path()) {
+			return c.Next()
+		}
+
 		ctx := c.Context()
 		log := logging.FromContext(ctx)
 
@@ -143,7 +166,11 @@ func HTTPSignatureMiddleware(deps FederationSignatureDeps) fiber.Handler {
 			return ErrFederationTimestampStale()
 		}
 
-		// (4) Nonce anti-replay.
+		// (4) Nonce anti-replay — DELIBERATELY before the step-5 key-resolve + verify
+		// (see the function doc): a replay is rejected here cheaply, before any
+		// .well-known fetch, so replay cannot be turned into a key-resolution
+		// amplification vector. The accepted cost is that a fresh-nonce garbage-
+		// signature probe burns a cache slot (bounded by the ±5min window, R18).
 		if !deps.Nonces.Check(nonceVal) {
 			log.WarnContext(ctx, "federation: nonce replay",
 				slog.String("op", "httpapi.HTTPSignatureMiddleware"),

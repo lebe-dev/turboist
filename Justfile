@@ -5,10 +5,10 @@ imageName := 'tinyops/turboist'
 
 # --- Demo environment (init-env / reset-env) ---
 # Override via env vars on the command line if you run a different setup.
-turboistUrl  := env_var_or_default("TURBOIST_URL",       "http://127.0.0.1:18080")
-seedUser     := env_var_or_default("TURBOIST_SEED_USER", "eugene")
-seedPass     := env_var_or_default("TURBOIST_SEED_PASS", "test")
-dbPath       := env_var_or_default("DATA_PATH",          "data/turboist.db")
+turboistUrl := env_var_or_default("TURBOIST_URL", "http://127.0.0.1:18080")
+seedUser := env_var_or_default("TURBOIST_SEED_USER", "eugene")
+seedPass := env_var_or_default("TURBOIST_SEED_PASS", "test")
+dbPath := env_var_or_default("DATA_PATH", "data/turboist.db")
 
 # --- Dependencies ---
 bump-backend-deps:
@@ -165,3 +165,6 @@ ssh:
 # --- Deploy ---
 deploy:
     ssh kaiman "cd /opt/turboist && sed -i 's|{{ imageName }}:[^\"]*|{{ imageName }}:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"
+
+deploy-dev:
+    ssh kaiman "cd /opt/turboist-dev && sed -i 's|{{ imageName }}:[^\"]*|{{ imageName }}:{{ version }}|' docker-compose.yml && docker compose pull && docker compose down && docker compose up -d"

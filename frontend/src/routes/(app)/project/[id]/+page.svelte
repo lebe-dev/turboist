@@ -61,6 +61,9 @@
 	let pendingSectionDelete = $state<ProjectSection | null>(null);
 	let editProjectOpen = $state(false);
 	let createInviteOpen = $state(false);
+	// The federation management block (peers + invites) is collapsed by default so it
+	// does not crowd the task list on a shared project; the owner expands it on demand.
+	let federationExpanded = $state(false);
 	// Confirm dialog for voluntarily leaving a joined federated project (Federation
 	// v1 F5.5, US-6.3): leaving sends the owner a federation_leave and turns the copy
 	// into a plain local project. It is offered through a confirm so an accidental
@@ -504,16 +507,22 @@
 		onEnableFederation={enableFederation}
 		onCreateInvite={() => (createInviteOpen = true)}
 		onLeaveFederation={() => (confirmLeaveOpen = true)}
+		{federationExpanded}
+		onToggleFederation={project.isFederated && project.status === 'open'
+			? () => (federationExpanded = !federationExpanded)
+			: undefined}
 		{onCreateBug}
 	/>
 
 	<ResyncBanner {project} />
 
-	{#if project.isFederated && project.status === 'open'}
-		<section class="border-b border-border px-4 py-3 sm:px-6">
-			<h2 class="mb-3 text-sm font-medium text-foreground">
-				{$t('federation.section.title')}
-			</h2>
+	{#if project.isFederated && project.status === 'open' && federationExpanded}
+		<!--
+			Federation details (peers + invites). The disclosure is now driven by the
+			"Federated" badge in the header (onToggleFederation), so this block carries no
+			header chrome of its own — it simply reveals the management surface below it.
+		-->
+		<section class="border-b border-border px-4 py-4 sm:px-6">
 			<FederationSection
 				projectId={project.id}
 				sessionLinks={inviteSessionLinks}
@@ -585,7 +594,7 @@
 						pendingSectionDelete = sec;
 						confirmSectionOpen = true;
 					}}
-					onAddSection={openSectionQuickAdd}
+					onAddSection={readOnly ? undefined : openSectionQuickAdd}
 					onSectionDrop={reorderSection}
 					onTaskDrop={(taskId, targetSectionId) => moveTask(taskId, targetSectionId)}
 				/>

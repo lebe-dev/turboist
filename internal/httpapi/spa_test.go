@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/lebe-dev/turboist/internal/federation/nonce"
+	"github.com/lebe-dev/turboist/internal/federation/peerkeys"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 )
 
@@ -22,13 +25,21 @@ func setupSPAApp(t *testing.T) *fiber.App {
 
 	app := httpapi.NewApp(httpapi.Deps{})
 
-	// Stand-ins for the real federation JSON routes. They must keep returning
-	// their JSON envelope (NOT the SPA index.html) — F2.1 pins /federation/join
-	// as the only browser-facing federation route.
 	app.Get("/federation/.well-known/instance", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"instance_url": "https://me.example"})
 	})
-	app.Post("/federation/handshake", func(c fiber.Ctx) error {
+
+	// Wire the signed federation routes the way main.go does: a /federation group
+	// carrying HTTPSignatureMiddleware on the PREFIX. This is load-bearing for the
+	// /federation/join carve-out — the prefix-scoped middleware must not fire on
+	// the browser-facing join navigation (it would otherwise shadow the SPA shell
+	// with federation_signature_invalid before the fallback runs).
+	noFetch := func(context.Context, string) (*peerkeys.Instance, error) { return nil, context.Canceled }
+	signed := app.Group("/federation", httpapi.HTTPSignatureMiddleware(httpapi.FederationSignatureDeps{
+		Nonces:   nonce.NewCache(),
+		PeerKeys: peerkeys.NewCache(noFetch),
+	}))
+	signed.Post("/handshake", func(c fiber.Ctx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
@@ -105,19 +116,24 @@ func TestSPA_FederationAPIPathsDoNotServeIndex(t *testing.T) {
 	}
 }
 
-// TestSPA_UnknownFederationAPIPathReturnsJSON404 asserts a federation route that
-// is not /federation/join (and is unmounted) returns the router's JSON 404
-// envelope rather than the SPA shell — proving the carve-out in
-// isFederationAPIPath treats everything-but-join as a JSON API surface.
-func TestSPA_UnknownFederationAPIPathReturnsJSON404(t *testing.T) {
+// TestSPA_SignedFederationPathDoesNotServeIndex asserts a federation route that
+// is not /federation/join is treated as a signed server-to-server API surface,
+// NOT the SPA shell. Under the production wiring the /federation-prefixed
+// HTTPSignatureMiddleware fires first and rejects the unsigned request with the
+// federation_signature_invalid JSON envelope (401) — proving the join carve-out
+// in isFederationAPIPath does NOT leak to its siblings.
+func TestSPA_SignedFederationPathDoesNotServeIndex(t *testing.T) {
 	app := setupSPAApp(t)
 
 	resp, body := doGET(t, app, "/federation/events")
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("/federation/events status: got %d, want 404", resp.StatusCode)
-	}
 	if body == spaIndexHTML {
-		t.Error("/federation/events served the SPA index but must return a JSON 404")
+		t.Error("/federation/events served the SPA index but must stay a signed JSON route")
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("/federation/events status: got %d, want 401 (missing signature)", resp.StatusCode)
+	}
+	if ct := resp.Header.Get(fiber.HeaderContentType); ct == fiber.MIMETextHTMLCharsetUTF8 {
+		t.Errorf("/federation/events content-type is html; want json")
 	}
 }
 

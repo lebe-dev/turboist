@@ -103,6 +103,11 @@ const (
 	// CodeFederationClockSkew — the event's HLC physical clock is too far in the
 	// future (>10min) or the past (>1h), or is unparseable (US-7.2 AC4, 400).
 	CodeFederationClockSkew = "federation_clock_skew"
+	// CodeFederationInvalidEvent — the event payload is structurally invalid in a
+	// way no retry can fix: an op=create/op=update carrying no field HLC (which would
+	// otherwise materialise an empty ghost row). 400, so the sending peer's outbox
+	// worker classifies it event-scoped permanent and dead-letters just this event.
+	CodeFederationInvalidEvent = "federation_invalid_event"
 	// CodeFederationKeyUnresolved — the event author's public key could not be
 	// resolved (transient .well-known fetch error). Retryable, so it is NEVER
 	// conflated with a key rotation: it does not stamp the sticky key_mismatch
@@ -362,6 +367,14 @@ func ErrFederationAuthorMismatch() *AppError {
 // more than 1 hour in the past (Federation v1 F3.2a, US-7.2 AC4), mapped to 400.
 func ErrFederationClockSkew() *AppError {
 	return newErr(400, CodeFederationClockSkew, "federation event clock skew out of bounds")
+}
+
+// ErrFederationInvalidEvent is returned when a received event is structurally
+// invalid in a way no retry can fix — an op=create/op=update carrying no field HLC
+// (Federation v1 F3.2a). Mapped to 400 so the sending peer's outbox worker treats
+// it as an event-scoped permanent reject and dead-letters just this event.
+func ErrFederationInvalidEvent() *AppError {
+	return newErr(400, CodeFederationInvalidEvent, "federation event payload is structurally invalid")
 }
 
 // ErrFederationKeyUnresolved is returned when an inbound event's author public

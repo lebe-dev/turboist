@@ -69,6 +69,13 @@ var (
 	// ErrEventClockSkew is returned when the event's HLC physical clock is too far
 	// in the future (>10min) or the past (>1h), or is unparseable (US-7.2 AC4).
 	ErrEventClockSkew = errors.New("inbox: event clock skew out of bounds")
+	// ErrEventNoFields is returned when an op=create / op=update event carries NO
+	// field with a per-field HLC. Such an event passes the skew gate vacuously (the
+	// per-field loop never runs) yet would still materialise a GHOST ROW carrying no
+	// data — a forged/buggy-peer probe that pollutes the local domain with an empty
+	// entity. It is rejected before any inbox/domain write (mapped to 400). Control
+	// ops (delete/leave/revoke) legitimately carry no editable fields and are exempt.
+	ErrEventNoFields = errors.New("inbox: create/update event carries no field HLC")
 	// ErrNotMember is returned when the (project, peer) has no federation mapping —
 	// the sender is not a peer of this project.
 	ErrNotMember = errors.New("inbox: sender is not a member of the federated project")
@@ -149,6 +156,16 @@ func (v *Validator) Validate(ctx context.Context, e events.Event, peerURL string
 	// must never rewrite its author/origin; both must be present and equal.
 	if e.Author == "" || e.OriginInstance == "" || e.Author != e.OriginInstance {
 		return nil, fmt.Errorf("%w: author=%q origin=%q", ErrAuthorOriginMismatch, e.Author, e.OriginInstance)
+	}
+
+	// 2b. A create/update MUST carry at least one field with a per-field HLC. A
+	// field-less op=create/op=update passes the skew gate vacuously yet would
+	// materialise an empty ghost row (a forged/buggy-peer probe); reject it before
+	// any write. Control ops (delete/leave/revoke) legitimately carry no editable
+	// fields and are exempt — the delete tombstone HLC is checked in apply, and
+	// leave/revoke carry no per-field LWW.
+	if (e.Op == events.OpCreate || e.Op == events.OpUpdate) && !hasFieldHLC(e) {
+		return nil, fmt.Errorf("%w: op=%s entity=%s/%s event=%s", ErrEventNoFields, e.Op, e.EntityType, e.EntityID, e.EventID)
 	}
 
 	// 3. HLC clock-skew over the event's clock (US-7.2 AC4), asymmetric bounds.
@@ -298,6 +315,21 @@ func (v *Validator) checkMembership(ctx context.Context, e events.Event, peerURL
 		return nil, fmt.Errorf("%w: peer %q has %q permission", ErrPeerNotPermitted, peerURL, fp.Permissions)
 	}
 	return &ValidationResult{LocalProjectID: fp.LocalProjectID, Permissions: fp.Permissions}, nil
+}
+
+// hasFieldHLC reports whether an event carries at least one field with a non-empty
+// per-field HLC. A field with an empty HLC carries no LWW information (the apply CAS
+// against an empty string is a no-op), so an event with none is field-less. Used to
+// reject a field-less op=create/op=update (which would otherwise materialise an
+// empty ghost row) while still admitting a forward-compat event that carries only
+// unknown-but-HLC'd fields.
+func hasFieldHLC(e events.Event) bool {
+	for _, f := range e.Fields {
+		if f.HLC != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // canWrite reports whether a permission grade may push writes. Read peers receive

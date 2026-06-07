@@ -41,6 +41,7 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
 	import { createRemoteEditWatcher } from '$lib/realtime/remoteEdit';
+	import { isReadOnlyFederated } from '$lib/federation/projectSurface';
 	import { t } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
@@ -53,6 +54,12 @@
 	let task = $state<Task | null>(null);
 	let notFound = $state(false);
 	let saving = $state(false);
+	// savePending is true while a picker change is waiting on the 800ms debounce or
+	// its save is in flight. It feeds the `dirty` signal so a federation-origin
+	// refresh arriving inside that window does NOT clobber the just-changed picker
+	// value (priority/dayPart/recurrence/dueDate/labels) — those auto-save and so
+	// are not reflected in the title/description baseline (F3.4, US-3.1 AC3).
+	let savePending = $state(false);
 
 	const subtasks = useListMutator<Task>();
 	let newSubtaskTitle = $state('');
@@ -195,6 +202,10 @@
 	const project = $derived(
 		task?.projectId ? projectsStore.items.find((p) => p.id === task!.projectId) : null
 	);
+	// readOnly is true when the task belongs to a JOINED read-only federated project
+	// (Federation v1 F2.4, US-2.4 AC4 UI leg). It hides the add-subtask affordance;
+	// the backend 403 federation_read_only guard remains authoritative.
+	const readOnly = $derived(project ? isReadOnlyFederated(project) : false);
 	const autoLabelNames = $derived.by(() => {
 		const byId = new Map(allLabels.map((l) => [l.id, l.name]));
 		const names: string[] = [];
@@ -255,6 +266,9 @@
 
 	function scheduleSave(): void {
 		if (!allowSave || !task || !title.trim()) return;
+		// Mark a save in flight so `dirty` holds off a clobbering remote refresh until
+		// this debounced picker save lands (F3.4). Cleared in save()'s finally.
+		savePending = true;
 		if (saveTimer !== null) clearTimeout(saveTimer);
 		saveTimer = setTimeout(() => void save(), 800);
 	}
@@ -412,6 +426,9 @@ async function save(): Promise<void> {
 			toast.error(describeError(err, $t('page.task.failedSave')));
 		} finally {
 			saving = false;
+			// The debounced picker save has landed (or failed) — clear the in-flight
+			// guard so `dirty` reflects only the live text vs baseline again (F3.4).
+			savePending = false;
 		}
 	}
 
@@ -424,12 +441,15 @@ async function save(): Promise<void> {
 		if (Number.isFinite(taskId)) untrack(() => void loader.refetch());
 	});
 
-	// dirty reports whether the open editor holds unsaved, in-flight text edits
-	// that a refresh would overwrite. We track the editable text fields (title /
-	// description) — the pickers (priority, date, labels) auto-save on change, so
-	// the load-bearing in-flight risk is the free-text the user is typing.
+	// dirty reports whether the open editor holds unsaved, in-flight edits that a
+	// refresh would overwrite. It covers BOTH the editable text fields (title /
+	// description, compared to the clean baseline) AND a pending picker auto-save
+	// (priority/date/dayPart/recurrence/labels): those debounce on an 800ms timer
+	// and are NOT reflected in the text baseline, so without savePending a
+	// federation-origin refresh landing inside that window would re-hydrate over the
+	// just-changed picker value (F3.4, US-3.1 AC3).
 	const dirty = $derived(
-		!!task && (title !== baseline.title || description !== baseline.description)
+		!!task && (savePending || title !== baseline.title || description !== baseline.description)
 	);
 
 	// remotePending mirrors the watcher's notice flag into reactive state so the
@@ -656,29 +676,31 @@ async function save(): Promise<void> {
 							{/if}
 						</div>
 					{/if}
-					<div class="flex items-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/20 px-2.5 py-1.5 transition-colors focus-within:border-border focus-within:bg-muted/40">
-						<PlusIcon class="size-3.5 shrink-0 text-muted-foreground" />
-						<input
-							bind:this={subtaskInputEl}
-							bind:value={newSubtaskTitle}
-							onkeydown={onSubtaskKeydown}
-							disabled={creatingSubtask}
-							placeholder={$t('page.task.addSubtaskPlaceholder')}
-							aria-label={$t('page.task.addSubtaskPlaceholder')}
-							class="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
-						/>
-						{#if newSubtaskTitle.trim()}
-							<Button
-								type="button"
-								size="xs"
-								variant="secondary"
-								onclick={() => void addSubtask()}
+					{#if !readOnly}
+						<div class="flex items-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/20 px-2.5 py-1.5 transition-colors focus-within:border-border focus-within:bg-muted/40">
+							<PlusIcon class="size-3.5 shrink-0 text-muted-foreground" />
+							<input
+								bind:this={subtaskInputEl}
+								bind:value={newSubtaskTitle}
+								onkeydown={onSubtaskKeydown}
 								disabled={creatingSubtask}
-							>
-								{$t('common.add')}
-							</Button>
-						{/if}
-					</div>
+								placeholder={$t('page.task.addSubtaskPlaceholder')}
+								aria-label={$t('page.task.addSubtaskPlaceholder')}
+								class="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-60"
+							/>
+							{#if newSubtaskTitle.trim()}
+								<Button
+									type="button"
+									size="xs"
+									variant="secondary"
+									onclick={() => void addSubtask()}
+									disabled={creatingSubtask}
+								>
+									{$t('common.add')}
+								</Button>
+							{/if}
+						</div>
+					{/if}
 				{/if}
 			</section>
 		</div>

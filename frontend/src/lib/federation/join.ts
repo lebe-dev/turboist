@@ -6,26 +6,35 @@
 // authenticates. These pure helpers are the single place that discipline lives,
 // so the page component and the redirect both go through them.
 
-// ParsedInvite is the decoded contents of an #invite=<id>.<secret> fragment.
+// ParsedInvite is the decoded credential of an #invite=<id>.<secret> fragment.
 export interface ParsedInvite {
 	inviteId: string;
 	secret: string;
 }
 
-// sessionStorage key under which a pending invite is stashed across the login
+// PendingJoin is the full join context: the credential plus the owner instance
+// URL the invite is FOR. The owner is the link's host, so it must travel with
+// the invite when the visitor retargets to their own instance (cross-instance
+// redirect) and across the login round-trip — otherwise the joiner instance
+// loses track of who the owner is and would handshake itself.
+export interface PendingJoin {
+	invite: ParsedInvite;
+	owner: string;
+}
+
+// sessionStorage key under which a pending join is stashed across the login
 // round-trip. Exported so tests assert it lands in sessionStorage, not
 // localStorage (US-2.1 AC5).
 export const PENDING_INVITE_STORAGE_KEY = 'turboist.federation.pendingInvite';
 
-// parseInviteHash decodes an invite from a URL fragment of the form
+// parseInviteHash decodes the invite credential from a URL fragment of the form
 // `#invite=<id>.<secret>` (US-2.1 AC1). The secret may itself contain dots, so
 // only the FIRST dot is treated as the id/secret separator. Returns null when
 // the fragment carries no usable invite.
 export function parseInviteHash(hash: string): ParsedInvite | null {
-	const raw = hash.startsWith('#') ? hash.slice(1) : hash;
-	if (raw === '') return null;
+	const params = fragmentParams(hash);
+	if (!params) return null;
 
-	const params = new URLSearchParams(raw);
 	const value = params.get('invite');
 	if (!value) return null;
 
@@ -39,6 +48,27 @@ export function parseInviteHash(hash: string): ParsedInvite | null {
 	return { inviteId, secret };
 }
 
+// parseOwnerHash decodes the optional `owner=<instance-url>` fragment param a
+// cross-instance redirect carries (US-2.1 AC2). Returns the normalized owner
+// origin, or null when the fragment carries no owner (a freshly issued invite
+// link opened directly on the owner — the caller falls back to the page origin).
+export function parseOwnerHash(hash: string): string | null {
+	const params = fragmentParams(hash);
+	if (!params) return null;
+
+	const owner = params.get('owner');
+	if (!owner) return null;
+	return normalizeInstanceUrl(owner);
+}
+
+// fragmentParams parses the `#a=b&c=d` portion of a URL fragment into a
+// URLSearchParams, or null when the fragment is empty.
+function fragmentParams(hash: string): URLSearchParams | null {
+	const raw = hash.startsWith('#') ? hash.slice(1) : hash;
+	if (raw === '') return null;
+	return new URLSearchParams(raw);
+}
+
 // normalizeInstanceUrl coerces user-typed instance input into an absolute URL
 // origin: it prepends https:// when no scheme is present and strips a trailing
 // slash so paths are not doubled. Returns null for blank input.
@@ -50,34 +80,55 @@ export function normalizeInstanceUrl(input: string): string | null {
 	return withScheme.replace(/\/+$/, '');
 }
 
-// buildCrossInstanceRedirect builds the "Open in your instance" link
-// (US-2.1 AC2): the joiner pastes the invite onto THEIR own instance's
-// /federation/join page, carrying the secret in the fragment so it never
-// reaches a server as a query parameter (R4 — fragment-vs-query discipline).
-export function buildCrossInstanceRedirect(instanceUrl: string, invite: ParsedInvite): string {
-	const origin = instanceUrl.replace(/\/+$/, '');
-	return `${origin}/federation/join#invite=${invite.inviteId}.${invite.secret}`;
+// sameInstance reports whether two instance URLs name the same origin, tolerant
+// of trailing-slash and case differences. Used to decide whether the page is
+// being served BY the invite's owner (no join here — retarget to your own
+// instance) or by the joiner (proceed with preview/join).
+export function sameInstance(a: string, b: string): boolean {
+	const na = normalizeInstanceUrl(a);
+	const nb = normalizeInstanceUrl(b);
+	if (na === null || nb === null) return false;
+	return na.toLowerCase() === nb.toLowerCase();
 }
 
-// stashPendingInvite saves an invite in sessionStorage so the join flow can
+// buildCrossInstanceRedirect builds the "Open in your instance" link
+// (US-2.1 AC2): the joiner opens the invite on THEIR own instance's
+// /federation/join page. The secret rides in the fragment so it never reaches a
+// server as a query parameter (R4 — fragment-vs-query discipline), and the owner
+// URL rides alongside it so the joiner instance knows which owner to handshake.
+export function buildCrossInstanceRedirect(
+	instanceUrl: string,
+	invite: ParsedInvite,
+	ownerUrl: string
+): string {
+	const origin = instanceUrl.replace(/\/+$/, '');
+	const params = new URLSearchParams();
+	params.set('invite', `${invite.inviteId}.${invite.secret}`);
+	params.set('owner', ownerUrl);
+	return `${origin}/federation/join#${params.toString()}`;
+}
+
+// stashPendingInvite saves a join context in sessionStorage so the flow can
 // resume after an unauthenticated visitor logs in (US-2.1 AC5). It is a no-op
 // when sessionStorage is unavailable (SSR).
-export function stashPendingInvite(invite: ParsedInvite): void {
+export function stashPendingInvite(invite: ParsedInvite, owner: string): void {
 	if (typeof sessionStorage === 'undefined') return;
-	sessionStorage.setItem(PENDING_INVITE_STORAGE_KEY, JSON.stringify(invite));
+	const payload = { inviteId: invite.inviteId, secret: invite.secret, owner };
+	sessionStorage.setItem(PENDING_INVITE_STORAGE_KEY, JSON.stringify(payload));
 }
 
-// loadPendingInvite reads (without clearing) a previously stashed invite.
+// loadPendingInvite reads (without clearing) a previously stashed join context.
 // Returns null when nothing is stashed or the payload is corrupt.
-export function loadPendingInvite(): ParsedInvite | null {
+export function loadPendingInvite(): PendingJoin | null {
 	if (typeof sessionStorage === 'undefined') return null;
 	const raw = sessionStorage.getItem(PENDING_INVITE_STORAGE_KEY);
 	if (!raw) return null;
 	try {
-		const parsed = JSON.parse(raw) as Partial<ParsedInvite>;
+		const parsed = JSON.parse(raw) as Partial<ParsedInvite & { owner: string }>;
 		if (typeof parsed.inviteId !== 'string' || typeof parsed.secret !== 'string') return null;
+		if (typeof parsed.owner !== 'string' || !parsed.owner) return null;
 		if (!parsed.inviteId || !parsed.secret) return null;
-		return { inviteId: parsed.inviteId, secret: parsed.secret };
+		return { invite: { inviteId: parsed.inviteId, secret: parsed.secret }, owner: parsed.owner };
 	} catch {
 		return null;
 	}

@@ -14,8 +14,11 @@
 		loadPendingInvite,
 		normalizeInstanceUrl,
 		parseInviteHash,
+		parseOwnerHash,
+		sameInstance,
 		stashPendingInvite,
-		type ParsedInvite
+		type ParsedInvite,
+		type PendingJoin
 	} from '$lib/federation/join';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -27,16 +30,21 @@
 	const auth = getAuthStore();
 
 	// phase drives what the page renders:
-	//   reading    — parsing the invite + resolving auth
-	//   invalid    — no usable invite in the link (US-2.1 AC1 negative)
-	//   preview    — authed: show the project preview + Accept (US-2.1 AC3)
-	//   handshake  — accepting: verifying with the owner (US-2.1 AC4)
-	//   snapshot   — accepting: copying the project (US-2.1 AC4)
-	//   done       — joined; offer to open the project (US-2.1 AC4)
-	type Phase = 'reading' | 'invalid' | 'preview' | 'handshake' | 'snapshot' | 'done';
+	//   reading      — parsing the invite + resolving auth
+	//   invalid      — no usable invite in the link (US-2.1 AC1 negative)
+	//   crossInstance — opened on the OWNER's instance: retarget to your own (US-2.1 AC2)
+	//   preview      — authed on the joiner: show the project preview + Accept (US-2.1 AC3)
+	//   handshake    — accepting: verifying with the owner (US-2.1 AC4)
+	//   snapshot     — accepting: copying the project (US-2.1 AC4)
+	//   done         — joined; offer to open the project (US-2.1 AC4)
+	type Phase = 'reading' | 'invalid' | 'crossInstance' | 'preview' | 'handshake' | 'snapshot' | 'done';
 
 	let phase = $state<Phase>('reading');
 	let invite = $state<Invite | null>(null);
+	// ownerUrl is the instance that issued the invite. It comes from the `owner`
+	// fragment param (carried by a cross-instance redirect) and falls back to the
+	// page origin — the link's host IS the owner for a freshly issued link.
+	let ownerUrl = $state('');
 	let preview = $state<JoinPreview | null>(null);
 	let result = $state<JoinResult | null>(null);
 	let error = $state<string | null>(null);
@@ -45,24 +53,25 @@
 	// — "Open in your instance" retargets the invite there (US-2.1 AC2).
 	let otherInstance = $state('');
 
-	// resolveInvite pulls the invite from the URL fragment, falling back to a
-	// previously stashed invite (the post-login resume path, US-2.1 AC5).
-	function resolveInvite(): Invite | null {
-		const fromHash = parseInviteHash(typeof window !== 'undefined' ? window.location.hash : '');
-		if (fromHash) return fromHash;
-		return loadPendingInvite();
-	}
-
-	// ownerInstance is the instance that issued the invite — the page is served at
-	// `<owner>/federation/join`, so its origin IS the owner (US-2.1 AC2 keeps the
-	// secret in the fragment; the owner URL is the page origin). It is sent to OUR
-	// instance so the handshake is dispatched server-to-server (F2.2).
-	function ownerInstance(): string {
+	function currentOrigin(): string {
 		return typeof window !== 'undefined' ? window.location.origin : '';
 	}
 
+	// resolveJoin pulls the invite + owner from the URL fragment, falling back to a
+	// previously stashed join context (the post-login resume path, US-2.1 AC5).
+	// When the fragment carries no explicit owner the link's host is the owner, so
+	// the page origin is used.
+	function resolveJoin(): PendingJoin | null {
+		const hash = typeof window !== 'undefined' ? window.location.hash : '';
+		const fromHash = parseInviteHash(hash);
+		if (fromHash) {
+			return { invite: fromHash, owner: parseOwnerHash(hash) ?? currentOrigin() };
+		}
+		return loadPendingInvite();
+	}
+
 	function joinBody(inv: Invite): JoinInvite {
-		return { inviteId: inv.inviteId, secret: inv.secret, ownerInstanceUrl: ownerInstance() };
+		return { inviteId: inv.inviteId, secret: inv.secret, ownerInstanceUrl: ownerUrl };
 	}
 
 	async function loadPreview(inv: Invite): Promise<void> {
@@ -135,36 +144,46 @@
 	}
 
 	// openInYourInstance retargets the invite to the visitor's own instance,
-	// carrying the secret in the URL fragment so it never reaches a server as a
-	// query parameter (US-2.1 AC2). Requires a parsed invite to forward.
+	// carrying the secret AND the owner URL in the fragment so neither reaches a
+	// server as a query parameter and the joiner instance knows which owner to
+	// handshake (US-2.1 AC2). Requires a parsed invite to forward.
 	function openInYourInstance(): void {
 		if (!invite) return;
 		const origin = normalizeInstanceUrl(otherInstance);
 		if (!origin) return;
-		window.location.href = buildCrossInstanceRedirect(origin, invite);
+		window.location.href = buildCrossInstanceRedirect(origin, invite, ownerUrl);
 	}
 
-	// Drive the flow once auth has settled. Unauthenticated visitors stash the
-	// invite and are sent to login so the flow resumes afterwards (US-2.1 AC5);
-	// authenticated visitors load the preview (US-2.1 AC3).
+	// Drive the flow once auth has settled. When the invite's owner IS this origin
+	// the page is being served BY the owner — you cannot join from here, so direct
+	// the visitor to their own instance (US-2.1 AC2). Otherwise this is the joiner:
+	// unauthenticated visitors stash the join context and are sent to login so the
+	// flow resumes afterwards (US-2.1 AC5); authenticated ones load the preview
+	// against the resolved owner (US-2.1 AC3).
 	$effect(() => {
 		if (phase !== 'reading') return;
 		if (auth.status === 'loading') return;
 
-		const inv = resolveInvite();
-		if (!inv) {
+		const ctx = resolveJoin();
+		if (!ctx) {
 			phase = 'invalid';
 			return;
 		}
-		invite = inv;
+		invite = ctx.invite;
+		ownerUrl = ctx.owner;
+
+		if (sameInstance(ctx.owner, currentOrigin())) {
+			phase = 'crossInstance';
+			return;
+		}
 
 		if (auth.status !== 'authenticated') {
-			stashPendingInvite(inv);
+			stashPendingInvite(ctx.invite, ctx.owner);
 			void goto(resolve('/login'));
 			return;
 		}
 
-		void loadPreview(inv);
+		void loadPreview(ctx.invite);
 	});
 
 	const ownerIdentity = $derived(
@@ -178,6 +197,11 @@
 		<p class="text-sm font-medium text-foreground">
 			{$t('federation.join.crossInstanceTitle')}
 		</p>
+		{#if ownerUrl}
+			<p class="text-xs text-muted-foreground">
+				{$t('federation.join.crossInstanceFrom', { values: { owner: ownerUrl } })}
+			</p>
+		{/if}
 		<p class="text-xs text-muted-foreground">{$t('federation.join.crossInstancePrompt')}</p>
 		<form
 			class="mt-1 flex items-center gap-2"
@@ -209,9 +233,8 @@
 		<p class="text-sm text-muted-foreground">{$t('federation.join.loading')}</p>
 	{:else if phase === 'invalid'}
 		<p class="text-sm text-destructive">{$t('federation.join.invalidInvite')}</p>
-		{#if invite}
-			{@render crossInstance()}
-		{/if}
+	{:else if phase === 'crossInstance'}
+		{@render crossInstance()}
 	{:else if phase === 'done'}
 		<p class="text-sm text-foreground">
 			{$t('federation.join.steps.done', { values: { name: result?.projectName ?? '' } })}
@@ -260,9 +283,6 @@
 					{$t('federation.join.cancel')}
 				</a>
 			</div>
-			{#if invite && !accepting}
-				{@render crossInstance()}
-			{/if}
 		{/if}
 	{/if}
 </div>

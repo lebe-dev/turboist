@@ -72,3 +72,17 @@ federation:
   # Per-peer handshake token-bucket burst (a short spike a peer may send before
   # being throttled with 429 + Retry-After). 0 → default 5.
   handshake-burst: 5
+  # How long a joined project's owner may go silent before the joiner flags it
+  # "owner offline" (F5.6a). Edits still queue in the outbox and flush when the
+  # owner returns. The UI surfaces a "pending – owner offline" badge in the meantime.
+  # 0 or negative → default 30 days.
+  owner-timeout-days: 30
+  # How long federation audit-log rows are kept before the nightly GC deletes them
+  # (F6.3). 0 or negative → default 365 days (the 1-year documented minimum).
+  audit-retention-days: 365
+  # How many signature failures from ONE peer within the alert window trip the
+  # "possible attack on peer X" alert (F6.3). 0 or negative → default 10.
+  audit-alert-threshold: 10
+  # The time window (minutes) over which signature failures are counted for the
+  # audit alert above. 0 or negative → default 60 minutes.
+  audit-alert-window-minutes: 60

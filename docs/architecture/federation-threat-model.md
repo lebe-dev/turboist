@@ -168,6 +168,20 @@ Operational mitigation: minimise restarts during active federation; front the
 instance with a reverse proxy that already rejects obviously stale requests where
 possible.
 
+**Nonce consumed before signature verification (deliberate).** The middleware
+consumes the nonce (step 4) *before* resolving the peer key and verifying the
+signature (step 5). A valid-timestamp/valid-digest request carrying a **garbage
+signature** therefore burns its nonce-cache slot before the signature is checked.
+This ordering is intentional, not a defect: checking the nonce first lets a replay
+be rejected **cheaply**, before the step-5 key resolution — which may trigger a
+`.well-known` fetch. Consuming the nonce only *after* a successful verify would let
+a replayed request reach that fetch on **every** replay, turning replay into a
+key-resolution amplification vector. The accepted cost — a fresh-nonce
+garbage-signature probe occupies one cache slot — is bounded by the ±5 min
+timestamp window (the slot expires with it) and gains the attacker nothing (the
+request still fails verification). Documented at the consume site in
+`internal/httpapi/federation_signature_middleware.go`.
+
 ### NFC canonical-JSON normalization (R17)
 
 The canonical JSON used for signing (`internal/crypto/canonical.go`,

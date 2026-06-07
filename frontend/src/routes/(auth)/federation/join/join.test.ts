@@ -64,6 +64,11 @@ const samplePreview: JoinPreview = {
 	protocolVersion: 1
 };
 
+// A fragment opened on the JOINER instance (origin my-instance.tld): the owner
+// (alice.example) is carried explicitly, so owner ≠ origin and the page runs the
+// preview/join path rather than the owner-side "open in your instance" prompt.
+const JOINER_HASH = '#invite=theid.thesecret&owner=https://alice.example';
+
 beforeEach(() => {
 	goto.mockClear();
 	preview.mockReset();
@@ -79,7 +84,7 @@ afterEach(() => {
 
 describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 	it('parses the invite from the URL fragment (AC1)', async () => {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
 
@@ -87,16 +92,17 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 
 		await waitFor(() => expect(preview).toHaveBeenCalled());
 		// The parsed id+secret is sent to the server-side preview, along with the
-		// owner instance URL (the page origin) so our instance knows where to fetch.
+		// owner instance URL (carried in the fragment) so our instance knows where
+		// to fetch — NOT the joiner's own origin.
 		expect(preview).toHaveBeenCalledWith({
 			inviteId: 'theid',
 			secret: 'thesecret',
-			ownerInstanceUrl: 'https://my-instance.tld'
+			ownerInstanceUrl: 'https://alice.example'
 		});
 	});
 
 	it('shows the project preview server-side when authenticated (AC3)', async () => {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
 
@@ -108,7 +114,7 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 	});
 
 	it('drives the accept stepper handshake → snapshot → done (AC4)', async () => {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
 		join.mockResolvedValue({ projectId: 42, projectName: 'Roadmap', permissions: 'write' });
@@ -122,7 +128,7 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 			expect(join).toHaveBeenCalledWith({
 				inviteId: 'theid',
 				secret: 'thesecret',
-				ownerInstanceUrl: 'https://my-instance.tld'
+				ownerInstanceUrl: 'https://alice.example'
 			})
 		);
 		// The final stepper state shows a success/done affordance.
@@ -130,7 +136,7 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 	});
 
 	it('stashes the invite and routes to login when unauthenticated, ready to resume (AC5)', async () => {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(false);
 
 		render(JoinPage);
@@ -139,24 +145,28 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 		// The unauthenticated visitor is sent to /login.
 		const firstCall = goto.mock.calls[0] ?? [];
 		expect(String(firstCall[0])).toContain('/login');
-		// The invite is stashed (in sessionStorage, never localStorage) so the
-		// flow resumes after login.
+		// The invite + owner is stashed (in sessionStorage, never localStorage) so
+		// the flow resumes after login.
 		const stashed = sessionStorage.getItem(PENDING_INVITE_STORAGE_KEY);
 		expect(stashed).toBeTruthy();
 		if (typeof localStorage !== 'undefined') {
 			expect(localStorage.getItem(PENDING_INVITE_STORAGE_KEY)).toBeNull();
 		}
-		expect(JSON.parse(stashed as string)).toEqual({ inviteId: 'theid', secret: 'thesecret' });
+		expect(JSON.parse(stashed as string)).toEqual({
+			inviteId: 'theid',
+			secret: 'thesecret',
+			owner: 'https://alice.example'
+		});
 		// Preview must NOT have been attempted while unauthenticated.
 		expect(preview).not.toHaveBeenCalled();
 	});
 
 	it('resumes a stashed invite after login (AC5) — falls back to the session stash when the hash is gone', async () => {
-		// No hash in the URL, but a pending invite was stashed before login.
+		// No hash in the URL, but a pending join was stashed before login.
 		setHash('');
 		sessionStorage.setItem(
 			PENDING_INVITE_STORAGE_KEY,
-			JSON.stringify({ inviteId: 'theid', secret: 'thesecret' })
+			JSON.stringify({ inviteId: 'theid', secret: 'thesecret', owner: 'https://alice.example' })
 		);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
@@ -167,19 +177,15 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 			expect(preview).toHaveBeenCalledWith({
 				inviteId: 'theid',
 				secret: 'thesecret',
-				ownerInstanceUrl: 'https://my-instance.tld'
+				ownerInstanceUrl: 'https://alice.example'
 			})
 		);
 		expect(await screen.findByText('Roadmap')).toBeTruthy();
 	});
 
-	it('retargets to the visitor own instance keeping the secret in the fragment (AC2)', async () => {
-		setHash('#invite=theid.thesecret');
-		setupAuth(true);
-		preview.mockResolvedValue(samplePreview);
-
-		// Capture cross-instance navigation: jsdom makes location.href read-only,
-		// so install a spyable assign-style setter via a fresh location object.
+	it('on the owner instance, retargets to the visitor own instance carrying secret + owner in the fragment (AC2)', async () => {
+		// Opened on the OWNER (no owner param → owner == page origin), so the page
+		// shows the "open in your instance" prompt instead of trying to join here.
 		let navigatedTo = '';
 		Object.defineProperty(window, 'location', {
 			configurable: true,
@@ -194,17 +200,24 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 				}
 			}
 		});
+		setupAuth(false);
 
 		render(JoinPage);
 
-		// The cross-instance form is available alongside the preview.
 		const input = await screen.findByPlaceholderText(/your-instance/i);
 		await fireEvent.input(input, { target: { value: 'bob.example' } });
 		await fireEvent.click(screen.getByRole('button', { name: /open in your instance/i }));
 
-		// US-2.1 AC2 / R4: secret rides in the fragment, never the query.
-		expect(navigatedTo).toBe('https://bob.example/federation/join#invite=theid.thesecret');
+		// US-2.1 AC2 / R4: secret rides in the fragment, never the query, and the
+		// owner (this origin) is carried so the joiner knows whom to handshake.
+		expect(navigatedTo.startsWith('https://bob.example/federation/join#')).toBe(true);
 		expect(navigatedTo).not.toContain('?');
+		const fragment = navigatedTo.split('#')[1] ?? '';
+		const fragParams = new URLSearchParams(fragment);
+		expect(fragParams.get('invite')).toBe('theid.thesecret');
+		expect(fragParams.get('owner')).toBe('https://my-instance.tld');
+		// No join was attempted from the owner instance.
+		expect(preview).not.toHaveBeenCalled();
 	});
 
 	it('surfaces an error when the invite hash is malformed', async () => {
@@ -220,7 +233,7 @@ describe('Join page (Federation v1 F2.1, US-2.1)', () => {
 
 describe('Join page error mapping (Federation v1 F2.2, US-2.2 / US-9.1)', () => {
 	async function acceptWithJoinError(code: string, status: number): Promise<void> {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
 		join.mockRejectedValue(new ApiError(code, 'owner says no', status));
@@ -259,7 +272,7 @@ describe('Join page error mapping (Federation v1 F2.2, US-2.2 / US-9.1)', () => 
 
 describe('Join page snapshot bootstrap (Federation v1 F2.3, US-2.3)', () => {
 	it('refreshes the projects store after a successful join so the new project appears (US-2.3)', async () => {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
 		join.mockResolvedValue({ projectId: 42, projectName: 'Roadmap', permissions: 'write' });
@@ -277,7 +290,7 @@ describe('Join page snapshot bootstrap (Federation v1 F2.3, US-2.3)', () => {
 	});
 
 	it('surfaces a snapshot-stage failure and returns to the preview (US-2.3 AC5)', async () => {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
 		// A mid-stream snapshot failure on the backend rolls everything back and
@@ -299,7 +312,7 @@ describe('Join page snapshot bootstrap (Federation v1 F2.3, US-2.3)', () => {
 	});
 
 	it('maps an expired snapshot token (401) to a re-handshake message', async () => {
-		setHash('#invite=theid.thesecret');
+		setHash(JOINER_HASH);
 		setupAuth(true);
 		preview.mockResolvedValue(samplePreview);
 		// The owner's snapshot endpoint rejects an expired token as a generic 401;

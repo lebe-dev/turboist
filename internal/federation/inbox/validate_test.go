@@ -115,6 +115,81 @@ func TestValidate_Accepts(t *testing.T) {
 	}
 }
 
+// TestValidate_FieldlessCreateRejected asserts a signed, in-membership op=create
+// carrying NO field HLC is rejected with ErrEventNoFields BEFORE any write (it
+// would otherwise pass the skew gate vacuously and materialise an empty ghost row).
+func TestValidate_FieldlessCreateRejected(t *testing.T) {
+	f := newValidateFixture(t)
+	e := events.Event{
+		EventID:         "01J0000000000000000000EVNT",
+		Op:              events.OpCreate,
+		EntityType:      events.EntityTask,
+		EntityID:        "task-client-1",
+		ProjectClientID: "proj-client-1",
+		Author:          f.authorURL,
+		OriginInstance:  f.authorURL,
+		CreatedAt:       "2026-06-01T10:00:00.000Z",
+		Fields:          map[string]events.Field{},
+	}
+	signed, err := events.Sign(e, f.priv)
+	if err != nil {
+		t.Fatalf("sign event: %v", err)
+	}
+	if _, err := f.validator().Validate(context.Background(), signed, f.authorURL); !errors.Is(err, inbox.ErrEventNoFields) {
+		t.Errorf("field-less create must be rejected with ErrEventNoFields, got %v", err)
+	}
+}
+
+// TestValidate_FieldlessUpdateRejected asserts the same guard for op=update: a
+// field whose HLC is empty carries no LWW information, so an update made of only
+// such fields is field-less and rejected.
+func TestValidate_FieldlessUpdateRejected(t *testing.T) {
+	f := newValidateFixture(t)
+	e := events.Event{
+		EventID:         "01J0000000000000000000EVNT",
+		Op:              events.OpUpdate,
+		EntityType:      events.EntityTask,
+		EntityID:        "task-client-1",
+		ProjectClientID: "proj-client-1",
+		Author:          f.authorURL,
+		OriginInstance:  f.authorURL,
+		CreatedAt:       "2026-06-01T10:00:00.000Z",
+		Fields:          map[string]events.Field{"title": {Value: "x", HLC: ""}},
+	}
+	signed, err := events.Sign(e, f.priv)
+	if err != nil {
+		t.Fatalf("sign event: %v", err)
+	}
+	if _, err := f.validator().Validate(context.Background(), signed, f.authorURL); !errors.Is(err, inbox.ErrEventNoFields) {
+		t.Errorf("field-less update must be rejected with ErrEventNoFields, got %v", err)
+	}
+}
+
+// TestValidate_DeleteWithoutFieldsAccepted asserts the field-less guard is scoped
+// to create/update: an op=delete legitimately carries no editable field HLC (the
+// tombstone HLC is derived in apply) and must still pass validation.
+func TestValidate_DeleteWithoutFieldsAccepted(t *testing.T) {
+	f := newValidateFixture(t)
+	e := events.Event{
+		EventID:         "01J0000000000000000000EVNT",
+		Op:              events.OpDelete,
+		EntityType:      events.EntityTask,
+		EntityID:        "task-client-1",
+		ProjectClientID: "proj-client-1",
+		Author:          f.authorURL,
+		OriginInstance:  f.authorURL,
+		CreatedAt:       "2026-06-01T10:00:00.000Z",
+		Fields:          map[string]events.Field{events.FieldDeleted: {HLC: hlcAt(f.now)}},
+	}
+	signed, err := events.Sign(e, f.priv)
+	if err != nil {
+		t.Fatalf("sign event: %v", err)
+	}
+	if _, err := f.validator().Validate(context.Background(), signed, f.authorURL); err != nil {
+		t.Errorf("op=delete must pass the field-less guard, got %v", err)
+	}
+}
+
 // TestValidate_EventSignatureFail_Rejected asserts a wrong-key signature is a
 // per-event signature failure mapped to 401 (US-7.2 AC1). The per-event check is
 // DISTINCT from the transport request signature.

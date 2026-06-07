@@ -273,6 +273,108 @@ func TestApply_CreateGhostRowOnMissing(t *testing.T) {
 	}
 }
 
+// TestApply_FieldlessCreateMakesNoGhost asserts the apply-path defense in depth for
+// a field-less op=create (the F3.2a Validator is the primary gate, but a recovery
+// re-drive of a durable inbox row reaches Apply without re-validating): an event
+// carrying no field HLC must NOT materialise a ghost row, and reports no change.
+func TestApply_FieldlessCreateMakesNoGhost(t *testing.T) {
+	env := newApplyEnv(t)
+	ctx := context.Background()
+
+	create := events.Event{
+		EventID:         "ev-fieldless",
+		Op:              events.OpCreate,
+		EntityType:      events.EntityTask,
+		EntityID:        "fieldless-task",
+		ProjectClientID: env.projectClient,
+		Author:          "https://alice.example",
+		OriginInstance:  "https://alice.example",
+		CreatedAt:       "2026-06-01T10:00:00.000Z",
+		Fields:          map[string]events.Field{},
+	}
+	res, err := env.applier.Apply(ctx, create, "https://alice.example")
+	if err != nil {
+		t.Fatalf("apply field-less create: %v", err)
+	}
+	if res.EntityCreated {
+		t.Error("a field-less create must not materialise a ghost row")
+	}
+	var n int
+	if err := env.db.QueryRow(`SELECT COUNT(1) FROM tasks WHERE client_id = ?`, "fieldless-task").Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("no ghost row may be created for a field-less event: got %d rows", n)
+	}
+}
+
+// TestApply_ShapeMismatchRejectedAsPoison asserts a wrong-typed value for a
+// boolean-flag column (a string where due_has_time expects a bool/number) is a
+// PERMANENT poison reject — not silently coerced to 0 (which would stickily advance
+// the field HLC as if the right value landed) and not an opaque CHECK/NOT-NULL
+// rollback retried forever. The live row and field HLC are untouched (tx rollback).
+func TestApply_ShapeMismatchRejectedAsPoison(t *testing.T) {
+	env := newApplyEnv(t)
+	ctx := context.Background()
+
+	bad := updateEvent(env, map[string]events.Field{
+		"due_has_time": {Value: "yes", HLC: "00000000000900-0000-nodeA"},
+	})
+	bad.EventID = eventID("shape-due-has-time")
+	_, err := env.applier.Apply(ctx, bad, "https://alice.example")
+	if _, ok := inbox.IsPoison(err); !ok {
+		t.Fatalf("a wrong-typed boolean flag must be a poison reject, got %v", err)
+	}
+
+	// No sticky field-HLC advance — the CAS is rolled back with the failed write.
+	hlcStr, err := env.store.GetFieldHLC(ctx, "task", env.taskClientID, "due_has_time")
+	if err != nil {
+		t.Fatalf("get field hlc: %v", err)
+	}
+	if hlcStr != "" {
+		t.Errorf("field HLC must not advance on a shape-poison reject: got %q", hlcStr)
+	}
+}
+
+// TestApply_ClearDueResetsPairedHasTime asserts that clearing a federated task's
+// due_at to NULL — while the row currently has due_has_time = 1 — applies cleanly
+// regardless of field order, because the paired flag is reset in the same UPDATE.
+// Before the fix this transiently violated CHECK (due_has_time = 0 OR due_at IS NOT
+// NULL) and rolled back the apply non-deterministically (Go map iteration order).
+func TestApply_ClearDueResetsPairedHasTime(t *testing.T) {
+	env := newApplyEnv(t)
+	ctx := context.Background()
+
+	// Seed a timed due date on the local task (due_at set, due_has_time = 1).
+	if _, err := env.db.Exec(
+		`UPDATE tasks SET due_at = '2026-07-01T09:00:00.000Z', due_has_time = 1 WHERE id = ?`,
+		env.localTaskID); err != nil {
+		t.Fatalf("seed due: %v", err)
+	}
+
+	// An event that clears ONLY due_at (no paired has_time field) — the danger case.
+	clear := updateEvent(env, map[string]events.Field{
+		"due_at": {Value: nil, HLC: "00000000000900-0000-nodeA"},
+	})
+	clear.EventID = eventID("clear-due")
+	if _, err := env.applier.Apply(ctx, clear, "https://alice.example"); err != nil {
+		t.Fatalf("clearing due_at must not violate the paired CHECK: %v", err)
+	}
+
+	var dueAt sql.NullString
+	var hasTime int
+	if err := env.db.QueryRow(
+		`SELECT due_at, due_has_time FROM tasks WHERE id = ?`, env.localTaskID).Scan(&dueAt, &hasTime); err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	if dueAt.Valid {
+		t.Errorf("due_at must be cleared: got %q", dueAt.String)
+	}
+	if hasTime != 0 {
+		t.Errorf("paired due_has_time must be reset to 0 when the date is cleared: got %d", hasTime)
+	}
+}
+
 // TestApply_PoisonStatusRejected asserts an out-of-domain task status is rejected
 // as a PER-EVENT permanent poison error (do-not-retry) BEFORE any domain write —
 // not silently passed to a raw UPDATE where the tasks.status CHECK constraint

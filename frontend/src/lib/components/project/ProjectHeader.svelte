@@ -12,6 +12,7 @@
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
+	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import ArrowsInLineVerticalIcon from 'phosphor-svelte/lib/ArrowsInLineVertical';
 	import ArrowsOutLineVerticalIcon from 'phosphor-svelte/lib/ArrowsOutLineVertical';
 	import ArrowCounterClockwiseIcon from 'phosphor-svelte/lib/ArrowCounterClockwise';
@@ -52,6 +53,8 @@
 		onEnableFederation,
 		onCreateInvite,
 		onLeaveFederation,
+		federationExpanded = false,
+		onToggleFederation,
 		hasCollapsible = false,
 		allSubtasksCollapsed = false,
 		onToggleAllSubtasks
@@ -60,6 +63,11 @@
 		hasCollapsible?: boolean;
 		allSubtasksCollapsed?: boolean;
 		onToggleAllSubtasks?: () => void;
+		// When provided, the "Federated" badge becomes the disclosure control for the
+		// federation details block (peers + invites): it shows a chevron and toggles
+		// federationExpanded. Without it the badge is a plain static marker.
+		federationExpanded?: boolean;
+		onToggleFederation?: () => void;
 		onAddSection?: () => void;
 		onComplete?: () => void;
 		onUncomplete?: () => void;
@@ -183,10 +191,34 @@
 				</span>
 			{/if}
 			{#if project.isFederated}
-				<Badge variant="outline" class="gap-1" title={$t('federation.badgeTooltip')}>
-					<GlobeSimpleIcon class="size-3" />
-					{$t('federation.badge')}
-				</Badge>
+				{#if onToggleFederation}
+					<!--
+						Federation disclosure (request: collapse the standalone "Federation"
+						panel into the badge). The "Federated" badge doubles as the toggle for
+						the peers/invites details block — a chevron flips when expanded.
+					-->
+					<button
+						type="button"
+						class="inline-flex h-5 items-center gap-1 rounded-sm border border-border px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+						onclick={onToggleFederation}
+						aria-expanded={federationExpanded}
+						title={$t('federation.badgeTooltip')}
+					>
+						<GlobeSimpleIcon class="size-3" />
+						{$t('federation.badge')}
+						<CaretDownIcon
+							class={[
+								'size-3 text-muted-foreground transition-transform duration-200',
+								federationExpanded && 'rotate-180'
+							]}
+						/>
+					</button>
+				{:else}
+					<Badge variant="outline" class="gap-1" title={$t('federation.badgeTooltip')}>
+						<GlobeSimpleIcon class="size-3" />
+						{$t('federation.badge')}
+					</Badge>
+				{/if}
 			{/if}
 			{#if syncStatus}
 				<SyncStatusBadge status={syncStatus} />

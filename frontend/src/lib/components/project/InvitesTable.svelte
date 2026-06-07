@@ -9,7 +9,6 @@
 	import type { Invite, InviteStatus } from '$lib/api/types';
 	import { describeError } from '$lib/utils/taskActions';
 	import { Button } from '$lib/components/ui/button';
-	import { Badge, type BadgeVariant } from '$lib/components/ui/badge';
 
 	let {
 		projectId,
@@ -28,11 +27,28 @@
 	let loading = $state(false);
 	let busyId = $state<string | null>(null);
 
-	const STATUS_VARIANT: Record<InviteStatus, BadgeVariant> = {
-		active: 'default',
-		revoked: 'destructive',
-		consumed: 'secondary',
-		expired: 'outline'
+	// Semantic status tones for an invite link. An "active" (still usable) link
+	// reads as calm/neutral — a grey chip (light-grey on dark, dark-grey on light)
+	// rather than the brand-primary red; revoked borrows the destructive red;
+	// consumed/expired sit in the muted palette. The dot is an empty sibling so the
+	// label text node stays isolated.
+	const STATUS_TONE: Record<InviteStatus, { pill: string; dot: string }> = {
+		active: {
+			pill: 'border-border bg-muted text-foreground/75',
+			dot: 'bg-foreground/60'
+		},
+		revoked: {
+			pill: 'border-destructive/25 bg-destructive/10 text-destructive',
+			dot: 'bg-destructive'
+		},
+		consumed: {
+			pill: 'border-border bg-muted text-muted-foreground',
+			dot: 'bg-muted-foreground/60'
+		},
+		expired: {
+			pill: 'border-border bg-transparent text-muted-foreground',
+			dot: 'bg-muted-foreground/40'
+		}
 	};
 
 	async function load() {
@@ -111,66 +127,85 @@
 	{:else if invites.length === 0}
 		<p class="text-sm text-muted-foreground">{$t('federation.invite.list.empty')}</p>
 	{:else}
-		<ul class="flex flex-col divide-y divide-border rounded-md border border-border">
+		<ul class="flex flex-col divide-y divide-border overflow-hidden rounded-lg border border-border bg-card/40">
 			{#each invites as inv (inv.inviteId)}
-				<li data-invite-row class="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
-					<span class="font-mono text-xs text-muted-foreground" title={inv.inviteId}>
-						{inv.inviteId}
-					</span>
-					<Badge variant={STATUS_VARIANT[inv.status]}>
-						{$t(`federation.invite.status.${inv.status}`)}
-					</Badge>
-					<span class="text-xs text-muted-foreground">
-						{$t(`federation.invite.permission.${inv.permissions}`)}
-					</span>
-					<span class="text-xs text-muted-foreground">
-						{$t('federation.invite.list.uses', {
-							values: { used: inv.usedCount, max: inv.maxUses }
-						})}
-					</span>
-					<span class="text-xs text-muted-foreground">
-						{$t('federation.invite.list.expires', { values: { date: fmtDate(inv.expiresAt) } })}
-					</span>
+				<li
+					data-invite-row
+					class="group flex flex-col gap-1.5 px-3 py-2.5 text-sm transition-colors hover:bg-muted/40"
+				>
+					<!-- Primary line: invite id + status + (hover-revealed) controls. -->
+					<div class="flex items-center gap-2">
+						<span class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={inv.inviteId}>
+							{inv.inviteId}
+						</span>
+						<span
+							class={[
+								'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium leading-none',
+								STATUS_TONE[inv.status].pill
+							]}
+						>
+							<span class={['size-1.5 shrink-0 rounded-full', STATUS_TONE[inv.status].dot]}></span>{$t(
+								`federation.invite.status.${inv.status}`
+							)}
+						</span>
 
-					<div class="ml-auto flex items-center gap-1">
-						{#if sessionLinks[inv.inviteId]}
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								onclick={() => copyLink(inv.inviteId)}
-								title={$t('federation.invite.copy')}
-								aria-label={$t('federation.invite.copy')}
-							>
-								<CopyIcon class="size-4" />
-								{$t('federation.invite.copy')}
-							</Button>
-						{/if}
-						{#if inv.status === 'active'}
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								disabled={busyId === inv.inviteId}
-								onclick={() => revoke(inv.inviteId)}
-								aria-label={$t('federation.invite.list.revoke')}
-							>
-								<ProhibitIcon class="size-4" />
-								{$t('federation.invite.list.revoke')}
-							</Button>
-						{:else}
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								disabled={busyId === inv.inviteId}
-								onclick={() => remove(inv.inviteId)}
-								aria-label={$t('common.delete')}
-							>
-								<TrashIcon class="size-4 text-destructive" />
-								{$t('common.delete')}
-							</Button>
-						{/if}
+						<div
+							class="ml-0.5 flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+						>
+							{#if sessionLinks[inv.inviteId]}
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									class="size-7 p-0 text-muted-foreground hover:text-foreground"
+									onclick={() => copyLink(inv.inviteId)}
+									title={$t('federation.invite.copy')}
+									aria-label={$t('federation.invite.copy')}
+								>
+									<CopyIcon class="size-4" />
+								</Button>
+							{/if}
+							{#if inv.status === 'active'}
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									class="size-7 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+									disabled={busyId === inv.inviteId}
+									onclick={() => revoke(inv.inviteId)}
+									aria-label={$t('federation.invite.list.revoke')}
+									title={$t('federation.invite.list.revoke')}
+								>
+									<ProhibitIcon class="size-4" />
+								</Button>
+							{:else}
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									class="size-7 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+									disabled={busyId === inv.inviteId}
+									onclick={() => remove(inv.inviteId)}
+									aria-label={$t('common.delete')}
+									title={$t('common.delete')}
+								>
+									<TrashIcon class="size-4" />
+								</Button>
+							{/if}
+						</div>
+					</div>
+
+					<!-- Secondary line: permission · uses · expiry. -->
+					<div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+						<span>{$t(`federation.invite.permission.${inv.permissions}`)}</span>
+						<span aria-hidden="true" class="text-muted-foreground/40">·</span>
+						<span>
+							{$t('federation.invite.list.uses', { values: { used: inv.usedCount, max: inv.maxUses } })}
+						</span>
+						<span aria-hidden="true" class="text-muted-foreground/40">·</span>
+						<span>
+							{$t('federation.invite.list.expires', { values: { date: fmtDate(inv.expiresAt) } })}
+						</span>
 					</div>
 				</li>
 			{/each}

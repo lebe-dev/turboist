@@ -4,12 +4,41 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/lebe-dev/turboist/internal/federation/events"
 	"github.com/lebe-dev/turboist/internal/model"
 )
+
+// errValueShape sentinel: a field value has an unexpected JSON type for its target
+// column (e.g. a string where a boolean flag or integer is expected). It is a
+// PERMANENT data error — no retry fixes a wrong-typed value — so applyUpsert
+// classifies it as a PoisonError (drop/quarantine) rather than a transient error
+// that head-of-line blocks the per-project apply queue forever, exactly as the
+// columnValidators whitelist does for out-of-domain enum/color VALUES.
+var errValueShape = errors.New("inbox: field value has unexpected type for column")
+
+// pairedHasTime maps a nullable date column to its paired boolean has-time flag.
+// The tasks CHECK constraints couple them — (has_time = 0 OR date IS NOT NULL),
+// migration 001 — but per-field apply writes each column in its OWN statement, in
+// Go-map (random) order. Clearing the date to NULL while the flag is still 1 would
+// transiently violate the CHECK and roll back the whole apply (head-of-line
+// blocking the queue) non-deterministically. Writing the date and resetting its
+// paired flag in ONE statement keeps every intermediate row state CHECK-valid
+// regardless of field order (a NULL date always implies flag 0).
+//
+// Residual (documented v1 gap): a genuinely CONCURRENT cross-field edit — instance
+// A clears the date (HLC h) while instance B sets has_time=1 at a higher HLC — can
+// still converge to (date NULL, has_time 1) under per-field LWW, which violates the
+// CHECK on apply. That is the fundamental per-field-LWW-vs-paired-CHECK tension
+// (the same family as the v2 conflict-free-reorder deferral), not the single-event
+// clear ordering this map fixes.
+var pairedHasTime = map[string]string{
+	"due_at":      "due_has_time",
+	"deadline_at": "deadline_has_time",
+}
 
 // now is the injectable wall clock for the soft-delete / ghost-row timestamps;
 // production uses time.Now. (A package var keeps Apply's signature small; tests
@@ -181,6 +210,16 @@ func setColumn(ctx context.Context, tx *sql.Tx, table, column string, localID in
 		return err
 	}
 	nowStr := model.FormatUTC(now())
+	if flag, paired := pairedHasTime[column]; paired && sqlVal == nil {
+		// Clearing a date to NULL: reset its paired has-time flag in the SAME statement
+		// so the tasks CHECK (has_time = 0 OR date IS NOT NULL) holds after this write,
+		// independent of whether the event's has_time field lands before or after.
+		q := fmt.Sprintf(`UPDATE %s SET %s = NULL, %s = 0, updated_at = ? WHERE id = ?`, table, column, flag)
+		if _, err := tx.ExecContext(ctx, q, nowStr, localID); err != nil {
+			return fmt.Errorf("clear %s.%s with paired %s: %w", table, column, flag, err)
+		}
+		return nil
+	}
 	q := fmt.Sprintf(`UPDATE %s SET %s = ?, updated_at = ? WHERE id = ?`, table, column)
 	if _, err := tx.ExecContext(ctx, q, sqlVal, nowStr, localID); err != nil {
 		return fmt.Errorf("set %s.%s: %w", table, column, err)
@@ -195,7 +234,11 @@ func setColumn(ctx context.Context, tx *sql.Tx, table, column string, localID in
 func coerceValue(column string, value any) (any, error) {
 	switch column {
 	case "due_has_time", "deadline_has_time":
-		return boolToInt(value), nil
+		n, err := boolToInt(value)
+		if err != nil {
+			return nil, fmt.Errorf("column %s: %w", column, err)
+		}
+		return n, nil
 	case "position":
 		n, err := toInt64(value)
 		if err != nil {
@@ -215,20 +258,35 @@ func coerceValue(column string, value any) (any, error) {
 	}
 }
 
-func boolToInt(v any) int {
+// boolToInt coerces a decoded JSON value to the 0/1 INTEGER a boolean-flag column
+// stores. It accepts a JSON bool (the canonical wire form) and a JSON number
+// (0 → 0, non-0 → 1; CanonicalJSON decodes numerics as json.Number). Any OTHER type
+// — a string, null, object — is REJECTED as errValueShape rather than silently
+// coerced to 0 (which would stickily advance the field HLC as if the right value
+// had landed), mirroring the strict sibling toInt64.
+func boolToInt(v any) (int, error) {
 	switch t := v.(type) {
 	case bool:
 		if t {
-			return 1
+			return 1, nil
 		}
-		return 0
+		return 0, nil
 	case float64:
 		if t != 0 {
-			return 1
+			return 1, nil
 		}
-		return 0
+		return 0, nil
+	case json.Number:
+		f, err := t.Float64()
+		if err != nil {
+			return 0, fmt.Errorf("%w: %q is not a boolean flag", errValueShape, t.String())
+		}
+		if f != 0 {
+			return 1, nil
+		}
+		return 0, nil
 	}
-	return 0
+	return 0, fmt.Errorf("%w: %T is not a boolean flag", errValueShape, v)
 }
 
 func toInt64(v any) (int64, error) {
@@ -240,7 +298,11 @@ func toInt64(v any) (int64, error) {
 	case int64:
 		return t, nil
 	case json.Number:
-		return t.Int64()
+		n, err := t.Int64()
+		if err != nil {
+			return 0, fmt.Errorf("%w: %q is not an integer", errValueShape, t.String())
+		}
+		return n, nil
 	}
-	return 0, fmt.Errorf("not an integer: %T", v)
+	return 0, fmt.Errorf("%w: %T is not an integer", errValueShape, v)
 }

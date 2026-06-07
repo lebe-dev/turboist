@@ -17,17 +17,22 @@
 
 	const count = $derived(peers.length);
 	const names = $derived(peerNamesLabel(peers));
+	// The badge is now icon-only — the "visible to N peers" label and the named
+	// instance list both live in the title/aria-label so the row stays compact.
+	const label = $derived(
+		`${$t('federation.visibility.badge', { values: { count } })} — ${names}`
+	);
 </script>
 
 {#if count > 0}
 	<Badge
 		variant="outline"
-		class="gap-1 border-sky-300/60 text-sky-700 dark:border-sky-700/50 dark:text-sky-300"
-		title={$t('federation.visibility.badgeTooltip', { values: { peers: names } })}
+		class="px-1 border-sky-300/60 text-sky-700 dark:border-sky-700/50 dark:text-sky-300"
+		title={label}
+		aria-label={label}
 		role="status"
 		data-testid="visible-to-peers-badge"
 	>
 		<GlobeIcon class="size-3" />
-		{$t('federation.visibility.badge', { values: { count } })}
 	</Badge>
 {/if}

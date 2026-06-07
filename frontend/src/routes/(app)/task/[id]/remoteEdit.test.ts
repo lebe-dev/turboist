@@ -241,6 +241,32 @@ describe('Task detail — open-card "updated remotely" notice (F3.4, US-3.1)', (
 		expect(screen.queryByDisplayValue('Peer edit')).toBeNull();
 	});
 
+	it('a remote change while a picker auto-save is in flight shows the notice and does NOT clobber the picker value (F3.4 picker-debounce)', async () => {
+		render(TaskPage);
+		await screen.findByDisplayValue('Remote task');
+		// Let the post-hydrate allowSave macrotask fire so picker changes can schedule.
+		await new Promise((r) => setTimeout(r, 0));
+
+		const refetchCount = getTask.mock.calls.length;
+
+		// The user changes a PICKER (due date → Today). This does not touch the
+		// title/description baseline; it auto-saves on the 800ms debounce, so a
+		// pending save is now in flight (savePending = true) while the text is clean.
+		await fireEvent.click(screen.getByRole('button', { name: /^today$/i }));
+
+		// A federation-origin change arrives INSIDE the debounce window. Without the
+		// savePending guard this clean-text editor would be treated as clean and
+		// silently re-hydrated, clobbering the just-changed picker value.
+		currentTask = makeTask({ title: 'Peer edit', updatedAt: '2026-02-02T00:00:00.000Z' });
+		fireRemoteTasksChange();
+
+		// The non-destructive notice appears (the pending picker save is protected)...
+		expect(await screen.findByText(/updated remotely/i)).toBeTruthy();
+		// ...and no silent refetch clobbered the editor (title still the local value).
+		expect(getTask.mock.calls.length).toBe(refetchCount);
+		expect(screen.queryByDisplayValue('Peer edit')).toBeNull();
+	});
+
 	it('Keep editing dismisses the notice and preserves the in-flight edit', async () => {
 		render(TaskPage);
 		const titleEl = (await screen.findByDisplayValue('Remote task')) as HTMLTextAreaElement;

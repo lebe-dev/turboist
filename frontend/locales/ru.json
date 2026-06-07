@@ -1058,6 +1058,7 @@
 			"signInPrompt": "Войдите в свой экземпляр, чтобы принять это приглашение.",
 			"signIn": "Войти, чтобы продолжить",
 			"crossInstanceTitle": "Этот инвайт открывается на вашем собственном экземпляре",
+			"crossInstanceFrom": "Приглашение от {owner}",
 			"crossInstancePrompt": "Укажите адрес вашего экземпляра turboist, чтобы открыть инвайт там.",
 			"instancePlaceholder": "ваш-экземпляр.example",
 			"openInYourInstance": "Открыть в своём экземпляре",

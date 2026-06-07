@@ -475,6 +475,64 @@ func TestWorker_PeerScopedRejectGatesLink_RetryPeerReEnables(t *testing.T) {
 	}
 }
 
+// TestWorker_PeerScopedRejectMidBatchDeadLettersRemaining is the regression test
+// for the F4.4 multi-chunk-then-permanent-tail finding: when a MULTI-CHUNK batch
+// hits a PEER-SCOPED permanent reject (a revoked/read-only 403 that gates the
+// whole link), the chunks NOT yet attempted must NOT be left pending-but-
+// undelivered (invisible, stranded behind the permanent gate forever). They are
+// dead-lettered alongside the offending chunk so every event in the read batch is
+// accounted for (visible in the dead-letter diagnostics, excluded from pending),
+// and the peer is gated so nothing is re-POSTed.
+func TestWorker_PeerScopedRejectMidBatchDeadLettersRemaining(t *testing.T) {
+	d, s := openWorkerDB(t)
+	ctx := context.Background()
+	pid := seedFedProject(t, d)
+	// 5 events, 2-event chunk cap → chunks (e1,e2),(e3,e4),(e5). The peer-scoped
+	// 403 fails the FIRST POST; the remaining two chunks are never attempted.
+	for _, id := range []string{"e1", "e2", "e3", "e4", "e5"} {
+		enqueue(t, ctx, d, s, id, pid)
+	}
+
+	const peer = "https://revoked.example"
+	stub := newPeerStub()
+	stub.failFor[peer] = &classifiedErr{
+		msg: "403 revoked", permanent: true, peerScoped: true, statusCode: 403, reason: "federation_revoked",
+	}
+	w := outbox.NewWorker(s, peerLister{peers: map[int64][]outbox.Peer{
+		pid: {{InstanceURL: peer}},
+	}}, stub, nil).WithChunkLimits(2, 0)
+
+	if err := w.DrainOnce(ctx); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+
+	// Only the first chunk was POSTed before the peer-scoped reject halted the link;
+	// the remaining chunks are dead-lettered WITHOUT a re-POST.
+	if got := stub.attemptCount(peer); got != 1 {
+		t.Errorf("peer-scoped reject must halt after one POST: attempts got %d, want 1", got)
+	}
+
+	// All five events are parked in the dead-letter table — none stranded pending.
+	dls, err := s.ListDeadLetter(ctx, 0)
+	if err != nil {
+		t.Fatalf("list dead-letter: %v", err)
+	}
+	if len(dls) != 5 {
+		t.Fatalf("all batch events must be dead-lettered: got %d, want 5", len(dls))
+	}
+	for _, dl := range dls {
+		if dl.StatusCode != 403 || dl.Reason != "federation_revoked" {
+			t.Errorf("dead-letter row %s: got status=%d reason=%q, want 403/federation_revoked", dl.EventID, dl.StatusCode, dl.Reason)
+		}
+	}
+
+	// Nothing is left pending-but-undelivered for the gated peer.
+	pending, _ := s.PendingDeliveryCount(ctx, pid, peer)
+	if pending != 0 {
+		t.Errorf("no event may be stranded pending after a peer-scoped reject: got %d, want 0", pending)
+	}
+}
+
 // payloadFailStub fails a Push only when a specific event id appears in the POSTed
 // payloads (so the offending event can be isolated from healthy ones within a
 // drain), and records the event ids successfully delivered.

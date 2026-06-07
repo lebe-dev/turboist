@@ -30,8 +30,11 @@
 //   - PEER-SCOPED — a revoked/read-only/untrusted 403 (the peer rejects the
 //     whole link, §9.2/§9.3): the peer is marked permanently gated so its
 //     remaining/future events are not re-POSTed (every one would be rejected
-//     identically). An explicit operator re-enable path (Worker.RetryPeer)
-//     clears the gate; a restart alone does not (RestoreBackoff re-loads it).
+//     identically). The not-yet-attempted chunks of the SAME read batch are
+//     dead-lettered too (rather than stranded pending behind the gate, invisible
+//     and never re-delivered). An explicit operator re-enable path
+//     (Worker.RetryPeer) clears the gate; a restart alone does not (RestoreBackoff
+//     re-loads it).
 //   - EVENT-SCOPED — a 400 author/origin-mismatch or clock-skew, a 401
 //     signature-rejected, a 410 stale-tombstone (a re-edit of a tombstoned
 //     entity returns 410 per the offline contract): ONLY the offending event is
@@ -449,14 +452,18 @@ func (w *Worker) drainPeer(ctx context.Context, projectID int64, peer Peer) {
 	// POST never overruns the receiver's inbound 413 limit. Each chunk is delivered
 	// and stamped before the next is attempted. A chunk failure is classified
 	// (handlePushFailure): a TRANSIENT or PEER-SCOPED-permanent failure HALTS the
-	// peer (halt=true) — the remaining chunks stay pending and retry next drain (or
-	// never, for a dead link). An EVENT-SCOPED-permanent failure (a 400/401/410 tied
-	// to the offending event) dead-letters only that chunk's events and KEEPS GOING
-	// (halt=false), so the peer's other healthy events are never stranded.
-	for _, chunk := range w.chunkBatch(batch) {
+	// peer (halt=true). A TRANSIENT halt leaves the remaining chunks pending so they
+	// retry next drain; a PEER-SCOPED-permanent halt (the link is dead) DEAD-LETTERS
+	// the remaining un-attempted chunks too (deadLetterRemaining=true) so they are
+	// never left stranded pending-but-undelivered behind the permanent gate. An
+	// EVENT-SCOPED-permanent failure (a 400/401/410 tied to the offending event)
+	// dead-letters only that chunk's events and KEEPS GOING (halt=false), so the
+	// peer's other healthy events are never stranded.
+	chunks := w.chunkBatch(batch)
+	for i, chunk := range chunks {
 		payloads := make([]string, len(chunk))
-		for i, ev := range chunk {
-			payloads[i] = ev.Payload
+		for j, ev := range chunk {
+			payloads[j] = ev.Payload
 		}
 
 		// Network I/O happens here with NO DB connection held (R1).
@@ -464,12 +471,22 @@ func (w *Worker) drainPeer(ctx context.Context, projectID int64, peer Peer) {
 			if w.sent != nil {
 				w.sent.RecordSent(peer.InstanceURL, "error", len(chunk))
 			}
-			if w.handlePushFailure(ctx, projectID, peer.InstanceURL, chunk, err) {
-				return
+			halt, deadLetterRemaining := w.handlePushFailure(ctx, projectID, peer.InstanceURL, chunk, err)
+			if !halt {
+				// Event-scoped permanent reject: this chunk is parked, but the link is
+				// healthy — continue draining the peer's remaining chunks.
+				continue
 			}
-			// Event-scoped permanent reject: this chunk is parked, but the link is
-			// healthy — continue draining the peer's remaining chunks.
-			continue
+			if deadLetterRemaining {
+				// The whole link is permanently gated: its remaining un-attempted chunks
+				// would never drain (peerReady blocks every future POST) and would not be
+				// re-POSTed even after an operator RetryPeer (already dead-lettered are
+				// excluded from the undelivered read). Park them now so they are visible
+				// in the dead-letter diagnostics and excluded from the pending count,
+				// instead of stranded pending-but-undelivered.
+				w.deadLetterRemainingChunks(ctx, projectID, peer.InstanceURL, chunks[i+1:], err)
+			}
+			return
 		}
 		if w.sent != nil {
 			w.sent.RecordSent(peer.InstanceURL, "success", len(chunk))
@@ -502,7 +519,9 @@ func (w *Worker) drainPeer(ctx context.Context, projectID int64, peer Peer) {
 }
 
 // handlePushFailure classifies a chunk push error, applies the F4.4 backpressure
-// policy, and reports whether the caller should HALT draining this peer.
+// policy, and reports whether the caller should HALT draining this peer and, when
+// halting, whether the peer's REMAINING un-attempted chunks should be dead-lettered
+// (deadLetterRemaining) because the whole link is now permanently dead.
 //
 // A PERMANENT 4xx (≠429) always parks the failed chunk's events in the dead-letter
 // table (US-4.4 AC3 — not retried). Its BLAST RADIUS then forks on whether the
@@ -510,18 +529,22 @@ func (w *Worker) drainPeer(ctx context.Context, projectID int64, peer Peer) {
 //
 //   - PEER-SCOPED (a revoked/read-only/untrusted 403 — the peer rejects the whole
 //     LINK, §9.2/§9.3): mark the peer permanent so its remaining/future events are
-//     not re-POSTed, log at ERROR with a remediation hint, and HALT (return true).
-//     Every other event to this peer would be rejected identically.
+//     not re-POSTed, log at ERROR with a remediation hint, and HALT with
+//     deadLetterRemaining=true. Every other event to this peer would be rejected
+//     identically, and the gate blocks any future drain, so the remaining chunks
+//     must be dead-lettered too rather than stranded pending behind the gate.
 //   - EVENT-SCOPED (a 400 author/origin-mismatch or clock-skew, a 401 signature-
 //     rejected, a 410 stale-tombstone — specific to the offending event): dead-
 //     letter ONLY that chunk, do NOT touch the peer gate, log at WARN, and KEEP
-//     GOING (return false). The link is healthy; stranding the peer's other healthy
+//     GOING (halt=false). The link is healthy; stranding the peer's other healthy
 //     events on one event-specific 4xx is the bug this split fixes.
 //
 // A 429 honors the peer's Retry-After window (US-4.4 AC1) and HALTS; any other
-// TRANSIENT error backs off exponentially (US-4.4 AC2) and HALTS. The batch stays
-// unstamped so a healthy peer is never blocked by a failing one (US-3.2 AC3).
-func (w *Worker) handlePushFailure(ctx context.Context, projectID int64, peerURL string, chunk []store.OutboxEvent, err error) (halt bool) {
+// TRANSIENT error backs off exponentially (US-4.4 AC2) and HALTS. A TRANSIENT halt
+// returns deadLetterRemaining=false: the remaining chunks stay pending and retry on
+// the next drain once the backoff window elapses. The failed batch stays unstamped
+// so a healthy peer is never blocked by a failing one (US-3.2 AC3).
+func (w *Worker) handlePushFailure(ctx context.Context, projectID int64, peerURL string, chunk []store.OutboxEvent, err error) (halt, deadLetterRemaining bool) {
 	permanent := isPermanent(err)
 	// peerScoped only gates the whole peer when the reject is a peer-level link
 	// reject (403). An event-scoped permanent reject (400/401/410) parks its event
@@ -541,7 +564,7 @@ func (w *Worker) handlePushFailure(ctx context.Context, projectID int64, peerURL
 			slog.Int("batch", len(chunk)),
 			slog.String("err", err.Error()),
 		)
-		return false
+		return false, false
 	}
 
 	retryAfter, hasRetry := retryAfterOf(err)
@@ -550,7 +573,8 @@ func (w *Worker) handlePushFailure(ctx context.Context, projectID int64, peerURL
 		// The whole federation link is now permanently gated: no further events flow
 		// to this peer until an operator re-enables it (RetryPeer) or the process
 		// restarts AFTER the durable gate is cleared. Logged at ERROR with a
-		// remediation hint so it is not silently lost in the WARN stream.
+		// remediation hint so it is not silently lost in the WARN stream. The caller
+		// dead-letters the remaining un-attempted chunks so they are not stranded.
 		w.log.ErrorContext(ctx, "federation: peer permanently gated — link halted until operator re-enable",
 			slog.String("op", "federation.outbox.Drain"),
 			slog.Int64("project_id", projectID),
@@ -559,7 +583,7 @@ func (w *Worker) handlePushFailure(ctx context.Context, projectID int64, peerURL
 			slog.String("remediation", "verify the peer revoked/read-only status, resolve the cause, then re-enable delivery via RetryPeer"),
 			slog.String("err", err.Error()),
 		)
-		return true
+		return true, true
 	}
 
 	w.log.WarnContext(ctx, "federation: push to peer failed",
@@ -571,7 +595,35 @@ func (w *Worker) handlePushFailure(ctx context.Context, projectID int64, peerURL
 		slog.Duration("backoff", wait),
 		slog.String("err", err.Error()),
 	)
-	return true
+	return true, false
+}
+
+// deadLetterRemainingChunks parks every event in the not-yet-attempted chunks of a
+// batch whose peer was just permanently gated by a peer-scoped reject (Federation
+// v1 F4.4 multi-chunk-tail fix). Without this the remaining chunks would sit in
+// federation_outbox forever — unstamped (so counted as pending) yet never re-POSTed
+// (peerReady blocks the gated peer) and never re-delivered after an operator
+// RetryPeer (the undelivered read excludes dead-lettered rows). Each park reuses the
+// offending error's status/reason. Best-effort per row (deadLetterChunk logs its own
+// failures); the peer is gated regardless.
+func (w *Worker) deadLetterRemainingChunks(ctx context.Context, projectID int64, peerURL string, remaining [][]store.OutboxEvent, err error) {
+	total := 0
+	for _, chunk := range remaining {
+		total += len(chunk)
+	}
+	if total == 0 {
+		return
+	}
+	statusCode, reason := statusReasonOf(err)
+	for _, chunk := range remaining {
+		w.deadLetterChunk(ctx, projectID, peerURL, chunk, statusCode, reason)
+	}
+	w.log.WarnContext(ctx, "federation: dead-lettered remaining undelivered events after peer-scoped link reject",
+		slog.String("op", "federation.outbox.Drain"),
+		slog.Int64("project_id", projectID),
+		slog.String("peer", peerURL),
+		slog.Int("remaining", total),
+	)
 }
 
 // deadLetterChunk parks every event in a permanently-failed chunk in the dead-

@@ -21,8 +21,10 @@ import (
 type ProjectSyncStatus struct {
 	LocalProjectID int64
 	Status         model.SyncStatus
-	// PendingCount is how many undelivered outbox events are overdue across all
-	// peers (>SyncStatusPendingAfter); 0 unless Status is pending.
+	// PendingCount is how many undelivered outbox EVENTS (changes) are overdue
+	// (>SyncStatusPendingAfter, owed to at least one active peer); an event owed to
+	// several peers counts once. 0 unless Status is pending. This counts changes, not
+	// peers — matching the "N changes pending" badge / DTO / API.md / i18n wording.
 	PendingCount int
 	// UnreachablePeer is the instance_url of a peer not contacted in >24h; empty
 	// unless Status is unreachable.
@@ -118,12 +120,12 @@ func (s *Service) projectStatus(ctx context.Context, pid int64, now time.Time) (
 	var pending bool
 	if s.syncStore != nil && len(activeURLs) > 0 {
 		cutoff := model.FormatUTC(now.Add(-model.SyncStatusPendingAfter))
-		overdue, err := s.syncStore.OverduePendingPeers(ctx, pid, cutoff, activeURLs)
+		overdue, err := s.syncStore.OverduePendingCount(ctx, pid, cutoff, activeURLs)
 		if err != nil {
 			return ProjectSyncStatus{}, fmt.Errorf("overdue pending for %d: %w", pid, err)
 		}
-		out.PendingCount = len(overdue)
-		pending = len(overdue) > 0
+		out.PendingCount = overdue
+		pending = overdue > 0
 	}
 
 	out.Status = model.DeriveSyncStatus(keyMismatch, unreachable, pending)

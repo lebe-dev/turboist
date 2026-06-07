@@ -280,6 +280,15 @@ func (a *Applier) applyUpsert(ctx context.Context, tx *sql.Tx, e events.Event, l
 		return nil
 	}
 
+	// Defense in depth (the F3.2a Validator already rejects a field-less create/
+	// update): never materialise a ghost row for an event carrying no per-field HLC.
+	// A recovery re-drive of a durably-recorded inbox row reaches Apply without
+	// re-running the Validator, so this guard keeps an empty-ghost event a no-op even
+	// on that path.
+	if !hasFieldHLC(e) {
+		return nil
+	}
+
 	if err := validateFields(e, spec, peerURL); err != nil {
 		return err
 	}
@@ -348,6 +357,15 @@ func (a *Applier) applyUpsert(ctx context.Context, tx *sql.Tx, e events.Event, l
 			continue // stale field — skip, leave the live value untouched.
 		}
 		if err := setColumn(ctx, tx, spec.table, col, localID, field.Value); err != nil {
+			if errors.Is(err, errValueShape) {
+				// A wrong-typed value (e.g. a string for an integer/bool column) is a
+				// PERMANENT data error — classify it as poison (do-not-retry) so the F3.2
+				// worker drops the event instead of retrying a CHECK/NOT-NULL rollback
+				// forever and head-of-line blocking the queue (§3/W-8). The tx rolls back,
+				// so the field HLC CAS just done is undone — no sticky advance.
+				ectx := eventCtx{eventID: e.EventID, peerURL: peerURL, entityType: string(e.EntityType), entityID: e.EntityID}
+				return newPoison(ectx, name, field.Value, "unexpected value type for column")
+			}
 			return err
 		}
 		res.AppliedFields[name] = true
