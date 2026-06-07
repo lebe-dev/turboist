@@ -37,6 +37,14 @@ type Deps struct {
 	// notifications (see PublishMiddleware) so SSE subscribers can invalidate
 	// stale views without polling.
 	EventsHub *events.Hub
+
+	// SentryEnabled gates the SentryMiddleware (4xx/5xx + panic reporting); set
+	// when the backend DSN is configured. SentryFrontendDSN and SentryEnvironment
+	// are served to the browser via GET /api/config so the SPA can initialise
+	// Sentry at runtime without baking the DSN into the static bundle.
+	SentryEnabled     bool
+	SentryFrontendDSN string
+	SentryEnvironment string
 }
 
 type errorEnvelope struct {
@@ -60,6 +68,9 @@ func NewApp(deps Deps) *fiber.App {
 	})
 	app.Use(recover.New())
 	app.Use(RequestIDMiddleware(deps.Log))
+	if deps.SentryEnabled {
+		app.Use(SentryMiddleware(SentryCaptureMinStatus))
+	}
 	if deps.Log != nil {
 		app.Use(AccessLogMiddleware(deps.Log))
 	}
@@ -79,6 +90,17 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 			v = "dev"
 		}
 		return c.JSON(fiber.Map{"version": v, "commit": "", "buildTime": ""})
+	})
+	// Public runtime config for the SPA — must stay unauthenticated so the
+	// browser can initialise Sentry before login. A blank dsn means the
+	// frontend leaves Sentry disabled.
+	app.Get("/api/config", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"sentry": fiber.Map{
+				"dsn":         deps.SentryFrontendDSN,
+				"environment": deps.SentryEnvironment,
+			},
+		})
 	})
 	return app.Group(
 		"/api/v1",

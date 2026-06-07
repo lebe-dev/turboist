@@ -3,6 +3,7 @@ module github.com/lebe-dev/turboist
 go 1.26.0
 
 require (
+	github.com/getsentry/sentry-go v0.46.2
 	github.com/gofiber/fiber/v3 v3.2.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0

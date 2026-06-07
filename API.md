@@ -148,6 +148,18 @@ curl "$BASE/healthz"
 curl "$BASE/version"
 ```
 
+### `GET /api/config`
+
+Public runtime configuration for the SPA (kept unauthenticated so the browser can initialise error reporting before login). A blank `dsn` means the frontend leaves Sentry disabled.
+
+```json
+{ "sentry": { "dsn": "https://<key>@<host>/<project>", "environment": "production" } }
+```
+
+```sh
+curl "$BASE/api/config"
+```
+
 ---
 
 ## Auth

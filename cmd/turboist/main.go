@@ -18,6 +18,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/handlers"
 	"github.com/lebe-dev/turboist/internal/logging"
+	"github.com/lebe-dev/turboist/internal/obs"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
@@ -43,8 +44,22 @@ func main() {
 	log := logging.New(env.LogLevel)
 	slog.SetDefault(log)
 
+	sentryFlush, err := obs.Init(env.SentryDSN, env.SentryEnvironment, Version)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("sentry init error: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer sentryFlush()
+	if env.SentryDSN != "" {
+		log.Info("sentry error reporting enabled", "environment", env.SentryEnvironment)
+	} else {
+		log.Info("sentry error reporting disabled (SENTRY_DSN not set)")
+	}
+
 	cfg, err := config.Load(*configPath)
 	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": "config.Load"})
+		sentryFlush()
 		log.Error("config error", "err", err)
 		os.Exit(1)
 	}
@@ -58,12 +73,16 @@ func main() {
 
 	sqlDB, err := db.Open(env.DataPath)
 	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": "db.Open"})
+		sentryFlush()
 		log.Error("open db", "err", err)
 		os.Exit(1)
 	}
 	defer logging.LogClose(context.Background(), "main.sqlDB", sqlDB)
 
 	if err := db.RunMigrations(context.Background(), sqlDB); err != nil {
+		obs.CaptureError(err, map[string]string{"op": "db.RunMigrations"})
+		sentryFlush()
 		log.Error("run migrations", "err", err)
 		os.Exit(1)
 	}
@@ -143,6 +162,10 @@ func main() {
 		BaseURL:      env.BaseURL,
 		Version:      Version,
 		EventsHub:    eventsHub,
+
+		SentryEnabled:     env.SentryDSN != "",
+		SentryFrontendDSN: env.SentryFrontendDSN,
+		SentryEnvironment: env.SentryEnvironment,
 	}
 	app := httpapi.NewApp(deps)
 	calendarSvc := calendarsvc.NewService(
