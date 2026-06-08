@@ -22,8 +22,12 @@ type captureTransport struct {
 	events []*sentry.Event
 }
 
-func (t *captureTransport) Configure(sentry.ClientOptions)        {}
-func (t *captureTransport) SendEvent(e *sentry.Event)             { t.mu.Lock(); t.events = append(t.events, e); t.mu.Unlock() }
+func (t *captureTransport) Configure(sentry.ClientOptions) {}
+func (t *captureTransport) SendEvent(e *sentry.Event) {
+	t.mu.Lock()
+	t.events = append(t.events, e)
+	t.mu.Unlock()
+}
 func (t *captureTransport) Flush(time.Duration) bool              { return true }
 func (t *captureTransport) FlushWithContext(context.Context) bool { return true }
 func (t *captureTransport) Close()                                {}
