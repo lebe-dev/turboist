@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { getContext } from 'svelte';
 	import { t } from '$lib/i18n';
 	import type { DayPart, Priority, Task } from '$lib/api/types';
@@ -40,7 +38,6 @@
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
-	import PencilIcon from 'phosphor-svelte/lib/Pencil';
 	import ListBulletsIcon from 'phosphor-svelte/lib/ListBullets';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
@@ -53,14 +50,12 @@
 		task,
 		mutator,
 		belongs,
-		onEdit,
 		hasSubtasks = false,
 		selectIncludesSelf = true
 	}: {
 		task: Task;
 		mutator: ListMutator;
 		belongs?: (task: Task) => boolean;
-		onEdit?: (task: Task) => void;
 		hasSubtasks?: boolean;
 		selectIncludesSelf?: boolean;
 	} = $props();
@@ -80,13 +75,18 @@
 	const isTomorrow = $derived(dueKey === shiftDayKey(todayKey, 1));
 	const inBacklog = $derived(task.planState === 'backlog');
 
+	// Setting a due date is a one-shot intent: close the menu after picking it.
+	// Day part / priority are quick toggles users may chain, so those keep the
+	// menu open (see setDayPart / setPriority below).
 	function setDate(dayKey: string | null) {
 		if (dayKey === null) {
 			void updateTaskFields(task, mutator, { dueAt: null, dueHasTime: false }, { belongs });
+			menuOpen = false;
 			return;
 		}
 		const dueAt = toIsoUtc(dayStartUtcInTz(dayKey, tz));
 		void updateTaskFields(task, mutator, { dueAt, dueHasTime: false }, { belongs });
+		menuOpen = false;
 	}
 
 	function setDayPart(part: DayPart) {
@@ -97,14 +97,6 @@
 	function setPriority(p: Priority) {
 		if (task.priority === p) return;
 		void updateTaskFields(task, mutator, { priority: p }, { belongs });
-	}
-
-	function handleEdit() {
-		if (onEdit) {
-			onEdit(task);
-			return;
-		}
-		void goto(resolve('/(app)/task/[id]', { id: String(task.id) }));
 	}
 
 	const DAY_PARTS: Array<{ part: DayPart; labelKey: string; icon: Component }> = [
@@ -118,12 +110,13 @@
 		(projectSectionsCtx?.sections.length ?? 0) > 0 && task.projectId !== null
 	);
 
+	let menuOpen = $state(false);
 	let moveOpen = $state(false);
 	let moveSectionOpen = $state(false);
 	let decomposeOpen = $state(false);
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root bind:open={menuOpen}>
 	<DropdownMenu.Trigger>
 		{#snippet child({ props })}
 			<Button
@@ -142,27 +135,11 @@
 		{/snippet}
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end" class="min-w-[15rem]">
-		<DropdownMenu.Item onclick={handleEdit}>
-			<PencilIcon class="size-4" /> {$t('common.edit')}
-		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void copyTaskTitle(task)}>
 			<CopyIcon class="size-4" /> {$t('task.actions.copy')}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void duplicateTask(task, mutator)}>
 			<CopySimpleIcon class="size-4" /> {$t('task.actions.duplicate')}
-		</DropdownMenu.Item>
-		<DropdownMenu.Item
-			onclick={() => {
-				if (!taskSelectionStore.mode) taskSelectionStore.enable();
-				if (!selectIncludesSelf) return;
-				if (taskSelectionStore.has(task.id)) taskSelectionStore.toggle(task.id);
-				else taskSelectionStore.add(task.id);
-			}}
-		>
-			<CheckSquareIcon class="size-4" />
-			{selectIncludesSelf && taskSelectionStore.has(task.id)
-				? $t('task.actions.deselect')
-				: $t('task.actions.select')}
 		</DropdownMenu.Item>
 		{#if !inInbox}
 			<DropdownMenu.Item onclick={() => void togglePin(task, mutator)}>
@@ -170,49 +147,61 @@
 				{task.isPinned ? $t('task.actions.unpin') : $t('task.actions.pin')}
 			</DropdownMenu.Item>
 		{/if}
-		{#if !inInbox}
-			<DropdownMenu.Item
-				onclick={async () => {
-					const next = !task.isPrivate;
-					await updateTaskFields(task, mutator, { isPrivate: next }, { belongs });
-					toast.success($t('common.privacyUpdated'));
-				}}
-			>
-				{#if task.isPrivate}
-					<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
-				{:else}
-					<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
+
+		<DropdownMenu.Sub>
+			<DropdownMenu.SubTrigger>
+				<DotsThreeIcon class="size-4" /> {$t('task.actions.moreSubmenu')}
+			</DropdownMenu.SubTrigger>
+			<DropdownMenu.SubContent class="min-w-[14rem]">
+				<DropdownMenu.Item
+					onclick={() => {
+						if (!taskSelectionStore.mode) taskSelectionStore.enable();
+						if (!selectIncludesSelf) return;
+						if (taskSelectionStore.has(task.id)) taskSelectionStore.toggle(task.id);
+						else taskSelectionStore.add(task.id);
+					}}
+				>
+					<CheckSquareIcon class="size-4" />
+					{selectIncludesSelf && taskSelectionStore.has(task.id)
+						? $t('task.actions.deselect')
+						: $t('task.actions.select')}
+				</DropdownMenu.Item>
+				{#if !inInbox}
+					<DropdownMenu.Item
+						onclick={async () => {
+							const next = !task.isPrivate;
+							await updateTaskFields(task, mutator, { isPrivate: next }, { belongs });
+							toast.success($t('common.privacyUpdated'));
+						}}
+					>
+						{#if task.isPrivate}
+							<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
+						{:else}
+							<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
+						{/if}
+					</DropdownMenu.Item>
 				{/if}
-			</DropdownMenu.Item>
-		{/if}
-		<DropdownMenu.Item onclick={() => (moveOpen = true)}>
-			<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
-		</DropdownMenu.Item>
-		{#if showMoveToSection}
-			<DropdownMenu.Item onclick={() => (moveSectionOpen = true)}>
-				<ListIcon class="size-4" /> {$t('task.actions.moveToSection')}
-			</DropdownMenu.Item>
-		{/if}
-		{#if !inInbox}
-			<DropdownMenu.Item
-				disabled={hasSubtasks}
-				title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
-				onclick={() => {
-					if (!hasSubtasks) decomposeOpen = true;
-				}}
-			>
-				<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
-			</DropdownMenu.Item>
-			{#if task.planState === 'backlog'}
-				<DropdownMenu.Item onclick={() => void removeFromBacklog(task, mutator, { belongs })}>
-					<ArchiveIcon class="size-4" /> {$t('task.actions.removeFromBacklog')}
+				<DropdownMenu.Item onclick={() => (moveOpen = true)}>
+					<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
 				</DropdownMenu.Item>
-			{:else}
-				<DropdownMenu.Item onclick={() => void moveToBacklog(task, mutator, { belongs })}>
-					<ArchiveIcon class="size-4" /> {$t('task.actions.toBacklog')}
-				</DropdownMenu.Item>
-			{/if}
-		{/if}
+				{#if showMoveToSection}
+					<DropdownMenu.Item onclick={() => (moveSectionOpen = true)}>
+						<ListIcon class="size-4" /> {$t('task.actions.moveToSection')}
+					</DropdownMenu.Item>
+				{/if}
+				{#if !inInbox}
+					<DropdownMenu.Item
+						disabled={hasSubtasks}
+						title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
+						onclick={() => {
+							if (!hasSubtasks) decomposeOpen = true;
+						}}
+					>
+						<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
+					</DropdownMenu.Item>
+				{/if}
+			</DropdownMenu.SubContent>
+		</DropdownMenu.Sub>
 
 		{#if !inInbox}
 		<DropdownMenu.Separator />
@@ -247,10 +236,11 @@
 					title={inBacklog ? $t('task.actions.removeFromBacklog') : $t('task.actions.toBacklog')}
 					aria-label={inBacklog ? $t('task.actions.removeFromBacklog') : $t('task.actions.toBacklog')}
 					aria-pressed={inBacklog}
-					onclick={() =>
-						inBacklog
-							? void removeFromBacklog(task, mutator, { belongs })
-							: void moveToBacklog(task, mutator, { belongs })}
+					onclick={() => {
+						if (inBacklog) void removeFromBacklog(task, mutator, { belongs });
+						else void moveToBacklog(task, mutator, { belongs });
+						menuOpen = false;
+					}}
 					class="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
 					class:bg-accent={inBacklog}
 				>

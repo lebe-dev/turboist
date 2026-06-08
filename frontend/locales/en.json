@@ -423,7 +423,8 @@
       "decompose": "Decompose task",
       "decomposeDisabled": "Cannot decompose: task has subtasks",
       "select": "Select tasks",
-      "deselect": "Deselect"
+      "deselect": "Deselect",
+      "moreSubmenu": "Actions"
     },
     "dayPart": {
       "morning": "Morning",
@@ -740,7 +741,8 @@
       "weekEmptyTitle": "Nothing planned",
       "weekEmptyDesc": "Move tasks here from the backlog with the arrow.",
       "planForWeek": "Plan for next week",
-      "returnToBacklog": "Return to backlog"
+      "returnToBacklog": "Return to backlog",
+      "withSubtasks": "{total} tasks including subtasks"
     },
     "completed": {
       "emptyTitle": "Nothing completed yet",

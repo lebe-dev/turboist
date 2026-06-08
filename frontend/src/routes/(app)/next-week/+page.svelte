@@ -112,6 +112,7 @@
 			title={$t('page.nextWeek.backlogTitle')}
 			count={backlogLimit !== null ? backlogCount : backlog.items.length}
 			limit={backlogLimit}
+			total={backlog.items.length}
 		/>
 		<div class="min-h-[200px]">
 			<ViewContent
@@ -172,6 +173,7 @@
 			title={$t('page.nextWeek.nextWeekTitle')}
 			count={weeklyLimit !== null ? weekCount : week.items.length}
 			limit={weeklyLimit}
+			total={week.items.length}
 		/>
 		<div class="min-h-[200px]">
 			<ViewContent
