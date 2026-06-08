@@ -417,43 +417,45 @@
 						class="mt-2 block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
 					></textarea>
 
-					{#if selectedLabels.length > 0 || detectedAutoLabels.length > 0}
-						<div class="mt-3 flex flex-wrap items-center gap-1.5">
-							{#each selectedLabels as label (label.id)}
-								<button
-									type="button"
-									onclick={() => toggleLabel(String(label.id))}
-									class="group/chip inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/70"
-								>
-									{#if label.color}
-										<span
-											class="size-1.5 rounded-full"
-											style={`background-color: ${label.color}`}
-										></span>
-									{/if}
-									<span>{label.name}</span>
-									<XIcon class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100" />
-								</button>
-							{/each}
-							{#each detectedAutoLabels as name (name)}
-								<span
-									class="group/auto inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
-									title={$t('dialog.quickAdd.autoLabelHint')}
-								>
-									<SparkleIcon class="size-3" weight="fill" />
-									<span>{name}</span>
+					{#snippet selectedLabelChips()}
+						{#if selectedLabels.length > 0 || detectedAutoLabels.length > 0}
+							<div class="mt-3 flex flex-wrap items-center gap-1.5">
+								{#each selectedLabels as label (label.id)}
 									<button
 										type="button"
-										onclick={() => dismissAutoLabel(name)}
-										aria-label={$t('dialog.quickAdd.rejectAutoLabel', { values: { name } })}
-										class="opacity-60 transition-opacity hover:opacity-100"
+										onclick={() => toggleLabel(String(label.id))}
+										class="group/chip inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/70"
 									>
-										<XIcon class="size-3" />
+										{#if label.color}
+											<span
+												class="size-1.5 rounded-full"
+												style={`background-color: ${label.color}`}
+											></span>
+										{/if}
+										<span>{label.name}</span>
+										<XIcon class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100" />
 									</button>
-								</span>
-							{/each}
-						</div>
-					{/if}
+								{/each}
+								{#each detectedAutoLabels as name (name)}
+									<span
+										class="group/auto inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
+										title={$t('dialog.quickAdd.autoLabelHint')}
+									>
+										<SparkleIcon class="size-3" weight="fill" />
+										<span>{name}</span>
+										<button
+											type="button"
+											onclick={() => dismissAutoLabel(name)}
+											aria-label={$t('dialog.quickAdd.rejectAutoLabel', { values: { name } })}
+											class="opacity-60 transition-opacity hover:opacity-100"
+										>
+											<XIcon class="size-3" />
+										</button>
+									</span>
+								{/each}
+							</div>
+						{/if}
+					{/snippet}
 
 					<div class="mt-4 flex flex-wrap items-center gap-2">
 						{#if !isInbox}
@@ -528,6 +530,8 @@
 						{/if}
 
 						<RecurrencePicker bind:value={recurrenceRule} />
+
+						{@render projectPicker()}
 
 						{#if allLabels.length > 0}
 							{#snippet labelSearch()}
@@ -636,7 +640,7 @@
 						{/if}
 					</div>
 
-					<div class="mt-3">
+					{#snippet projectPicker()}
 						<PopoverPrimitive.Root bind:open={projectMenuOpen} onOpenChange={onProjectMenuOpenChange}>
 							<PopoverPrimitive.Trigger>
 								{#snippet child({ props })}
@@ -738,7 +742,9 @@
 								</PopoverPrimitive.Content>
 							</PopoverPrimitive.Portal>
 						</PopoverPrimitive.Root>
-					</div>
+					{/snippet}
+
+					{@render selectedLabelChips()}
 				</div>
 
 				<div
