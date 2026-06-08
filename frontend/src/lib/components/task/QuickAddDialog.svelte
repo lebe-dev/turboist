@@ -101,6 +101,8 @@
 	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
 	let labelMenuOpen = $state(false);
+	let labelQuery = $state('');
+	let labelSearchInput = $state<HTMLInputElement | null>(null);
 	let projectMenuOpen = $state(false);
 	let projectQuery = $state('');
 	let projectSearchInput = $state<HTMLInputElement | null>(null);
@@ -162,7 +164,22 @@
 	const allLabels = $derived.by(() => {
 		const byName = (a: { name: string }, b: { name: string }) =>
 			a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-		return [...labelsStore.favourites.toSorted(byName), ...labelsStore.rest.toSorted(byName)];
+		return [...labelsStore.favourites, ...labelsStore.rest].toSorted(byName);
+	});
+	const filteredLabels = $derived.by(() => {
+		const q = labelQuery.trim().toLowerCase();
+		if (!q) return allLabels;
+		return allLabels.filter((l) => l.name.toLowerCase().includes(q));
+	});
+
+	// Reset the query whenever the picker closes and focus the search box when it
+	// opens, so the user can start typing to filter labels right away.
+	$effect(() => {
+		if (labelMenuOpen) {
+			tick().then(() => labelSearchInput?.focus());
+		} else {
+			labelQuery = '';
+		}
 	});
 	const selectedLabels = $derived(
 		labelIds
@@ -273,6 +290,7 @@
 		parentId = defaultParentId;
 		sectionId = defaultSectionId;
 		labelMenuOpen = false;
+		labelQuery = '';
 		dismissedAutoLabels = [];
 	}
 
@@ -512,8 +530,26 @@
 						<RecurrencePicker bind:value={recurrenceRule} />
 
 						{#if allLabels.length > 0}
+							{#snippet labelSearch()}
+								<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
+									<MagnifyingGlassIcon class="size-3.5 text-muted-foreground" />
+									<input
+										bind:this={labelSearchInput}
+										bind:value={labelQuery}
+										type="text"
+										placeholder={$t('dialog.quickAdd.searchLabelsPlaceholder')}
+										class="w-full bg-transparent {isMobile.current ? 'h-7 text-sm' : 'h-6 text-xs'} outline-none placeholder:text-muted-foreground"
+										onkeydown={(e) => {
+											if (e.key === 'Escape') {
+												e.stopPropagation();
+												labelMenuOpen = false;
+											}
+										}}
+									/>
+								</div>
+							{/snippet}
 							{#snippet labelOptions()}
-								{#each allLabels as label (label.id)}
+								{#each filteredLabels as label (label.id)}
 									{@const id = String(label.id)}
 									{@const active = labelIds.includes(id)}
 									<button
@@ -538,6 +574,11 @@
 										{/if}
 									</button>
 								{/each}
+								{#if filteredLabels.length === 0}
+									<div class="px-2 py-3 text-center text-xs text-muted-foreground">
+										{$t('dialog.quickAdd.noMatches')}
+									</div>
+								{/if}
 							{/snippet}
 
 							{#if isMobile.current}
@@ -558,7 +599,8 @@
 										<Sheet.Header class="px-2 pb-2 pt-0">
 											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
 										</Sheet.Header>
-										<div class="flex flex-col gap-2 pb-4">
+										{@render labelSearch()}
+										<div class="flex flex-col gap-2 pb-4 pt-2">
 											{@render labelOptions()}
 										</div>
 									</Sheet.Content>
@@ -581,9 +623,12 @@
 										<PopoverPrimitive.Content
 											align="start"
 											sideOffset={4}
-											class="z-[60] flex max-h-64 w-56 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-popover p-2 shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+											class="z-[60] flex max-h-64 w-56 flex-col rounded-md border border-border bg-popover shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
 										>
-											{@render labelOptions()}
+											{@render labelSearch()}
+											<div class="flex flex-col gap-1 overflow-y-auto p-2">
+												{@render labelOptions()}
+											</div>
 										</PopoverPrimitive.Content>
 									</PopoverPrimitive.Portal>
 								</PopoverPrimitive.Root>

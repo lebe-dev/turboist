@@ -8,11 +8,26 @@ export function setSectionDrag(e: DragEvent, sectionId: number): void {
 	e.dataTransfer.effectAllowed = 'move';
 }
 
+// Tracks the task currently being dragged with the mouse. `dataTransfer` does
+// not expose the dragged id during `dragover` (only on `drop`), so a drop
+// target cannot tell whether it is hovering over the drag source. This module
+// state lets a TaskItem skip highlighting itself as a sub-task drop target.
+let draggingTaskId: number | null = null;
+
 export function setTaskDrag(e: DragEvent, taskId: number): void {
+	draggingTaskId = taskId;
 	if (!e.dataTransfer) return;
 	e.dataTransfer.setData(TASK_MIME, String(taskId));
 	e.dataTransfer.setData('text/plain', `task:${taskId}`);
 	e.dataTransfer.effectAllowed = 'move';
+}
+
+export function currentDraggingTaskId(): number | null {
+	return draggingTaskId;
+}
+
+export function clearTaskDrag(): void {
+	draggingTaskId = null;
 }
 
 export function hasDragKind(e: DragEvent, kind: 'section' | 'task'): boolean {

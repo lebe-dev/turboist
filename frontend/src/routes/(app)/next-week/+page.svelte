@@ -55,7 +55,9 @@
 			]);
 			if (!isValid()) return;
 			backlog.items = backlogRes.items;
-			week.items = weekRes.items;
+			// The week view also returns tasks that merely have a due date inside the
+			// current week; here we only want tasks explicitly planned for the week.
+			week.items = weekRes.items.filter((t) => t.planState === 'week');
 		},
 		{ errorMessage: $t('page.nextWeek.errorLoading'), autoLoad: false, initialLoading: true }
 	);

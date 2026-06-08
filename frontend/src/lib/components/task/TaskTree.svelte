@@ -36,6 +36,7 @@
 		mutator,
 		belongs,
 		onToggle,
+		onReparent,
 		visibleIds
 	}: {
 		tasks?: Task[];
@@ -53,6 +54,7 @@
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
 		onToggle?: (task: Task) => void;
+		onReparent?: (draggedId: number, targetId: number) => void;
 		visibleIds?: number[];
 	} = $props();
 
@@ -123,6 +125,7 @@
 				hasSubtasks={node.children.length > 0}
 				{subtasksCollapsed}
 				onToggleCollapse={collapsibleSubtasks && node.children.length > 0 ? () => toggleCollapse(node.task.id) : undefined}
+				{onReparent}
 				visibleIds={effectiveVisibleIds}
 			/>
 			{#if openChildren.length > 0 && !subtasksCollapsed}
@@ -141,6 +144,7 @@
 					{mutator}
 					{belongs}
 					{onToggle}
+					{onReparent}
 					visibleIds={effectiveVisibleIds}
 				/>
 			{/if}
@@ -175,6 +179,7 @@
 						{mutator}
 						{belongs}
 						{onToggle}
+						{onReparent}
 						visibleIds={effectiveVisibleIds}
 					/>
 				{/if}

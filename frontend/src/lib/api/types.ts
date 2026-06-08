@@ -410,8 +410,7 @@ export interface TaskInput {
 
 export type TaskMoveInput =
 	| { inboxId: number }
-	| { contextId: number; projectId?: number; sectionId?: number }
-	| { parentId: number };
+	| { contextId: number; projectId?: number; sectionId?: number; parentId?: number };
 
 export interface TaskPlanInput {
 	state: PlanState;

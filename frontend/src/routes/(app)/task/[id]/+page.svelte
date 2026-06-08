@@ -729,7 +729,7 @@ async function save(): Promise<void> {
 									type="button"
 									onclick={() =>
 										toggleLabel(String(label.id), label.name, autoLabelNames.has(label.name))}
-									class="group/chip inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
+									class="group/chip inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
 									style={label.color
 										? `background-color: color-mix(in srgb, ${label.color} 32%, transparent);`
 										: 'background-color: var(--accent);'}
@@ -753,7 +753,7 @@ async function save(): Promise<void> {
 								<button
 									type="button"
 									onclick={() => toggleLabel(id, label.name, autoLabelNames.has(label.name))}
-									class="rounded-full px-2 py-0.5 text-xs transition-colors"
+									class="rounded-md px-2 py-0.5 text-xs transition-colors"
 									class:font-medium={active}
 									class:text-foreground={active}
 									class:border={!active}
