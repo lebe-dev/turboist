@@ -14,7 +14,7 @@
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
 	import RecurrencePicker from './RecurrencePicker.svelte';
-	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { dayStartUtcInTz, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -25,7 +25,7 @@
 	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import WarningIcon from 'phosphor-svelte/lib/Warning';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
-	import { t } from '$lib/i18n';
+	import { t, locale } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
@@ -227,6 +227,8 @@
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
+	const weekRange = $derived(weekRangeKeys(nowStore.now, configStore.value?.timezone ?? null));
+	const calendarLocale = $derived($locale === 'ru' ? 'ru-RU' : 'en-US');
 
 	let datePopoverOpen = $state(false);
 	let titlesEl: HTMLTextAreaElement | undefined = $state();
@@ -516,6 +518,8 @@
 											value={calendarValue}
 											onValueChange={setCalendarValue}
 											captionLayout="dropdown"
+											locale={calendarLocale}
+											highlightWeek={weekRange}
 										/>
 									</PopoverPrimitive.Content>
 								</PopoverPrimitive.Portal>

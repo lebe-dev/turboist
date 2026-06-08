@@ -31,7 +31,7 @@
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import { comparePriority } from '$lib/utils/priority';
-	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
@@ -39,7 +39,7 @@
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
-	import { t } from '$lib/i18n';
+	import { t, locale } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
@@ -179,6 +179,8 @@
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
+	const weekRange = $derived(weekRangeKeys(nowStore.now, configStore.value?.timezone ?? null));
+	const calendarLocale = $derived($locale === 'ru' ? 'ru-RU' : 'en-US');
 
 	// Non-reactive flag — guards against auto-save during initial hydration
 	let allowSave = false;
@@ -667,6 +669,8 @@ async function save(): Promise<void> {
 									value={calendarValue}
 									onValueChange={setCalendarValue}
 									captionLayout="dropdown"
+									locale={calendarLocale}
+									highlightWeek={weekRange}
 								/>
 							</PopoverPrimitive.Content>
 						</PopoverPrimitive.Portal>
