@@ -13,7 +13,6 @@
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
-	import RecurrencePicker from './RecurrencePicker.svelte';
 	import { dayStartUtcInTz, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import XIcon from 'phosphor-svelte/lib/X';
@@ -459,8 +458,8 @@
 						{/if}
 					{/snippet}
 
+					{#if !isInbox}
 					<div class="mt-4 flex flex-wrap items-center gap-2">
-						{#if !isInbox}
 						<div
 							class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 							role="group"
@@ -525,16 +524,13 @@
 								</PopoverPrimitive.Portal>
 							</PopoverPrimitive.Root>
 						</div>
-						{/if}
-
-						{#if !isInbox}
 						<PriorityPicker bind:value={priority} />
 
 						<DayPartPicker bind:value={dayPart} />
-						{/if}
+					</div>
+					{/if}
 
-						<RecurrencePicker bind:value={recurrenceRule} />
-
+					<div class="mt-2 flex flex-wrap items-center gap-2">
 						{@render projectPicker()}
 
 						{#if allLabels.length > 0}
