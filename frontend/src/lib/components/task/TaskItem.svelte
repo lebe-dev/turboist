@@ -228,7 +228,7 @@
 	class:ring-2={dropAsChildActive}
 	class:ring-inset={dropAsChildActive}
 	class:ring-primary={dropAsChildActive}
-	style:padding-left={onToggleCollapse && hasSubtasks ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
+	style:padding-left={onToggleCollapse ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
 	draggable={draggable && !taskSelectionStore.mode}
 	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
@@ -241,21 +241,25 @@
 	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
 	role={draggable ? 'listitem' : undefined}
 >
-	{#if onToggleCollapse && hasSubtasks}
-		<button
-			type="button"
-			onclick={onToggleCollapse}
-			class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-			class:mt-0.5={hasMeta}
-			aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
-			aria-expanded={!subtasksCollapsed}
-		>
-			{#if subtasksCollapsed}
-				<CaretRightIcon class="size-3" />
-			{:else}
-				<CaretDownIcon class="size-3" />
-			{/if}
-		</button>
+	{#if onToggleCollapse}
+		{#if hasSubtasks}
+			<button
+				type="button"
+				onclick={onToggleCollapse}
+				class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+				class:mt-0.5={hasMeta}
+				aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
+				aria-expanded={!subtasksCollapsed}
+			>
+				{#if subtasksCollapsed}
+					<CaretRightIcon class="size-3" />
+				{:else}
+					<CaretDownIcon class="size-3" />
+				{/if}
+			</button>
+		{:else}
+			<div class="size-4 shrink-0"></div>
+		{/if}
 	{/if}
 	{#if taskSelectionStore.mode}
 		<button
