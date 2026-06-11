@@ -56,6 +56,8 @@ func bindSentry(t *testing.T) *captureTransport {
 func sentryTestApp() *fiber.App {
 	app := httpapi.NewApp(httpapi.Deps{SentryEnabled: true})
 	app.Get("/ok", func(c fiber.Ctx) error { return c.SendString("ok") })
+	app.Get("/badrequest", func(c fiber.Ctx) error { return httpapi.ErrValidation("malformed thing") })
+	app.Get("/unauthorized", func(c fiber.Ctx) error { return httpapi.ErrAuthInvalid("nope") })
 	app.Get("/notfound", func(c fiber.Ctx) error { return httpapi.ErrNotFound("missing thing") })
 	app.Get("/boom", func(c fiber.Ctx) error {
 		return httpapi.ErrInternal("internal server error").WithCause(errBoom)
@@ -91,18 +93,31 @@ func TestSentryMiddleware_IgnoresSuccess(t *testing.T) {
 	}
 }
 
-func TestSentryMiddleware_Captures4xx(t *testing.T) {
+func TestSentryMiddleware_Captures400(t *testing.T) {
 	tr := bindSentry(t)
 	app := sentryTestApp()
-	if status := get(t, app, "/notfound"); status != http.StatusNotFound {
-		t.Fatalf("status: got %d, want 404", status)
+	if status := get(t, app, "/badrequest"); status != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want 400", status)
 	}
 	events := tr.all()
 	if len(events) != 1 {
 		t.Fatalf("captured events: got %d, want 1", len(events))
 	}
-	if tag := events[0].Tags["http.status"]; tag != "404" {
-		t.Errorf("http.status tag: got %q, want 404", tag)
+	if tag := events[0].Tags["http.status"]; tag != "400" {
+		t.Errorf("http.status tag: got %q, want 400", tag)
+	}
+}
+
+func TestSentryMiddleware_DropsExpected4xx(t *testing.T) {
+	tr := bindSentry(t)
+	app := sentryTestApp()
+	for _, path := range []string{"/unauthorized", "/notfound"} {
+		if status := get(t, app, path); status < 400 || status >= 500 {
+			t.Fatalf("%s status: got %d, want a 4xx", path, status)
+		}
+	}
+	if n := len(tr.all()); n != 0 {
+		t.Errorf("captured events: got %d, want 0 (401/404 are expected client errors)", n)
 	}
 }
 

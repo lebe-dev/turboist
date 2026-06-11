@@ -38,7 +38,7 @@ type Deps struct {
 	// stale views without polling.
 	EventsHub *events.Hub
 
-	// SentryEnabled gates the SentryMiddleware (4xx/5xx + panic reporting); set
+	// SentryEnabled gates the SentryMiddleware (400 + 5xx + panic reporting); set
 	// when the backend DSN is configured. SentryFrontendDSN and SentryEnvironment
 	// are served to the browser via GET /api/config so the SPA can initialise
 	// Sentry at runtime without baking the DSN into the static bundle.
@@ -69,7 +69,7 @@ func NewApp(deps Deps) *fiber.App {
 	app.Use(recover.New())
 	app.Use(RequestIDMiddleware(deps.Log))
 	if deps.SentryEnabled {
-		app.Use(SentryMiddleware(SentryCaptureMinStatus))
+		app.Use(SentryMiddleware())
 	}
 	if deps.Log != nil {
 		app.Use(AccessLogMiddleware(deps.Log))

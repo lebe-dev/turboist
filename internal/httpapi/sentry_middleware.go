@@ -9,20 +9,15 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// SentryCaptureMinStatus is the lowest HTTP status SentryMiddleware reports.
-// 400 means every 4xx and 5xx response is captured; recovered panics are always
-// captured regardless of the status they map to.
-const SentryCaptureMinStatus = 400
-
 // SentryMiddleware reports server-side failures to Sentry: any recovered panic,
-// plus every request whose error maps to an HTTP status >= minStatus. It uses a
-// per-request hub clone so concurrent requests never share scope state.
+// plus every request whose error maps to a status shouldReportStatus selects. It
+// uses a per-request hub clone so concurrent requests never share scope state.
 //
 // For AppError values carrying an Internal cause the underlying error is sent —
 // it holds the real failure, whereas the AppError message is the sanitized text
 // shown to clients. Recovered panics are converted to a 500 AppError so the
 // central ErrorHandler still renders a clean JSON envelope.
-func SentryMiddleware(minStatus int) fiber.Handler {
+func SentryMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) (err error) {
 		hub := sentry.CurrentHub().Clone()
 
@@ -40,13 +35,22 @@ func SentryMiddleware(minStatus int) fiber.Handler {
 			return nil
 		}
 		status := statusFromError(err)
-		if status < minStatus {
+		if !shouldReportStatus(status) {
 			return err
 		}
 		enrichSentryScope(c, hub, status)
 		hub.CaptureException(reportableError(err))
 		return err
 	}
+}
+
+// shouldReportStatus decides which response statuses are worth a Sentry event.
+// Server failures (5xx) and malformed requests (400) signal real bugs worth
+// investigating; the other 4xx codes (401 auth, 403 forbidden, 404 not found,
+// 409 conflict, 429 rate limit, ...) are expected client behavior and would
+// only drown the issue feed in noise.
+func shouldReportStatus(status int) bool {
+	return status == fiber.StatusBadRequest || status >= fiber.StatusInternalServerError
 }
 
 // enrichSentryScope attaches request-scoped context (method, route, status,
