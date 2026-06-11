@@ -423,7 +423,8 @@
       "decompose": "Decompose task",
       "decomposeDisabled": "Cannot decompose: task has subtasks",
       "select": "Select tasks",
-      "deselect": "Deselect"
+      "deselect": "Deselect",
+      "moreSubmenu": "Actions"
     },
     "dayPart": {
       "morning": "Morning",
@@ -571,6 +572,7 @@
       "customDateAriaLabel": "Custom date",
       "pickDateTitle": "Pick a date",
       "searchProjectsPlaceholder": "Search projects...",
+      "searchLabelsPlaceholder": "Search labels...",
       "noMatches": "No matches",
       "submitMulti": "Add {count} tasks",
       "submitSingle": "Add task",
@@ -739,7 +741,8 @@
       "weekEmptyTitle": "Nothing planned",
       "weekEmptyDesc": "Move tasks here from the backlog with the arrow.",
       "planForWeek": "Plan for next week",
-      "returnToBacklog": "Return to backlog"
+      "returnToBacklog": "Return to backlog",
+      "withSubtasks": "{total} tasks including subtasks"
     },
     "completed": {
       "emptyTitle": "Nothing completed yet",
@@ -798,6 +801,7 @@
       "emptyTitle": "No tasks yet",
       "emptyDescription": "Add a task or section to start organising this project.",
       "dropZoneHint": "Drop a task here to move it out of any section",
+      "cannotNestUnderDescendant": "Cannot nest a task under one of its own subtasks",
       "confirmCompleteTitle": "Complete project?",
       "confirmCompleteDesc": "The project will be marked as completed and all its tasks will be marked as done.",
       "confirmCompleteButton": "Complete",

@@ -8,6 +8,7 @@
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
+	import { buildTree } from '$lib/utils/taskTree';
 	import TaskItem from '$lib/components/task/TaskItem.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
@@ -34,6 +35,9 @@
 		$t('page.nextWeek.dateRangeLabel', { values: { range: nextRangeLabel } })
 	);
 
+	const backlogTree = $derived(buildTree(backlog.items));
+	const weekTree = $derived(buildTree(week.items));
+
 	const weeklyLimit = $derived(configStore.value?.weekly.limit ?? null);
 	const backlogLimit = $derived(configStore.value?.backlog.limit ?? null);
 	// Counts come from planStatsStore (global), not from list lengths — list is
@@ -55,7 +59,9 @@
 			]);
 			if (!isValid()) return;
 			backlog.items = backlogRes.items;
-			week.items = weekRes.items;
+			// The week view also returns tasks that merely have a due date inside the
+			// current week; here we only want tasks explicitly planned for the week.
+			week.items = weekRes.items.filter((t) => t.planState === 'week');
 		},
 		{ errorMessage: $t('page.nextWeek.errorLoading'), autoLoad: false, initialLoading: true }
 	);
@@ -106,6 +112,7 @@
 			title={$t('page.nextWeek.backlogTitle')}
 			count={backlogLimit !== null ? backlogCount : backlog.items.length}
 			limit={backlogLimit}
+			total={backlog.items.length}
 		/>
 		<div class="min-h-[200px]">
 			<ViewContent
@@ -116,28 +123,44 @@
 				emptyDescription={$t('page.nextWeek.backlogEmptyDesc')}
 			>
 				<div class="flex flex-col">
-					{#each backlog.items as task (task.id)}
-						<div class="flex items-stretch border-b border-border/40 last:border-b-0">
-							<div class="min-w-0 flex-1">
-								<TaskItem
-									{task}
-									mutator={backlog.mutator}
-									belongs={(t) => t.planState === 'backlog'}
-									onToggle={(t) => toggleComplete(t, backlog.mutator)}
-								/>
+					{#each backlogTree as node (node.task.id)}
+						<div class="border-b border-border/40 last:border-b-0">
+							<div class="flex items-stretch">
+								<div class="min-w-0 flex-1">
+									<TaskItem
+										task={node.task}
+										mutator={backlog.mutator}
+										belongs={(t) => t.planState === 'backlog'}
+										onToggle={(t) => toggleComplete(t, backlog.mutator)}
+									/>
+								</div>
+								<button
+									type="button"
+									onclick={() => void planForWeek(node.task)}
+									disabled={weekFull}
+									aria-label={$t('page.nextWeek.planForWeek')}
+									title={weekFull
+										? $t('page.nextWeek.weeklyLimitReachedShort', { values: { limit: weeklyLimit ?? 0 } })
+										: $t('page.nextWeek.planForWeek')}
+									class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+								>
+									<ArrowRightIcon class="size-4" weight="bold" />
+								</button>
 							</div>
-							<button
-								type="button"
-								onclick={() => void planForWeek(task)}
-								disabled={weekFull}
-								aria-label={$t('page.nextWeek.planForWeek')}
-								title={weekFull
-									? $t('page.nextWeek.weeklyLimitReachedShort', { values: { limit: weeklyLimit ?? 0 } })
-									: $t('page.nextWeek.planForWeek')}
-								class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-							>
-								<ArrowRightIcon class="size-4" weight="bold" />
-							</button>
+							{#each node.children as child (child.task.id)}
+								<div class="flex items-stretch border-t border-border/30">
+									<div class="min-w-0 flex-1">
+										<TaskItem
+											task={child.task}
+											depth={1}
+											mutator={backlog.mutator}
+											belongs={(t) => t.planState === 'backlog'}
+											onToggle={(t) => toggleComplete(t, backlog.mutator)}
+										/>
+									</div>
+									<div class="w-10 shrink-0"></div>
+								</div>
+							{/each}
 						</div>
 					{/each}
 				</div>
@@ -148,8 +171,9 @@
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">
 		<PlanSectionHeader
 			title={$t('page.nextWeek.nextWeekTitle')}
-			count={weeklyLimit !== null ? weekCount : null}
+			count={weeklyLimit !== null ? weekCount : week.items.length}
 			limit={weeklyLimit}
+			total={week.items.length}
 		/>
 		<div class="min-h-[200px]">
 			<ViewContent
@@ -160,28 +184,44 @@
 				emptyDescription={$t('page.nextWeek.weekEmptyDesc')}
 			>
 				<div class="flex flex-col">
-					{#each week.items as task (task.id)}
-						<div class="flex items-stretch border-b border-border/40 last:border-b-0">
-							<button
-								type="button"
-								onclick={() => void returnToBacklog(task)}
-								disabled={backlogFull}
-								aria-label={$t('page.nextWeek.returnToBacklog')}
-								title={backlogFull
-									? $t('page.nextWeek.backlogLimitReachedShort', { values: { limit: backlogLimit ?? 0 } })
-									: $t('page.nextWeek.returnToBacklog')}
-								class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-							>
-								<ArrowLeftIcon class="size-4" weight="bold" />
-							</button>
-							<div class="min-w-0 flex-1">
-								<TaskItem
-									{task}
-									mutator={week.mutator}
-									belongs={(t) => t.planState === 'week'}
-									onToggle={(t) => toggleComplete(t, week.mutator)}
-								/>
+					{#each weekTree as node (node.task.id)}
+						<div class="border-b border-border/40 last:border-b-0">
+							<div class="flex items-stretch">
+								<button
+									type="button"
+									onclick={() => void returnToBacklog(node.task)}
+									disabled={backlogFull}
+									aria-label={$t('page.nextWeek.returnToBacklog')}
+									title={backlogFull
+										? $t('page.nextWeek.backlogLimitReachedShort', { values: { limit: backlogLimit ?? 0 } })
+										: $t('page.nextWeek.returnToBacklog')}
+									class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+								>
+									<ArrowLeftIcon class="size-4" weight="bold" />
+								</button>
+								<div class="min-w-0 flex-1">
+									<TaskItem
+										task={node.task}
+										mutator={week.mutator}
+										belongs={(t) => t.planState === 'week'}
+										onToggle={(t) => toggleComplete(t, week.mutator)}
+									/>
+								</div>
 							</div>
+							{#each node.children as child (child.task.id)}
+								<div class="flex items-stretch border-t border-border/30">
+									<div class="w-10 shrink-0"></div>
+									<div class="min-w-0 flex-1">
+										<TaskItem
+											task={child.task}
+											depth={1}
+											mutator={week.mutator}
+											belongs={(t) => t.planState === 'week'}
+											onToggle={(t) => toggleComplete(t, week.mutator)}
+										/>
+									</div>
+								</div>
+							{/each}
 						</div>
 					{/each}
 				</div>

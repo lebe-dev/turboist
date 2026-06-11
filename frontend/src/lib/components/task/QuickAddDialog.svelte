@@ -13,8 +13,7 @@
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
-	import RecurrencePicker from './RecurrencePicker.svelte';
-	import { dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
+	import { dayStartUtcInTz, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -25,7 +24,7 @@
 	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import WarningIcon from 'phosphor-svelte/lib/Warning';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
-	import { t } from '$lib/i18n';
+	import { t, locale } from '$lib/i18n';
 
 	let {
 		open = $bindable(false),
@@ -101,6 +100,8 @@
 	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
 	let labelMenuOpen = $state(false);
+	let labelQuery = $state('');
+	let labelSearchInput = $state<HTMLInputElement | null>(null);
 	let projectMenuOpen = $state(false);
 	let projectQuery = $state('');
 	let projectSearchInput = $state<HTMLInputElement | null>(null);
@@ -162,7 +163,22 @@
 	const allLabels = $derived.by(() => {
 		const byName = (a: { name: string }, b: { name: string }) =>
 			a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-		return [...labelsStore.favourites.toSorted(byName), ...labelsStore.rest.toSorted(byName)];
+		return [...labelsStore.favourites, ...labelsStore.rest].toSorted(byName);
+	});
+	const filteredLabels = $derived.by(() => {
+		const q = labelQuery.trim().toLowerCase();
+		if (!q) return allLabels;
+		return allLabels.filter((l) => l.name.toLowerCase().includes(q));
+	});
+
+	// Reset the query whenever the picker closes and focus the search box when it
+	// opens, so the user can start typing to filter labels right away.
+	$effect(() => {
+		if (labelMenuOpen) {
+			tick().then(() => labelSearchInput?.focus());
+		} else {
+			labelQuery = '';
+		}
 	});
 	const selectedLabels = $derived(
 		labelIds
@@ -210,6 +226,8 @@
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
+	const weekRange = $derived(weekRangeKeys(nowStore.now, configStore.value?.timezone ?? null));
+	const calendarLocale = $derived($locale === 'ru' ? 'ru-RU' : 'en-US');
 
 	let datePopoverOpen = $state(false);
 	let titlesEl: HTMLTextAreaElement | undefined = $state();
@@ -273,6 +291,7 @@
 		parentId = defaultParentId;
 		sectionId = defaultSectionId;
 		labelMenuOpen = false;
+		labelQuery = '';
 		dismissedAutoLabels = [];
 	}
 
@@ -399,46 +418,48 @@
 						class="mt-2 block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
 					></textarea>
 
-					{#if selectedLabels.length > 0 || detectedAutoLabels.length > 0}
-						<div class="mt-3 flex flex-wrap items-center gap-1.5">
-							{#each selectedLabels as label (label.id)}
-								<button
-									type="button"
-									onclick={() => toggleLabel(String(label.id))}
-									class="group/chip inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/70"
-								>
-									{#if label.color}
-										<span
-											class="size-1.5 rounded-full"
-											style={`background-color: ${label.color}`}
-										></span>
-									{/if}
-									<span>{label.name}</span>
-									<XIcon class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100" />
-								</button>
-							{/each}
-							{#each detectedAutoLabels as name (name)}
-								<span
-									class="group/auto inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
-									title={$t('dialog.quickAdd.autoLabelHint')}
-								>
-									<SparkleIcon class="size-3" weight="fill" />
-									<span>{name}</span>
+					{#snippet selectedLabelChips()}
+						{#if selectedLabels.length > 0 || detectedAutoLabels.length > 0}
+							<div class="mt-3 flex flex-wrap items-center gap-1.5">
+								{#each selectedLabels as label (label.id)}
 									<button
 										type="button"
-										onclick={() => dismissAutoLabel(name)}
-										aria-label={$t('dialog.quickAdd.rejectAutoLabel', { values: { name } })}
-										class="opacity-60 transition-opacity hover:opacity-100"
+										onclick={() => toggleLabel(String(label.id))}
+										class="group/chip inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/70"
 									>
-										<XIcon class="size-3" />
+										{#if label.color}
+											<span
+												class="size-1.5 rounded-full"
+												style={`background-color: ${label.color}`}
+											></span>
+										{/if}
+										<span>{label.name}</span>
+										<XIcon class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100" />
 									</button>
-								</span>
-							{/each}
-						</div>
-					{/if}
+								{/each}
+								{#each detectedAutoLabels as name (name)}
+									<span
+										class="group/auto inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
+										title={$t('dialog.quickAdd.autoLabelHint')}
+									>
+										<SparkleIcon class="size-3" weight="fill" />
+										<span>{name}</span>
+										<button
+											type="button"
+											onclick={() => dismissAutoLabel(name)}
+											aria-label={$t('dialog.quickAdd.rejectAutoLabel', { values: { name } })}
+											class="opacity-60 transition-opacity hover:opacity-100"
+										>
+											<XIcon class="size-3" />
+										</button>
+									</span>
+								{/each}
+							</div>
+						{/if}
+					{/snippet}
 
+					{#if !isInbox}
 					<div class="mt-4 flex flex-wrap items-center gap-2">
-						{#if !isInbox}
 						<div
 							class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
 							role="group"
@@ -496,24 +517,43 @@
 											value={calendarValue}
 											onValueChange={setCalendarValue}
 											captionLayout="dropdown"
+											locale={calendarLocale}
+											highlightWeek={weekRange}
 										/>
 									</PopoverPrimitive.Content>
 								</PopoverPrimitive.Portal>
 							</PopoverPrimitive.Root>
 						</div>
-						{/if}
-
-						{#if !isInbox}
 						<PriorityPicker bind:value={priority} />
 
 						<DayPartPicker bind:value={dayPart} />
-						{/if}
+					</div>
+					{/if}
 
-						<RecurrencePicker bind:value={recurrenceRule} />
+					<div class="mt-2 flex flex-wrap items-center gap-2">
+						{@render projectPicker()}
 
 						{#if allLabels.length > 0}
+							{#snippet labelSearch()}
+								<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
+									<MagnifyingGlassIcon class="size-3.5 text-muted-foreground" />
+									<input
+										bind:this={labelSearchInput}
+										bind:value={labelQuery}
+										type="text"
+										placeholder={$t('dialog.quickAdd.searchLabelsPlaceholder')}
+										class="w-full bg-transparent {isMobile.current ? 'h-7 text-sm' : 'h-6 text-xs'} outline-none placeholder:text-muted-foreground"
+										onkeydown={(e) => {
+											if (e.key === 'Escape') {
+												e.stopPropagation();
+												labelMenuOpen = false;
+											}
+										}}
+									/>
+								</div>
+							{/snippet}
 							{#snippet labelOptions()}
-								{#each allLabels as label (label.id)}
+								{#each filteredLabels as label (label.id)}
 									{@const id = String(label.id)}
 									{@const active = labelIds.includes(id)}
 									<button
@@ -538,6 +578,11 @@
 										{/if}
 									</button>
 								{/each}
+								{#if filteredLabels.length === 0}
+									<div class="px-2 py-3 text-center text-xs text-muted-foreground">
+										{$t('dialog.quickAdd.noMatches')}
+									</div>
+								{/if}
 							{/snippet}
 
 							{#if isMobile.current}
@@ -558,7 +603,8 @@
 										<Sheet.Header class="px-2 pb-2 pt-0">
 											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
 										</Sheet.Header>
-										<div class="flex flex-col gap-2 pb-4">
+										{@render labelSearch()}
+										<div class="flex flex-col gap-2 pb-4 pt-2">
 											{@render labelOptions()}
 										</div>
 									</Sheet.Content>
@@ -581,9 +627,12 @@
 										<PopoverPrimitive.Content
 											align="start"
 											sideOffset={4}
-											class="z-[60] flex max-h-64 w-56 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-popover p-2 shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+											class="z-[60] flex max-h-64 w-56 flex-col rounded-md border border-border bg-popover shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
 										>
-											{@render labelOptions()}
+											{@render labelSearch()}
+											<div class="flex flex-col gap-1 overflow-y-auto p-2">
+												{@render labelOptions()}
+											</div>
 										</PopoverPrimitive.Content>
 									</PopoverPrimitive.Portal>
 								</PopoverPrimitive.Root>
@@ -591,7 +640,7 @@
 						{/if}
 					</div>
 
-					<div class="mt-3">
+					{#snippet projectPicker()}
 						<PopoverPrimitive.Root bind:open={projectMenuOpen} onOpenChange={onProjectMenuOpenChange}>
 							<PopoverPrimitive.Trigger>
 								{#snippet child({ props })}
@@ -693,7 +742,9 @@
 								</PopoverPrimitive.Content>
 							</PopoverPrimitive.Portal>
 						</PopoverPrimitive.Root>
-					</div>
+					{/snippet}
+
+					{@render selectedLabelChips()}
 				</div>
 
 				<div

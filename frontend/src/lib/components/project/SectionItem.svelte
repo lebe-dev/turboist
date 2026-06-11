@@ -33,6 +33,7 @@
 		onAddTask,
 		onSectionDrop,
 		onTaskDrop,
+		onReparent,
 		taskDraggable = true
 	}: {
 		section: ProjectSection;
@@ -47,6 +48,7 @@
 		onAddTask?: (section: ProjectSection) => void;
 		onSectionDrop?: (draggedId: number, targetId: number, before: boolean) => void;
 		onTaskDrop?: (taskId: number, targetSectionId: number) => void;
+		onReparent?: (draggedId: number, targetId: number) => void;
 		taskDraggable?: boolean;
 	} = $props();
 
@@ -198,6 +200,7 @@
 					{mutator}
 					{belongs}
 					{onToggle}
+					{onReparent}
 				/>
 			{/if}
 			{#if split.done.length > 0}

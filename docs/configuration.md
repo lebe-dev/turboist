@@ -17,6 +17,13 @@ Load from `.env` if present (copy `.env.example` to get started):
 | `GOOGLE_CALENDAR_CLIENT_SECRET` | — | Google OAuth client secret. Redirect URI: `<BASE_URL>/api/v1/calendars/google/callback` |
 | `CALENDAR_TOKEN_KEY` | — | Encryption key for stored calendar OAuth tokens. Defaults to `JWT_SECRET`; keep stable. |
 | `TOTP_SECRET_KEY` | — | Encryption key (≥ 32 bytes) for TOTP secrets at rest. Required to enable 2FA; if empty, `/auth/totp/*` returns an error. Keep stable — rotating invalidates all enrolled secrets. |
+| `SENTRY_DSN` | — | Backend Sentry DSN. When set, the server reports recovered panics, every 5xx response, and 400 Bad Request (with the underlying cause) to Sentry. Expected client errors (401/403/404/409/429/…) are not reported. Empty disables backend reporting. |
+| `SENTRY_FRONTEND_DSN` | — | Browser Sentry DSN. Served to the SPA at runtime via `GET /api/config` (never baked into the static bundle), so toggling it needs no frontend rebuild. Use a separate Sentry project from the backend. |
+| `SENTRY_ENVIRONMENT` | — | Environment label applied to both backend and frontend events (e.g. `production`, `staging`). |
+
+### Sentry error reporting
+
+Both planes are errors-only (no performance tracing) and fully optional — leave a DSN blank to disable that side. The backend captures recovered panics and any request resolving to HTTP ≥ 400, plus background-goroutine and startup failures. The frontend captures uncaught browser errors, unhandled promise rejections, and errors surfaced through SvelteKit's client pipeline; it fetches its DSN from the public `GET /api/config` endpoint on startup.
 
 ### Log levels
 

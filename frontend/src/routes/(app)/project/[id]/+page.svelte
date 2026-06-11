@@ -344,6 +344,39 @@
 		}
 	}
 
+	async function reparentTask(draggedId: number, targetId: number) {
+		if (!project || draggedId === targetId) return;
+		const dragged = taskList.items.find((t) => t.id === draggedId);
+		const parent = taskList.items.find((t) => t.id === targetId);
+		if (!dragged || !parent) return;
+		if (dragged.parentId === targetId) return;
+		// A task cannot become a child of one of its own descendants.
+		if (collectDescendantIds(draggedId, taskList.items).has(targetId)) {
+			toast.error($t('page.project.cannotNestUnderDescendant'));
+			return;
+		}
+		const oldItems = taskList.items;
+		// The moved subtree adopts the new parent's section (the backend cascades
+		// project/section to descendants); only the dragged task changes parent.
+		const descendantIds = collectDescendantIds(draggedId, taskList.items);
+		taskList.items = taskList.items.map((t) => {
+			if (t.id === draggedId) return { ...t, parentId: targetId, sectionId: parent.sectionId };
+			if (descendantIds.has(t.id)) return { ...t, sectionId: parent.sectionId };
+			return t;
+		});
+		try {
+			const target =
+				parent.sectionId !== null
+					? { contextId: project.contextId, projectId: project.id, sectionId: parent.sectionId, parentId: targetId }
+					: { contextId: project.contextId, projectId: project.id, parentId: targetId };
+			const updated = await tasksApi.move(getApiClient(), draggedId, target);
+			taskList.items = taskList.items.map((t) => (t.id === draggedId ? updated : t));
+		} catch (err) {
+			taskList.items = oldItems;
+			toast.error(describeError(err, $t('page.project.failedMove')));
+		}
+	}
+
 	async function reorderSection(draggedId: number, targetId: number, before: boolean) {
 		if (draggedId === targetId) return;
 		const arr = [...sectionList];
@@ -472,6 +505,7 @@
 								{mutator}
 								{belongs}
 								onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
+								onReparent={reparentTask}
 							/>
 						</div>
 					{/if}
@@ -506,6 +540,7 @@
 					onAddSection={openSectionQuickAdd}
 					onSectionDrop={reorderSection}
 					onTaskDrop={(taskId, targetSectionId) => moveTask(taskId, targetSectionId)}
+					onReparent={reparentTask}
 				/>
 			{/if}
 		</ViewContent>

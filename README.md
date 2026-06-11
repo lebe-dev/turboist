@@ -48,3 +48,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - Offline-first
 - iOS Native App
 - Feature: Constraints
+
+## License
+
+[MIT](LICENSE.md)

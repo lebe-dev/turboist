@@ -5,6 +5,7 @@
 	import type { ButtonVariant } from "../button/button.svelte";
 	import { isEqualMonth, type DateValue } from "@internationalized/date";
 	import type { Snippet } from "svelte";
+	import { locale as appLocale } from "$lib/i18n";
 
 	let {
 		ref = $bindable(null),
@@ -14,7 +15,7 @@
 		weekdayFormat = "short",
 		buttonVariant = "ghost",
 		captionLayout = "label",
-		locale = "en-US",
+		locale: localeProp = undefined,
 		weekStartsOn = 1,
 		months: monthsProp,
 		years,
@@ -22,6 +23,7 @@
 		yearFormat = "numeric",
 		day,
 		disableDaysOutsideMonth = false,
+		highlightWeek = null,
 		...restProps
 	}: WithoutChildrenOrChild<CalendarPrimitive.RootProps> & {
 		buttonVariant?: ButtonVariant;
@@ -31,13 +33,28 @@
 		monthFormat?: CalendarPrimitive.MonthSelectProps["monthFormat"];
 		yearFormat?: CalendarPrimitive.YearSelectProps["yearFormat"];
 		day?: Snippet<[{ day: DateValue; outsideMonth: boolean }]>;
+		highlightWeek?: { startKey: string; endKey: string } | null;
 	} = $props();
+
+	const effectiveLocale = $derived(localeProp ?? ($appLocale === 'ru' ? 'ru-RU' : 'en-US'));
 
 	const monthFormat = $derived.by(() => {
 		if (monthFormatProp) return monthFormatProp;
 		if (captionLayout.startsWith("dropdown")) return "short";
 		return "long";
 	});
+
+	function dateKey(d: DateValue): string {
+		return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
+	}
+
+	function isInHighlightedWeek(weekDates: DateValue[]): boolean {
+		if (!highlightWeek) return false;
+		return weekDates.some(d => {
+			const key = dateKey(d);
+			return key >= highlightWeek!.startKey && key < highlightWeek!.endKey;
+		});
+	}
 </script>
 
 <!--
@@ -55,7 +72,7 @@ get along, so we shut typescript up by casting `value` to `never`.
 		"p-2 [--cell-size:--spacing(7)] [--cell-radius:0.375rem] bg-background group/calendar in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
 		className
 	)}
-	{locale}
+	locale={effectiveLocale}
 	{monthFormat}
 	{yearFormat}
 	{...restProps}
@@ -77,7 +94,7 @@ get along, so we shut typescript up by casting `value` to `never`.
 							{yearFormat}
 							month={month.value}
 							bind:placeholder
-							{locale}
+							locale={effectiveLocale}
 							{monthIndex}
 						/>
 					</Calendar.Header>
@@ -93,7 +110,8 @@ get along, so we shut typescript up by casting `value` to `never`.
 						</Calendar.GridHead>
 						<Calendar.GridBody>
 							{#each month.weeks as weekDates (weekDates)}
-								<Calendar.GridRow class="mt-2 w-full">
+							{@const highlighted = isInHighlightedWeek(weekDates)}
+								<Calendar.GridRow class={cn("mt-2 w-full", highlighted && "rounded-md bg-muted/60 ring-1 ring-inset ring-border")}>
 									{#each weekDates as date (date)}
 										<Calendar.Cell {date} month={month.value}>
 											{#if day}

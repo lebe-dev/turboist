@@ -216,6 +216,40 @@ func TestProjectPatch_Success(t *testing.T) {
 	}
 }
 
+func TestProjectPatch_ContextID(t *testing.T) {
+	e := setupAPIEnv(t)
+	src := createTestContext(t, e, "Work")
+	dst := createTestContext(t, e, "Home")
+	proj := createTestProject(t, e, src.ID, "Alpha")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/projects/%d", proj.ID),
+		map[string]any{"contextId": dst.ID}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.ProjectDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.ContextID != dst.ID {
+		t.Errorf("contextId: got %d, want %d", result.ContextID, dst.ID)
+	}
+}
+
+func TestProjectPatch_ContextNotFound(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	proj := createTestProject(t, e, ctx.ID, "Alpha")
+
+	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/projects/%d", proj.ID),
+		map[string]any{"contextId": 99999}))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
 func TestProjectCreate_DefaultProjectType(t *testing.T) {
 	e := setupAPIEnv(t)
 	ctx := createTestContext(t, e, "Work")

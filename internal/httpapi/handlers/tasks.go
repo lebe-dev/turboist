@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"regexp"
@@ -169,6 +170,15 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		}
 		u.PlanState = &ps
 	}
+
+	// Assigning a due date pulls a task out of the backlog: a scheduled task no
+	// longer belongs to the unscheduled backlog. This is the inverse of planning
+	// into backlog, which clears due (see service.PlanService.SetPlanState). An
+	// explicit planState in the same request wins.
+	if u.DueAt != nil && req.PlanState == nil && t.PlanState == model.PlanStateBacklog {
+		none := model.PlanStateNone
+		u.PlanState = &none
+	}
 	if req.RecurrenceRule.IsNull() {
 		u.RecurrenceClear = true
 	} else if v, ok := req.RecurrenceRule.Value(); ok {
@@ -331,15 +341,41 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("get task").WithCause(err)
 	}
+	t, err := h.cloneTask(c.Context(), src, src.ParentID, duplicateTitle(src.Title))
+	if err != nil {
+		return handleTaskCreateErr(c, err)
+	}
+	out := dto.TaskFromModel(*t, h.baseURL)
+	// Surface the cloned subtasks so the client can render them without a reload.
+	subtasks, err := h.tasks.ListSubtasks(c.Context(), t.ID)
+	if err != nil {
+		return httpapi.ErrInternal("list subtasks").WithCause(err)
+	}
+	dtos := make([]dto.TaskDTO, len(subtasks))
+	for i, st := range subtasks {
+		dtos[i] = dto.TaskFromModel(st, h.baseURL)
+	}
+	page := dto.NewPagedResponse(dtos, len(dtos), len(dtos), 0)
+	out.Subtasks = &page
+	logMutation(c, "handler.Task.Duplicate", slog.Int64("task_id", t.ID), slog.Int64("source_id", id))
+	return c.Status(fiber.StatusCreated).JSON(out)
+}
+
+// cloneTask deep-copies src as a new task placed under parentID (nil for a
+// top-level task) with the given title, then recursively clones src's subtasks
+// under the freshly created task. Only the top-level clone is renamed; subtasks
+// keep their original titles. Each subtask is re-fetched via Get so its labels
+// are hydrated (ListSubtasks does not hydrate labels).
+func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *int64, title string) (*model.Task, error) {
 	in := repo.CreateTask{
 		Placement: repo.Placement{
 			InboxID:   src.InboxID,
 			ContextID: src.ContextID,
 			ProjectID: src.ProjectID,
 			SectionID: src.SectionID,
-			ParentID:  src.ParentID,
+			ParentID:  parentID,
 		},
-		Title:           duplicateTitle(src.Title),
+		Title:           title,
 		Description:     src.Description,
 		Priority:        src.Priority,
 		DueAt:           src.DueAt,
@@ -354,12 +390,24 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 	for i, l := range src.Labels {
 		labelNames[i] = l.Name
 	}
-	t, err := h.taskSvc.Create(c.Context(), in, labelNames, nil)
+	t, err := h.taskSvc.Create(ctx, in, labelNames, nil)
 	if err != nil {
-		return handleTaskCreateErr(c, err)
+		return nil, err
 	}
-	logMutation(c, "handler.Task.Duplicate", slog.Int64("task_id", t.ID), slog.Int64("source_id", id))
-	return c.Status(fiber.StatusCreated).JSON(dto.TaskFromModel(*t, h.baseURL))
+	subtasks, err := h.tasks.ListSubtasks(ctx, src.ID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range subtasks {
+		sub, err := h.tasks.Get(ctx, subtasks[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := h.cloneTask(ctx, sub, &t.ID, sub.Title); err != nil {
+			return nil, err
+		}
+	}
+	return t, nil
 }
 
 func (h *TaskHandler) decompose(c fiber.Ctx) error {

@@ -423,7 +423,8 @@
       "decompose": "Разбить задачу",
       "decomposeDisabled": "Нельзя разбить: у задачи есть подзадачи",
       "select": "Выбрать задачи",
-      "deselect": "Снять выбор"
+      "deselect": "Снять выбор",
+      "moreSubmenu": "Действия"
     },
     "dayPart": {
       "morning": "Утро",
@@ -571,6 +572,7 @@
       "customDateAriaLabel": "Произвольная дата",
       "pickDateTitle": "Выберите дату",
       "searchProjectsPlaceholder": "Поиск проектов...",
+      "searchLabelsPlaceholder": "Поиск меток...",
       "noMatches": "Совпадений нет",
       "submitMulti": "Добавить {count} задач",
       "submitSingle": "Добавить задачу",
@@ -739,7 +741,8 @@
       "weekEmptyTitle": "Ничего не запланировано",
       "weekEmptyDesc": "Перенесите задачи сюда из бэклога стрелкой.",
       "planForWeek": "Запланировать на следующую неделю",
-      "returnToBacklog": "Вернуть в бэклог"
+      "returnToBacklog": "Вернуть в бэклог",
+      "withSubtasks": "{total} задач с учётом подзадач"
     },
     "completed": {
       "emptyTitle": "Пока ничего не завершено",
@@ -798,6 +801,7 @@
       "emptyTitle": "Задач пока нет",
       "emptyDescription": "Добавьте задачу или раздел, чтобы начать организацию проекта.",
       "dropZoneHint": "Перетащите сюда задачу, чтобы вынести её из любого раздела",
+      "cannotNestUnderDescendant": "Нельзя вложить задачу в её собственную подзадачу",
       "confirmCompleteTitle": "Завершить проект?",
       "confirmCompleteDesc": "Проект будет помечен как завершённый, а все его задачи — как выполненные.",
       "confirmCompleteButton": "Завершить",

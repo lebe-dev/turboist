@@ -946,3 +946,60 @@ func TestTaskDuplicate_NotFound(t *testing.T) {
 		t.Fatalf("got %d, want 404", resp.StatusCode)
 	}
 }
+
+func TestTaskDuplicate_WithSubtasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+
+	// Two subtasks under the parent.
+	for _, title := range []string{"Child A", "Child B"} {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID),
+			map[string]any{"title": title}))
+		if resp.StatusCode != 201 {
+			t.Fatalf("create subtask %q: got %d; body: %s", title, resp.StatusCode, body)
+		}
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", parent.ID), nil))
+	if resp.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var dup dto.TaskDTO
+	if err := json.Unmarshal(body, &dup); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if dup.Title != "Parent (2)" {
+		t.Errorf("title: got %q, want %q", dup.Title, "Parent (2)")
+	}
+	// The duplicate response surfaces the cloned subtasks inline.
+	if dup.Subtasks == nil || len(dup.Subtasks.Items) != 2 {
+		t.Fatalf("response subtasks: got %v, want 2", dup.Subtasks)
+	}
+
+	// The clone must carry its own copies of both subtasks, not share the originals.
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", dup.ID), nil))
+	if resp2.StatusCode != 200 {
+		t.Fatalf("list subtasks: got %d; body: %s", resp2.StatusCode, body2)
+	}
+	var page dto.PagedResponse[dto.TaskDTO]
+	if err := json.Unmarshal(body2, &page); err != nil {
+		t.Fatalf("parse subtasks: %v", err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("cloned subtasks: got %d, want 2", len(page.Items))
+	}
+	got := map[string]bool{}
+	for _, s := range page.Items {
+		got[s.Title] = true
+		if s.ParentID == nil || *s.ParentID != dup.ID {
+			t.Errorf("subtask %q parentId: got %v, want %d", s.Title, s.ParentID, dup.ID)
+		}
+	}
+	if !got["Child A"] || !got["Child B"] {
+		t.Errorf("subtask titles: got %v, want Child A and Child B", got)
+	}
+}

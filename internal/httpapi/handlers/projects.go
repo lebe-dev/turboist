@@ -272,10 +272,24 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 		}
 		projectType = &pt
 	}
+	if req.ContextID != nil {
+		if *req.ContextID <= 0 {
+			logValidation(c, "handler.Project.Patch", "invalid contextId")
+			return httpapi.ErrValidation("invalid contextId")
+		}
+		if _, err := h.contexts.Get(c.Context(), *req.ContextID); err != nil {
+			if errors.Is(err, repo.ErrNotFound) {
+				logValidation(c, "handler.Project.Patch", "context not found")
+				return httpapi.ErrValidation("context not found")
+			}
+			return httpapi.ErrInternal("get context").WithCause(err)
+		}
+	}
 	p, err := h.projects.Update(c.Context(), id, repo.ProjectUpdate{
 		Title:       req.Title,
 		Description: req.Description,
 		Color:       req.Color,
+		ContextID:   req.ContextID,
 		IsPrivate:   req.IsPrivate,
 		Type:        projectType,
 	})

@@ -15,7 +15,8 @@
 		onRemoveSection,
 		onAddSection,
 		onSectionDrop,
-		onTaskDrop
+		onTaskDrop,
+		onReparent
 	}: {
 		sections: ProjectSection[];
 		tasksBySection: Record<number, Task[]>;
@@ -29,6 +30,7 @@
 		onAddSection?: (section: ProjectSection) => void;
 		onSectionDrop?: (draggedId: number, targetId: number, before: boolean) => void;
 		onTaskDrop?: (taskId: number, targetSectionId: number) => void;
+		onReparent?: (draggedId: number, targetId: number) => void;
 	} = $props();
 </script>
 
@@ -47,6 +49,7 @@
 			onAddTask={onAddSection}
 			{onSectionDrop}
 			{onTaskDrop}
+			{onReparent}
 		/>
 	{/each}
 </div>

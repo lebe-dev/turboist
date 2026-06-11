@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/obs"
 	"github.com/lebe-dev/turboist/internal/repo"
 )
 
@@ -33,6 +34,7 @@ func runSessionCleanup(ctx context.Context, sessions *repo.SessionRepo, log *slo
 func cleanupOnce(ctx context.Context, sessions *repo.SessionRepo, log *slog.Logger) {
 	n, err := sessions.Cleanup(ctx)
 	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": "auth.SessionCleanup"})
 		log.Error("session cleanup failed", slog.String("op", "auth.SessionCleanup"), slog.String("err", err.Error()))
 		return
 	}

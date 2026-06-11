@@ -28,7 +28,7 @@
 </script>
 
 <div
-	class="flex w-full flex-col gap-2 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg"
+	class="flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg"
 	role="status"
 >
 	<div class="flex items-start justify-between gap-2">

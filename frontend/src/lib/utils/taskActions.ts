@@ -177,7 +177,16 @@ export async function duplicateTask(task: Task, mutator: ListMutator): Promise<v
 	const client = getApiClient();
 	try {
 		const created = await tasksApi.duplicate(client, task.id);
-		mutator.insertAfter?.(task.id, created);
+		// Insert the clone plus its cloned subtasks as a flat run so the tree
+		// view can nest them by parentId without waiting for a reload. Chain off
+		// each inserted id to preserve subtask order.
+		let afterId = task.id;
+		mutator.insertAfter?.(afterId, created);
+		afterId = created.id;
+		for (const sub of created.subtasks?.items ?? []) {
+			mutator.insertAfter?.(afterId, sub);
+			afterId = sub.id;
+		}
 		toast.success(tr('task.toast.duplicated'));
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedDuplicate')));

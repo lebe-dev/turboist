@@ -54,6 +54,7 @@
 	},
 	"dependencies": {
 		"@fontsource-variable/outfit": "^5.2.8",
+		"@sentry/sveltekit": "^10.56.0",
 		"svelte-intl-precompile": "^0.12.3"
 	},
 	"resolutions": {

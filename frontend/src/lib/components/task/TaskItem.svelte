@@ -26,7 +26,16 @@
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
-	import { setTaskDrag, initTouchDrag, updateTouchDrag, endTouchDrag } from '$lib/utils/dnd';
+	import {
+		setTaskDrag,
+		clearTaskDrag,
+		currentDraggingTaskId,
+		hasDragKind,
+		readDraggedTask,
+		initTouchDrag,
+		updateTouchDrag,
+		endTouchDrag
+	} from '$lib/utils/dnd';
 
 	let {
 		task,
@@ -43,6 +52,7 @@
 		hasSubtasks = false,
 		subtasksCollapsed = false,
 		onToggleCollapse,
+		onReparent,
 		visibleIds
 	}: {
 		task: Task;
@@ -59,8 +69,14 @@
 		hasSubtasks?: boolean;
 		subtasksCollapsed?: boolean;
 		onToggleCollapse?: () => void;
+		onReparent?: (draggedId: number, targetId: number) => void;
 		visibleIds?: number[];
 	} = $props();
+
+	// When `onReparent` is provided, the row doubles as a drop target: dropping
+	// another dragged task onto it re-parents that task as a sub-task of this one.
+	const reparentEnabled = $derived(!!onReparent && draggable && !taskSelectionStore.mode);
+	let dropAsChildActive = $state(false);
 
 	const selected = $derived(taskSelectionStore.has(task.id));
 
@@ -76,6 +92,41 @@
 
 	function onTaskDragStart(e: DragEvent) {
 		setTaskDrag(e, task.id);
+	}
+
+	function onTaskDragEnd() {
+		clearTaskDrag();
+		dropAsChildActive = false;
+	}
+
+	function onChildDragOver(e: DragEvent) {
+		if (!reparentEnabled || !hasDragKind(e, 'task')) return;
+		// Don't offer the row as a drop target for itself.
+		if (currentDraggingTaskId() === task.id) return;
+		e.preventDefault();
+		// Stop the section/root drop zone underneath from also highlighting.
+		e.stopPropagation();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dropAsChildActive = true;
+	}
+
+	function onChildDragLeave(e: DragEvent) {
+		const target = e.currentTarget as HTMLElement;
+		const related = e.relatedTarget as Node | null;
+		if (related && target.contains(related)) return;
+		dropAsChildActive = false;
+	}
+
+	function onChildDrop(e: DragEvent) {
+		if (!reparentEnabled) return;
+		const draggedId = readDraggedTask(e);
+		dropAsChildActive = false;
+		if (draggedId === null || draggedId === task.id) return;
+		e.preventDefault();
+		// Prevent the move from bubbling to the section drop handler, which would
+		// instead place the task in the section and clear the new parent link.
+		e.stopPropagation();
+		onReparent?.(draggedId, task.id);
 	}
 
 	function onTaskTouchStart(e: TouchEvent) {
@@ -174,30 +225,41 @@
 	class:py-2.5={hasMeta}
 	class:py-1.5={!hasMeta}
 	class:bg-accent={taskSelectionStore.mode && selected}
-	style:padding-left={onToggleCollapse && hasSubtasks ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
+	class:ring-2={dropAsChildActive}
+	class:ring-inset={dropAsChildActive}
+	class:ring-primary={dropAsChildActive}
+	style:padding-left={onToggleCollapse ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
 	draggable={draggable && !taskSelectionStore.mode}
 	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
+	ondragend={draggable && !taskSelectionStore.mode ? onTaskDragEnd : undefined}
+	ondragover={reparentEnabled ? onChildDragOver : undefined}
+	ondragleave={reparentEnabled ? onChildDragLeave : undefined}
+	ondrop={reparentEnabled ? onChildDrop : undefined}
 	ontouchstart={draggable && !taskSelectionStore.mode ? onTaskTouchStart : undefined}
 	ontouchmove={draggable && !taskSelectionStore.mode ? onTaskTouchMove : undefined}
 	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
 	role={draggable ? 'listitem' : undefined}
 >
-	{#if onToggleCollapse && hasSubtasks}
-		<button
-			type="button"
-			onclick={onToggleCollapse}
-			class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-			class:mt-0.5={hasMeta}
-			aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
-			aria-expanded={!subtasksCollapsed}
-		>
-			{#if subtasksCollapsed}
-				<CaretRightIcon class="size-3" />
-			{:else}
-				<CaretDownIcon class="size-3" />
-			{/if}
-		</button>
+	{#if onToggleCollapse}
+		{#if hasSubtasks}
+			<button
+				type="button"
+				onclick={onToggleCollapse}
+				class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+				class:mt-0.5={hasMeta}
+				aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
+				aria-expanded={!subtasksCollapsed}
+			>
+				{#if subtasksCollapsed}
+					<CaretRightIcon class="size-3" />
+				{:else}
+					<CaretDownIcon class="size-3" />
+				{/if}
+			</button>
+		{:else}
+			<div class="size-4 shrink-0"></div>
+		{/if}
 	{/if}
 	{#if taskSelectionStore.mode}
 		<button
