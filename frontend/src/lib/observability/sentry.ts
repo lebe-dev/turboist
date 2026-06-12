@@ -42,7 +42,15 @@ export async function initSentry(): Promise<void> {
 		environment: config.sentry?.environment || undefined,
 		release: __APP_VERSION__,
 		// Errors only — no performance tracing.
-		tracesSampleRate: 0
+		tracesSampleRate: 0,
+		// Stale-chunk errors after a deploy: the client still references old
+		// hashed asset URLs that no longer exist on the server. Not actionable —
+		// the preloadError handler in +layout.svelte reloads the page to recover.
+		ignoreErrors: [
+			/Failed to fetch dynamically imported module/i,
+			/Importing a module script failed/i,
+			/error loading dynamically imported module/i
+		]
 	});
 	initialized = true;
 }
