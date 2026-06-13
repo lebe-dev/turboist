@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { t } from '$lib/i18n';
+	import { IsMobile } from '$lib/hooks';
 	import type { DayPart, Priority, Task } from '$lib/api/types';
 	import { PROJECT_SECTIONS_KEY, type ProjectSectionsCtx } from '$lib/context/projectSections';
 	import { Button } from '$lib/components/ui/button';
@@ -124,11 +125,69 @@
 		}
 	}
 
+	// On narrow screens a side-opening submenu can't fit next to the main menu
+	// (both are ~14rem wide), so we inline the "Actions" items instead of nesting them.
+	const isMobile = new IsMobile();
+
 	let menuOpen = $state(false);
 	let moveOpen = $state(false);
 	let moveSectionOpen = $state(false);
 	let decomposeOpen = $state(false);
 </script>
+
+{#snippet actionItems()}
+	<DropdownMenu.Item
+		onclick={() => {
+			if (!taskSelectionStore.mode) taskSelectionStore.enable();
+			if (!selectIncludesSelf) return;
+			if (taskSelectionStore.has(task.id)) taskSelectionStore.toggle(task.id);
+			else taskSelectionStore.add(task.id);
+		}}
+	>
+		<CheckSquareIcon class="size-4" />
+		{selectIncludesSelf && taskSelectionStore.has(task.id)
+			? $t('task.actions.deselect')
+			: $t('task.actions.select')}
+	</DropdownMenu.Item>
+	{#if !inInbox}
+		<DropdownMenu.Item
+			onclick={async () => {
+				const next = !task.isPrivate;
+				await updateTaskFields(task, mutator, { isPrivate: next }, { belongs });
+				toast.success($t('common.privacyUpdated'));
+			}}
+		>
+			{#if task.isPrivate}
+				<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
+			{:else}
+				<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
+			{/if}
+		</DropdownMenu.Item>
+	{/if}
+	<DropdownMenu.Item onclick={() => (moveOpen = true)}>
+		<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
+	</DropdownMenu.Item>
+	{#if showMoveToSection}
+		<DropdownMenu.Item onclick={() => (moveSectionOpen = true)}>
+			<ListIcon class="size-4" /> {$t('task.actions.moveToSection')}
+		</DropdownMenu.Item>
+	{/if}
+	{#if !inInbox}
+		<DropdownMenu.Item
+			disabled={hasSubtasks}
+			title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
+			onclick={() => {
+				if (!hasSubtasks) decomposeOpen = true;
+			}}
+		>
+			<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
+		</DropdownMenu.Item>
+	{/if}
+	<DropdownMenu.Item onclick={() => void toggleHarpoon()}>
+		<AnchorIcon class="size-4" />
+		{isHarpooned ? $t('harpoon.detach') : $t('harpoon.attach')}
+	</DropdownMenu.Item>
+{/snippet}
 
 <DropdownMenu.Root bind:open={menuOpen}>
 	<DropdownMenu.Trigger>
@@ -162,64 +221,18 @@
 			</DropdownMenu.Item>
 		{/if}
 
-		<DropdownMenu.Sub>
-			<DropdownMenu.SubTrigger>
-				<DotsThreeIcon class="size-4" /> {$t('task.actions.moreSubmenu')}
-			</DropdownMenu.SubTrigger>
-			<DropdownMenu.SubContent class="min-w-[14rem]">
-				<DropdownMenu.Item
-					onclick={() => {
-						if (!taskSelectionStore.mode) taskSelectionStore.enable();
-						if (!selectIncludesSelf) return;
-						if (taskSelectionStore.has(task.id)) taskSelectionStore.toggle(task.id);
-						else taskSelectionStore.add(task.id);
-					}}
-				>
-					<CheckSquareIcon class="size-4" />
-					{selectIncludesSelf && taskSelectionStore.has(task.id)
-						? $t('task.actions.deselect')
-						: $t('task.actions.select')}
-				</DropdownMenu.Item>
-				{#if !inInbox}
-					<DropdownMenu.Item
-						onclick={async () => {
-							const next = !task.isPrivate;
-							await updateTaskFields(task, mutator, { isPrivate: next }, { belongs });
-							toast.success($t('common.privacyUpdated'));
-						}}
-					>
-						{#if task.isPrivate}
-							<LockSimpleOpenIcon class="size-4" /> {$t('common.unmarkPrivate')}
-						{:else}
-							<LockSimpleIcon class="size-4" /> {$t('common.markPrivate')}
-						{/if}
-					</DropdownMenu.Item>
-				{/if}
-				<DropdownMenu.Item onclick={() => (moveOpen = true)}>
-					<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
-				</DropdownMenu.Item>
-				{#if showMoveToSection}
-					<DropdownMenu.Item onclick={() => (moveSectionOpen = true)}>
-						<ListIcon class="size-4" /> {$t('task.actions.moveToSection')}
-					</DropdownMenu.Item>
-				{/if}
-				{#if !inInbox}
-					<DropdownMenu.Item
-						disabled={hasSubtasks}
-						title={hasSubtasks ? $t('task.actions.decomposeDisabled') : undefined}
-						onclick={() => {
-							if (!hasSubtasks) decomposeOpen = true;
-						}}
-					>
-						<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
-					</DropdownMenu.Item>
-				{/if}
-				<DropdownMenu.Item onclick={() => void toggleHarpoon()}>
-					<AnchorIcon class="size-4" />
-					{isHarpooned ? $t('harpoon.detach') : $t('harpoon.attach')}
-				</DropdownMenu.Item>
-			</DropdownMenu.SubContent>
-		</DropdownMenu.Sub>
+		{#if isMobile.current}
+			{@render actionItems()}
+		{:else}
+			<DropdownMenu.Sub>
+				<DropdownMenu.SubTrigger>
+					<DotsThreeIcon class="size-4" /> {$t('task.actions.moreSubmenu')}
+				</DropdownMenu.SubTrigger>
+				<DropdownMenu.SubContent class="min-w-[14rem]">
+					{@render actionItems()}
+				</DropdownMenu.SubContent>
+			</DropdownMenu.Sub>
+		{/if}
 
 		{#if !inInbox}
 		<DropdownMenu.Separator />
