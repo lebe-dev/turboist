@@ -27,6 +27,7 @@
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
 	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
+	import HarpoonJumpButton from '$lib/components/app/HarpoonJumpButton.svelte';
 	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
@@ -428,7 +429,10 @@ async function save(): Promise<void> {
 		{/if}
 	</div>
 	{#if task}
-		<TaskActionsMenu task={task} mutator={pageMutator} selectIncludesSelf={false} />
+		<div class="flex shrink-0 items-center gap-1">
+			<HarpoonJumpButton kind="task" id={task.id} />
+			<TaskActionsMenu task={task} mutator={pageMutator} selectIncludesSelf={false} />
+		</div>
 	{/if}
 </header>
 

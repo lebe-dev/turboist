@@ -121,6 +121,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings, troikiSvc, testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
+	handlers.NewHarpoonHandler(service.NewHarpoonService(users, tasks, projs)).Register(api)
 	handlers.NewAppSettingsHandler(appSettings, lbls).Register(api)
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))

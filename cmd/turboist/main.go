@@ -117,6 +117,7 @@ func main() {
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, taskRepo, tlabels)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
+	harpoonSvc := service.NewHarpoonService(userRepo, taskRepo, projectRepo)
 	backupSvc := service.NewBackupService(sqlDB)
 
 	var totpSvc *totpsvc.Service
@@ -214,6 +215,7 @@ func main() {
 	handlers.NewMetaHandler(cfg, totpSvc != nil, ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo, troikiSvc, env.BaseURL).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
+	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))

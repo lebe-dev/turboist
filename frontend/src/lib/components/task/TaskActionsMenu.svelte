@@ -7,6 +7,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { harpoonStore } from '$lib/stores/harpoon.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { toast } from 'svelte-sonner';
@@ -18,6 +19,7 @@
 	import {
 		copyTaskTitle,
 		deleteTask,
+		describeError,
 		duplicateTask,
 		moveToBacklog,
 		removeFromBacklog,
@@ -39,6 +41,7 @@
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import ListBulletsIcon from 'phosphor-svelte/lib/ListBullets';
+	import AnchorIcon from 'phosphor-svelte/lib/Anchor';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
 	import SunIcon from 'phosphor-svelte/lib/Sun';
@@ -109,6 +112,17 @@
 	const showMoveToSection = $derived(
 		(projectSectionsCtx?.sections.length ?? 0) > 0 && task.projectId !== null
 	);
+
+	const isHarpooned = $derived(harpoonStore.isHarpooned('task', task.id));
+
+	async function toggleHarpoon() {
+		try {
+			if (isHarpooned) await harpoonStore.detach('task', task.id);
+			else await harpoonStore.attach('task', task.id);
+		} catch (err) {
+			toast.error(describeError(err, $t('harpoon.toastFailed')));
+		}
+	}
 
 	let menuOpen = $state(false);
 	let moveOpen = $state(false);
@@ -200,6 +214,10 @@
 						<ListBulletsIcon class="size-4" /> {$t('task.actions.decompose')}
 					</DropdownMenu.Item>
 				{/if}
+				<DropdownMenu.Item onclick={() => void toggleHarpoon()}>
+					<AnchorIcon class="size-4" />
+					{isHarpooned ? $t('harpoon.detach') : $t('harpoon.attach')}
+				</DropdownMenu.Item>
 			</DropdownMenu.SubContent>
 		</DropdownMenu.Sub>
 

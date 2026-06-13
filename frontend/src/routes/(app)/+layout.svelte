@@ -22,6 +22,7 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
+	import { harpoonStore } from '$lib/stores/harpoon.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
@@ -144,6 +145,9 @@
 					setLocale(settingsStore.locale);
 				}
 				dataReady = true;
+				// Harpoon is a small navigation convenience loaded out-of-band: a
+				// failure here must not block the workspace, so it is fire-and-forget.
+				void harpoonStore.load().catch(() => {});
 			} catch (err) {
 				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
 				toast.error(message);

@@ -220,6 +220,18 @@ export interface UserSettings {
 	troikiEnabled: boolean;
 }
 
+export type HarpoonKind = 'task' | 'project';
+
+export interface HarpoonSlot {
+	kind: HarpoonKind;
+	id: number;
+	title: string;
+}
+
+export interface HarpoonState {
+	slots: HarpoonSlot[];
+}
+
 export interface CalendarAccount {
 	id: number;
 	provider: string;

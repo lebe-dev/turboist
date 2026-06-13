@@ -615,6 +615,9 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/config` | `settings:read` |
 | `GET /api/v1/state` | `settings:read` |
 | `PATCH /api/v1/state` | `settings:write` |
+| `GET /api/v1/harpoon` | `settings:read` |
+| `POST /api/v1/harpoon/attach` | `settings:write` |
+| `POST /api/v1/harpoon/detach` | `settings:write` |
 
 #### Search
 
@@ -1933,6 +1936,57 @@ curl -X PATCH "$BASE/api/v1/settings" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"weeklyUnplannedExcludedLabelIds":[3,7]}'
+```
+
+---
+
+## Harpoon
+
+A per-user "jump pair": at most **two** task/project references the user can hop
+between with one click. Order is significant — slot 0 is the first member, slot 1
+the second. Attaching a third reference evicts the oldest (FIFO). References are
+persisted in user settings; titles are hydrated on read, and references to deleted
+entities are silently dropped (self-healing).
+
+All three endpoints return the same hydrated shape:
+
+```json
+{
+  "slots": [
+    { "kind": "task", "id": 42, "title": "Do thing" },
+    { "kind": "project", "id": 7, "title": "My project" }
+  ]
+}
+```
+
+### `GET /api/v1/harpoon`
+
+```sh
+curl "$BASE/api/v1/harpoon" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `POST /api/v1/harpoon/attach`
+
+Adds a reference (idempotent). `kind` is `"task"` or `"project"`; the target must
+exist (`404` otherwise).
+
+```sh
+curl -X POST "$BASE/api/v1/harpoon/attach" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"task","id":42}'
+```
+
+### `POST /api/v1/harpoon/detach`
+
+Removes a reference (idempotent — removing an absent reference is a no-op).
+
+```sh
+curl -X POST "$BASE/api/v1/harpoon/detach" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"task","id":42}'
 ```
 
 ---
