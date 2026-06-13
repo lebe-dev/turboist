@@ -329,7 +329,7 @@
 				description: description.trim() || undefined,
 				priority,
 				dayPart,
-				dueAt: dueDate
+				dueAt: !isInbox && dueDate
 					? toIsoUtc(dayStartUtcInTz(dueDate, configStore.value?.timezone ?? null))
 					: null,
 				dueHasTime: false as const,

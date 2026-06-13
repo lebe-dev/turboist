@@ -24,6 +24,20 @@
 			await authStore.bootstrap();
 			bootstrapped = true;
 		})();
+
+		const RELOAD_GUARD_KEY = 'turboist:chunk-reload';
+		// Clear the guard once the app has run a bit, so a *future* deploy can
+		// trigger a reload again — this only prevents a tight reload loop.
+		setTimeout(() => sessionStorage.removeItem(RELOAD_GUARD_KEY), 5000);
+
+		const onPreloadError = (event: Event) => {
+			event.preventDefault();
+			if (sessionStorage.getItem(RELOAD_GUARD_KEY)) return;
+			sessionStorage.setItem(RELOAD_GUARD_KEY, '1');
+			window.location.reload();
+		};
+		window.addEventListener('vite:preloadError', onPreloadError);
+		return () => window.removeEventListener('vite:preloadError', onPreloadError);
 	});
 
 	$effect(() => {
