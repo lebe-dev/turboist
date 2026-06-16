@@ -224,9 +224,9 @@
 
 		allowSave = false;
 		task = t;
-		if (title !== t.title) title = t.title;
+		if (!titleFocused && title !== t.title) title = t.title;
 		const nextDescription = t.description ?? '';
-		if (description !== nextDescription) description = nextDescription;
+		if (!descriptionFocused && description !== nextDescription) description = nextDescription;
 		if (priority !== t.priority) priority = t.priority;
 		if (dayPart !== t.dayPart) dayPart = t.dayPart;
 		const nextRecurrence = t.recurrenceRule ?? null;
@@ -490,7 +490,10 @@ async function save(): Promise<void> {
 								scheduleSave();
 							}}
 							onfocus={() => (titleFocused = true)}
-							onblur={() => (titleFocused = false)}
+							onblur={() => {
+								titleFocused = false;
+								if (title !== title.trim()) title = title.trim();
+							}}
 							onkeydown={(e) => {
 								if (e.key === 'Enter') {
 									e.preventDefault();
