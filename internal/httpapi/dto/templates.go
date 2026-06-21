@@ -60,6 +60,31 @@ func TaskTemplateFromModel(t model.TaskTemplate) TaskTemplateDTO {
 	}
 }
 
+// TaskTemplateDraftFromTask builds an unsaved template draft from a task and
+// its flattened descendants (deeper nesting collapsed into a single subtask
+// level). IDs, position and timestamps are left zero/empty: the draft is meant
+// to prefill the template editor, not to represent a persisted template.
+func TaskTemplateDraftFromTask(root model.Task, descendants []model.Task) TaskTemplateDTO {
+	subtasks := make([]TaskTemplateSubtaskDTO, len(descendants))
+	for i, st := range descendants {
+		subtasks[i] = TaskTemplateSubtaskDTO{
+			Title:       st.Title,
+			Description: st.Description,
+			Priority:    string(st.Priority),
+			DayPart:     string(st.DayPart),
+			Labels:      labelDTOs(st.Labels),
+		}
+	}
+	return TaskTemplateDTO{
+		Name:        root.Title,
+		Description: root.Description,
+		Priority:    string(root.Priority),
+		DayPart:     string(root.DayPart),
+		Labels:      labelDTOs(root.Labels),
+		Subtasks:    subtasks,
+	}
+}
+
 // TemplateSubtaskRequest is one subtask in a create/update payload.
 type TemplateSubtaskRequest struct {
 	Title       string  `json:"title"`

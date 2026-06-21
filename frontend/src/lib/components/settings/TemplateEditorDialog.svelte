@@ -12,10 +12,14 @@
 	let {
 		open = $bindable(false),
 		template = null,
+		prefill = null,
 		onSave
 	}: {
 		open?: boolean;
 		template?: TaskTemplate | null;
+		// Initial values for a brand-new template (e.g. captured from a task).
+		// Unlike `template`, it does not switch the dialog into edit mode.
+		prefill?: TaskTemplate | null;
 		onSave?: (input: TaskTemplateInput) => void | Promise<void>;
 	} = $props();
 
@@ -60,7 +64,7 @@
 
 	let prevOpen = false;
 	$effect(() => {
-		if (open && !prevOpen) loadFrom(template);
+		if (open && !prevOpen) loadFrom(template ?? prefill);
 		prevOpen = open;
 	});
 

@@ -463,7 +463,10 @@
 			"decomposeDisabled": "Нельзя разбить: у задачи есть подзадачи",
 			"select": "Выбрать задачи",
 			"deselect": "Снять выбор",
-			"moreSubmenu": "Действия"
+			"moreSubmenu": "Действия",
+			"createTemplate": "Создать шаблон",
+			"createTemplateSuccess": "Шаблон создан",
+			"createTemplateFailed": "Не удалось создать шаблон"
 		},
 		"dayPart": {
 			"morning": "Утро",

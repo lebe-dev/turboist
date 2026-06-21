@@ -463,7 +463,10 @@
 			"decomposeDisabled": "Cannot decompose: task has subtasks",
 			"select": "Select tasks",
 			"deselect": "Deselect",
-			"moreSubmenu": "Actions"
+			"moreSubmenu": "Actions",
+			"createTemplate": "Create template",
+			"createTemplateSuccess": "Template created",
+			"createTemplateFailed": "Failed to create template"
 		},
 		"dayPart": {
 			"morning": "Morning",

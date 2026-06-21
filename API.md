@@ -510,6 +510,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `PATCH /api/v1/tasks/:id` | `tasks:write` |
 | `DELETE /api/v1/tasks/:id` | `tasks:write` |
 | `GET /api/v1/tasks/:id/subtasks` | `tasks:read` |
+| `GET /api/v1/tasks/:id/template-draft` | `tasks:read` |
 | `POST /api/v1/tasks/:id/subtasks` | `tasks:write` |
 | `POST /api/v1/tasks/:id/duplicate` | `tasks:write` |
 | `POST /api/v1/tasks/:id/decompose` | `tasks:write` |
@@ -809,6 +810,22 @@ Returns a paged list of subtasks.
 
 ```sh
 curl "$BASE/api/v1/tasks/42/subtasks" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `GET /api/v1/tasks/:id/template-draft`
+
+Builds an **unsaved** [task template](#task-templates) draft from the task and its
+whole subtree. Deeper nesting is flattened into a single subtask level
+(depth-first pre-order), and each captured task carries its hydrated labels. The
+root task's title becomes the template `name`. IDs, position and timestamps are
+zero/empty — the response is meant to prefill the template editor; nothing is
+persisted. Save it with `POST /api/v1/task-templates`.
+
+**Response:** [TaskTemplate](#task-templates) shape (with `id: 0`).
+
+```sh
+curl "$BASE/api/v1/tasks/42/template-draft" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -1719,6 +1736,11 @@ Reusable blueprints — a root task plus an ordered set of subtasks — that can
 materialized into any project. Each template row (root and subtask) captures
 `title`/`description`/`priority`/`dayPart` plus a set of labels. Templates are
 single-user local configuration: they are not federated and are hard-deleted.
+
+A template can also be seeded from an existing task with
+[`GET /api/v1/tasks/:id/template-draft`](#get-apiv1tasksidtemplate-draft), which
+returns an unsaved draft (the task plus its flattened subtree) to prefill the
+editor before saving via `POST`.
 
 ### Template Object
 

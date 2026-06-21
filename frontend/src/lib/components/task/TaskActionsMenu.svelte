@@ -2,10 +2,15 @@
 	import { getContext } from 'svelte';
 	import { t } from '$lib/i18n';
 	import { IsMobile } from '$lib/hooks';
-	import type { DayPart, Priority, Task } from '$lib/api/types';
+	import type { DayPart, Priority, Task, TaskTemplate, TaskTemplateInput } from '$lib/api/types';
 	import { PROJECT_SECTIONS_KEY, type ProjectSectionsCtx } from '$lib/context/projectSections';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { getApiClient } from '$lib/api/client';
+	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
+	import { templates as templatesApi } from '$lib/api/endpoints/templates';
+	import { templatesStore } from '$lib/stores/templates.svelte';
+	import TemplateEditorDialog from '$lib/components/settings/TemplateEditorDialog.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { harpoonStore } from '$lib/stores/harpoon.svelte';
@@ -42,6 +47,7 @@
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import ListBulletsIcon from 'phosphor-svelte/lib/ListBullets';
+	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import AnchorIcon from 'phosphor-svelte/lib/Anchor';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
@@ -133,6 +139,30 @@
 	let moveOpen = $state(false);
 	let moveSectionOpen = $state(false);
 	let decomposeOpen = $state(false);
+	let templateEditorOpen = $state(false);
+	let templateDraft = $state<TaskTemplate | null>(null);
+
+	// Capture the task (and its flattened subtree) as a template draft, then open
+	// the editor prefilled so the user can rename/adjust before saving.
+	async function createTemplateFromTask(): Promise<void> {
+		try {
+			templateDraft = await tasksApi.templateDraft(getApiClient(), task.id);
+			templateEditorOpen = true;
+		} catch (err) {
+			toast.error(describeError(err, $t('task.actions.createTemplateFailed')));
+		}
+	}
+
+	async function saveTemplate(input: TaskTemplateInput): Promise<void> {
+		try {
+			const saved = await templatesApi.create(getApiClient(), input);
+			templatesStore.upsert(saved);
+			toast.success($t('task.actions.createTemplateSuccess'));
+		} catch (err) {
+			toast.error(describeError(err, $t('settings.templates.toastSaveFailed')));
+			throw err;
+		}
+	}
 </script>
 
 {#snippet actionItems()}
@@ -186,6 +216,9 @@
 	<DropdownMenu.Item onclick={() => void toggleHarpoon()}>
 		<AnchorIcon class="size-4" />
 		{isHarpooned ? $t('harpoon.detach') : $t('harpoon.attach')}
+	</DropdownMenu.Item>
+	<DropdownMenu.Item onclick={() => void createTemplateFromTask()}>
+		<StackIcon class="size-4" /> {$t('task.actions.createTemplate')}
 	</DropdownMenu.Item>
 {/snippet}
 
@@ -365,3 +398,4 @@
 <MoveTaskDialog bind:open={moveOpen} {task} {mutator} {belongs} />
 <MoveSectionDialog bind:open={moveSectionOpen} {task} {mutator} {belongs} sections={projectSectionsCtx?.sections} />
 <DecomposeTaskDialog bind:open={decomposeOpen} {task} {mutator} />
+<TemplateEditorDialog bind:open={templateEditorOpen} prefill={templateDraft} onSave={saveTemplate} />

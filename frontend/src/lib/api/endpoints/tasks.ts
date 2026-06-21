@@ -7,7 +7,8 @@ import type {
 	Task,
 	TaskInput,
 	TaskMoveInput,
-	TaskPlanInput
+	TaskPlanInput,
+	TaskTemplate
 } from '../types';
 
 export const tasks = {
@@ -57,6 +58,12 @@ export const tasks = {
 
 	listSubtasks(client: ApiClient, parentId: number): Promise<Page<Task>> {
 		return client.fetch(`/api/v1/tasks/${parentId}/subtasks`);
+	},
+
+	// Build an unsaved template draft from a task and its (flattened) subtree.
+	// Nothing is persisted — the result prefills the template editor.
+	templateDraft(client: ApiClient, id: number): Promise<TaskTemplate> {
+		return client.fetch(`/api/v1/tasks/${id}/template-draft`);
 	},
 
 	createSubtask(client: ApiClient, parentId: number, input: TaskInput): Promise<Task> {
