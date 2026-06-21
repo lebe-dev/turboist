@@ -71,6 +71,9 @@
 		"closeSearch": "Close search",
 		"openMenu": "Open menu",
 		"quickAdd": "Quick add (Q)",
+		"quickAddMenu": "Quick add options",
+		"newTask": "New task",
+		"fromTemplate": "From template",
 		"troikiSystem": "Troiki System",
 		"activeContextFilter": "Active context filter",
 		"all": "All",
@@ -78,12 +81,23 @@
 		"failedSetContext": "Failed to set context",
 		"toggleSelect": "Toggle multi-select"
 	},
+	"template": {
+		"toast": {
+			"created": "{count, plural, one {# task created} other {# tasks created}} from template",
+			"failed": "Failed to create tasks from template"
+		},
+		"pickProject": {
+			"title": "Choose a project",
+			"description": "Pick the project to create the template's tasks in."
+		}
+	},
 	"settings": {
 		"title": "Settings",
 		"subtitle": "Personalise how your workspace looks and behaves.",
 		"tabs": {
 			"general": "General",
 			"labels": "Labels",
+			"templates": "Templates",
 			"project": "Project",
 			"troiki": "Troiki",
 			"privacy": "Privacy",
@@ -144,6 +158,31 @@
 			"toastSaved": "Auto-label rules saved",
 			"toastFailed": "Failed to save auto-label rules",
 			"toastEmptyFields": "Mask must not be empty and at least one label must be selected"
+		},
+		"templates": {
+			"heading": "Task templates",
+			"description": "Reusable blueprints — a task and its subtasks — that you can drop into any project from the quick-add menu.",
+			"new": "New template",
+			"empty": "No templates yet.",
+			"subtaskCount": "{count, plural, =0 {No subtasks} one {# subtask} other {# subtasks}}",
+			"edit": "Edit template",
+			"delete": "Delete template",
+			"newTitle": "New template",
+			"editTitle": "Edit template",
+			"dialogDescription": "Define a task and its subtasks to reuse later.",
+			"nameLabel": "Template name",
+			"namePlaceholder": "Template name (used as the task title)",
+			"descriptionPlaceholder": "Description (optional)",
+			"subtasksHeading": "Subtasks",
+			"subtaskTitlePlaceholder": "Subtask title",
+			"addSubtask": "Add subtask",
+			"removeSubtask": "Remove subtask",
+			"toastSaved": "Template saved",
+			"toastSaveFailed": "Failed to save template",
+			"toastDeleted": "Template deleted",
+			"toastDeleteFailed": "Failed to delete template",
+			"confirmDeleteTitle": "Delete template?",
+			"confirmDeleteNamed": "Delete the template \"{name}\"? This cannot be undone."
 		},
 		"version": {
 			"heading": "App version",

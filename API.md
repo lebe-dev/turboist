@@ -587,6 +587,17 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/labels/:id/tasks` | `tasks:read` |
 | `GET /api/v1/labels/:id/projects` | `projects:read` |
 
+#### Task Templates
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/task-templates` | `templates:read` |
+| `GET /api/v1/task-templates/:id` | `templates:read` |
+| `POST /api/v1/task-templates` | `templates:write` |
+| `PATCH /api/v1/task-templates/:id` | `templates:write` |
+| `DELETE /api/v1/task-templates/:id` | `templates:write` |
+| `POST /api/v1/task-templates/:id/instantiate` | `tasks:write` |
+
 #### Sections
 
 | Endpoint | Scope |
@@ -1698,6 +1709,108 @@ Projects with this label. Supports `limit`, `offset`.
 ```sh
 curl "$BASE/api/v1/labels/3/projects" \
   -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Task Templates
+
+Reusable blueprints — a root task plus an ordered set of subtasks — that can be
+materialized into any project. Each template row (root and subtask) captures
+`title`/`description`/`priority`/`dayPart` plus a set of labels. Templates are
+single-user local configuration: they are not federated and are hard-deleted.
+
+### Template Object
+
+```json
+{
+  "id": 1,
+  "name": "Onboard client",
+  "description": "Kick off a new client engagement",
+  "priority": "high",
+  "dayPart": "morning",
+  "position": 0,
+  "labels": [LabelObject, ...],
+  "subtasks": [
+    {
+      "id": 10,
+      "title": "Schedule kickoff call",
+      "description": "",
+      "priority": "medium",
+      "dayPart": "none",
+      "labels": [LabelObject, ...]
+    }
+  ],
+  "createdAt": "2026-06-21T10:00:00.000Z",
+  "updatedAt": "2026-06-21T10:00:00.000Z"
+}
+```
+
+### `GET /api/v1/task-templates`
+
+Lists all templates (paged envelope; returns every template). Ordered by
+`position`, then `name`.
+
+```sh
+curl "$BASE/api/v1/task-templates" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `POST /api/v1/task-templates`
+
+Create a template. `name` is required and is used as the root task's title.
+`subtasks` is optional; each subtask requires a non-empty `title`. `priority`
+defaults to `no-priority`, `dayPart` to `none`. Returns `201`.
+
+```sh
+curl -X POST "$BASE/api/v1/task-templates" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "name": "Onboard client",
+        "description": "",
+        "priority": "high",
+        "dayPart": "morning",
+        "labelIds": [3],
+        "subtasks": [
+          {"title": "Schedule kickoff call", "priority": "medium", "labelIds": [3]},
+          {"title": "Send contract"}
+        ]
+      }'
+```
+
+### `GET /api/v1/task-templates/:id`
+
+Single template with subtasks and labels.
+
+### `PATCH /api/v1/task-templates/:id`
+
+Full replace: the body has the same shape as `POST` and rewrites the template's
+fields, labels and subtasks wholesale (there is no granular subtask API).
+
+### `DELETE /api/v1/task-templates/:id`
+
+Hard-deletes the template; subtasks and label links cascade. Returns `204`.
+
+### `POST /api/v1/task-templates/:id/instantiate`
+
+Materialize the template into a project: creates the root task and each subtask
+under it (auto-labels and Troiki priority coercion apply, as for normal task
+creation). **Request:** `{"projectId": 5}`. Returns `201` with the created root
+task and subtasks.
+
+```sh
+curl -X POST "$BASE/api/v1/task-templates/1/instantiate" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"projectId": 5}'
+```
+
+```json
+{
+  "root": TaskObject,
+  "subtasks": [TaskObject, ...]
+}
 ```
 
 ---

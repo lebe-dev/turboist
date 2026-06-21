@@ -420,6 +420,50 @@ export interface TaskInput {
 	isPrivate?: boolean;
 }
 
+export interface TaskTemplateSubtask {
+	id: number;
+	title: string;
+	description: string;
+	priority: Priority;
+	dayPart: DayPart;
+	labels: Label[];
+}
+
+export interface TaskTemplate {
+	id: number;
+	name: string;
+	description: string;
+	priority: Priority;
+	dayPart: DayPart;
+	position: number;
+	labels: Label[];
+	subtasks: TaskTemplateSubtask[];
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface TaskTemplateSubtaskInput {
+	title: string;
+	description?: string;
+	priority?: Priority;
+	dayPart?: DayPart;
+	labelIds?: number[];
+}
+
+export interface TaskTemplateInput {
+	name: string;
+	description?: string;
+	priority?: Priority;
+	dayPart?: DayPart;
+	labelIds?: number[];
+	subtasks?: TaskTemplateSubtaskInput[];
+}
+
+export interface InstantiateTemplateResult {
+	root: Task;
+	subtasks: Task[];
+}
+
 export type TaskMoveInput =
 	| { inboxId: number }
 	| { contextId: number; projectId?: number; sectionId?: number; parentId?: number };

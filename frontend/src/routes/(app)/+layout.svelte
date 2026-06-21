@@ -23,6 +23,7 @@
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
 	import { harpoonStore } from '$lib/stores/harpoon.svelte';
+	import { templatesStore } from '$lib/stores/templates.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
@@ -30,6 +31,8 @@
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
+	import { templates as templatesApi } from '$lib/api/endpoints/templates';
+	import ProjectPickerDialog from '$lib/components/dialog/ProjectPickerDialog.svelte';
 	import { describeError } from '$lib/utils/taskActions';
 	import { shiftDayKey } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
@@ -38,6 +41,7 @@
 	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
 
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
+	import CardsIcon from 'phosphor-svelte/lib/Cards';
 
 	let { children } = $props();
 
@@ -69,6 +73,9 @@
 	let loadFailed = $state(false);
 	let quickOpen = $state(false);
 	let mobileSidebarOpen = $state(false);
+	let templateSheetOpen = $state(false);
+	let projectPickerOpen = $state(false);
+	let pendingTemplateId = $state<number | null>(null);
 	let followUpOverride = $state<{
 		projectId: number | null;
 		labelIds: number[];
@@ -148,6 +155,10 @@
 				// Harpoon is a small navigation convenience loaded out-of-band: a
 				// failure here must not block the workspace, so it is fire-and-forget.
 				void harpoonStore.load().catch(() => {});
+				// Templates power the quick-add "from template" menu and the
+				// settings editor; load out-of-band so a failure never blocks
+				// the workspace.
+				void templatesStore.load().catch(() => {});
 			} catch (err) {
 				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
 				toast.error(message);
@@ -503,6 +514,80 @@
 		}
 	}
 
+	async function instantiateTemplate(templateId: number, projectId: number): Promise<void> {
+		try {
+			const client = getApiClient();
+			const result = await templatesApi.instantiate(client, templateId, projectId);
+			toast.success(
+				$t('template.toast.created', { values: { count: result.subtasks.length + 1 } })
+			);
+			// Announce the root AND each subtask so optimistic list views render the
+			// whole tree immediately. The SSE echo for this tab is suppressed
+			// (self-origin), so without per-subtask events the children would only
+			// appear after a manual refresh.
+			for (const task of [result.root, ...result.subtasks]) {
+				window.dispatchEvent(
+					new CustomEvent('turboist:task-created', {
+						detail: {
+							task,
+							projectId: task.projectId,
+							contextId: task.contextId
+						}
+					})
+				);
+			}
+		} catch (err) {
+			toast.error(describeError(err, $t('template.toast.failed')));
+		}
+	}
+
+	// Materialize a template into the current project. When the active route has
+	// no project context (e.g. /today, a context view), ask the user to pick one.
+	function onPickTemplate(templateId: number): void {
+		templateSheetOpen = false;
+		const projectId = quickAddDefaults.projectId;
+		if (projectId !== null) {
+			void instantiateTemplate(templateId, projectId);
+			return;
+		}
+		pendingTemplateId = templateId;
+		projectPickerOpen = true;
+	}
+
+	function onProjectPicked(projectId: number): void {
+		const templateId = pendingTemplateId;
+		pendingTemplateId = null;
+		if (templateId !== null) void instantiateTemplate(templateId, projectId);
+	}
+
+	// Mobile FAB: a tap opens quick-add; a long-press opens the template sheet.
+	let fabLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let fabLongPressed = false;
+
+	function fabPointerDown(): void {
+		fabLongPressed = false;
+		fabLongPressTimer = setTimeout(() => {
+			fabLongPressed = true;
+			templateSheetOpen = true;
+		}, 450);
+	}
+
+	function fabPointerCancel(): void {
+		if (fabLongPressTimer !== null) {
+			clearTimeout(fabLongPressTimer);
+			fabLongPressTimer = null;
+		}
+	}
+
+	function fabClick(): void {
+		fabPointerCancel();
+		if (fabLongPressed) {
+			fabLongPressed = false;
+			return;
+		}
+		onQuickAdd();
+	}
+
 	function onKeydown(e: KeyboardEvent): void {
 		if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'j' || e.key === 'J')) {
 			e.preventDefault();
@@ -550,6 +635,7 @@
 		<div class="flex min-w-0 flex-1 flex-col">
 			<Topbar
 				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
+				onPickTemplate={quickAddHidden ? undefined : onPickTemplate}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
 			{#if !page.url.pathname.startsWith('/settings')}
@@ -599,11 +685,53 @@
 	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
 	{#if !quickAddHidden && !taskSelectionStore.mode}
 		<button
-			onclick={onQuickAdd}
+			onclick={fabClick}
+			onpointerdown={fabPointerDown}
+			onpointerup={fabPointerCancel}
+			onpointerleave={fabPointerCancel}
+			oncontextmenu={(e) => e.preventDefault()}
 			class="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform md:hidden"
 			aria-label={$t('task.quickAdd')}
 		>
 			<PlusIcon class="h-7 w-7" />
 		</button>
 	{/if}
+	<Sheet.Root bind:open={templateSheetOpen}>
+		<Sheet.Content side="bottom" class="max-h-[70vh] overflow-y-auto rounded-t-lg p-3 md:hidden">
+			<Sheet.Header class="px-2 pb-1 pt-0">
+				<Sheet.Title>{$t('topbar.quickAddMenu')}</Sheet.Title>
+			</Sheet.Header>
+			<div class="flex flex-col gap-1 pb-4 pt-2">
+				<button
+					type="button"
+					onclick={() => {
+						templateSheetOpen = false;
+						onQuickAdd();
+					}}
+					class="flex items-center gap-3 rounded-md px-3 py-3 text-left text-sm transition-colors hover:bg-accent"
+				>
+					<PlusIcon class="size-4" />
+					{$t('topbar.newTask')}
+				</button>
+				{#if templatesStore.items.length > 0}
+					<div class="mt-1 flex items-center gap-2 px-3 pb-1 text-xs font-medium text-muted-foreground">
+						<CardsIcon class="size-3.5" />
+						{$t('topbar.fromTemplate')}
+					</div>
+					{#each templatesStore.items as template (template.id)}
+						<button
+							type="button"
+							onclick={() => onPickTemplate(template.id)}
+							class="flex items-center gap-3 rounded-md px-3 py-3 text-left text-sm transition-colors hover:bg-accent"
+						>
+							<span class="flex-1 truncate">{template.name}</span>
+						</button>
+					{/each}
+				{:else}
+					<p class="px-3 py-2 text-xs text-muted-foreground">{$t('settings.templates.empty')}</p>
+				{/if}
+			</div>
+		</Sheet.Content>
+	</Sheet.Root>
+	<ProjectPickerDialog bind:open={projectPickerOpen} onSelect={onProjectPicked} />
 {/if}

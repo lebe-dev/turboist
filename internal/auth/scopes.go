@@ -16,6 +16,7 @@ var ValidScopes = []string{
 	"projects:read", "projects:write",
 	"contexts:read", "contexts:write",
 	"labels:read", "labels:write",
+	"templates:read", "templates:write",
 	"sections:read", "sections:write",
 	"troiki:read", "troiki:write",
 	"settings:read", "settings:write",
