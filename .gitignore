@@ -13,9 +13,9 @@
 /data/
 /plans/
 /coverage.*
-docs/superpowers
 .playwright-mcp
 *.log
 .DS_Store
 /docs/plans
 /*.json
+frontend/coverage
