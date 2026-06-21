@@ -1,3 +1,6 @@
+# Load variables from .env (gitignored) into recipe environments — e.g. SONAR_TOKEN.
+set dotenv-load := true
+
 # --- Variables ---
 
 version := `cat VERSION`
@@ -5,10 +8,10 @@ imageName := 'tinyops/turboist'
 
 # --- Demo environment (init-env / reset-env) ---
 # Override via env vars on the command line if you run a different setup.
-turboistUrl  := env_var_or_default("TURBOIST_URL",       "http://127.0.0.1:18080")
-seedUser     := env_var_or_default("TURBOIST_SEED_USER", "eugene")
-seedPass     := env_var_or_default("TURBOIST_SEED_PASS", "test")
-dbPath       := env_var_or_default("DATA_PATH",          "data/turboist.db")
+turboistUrl := env_var_or_default("TURBOIST_URL", "http://127.0.0.1:18080")
+seedUser := env_var_or_default("TURBOIST_SEED_USER", "eugene")
+seedPass := env_var_or_default("TURBOIST_SEED_PASS", "test")
+dbPath := env_var_or_default("DATA_PATH", "data/turboist.db")
 
 # --- Dependencies ---
 bump-backend-deps:
@@ -137,6 +140,49 @@ reset-env:
     echo "==> removing $DB (+ -shm/-wal)"
     rm -f "$DB" "$DB-shm" "$DB-wal"
     echo "==> done. Start the backend to re-run migrations: just run-backend"
+
+# --- SonarQube (static analysis) ---
+# Compose stack lives in sonarqube.yml (SonarQube Community Build + PostgreSQL).
+# The scanner runs as a one-shot `docker run` and reads sonar-project.properties.
+sonarComposeFile := "sonarqube.yml"
+# Host URL as seen from *inside* the scanner container. host.docker.internal
+# reaches the host's published port 9000 on Docker Desktop and (via --add-host)
+# on Linux. Override with SONAR_HOST_URL when scanning a remote instance.
+sonarHostUrl := env_var_or_default("SONAR_HOST_URL", "http://host.docker.internal:9000")
+
+# Start SonarQube + PostgreSQL (UI at http://localhost:9000, admin/admin on first login)
+sonar-up:
+    docker compose -f {{ sonarComposeFile }} up -d
+    @echo "==> SonarQube starting at http://localhost:9000 (first boot ~1-2 min). Login admin/admin, then:"
+    @echo "==> 1. Set password 'h18D-a9127DaA8'."
+    @echo "==> 2. Create a token for 'just sonar-scan'."
+
+# Stop SonarQube (named volumes keep the DB + analysis history)
+sonar-down:
+    docker compose -f {{ sonarComposeFile }} down
+
+# Wipe SonarQube including all data volumes
+sonar-clean:
+    docker compose -f {{ sonarComposeFile }} down -v
+
+# Run the scanner against the running instance. Reads SONAR_TOKEN from .env
+# (auto-loaded via `set dotenv-load`); add a line like: SONAR_TOKEN=sqp_xxx
+sonar-scan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "${SONAR_TOKEN:-}" ]; then
+        echo "error: SONAR_TOKEN is not set." >&2
+        echo "  Generate a token at {{ sonarHostUrl }} -> My Account -> Security," >&2
+        echo "  then add it to .env:  SONAR_TOKEN=sqp_xxx" >&2
+        exit 1
+    fi
+    docker run --rm \
+        --add-host=host.docker.internal:host-gateway \
+        -e SONAR_HOST_URL="{{ sonarHostUrl }}" \
+        -e SONAR_TOKEN="$SONAR_TOKEN" \
+        -v "$PWD:/usr/src" \
+        sonarsource/sonar-scanner-cli:latest \
+        -Dsonar.projectVersion="{{ version }}"
 
 # --- Image ---
 build-image: test-all && lint
