@@ -22,6 +22,9 @@ const (
 
 	AuthMethodJWT      = "jwt"
 	AuthMethodAPIToken = "api_token"
+
+	opAuthMiddleware    = "httpapi.AuthMiddleware"
+	opAPIAuthMiddleware = "httpapi.APIAuthMiddleware"
 )
 
 // RequestIDMiddleware propagates or generates an X-Request-ID header and
@@ -115,12 +118,12 @@ func AuthMiddleware(issuer *auth.JWTIssuer) fiber.Handler {
 		ctx := c.Context()
 		header := c.Get("Authorization")
 		if header == "" {
-			logging.FromContext(ctx).WarnContext(ctx, "auth: missing authorization header", slog.String("op", "httpapi.AuthMiddleware"))
+			logging.FromContext(ctx).WarnContext(ctx, "auth: missing authorization header", slog.String("op", opAuthMiddleware))
 			return ErrAuthInvalid("missing authorization header")
 		}
 		parts := strings.SplitN(header, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			logging.FromContext(ctx).WarnContext(ctx, "auth: bad authorization header format", slog.String("op", "httpapi.AuthMiddleware"))
+			logging.FromContext(ctx).WarnContext(ctx, "auth: bad authorization header format", slog.String("op", opAuthMiddleware))
 			return ErrAuthInvalid("invalid authorization header format")
 		}
 		claims, err := issuer.Verify(parts[1])
@@ -128,13 +131,13 @@ func AuthMiddleware(issuer *auth.JWTIssuer) fiber.Handler {
 			masked := maskToken(parts[1])
 			if errors.Is(err, auth.ErrTokenExpired) {
 				logging.FromContext(ctx).WarnContext(ctx, "auth: token expired",
-					slog.String("op", "httpapi.AuthMiddleware"),
+					slog.String("op", opAuthMiddleware),
 					slog.String("token_prefix", masked),
 				)
 				return ErrAuthExpired()
 			}
 			logging.FromContext(ctx).WarnContext(ctx, "auth: invalid token",
-				slog.String("op", "httpapi.AuthMiddleware"),
+				slog.String("op", opAuthMiddleware),
 				slog.String("token_prefix", masked),
 			)
 			return ErrAuthInvalid("invalid token")
@@ -159,12 +162,12 @@ func APIAuthMiddleware(issuer *auth.JWTIssuer, apiTokens *repo.APITokenRepo, sal
 		ctx := c.Context()
 		header := c.Get("Authorization")
 		if header == "" {
-			logging.FromContext(ctx).WarnContext(ctx, "auth: missing authorization header", slog.String("op", "httpapi.APIAuthMiddleware"))
+			logging.FromContext(ctx).WarnContext(ctx, "auth: missing authorization header", slog.String("op", opAPIAuthMiddleware))
 			return ErrAuthInvalid("missing authorization header")
 		}
 		parts := strings.SplitN(header, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			logging.FromContext(ctx).WarnContext(ctx, "auth: bad authorization header format", slog.String("op", "httpapi.APIAuthMiddleware"))
+			logging.FromContext(ctx).WarnContext(ctx, "auth: bad authorization header format", slog.String("op", opAPIAuthMiddleware))
 			return ErrAuthInvalid("invalid authorization header format")
 		}
 		token := parts[1]
@@ -183,7 +186,7 @@ func APIAuthMiddleware(issuer *auth.JWTIssuer, apiTokens *repo.APITokenRepo, sal
 		}
 		if errors.Is(jwtErr, auth.ErrTokenExpired) {
 			logging.FromContext(c.Context()).WarnContext(c.Context(), "auth: token expired",
-				slog.String("op", "httpapi.APIAuthMiddleware"),
+				slog.String("op", opAPIAuthMiddleware),
 				slog.String("token_prefix", masked),
 			)
 			return ErrAuthExpired()
@@ -196,7 +199,7 @@ func APIAuthMiddleware(issuer *auth.JWTIssuer, apiTokens *repo.APITokenRepo, sal
 				return ErrInternal("lookup api token").WithCause(err)
 			}
 			logging.FromContext(c.Context()).WarnContext(c.Context(), "auth: invalid token",
-				slog.String("op", "httpapi.APIAuthMiddleware"),
+				slog.String("op", opAPIAuthMiddleware),
 				slog.String("token_prefix", masked),
 			)
 			return ErrAuthInvalid("invalid token")

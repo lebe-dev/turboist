@@ -5,11 +5,19 @@ import (
 	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+)
+
+const (
+	opTemplateCreate      = "handler.Template.Create"
+	opTemplatePatch       = "handler.Template.Patch"
+	opTemplateInstantiate = "handler.Template.Instantiate"
+	msgTemplateNotFound   = "template not found"
 )
 
 // TemplateHandler implements CRUD for /api/v1/task-templates plus the
@@ -27,12 +35,12 @@ func NewTemplateHandler(templates *repo.TemplateRepo, svc *service.TemplateServi
 
 // Register wires template routes onto r.
 func (h *TemplateHandler) Register(r fiber.Router) {
-	r.Get("/", httpapi.RequireScope("templates:read"), h.list)
-	r.Post("/", httpapi.RequireScope("templates:write"), h.create)
-	r.Get("/:id", httpapi.RequireScope("templates:read"), h.get)
-	r.Patch("/:id", httpapi.RequireScope("templates:write"), h.patch)
-	r.Delete("/:id", httpapi.RequireScope("templates:write"), h.delete)
-	r.Post("/:id/instantiate", httpapi.RequireScope("tasks:write"), h.instantiate)
+	r.Get("/", httpapi.RequireScope(auth.ScopeTemplatesRead), h.list)
+	r.Post("/", httpapi.RequireScope(auth.ScopeTemplatesWrite), h.create)
+	r.Get("/:id", httpapi.RequireScope(auth.ScopeTemplatesRead), h.get)
+	r.Patch("/:id", httpapi.RequireScope(auth.ScopeTemplatesWrite), h.patch)
+	r.Delete("/:id", httpapi.RequireScope(auth.ScopeTemplatesWrite), h.delete)
+	r.Post("/:id/instantiate", httpapi.RequireScope(auth.ScopeTasksWrite), h.instantiate)
 }
 
 func (h *TemplateHandler) list(c fiber.Ctx) error {
@@ -55,7 +63,7 @@ func (h *TemplateHandler) get(c fiber.Ctx) error {
 	t, err := h.templates.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("template not found")
+			return httpapi.ErrNotFound(msgTemplateNotFound)
 		}
 		return httpapi.ErrInternal("get template").WithCause(err)
 	}
@@ -63,22 +71,22 @@ func (h *TemplateHandler) get(c fiber.Ctx) error {
 }
 
 func (h *TemplateHandler) create(c fiber.Ctx) error {
-	logEntry(c, "handler.Template.Create")
+	logEntry(c, opTemplateCreate)
 	var req dto.TaskTemplateRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Template.Create", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opTemplateCreate, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	in, appErr := buildTemplateInput(req)
 	if appErr != nil {
-		logValidation(c, "handler.Template.Create", appErr.Message)
+		logValidation(c, opTemplateCreate, appErr.Message)
 		return appErr
 	}
 	t, err := h.templates.Create(c.Context(), in)
 	if err != nil {
 		return httpapi.ErrInternal("create template").WithCause(err)
 	}
-	logMutation(c, "handler.Template.Create", slog.Int64("template_id", t.ID))
+	logMutation(c, opTemplateCreate, slog.Int64("template_id", t.ID))
 	return c.Status(fiber.StatusCreated).JSON(dto.TaskTemplateFromModel(*t))
 }
 
@@ -87,25 +95,25 @@ func (h *TemplateHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Template.Patch", slog.Int64("template_id", id))
+	logEntry(c, opTemplatePatch, slog.Int64("template_id", id))
 	var req dto.TaskTemplateRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Template.Patch", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opTemplatePatch, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	in, appErr := buildTemplateInput(req)
 	if appErr != nil {
-		logValidation(c, "handler.Template.Patch", appErr.Message)
+		logValidation(c, opTemplatePatch, appErr.Message)
 		return appErr
 	}
 	t, err := h.templates.Update(c.Context(), id, in)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("template not found")
+			return httpapi.ErrNotFound(msgTemplateNotFound)
 		}
 		return httpapi.ErrInternal("update template").WithCause(err)
 	}
-	logMutation(c, "handler.Template.Patch", slog.Int64("template_id", t.ID))
+	logMutation(c, opTemplatePatch, slog.Int64("template_id", t.ID))
 	return c.JSON(dto.TaskTemplateFromModel(*t))
 }
 
@@ -117,7 +125,7 @@ func (h *TemplateHandler) delete(c fiber.Ctx) error {
 	logEntry(c, "handler.Template.Delete", slog.Int64("template_id", id))
 	if err := h.templates.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("template not found")
+			return httpapi.ErrNotFound(msgTemplateNotFound)
 		}
 		return httpapi.ErrInternal("delete template").WithCause(err)
 	}
@@ -130,20 +138,20 @@ func (h *TemplateHandler) instantiate(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Template.Instantiate", slog.Int64("template_id", id))
+	logEntry(c, opTemplateInstantiate, slog.Int64("template_id", id))
 	var req dto.InstantiateTemplateRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Template.Instantiate", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opTemplateInstantiate, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.ProjectID <= 0 {
-		logValidation(c, "handler.Template.Instantiate", "projectId required")
+		logValidation(c, opTemplateInstantiate, "projectId required")
 		return httpapi.ErrValidation("projectId is required")
 	}
 	res, err := h.svc.Instantiate(c.Context(), id, req.ProjectID)
 	if err != nil {
 		if errors.Is(err, service.ErrTemplateNotFound) {
-			return httpapi.ErrNotFound("template not found")
+			return httpapi.ErrNotFound(msgTemplateNotFound)
 		}
 		if errors.Is(err, service.ErrProjectNotFound) {
 			return httpapi.ErrNotFound("project not found")
@@ -154,7 +162,7 @@ func (h *TemplateHandler) instantiate(c fiber.Ctx) error {
 	for i, st := range res.Subtasks {
 		subtasks[i] = dto.TaskFromModel(st, h.baseURL)
 	}
-	logMutation(c, "handler.Template.Instantiate",
+	logMutation(c, opTemplateInstantiate,
 		slog.Int64("template_id", id), slog.Int64("root_id", res.Root.ID), slog.Int("subtasks", len(subtasks)))
 	return c.Status(fiber.StatusCreated).JSON(dto.InstantiateTemplateResponse{
 		Root:     dto.TaskFromModel(*res.Root, h.baseURL),

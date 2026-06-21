@@ -5,10 +5,19 @@ import (
 	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+)
+
+const (
+	opSectionReorder    = "handler.Section.Reorder"
+	opSectionPatch      = "handler.Section.Patch"
+	opSectionCreateTask = "handler.Section.CreateTask"
+	msgSectionNotFound  = "section not found"
+	msgGetSection       = "get section"
 )
 
 // SectionHandler implements routes for /api/v1/sections/:id.
@@ -28,12 +37,12 @@ func NewSectionHandler(sections *repo.ProjectSectionRepo, projects *repo.Project
 
 // Register wires section routes onto r.
 func (h *SectionHandler) Register(r fiber.Router) {
-	r.Get("/:id", httpapi.RequireScope("sections:read"), h.get)
-	r.Patch("/:id", httpapi.RequireScope("sections:write"), h.patch)
-	r.Delete("/:id", httpapi.RequireScope("sections:write"), h.delete)
-	r.Get("/:id/tasks", httpapi.RequireScope("tasks:read"), h.listTasks)
-	r.Post("/:id/tasks", httpapi.RequireScope("tasks:write"), h.createTask)
-	r.Post("/:id/reorder", httpapi.RequireScope("sections:write"), h.reorder)
+	r.Get("/:id", httpapi.RequireScope(auth.ScopeSectionsRead), h.get)
+	r.Patch("/:id", httpapi.RequireScope(auth.ScopeSectionsWrite), h.patch)
+	r.Delete("/:id", httpapi.RequireScope(auth.ScopeSectionsWrite), h.delete)
+	r.Get("/:id/tasks", httpapi.RequireScope(auth.ScopeTasksRead), h.listTasks)
+	r.Post("/:id/tasks", httpapi.RequireScope(auth.ScopeTasksWrite), h.createTask)
+	r.Post("/:id/reorder", httpapi.RequireScope(auth.ScopeSectionsWrite), h.reorder)
 }
 
 func (h *SectionHandler) reorder(c fiber.Ctx) error {
@@ -41,24 +50,24 @@ func (h *SectionHandler) reorder(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Section.Reorder", slog.Int64("section_id", id))
+	logEntry(c, opSectionReorder, slog.Int64("section_id", id))
 	var req dto.ReorderSectionRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Section.Reorder", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opSectionReorder, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Position < 0 {
-		logValidation(c, "handler.Section.Reorder", "negative position", slog.Int("position", req.Position))
+		logValidation(c, opSectionReorder, "negative position", slog.Int("position", req.Position))
 		return httpapi.ErrValidation("position must be non-negative")
 	}
 	s, err := h.sections.Reorder(c.Context(), id, req.Position)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("section not found")
+			return httpapi.ErrNotFound(msgSectionNotFound)
 		}
 		return httpapi.ErrInternal("reorder section").WithCause(err)
 	}
-	logMutation(c, "handler.Section.Reorder", slog.Int64("section_id", s.ID), slog.Int("position", req.Position))
+	logMutation(c, opSectionReorder, slog.Int64("section_id", s.ID), slog.Int("position", req.Position))
 	return c.JSON(dto.SectionFromModel(*s))
 }
 
@@ -70,9 +79,9 @@ func (h *SectionHandler) get(c fiber.Ctx) error {
 	s, err := h.sections.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("section not found")
+			return httpapi.ErrNotFound(msgSectionNotFound)
 		}
-		return httpapi.ErrInternal("get section").WithCause(err)
+		return httpapi.ErrInternal(msgGetSection).WithCause(err)
 	}
 	return c.JSON(dto.SectionFromModel(*s))
 }
@@ -82,20 +91,20 @@ func (h *SectionHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Section.Patch", slog.Int64("section_id", id))
+	logEntry(c, opSectionPatch, slog.Int64("section_id", id))
 	var req dto.PatchSectionRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Section.Patch", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opSectionPatch, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	s, err := h.sections.Update(c.Context(), id, repo.SectionUpdate{Title: req.Title})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("section not found")
+			return httpapi.ErrNotFound(msgSectionNotFound)
 		}
 		return httpapi.ErrInternal("update section").WithCause(err)
 	}
-	logMutation(c, "handler.Section.Patch", slog.Int64("section_id", s.ID))
+	logMutation(c, opSectionPatch, slog.Int64("section_id", s.ID))
 	return c.JSON(dto.SectionFromModel(*s))
 }
 
@@ -107,7 +116,7 @@ func (h *SectionHandler) delete(c fiber.Ctx) error {
 	logEntry(c, "handler.Section.Delete", slog.Int64("section_id", id))
 	if err := h.sections.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("section not found")
+			return httpapi.ErrNotFound(msgSectionNotFound)
 		}
 		return httpapi.ErrInternal("delete section").WithCause(err)
 	}
@@ -122,9 +131,9 @@ func (h *SectionHandler) listTasks(c fiber.Ctx) error {
 	}
 	if _, err := h.sections.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("section not found")
+			return httpapi.ErrNotFound(msgSectionNotFound)
 		}
-		return httpapi.ErrInternal("get section").WithCause(err)
+		return httpapi.ErrInternal(msgGetSection).WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.tasks.ListBySection(c.Context(), id, repo.TaskFilter{}, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
@@ -143,13 +152,13 @@ func (h *SectionHandler) createTask(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Section.CreateTask", slog.Int64("section_id", id))
+	logEntry(c, opSectionCreateTask, slog.Int64("section_id", id))
 	sec, err := h.sections.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("section not found")
+			return httpapi.ErrNotFound(msgSectionNotFound)
 		}
-		return httpapi.ErrInternal("get section").WithCause(err)
+		return httpapi.ErrInternal(msgGetSection).WithCause(err)
 	}
 	proj, err := h.projects.Get(c.Context(), sec.ProjectID)
 	if err != nil {
@@ -157,11 +166,11 @@ func (h *SectionHandler) createTask(c fiber.Ctx) error {
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Section.CreateTask", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opSectionCreateTask, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Title == "" {
-		logValidation(c, "handler.Section.CreateTask", "title required")
+		logValidation(c, opSectionCreateTask, "title required")
 		return httpapi.ErrValidation("title is required")
 	}
 	placement := repo.Placement{

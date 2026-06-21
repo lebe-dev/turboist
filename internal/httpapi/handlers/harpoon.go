@@ -76,7 +76,7 @@ func parseHarpoonRef(c fiber.Ctx, op string) (model.HarpoonRef, error) {
 func (h *HarpoonHandler) get(c fiber.Ctx) error {
 	userID := httpapi.GetUserID(c)
 	if userID == 0 {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	slots, err := h.harpoon.Get(c.Context(), userID)
 	if err != nil {
@@ -89,7 +89,7 @@ func (h *HarpoonHandler) attach(c fiber.Ctx) error {
 	const op = "handler.Harpoon.Attach"
 	userID := httpapi.GetUserID(c)
 	if userID == 0 {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	ref, err := parseHarpoonRef(c, op)
 	if err != nil {
@@ -111,7 +111,7 @@ func (h *HarpoonHandler) detach(c fiber.Ctx) error {
 	const op = "handler.Harpoon.Detach"
 	userID := httpapi.GetUserID(c)
 	if userID == 0 {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	ref, err := parseHarpoonRef(c, op)
 	if err != nil {

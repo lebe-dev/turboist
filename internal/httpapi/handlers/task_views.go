@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
@@ -26,15 +27,15 @@ func NewTaskViewHandler(tasks *repo.TaskRepo, cfg *config.Config, baseURL string
 }
 
 func (h *TaskViewHandler) Register(r fiber.Router) {
-	r.Get("/tasks/today", httpapi.RequireScope("tasks:read"), h.today)
-	r.Get("/tasks/tomorrow", httpapi.RequireScope("tasks:read"), h.tomorrow)
-	r.Get("/tasks/overdue", httpapi.RequireScope("tasks:read"), h.overdue)
-	r.Get("/tasks/week", httpapi.RequireScope("tasks:read"), h.week)
-	r.Get("/tasks/backlog", httpapi.RequireScope("tasks:read"), h.backlog)
-	r.Get("/tasks/pinned", httpapi.RequireScope("tasks:read"), h.pinned)
-	r.Get("/tasks/completed", httpapi.RequireScope("tasks:read"), h.completed)
-	r.Get("/stats/plan", httpapi.RequireScope("tasks:read"), h.statsPlan)
-	r.Get("/stats/sidebar", httpapi.RequireScope("tasks:read"), h.statsSidebar)
+	r.Get("/tasks/today", httpapi.RequireScope(auth.ScopeTasksRead), h.today)
+	r.Get("/tasks/tomorrow", httpapi.RequireScope(auth.ScopeTasksRead), h.tomorrow)
+	r.Get("/tasks/overdue", httpapi.RequireScope(auth.ScopeTasksRead), h.overdue)
+	r.Get("/tasks/week", httpapi.RequireScope(auth.ScopeTasksRead), h.week)
+	r.Get("/tasks/backlog", httpapi.RequireScope(auth.ScopeTasksRead), h.backlog)
+	r.Get("/tasks/pinned", httpapi.RequireScope(auth.ScopeTasksRead), h.pinned)
+	r.Get("/tasks/completed", httpapi.RequireScope(auth.ScopeTasksRead), h.completed)
+	r.Get("/stats/plan", httpapi.RequireScope(auth.ScopeTasksRead), h.statsPlan)
+	r.Get("/stats/sidebar", httpapi.RequireScope(auth.ScopeTasksRead), h.statsSidebar)
 }
 
 // todayStart returns the start of the current day in the configured timezone.

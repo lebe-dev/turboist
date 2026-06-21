@@ -38,6 +38,11 @@ func (h *APITokensHandler) Register(r fiber.Router) {
 
 const apiTokenNameMaxLen = 64
 
+const (
+	opAPITokenCreate = "handler.APIToken.Create"
+	opAPITokenDelete = "handler.APIToken.Delete"
+)
+
 type apiTokenResp struct {
 	ID        int64    `json:"id"`
 	Name      string   `json:"name"`
@@ -70,25 +75,25 @@ func toAPITokenResp(t *model.APIToken) apiTokenResp {
 func (h *APITokensHandler) create(c fiber.Ctx) error {
 	userID := httpapi.GetUserID(c)
 	if userID == 0 {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
-	logEntry(c, "handler.APIToken.Create", slog.Int64("user_id", userID))
+	logEntry(c, opAPITokenCreate, slog.Int64("user_id", userID))
 	var req apiTokenCreateReq
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.APIToken.Create", "invalid JSON")
+		logValidation(c, opAPITokenCreate, "invalid JSON")
 		return httpapi.ErrValidation("invalid JSON")
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		logValidation(c, "handler.APIToken.Create", "name required")
+		logValidation(c, opAPITokenCreate, "name required")
 		return httpapi.ErrValidation("name is required")
 	}
 	if len(name) > apiTokenNameMaxLen {
-		logValidation(c, "handler.APIToken.Create", "name too long", slog.Int("len", len(name)))
+		logValidation(c, opAPITokenCreate, "name too long", slog.Int("len", len(name)))
 		return httpapi.ErrValidation("name is too long")
 	}
 	if err := auth.ValidateScopes(req.Scopes); err != nil {
-		logValidation(c, "handler.APIToken.Create", "invalid scopes", slog.String("err", err.Error()))
+		logValidation(c, opAPITokenCreate, "invalid scopes", slog.String("err", err.Error()))
 		return httpapi.ErrUnprocessable(err.Error())
 	}
 
@@ -105,7 +110,7 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 		return httpapi.ErrInternal("create api token").WithCause(err)
 	}
 	// Never log the plaintext token value — only the row id.
-	logMutation(c, "handler.APIToken.Create",
+	logMutation(c, opAPITokenCreate,
 		slog.Int64("token_id", created.ID),
 		slog.Int64("user_id", userID),
 		slog.String("name", created.Name),
@@ -122,7 +127,7 @@ func (h *APITokensHandler) create(c fiber.Ctx) error {
 func (h *APITokensHandler) list(c fiber.Ctx) error {
 	userID := httpapi.GetUserID(c)
 	if userID == 0 {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	tokens, err := h.repo.ListByUser(c.Context(), userID)
 	if err != nil {
@@ -138,20 +143,20 @@ func (h *APITokensHandler) list(c fiber.Ctx) error {
 func (h *APITokensHandler) delete(c fiber.Ctx) error {
 	userID := httpapi.GetUserID(c)
 	if userID == 0 {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil || id <= 0 {
-		logValidation(c, "handler.APIToken.Delete", "invalid id")
+		logValidation(c, opAPITokenDelete, "invalid id")
 		return httpapi.ErrValidation("invalid id")
 	}
-	logEntry(c, "handler.APIToken.Delete", slog.Int64("token_id", id), slog.Int64("user_id", userID))
+	logEntry(c, opAPITokenDelete, slog.Int64("token_id", id), slog.Int64("user_id", userID))
 	if err := h.repo.Delete(c.Context(), id, userID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound("api token not found")
 		}
 		return httpapi.ErrInternal("delete api token").WithCause(err)
 	}
-	logMutation(c, "handler.APIToken.Delete", slog.Int64("token_id", id), slog.Int64("user_id", userID))
+	logMutation(c, opAPITokenDelete, slog.Int64("token_id", id), slog.Int64("user_id", userID))
 	return c.SendStatus(fiber.StatusNoContent)
 }

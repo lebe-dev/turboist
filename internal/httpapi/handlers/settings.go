@@ -9,6 +9,8 @@ import (
 	"github.com/lebe-dev/turboist/internal/repo"
 )
 
+const opSettingsPatch = "handler.Settings.Patch"
+
 // SettingsHandler exposes user application settings.
 //
 //	GET   /api/v1/settings  -> returns UserSettings
@@ -97,15 +99,15 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
-	logEntry(c, "handler.Settings.Patch", slog.Int64("user_id", userID))
+	logEntry(c, opSettingsPatch, slog.Int64("user_id", userID))
 	var req settingsPatchReq
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Settings.Patch", "invalid JSON")
+		logValidation(c, opSettingsPatch, "invalid JSON")
 		return httpapi.ErrValidation("invalid JSON")
 	}
 	if req.Locale != nil {
 		if _, ok := supportedLocales[*req.Locale]; !ok {
-			logValidation(c, "handler.Settings.Patch", "unsupported locale", slog.String("locale", *req.Locale))
+			logValidation(c, opSettingsPatch, "unsupported locale", slog.String("locale", *req.Locale))
 			return httpapi.ErrValidation("unsupported locale")
 		}
 	}
@@ -143,6 +145,6 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	if err := h.users.SetSettings(c.Context(), userID, current); err != nil {
 		return httpapi.ErrInternal("save settings").WithCause(err)
 	}
-	logMutation(c, "handler.Settings.Patch", slog.Int64("user_id", userID))
+	logMutation(c, opSettingsPatch, slog.Int64("user_id", userID))
 	return c.JSON(toResp(current))
 }

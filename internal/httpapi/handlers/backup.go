@@ -13,6 +13,8 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 )
 
+const opBackupRestore = "handler.Backup.Restore"
+
 // maxBackupUploadBytes caps the restore payload size. 64 MiB is generous for a
 // fully-populated todoist-like dataset (gzipped) while still preventing trivial
 // memory-exhaustion attempts against the in-memory decode path. Declared as
@@ -80,30 +82,30 @@ func (h *BackupHandler) export(c fiber.Ctx) error {
 
 func (h *BackupHandler) restore(c fiber.Ctx) error {
 	body := c.Body()
-	logEntry(c, "handler.Backup.Restore", slog.Int("payload_bytes", len(body)))
+	logEntry(c, opBackupRestore, slog.Int("payload_bytes", len(body)))
 	if len(body) == 0 {
-		logValidation(c, "handler.Backup.Restore", "empty body")
+		logValidation(c, opBackupRestore, "empty body")
 		return httpapi.ErrValidation("empty body")
 	}
 	if len(body) > maxBackupUploadBytes {
-		logValidation(c, "handler.Backup.Restore", "payload too large", slog.Int("payload_bytes", len(body)))
+		logValidation(c, opBackupRestore, "payload too large", slog.Int("payload_bytes", len(body)))
 		return httpapi.ErrValidation("payload too large")
 	}
 	payload, err := service.DecodeBackup(body)
 	if err != nil {
 		// DecodeBackup wraps every failure with ErrBadBackup, so any error is
 		// a client problem (malformed payload / unsupported version).
-		logValidation(c, "handler.Backup.Restore", "decode failed", slog.String("err", err.Error()))
+		logValidation(c, opBackupRestore, "decode failed", slog.String("err", err.Error()))
 		return httpapi.ErrValidation("invalid backup file")
 	}
 	if err := h.svc.Restore(c.Context(), payload); err != nil {
 		if errors.Is(err, service.ErrBadBackup) {
-			logValidation(c, "handler.Backup.Restore", "bad backup", slog.String("err", err.Error()))
+			logValidation(c, opBackupRestore, "bad backup", slog.String("err", err.Error()))
 			return httpapi.ErrValidation("invalid backup file")
 		}
 		return httpapi.ErrInternal("restore backup").WithCause(err)
 	}
-	logMutation(c, "handler.Backup.Restore", slog.Int("payload_bytes", len(body)))
+	logMutation(c, opBackupRestore, slog.Int("payload_bytes", len(body)))
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
