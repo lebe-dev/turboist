@@ -272,29 +272,14 @@
 	</header>
 
 	<Tabs.Root bind:value={activeTab} class="flex flex-col gap-4">
-		<div class="sm:hidden">
-			<Select.Root type="single" bind:value={activeTab}>
-				<Select.Trigger class="!h-13 w-full text-sm font-medium" aria-label={$t('settings.title')}>{activeTabLabel}</Select.Trigger>
-				<Select.Content>
-					{#each tabItems as item (item.value)}
-						<Select.Item class="py-3 text-sm" value={item.value} label={$t(item.labelKey)}>{$t(item.labelKey)}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
-		</div>
-		<Tabs.List variant="line" class="hidden sm:inline-flex">
-			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
-			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
-			<Tabs.Trigger value="templates">{$t('settings.tabs.templates')}</Tabs.Trigger>
-			<Tabs.Trigger value="calendars">{$t('settings.tabs.calendars')}</Tabs.Trigger>
-			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
-			<Tabs.Trigger value="troiki">{$t('settings.tabs.troiki')}</Tabs.Trigger>
-			<Tabs.Trigger value="privacy">{$t('settings.tabs.privacy')}</Tabs.Trigger>
-			<Tabs.Trigger value="security">{$t('settings.tabs.security')}</Tabs.Trigger>
-			<Tabs.Trigger value="api">{$t('settings.tabs.api')}</Tabs.Trigger>
-			<Tabs.Trigger value="backup">{$t('settings.tabs.backup')}</Tabs.Trigger>
-			<Tabs.Trigger value="logs">{$t('settings.tabs.logs')}</Tabs.Trigger>
-		</Tabs.List>
+		<Select.Root type="single" bind:value={activeTab}>
+			<Select.Trigger class="!h-9 w-full text-sm font-medium" aria-label={$t('settings.title')}>{activeTabLabel}</Select.Trigger>
+			<Select.Content>
+				{#each tabItems as item (item.value)}
+					<Select.Item class="py-3 text-sm" value={item.value} label={$t(item.labelKey)}>{$t(item.labelKey)}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
 
 		<Tabs.Content value="general" class="flex flex-col gap-4">
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
