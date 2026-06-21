@@ -34,3 +34,28 @@ docker compose down
 cp data/turboist.db.bak data/turboist.db
 docker compose up -d
 ```
+
+## Rolling back to a previous version
+
+Turboist does not ship down-migrations. If a new release added schema changes, rolling back the binary without restoring the database will likely cause errors.
+
+The safe rollback sequence is:
+
+1. Stop the container:
+   ```sh
+   docker compose down
+   ```
+2. Restore the pre-upgrade database backup:
+   ```sh
+   cp data/turboist.db.bak data/turboist.db
+   ```
+3. Set the old image tag in `docker-compose.yml`:
+   ```yaml
+   image: tinyops/turboist:PREVIOUS_VERSION
+   ```
+4. Start again:
+   ```sh
+   docker compose up -d
+   ```
+
+This is why taking a backup before every upgrade is strongly recommended.
