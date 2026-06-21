@@ -66,6 +66,12 @@ coverage:
     go tool cover -html=coverage.out -o coverage.html
     @echo "Coverage report generated at coverage.html"
 
+coverage-frontend:
+    cd frontend && yarn vitest run --coverage
+    @echo "Frontend coverage report generated at frontend/coverage/lcov.info"
+
+coverage-all: coverage && coverage-frontend
+
 # --- Format ---
 format:
     go fmt ./...
@@ -167,6 +173,9 @@ sonar-clean:
 
 # Run the scanner against the running instance. Reads SONAR_TOKEN from .env
 # (auto-loaded via `set dotenv-load`); add a line like: SONAR_TOKEN=sqp_xxx
+# Run `just coverage-all` first to generate coverage.out + frontend/coverage/lcov.info.
+sonar-scan-with-coverage: coverage-all sonar-scan
+
 sonar-scan:
     #!/usr/bin/env bash
     set -euo pipefail
