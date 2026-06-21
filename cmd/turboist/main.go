@@ -101,6 +101,7 @@ func main() {
 	sectionRepo := repo.NewProjectSectionRepo(sqlDB)
 	projectRepo := repo.NewProjectRepo(sqlDB, plabels)
 	taskRepo := repo.NewTaskRepo(sqlDB, tlabels)
+	templateRepo := repo.NewTemplateRepo(sqlDB)
 	searchRepo := repo.NewSearchRepo(taskRepo, projectRepo)
 
 	// auth
@@ -117,6 +118,8 @@ func main() {
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, taskRepo, tlabels)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
+	harpoonSvc := service.NewHarpoonService(userRepo, taskRepo, projectRepo)
+	templateSvc := service.NewTemplateService(templateRepo, projectRepo, taskSvc)
 	backupSvc := service.NewBackupService(sqlDB)
 
 	var totpSvc *totpsvc.Service
@@ -202,6 +205,7 @@ func main() {
 	}
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, env.BaseURL).Register(api.Group("/labels"))
+	handlers.NewTemplateHandler(templateRepo, templateSvc, env.BaseURL).Register(api.Group("/task-templates"))
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).Register(api)
 	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL).Register(api.Group("/inbox"))
@@ -214,6 +218,7 @@ func main() {
 	handlers.NewMetaHandler(cfg, totpSvc != nil, ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo, troikiSvc, env.BaseURL).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
+	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))

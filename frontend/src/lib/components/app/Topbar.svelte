@@ -10,6 +10,7 @@
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import PencilIcon from 'phosphor-svelte/lib/Pencil';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
+	import CardsIcon from 'phosphor-svelte/lib/Cards';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -19,6 +20,7 @@
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { templatesStore } from '$lib/stores/templates.svelte';
 	import { toast } from 'svelte-sonner';
 	import { getApiClient } from '$lib/api/client';
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
@@ -42,9 +44,11 @@
 
 	let {
 		onQuickAdd,
+		onPickTemplate,
 		onMenuClick
 	}: {
 		onQuickAdd?: () => void;
+		onPickTemplate?: (templateId: number) => void;
 		onMenuClick?: () => void;
 	} = $props();
 
@@ -273,16 +277,55 @@
 			</Button>
 		{/if}
 		{#if onQuickAdd}
-			<Button
-				variant="secondary"
-				size="icon-sm"
-				onclick={() => onQuickAdd?.()}
-				class="hidden bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25 md:inline-flex"
-				aria-label={$t('topbar.quickAdd')}
-				title={$t('topbar.quickAdd')}
-			>
-				<PlusIcon class="size-4" />
-			</Button>
+			<div class="hidden items-center md:inline-flex">
+				<Button
+					variant="secondary"
+					size="icon-sm"
+					onclick={() => onQuickAdd?.()}
+					class="rounded-r-none bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
+					aria-label={$t('topbar.quickAdd')}
+					title={$t('topbar.quickAdd')}
+				>
+					<PlusIcon class="size-4" />
+				</Button>
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="secondary"
+								size="icon-sm"
+								class="!w-7 rounded-l-none border-l border-background/40 bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
+								aria-label={$t('topbar.quickAddMenu')}
+								title={$t('topbar.quickAddMenu')}
+							>
+								<CaretDownIcon class="size-3" />
+							</Button>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end" class="min-w-[12rem]">
+						<DropdownMenu.Item onSelect={() => onQuickAdd?.()} class="gap-2">
+							<PlusIcon class="size-4" />
+							{$t('topbar.newTask')}
+						</DropdownMenu.Item>
+						{#if templatesStore.items.length > 0}
+							<DropdownMenu.Sub>
+								<DropdownMenu.SubTrigger class="gap-2">
+									<CardsIcon class="size-4" />
+									{$t('topbar.fromTemplate')}
+								</DropdownMenu.SubTrigger>
+								<DropdownMenu.SubContent class="max-h-72 w-56 overflow-y-auto">
+									{#each templatesStore.items as template (template.id)}
+										<DropdownMenu.Item onSelect={() => onPickTemplate?.(template.id)}>
+											<span class="truncate">{template.name}</span>
+										</DropdownMenu.Item>
+									{/each}
+								</DropdownMenu.SubContent>
+							</DropdownMenu.Sub>
+						{/if}
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			</div>
 		{/if}
 		{#if settingsStore.troikiEnabled}
 			<a

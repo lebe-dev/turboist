@@ -1,0 +1,54 @@
+# SonarQube Community Build + PostgreSQL for local static analysis of Turboist.
+#
+#   just sonar-up      # start SonarQube (http://localhost:9000, admin/admin on first login)
+#   just sonar-scan    # run the scanner against the running instance
+#   just sonar-down    # stop (data is kept in named volumes)
+#
+# NOTE: SonarQube embeds Elasticsearch and needs a raised mmap limit on the
+# host. Docker Desktop (macOS/Windows) handles this automatically; on Linux run
+# once before the first start:
+#   sudo sysctl -w vm.max_map_count=262144
+services:
+  sonarqube:
+    image: sonarqube:community
+    container_name: turboist-sonarqube
+    depends_on:
+      sonar-db:
+        condition: service_healthy
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    restart: unless-stopped
+
+  sonar-db:
+    image: postgres:16-alpine
+    container_name: turboist-sonar-db
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar -d sonar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonar_db_data:

@@ -5,9 +5,9 @@
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { createAuthStore } from '$lib/auth/store.svelte';
 	import { decideAuthRedirect } from '$lib/auth/guard';
-	import { goto } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
+	import { page, updated } from '$app/state';
 	import { onMount } from 'svelte';
 	import { initI18n, t } from '$lib/i18n';
 
@@ -16,6 +16,17 @@
 	let { children } = $props();
 
 	const authStore = createAuthStore();
+
+	// When a new deploy has been detected (version polling in svelte.config.js),
+	// force a full-page navigation instead of a client-side one — the old tab's
+	// chunk hashes no longer exist, so a SPA navigation would crash the router
+	// with "Cannot read properties of undefined (reading 'universal')".
+	beforeNavigate((nav) => {
+		if (updated.current && !nav.willUnload && nav.to?.url) {
+			nav.cancel();
+			window.location.href = nav.to.url.href;
+		}
+	});
 
 	let bootstrapped = $state(false);
 

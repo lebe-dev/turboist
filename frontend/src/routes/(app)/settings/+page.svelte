@@ -13,6 +13,7 @@
 	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
 	import LogsSection from '$lib/components/settings/LogsSection.svelte';
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
+	import TemplatesSection from '$lib/components/settings/TemplatesSection.svelte';
 	import TwoFactorSection from '$lib/components/settings/TwoFactorSection.svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import { toast } from 'svelte-sonner';
@@ -33,7 +34,7 @@
 	const appVersion = __APP_VERSION__;
 	const totpAvailable = $derived(configStore.value?.totpAvailable ?? false);
 
-	const settingsTabs = ['general', 'labels', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
+	const settingsTabs = ['general', 'labels', 'templates', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -126,6 +127,7 @@
 	const tabItems = $derived([
 		{ value: 'general', labelKey: 'settings.tabs.general' },
 		{ value: 'labels', labelKey: 'settings.tabs.labels' },
+		{ value: 'templates', labelKey: 'settings.tabs.templates' },
 		{ value: 'calendars', labelKey: 'settings.tabs.calendars' },
 		{ value: 'project', labelKey: 'settings.tabs.project' },
 		{ value: 'troiki', labelKey: 'settings.tabs.troiki' },
@@ -283,6 +285,7 @@
 		<Tabs.List variant="line" class="hidden sm:inline-flex">
 			<Tabs.Trigger value="general">{$t('settings.tabs.general')}</Tabs.Trigger>
 			<Tabs.Trigger value="labels">{$t('settings.tabs.labels')}</Tabs.Trigger>
+			<Tabs.Trigger value="templates">{$t('settings.tabs.templates')}</Tabs.Trigger>
 			<Tabs.Trigger value="calendars">{$t('settings.tabs.calendars')}</Tabs.Trigger>
 			<Tabs.Trigger value="project">{$t('settings.tabs.project')}</Tabs.Trigger>
 			<Tabs.Trigger value="troiki">{$t('settings.tabs.troiki')}</Tabs.Trigger>
@@ -578,6 +581,10 @@
 					</button>
 				</div>
 			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="templates" class="flex flex-col gap-4">
+			<TemplatesSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="project">

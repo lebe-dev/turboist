@@ -220,6 +220,18 @@ export interface UserSettings {
 	troikiEnabled: boolean;
 }
 
+export type HarpoonKind = 'task' | 'project';
+
+export interface HarpoonSlot {
+	kind: HarpoonKind;
+	id: number;
+	title: string;
+}
+
+export interface HarpoonState {
+	slots: HarpoonSlot[];
+}
+
 export interface CalendarAccount {
 	id: number;
 	provider: string;
@@ -406,6 +418,50 @@ export interface TaskInput {
 	labels?: string[];
 	removedAutoLabels?: string[];
 	isPrivate?: boolean;
+}
+
+export interface TaskTemplateSubtask {
+	id: number;
+	title: string;
+	description: string;
+	priority: Priority;
+	dayPart: DayPart;
+	labels: Label[];
+}
+
+export interface TaskTemplate {
+	id: number;
+	name: string;
+	description: string;
+	priority: Priority;
+	dayPart: DayPart;
+	position: number;
+	labels: Label[];
+	subtasks: TaskTemplateSubtask[];
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface TaskTemplateSubtaskInput {
+	title: string;
+	description?: string;
+	priority?: Priority;
+	dayPart?: DayPart;
+	labelIds?: number[];
+}
+
+export interface TaskTemplateInput {
+	name: string;
+	description?: string;
+	priority?: Priority;
+	dayPart?: DayPart;
+	labelIds?: number[];
+	subtasks?: TaskTemplateSubtaskInput[];
+}
+
+export interface InstantiateTemplateResult {
+	root: Task;
+	subtasks: Task[];
 }
 
 export type TaskMoveInput =

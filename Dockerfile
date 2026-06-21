@@ -1,4 +1,4 @@
-FROM node:25.9.0-alpine3.23 AS frontend-build
+FROM node:25-alpine AS frontend-build
 
 WORKDIR /build
 
@@ -11,7 +11,7 @@ RUN APP_VERSION=$(cat /build/VERSION) && \
     yarn --frozen-lockfile && \
     yarn build
 
-FROM golang:1.26-alpine3.23 AS app-build
+FROM golang:1.26-alpine3.24 AS app-build
 
 WORKDIR /build
 
@@ -33,7 +33,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-w -s -X main.Version=$(cat VERSION)" -o tu
 FROM scratch AS binary
 COPY --from=app-build /build/turboist /turboist
 
-FROM alpine:3.23
+FROM alpine:3.24
 
 ENV TZ=Europe/Moscow
 

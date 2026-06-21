@@ -21,11 +21,16 @@
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
 	import BugIcon from 'phosphor-svelte/lib/Bug';
 	import PencilSimpleIcon from 'phosphor-svelte/lib/PencilSimple';
+	import AnchorIcon from 'phosphor-svelte/lib/Anchor';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
+	import HarpoonJumpButton from '$lib/components/app/HarpoonJumpButton.svelte';
+	import { toast } from 'svelte-sonner';
 	import { t } from '$lib/i18n';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { harpoonStore } from '$lib/stores/harpoon.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
+	import { describeError } from '$lib/utils/taskActions';
 	import type { Project, TroikiCategory } from '$lib/api/types';
 
 	let {
@@ -111,6 +116,17 @@
 		if (history.length > 1) history.back();
 		else void goto(resolve('/inbox'));
 	}
+
+	const isHarpooned = $derived(harpoonStore.isHarpooned('project', project.id));
+
+	async function toggleHarpoon(): Promise<void> {
+		try {
+			if (isHarpooned) await harpoonStore.detach('project', project.id);
+			else await harpoonStore.attach('project', project.id);
+		} catch (err) {
+			toast.error(describeError(err, $t('harpoon.toastFailed')));
+		}
+	}
 </script>
 
 <header class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
@@ -184,6 +200,7 @@
 					<BugIcon class="size-3.5 text-muted-foreground/50" />
 				</Button>
 			{/if}
+			<HarpoonJumpButton kind="project" id={project.id} />
 			<DropdownMenu.Root onOpenChange={(o) => o && void ensureTroikiLoaded()}>
 				<DropdownMenu.Trigger>
 					{#snippet child({ props })}
@@ -209,6 +226,10 @@
 						}}
 					>
 						<CheckSquareIcon class="size-4" /> {$t('task.actions.select')}
+					</DropdownMenu.Item>
+					<DropdownMenu.Item onclick={() => void toggleHarpoon()}>
+						<AnchorIcon class="size-4" />
+						{isHarpooned ? $t('harpoon.detach') : $t('harpoon.attach')}
 					</DropdownMenu.Item>
 					{#if project.isPinned}
 						<DropdownMenu.Item onclick={onUnpin}>

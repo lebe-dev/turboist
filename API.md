@@ -510,6 +510,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `PATCH /api/v1/tasks/:id` | `tasks:write` |
 | `DELETE /api/v1/tasks/:id` | `tasks:write` |
 | `GET /api/v1/tasks/:id/subtasks` | `tasks:read` |
+| `GET /api/v1/tasks/:id/template-draft` | `tasks:read` |
 | `POST /api/v1/tasks/:id/subtasks` | `tasks:write` |
 | `POST /api/v1/tasks/:id/duplicate` | `tasks:write` |
 | `POST /api/v1/tasks/:id/decompose` | `tasks:write` |
@@ -587,6 +588,17 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/labels/:id/tasks` | `tasks:read` |
 | `GET /api/v1/labels/:id/projects` | `projects:read` |
 
+#### Task Templates
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/task-templates` | `templates:read` |
+| `GET /api/v1/task-templates/:id` | `templates:read` |
+| `POST /api/v1/task-templates` | `templates:write` |
+| `PATCH /api/v1/task-templates/:id` | `templates:write` |
+| `DELETE /api/v1/task-templates/:id` | `templates:write` |
+| `POST /api/v1/task-templates/:id/instantiate` | `tasks:write` |
+
 #### Sections
 
 | Endpoint | Scope |
@@ -615,6 +627,9 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/config` | `settings:read` |
 | `GET /api/v1/state` | `settings:read` |
 | `PATCH /api/v1/state` | `settings:write` |
+| `GET /api/v1/harpoon` | `settings:read` |
+| `POST /api/v1/harpoon/attach` | `settings:write` |
+| `POST /api/v1/harpoon/detach` | `settings:write` |
 
 #### Search
 
@@ -795,6 +810,22 @@ Returns a paged list of subtasks.
 
 ```sh
 curl "$BASE/api/v1/tasks/42/subtasks" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `GET /api/v1/tasks/:id/template-draft`
+
+Builds an **unsaved** [task template](#task-templates) draft from the task and its
+whole subtree. Deeper nesting is flattened into a single subtask level
+(depth-first pre-order), and each captured task carries its hydrated labels. The
+root task's title becomes the template `name`. IDs, position and timestamps are
+zero/empty — the response is meant to prefill the template editor; nothing is
+persisted. Save it with `POST /api/v1/task-templates`.
+
+**Response:** [TaskTemplate](#task-templates) shape (with `id: 0`).
+
+```sh
+curl "$BASE/api/v1/tasks/42/template-draft" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -1699,6 +1730,113 @@ curl "$BASE/api/v1/labels/3/projects" \
 
 ---
 
+## Task Templates
+
+Reusable blueprints — a root task plus an ordered set of subtasks — that can be
+materialized into any project. Each template row (root and subtask) captures
+`title`/`description`/`priority`/`dayPart` plus a set of labels. Templates are
+single-user local configuration: they are not federated and are hard-deleted.
+
+A template can also be seeded from an existing task with
+[`GET /api/v1/tasks/:id/template-draft`](#get-apiv1tasksidtemplate-draft), which
+returns an unsaved draft (the task plus its flattened subtree) to prefill the
+editor before saving via `POST`.
+
+### Template Object
+
+```json
+{
+  "id": 1,
+  "name": "Onboard client",
+  "description": "Kick off a new client engagement",
+  "priority": "high",
+  "dayPart": "morning",
+  "position": 0,
+  "labels": [LabelObject, ...],
+  "subtasks": [
+    {
+      "id": 10,
+      "title": "Schedule kickoff call",
+      "description": "",
+      "priority": "medium",
+      "dayPart": "none",
+      "labels": [LabelObject, ...]
+    }
+  ],
+  "createdAt": "2026-06-21T10:00:00.000Z",
+  "updatedAt": "2026-06-21T10:00:00.000Z"
+}
+```
+
+### `GET /api/v1/task-templates`
+
+Lists all templates (paged envelope; returns every template). Ordered by
+`position`, then `name`.
+
+```sh
+curl "$BASE/api/v1/task-templates" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `POST /api/v1/task-templates`
+
+Create a template. `name` is required and is used as the root task's title.
+`subtasks` is optional; each subtask requires a non-empty `title`. `priority`
+defaults to `no-priority`, `dayPart` to `none`. Returns `201`.
+
+```sh
+curl -X POST "$BASE/api/v1/task-templates" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "name": "Onboard client",
+        "description": "",
+        "priority": "high",
+        "dayPart": "morning",
+        "labelIds": [3],
+        "subtasks": [
+          {"title": "Schedule kickoff call", "priority": "medium", "labelIds": [3]},
+          {"title": "Send contract"}
+        ]
+      }'
+```
+
+### `GET /api/v1/task-templates/:id`
+
+Single template with subtasks and labels.
+
+### `PATCH /api/v1/task-templates/:id`
+
+Full replace: the body has the same shape as `POST` and rewrites the template's
+fields, labels and subtasks wholesale (there is no granular subtask API).
+
+### `DELETE /api/v1/task-templates/:id`
+
+Hard-deletes the template; subtasks and label links cascade. Returns `204`.
+
+### `POST /api/v1/task-templates/:id/instantiate`
+
+Materialize the template into a project: creates the root task and each subtask
+under it (auto-labels and Troiki priority coercion apply, as for normal task
+creation). **Request:** `{"projectId": 5}`. Returns `201` with the created root
+task and subtasks.
+
+```sh
+curl -X POST "$BASE/api/v1/task-templates/1/instantiate" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"projectId": 5}'
+```
+
+```json
+{
+  "root": TaskObject,
+  "subtasks": [TaskObject, ...]
+}
+```
+
+---
+
 ## Inbox
 
 ### `GET /api/v1/inbox`
@@ -1933,6 +2071,57 @@ curl -X PATCH "$BASE/api/v1/settings" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"weeklyUnplannedExcludedLabelIds":[3,7]}'
+```
+
+---
+
+## Harpoon
+
+A per-user "jump pair": at most **two** task/project references the user can hop
+between with one click. Order is significant — slot 0 is the first member, slot 1
+the second. Attaching a third reference evicts the oldest (FIFO). References are
+persisted in user settings; titles are hydrated on read, and references to deleted
+entities are silently dropped (self-healing).
+
+All three endpoints return the same hydrated shape:
+
+```json
+{
+  "slots": [
+    { "kind": "task", "id": 42, "title": "Do thing" },
+    { "kind": "project", "id": 7, "title": "My project" }
+  ]
+}
+```
+
+### `GET /api/v1/harpoon`
+
+```sh
+curl "$BASE/api/v1/harpoon" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `POST /api/v1/harpoon/attach`
+
+Adds a reference (idempotent). `kind` is `"task"` or `"project"`; the target must
+exist (`404` otherwise).
+
+```sh
+curl -X POST "$BASE/api/v1/harpoon/attach" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"task","id":42}'
+```
+
+### `POST /api/v1/harpoon/detach`
+
+Removes a reference (idempotent — removing an absent reference is a no-op).
+
+```sh
+curl -X POST "$BASE/api/v1/harpoon/detach" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"task","id":42}'
 ```
 
 ---

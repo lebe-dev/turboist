@@ -36,6 +36,7 @@ type apiEnv struct {
 	sections     *repo.ProjectSectionRepo
 	projects     *repo.ProjectRepo
 	tasks        *repo.TaskRepo
+	templates    *repo.TemplateRepo
 	apiTokens    *repo.APITokenRepo
 	apiTokenSalt []byte
 	sessions     *repo.SessionRepo
@@ -71,6 +72,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	secs := repo.NewProjectSectionRepo(d)
 	projs := repo.NewProjectRepo(d, plabels)
 	tasks := repo.NewTaskRepo(d, tlabels)
+	templates := repo.NewTemplateRepo(d)
 	users := repo.NewUserRepo(d)
 	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
 		t.Fatalf("seed user: %v", err)
@@ -109,6 +111,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	searchRepo := repo.NewSearchRepo(tasks, projs)
 	handlers.NewContextHandler(ctxs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/contexts"))
 	handlers.NewLabelHandler(lbls, projs, tasks, testBaseURL).Register(api.Group("/labels"))
+	templateSvc := service.NewTemplateService(templates, projs, taskSvc)
+	handlers.NewTemplateHandler(templates, templateSvc, testBaseURL).Register(api.Group("/task-templates"))
 	handlers.NewSectionHandler(secs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projs, secs, tasks, taskSvc, lbls, ctxs, pinSvc, testBaseURL).Register(api)
 	handlers.NewInboxHandler(tasks, taskSvc, cfg, testBaseURL).Register(api.Group("/inbox"))
@@ -121,6 +125,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings, troikiSvc, testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
+	handlers.NewHarpoonHandler(service.NewHarpoonService(users, tasks, projs)).Register(api)
 	handlers.NewAppSettingsHandler(appSettings, lbls).Register(api)
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
@@ -144,6 +149,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		sections:     secs,
 		projects:     projs,
 		tasks:        tasks,
+		templates:    templates,
 		apiTokens:    apiTokens,
 		apiTokenSalt: salt,
 		sessions:     sessions,

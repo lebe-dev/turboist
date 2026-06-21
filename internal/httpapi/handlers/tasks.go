@@ -47,6 +47,7 @@ func (h *TaskHandler) Register(r fiber.Router) {
 	r.Patch("/tasks/:id", httpapi.RequireScope("tasks:write"), h.patch)
 	r.Delete("/tasks/:id", httpapi.RequireScope("tasks:write"), h.delete)
 	r.Get("/tasks/:id/subtasks", httpapi.RequireScope("tasks:read"), h.listSubtasks)
+	r.Get("/tasks/:id/template-draft", httpapi.RequireScope("tasks:read"), h.templateDraft)
 	r.Post("/tasks/:id/subtasks", httpapi.RequireScope("tasks:write"), h.createSubtask)
 	r.Post("/tasks/:id/duplicate", httpapi.RequireScope("tasks:write"), h.duplicate)
 	r.Post("/tasks/:id/decompose", httpapi.RequireScope("tasks:write"), h.decompose)
@@ -272,6 +273,53 @@ func (h *TaskHandler) listSubtasks(c fiber.Ctx) error {
 		dtos[i] = dto.TaskFromModel(t, h.baseURL)
 	}
 	return c.JSON(dto.NewPagedResponse(dtos, len(dtos), len(dtos), 0))
+}
+
+// templateDraft assembles an unsaved task-template draft from a task and its
+// whole subtree, flattened into a single subtask level. The frontend uses it to
+// prefill the template editor; nothing is persisted here.
+func (h *TaskHandler) templateDraft(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+	logEntry(c, "handler.Task.TemplateDraft", slog.Int64("task_id", id))
+	root, err := h.tasks.Get(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return httpapi.ErrNotFound("task not found")
+		}
+		return httpapi.ErrInternal("get task").WithCause(err)
+	}
+	descendants, err := h.flattenSubtree(c.Context(), id)
+	if err != nil {
+		return httpapi.ErrInternal("flatten subtree").WithCause(err)
+	}
+	return c.JSON(dto.TaskTemplateDraftFromTask(*root, descendants))
+}
+
+// flattenSubtree returns every descendant of parentID in depth-first pre-order.
+// Each task is re-fetched via Get so its labels are hydrated (ListSubtasks does
+// not hydrate labels) — same reason cloneTask re-fetches.
+func (h *TaskHandler) flattenSubtree(ctx context.Context, parentID int64) ([]model.Task, error) {
+	children, err := h.tasks.ListSubtasks(ctx, parentID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Task, 0, len(children))
+	for _, child := range children {
+		full, err := h.tasks.Get(ctx, child.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *full)
+		nested, err := h.flattenSubtree(ctx, child.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, nested...)
+	}
+	return out, nil
 }
 
 func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
