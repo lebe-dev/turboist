@@ -19,6 +19,7 @@
 	import { toast } from 'svelte-sonner';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LockSimpleOpenIcon from 'phosphor-svelte/lib/LockSimpleOpen';
+	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import { dayKeyInTz, dayStartUtcInTz, shiftDayKey, toIsoUtc } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_ORDER } from '$lib/utils/priority';
@@ -194,6 +195,16 @@
 			{/if}
 		</DropdownMenu.Item>
 	{/if}
+	<DropdownMenu.Item
+		onclick={async () => {
+			const next = !task.isComplex;
+			await updateTaskFields(task, mutator, { isComplex: next }, { belongs });
+			toast.success($t('task.actions.complexityUpdated'));
+		}}
+	>
+		<GaugeIcon class="size-4" weight={task.isComplex ? 'fill' : 'regular'} />
+		{task.isComplex ? $t('task.actions.unmarkComplex') : $t('task.actions.markComplex')}
+	</DropdownMenu.Item>
 	<DropdownMenu.Item onclick={() => (moveOpen = true)}>
 		<FolderIcon class="size-4" /> {$t('task.actions.moveToProject')}
 	</DropdownMenu.Item>

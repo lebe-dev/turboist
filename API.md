@@ -723,6 +723,7 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
   "isPinned": false,
   "pinnedAt": null,
   "isPrivate": false,
+  "isComplex": false,
   "completedAt": null,
   "recurrenceRule": null,
   "postponeCount": 0,
@@ -767,7 +768,8 @@ All fields are optional. Omit a field to leave it unchanged.
   "recurrenceRule": "RRULE:FREQ=DAILY",
   "labels": ["bug", "urgent"],
   "removedAutoLabels": ["auto-label-name"],
-  "isPrivate": false
+  "isPrivate": false,
+  "isComplex": false
 }
 ```
 

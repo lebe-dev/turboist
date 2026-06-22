@@ -439,6 +439,8 @@
 		},
 		"postponedTimes": "Postponed {count} times",
 		"inTroikiTitle": "In Troiki system",
+		"complexMarker": "Complex",
+		"complexTooltip": "Marked as a complex task",
 		"recurringLabel": "Recurring task",
 		"unplannedLabel": "Added outside of planning",
 		"weekPlannedLabel": "Planned for this week",
@@ -464,6 +466,9 @@
 			"select": "Select tasks",
 			"deselect": "Deselect",
 			"moreSubmenu": "Actions",
+			"markComplex": "Mark as complex",
+			"unmarkComplex": "Mark as simple",
+			"complexityUpdated": "Complexity updated",
 			"createTemplate": "Create template",
 			"createTemplateSuccess": "Template created",
 			"createTemplateFailed": "Failed to create template"

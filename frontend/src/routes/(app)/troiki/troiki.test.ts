@@ -79,6 +79,7 @@ function makeTask(id: number, projectId: number, over: Partial<Task> = {}): Task
 		isPinned: false,
 		pinnedAt: null,
 		isPrivate: false,
+		isComplex: false,
 		completedAt: null,
 		recurrenceRule: null,
 		postponeCount: 0,

@@ -108,7 +108,7 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 				priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-				day_part, plan_state, is_pinned, pinned_at, is_private,
+				day_part, plan_state, is_pinned, pinned_at, is_private, is_complex,
 				recurrence_rule, completed_at, postpone_count, troiki_category, troiki_capacity_granted,
 				source_task_id, created_at, updated_at
 		 FROM tasks ORDER BY id`)
@@ -121,13 +121,13 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 		var t BackupTask
 		var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
 		var dueAt, deadlineAt, pinnedAt, recurrence, completedAt, troiki sql.NullString
-		var dueHasTime, deadlineHasTime, isPinned, isPrivate, capGranted int
+		var dueHasTime, deadlineHasTime, isPinned, isPrivate, isComplex, capGranted int
 		if err := rows.Scan(&t.ID, &t.Title, &t.Description,
 			&inboxID, &contextID, &projectID, &sectionID, &parentID,
 			&t.Priority, &t.Status,
 			&dueAt, &dueHasTime, &deadlineAt, &deadlineHasTime,
 			&t.DayPart, &t.PlanState,
-			&isPinned, &pinnedAt, &isPrivate,
+			&isPinned, &pinnedAt, &isPrivate, &isComplex,
 			&recurrence, &completedAt, &t.PostponeCount, &troiki, &capGranted,
 			&sourceTaskID, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
@@ -140,6 +140,7 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 		t.DeadlineHasTime = deadlineHasTime == 1
 		t.IsPinned = isPinned == 1
 		t.IsPrivate = isPrivate == 1
+		t.IsComplex = isComplex == 1
 		t.TroikiCapacityGranted = capGranted == 1
 		if inboxID.Valid {
 			v := inboxID.Int64

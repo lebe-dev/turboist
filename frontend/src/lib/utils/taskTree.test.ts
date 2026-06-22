@@ -28,6 +28,7 @@ function task(
 		isPinned: false,
 		pinnedAt: null,
 		isPrivate: false,
+		isComplex: false,
 		completedAt: null,
 		recurrenceRule: null,
 		postponeCount: 0,

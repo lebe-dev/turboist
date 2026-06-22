@@ -439,6 +439,8 @@
 		},
 		"postponedTimes": "Откладывалась {count} раз(а)",
 		"inTroikiTitle": "В системе Тройки",
+		"complexMarker": "Сложная",
+		"complexTooltip": "Помечена как сложная задача",
 		"recurringLabel": "Повторяющаяся задача",
 		"unplannedLabel": "Добавлено вне планирования",
 		"weekPlannedLabel": "Запланировано на эту неделю",
@@ -464,6 +466,9 @@
 			"select": "Выбрать задачи",
 			"deselect": "Снять выбор",
 			"moreSubmenu": "Действия",
+			"markComplex": "Пометить сложной",
+			"unmarkComplex": "Пометить простой",
+			"complexityUpdated": "Сложность обновлена",
 			"createTemplate": "Создать шаблон",
 			"createTemplateSuccess": "Шаблон создан",
 			"createTemplateFailed": "Не удалось создать шаблон"
