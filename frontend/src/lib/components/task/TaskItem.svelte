@@ -12,6 +12,7 @@
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
@@ -302,7 +303,7 @@
 				class:text-muted-foreground={checked || depth > 0}
 				class:text-foreground={!checked && depth === 0}
 			>
-				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
+				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-1.5 inline-block size-3.5 text-red-500" weight="fill" /></span>{/if}{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
 		</div>
 

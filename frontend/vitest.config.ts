@@ -5,6 +5,9 @@ import svelteIntlPrecompile from 'svelte-intl-precompile/sveltekit-plugin';
 
 export default defineConfig({
 	plugins: [svelteIntlPrecompile('locales'), sveltekit(), svelteTesting()],
+	server: {
+		allowedHosts: ['test.home']
+	},
 	test: {
 		environment: 'jsdom',
 		globals: true,

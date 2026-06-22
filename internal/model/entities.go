@@ -77,6 +77,10 @@ type Task struct {
 
 	IsPrivate bool
 
+	// IsComplex flags a task the user considers hard/demanding; surfaced in the
+	// UI with a brain marker. Purely descriptive — no invariants attached.
+	IsComplex bool
+
 	CompletedAt *time.Time
 
 	RecurrenceRule *string

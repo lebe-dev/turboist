@@ -99,6 +99,7 @@ type BackupTask struct {
 	IsPinned              bool    `json:"isPinned"`
 	PinnedAt              *string `json:"pinnedAt,omitempty"`
 	IsPrivate             bool    `json:"isPrivate"`
+	IsComplex             bool    `json:"isComplex"`
 	RecurrenceRule        *string `json:"recurrenceRule,omitempty"`
 	CompletedAt           *string `json:"completedAt,omitempty"`
 	PostponeCount         int     `json:"postponeCount"`

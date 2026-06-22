@@ -121,6 +121,7 @@ export interface Task {
 	isPinned: boolean;
 	pinnedAt: string | null;
 	isPrivate: boolean;
+	isComplex: boolean;
 	completedAt: string | null;
 
 	recurrenceRule: string | null;
@@ -418,6 +419,7 @@ export interface TaskInput {
 	labels?: string[];
 	removedAutoLabels?: string[];
 	isPrivate?: boolean;
+	isComplex?: boolean;
 }
 
 export interface TaskTemplateSubtask {
