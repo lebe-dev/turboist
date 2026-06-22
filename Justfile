@@ -1,5 +1,5 @@
 # Load variables from .env (gitignored) into recipe environments — e.g. SONAR_TOKEN.
-set dotenv-load := true
+set dotenv-load
 
 # --- Variables ---
 
@@ -49,9 +49,6 @@ test name="":
     go test -run "{{ name }}" ./...
 
 test-frontend name="":
-    cd frontend && yarn vitest run {{ if name != "" { name } else { "" } }}
-
-frontend-test name="":
     cd frontend && yarn vitest run {{ if name != "" { name } else { "" } }}
 
 frontend-test-watch:
