@@ -1,0 +1,58 @@
+stages:
+  - test
+  - build
+  - deploy
+
+run_lints:
+  stage: test
+  script:
+    - export PATH=$PATH:/usr/local/go/bin
+    - go version
+    - golangci-lint --version
+    - cd frontend && yarn && yarn build
+    - yarn run check && yarn run lint
+    - cd ..
+    - golangci-lint run ./... -v
+
+run_tests:
+  stage: test
+  script:
+    - export PATH=$PATH:/usr/local/go/bin
+    - cd frontend && yarn && yarn build
+    - cd ..
+    - go test -run "{{ name }}" ./...
+    - cd frontend && yarn vitest run
+    - cd ..
+
+
+build:
+  stage: build
+  before_script:
+    - echo "$REGISTRY_PASS" | docker login -u "$REGISTRY_USER" --password-stdin
+  script:
+    - export PATH=$PATH:/usr/local/go/bin
+    - IMAGE_TAG=$(<VERSION)-$(git rev-parse --short HEAD)
+    - echo "IMAGE_TAG=$IMAGE_TAG" > build.env
+    - docker images | grep turboist
+    - docker buildx build --push --progress=plain --platform linux/amd64 -t lacostya/turboist:$IMAGE_TAG .
+    - docker images | grep turboist
+  artifacts:
+    reports:
+      dotenv: build.env
+    paths:
+      - build.env
+  after_script:
+    - docker logout
+
+deploy:
+  stage: deploy
+  script:
+    - ssh turbo "cd /opt/turboist-dev &&
+        export IMAGE="lacostya/turboist:$IMAGE_TAG" &&
+        yq -i -y '.services.turboist.image = env.IMAGE' docker-compose.yml &&
+        sudo docker compose pull turboist &&
+        sudo docker compose down &&
+        sudo docker compose up -d"
+  needs:
+    - job: build
+      artifacts: true
