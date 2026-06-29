@@ -144,7 +144,7 @@ func (s *Service) FreshGoogleToken(ctx context.Context, cfg *oauth2.Config, acco
 	src := cfg.TokenSource(ctx, token)
 	fresh, err := src.Token()
 	if err != nil {
-		return nil, err
+		return nil, asReauthError(err)
 	}
 	if tokenChanged(token, fresh) || needsEncryption {
 		account.AccessToken = fresh.AccessToken
