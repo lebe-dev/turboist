@@ -323,6 +323,12 @@ func (h *CalendarHandler) deleteGoogleConfig(c fiber.Ctx) error {
 	if err := h.calendars.DeleteOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle); err != nil && !errors.Is(err, repo.ErrNotFound) {
 		return httpapi.ErrInternal("delete google calendar config").WithCause(err)
 	}
+	// Drop the connected account too: its stored refresh token was issued for
+	// the credentials being removed, so leaving it behind only yields
+	// `invalid_grant` on the next refresh. Sources cascade with the account.
+	if err := h.calendars.DeleteAccountByProvider(c.Context(), userID, model.CalendarProviderGoogle); err != nil {
+		return httpapi.ErrInternal("disconnect google calendar account").WithCause(err)
+	}
 	h.svc.Cache().DeleteUser(userID)
 	return h.list(c)
 }

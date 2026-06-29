@@ -1,9 +1,14 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/lebe-dev/turboist/internal/model"
+	"github.com/lebe-dev/turboist/internal/repo"
 )
 
 func TestCalendarHandler_ListRequiresAuth(t *testing.T) {
@@ -91,6 +96,56 @@ func TestCalendarHandler_PatchSettingsToggle(t *testing.T) {
 	}
 	if v, ok := body2["enabled"].(bool); !ok || v {
 		t.Errorf("enabled: got %v, want false", body2["enabled"])
+	}
+}
+
+func TestCalendarHandler_DeleteConfigDisconnectsAccount(t *testing.T) {
+	env := setupAPIEnv(t)
+	ctx := context.Background()
+	const userID = 1
+
+	if _, err := env.calendarRepo.UpsertOAuthConfig(ctx, &model.CalendarOAuthConfig{
+		UserID:       userID,
+		Provider:     model.CalendarProviderGoogle,
+		ClientID:     "enc-client-id",
+		ClientSecret: "enc-client-secret",
+	}); err != nil {
+		t.Fatalf("seed oauth config: %v", err)
+	}
+	account, err := env.calendarRepo.UpsertAccount(ctx, &model.CalendarAccount{
+		UserID:       userID,
+		Provider:     model.CalendarProviderGoogle,
+		Email:        "me@example.com",
+		RefreshToken: "stale-refresh-token",
+	})
+	if err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	if err := env.calendarRepo.UpsertSources(ctx, account, []model.CalendarSource{
+		{ExternalID: "primary", Summary: "Primary", Selected: true, IsPrimary: true},
+	}); err != nil {
+		t.Fatalf("seed sources: %v", err)
+	}
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodDelete, "/api/v1/calendars/google/config", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	// The connected account (and its stale refresh token) must be gone, not just
+	// the OAuth config — otherwise the next fetch fails with invalid_grant.
+	if _, err := env.calendarRepo.GetAccountByProvider(ctx, userID, model.CalendarProviderGoogle); !errors.Is(err, repo.ErrNotFound) {
+		t.Fatalf("account after config delete: got err %v, want ErrNotFound", err)
+	}
+	sources, err := env.calendarRepo.ListSelectedSources(ctx, userID, model.CalendarProviderGoogle)
+	if err != nil {
+		t.Fatalf("list sources: %v", err)
+	}
+	if len(sources) != 0 {
+		t.Errorf("sources after config delete: got %d, want 0 (should cascade)", len(sources))
 	}
 }
 

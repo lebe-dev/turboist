@@ -85,6 +85,7 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `totp_invalid_code` | 401 |
 | `totp_already_enabled` | 409 |
 | `totp_not_enabled` | 409 |
+| `calendar_reauth_required` | 409 |
 | `CodeInternalError` | 500 |
 
 #### `403 Forbidden`

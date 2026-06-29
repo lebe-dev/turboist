@@ -293,6 +293,17 @@ func (r *CalendarRepo) DeleteAccount(ctx context.Context, userID, accountID int6
 	return nil
 }
 
+// DeleteAccountByProvider removes the connected account for the given provider
+// (cascading its sources). It is a no-op when no account is connected, so
+// callers can use it to guarantee no stale tokens survive without first
+// checking for existence.
+func (r *CalendarRepo) DeleteAccountByProvider(ctx context.Context, userID int64, provider model.CalendarProvider) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM calendar_accounts WHERE user_id = ? AND provider = ?`, userID, string(provider)); err != nil {
+		return fmt.Errorf("delete calendar account by provider: %w", err)
+	}
+	return nil
+}
+
 func (r *CalendarRepo) UpsertSources(ctx context.Context, account *model.CalendarAccount, sources []model.CalendarSource) error {
 	now := model.FormatUTC(time.Now())
 	tx, err := r.db.BeginTx(ctx, nil)
