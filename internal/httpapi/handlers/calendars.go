@@ -435,6 +435,11 @@ func (h *CalendarHandler) googleSync(c fiber.Ctx) error {
 	}
 	token, err := h.svc.FreshGoogleToken(c.Context(), cfg, account)
 	if err != nil {
+		if calendar.IsReauthRequired(err) {
+			slog.WarnContext(c.Context(), "google calendar reauth required",
+				"op", "handler.Calendar.googleSync", "user_id", userID, "err", err)
+			return httpapi.ErrCalendarReauthRequired()
+		}
 		return httpapi.ErrInternal("refresh google calendar token").WithCause(err)
 	}
 	if _, err := h.svc.SaveGoogleAccountAndSources(c.Context(), userID, cfg, token); err != nil {
@@ -541,6 +546,11 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 	defer cancel()
 	items, err := h.svc.FetchGoogleEvents(ctx, cfg, account, sources, start, end)
 	if err != nil {
+		if calendar.IsReauthRequired(err) {
+			slog.WarnContext(c.Context(), "google calendar reauth required",
+				"op", "handler.Calendar.events", "user_id", userID, "err", err)
+			return httpapi.ErrCalendarReauthRequired()
+		}
 		return httpapi.ErrInternal("fetch calendar events").WithCause(err)
 	}
 	h.svc.Cache().Set(cacheKey, items)
