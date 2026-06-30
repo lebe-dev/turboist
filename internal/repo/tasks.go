@@ -836,6 +836,14 @@ func (r *TaskRepo) CountInbox(ctx context.Context) (int, error) {
 	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE inbox_id IS NOT NULL AND status = 'open'`)
 }
 
+// CountOverdue counts open tasks whose due_at falls before todayStart. Mirrors
+// the ListOverdue window, used by the weekly summary to report carried-over work.
+func (r *TaskRepo) CountOverdue(ctx context.Context, todayStart time.Time) (int, error) {
+	return r.scalarCount(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE status = 'open' AND due_at IS NOT NULL AND due_at < ?`,
+		model.FormatUTC(todayStart))
+}
+
 func (r *TaskRepo) CountPinnedTasks(ctx context.Context) (int, error) {
 	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE is_pinned = 1`)
 }

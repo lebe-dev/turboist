@@ -189,6 +189,20 @@ export interface SidebarStatsResponse {
 	pinned: ViewList<Task>;
 }
 
+// WeekSummaryResponse backs the /week/summary review page. `completed` carries
+// every task completed in the current week (incl. subtasks and recurrence
+// snapshots); the page derives the by-priority/project/context breakdowns from
+// it client-side. `stats.completedCount` is the authoritative total.
+export interface WeekSummaryResponse {
+	range: { start: string; end: string };
+	stats: {
+		completedCount: number;
+		plannedOpen: number;
+		overdue: number;
+	};
+	completed: Task[];
+}
+
 export interface TroikiProject extends Project {
 	tasks: Task[];
 }

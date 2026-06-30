@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CalendarIcon from 'phosphor-svelte/lib/Calendar';
 	import FunnelIcon from 'phosphor-svelte/lib/Funnel';
+	import ChartBarIcon from 'phosphor-svelte/lib/ChartBar';
 	import { Button } from '$lib/components/ui/button';
 	import { t, locale } from '$lib/i18n';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
@@ -196,6 +197,10 @@
 		{/if}
 	{/snippet}
 	{#snippet actions()}
+		<Button href="/week/summary" variant="outline" size="sm" title={$t('page.weekSummary.open')}>
+			<ChartBarIcon />
+			<span>{$t('page.weekSummary.action')}</span>
+		</Button>
 		<Button
 			variant={onlyPlanned ? 'secondary' : 'outline'}
 			size="sm"

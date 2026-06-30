@@ -155,6 +155,42 @@ func TestTaskRepo_Views_WeekIncludesDueInRange(t *testing.T) {
 	}
 }
 
+func TestTaskRepo_CountOverdue(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	todayStart := time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC)
+	past := todayStart.Add(-48 * time.Hour)
+	future := todayStart.Add(48 * time.Hour)
+
+	mk := func(title string, due time.Time) {
+		t.Helper()
+		dueCopy := due
+		if _, err := f.tasks.Create(ctx, CreateTask{
+			Placement: Placement{ContextID: &f.contextID},
+			Title:     title,
+			DueAt:     &dueCopy,
+		}); err != nil {
+			t.Fatalf("create %s: %v", title, err)
+		}
+	}
+	mk("overdue-1", past)
+	mk("overdue-2", past)
+	mk("future", future)
+	// No due date → never overdue.
+	if _, err := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "no-due"}); err != nil {
+		t.Fatalf("create no-due: %v", err)
+	}
+
+	n, err := f.tasks.CountOverdue(ctx, todayStart)
+	if err != nil {
+		t.Fatalf("count overdue: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("count overdue: got %d, want 2", n)
+	}
+}
+
 func TestTaskRepo_Views_TodayInNonUTC(t *testing.T) {
 	// Verify the today window honors a non-UTC todayStart computed by the
 	// service: a task due 2026-04-27 23:00 in Tokyo (=14:00 UTC) lands inside

@@ -36,6 +36,7 @@ func (h *TaskViewHandler) Register(r fiber.Router) {
 	r.Get("/tasks/completed", httpapi.RequireScope(auth.ScopeTasksRead), h.completed)
 	r.Get("/stats/plan", httpapi.RequireScope(auth.ScopeTasksRead), h.statsPlan)
 	r.Get("/stats/sidebar", httpapi.RequireScope(auth.ScopeTasksRead), h.statsSidebar)
+	r.Get("/stats/week-summary", httpapi.RequireScope(auth.ScopeTasksRead), h.weekSummary)
 }
 
 // todayStart returns the start of the current day in the configured timezone.
@@ -306,6 +307,89 @@ func (h *TaskViewHandler) statsSidebar(c fiber.Ctx) error {
 		PlanStats:  planStats,
 		InboxStats: inboxStats,
 		Pinned:     pinned,
+	})
+}
+
+// weekSummaryCompletedLimit caps the completed-task list the weekly summary
+// returns. Breakdowns (by priority/project/context) are computed client-side
+// from this list, so the cap is generous; a single week realistically stays
+// well below it.
+const weekSummaryCompletedLimit = 500
+
+type weekSummaryRange struct {
+	Start string `json:"start"`
+	End   string `json:"end"`
+}
+
+type weekSummaryStats struct {
+	// CompletedCount is the total tasks completed this week (incl. subtasks and
+	// recurrence-completion snapshots — every row marked completed in range).
+	CompletedCount int `json:"completedCount"`
+	// PlannedOpen is the count of open tasks still on the week board.
+	PlannedOpen int `json:"plannedOpen"`
+	// Overdue is the count of open tasks past their due date.
+	Overdue int `json:"overdue"`
+}
+
+// weekSummaryResponse powers the /week/summary review page: the current-week
+// range, headline counters, and the full completed-task list the frontend
+// groups by priority/project/context.
+type weekSummaryResponse struct {
+	Range     weekSummaryRange `json:"range"`
+	Stats     weekSummaryStats `json:"stats"`
+	Completed []dto.TaskDTO    `json:"completed"`
+}
+
+func (h *TaskViewHandler) weekSummary(c fiber.Ctx) error {
+	start, end := h.currentWeekRange()
+	todayStart := h.todayStart()
+	ctx := c.Context()
+
+	var (
+		completed      []model.Task
+		completedTotal int
+		plannedOpen    int
+		overdue        int
+	)
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		items, total, err := h.tasks.ListCompletedInRange(gctx, start, end, repo.TaskFilter{}, repo.Page{Limit: weekSummaryCompletedLimit})
+		if err != nil {
+			return err
+		}
+		completed = items
+		completedTotal = total
+		return nil
+	})
+
+	g.Go(func() error {
+		n, err := h.tasks.CountWeek(gctx)
+		if err != nil {
+			return err
+		}
+		plannedOpen = n
+		return nil
+	})
+
+	g.Go(func() error {
+		n, err := h.tasks.CountOverdue(gctx, todayStart)
+		if err != nil {
+			return err
+		}
+		overdue = n
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return httpapi.ErrInternal("load week summary").WithCause(err)
+	}
+
+	return c.JSON(weekSummaryResponse{
+		Range:     weekSummaryRange{Start: model.FormatUTC(start), End: model.FormatUTC(end)},
+		Stats:     weekSummaryStats{CompletedCount: completedTotal, PlannedOpen: plannedOpen, Overdue: overdue},
+		Completed: tasksToDTO(completed, h.baseURL),
 	})
 }
 
