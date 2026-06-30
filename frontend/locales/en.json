@@ -473,7 +473,8 @@
 			"complexityUpdated": "Complexity updated",
 			"createTemplate": "Create template",
 			"createTemplateSuccess": "Template created",
-			"createTemplateFailed": "Failed to create template"
+			"createTemplateFailed": "Failed to create template",
+			"applyLabelsToSubtasks": "Overwrite subtask labels with parent's"
 		},
 		"dayPart": {
 			"morning": "Morning",
@@ -534,7 +535,9 @@
 			"failedUndo": "Failed to undo",
 			"confirmDelete": "Delete \"{title}\"? Subtasks will also be removed.",
 			"decomposed": "Decomposed into {count} task(s)",
-			"failedDecompose": "Failed to decompose task"
+			"failedDecompose": "Failed to decompose task",
+			"subtaskLabelsApplied": "Labels applied to {count} subtask(s)",
+			"failedApplySubtaskLabels": "Failed to apply labels to subtasks"
 		},
 		"backlogLabel": "In backlog"
 	},

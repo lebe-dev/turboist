@@ -210,8 +210,20 @@
 		return false;
 	});
 
+	// Set when a new rule is appended; consumed by the mask input's attach to autofocus it
+	let pendingRuleFocus = $state(false);
+
 	function addAutoLabelRule(): void {
 		autoLabelsDraft = [...autoLabelsDraft, { mask: '', labelIds: [], ignoreCase: true }];
+		pendingRuleFocus = true;
+	}
+
+	function focusNewMask(el: HTMLInputElement): void {
+		// Only the visible layout (mobile vs desktop) has a non-null offsetParent
+		if (pendingRuleFocus && el.offsetParent) {
+			pendingRuleFocus = false;
+			el.focus();
+		}
 	}
 
 	function removeAutoLabelRule(idx: number): void {
@@ -445,6 +457,9 @@
 									<input
 										type="text"
 										bind:value={rule.mask}
+										{@attach (el) => {
+											if (idx === autoLabelsDraft.length - 1) focusNewMask(el);
+										}}
 										placeholder={$t('settings.autoLabels.maskPlaceholder')}
 										class="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 									/>
@@ -497,6 +512,9 @@
 								<input
 									type="text"
 									bind:value={rule.mask}
+									{@attach (el) => {
+										if (idx === autoLabelsDraft.length - 1) focusNewMask(el);
+									}}
 									placeholder={$t('settings.autoLabels.maskPlaceholder')}
 									class="rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 								/>

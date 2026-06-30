@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import type { Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
@@ -66,7 +67,7 @@
 		showUnplannedBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
-		onToggle?: (task: Task) => void;
+		onToggle?: (task: Task) => void | Promise<void>;
 		hasSubtasks?: boolean;
 		subtasksCollapsed?: boolean;
 		onToggleCollapse?: () => void;
@@ -151,6 +152,28 @@
 	const phaseActive = $derived(getDayPartActive ? getDayPartActive() : true);
 
 	let descriptionExpanded = $state(false);
+
+	// Show a spinner on the checkbox only when the toggle round-trip is slow
+	// (e.g. poor connectivity). On a fast network it settles before the delay
+	// elapses, so the spinner never flickers into view.
+	let toggling = $state(false);
+
+	async function handleToggle() {
+		if (toggling) return;
+		const result = onToggle?.(task);
+		if (!(result instanceof Promise)) return;
+		let settled = false;
+		const timer = setTimeout(() => {
+			if (!settled) toggling = true;
+		}, 150);
+		try {
+			await result;
+		} finally {
+			settled = true;
+			clearTimeout(timer);
+			toggling = false;
+		}
+	}
 
 	const checked = $derived(task.status === 'completed');
 	const project = $derived(
@@ -247,7 +270,9 @@
 			<button
 				type="button"
 				onclick={onToggleCollapse}
-				class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+				class="inline-flex size-4 shrink-0 items-center justify-center transition-colors {subtasksCollapsed
+					? 'text-primary'
+					: 'text-muted-foreground/50 hover:text-muted-foreground'}"
 				class:mt-0.5={hasMeta}
 				aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
 				aria-expanded={!subtasksCollapsed}
@@ -282,13 +307,17 @@
 	{/if}
 	<button
 		type="button"
-		onclick={() => onToggle?.(task)}
+		onclick={() => void handleToggle()}
+		disabled={toggling}
 		class={checkboxClass}
 		class:mt-0.5={hasMeta}
 		aria-pressed={checked}
+		aria-busy={toggling}
 		aria-label={checked ? $t('task.markIncomplete') : $t('task.markComplete')}
 	>
-		{#if checked}
+		{#if toggling}
+			<Spinner class="size-2.5" />
+		{:else if checked}
 			<CheckIcon class="size-2.5" weight="bold" />
 		{/if}
 	</button>

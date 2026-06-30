@@ -24,6 +24,7 @@
 	import { nowStore } from '$lib/stores/now.svelte';
 	import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_ORDER } from '$lib/utils/priority';
 	import {
+		applyParentLabelsToSubtasks,
 		copyTaskTitle,
 		deleteTask,
 		describeError,
@@ -49,6 +50,7 @@
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
 	import ListBulletsIcon from 'phosphor-svelte/lib/ListBullets';
 	import StackIcon from 'phosphor-svelte/lib/Stack';
+	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import AnchorIcon from 'phosphor-svelte/lib/Anchor';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
 	import SunHorizonIcon from 'phosphor-svelte/lib/SunHorizon';
@@ -231,6 +233,11 @@
 	<DropdownMenu.Item onclick={() => void createTemplateFromTask()}>
 		<StackIcon class="size-4" /> {$t('task.actions.createTemplate')}
 	</DropdownMenu.Item>
+	{#if hasSubtasks}
+		<DropdownMenu.Item onclick={() => void applyParentLabelsToSubtasks(task, mutator)}>
+			<TagIcon class="size-4" /> {$t('task.actions.applyLabelsToSubtasks')}
+		</DropdownMenu.Item>
+	{/if}
 {/snippet}
 
 <DropdownMenu.Root bind:open={menuOpen}>
