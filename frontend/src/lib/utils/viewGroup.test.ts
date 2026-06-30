@@ -26,6 +26,7 @@ function makeTask(overrides: Partial<Task>): Task {
 		isComplex: false,
 		completedAt: null,
 		recurrenceRule: null,
+		sourceTaskId: null,
 		postponeCount: 0,
 		labels: [],
 		url: '',

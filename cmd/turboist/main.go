@@ -210,7 +210,7 @@ func main() {
 	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).Register(api)
 	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL).Register(api.Group("/inbox"))
 	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, env.BaseURL).Register(api)
-	handlers.NewTaskViewHandler(taskRepo, cfg, env.BaseURL).Register(api)
+	handlers.NewTaskViewHandler(taskRepo, userRepo, troikiSvc, cfg, env.BaseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
 	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)

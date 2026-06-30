@@ -10,7 +10,8 @@
 	import { configStore } from '$lib/stores/config.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
-	import type { Task, WeekSummaryResponse } from '$lib/api/types';
+	import type { Task, TroikiCategory, WeekSummaryResponse } from '$lib/api/types';
+	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import { PRIORITY_ORDER, PRIORITY_LABEL, PRIORITY_COLOR } from '$lib/utils/priority';
@@ -65,6 +66,33 @@
 	const byProject = $derived(countBy(completed, (task) => projectTitle(task.projectId)));
 	const byContext = $derived(countBy(completed, (task) => contextName(task.contextId)));
 
+	const troiki = $derived(summary?.troiki ?? null);
+
+	// Per-category accent for the progress bar / dot, mirroring the priority each
+	// Troiki category enforces (important→P1 red, medium→P2 amber, rest→P3 blue).
+	const TROIKI_CATEGORY_LABEL: Record<TroikiCategory, string> = {
+		important: 'troiki.section.important',
+		medium: 'troiki.section.medium',
+		rest: 'troiki.section.rest'
+	};
+	const TROIKI_CATEGORY_DOT: Record<TroikiCategory, string> = {
+		important: 'text-red-500',
+		medium: 'text-amber-500',
+		rest: 'text-blue-500'
+	};
+	const TROIKI_CATEGORY_BAR: Record<TroikiCategory, string> = {
+		important: 'bg-red-500',
+		medium: 'bg-amber-500',
+		rest: 'bg-blue-500'
+	};
+
+	// Completion ratio for a slot's progress bar: completed / (completed + open).
+	function troikiProgress(completedCount: number, open: number): number {
+		const total = completedCount + open;
+		if (total === 0) return 0;
+		return Math.round((completedCount / total) * 100);
+	}
+
 	const loader = usePageLoad(
 		async (isValid) => {
 			const res = await viewsApi.weekSummary(getApiClient());
@@ -95,13 +123,56 @@
 <div class="px-4 py-2 sm:px-8">
 	<ViewContent
 		loading={loader.loading}
-		isEmpty={summary !== null && summary.stats.completedCount === 0 && summary.stats.plannedOpen === 0 && summary.stats.overdue === 0}
+		isEmpty={summary !== null && summary.stats.completedCount === 0 && summary.stats.plannedOpen === 0 && summary.stats.overdue === 0 && !troiki}
 		emptyIcon={ListChecksIcon}
 		emptyTitle={$t('page.weekSummary.emptyTitle')}
 		emptyDescription={$t('page.weekSummary.emptyDescription')}
 	>
 		{#if summary}
 			<div class="flex flex-col gap-6 py-2">
+				{#if troiki}
+					<!-- Troiki progress — the methodology takes priority over plain
+					     projects/tasks, so it leads the summary. -->
+					<section class="rounded-lg border border-primary/30 bg-card p-4">
+						<div class="mb-3 flex items-center gap-2">
+							<StackIcon class="size-5 shrink-0 text-primary" weight="fill" />
+							<h2 class="text-sm font-semibold uppercase tracking-wide text-foreground">
+								{$t('page.weekSummary.troikiTitle')}
+							</h2>
+						</div>
+						<ul class="flex flex-col gap-4">
+							{#each troiki.slots as slot (slot.category)}
+								<li class="flex flex-col gap-1.5">
+									<div class="flex items-center justify-between gap-3 text-sm">
+										<span class="flex items-center gap-2">
+											<span class="text-base leading-none {TROIKI_CATEGORY_DOT[slot.category]}">●</span>
+											<span class="font-medium text-foreground">
+												{$t(TROIKI_CATEGORY_LABEL[slot.category])}
+											</span>
+											<span class="text-xs text-muted-foreground">
+												{$t('page.weekSummary.troikiSlots', {
+													values: { used: slot.projects, capacity: slot.capacity }
+												})}
+											</span>
+										</span>
+										<span class="tabular-nums text-muted-foreground">
+											{$t('page.weekSummary.troikiDone', {
+												values: { completed: slot.completed, open: slot.open }
+											})}
+										</span>
+									</div>
+									<div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+										<div
+											class="h-full rounded-full {TROIKI_CATEGORY_BAR[slot.category]}"
+											style="width: {troikiProgress(slot.completed, slot.open)}%"
+										></div>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
+
 				<!-- Headline counters -->
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 					<div class="flex items-center gap-3 rounded-lg border bg-card p-4">

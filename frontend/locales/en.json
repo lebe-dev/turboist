@@ -787,7 +787,10 @@
 			"byProject": "By project",
 			"byContext": "By context",
 			"noProject": "No project",
-			"noContext": "No context"
+			"noContext": "No context",
+			"troikiTitle": "Troiki progress",
+			"troikiSlots": "{used}/{capacity} projects",
+			"troikiDone": "{completed} done · {open} open"
 		},
 		"nextWeek": {
 			"dateRangeLabel": "Next week: {range}",

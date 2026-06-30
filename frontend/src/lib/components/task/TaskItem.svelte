@@ -163,7 +163,7 @@
 	const description = $derived(task.description?.trim() ?? '');
 	const descriptionPreview = $derived(stripMarkdownSyntax(description));
 	const descriptionExpandable = $derived(description.length > 100);
-	const isRecurring = $derived(!!task.recurrenceRule);
+	const isRecurring = $derived(!!task.recurrenceRule || task.sourceTaskId !== null);
 	const showTroikiBadge = $derived(
 		settingsStore.troikiEnabled &&
 			!!project?.troikiCategory &&
