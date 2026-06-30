@@ -787,7 +787,10 @@
 			"byProject": "По проектам",
 			"byContext": "По контекстам",
 			"noProject": "Без проекта",
-			"noContext": "Без контекста"
+			"noContext": "Без контекста",
+			"troikiTitle": "Прогресс по Тройкам",
+			"troikiSlots": "{used}/{capacity} проектов",
+			"troikiDone": "{completed} готово · {open} открыто"
 		},
 		"nextWeek": {
 			"dateRangeLabel": "Следующая неделя: {range}",

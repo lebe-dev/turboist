@@ -27,6 +27,7 @@ type TaskDTO struct {
 	IsComplex       bool       `json:"isComplex"`
 	CompletedAt     *string    `json:"completedAt"`
 	RecurrenceRule  *string    `json:"recurrenceRule"`
+	SourceTaskID    *int64     `json:"sourceTaskId"`
 	PostponeCount   int        `json:"postponeCount"`
 	Labels          []LabelDTO `json:"labels"`
 	URL             string     `json:"url"`
@@ -67,6 +68,7 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		IsComplex:       t.IsComplex,
 		CompletedAt:     FormatTimePtr(t.CompletedAt),
 		RecurrenceRule:  t.RecurrenceRule,
+		SourceTaskID:    t.SourceTaskID,
 		PostponeCount:   t.PostponeCount,
 		Labels:          labels,
 		URL:             t.URL(baseURL),

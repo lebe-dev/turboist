@@ -1136,11 +1136,25 @@ client derives the by-priority / by-project / by-context breakdowns from it.
 `stats.completedCount` is the authoritative total, `plannedOpen` counts open
 tasks still on the week board, `overdue` counts open tasks past their due date.
 
+`troiki` is present only when the Troiki system is enabled (else `null`). It
+leads the page because the methodology takes priority over plain projects/tasks.
+`slots` is ordered important → medium → rest; each slot reports its `capacity`,
+the number of `projects` assigned, the count of `open` tasks remaining in those
+projects, and how many of its tasks were `completed` during the week.
+
 ```json
 {
   "range": { "start": "2026-06-29T00:00:00.000Z", "end": "2026-07-06T00:00:00.000Z" },
   "stats": { "completedCount": 12, "plannedOpen": 5, "overdue": 2 },
-  "completed": []
+  "completed": [],
+  "troiki": {
+    "started": true,
+    "slots": [
+      { "category": "important", "capacity": 3, "projects": 2, "open": 4, "completed": 7 },
+      { "category": "medium", "capacity": 5, "projects": 3, "open": 9, "completed": 3 },
+      { "category": "rest", "capacity": 2, "projects": 1, "open": 6, "completed": 2 }
+    ]
+  }
 }
 ```
 
