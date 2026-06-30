@@ -530,6 +530,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/tasks/pinned` | `tasks:read` |
 | `GET /api/v1/tasks/completed` | `tasks:read` |
 | `GET /api/v1/stats/plan` | `tasks:read` |
+| `GET /api/v1/stats/week-summary` | `tasks:read` |
 | `POST /api/v1/tasks/bulk/complete` | `tasks:write` |
 | `POST /api/v1/tasks/bulk/move` | `tasks:write` |
 | `POST /api/v1/tasks/group` | `tasks:write` |
@@ -1122,6 +1123,29 @@ requests.
 
 ```sh
 curl "$BASE/api/v1/stats/sidebar" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `GET /api/v1/stats/week-summary`
+
+Backs the weekly summary review page. Returns the current-week range (Mon..next
+Mon, configured timezone, as UTC instants), headline counters, and the full list
+of tasks completed in that range. The list includes subtasks and
+recurrence-completion snapshots (every row marked completed in range); the
+client derives the by-priority / by-project / by-context breakdowns from it.
+`stats.completedCount` is the authoritative total, `plannedOpen` counts open
+tasks still on the week board, `overdue` counts open tasks past their due date.
+
+```json
+{
+  "range": { "start": "2026-06-29T00:00:00.000Z", "end": "2026-07-06T00:00:00.000Z" },
+  "stats": { "completedCount": 12, "plannedOpen": 5, "overdue": 2 },
+  "completed": []
+}
+```
+
+```sh
+curl "$BASE/api/v1/stats/week-summary" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

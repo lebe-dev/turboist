@@ -772,6 +772,23 @@
 			"onlyPlanned": "Only planned",
 			"onlyPlannedTooltip": "Show only tasks planned for this week and calendar events"
 		},
+		"weekSummary": {
+			"title": "Weekly summary",
+			"action": "Summary",
+			"open": "Open weekly summary",
+			"backToWeek": "Back to week",
+			"errorLoading": "Failed to load weekly summary",
+			"emptyTitle": "Nothing to summarize yet",
+			"emptyDescription": "Complete or plan tasks this week and they'll show up here.",
+			"completed": "Completed",
+			"plannedOpen": "Still planned",
+			"overdue": "Overdue",
+			"byPriority": "By priority",
+			"byProject": "By project",
+			"byContext": "By context",
+			"noProject": "No project",
+			"noContext": "No context"
+		},
 		"nextWeek": {
 			"dateRangeLabel": "Next week: {range}",
 			"errorLoading": "Failed to load planning view",

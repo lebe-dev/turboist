@@ -54,6 +54,85 @@ func TestTaskViews_StatsSidebar_Empty(t *testing.T) {
 	}
 }
 
+type weekSummaryResp struct {
+	Range struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+	} `json:"range"`
+	Stats struct {
+		CompletedCount int `json:"completedCount"`
+		PlannedOpen    int `json:"plannedOpen"`
+		Overdue        int `json:"overdue"`
+	} `json:"stats"`
+	Completed []dto.TaskDTO `json:"completed"`
+}
+
+func TestTaskViews_WeekSummary_Empty(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/stats/week-summary", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result weekSummaryResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Stats.CompletedCount != 0 || result.Stats.PlannedOpen != 0 || result.Stats.Overdue != 0 {
+		t.Errorf("stats: got %+v, want zero", result.Stats)
+	}
+	if len(result.Completed) != 0 {
+		t.Errorf("completed: got %d items, want 0", len(result.Completed))
+	}
+	if result.Range.Start == "" || result.Range.End == "" {
+		t.Errorf("range: got %+v, want populated bounds", result.Range)
+	}
+}
+
+func TestTaskViews_WeekSummary_Counts(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	// One task completed this week.
+	done := createTestTask(t, e, ctx.ID, "Done this week")
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", done.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("complete: got %d; body: %s", resp.StatusCode, body)
+	}
+
+	// One open task planned for the week.
+	planned := createTestTask(t, e, ctx.ID, "Planned for week")
+	doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/plan", planned.ID),
+		map[string]any{"state": "week"}))
+
+	// One overdue open task (due in the past).
+	doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/contexts/%d/tasks", ctx.ID),
+		map[string]any{"title": "Overdue", "dueAt": "2020-01-01T00:00:00.000Z"}))
+
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/stats/week-summary", nil))
+	if resp2.StatusCode != 200 {
+		t.Fatalf("week-summary: got %d; body: %s", resp2.StatusCode, body2)
+	}
+	var result weekSummaryResp
+	if err := json.Unmarshal(body2, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Stats.CompletedCount != 1 {
+		t.Errorf("completedCount: got %d, want 1", result.Stats.CompletedCount)
+	}
+	if len(result.Completed) != 1 || result.Completed[0].Title != "Done this week" {
+		t.Errorf("completed: got %+v, want [Done this week]", result.Completed)
+	}
+	if result.Stats.PlannedOpen != 1 {
+		t.Errorf("plannedOpen: got %d, want 1", result.Stats.PlannedOpen)
+	}
+	if result.Stats.Overdue != 1 {
+		t.Errorf("overdue: got %d, want 1", result.Stats.Overdue)
+	}
+}
+
 // TestTaskViews_Today_Empty hits the today bundle endpoint with an empty DB and
 // expects all three sub-lists to be empty.
 func TestTaskViews_Today_Empty(t *testing.T) {
