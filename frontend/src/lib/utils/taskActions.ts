@@ -325,6 +325,31 @@ export async function decomposeTask(
 	}
 }
 
+// Bulk action: overwrite every direct subtask's labels with the parent's
+// labels. Replaces each subtask's label set (it does not merge) and reflects
+// the updated subtasks back into the current view.
+export async function applyParentLabelsToSubtasks(
+	parent: Task,
+	mutator: ListMutator
+): Promise<void> {
+	const client = getApiClient();
+	try {
+		const { items } = await tasksApi.listSubtasks(client, parent.id);
+		if (items.length === 0) {
+			toast.success(tr('task.toast.subtaskLabelsApplied', { count: 0 }));
+			return;
+		}
+		const labels = parent.labels.map((l) => l.name);
+		const updated = await Promise.all(
+			items.map((sub) => tasksApi.update(client, sub.id, { labels }))
+		);
+		for (const sub of updated) mutator.replace(sub);
+		toast.success(tr('task.toast.subtaskLabelsApplied', { count: updated.length }));
+	} catch (err) {
+		toast.error(describeError(err, tr('task.toast.failedApplySubtaskLabels')));
+	}
+}
+
 export async function copyTaskTitle(task: Task): Promise<void> {
 	try {
 		await navigator.clipboard.writeText(task.title);

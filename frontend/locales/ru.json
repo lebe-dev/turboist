@@ -473,7 +473,8 @@
 			"complexityUpdated": "Сложность обновлена",
 			"createTemplate": "Создать шаблон",
 			"createTemplateSuccess": "Шаблон создан",
-			"createTemplateFailed": "Не удалось создать шаблон"
+			"createTemplateFailed": "Не удалось создать шаблон",
+			"applyLabelsToSubtasks": "Перезаписать метки подзадач метками родителя"
 		},
 		"dayPart": {
 			"morning": "Утро",
@@ -534,7 +535,9 @@
 			"failedUndo": "Не удалось отменить",
 			"confirmDelete": "Удалить «{title}»? Подзадачи также будут удалены.",
 			"decomposed": "Разбито на {count}",
-			"failedDecompose": "Не удалось разбить задачу"
+			"failedDecompose": "Не удалось разбить задачу",
+			"subtaskLabelsApplied": "Метки применены к {count} подзадачам",
+			"failedApplySubtaskLabels": "Не удалось применить метки к подзадачам"
 		},
 		"backlogLabel": "В бэклоге"
 	},

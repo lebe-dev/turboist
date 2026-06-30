@@ -247,7 +247,7 @@
 	function scheduleSave(): void {
 		if (!allowSave || !task || !title.trim()) return;
 		if (saveTimer !== null) clearTimeout(saveTimer);
-		saveTimer = setTimeout(() => void save(), 800);
+		saveTimer = setTimeout(() => void save(), 1500);
 	}
 
 	// Watch picker bindings for auto-save

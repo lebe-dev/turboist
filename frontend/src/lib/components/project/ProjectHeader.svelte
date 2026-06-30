@@ -147,7 +147,7 @@
 				style={`background-color: ${project.color}`}
 				aria-hidden="true"
 			></span>
-			<h1 class="truncate text-xl font-semibold">{project.title}</h1>
+			<h1 class="break-words text-xl font-semibold sm:truncate">{project.title}</h1>
 			{#if settingsStore.troikiEnabled && project.troikiCategory}
 				<span class="inline-flex" title={$t('task.inTroikiTitle')}>
 					<TroikiTriggerIcon class="size-3.5 text-muted-foreground/50" />
