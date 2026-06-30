@@ -5,7 +5,9 @@
 		"loadingWorkspace": "Loading workspace…",
 		"workspaceFailed": "Failed to load workspace.",
 		"retry": "Retry",
-		"redirecting": "Redirecting…"
+		"redirecting": "Redirecting…",
+		"newVersionAvailable": "A new version is available",
+		"reload": "Reload"
 	},
 	"common": {
 		"markPrivate": "Mark as private",

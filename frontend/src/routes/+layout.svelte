@@ -3,6 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
+	import { toast } from 'svelte-sonner';
 	import { createAuthStore } from '$lib/auth/store.svelte';
 	import { decideAuthRedirect } from '$lib/auth/guard';
 	import { beforeNavigate, goto } from '$app/navigation';
@@ -26,6 +27,21 @@
 			nav.cancel();
 			window.location.href = nav.to.url.href;
 		}
+	});
+
+	// Show a toast as soon as a new deploy is detected so the user can reload
+	// before navigating — this closes the race window where the version.json
+	// fetch resolves and the user clicks a link in the same tick, causing
+	// beforeNavigate to see updated.current = false and then crash mid-flight.
+	$effect(() => {
+		if (!updated.current) return;
+		toast.info($t('app.newVersionAvailable'), {
+			duration: Infinity,
+			action: {
+				label: $t('app.reload'),
+				onClick: () => window.location.reload()
+			}
+		});
 	});
 
 	let bootstrapped = $state(false);
