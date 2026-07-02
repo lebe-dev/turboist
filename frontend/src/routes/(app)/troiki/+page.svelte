@@ -404,12 +404,12 @@
 										<Button
 											size="sm"
 											variant="ghost"
-											class="h-7 px-2 text-xs"
+											class="size-7 shrink-0 p-0"
 											onclick={() => openAdd(section.key, project.id)}
+											title={$t('troiki.addTask')}
 											aria-label={$t('troiki.addTaskAria', { values: { name: project.title } })}
 										>
-											<PlusIcon class="size-3.5" />
-											{$t('troiki.addTask')}
+											<PlusIcon class="size-4" />
 										</Button>
 									</div>
 									{#if !isCollapsed}
