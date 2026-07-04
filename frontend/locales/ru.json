@@ -510,6 +510,12 @@
 			"grouped": "{count} задач сгруппированы под новой задачей",
 			"groupedPartial": "Сгруппировано {ok}; не удалось — {failed}",
 			"failedGroup": "Не удалось сгруппировать задачи",
+			"bulkMoved": "Перемещено задач: {count}",
+			"bulkMovedPartial": "Перемещено {ok}; не удалось — {failed}",
+			"failedBulkMove": "Не удалось переместить задачи",
+			"bulkPrioritySet": "Приоритет обновлён для {count} задач",
+			"bulkPrioritySetPartial": "Обновлено {ok}; не удалось — {failed}",
+			"failedBulkPriority": "Не удалось обновить приоритет",
 			"addedToProject": "Задача добавлена в проект",
 			"addedToContext": "Задача добавлена в контекст",
 			"addedToInbox": "Задача добавлена во входящие",
@@ -583,6 +589,10 @@
 			"updated": "Раздел обновлён",
 			"created": "Раздел создан",
 			"failedSave": "Не удалось сохранить раздел"
+		},
+		"bulkMove": {
+			"title": "Переместить в проект",
+			"description": "Выберите место для {count} задач"
 		},
 		"moveTask": {
 			"title": "Переместить в проект",
@@ -939,6 +949,8 @@
 		"bar": {
 			"aria": "Действия с выбранными задачами",
 			"count": "Выбрано: {count}",
+			"move": "Переместить",
+			"priority": "Приоритет",
 			"group": "Сгруппировать в задачу",
 			"cancel": "Снять выбор"
 		}

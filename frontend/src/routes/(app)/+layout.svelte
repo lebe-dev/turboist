@@ -33,6 +33,8 @@
 	import { contexts as contextsApi } from '$lib/api/endpoints/contexts';
 	import { templates as templatesApi } from '$lib/api/endpoints/templates';
 	import ProjectPickerDialog from '$lib/components/dialog/ProjectPickerDialog.svelte';
+	import BulkMoveDialog from '$lib/components/dialog/BulkMoveDialog.svelte';
+	import type { TaskMoveInput } from '$lib/api/types';
 	import { describeError } from '$lib/utils/taskActions';
 	import { shiftDayKey } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
@@ -92,6 +94,8 @@
 	} | null>(null);
 	let groupOpen = $state(false);
 	let groupBusy = $state(false);
+	let bulkMoveOpen = $state(false);
+	let bulkBusy = $state(false);
 	let groupSnapshot = $state<{
 		tasks: Array<{ id: number; title: string }>;
 		warning: string | null;
@@ -366,6 +370,76 @@
 		} catch (err) {
 			toast.error(describeError(err, $t('task.toast.failedGroup')));
 			throw err;
+		}
+	}
+
+	// Bulk actions from the SelectionActionBar run from the layout (which has no
+	// list mutator), so after a successful mutation we broadcast a `tasks`
+	// invalidation for the active list view to refetch — the same channel SSE
+	// uses, but for this tab's own change (whose SSE echo is suppressed).
+	function invalidateAfterBulk(scopes: EventScope[]): void {
+		for (const scope of scopes) {
+			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
+		}
+	}
+
+	function onBulkMoveRequest(): void {
+		if (taskSelectionStore.count < 1) return;
+		bulkMoveOpen = true;
+	}
+
+	async function onBulkMoveSubmit(target: TaskMoveInput): Promise<void> {
+		const ids = Array.from(taskSelectionStore.ids);
+		if (ids.length < 1) return;
+		bulkBusy = true;
+		try {
+			const result = await tasksApi.bulkMove(getApiClient(), ids, target);
+			const failedCount = result.failed.length;
+			if (failedCount > 0) {
+				toast.error(
+					$t('task.toast.bulkMovedPartial', {
+						values: { ok: result.succeeded.length, failed: failedCount }
+					})
+				);
+			} else {
+				toast.success(
+					$t('task.toast.bulkMoved', { values: { count: result.succeeded.length } })
+				);
+			}
+			taskSelectionStore.disable();
+			invalidateAfterBulk(['tasks', 'plan', 'inbox']);
+		} catch (err) {
+			toast.error(describeError(err, $t('task.toast.failedBulkMove')));
+			throw err;
+		} finally {
+			bulkBusy = false;
+		}
+	}
+
+	async function onBulkSetPriority(priority: Priority): Promise<void> {
+		const ids = Array.from(taskSelectionStore.ids);
+		if (ids.length < 1) return;
+		bulkBusy = true;
+		try {
+			const result = await tasksApi.bulkSetPriority(getApiClient(), ids, priority);
+			const failedCount = result.failed.length;
+			if (failedCount > 0) {
+				toast.error(
+					$t('task.toast.bulkPrioritySetPartial', {
+						values: { ok: result.succeeded.length, failed: failedCount }
+					})
+				);
+			} else {
+				toast.success(
+					$t('task.toast.bulkPrioritySet', { values: { count: result.succeeded.length } })
+				);
+			}
+			taskSelectionStore.disable();
+			invalidateAfterBulk(['tasks', 'plan']);
+		} catch (err) {
+			toast.error(describeError(err, $t('task.toast.failedBulkPriority')));
+		} finally {
+			bulkBusy = false;
 		}
 	}
 
@@ -682,7 +756,17 @@
 			onSubmit={onGroupSubmit}
 		/>
 	{/if}
-	<SelectionActionBar onGroup={onGroupRequest} busy={groupBusy} />
+	<BulkMoveDialog
+		bind:open={bulkMoveOpen}
+		count={taskSelectionStore.count}
+		onMove={onBulkMoveSubmit}
+	/>
+	<SelectionActionBar
+		onGroup={onGroupRequest}
+		onMove={onBulkMoveRequest}
+		onSetPriority={onBulkSetPriority}
+		busy={groupBusy || bulkBusy}
+	/>
 	{#if !quickAddHidden && !taskSelectionStore.mode}
 		<button
 			onclick={fabClick}
