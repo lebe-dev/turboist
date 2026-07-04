@@ -8,6 +8,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 )
@@ -15,10 +16,12 @@ import (
 const (
 	opTaskBulkComplete      = "handler.Task.BulkComplete"
 	opTaskBulkMove          = "handler.Task.BulkMove"
+	opTaskBulkPriority      = "handler.Task.BulkPriority"
 	opTaskGroup             = "handler.Task.Group"
 	msgTooManyIDs           = "too many ids"
 	msgInvalidPlacement     = "invalid placement"
 	msgInvalidTaskPlacement = "invalid task placement"
+	msgInvalidPriority      = "invalid priority"
 )
 
 // TaskBulkHandler handles bulk operations on tasks.
@@ -26,16 +29,18 @@ type TaskBulkHandler struct {
 	completeSvc *service.CompleteService
 	moveSvc     *service.MoveService
 	groupSvc    *service.GroupService
+	taskSvc     *service.TaskService
 	baseURL     string
 }
 
-func NewTaskBulkHandler(completeSvc *service.CompleteService, moveSvc *service.MoveService, groupSvc *service.GroupService, baseURL string) *TaskBulkHandler {
-	return &TaskBulkHandler{completeSvc: completeSvc, moveSvc: moveSvc, groupSvc: groupSvc, baseURL: baseURL}
+func NewTaskBulkHandler(completeSvc *service.CompleteService, moveSvc *service.MoveService, groupSvc *service.GroupService, taskSvc *service.TaskService, baseURL string) *TaskBulkHandler {
+	return &TaskBulkHandler{completeSvc: completeSvc, moveSvc: moveSvc, groupSvc: groupSvc, taskSvc: taskSvc, baseURL: baseURL}
 }
 
 func (h *TaskBulkHandler) Register(r fiber.Router) {
 	r.Post("/tasks/bulk/complete", httpapi.RequireScope(auth.ScopeTasksWrite), h.bulkComplete)
 	r.Post("/tasks/bulk/move", httpapi.RequireScope(auth.ScopeTasksWrite), h.bulkMove)
+	r.Post("/tasks/bulk/priority", httpapi.RequireScope(auth.ScopeTasksWrite), h.bulkPriority)
 	r.Post("/tasks/group", httpapi.RequireScope(auth.ScopeTasksWrite), h.groupTasks)
 }
 
@@ -137,6 +142,45 @@ func (h *TaskBulkHandler) bulkMove(c fiber.Ctx) error {
 	return c.JSON(resp)
 }
 
+// BulkPriorityRequest is the body for bulk set-priority.
+type BulkPriorityRequest struct {
+	IDs      []int64 `json:"ids"`
+	Priority string  `json:"priority"`
+}
+
+func (h *TaskBulkHandler) bulkPriority(c fiber.Ctx) error {
+	logEntry(c, opTaskBulkPriority)
+	var req BulkPriorityRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		logValidation(c, opTaskBulkPriority, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
+	}
+	if len(req.IDs) > 100 {
+		logValidation(c, opTaskBulkPriority, msgTooManyIDs, slog.Int("count", len(req.IDs)))
+		return httpapi.ErrValidation(msgTooManyIDs)
+	}
+	p := model.Priority(req.Priority)
+	if !p.IsValid() {
+		logValidation(c, opTaskBulkPriority, msgInvalidPriority)
+		return httpapi.ErrValidation(msgInvalidPriority)
+	}
+
+	resp := bulkResponse{
+		Succeeded: make([]int64, 0),
+		Failed:    make([]bulkFailedItem, 0),
+	}
+	for _, id := range req.IDs {
+		_, err := h.taskSvc.SetPriority(c.Context(), id, p)
+		if err != nil {
+			resp.Failed = append(resp.Failed, bulkFailedItem{ID: id, Error: toErrDetail(err)})
+		} else {
+			resp.Succeeded = append(resp.Succeeded, id)
+		}
+	}
+	logMutation(c, opTaskBulkPriority, slog.Int("succeeded", len(resp.Succeeded)), slog.Int("failed", len(resp.Failed)))
+	return c.JSON(resp)
+}
+
 // GroupTasksResponse is the body for POST /tasks/group.
 type GroupTasksResponse struct {
 	Parent    dto.TaskDTO      `json:"parent"`
@@ -215,6 +259,9 @@ func toErrDetail(err error) bulkErrDetail {
 	}
 	if errors.Is(err, repo.ErrInvalidPlacement) || errors.Is(err, repo.ErrCycle) {
 		return bulkErrDetail{Code: httpapi.CodeForbiddenPlacement, Message: msgInvalidTaskPlacement}
+	}
+	if errors.Is(err, service.ErrPriorityManagedByTroiki) {
+		return bulkErrDetail{Code: httpapi.CodeValidationFailed, Message: "priority is managed by Troiki category"}
 	}
 	return bulkErrDetail{Code: httpapi.CodeInternalError, Message: "internal error"}
 }

@@ -476,7 +476,7 @@ The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tok
 | Scope | Description |
 |-------|-------------|
 | `tasks:read` | Read tasks: get by id, all task views (`today`, `tomorrow`, `overdue`, `week`, `backlog`, `pinned`, `completed`), subtasks list, `stats/plan`, inbox list, tasks listed under a context / project / section / label |
-| `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; bulk operations (`bulk/complete`, `bulk/move`); `tasks/group`; create tasks in inbox / context / project / section |
+| `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; bulk operations (`bulk/complete`, `bulk/move`, `bulk/priority`); `tasks/group`; create tasks in inbox / context / project / section |
 | `projects:read` | Read projects: list, get by id, list tasks/sections of a project, list projects in a context or by label |
 | `projects:write` | Create, update, delete projects; complete / uncomplete / cancel / archive / unarchive; pin / unpin; assign or clear Troiki category |
 | `contexts:read` | Read contexts: list, get by id |
@@ -533,6 +533,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/stats/week-summary` | `tasks:read` |
 | `POST /api/v1/tasks/bulk/complete` | `tasks:write` |
 | `POST /api/v1/tasks/bulk/move` | `tasks:write` |
+| `POST /api/v1/tasks/bulk/priority` | `tasks:write` |
 | `POST /api/v1/tasks/group` | `tasks:write` |
 
 #### Inbox
@@ -1221,6 +1222,30 @@ curl -X POST "$BASE/api/v1/tasks/bulk/move" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ids":[1,2,3],"inboxId":1}'
+```
+
+### `POST /api/v1/tasks/bulk/priority`
+
+Set the priority of up to 100 tasks. `priority` is one of `high`, `medium`,
+`low`, `no-priority`.
+
+**Request:**
+```json
+{
+  "ids": [1, 2, 3],
+  "priority": "high"
+}
+```
+
+**Response:** same bulk envelope as bulk/complete. A task in a Troiki-categorised
+project has its priority pinned by the category; setting a mismatching priority
+fails that id with a `validation_failed` error while the rest succeed.
+
+```sh
+curl -X POST "$BASE/api/v1/tasks/bulk/priority" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ids":[1,2,3],"priority":"high"}'
 ```
 
 ### `POST /api/v1/tasks/group`

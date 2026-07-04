@@ -510,6 +510,12 @@
 			"grouped": "Grouped {count} tasks under the new task",
 			"groupedPartial": "Grouped {ok} tasks; {failed} failed",
 			"failedGroup": "Failed to group tasks",
+			"bulkMoved": "Moved {count} tasks",
+			"bulkMovedPartial": "Moved {ok} tasks; {failed} failed",
+			"failedBulkMove": "Failed to move tasks",
+			"bulkPrioritySet": "Updated priority for {count} tasks",
+			"bulkPrioritySetPartial": "Updated {ok} tasks; {failed} failed",
+			"failedBulkPriority": "Failed to update priority",
 			"addedToProject": "Task added to project",
 			"addedToContext": "Task added to context",
 			"addedToInbox": "Task added to inbox",
@@ -583,6 +589,10 @@
 			"updated": "Section updated",
 			"created": "Section created",
 			"failedSave": "Failed to save section"
+		},
+		"bulkMove": {
+			"title": "Move to project",
+			"description": "Pick a destination for {count} tasks"
 		},
 		"moveTask": {
 			"title": "Move to project",
@@ -939,6 +949,8 @@
 		"bar": {
 			"aria": "Selected tasks actions",
 			"count": "{count} selected",
+			"move": "Move",
+			"priority": "Priority",
 			"group": "Group into task",
 			"cancel": "Clear selection"
 		}
