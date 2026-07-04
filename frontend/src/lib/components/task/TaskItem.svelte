@@ -28,6 +28,7 @@
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
+	import { SUBTASK_COLLAPSE_KEY, type SubtaskCollapseCtx } from '$lib/context/subtaskCollapse';
 	import {
 		setTaskDrag,
 		clearTaskDrag,
@@ -150,6 +151,12 @@
 
 	const getDayPartActive = getContext<(() => boolean) | undefined>('dayPartActive');
 	const phaseActive = $derived(getDayPartActive ? getDayPartActive() : true);
+
+	// In the project view, "collapse all" doubles as a compact mode: hide task
+	// descriptions. Only the project page sets this context, so other views
+	// (today/week/inbox/search) leave descriptions untouched.
+	const collapseCtx = getContext<SubtaskCollapseCtx | undefined>(SUBTASK_COLLAPSE_KEY);
+	const hideDescription = $derived(!!collapseCtx?.allCollapsed);
 
 	let descriptionExpanded = $state(false);
 
@@ -336,7 +343,7 @@
 			</a>
 		</div>
 
-		{#if descriptionPreview}
+		{#if descriptionPreview && !hideDescription}
 			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 			<p
 				class="[overflow-wrap:anywhere] text-xs text-muted-foreground/70"
