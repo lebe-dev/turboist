@@ -49,6 +49,10 @@ var validPriorities = map[string]struct{}{
 	"high": {}, "medium": {}, "low": {}, "no-priority": {},
 }
 
+// defaultCalendarCacheTTL is the server-side TTL for cached calendar events
+// when CALENDAR_CACHE_TTL is unset.
+const defaultCalendarCacheTTL = 2 * time.Minute
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -139,6 +143,11 @@ type Env struct {
 	DataPath      string
 	Argon2Params  auth.Argon2Params
 
+	// CalendarCacheTTL is the server-side TTL for cached Google Calendar events,
+	// parsed from CALENDAR_CACHE_TTL (Go duration, e.g. "30s", "2m"). A shorter
+	// value reduces staleness after editing events at the cost of more API calls.
+	CalendarCacheTTL time.Duration
+
 	// Sentry error reporting. All optional; a blank DSN disables that side.
 	// SentryDSN drives backend reporting; SentryFrontendDSN is served to the
 	// browser via GET /api/config (so it is never baked into the static bundle);
@@ -195,7 +204,28 @@ func LoadEnv() (*Env, error) {
 	}
 	e.Argon2Params = argon2Params
 
+	ttl, err := loadCalendarCacheTTL()
+	if err != nil {
+		return nil, err
+	}
+	e.CalendarCacheTTL = ttl
+
 	return e, nil
+}
+
+func loadCalendarCacheTTL() (time.Duration, error) {
+	v := os.Getenv("CALENDAR_CACHE_TTL")
+	if v == "" {
+		return defaultCalendarCacheTTL, nil
+	}
+	ttl, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, fmt.Errorf("env: CALENDAR_CACHE_TTL must be a valid duration (e.g. \"30s\", \"2m\"): %w", err)
+	}
+	if ttl <= 0 {
+		return 0, fmt.Errorf("env: CALENDAR_CACHE_TTL must be a positive duration")
+	}
+	return ttl, nil
 }
 
 func loadArgon2Params() (auth.Argon2Params, error) {

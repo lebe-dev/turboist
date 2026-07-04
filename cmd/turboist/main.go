@@ -176,6 +176,7 @@ func main() {
 		userRepo,
 		env.BaseURL,
 		env.JWTSecret,
+		env.CalendarCacheTTL,
 		log,
 	)
 	calendarHandler := handlers.NewCalendarHandler(

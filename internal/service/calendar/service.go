@@ -46,13 +46,14 @@ func NewService(
 	calendars *repo.CalendarRepo,
 	users *repo.UserRepo,
 	baseURL, calendarTokenKey string,
+	cacheTTL time.Duration,
 	log *slog.Logger,
 ) *Service {
 	return &Service{
 		calendars: calendars,
 		users:     users,
 		cipher:    crypto.NewTokenCipher(calendarTokenKey),
-		cache:     NewEventCache(2 * time.Minute),
+		cache:     NewEventCache(cacheTTL),
 		baseURL:   strings.TrimRight(baseURL, "/"),
 		log:       log,
 	}

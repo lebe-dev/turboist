@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const validYAML = `
@@ -196,5 +197,53 @@ func TestLoadEnv_APITokenSaltTooShort(t *testing.T) {
 	t.Setenv("API_TOKEN_SALT", "short")
 	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "32 bytes") {
 		t.Fatalf("expected API_TOKEN_SALT length error, got %v", err)
+	}
+}
+
+func setRequiredEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://x.test")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+}
+
+func TestLoadEnv_CalendarCacheTTLDefault(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CALENDAR_CACHE_TTL", "")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if e.CalendarCacheTTL != defaultCalendarCacheTTL {
+		t.Fatalf("CalendarCacheTTL: got %v, want %v", e.CalendarCacheTTL, defaultCalendarCacheTTL)
+	}
+}
+
+func TestLoadEnv_CalendarCacheTTLCustom(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CALENDAR_CACHE_TTL", "30s")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if e.CalendarCacheTTL != 30*time.Second {
+		t.Fatalf("CalendarCacheTTL: got %v, want %v", e.CalendarCacheTTL, 30*time.Second)
+	}
+}
+
+func TestLoadEnv_CalendarCacheTTLInvalid(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CALENDAR_CACHE_TTL", "nonsense")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "CALENDAR_CACHE_TTL") {
+		t.Fatalf("expected CALENDAR_CACHE_TTL parse error, got %v", err)
+	}
+}
+
+func TestLoadEnv_CalendarCacheTTLNonPositive(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("CALENDAR_CACHE_TTL", "0s")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "CALENDAR_CACHE_TTL") {
+		t.Fatalf("expected CALENDAR_CACHE_TTL positive error, got %v", err)
 	}
 }
