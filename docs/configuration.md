@@ -16,6 +16,7 @@ Load from `.env` if present (copy `.env.example` to get started):
 | `GOOGLE_CALENDAR_CLIENT_ID` | — | Google OAuth client ID for read-only calendar integration |
 | `GOOGLE_CALENDAR_CLIENT_SECRET` | — | Google OAuth client secret. Redirect URI: `<BASE_URL>/api/v1/calendars/google/callback` |
 | `CALENDAR_TOKEN_KEY` | — | Encryption key for stored calendar OAuth tokens. Defaults to `JWT_SECRET`; keep stable. |
+| `CALENDAR_CACHE_TTL` | — | Server-side TTL for the in-memory calendar event cache, as a Go duration (e.g. `30s`, `2m`). Default `2m`. Lower it to see edits made in Google Calendar sooner, at the cost of more API calls. Must be positive. |
 | `TOTP_SECRET_KEY` | — | Encryption key (≥ 32 bytes) for TOTP secrets at rest. Required to enable 2FA; if empty, `/auth/totp/*` returns an error. Keep stable — rotating invalidates all enrolled secrets. |
 | `SENTRY_DSN` | — | Backend Sentry DSN. When set, the server reports recovered panics, every 5xx response, and 400 Bad Request (with the underlying cause) to Sentry. Expected client errors (401/403/404/409/429/…) are not reported. Empty disables backend reporting. |
 | `SENTRY_FRONTEND_DSN` | — | Browser Sentry DSN. Served to the SPA at runtime via `GET /api/config` (never baked into the static bundle), so toggling it needs no frontend rebuild. Use a separate Sentry project from the backend. |

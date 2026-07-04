@@ -5,9 +5,17 @@ import (
 	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/repo"
+)
+
+const (
+	opLabelCreate    = "handler.Label.Create"
+	opLabelPatch     = "handler.Label.Patch"
+	msgLabelNotFound = "label not found"
+	msgGetLabel      = "get label"
 )
 
 // LabelHandler implements CRUD and sub-resource routes for /api/v1/labels.
@@ -25,13 +33,13 @@ func NewLabelHandler(labels *repo.LabelRepo, projects *repo.ProjectRepo, tasks *
 
 // Register wires label routes onto r.
 func (h *LabelHandler) Register(r fiber.Router) {
-	r.Get("/", httpapi.RequireScope("labels:read"), h.list)
-	r.Post("/", httpapi.RequireScope("labels:write"), h.create)
-	r.Get("/:id", httpapi.RequireScope("labels:read"), h.get)
-	r.Patch("/:id", httpapi.RequireScope("labels:write"), h.patch)
-	r.Delete("/:id", httpapi.RequireScope("labels:write"), h.delete)
-	r.Get("/:id/tasks", httpapi.RequireScope("tasks:read"), h.listTasks)
-	r.Get("/:id/projects", httpapi.RequireScope("projects:read"), h.listProjects)
+	r.Get("/", httpapi.RequireScope(auth.ScopeLabelsRead), h.list)
+	r.Post("/", httpapi.RequireScope(auth.ScopeLabelsWrite), h.create)
+	r.Get("/:id", httpapi.RequireScope(auth.ScopeLabelsRead), h.get)
+	r.Patch("/:id", httpapi.RequireScope(auth.ScopeLabelsWrite), h.patch)
+	r.Delete("/:id", httpapi.RequireScope(auth.ScopeLabelsWrite), h.delete)
+	r.Get("/:id/tasks", httpapi.RequireScope(auth.ScopeTasksRead), h.listTasks)
+	r.Get("/:id/projects", httpapi.RequireScope(auth.ScopeProjectsRead), h.listProjects)
 }
 
 func (h *LabelHandler) list(c fiber.Ctx) error {
@@ -49,19 +57,19 @@ func (h *LabelHandler) list(c fiber.Ctx) error {
 }
 
 func (h *LabelHandler) create(c fiber.Ctx) error {
-	logEntry(c, "handler.Label.Create")
+	logEntry(c, opLabelCreate)
 	var req dto.CreateLabelRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Label.Create", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opLabelCreate, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Name == "" {
-		logValidation(c, "handler.Label.Create", "name required")
+		logValidation(c, opLabelCreate, "name required")
 		return httpapi.ErrValidation("name is required")
 	}
 	if req.Color != "" && !isValidColor(req.Color) {
-		logValidation(c, "handler.Label.Create", "invalid color")
-		return httpapi.ErrValidation("invalid color")
+		logValidation(c, opLabelCreate, msgInvalidColor)
+		return httpapi.ErrValidation(msgInvalidColor)
 	}
 	l, err := h.labels.Create(c.Context(), req.Name, req.Color, req.IsFavourite)
 	if err != nil {
@@ -70,7 +78,7 @@ func (h *LabelHandler) create(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("create label").WithCause(err)
 	}
-	logMutation(c, "handler.Label.Create", slog.Int64("label_id", l.ID))
+	logMutation(c, opLabelCreate, slog.Int64("label_id", l.ID))
 	return c.Status(fiber.StatusCreated).JSON(dto.LabelFromModel(*l))
 }
 
@@ -82,9 +90,9 @@ func (h *LabelHandler) get(c fiber.Ctx) error {
 	l, err := h.labels.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("label not found")
+			return httpapi.ErrNotFound(msgLabelNotFound)
 		}
-		return httpapi.ErrInternal("get label").WithCause(err)
+		return httpapi.ErrInternal(msgGetLabel).WithCause(err)
 	}
 	return c.JSON(dto.LabelFromModel(*l))
 }
@@ -94,15 +102,15 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Label.Patch", slog.Int64("label_id", id))
+	logEntry(c, opLabelPatch, slog.Int64("label_id", id))
 	var req dto.PatchLabelRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Label.Patch", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opLabelPatch, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Color != nil && !isValidColor(*req.Color) {
-		logValidation(c, "handler.Label.Patch", "invalid color")
-		return httpapi.ErrValidation("invalid color")
+		logValidation(c, opLabelPatch, msgInvalidColor)
+		return httpapi.ErrValidation(msgInvalidColor)
 	}
 	l, err := h.labels.Update(c.Context(), id, repo.LabelUpdate{
 		Name:        req.Name,
@@ -112,14 +120,14 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("label not found")
+			return httpapi.ErrNotFound(msgLabelNotFound)
 		}
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("label name already exists")
 		}
 		return httpapi.ErrInternal("update label").WithCause(err)
 	}
-	logMutation(c, "handler.Label.Patch", slog.Int64("label_id", l.ID))
+	logMutation(c, opLabelPatch, slog.Int64("label_id", l.ID))
 	return c.JSON(dto.LabelFromModel(*l))
 }
 
@@ -131,7 +139,7 @@ func (h *LabelHandler) delete(c fiber.Ctx) error {
 	logEntry(c, "handler.Label.Delete", slog.Int64("label_id", id))
 	if err := h.labels.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("label not found")
+			return httpapi.ErrNotFound(msgLabelNotFound)
 		}
 		return httpapi.ErrInternal("delete label").WithCause(err)
 	}
@@ -146,9 +154,9 @@ func (h *LabelHandler) listTasks(c fiber.Ctx) error {
 	}
 	if _, err := h.labels.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("label not found")
+			return httpapi.ErrNotFound(msgLabelNotFound)
 		}
-		return httpapi.ErrInternal("get label").WithCause(err)
+		return httpapi.ErrInternal(msgGetLabel).WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.tasks.ListByLabel(c.Context(), id, repo.TaskFilter{}, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
@@ -169,9 +177,9 @@ func (h *LabelHandler) listProjects(c fiber.Ctx) error {
 	}
 	if _, err := h.labels.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("label not found")
+			return httpapi.ErrNotFound(msgLabelNotFound)
 		}
-		return httpapi.ErrInternal("get label").WithCause(err)
+		return httpapi.ErrInternal(msgGetLabel).WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.projects.ListByLabel(c.Context(), id, repo.Page{Limit: pp.Limit, Offset: pp.Offset})

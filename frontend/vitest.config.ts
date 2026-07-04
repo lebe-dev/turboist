@@ -5,12 +5,27 @@ import svelteIntlPrecompile from 'svelte-intl-precompile/sveltekit-plugin';
 
 export default defineConfig({
 	plugins: [svelteIntlPrecompile('locales'), sveltekit(), svelteTesting()],
+	server: {
+		allowedHosts: ['test.home']
+	},
 	test: {
 		environment: 'jsdom',
 		globals: true,
 		setupFiles: ['./vitest.setup.ts'],
 		passWithNoTests: true,
 		include: ['src/**/*.{test,spec}.{ts,js}'],
-		exclude: ['src/lib/components/ui/**', 'node_modules/**', 'build/**', '.svelte-kit/**']
+		exclude: ['src/lib/components/ui/**', 'node_modules/**', 'build/**', '.svelte-kit/**'],
+		coverage: {
+			provider: 'v8',
+			reporter: ['text', 'lcov'],
+			reportsDirectory: './coverage',
+			exclude: [
+				'src/lib/components/ui/**',
+				'node_modules/**',
+				'build/**',
+				'.svelte-kit/**',
+				'src/**/*.{test,spec}.{ts,js}'
+			]
+		}
 	}
 });

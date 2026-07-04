@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import type { Task } from '$lib/api/types';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import RepeatIcon from 'phosphor-svelte/lib/Repeat';
 	import CalendarSlashIcon from 'phosphor-svelte/lib/CalendarSlash';
@@ -12,6 +13,7 @@
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
@@ -26,6 +28,7 @@
 	import TaskActionsMenu from './TaskActionsMenu.svelte';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
+	import { SUBTASK_COLLAPSE_KEY, type SubtaskCollapseCtx } from '$lib/context/subtaskCollapse';
 	import {
 		setTaskDrag,
 		clearTaskDrag,
@@ -65,7 +68,7 @@
 		showUnplannedBadge?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
-		onToggle?: (task: Task) => void;
+		onToggle?: (task: Task) => void | Promise<void>;
 		hasSubtasks?: boolean;
 		subtasksCollapsed?: boolean;
 		onToggleCollapse?: () => void;
@@ -149,7 +152,35 @@
 	const getDayPartActive = getContext<(() => boolean) | undefined>('dayPartActive');
 	const phaseActive = $derived(getDayPartActive ? getDayPartActive() : true);
 
+	// In the project view, "collapse all" doubles as a compact mode: hide task
+	// descriptions. Only the project page sets this context, so other views
+	// (today/week/inbox/search) leave descriptions untouched.
+	const collapseCtx = getContext<SubtaskCollapseCtx | undefined>(SUBTASK_COLLAPSE_KEY);
+	const hideDescription = $derived(!!collapseCtx?.allCollapsed);
+
 	let descriptionExpanded = $state(false);
+
+	// Show a spinner on the checkbox only when the toggle round-trip is slow
+	// (e.g. poor connectivity). On a fast network it settles before the delay
+	// elapses, so the spinner never flickers into view.
+	let toggling = $state(false);
+
+	async function handleToggle() {
+		if (toggling) return;
+		const result = onToggle?.(task);
+		if (!(result instanceof Promise)) return;
+		let settled = false;
+		const timer = setTimeout(() => {
+			if (!settled) toggling = true;
+		}, 150);
+		try {
+			await result;
+		} finally {
+			settled = true;
+			clearTimeout(timer);
+			toggling = false;
+		}
+	}
 
 	const checked = $derived(task.status === 'completed');
 	const project = $derived(
@@ -162,7 +193,7 @@
 	const description = $derived(task.description?.trim() ?? '');
 	const descriptionPreview = $derived(stripMarkdownSyntax(description));
 	const descriptionExpandable = $derived(description.length > 100);
-	const isRecurring = $derived(!!task.recurrenceRule);
+	const isRecurring = $derived(!!task.recurrenceRule || task.sourceTaskId !== null);
 	const showTroikiBadge = $derived(
 		settingsStore.troikiEnabled &&
 			!!project?.troikiCategory &&
@@ -246,7 +277,9 @@
 			<button
 				type="button"
 				onclick={onToggleCollapse}
-				class="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+				class="inline-flex size-4 shrink-0 items-center justify-center transition-colors {subtasksCollapsed
+					? 'text-primary'
+					: 'text-muted-foreground/50 hover:text-muted-foreground'}"
 				class:mt-0.5={hasMeta}
 				aria-label={subtasksCollapsed ? 'Развернуть субзадачи' : 'Свернуть субзадачи'}
 				aria-expanded={!subtasksCollapsed}
@@ -281,13 +314,17 @@
 	{/if}
 	<button
 		type="button"
-		onclick={() => onToggle?.(task)}
+		onclick={() => void handleToggle()}
+		disabled={toggling}
 		class={checkboxClass}
 		class:mt-0.5={hasMeta}
 		aria-pressed={checked}
+		aria-busy={toggling}
 		aria-label={checked ? $t('task.markIncomplete') : $t('task.markComplete')}
 	>
-		{#if checked}
+		{#if toggling}
+			<Spinner class="size-2.5" />
+		{:else if checked}
 			<CheckIcon class="size-2.5" weight="bold" />
 		{/if}
 	</button>
@@ -302,11 +339,11 @@
 				class:text-muted-foreground={checked || depth > 0}
 				class:text-foreground={!checked && depth === 0}
 			>
-				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
+				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-1.5 inline-block size-3.5 text-red-500" weight="fill" /></span>{/if}{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
 		</div>
 
-		{#if descriptionPreview}
+		{#if descriptionPreview && !hideDescription}
 			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 			<p
 				class="[overflow-wrap:anywhere] text-xs text-muted-foreground/70"

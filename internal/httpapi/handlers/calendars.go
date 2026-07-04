@@ -18,6 +18,14 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const (
+	msgLoadSettings             = "load settings"
+	msgLoadGoogleCalendarConfig = "load google calendar config"
+	msgInvalidJSON              = "invalid JSON"
+	msgGCalOAuthCallbackError   = "google calendar oauth callback error"
+	redirectCalendarError       = "tab=calendars&calendar=error"
+)
+
 // CalendarHandler is a thin Fiber adapter over calendar.Service.
 type CalendarHandler struct {
 	svc       *calendar.Service
@@ -54,12 +62,12 @@ func (h *CalendarHandler) RegisterPublic(app fiber.Router) {
 // has no `calendars:write` scope by design — they are admin operations, so we
 // gate them with RequireJWTAuth instead of a scope check.
 func (h *CalendarHandler) Register(r fiber.Router) {
-	r.Get("/", httpapi.RequireScope("calendars:read"), h.list)
+	r.Get("/", httpapi.RequireScope(auth.ScopeCalendarsRead), h.list)
 	r.Patch("/settings", httpapi.RequireJWTAuth(), h.patchSettings)
-	r.Get("/events", httpapi.RequireScope("calendars:read"), h.events)
+	r.Get("/events", httpapi.RequireScope(auth.ScopeCalendarsRead), h.events)
 	r.Patch("/google/config", httpapi.RequireJWTAuth(), h.patchGoogleConfig)
 	r.Delete("/google/config", httpapi.RequireJWTAuth(), h.deleteGoogleConfig)
-	r.Get("/google/start", httpapi.RequireScope("calendars:read"), h.googleStart)
+	r.Get("/google/start", httpapi.RequireScope(auth.ScopeCalendarsRead), h.googleStart)
 	r.Post("/google/sync", httpapi.RequireJWTAuth(), h.googleSync)
 	r.Patch("/sources/:id", httpapi.RequireJWTAuth(), h.patchSource)
 	r.Delete("/accounts/:id", httpapi.RequireJWTAuth(), h.deleteAccount)
@@ -185,7 +193,7 @@ func (h *CalendarHandler) list(c fiber.Ctx) error {
 	}
 	settings, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load settings").WithCause(err)
+		return httpapi.ErrInternal(msgLoadSettings).WithCause(err)
 	}
 	accounts, err := h.calendars.ListAccounts(c.Context(), userID)
 	if err != nil {
@@ -198,7 +206,7 @@ func (h *CalendarHandler) list(c fiber.Ctx) error {
 	var googleClientIDConfigured, googleClientSecretConfigured bool
 	dbCfg, err := h.calendars.GetOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle)
 	if err != nil && !errors.Is(err, repo.ErrNotFound) {
-		return httpapi.ErrInternal("load google calendar config").WithCause(err)
+		return httpapi.ErrInternal(msgLoadGoogleCalendarConfig).WithCause(err)
 	}
 	if dbCfg != nil {
 		googleClientIDConfigured = dbCfg.ClientID != ""
@@ -232,14 +240,14 @@ func (h *CalendarHandler) patchSettings(c fiber.Ctx) error {
 	}
 	var req calendarSettingsPatchReq
 	if err := c.Bind().JSON(&req); err != nil {
-		return httpapi.ErrValidation("invalid JSON")
+		return httpapi.ErrValidation(msgInvalidJSON)
 	}
 	if req.Enabled == nil {
 		return httpapi.ErrValidation("enabled is required")
 	}
 	settings, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load settings").WithCause(err)
+		return httpapi.ErrInternal(msgLoadSettings).WithCause(err)
 	}
 	settings.CalendarEnabled = *req.Enabled
 	if err := h.users.SetSettings(c.Context(), userID, settings); err != nil {
@@ -260,7 +268,7 @@ func (h *CalendarHandler) patchGoogleConfig(c fiber.Ctx) error {
 	}
 	var req googleCalendarConfigPatchReq
 	if err := c.Bind().JSON(&req); err != nil {
-		return httpapi.ErrValidation("invalid JSON")
+		return httpapi.ErrValidation(msgInvalidJSON)
 	}
 	if req.ClientID == nil {
 		return httpapi.ErrValidation("clientId is required")
@@ -272,7 +280,7 @@ func (h *CalendarHandler) patchGoogleConfig(c fiber.Ctx) error {
 	}
 	existing, err := h.calendars.GetOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle)
 	if err != nil && !errors.Is(err, repo.ErrNotFound) {
-		return httpapi.ErrInternal("load google calendar config").WithCause(err)
+		return httpapi.ErrInternal(msgLoadGoogleCalendarConfig).WithCause(err)
 	}
 	if clientID == "" && existing == nil {
 		return httpapi.ErrValidation("clientId is required")
@@ -315,6 +323,12 @@ func (h *CalendarHandler) deleteGoogleConfig(c fiber.Ctx) error {
 	if err := h.calendars.DeleteOAuthConfig(c.Context(), userID, model.CalendarProviderGoogle); err != nil && !errors.Is(err, repo.ErrNotFound) {
 		return httpapi.ErrInternal("delete google calendar config").WithCause(err)
 	}
+	// Drop the connected account too: its stored refresh token was issued for
+	// the credentials being removed, so leaving it behind only yields
+	// `invalid_grant` on the next refresh. Sources cascade with the account.
+	if err := h.calendars.DeleteAccountByProvider(c.Context(), userID, model.CalendarProviderGoogle); err != nil {
+		return httpapi.ErrInternal("disconnect google calendar account").WithCause(err)
+	}
 	h.svc.Cache().DeleteUser(userID)
 	return h.list(c)
 }
@@ -326,7 +340,7 @@ func (h *CalendarHandler) googleStart(c fiber.Ctx) error {
 	}
 	cfg, ok, err := h.svc.OAuthConfigForUser(c.Context(), claims.UserID)
 	if err != nil {
-		return httpapi.ErrInternal("load google calendar config").WithCause(err)
+		return httpapi.ErrInternal(msgLoadGoogleCalendarConfig).WithCause(err)
 	}
 	if !ok {
 		return httpapi.ErrValidation("Google Calendar OAuth is not configured")
@@ -345,42 +359,42 @@ func (h *CalendarHandler) googleStart(c fiber.Ctx) error {
 
 func (h *CalendarHandler) googleCallback(c fiber.Ctx) error {
 	if c.Query("error") != "" {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "provider_error", "provider_error", c.Query("error"))
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "provider_error", "provider_error", c.Query("error"))
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	state := c.Query("state")
 	code := c.Query("code")
 	if state == "" || code == "" {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "missing_state_or_code")
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "missing_state_or_code")
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	userID, err := h.calendars.ConsumeOAuthState(c.Context(), state, model.CalendarProviderGoogle)
 	if errors.Is(err, repo.ErrNotFound) {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "invalid_or_expired_state")
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "invalid_or_expired_state")
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	if err != nil {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "consume_state_failed", "err", err)
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "consume_state_failed", "err", err)
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	cfg, ok, err := h.svc.OAuthConfigForUser(c.Context(), userID)
 	if err != nil {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "load_oauth_config_failed", "user_id", userID, "err", err)
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "load_oauth_config_failed", "user_id", userID, "err", err)
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	if !ok {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "oauth_not_configured", "user_id", userID)
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "oauth_not_configured", "user_id", userID)
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	token, err := cfg.Exchange(c.Context(), code)
 	if err != nil {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "token_exchange_failed", "user_id", userID, "err", err)
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "token_exchange_failed", "user_id", userID, "err", err)
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	account, err := h.svc.SaveGoogleAccountAndSources(c.Context(), userID, cfg, token)
 	if err != nil {
-		slog.WarnContext(c.Context(), "google calendar oauth callback error", "reason", "save_account_failed", "user_id", userID, "err", err)
-		return h.redirectToSettings(c, "tab=calendars&calendar=error")
+		slog.WarnContext(c.Context(), msgGCalOAuthCallbackError, "reason", "save_account_failed", "user_id", userID, "err", err)
+		return h.redirectToSettings(c, redirectCalendarError)
 	}
 	if account != nil {
 		settings, err := h.users.GetSettings(c.Context(), userID)
@@ -413,7 +427,7 @@ func (h *CalendarHandler) googleSync(c fiber.Ctx) error {
 	}
 	cfg, ok, err := h.svc.OAuthConfigForUser(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load google calendar config").WithCause(err)
+		return httpapi.ErrInternal(msgLoadGoogleCalendarConfig).WithCause(err)
 	}
 	if !ok {
 		return httpapi.ErrValidation("Google Calendar OAuth is not configured")
@@ -427,6 +441,11 @@ func (h *CalendarHandler) googleSync(c fiber.Ctx) error {
 	}
 	token, err := h.svc.FreshGoogleToken(c.Context(), cfg, account)
 	if err != nil {
+		if calendar.IsReauthRequired(err) {
+			slog.WarnContext(c.Context(), "google calendar reauth required",
+				"op", "handler.Calendar.googleSync", "user_id", userID, "err", err)
+			return httpapi.ErrCalendarReauthRequired()
+		}
 		return httpapi.ErrInternal("refresh google calendar token").WithCause(err)
 	}
 	if _, err := h.svc.SaveGoogleAccountAndSources(c.Context(), userID, cfg, token); err != nil {
@@ -452,7 +471,7 @@ func (h *CalendarHandler) patchSource(c fiber.Ctx) error {
 	}
 	var req calendarSourcePatchReq
 	if err := c.Bind().JSON(&req); err != nil {
-		return httpapi.ErrValidation("invalid JSON")
+		return httpapi.ErrValidation(msgInvalidJSON)
 	}
 	if req.Selected == nil {
 		return httpapi.ErrValidation("selected is required")
@@ -494,7 +513,7 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 	}
 	settings, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load settings").WithCause(err)
+		return httpapi.ErrInternal(msgLoadSettings).WithCause(err)
 	}
 	if !settings.CalendarEnabled {
 		return c.JSON(fiber.Map{"items": []calendarEventResp{}})
@@ -505,7 +524,7 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 	}
 	cfg, ok, err := h.svc.OAuthConfigForUser(c.Context(), userID)
 	if err != nil {
-		return httpapi.ErrInternal("load google calendar config").WithCause(err)
+		return httpapi.ErrInternal(msgLoadGoogleCalendarConfig).WithCause(err)
 	}
 	if !ok {
 		return c.JSON(fiber.Map{"items": []calendarEventResp{}})
@@ -533,6 +552,11 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 	defer cancel()
 	items, err := h.svc.FetchGoogleEvents(ctx, cfg, account, sources, start, end)
 	if err != nil {
+		if calendar.IsReauthRequired(err) {
+			slog.WarnContext(c.Context(), "google calendar reauth required",
+				"op", "handler.Calendar.events", "user_id", userID, "err", err)
+			return httpapi.ErrCalendarReauthRequired()
+		}
 		return httpapi.ErrInternal("fetch calendar events").WithCause(err)
 	}
 	h.svc.Cache().Set(cacheKey, items)

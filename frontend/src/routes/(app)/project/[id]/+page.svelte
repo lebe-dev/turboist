@@ -34,6 +34,7 @@
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { reconcileByVersion } from '$lib/utils/reconcile';
 	import { SUBTASK_COLLAPSE_KEY } from '$lib/context/subtaskCollapse';
+	import { readCollapsedIds, persistCollapsedIds } from '$lib/utils/subtaskCollapse';
 	import { PROJECT_SECTIONS_KEY } from '$lib/context/projectSections';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -68,7 +69,10 @@
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
 
-	let collapsedIds = $state(new Set<number>());
+	// Writable derived: reloads the persisted collapsed set whenever the project
+	// changes (the route component is reused across projects), while the toggles
+	// below reassign it and the value holds until the next project switch.
+	let collapsedIds = $derived<Set<number>>(new Set(readCollapsedIds(projectId)));
 	const parentTaskIds = $derived(
 		new Set(taskList.items.filter((t) => taskList.items.some((c) => c.parentId === t.id)).map((t) => t.id))
 	);
@@ -76,14 +80,18 @@
 		parentTaskIds.size > 0 && [...parentTaskIds].every((id) => collapsedIds.has(id))
 	);
 	function toggleAllSubtasks(): void {
-		collapsedIds = allSubtasksCollapsed ? new SvelteSet() : new SvelteSet(parentTaskIds);
+		collapsedIds = allSubtasksCollapsed ? new Set() : new Set(parentTaskIds);
+		persistCollapsedIds(projectId, collapsedIds);
 	}
 	setContext(SUBTASK_COLLAPSE_KEY, {
 		get ids() { return collapsedIds; },
+		get allCollapsed() { return allSubtasksCollapsed; },
 		toggle(id: number) {
-			const next = new SvelteSet(collapsedIds);
-			if (next.has(id)) next.delete(id); else next.add(id);
+			const next = collapsedIds.has(id)
+				? new Set([...collapsedIds].filter((x) => x !== id))
+				: new Set([...collapsedIds, id]);
 			collapsedIds = next;
+			persistCollapsedIds(projectId, next);
 		}
 	});
 

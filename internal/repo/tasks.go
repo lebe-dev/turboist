@@ -28,7 +28,7 @@ func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, is_private, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, is_complex, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -46,7 +46,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
 	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
 	var recurrenceRule, troikiCategory sql.NullString
-	var dueHasTime, deadlineHasTime, isPinned, isPrivate int
+	var dueHasTime, deadlineHasTime, isPinned, isPrivate, isComplex int
 	var createdAt, updatedAt string
 	if err := row.Scan(
 		&t.ID, &t.Title, &t.Description,
@@ -54,7 +54,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&t.Priority, &t.Status,
 		&dueAt, &dueHasTime, &deadlineAt, &deadlineHasTime,
 		&t.DayPart, &t.PlanState,
-		&isPinned, &pinnedAt, &isPrivate, &recurrenceRule, &completedAt,
+		&isPinned, &pinnedAt, &isPrivate, &isComplex, &recurrenceRule, &completedAt,
 		&t.PostponeCount,
 		&troikiCategory,
 		&sourceTaskID,
@@ -67,6 +67,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		t.SourceTaskID = &v
 	}
 	t.IsPrivate = isPrivate == 1
+	t.IsComplex = isComplex == 1
 	if inboxID.Valid {
 		v := inboxID.Int64
 		t.InboxID = &v
@@ -322,6 +323,7 @@ type TaskUpdate struct {
 	CompletedAt     *time.Time
 
 	IsPrivate *bool
+	IsComplex *bool
 
 	TroikiCategory      *model.TroikiCategory
 	TroikiCategoryClear bool
@@ -412,6 +414,10 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 			pv = 1
 		}
 		args = append(args, pv)
+	}
+	if u.IsComplex != nil {
+		sets = append(sets, "is_complex = ?")
+		args = append(args, boolInt(*u.IsComplex))
 	}
 	if u.TroikiCategoryClear {
 		sets = append(sets, "troiki_category = NULL", "troiki_capacity_granted = 0")
@@ -828,6 +834,14 @@ func (r *TaskRepo) CountBacklog(ctx context.Context) (int, error) {
 
 func (r *TaskRepo) CountInbox(ctx context.Context) (int, error) {
 	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE inbox_id IS NOT NULL AND status = 'open'`)
+}
+
+// CountOverdue counts open tasks whose due_at falls before todayStart. Mirrors
+// the ListOverdue window, used by the weekly summary to report carried-over work.
+func (r *TaskRepo) CountOverdue(ctx context.Context, todayStart time.Time) (int, error) {
+	return r.scalarCount(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE status = 'open' AND due_at IS NOT NULL AND due_at < ?`,
+		model.FormatUTC(todayStart))
 }
 
 func (r *TaskRepo) CountPinnedTasks(ctx context.Context) (int, error) {

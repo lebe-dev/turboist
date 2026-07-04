@@ -4,6 +4,7 @@ import type {
 	GroupResult,
 	InboxResponse,
 	Page,
+	Priority,
 	Task,
 	TaskInput,
 	TaskMoveInput,
@@ -84,6 +85,13 @@ export const tasks = {
 		return client.fetch('/api/v1/tasks/bulk/move', {
 			method: 'POST',
 			body: { ids, ...target }
+		});
+	},
+
+	bulkSetPriority(client: ApiClient, ids: number[], priority: Priority): Promise<BulkResult> {
+		return client.fetch('/api/v1/tasks/bulk/priority', {
+			method: 'POST',
+			body: { ids, priority }
 		});
 	},
 

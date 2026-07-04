@@ -5,7 +5,9 @@
 		"loadingWorkspace": "Загрузка рабочего пространства…",
 		"workspaceFailed": "Не удалось загрузить рабочее пространство.",
 		"retry": "Повторить",
-		"redirecting": "Перенаправление…"
+		"redirecting": "Перенаправление…",
+		"newVersionAvailable": "Доступна новая версия",
+		"reload": "Обновить"
 	},
 	"common": {
 		"markPrivate": "Сделать приватным",
@@ -439,6 +441,8 @@
 		},
 		"postponedTimes": "Откладывалась {count} раз(а)",
 		"inTroikiTitle": "В системе Тройки",
+		"complexMarker": "Сложная",
+		"complexTooltip": "Помечена как сложная задача",
 		"recurringLabel": "Повторяющаяся задача",
 		"unplannedLabel": "Добавлено вне планирования",
 		"weekPlannedLabel": "Запланировано на эту неделю",
@@ -464,9 +468,13 @@
 			"select": "Выбрать задачи",
 			"deselect": "Снять выбор",
 			"moreSubmenu": "Действия",
+			"markComplex": "Пометить сложной",
+			"unmarkComplex": "Пометить простой",
+			"complexityUpdated": "Сложность обновлена",
 			"createTemplate": "Создать шаблон",
 			"createTemplateSuccess": "Шаблон создан",
-			"createTemplateFailed": "Не удалось создать шаблон"
+			"createTemplateFailed": "Не удалось создать шаблон",
+			"applyLabelsToSubtasks": "Перезаписать метки подзадач метками родителя"
 		},
 		"dayPart": {
 			"morning": "Утро",
@@ -502,6 +510,12 @@
 			"grouped": "{count} задач сгруппированы под новой задачей",
 			"groupedPartial": "Сгруппировано {ok}; не удалось — {failed}",
 			"failedGroup": "Не удалось сгруппировать задачи",
+			"bulkMoved": "Перемещено задач: {count}",
+			"bulkMovedPartial": "Перемещено {ok}; не удалось — {failed}",
+			"failedBulkMove": "Не удалось переместить задачи",
+			"bulkPrioritySet": "Приоритет обновлён для {count} задач",
+			"bulkPrioritySetPartial": "Обновлено {ok}; не удалось — {failed}",
+			"failedBulkPriority": "Не удалось обновить приоритет",
 			"addedToProject": "Задача добавлена в проект",
 			"addedToContext": "Задача добавлена в контекст",
 			"addedToInbox": "Задача добавлена во входящие",
@@ -527,7 +541,9 @@
 			"failedUndo": "Не удалось отменить",
 			"confirmDelete": "Удалить «{title}»? Подзадачи также будут удалены.",
 			"decomposed": "Разбито на {count}",
-			"failedDecompose": "Не удалось разбить задачу"
+			"failedDecompose": "Не удалось разбить задачу",
+			"subtaskLabelsApplied": "Метки применены к {count} подзадачам",
+			"failedApplySubtaskLabels": "Не удалось применить метки к подзадачам"
 		},
 		"backlogLabel": "В бэклоге"
 	},
@@ -573,6 +589,10 @@
 			"updated": "Раздел обновлён",
 			"created": "Раздел создан",
 			"failedSave": "Не удалось сохранить раздел"
+		},
+		"bulkMove": {
+			"title": "Переместить в проект",
+			"description": "Выберите место для {count} задач"
 		},
 		"moveTask": {
 			"title": "Переместить в проект",
@@ -767,6 +787,26 @@
 			"onlyPlanned": "Только запланированные",
 			"onlyPlannedTooltip": "Показать только запланированные на неделю задачи и календарные события"
 		},
+		"weekSummary": {
+			"title": "Итоги недели",
+			"action": "Итоги",
+			"open": "Открыть итоги недели",
+			"backToWeek": "К неделе",
+			"errorLoading": "Не удалось загрузить итоги недели",
+			"emptyTitle": "Пока нечего подводить",
+			"emptyDescription": "Завершайте или планируйте задачи на этой неделе — они появятся здесь.",
+			"completed": "Выполнено",
+			"plannedOpen": "Ещё запланировано",
+			"overdue": "Просрочено",
+			"byPriority": "По приоритету",
+			"byProject": "По проектам",
+			"byContext": "По контекстам",
+			"noProject": "Без проекта",
+			"noContext": "Без контекста",
+			"troikiTitle": "Прогресс по Тройкам",
+			"troikiSlots": "{used}/{capacity} проектов",
+			"troikiDone": "{completed} готово · {open} открыто"
+		},
 		"nextWeek": {
 			"dateRangeLabel": "Следующая неделя: {range}",
 			"errorLoading": "Не удалось загрузить планирование",
@@ -909,6 +949,8 @@
 		"bar": {
 			"aria": "Действия с выбранными задачами",
 			"count": "Выбрано: {count}",
+			"move": "Переместить",
+			"priority": "Приоритет",
 			"group": "Сгруппировать в задачу",
 			"cancel": "Снять выбор"
 		}

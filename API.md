@@ -85,6 +85,7 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `totp_invalid_code` | 401 |
 | `totp_already_enabled` | 409 |
 | `totp_not_enabled` | 409 |
+| `calendar_reauth_required` | 409 |
 | `CodeInternalError` | 500 |
 
 #### `403 Forbidden`
@@ -475,7 +476,7 @@ The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tok
 | Scope | Description |
 |-------|-------------|
 | `tasks:read` | Read tasks: get by id, all task views (`today`, `tomorrow`, `overdue`, `week`, `backlog`, `pinned`, `completed`), subtasks list, `stats/plan`, inbox list, tasks listed under a context / project / section / label |
-| `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; bulk operations (`bulk/complete`, `bulk/move`); `tasks/group`; create tasks in inbox / context / project / section |
+| `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; bulk operations (`bulk/complete`, `bulk/move`, `bulk/priority`); `tasks/group`; create tasks in inbox / context / project / section |
 | `projects:read` | Read projects: list, get by id, list tasks/sections of a project, list projects in a context or by label |
 | `projects:write` | Create, update, delete projects; complete / uncomplete / cancel / archive / unarchive; pin / unpin; assign or clear Troiki category |
 | `contexts:read` | Read contexts: list, get by id |
@@ -529,8 +530,10 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/tasks/pinned` | `tasks:read` |
 | `GET /api/v1/tasks/completed` | `tasks:read` |
 | `GET /api/v1/stats/plan` | `tasks:read` |
+| `GET /api/v1/stats/week-summary` | `tasks:read` |
 | `POST /api/v1/tasks/bulk/complete` | `tasks:write` |
 | `POST /api/v1/tasks/bulk/move` | `tasks:write` |
+| `POST /api/v1/tasks/bulk/priority` | `tasks:write` |
 | `POST /api/v1/tasks/group` | `tasks:write` |
 
 #### Inbox
@@ -723,6 +726,7 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
   "isPinned": false,
   "pinnedAt": null,
   "isPrivate": false,
+  "isComplex": false,
   "completedAt": null,
   "recurrenceRule": null,
   "postponeCount": 0,
@@ -767,7 +771,8 @@ All fields are optional. Omit a field to leave it unchanged.
   "recurrenceRule": "RRULE:FREQ=DAILY",
   "labels": ["bug", "urgent"],
   "removedAutoLabels": ["auto-label-name"],
-  "isPrivate": false
+  "isPrivate": false,
+  "isComplex": false
 }
 ```
 
@@ -1122,6 +1127,43 @@ curl "$BASE/api/v1/stats/sidebar" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### `GET /api/v1/stats/week-summary`
+
+Backs the weekly summary review page. Returns the current-week range (Mon..next
+Mon, configured timezone, as UTC instants), headline counters, and the full list
+of tasks completed in that range. The list includes subtasks and
+recurrence-completion snapshots (every row marked completed in range); the
+client derives the by-priority / by-project / by-context breakdowns from it.
+`stats.completedCount` is the authoritative total, `plannedOpen` counts open
+tasks still on the week board, `overdue` counts open tasks past their due date.
+
+`troiki` is present only when the Troiki system is enabled (else `null`). It
+leads the page because the methodology takes priority over plain projects/tasks.
+`slots` is ordered important → medium → rest; each slot reports its `capacity`,
+the number of `projects` assigned, the count of `open` tasks remaining in those
+projects, and how many of its tasks were `completed` during the week.
+
+```json
+{
+  "range": { "start": "2026-06-29T00:00:00.000Z", "end": "2026-07-06T00:00:00.000Z" },
+  "stats": { "completedCount": 12, "plannedOpen": 5, "overdue": 2 },
+  "completed": [],
+  "troiki": {
+    "started": true,
+    "slots": [
+      { "category": "important", "capacity": 3, "projects": 2, "open": 4, "completed": 7 },
+      { "category": "medium", "capacity": 5, "projects": 3, "open": 9, "completed": 3 },
+      { "category": "rest", "capacity": 2, "projects": 1, "open": 6, "completed": 2 }
+    ]
+  }
+}
+```
+
+```sh
+curl "$BASE/api/v1/stats/week-summary" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ---
 
 ## Task Bulk Operations
@@ -1180,6 +1222,30 @@ curl -X POST "$BASE/api/v1/tasks/bulk/move" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ids":[1,2,3],"inboxId":1}'
+```
+
+### `POST /api/v1/tasks/bulk/priority`
+
+Set the priority of up to 100 tasks. `priority` is one of `high`, `medium`,
+`low`, `no-priority`.
+
+**Request:**
+```json
+{
+  "ids": [1, 2, 3],
+  "priority": "high"
+}
+```
+
+**Response:** same bulk envelope as bulk/complete. A task in a Troiki-categorised
+project has its priority pinned by the category; setting a mismatching priority
+fails that id with a `validation_failed` error while the rest succeed.
+
+```sh
+curl -X POST "$BASE/api/v1/tasks/bulk/priority" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ids":[1,2,3],"priority":"high"}'
 ```
 
 ### `POST /api/v1/tasks/group`

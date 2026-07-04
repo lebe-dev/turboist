@@ -8,7 +8,8 @@ import type {
 	TodayBundle,
 	ViewList,
 	ViewPageQuery,
-	ViewQuery
+	ViewQuery,
+	WeekSummaryResponse
 } from '../types';
 
 export const views = {
@@ -60,6 +61,13 @@ export const views = {
 	// /stats/plan + /inbox + /tasks/pinned round-trips.
 	sidebarStats(client: ApiClient): Promise<SidebarStatsResponse> {
 		return client.fetch('/api/v1/stats/sidebar');
+	},
+
+	// weekSummary returns the current week's review: completed tasks plus the
+	// headline counters (completed / still planned / overdue). Breakdowns are
+	// computed client-side from `completed`.
+	weekSummary(client: ApiClient): Promise<WeekSummaryResponse> {
+		return client.fetch('/api/v1/stats/week-summary');
 	},
 
 	search(client: ApiClient, query: SearchQuery): Promise<SearchResponse> {

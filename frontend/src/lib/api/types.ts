@@ -121,9 +121,11 @@ export interface Task {
 	isPinned: boolean;
 	pinnedAt: string | null;
 	isPrivate: boolean;
+	isComplex: boolean;
 	completedAt: string | null;
 
 	recurrenceRule: string | null;
+	sourceTaskId: number | null;
 
 	postponeCount: number;
 
@@ -186,6 +188,39 @@ export interface SidebarStatsResponse {
 	planStats: PlanStatsResponse;
 	inboxStats: { count: number; warnThresholdExceeded: boolean };
 	pinned: ViewList<Task>;
+}
+
+// WeekSummaryResponse backs the /week/summary review page. `completed` carries
+// every task completed in the current week (incl. subtasks and recurrence
+// snapshots); the page derives the by-priority/project/context breakdowns from
+// it client-side. `stats.completedCount` is the authoritative total.
+// WeekSummaryTroikiSlot is the per-category progress for one Troiki slot:
+// how full it is (projects/capacity), how many open tasks remain, and how many
+// of its tasks were completed during the current week.
+export interface WeekSummaryTroikiSlot {
+	category: TroikiCategory;
+	capacity: number;
+	projects: number;
+	open: number;
+	completed: number;
+}
+
+// WeekSummaryTroiki is present only when the Troiki system is enabled; `slots`
+// is ordered important → medium → rest.
+export interface WeekSummaryTroiki {
+	started: boolean;
+	slots: WeekSummaryTroikiSlot[];
+}
+
+export interface WeekSummaryResponse {
+	range: { start: string; end: string };
+	stats: {
+		completedCount: number;
+		plannedOpen: number;
+		overdue: number;
+	};
+	completed: Task[];
+	troiki: WeekSummaryTroiki | null;
 }
 
 export interface TroikiProject extends Project {
@@ -418,6 +453,7 @@ export interface TaskInput {
 	labels?: string[];
 	removedAutoLabels?: string[];
 	isPrivate?: boolean;
+	isComplex?: boolean;
 }
 
 export interface TaskTemplateSubtask {

@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
+	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
@@ -246,7 +247,7 @@
 	function scheduleSave(): void {
 		if (!allowSave || !task || !title.trim()) return;
 		if (saveTimer !== null) clearTimeout(saveTimer);
-		saveTimer = setTimeout(() => void save(), 800);
+		saveTimer = setTimeout(() => void save(), 1500);
 	}
 
 	// Watch picker bindings for auto-save
@@ -476,7 +477,7 @@ async function save(): Promise<void> {
 							}}
 							class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
 						>
-							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />
+							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task?.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-2 inline-block size-5 text-red-500" weight="fill" /></span>{/if}
 						</div>
 					{:else}
 						<textarea

@@ -5,7 +5,9 @@
 		"loadingWorkspace": "Loading workspace…",
 		"workspaceFailed": "Failed to load workspace.",
 		"retry": "Retry",
-		"redirecting": "Redirecting…"
+		"redirecting": "Redirecting…",
+		"newVersionAvailable": "A new version is available",
+		"reload": "Reload"
 	},
 	"common": {
 		"markPrivate": "Mark as private",
@@ -439,6 +441,8 @@
 		},
 		"postponedTimes": "Postponed {count} times",
 		"inTroikiTitle": "In Troiki system",
+		"complexMarker": "Complex",
+		"complexTooltip": "Marked as a complex task",
 		"recurringLabel": "Recurring task",
 		"unplannedLabel": "Added outside of planning",
 		"weekPlannedLabel": "Planned for this week",
@@ -464,9 +468,13 @@
 			"select": "Select tasks",
 			"deselect": "Deselect",
 			"moreSubmenu": "Actions",
+			"markComplex": "Mark as complex",
+			"unmarkComplex": "Mark as simple",
+			"complexityUpdated": "Complexity updated",
 			"createTemplate": "Create template",
 			"createTemplateSuccess": "Template created",
-			"createTemplateFailed": "Failed to create template"
+			"createTemplateFailed": "Failed to create template",
+			"applyLabelsToSubtasks": "Overwrite subtask labels with parent's"
 		},
 		"dayPart": {
 			"morning": "Morning",
@@ -502,6 +510,12 @@
 			"grouped": "Grouped {count} tasks under the new task",
 			"groupedPartial": "Grouped {ok} tasks; {failed} failed",
 			"failedGroup": "Failed to group tasks",
+			"bulkMoved": "Moved {count} tasks",
+			"bulkMovedPartial": "Moved {ok} tasks; {failed} failed",
+			"failedBulkMove": "Failed to move tasks",
+			"bulkPrioritySet": "Updated priority for {count} tasks",
+			"bulkPrioritySetPartial": "Updated {ok} tasks; {failed} failed",
+			"failedBulkPriority": "Failed to update priority",
 			"addedToProject": "Task added to project",
 			"addedToContext": "Task added to context",
 			"addedToInbox": "Task added to inbox",
@@ -527,7 +541,9 @@
 			"failedUndo": "Failed to undo",
 			"confirmDelete": "Delete \"{title}\"? Subtasks will also be removed.",
 			"decomposed": "Decomposed into {count} task(s)",
-			"failedDecompose": "Failed to decompose task"
+			"failedDecompose": "Failed to decompose task",
+			"subtaskLabelsApplied": "Labels applied to {count} subtask(s)",
+			"failedApplySubtaskLabels": "Failed to apply labels to subtasks"
 		},
 		"backlogLabel": "In backlog"
 	},
@@ -573,6 +589,10 @@
 			"updated": "Section updated",
 			"created": "Section created",
 			"failedSave": "Failed to save section"
+		},
+		"bulkMove": {
+			"title": "Move to project",
+			"description": "Pick a destination for {count} tasks"
 		},
 		"moveTask": {
 			"title": "Move to project",
@@ -767,6 +787,26 @@
 			"onlyPlanned": "Only planned",
 			"onlyPlannedTooltip": "Show only tasks planned for this week and calendar events"
 		},
+		"weekSummary": {
+			"title": "Weekly summary",
+			"action": "Summary",
+			"open": "Open weekly summary",
+			"backToWeek": "Back to week",
+			"errorLoading": "Failed to load weekly summary",
+			"emptyTitle": "Nothing to summarize yet",
+			"emptyDescription": "Complete or plan tasks this week and they'll show up here.",
+			"completed": "Completed",
+			"plannedOpen": "Still planned",
+			"overdue": "Overdue",
+			"byPriority": "By priority",
+			"byProject": "By project",
+			"byContext": "By context",
+			"noProject": "No project",
+			"noContext": "No context",
+			"troikiTitle": "Troiki progress",
+			"troikiSlots": "{used}/{capacity} projects",
+			"troikiDone": "{completed} done · {open} open"
+		},
 		"nextWeek": {
 			"dateRangeLabel": "Next week: {range}",
 			"errorLoading": "Failed to load planning view",
@@ -909,6 +949,8 @@
 		"bar": {
 			"aria": "Selected tasks actions",
 			"count": "{count} selected",
+			"move": "Move",
+			"priority": "Priority",
 			"group": "Group into task",
 			"cancel": "Clear selection"
 		}

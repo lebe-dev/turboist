@@ -46,13 +46,14 @@ func NewService(
 	calendars *repo.CalendarRepo,
 	users *repo.UserRepo,
 	baseURL, calendarTokenKey string,
+	cacheTTL time.Duration,
 	log *slog.Logger,
 ) *Service {
 	return &Service{
 		calendars: calendars,
 		users:     users,
 		cipher:    crypto.NewTokenCipher(calendarTokenKey),
-		cache:     NewEventCache(2 * time.Minute),
+		cache:     NewEventCache(cacheTTL),
 		baseURL:   strings.TrimRight(baseURL, "/"),
 		log:       log,
 	}
@@ -144,7 +145,7 @@ func (s *Service) FreshGoogleToken(ctx context.Context, cfg *oauth2.Config, acco
 	src := cfg.TokenSource(ctx, token)
 	fresh, err := src.Token()
 	if err != nil {
-		return nil, err
+		return nil, asReauthError(err)
 	}
 	if tokenChanged(token, fresh) || needsEncryption {
 		account.AccessToken = fresh.AccessToken

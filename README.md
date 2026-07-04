@@ -33,6 +33,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 ## Docs
 
 - [Installation](docs/install.md) — nginx config
+- [Upgrading](docs/upgrade.md) — how to update to a new version
 - [Configuration](docs/configuration.md) — env vars, log levels, config.yml
 - [Backend architecture](docs/architecture/backend.md) — endpoints, auth, storage, dev commands
 - [API reference](API.md)

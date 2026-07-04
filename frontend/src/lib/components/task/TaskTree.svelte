@@ -53,7 +53,7 @@
 		collapsedIds?: Set<number>;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
-		onToggle?: (task: Task) => void;
+		onToggle?: (task: Task) => void | Promise<void>;
 		onReparent?: (draggedId: number, targetId: number) => void;
 		visibleIds?: number[];
 	} = $props();

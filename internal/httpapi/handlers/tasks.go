@@ -10,12 +10,22 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 	rrule "github.com/teambition/rrule-go"
+)
+
+const (
+	opTaskPatch         = "handler.Task.Patch"
+	opTaskCreateSubtask = "handler.Task.CreateSubtask"
+	opTaskDecompose     = "handler.Task.Decompose"
+	routeTaskByID       = "/tasks/:id"
+	msgGetTask          = "get task"
+	msgListSubtasks     = "list subtasks"
 )
 
 var reTrailingCounter = regexp.MustCompile(`^(.*) \((\d+)\)$`)
@@ -43,14 +53,14 @@ func NewTaskHandler(tasks *repo.TaskRepo, projects *repo.ProjectRepo, taskSvc *s
 
 // Register wires task routes onto r (the /api/v1 group).
 func (h *TaskHandler) Register(r fiber.Router) {
-	r.Get("/tasks/:id", httpapi.RequireScope("tasks:read"), h.get)
-	r.Patch("/tasks/:id", httpapi.RequireScope("tasks:write"), h.patch)
-	r.Delete("/tasks/:id", httpapi.RequireScope("tasks:write"), h.delete)
-	r.Get("/tasks/:id/subtasks", httpapi.RequireScope("tasks:read"), h.listSubtasks)
-	r.Get("/tasks/:id/template-draft", httpapi.RequireScope("tasks:read"), h.templateDraft)
-	r.Post("/tasks/:id/subtasks", httpapi.RequireScope("tasks:write"), h.createSubtask)
-	r.Post("/tasks/:id/duplicate", httpapi.RequireScope("tasks:write"), h.duplicate)
-	r.Post("/tasks/:id/decompose", httpapi.RequireScope("tasks:write"), h.decompose)
+	r.Get(routeTaskByID, httpapi.RequireScope(auth.ScopeTasksRead), h.get)
+	r.Patch(routeTaskByID, httpapi.RequireScope(auth.ScopeTasksWrite), h.patch)
+	r.Delete(routeTaskByID, httpapi.RequireScope(auth.ScopeTasksWrite), h.delete)
+	r.Get("/tasks/:id/subtasks", httpapi.RequireScope(auth.ScopeTasksRead), h.listSubtasks)
+	r.Get("/tasks/:id/template-draft", httpapi.RequireScope(auth.ScopeTasksRead), h.templateDraft)
+	r.Post("/tasks/:id/subtasks", httpapi.RequireScope(auth.ScopeTasksWrite), h.createSubtask)
+	r.Post("/tasks/:id/duplicate", httpapi.RequireScope(auth.ScopeTasksWrite), h.duplicate)
+	r.Post("/tasks/:id/decompose", httpapi.RequireScope(auth.ScopeTasksWrite), h.decompose)
 }
 
 func (h *TaskHandler) get(c fiber.Ctx) error {
@@ -63,15 +73,15 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
-		return httpapi.ErrInternal("get task").WithCause(err)
+		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
 	out := dto.TaskFromModel(*t, h.baseURL)
 	if includeSubtasks {
 		items, err := h.tasks.ListSubtasks(c.Context(), id)
 		if err != nil {
-			return httpapi.ErrInternal("list subtasks").WithCause(err)
+			return httpapi.ErrInternal(msgListSubtasks).WithCause(err)
 		}
 		dtos := make([]dto.TaskDTO, len(items))
 		for i, st := range items {
@@ -88,24 +98,24 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Task.Patch", slog.Int64("task_id", id))
+	logEntry(c, opTaskPatch, slog.Int64("task_id", id))
 	t, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
-		return httpapi.ErrInternal("get task").WithCause(err)
+		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
 	var req dto.PatchTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Task.Patch", "invalid request body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opTaskPatch, msgInvalidRequestBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 
 	u := repo.TaskUpdate{}
 	if req.Title != nil {
 		if strings.TrimSpace(*req.Title) == "" {
-			logValidation(c, "handler.Task.Patch", "empty title")
+			logValidation(c, opTaskPatch, "empty title")
 			return httpapi.ErrValidation("title must not be empty")
 		}
 		u.Title = req.Title
@@ -116,7 +126,7 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 	if req.Priority != nil {
 		p := model.Priority(*req.Priority)
 		if !p.IsValid() {
-			logValidation(c, "handler.Task.Patch", "invalid priority")
+			logValidation(c, opTaskPatch, "invalid priority")
 			return httpapi.ErrValidation("invalid priority")
 		}
 		// Tasks in a Troiki-bound project have priority pinned by the project's
@@ -208,12 +218,16 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		u.IsPrivate = req.IsPrivate
 	}
 
+	if req.IsComplex != nil {
+		u.IsComplex = req.IsComplex
+	}
+
 	u.IncPostponeCount = shouldIncPostpone(t, u, time.Now())
 
 	updated, err := h.tasks.Update(c.Context(), id, u)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
 		return httpapi.ErrInternal("update task").WithCause(err)
 	}
@@ -233,7 +247,7 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		}
 	}
 
-	logMutation(c, "handler.Task.Patch", slog.Int64("task_id", updated.ID))
+	logMutation(c, opTaskPatch, slog.Int64("task_id", updated.ID))
 	return c.JSON(dto.TaskFromModel(*updated, h.baseURL))
 }
 
@@ -245,7 +259,7 @@ func (h *TaskHandler) delete(c fiber.Ctx) error {
 	logEntry(c, "handler.Task.Delete", slog.Int64("task_id", id))
 	if err := h.tasks.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
 		return httpapi.ErrInternal("delete task").WithCause(err)
 	}
@@ -260,13 +274,13 @@ func (h *TaskHandler) listSubtasks(c fiber.Ctx) error {
 	}
 	if _, err := h.tasks.Get(c.Context(), parentID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
-		return httpapi.ErrInternal("get task").WithCause(err)
+		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
 	items, err := h.tasks.ListSubtasks(c.Context(), parentID)
 	if err != nil {
-		return httpapi.ErrInternal("list subtasks").WithCause(err)
+		return httpapi.ErrInternal(msgListSubtasks).WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(items))
 	for i, t := range items {
@@ -287,9 +301,9 @@ func (h *TaskHandler) templateDraft(c fiber.Ctx) error {
 	root, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
-		return httpapi.ErrInternal("get task").WithCause(err)
+		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
 	descendants, err := h.flattenSubtree(c.Context(), id)
 	if err != nil {
@@ -327,7 +341,7 @@ func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Task.CreateSubtask", slog.Int64("parent_id", parentID))
+	logEntry(c, opTaskCreateSubtask, slog.Int64("parent_id", parentID))
 	parent, err := h.tasks.Get(c.Context(), parentID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
@@ -336,16 +350,16 @@ func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
 		return httpapi.ErrInternal("get parent task").WithCause(err)
 	}
 	if parent.InboxID != nil {
-		logValidation(c, "handler.Task.CreateSubtask", "subtask in inbox")
+		logValidation(c, opTaskCreateSubtask, "subtask in inbox")
 		return httpapi.ErrForbiddenPlacement("subtasks cannot be placed in inbox")
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Task.CreateSubtask", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opTaskCreateSubtask, "invalid body")
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Title == "" {
-		logValidation(c, "handler.Task.CreateSubtask", "title required")
+		logValidation(c, opTaskCreateSubtask, "title required")
 		return httpapi.ErrValidation("title is required")
 	}
 	placement := repo.Placement{
@@ -372,7 +386,7 @@ func (h *TaskHandler) createSubtask(c fiber.Ctx) error {
 	if err != nil {
 		return handleTaskCreateErr(c, err)
 	}
-	logMutation(c, "handler.Task.CreateSubtask", slog.Int64("task_id", t.ID), slog.Int64("parent_id", parentID))
+	logMutation(c, opTaskCreateSubtask, slog.Int64("task_id", t.ID), slog.Int64("parent_id", parentID))
 	return c.Status(fiber.StatusCreated).JSON(dto.TaskFromModel(*t, h.baseURL))
 }
 
@@ -385,9 +399,9 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 	src, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
-		return httpapi.ErrInternal("get task").WithCause(err)
+		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
 	t, err := h.cloneTask(c.Context(), src, src.ParentID, duplicateTitle(src.Title))
 	if err != nil {
@@ -397,7 +411,7 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 	// Surface the cloned subtasks so the client can render them without a reload.
 	subtasks, err := h.tasks.ListSubtasks(c.Context(), t.ID)
 	if err != nil {
-		return httpapi.ErrInternal("list subtasks").WithCause(err)
+		return httpapi.ErrInternal(msgListSubtasks).WithCause(err)
 	}
 	dtos := make([]dto.TaskDTO, len(subtasks))
 	for i, st := range subtasks {
@@ -463,11 +477,11 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Task.Decompose", slog.Int64("task_id", id))
+	logEntry(c, opTaskDecompose, slog.Int64("task_id", id))
 	var req dto.DecomposeTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Task.Decompose", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opTaskDecompose, "invalid body")
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	titles := make([]string, 0, len(req.Titles))
 	for _, raw := range req.Titles {
@@ -477,20 +491,20 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 		}
 	}
 	if len(titles) == 0 {
-		logValidation(c, "handler.Task.Decompose", "empty titles")
+		logValidation(c, opTaskDecompose, "empty titles")
 		return httpapi.ErrValidation("titles must not be empty")
 	}
 
 	src, err := h.tasks.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("task not found")
+			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
-		return httpapi.ErrInternal("get task").WithCause(err)
+		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
 	subs, err := h.tasks.ListSubtasks(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("list subtasks").WithCause(err)
+		return httpapi.ErrInternal(msgListSubtasks).WithCause(err)
 	}
 	if len(subs) > 0 {
 		return httpapi.ErrConflict("task has subtasks")
@@ -553,7 +567,7 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 	for i, t := range created {
 		out.Created[i] = dto.TaskFromModel(t, h.baseURL)
 	}
-	logMutation(c, "handler.Task.Decompose", slog.Int64("source_id", id), slog.Int("created", len(created)))
+	logMutation(c, opTaskDecompose, slog.Int64("source_id", id), slog.Int("created", len(created)))
 	return c.Status(fiber.StatusCreated).JSON(out)
 }
 

@@ -9,19 +9,42 @@ import (
 
 const ScopeWildcard = "*"
 
+// Concrete scope names. Use these constants instead of raw "<resource>:<action>"
+// string literals so the set has a single source of truth.
+const (
+	ScopeTasksRead      = "tasks:read"
+	ScopeTasksWrite     = "tasks:write"
+	ScopeProjectsRead   = "projects:read"
+	ScopeProjectsWrite  = "projects:write"
+	ScopeContextsRead   = "contexts:read"
+	ScopeContextsWrite  = "contexts:write"
+	ScopeLabelsRead     = "labels:read"
+	ScopeLabelsWrite    = "labels:write"
+	ScopeTemplatesRead  = "templates:read"
+	ScopeTemplatesWrite = "templates:write"
+	ScopeSectionsRead   = "sections:read"
+	ScopeSectionsWrite  = "sections:write"
+	ScopeTroikiRead     = "troiki:read"
+	ScopeTroikiWrite    = "troiki:write"
+	ScopeSettingsRead   = "settings:read"
+	ScopeSettingsWrite  = "settings:write"
+	ScopeSearchRead     = "search:read"
+	ScopeCalendarsRead  = "calendars:read"
+)
+
 // ValidScopes lists every concrete scope accepted on API tokens.
 // Wildcard "*" is allowed but is not part of this list.
 var ValidScopes = []string{
-	"tasks:read", "tasks:write",
-	"projects:read", "projects:write",
-	"contexts:read", "contexts:write",
-	"labels:read", "labels:write",
-	"templates:read", "templates:write",
-	"sections:read", "sections:write",
-	"troiki:read", "troiki:write",
-	"settings:read", "settings:write",
-	"search:read",
-	"calendars:read",
+	ScopeTasksRead, ScopeTasksWrite,
+	ScopeProjectsRead, ScopeProjectsWrite,
+	ScopeContextsRead, ScopeContextsWrite,
+	ScopeLabelsRead, ScopeLabelsWrite,
+	ScopeTemplatesRead, ScopeTemplatesWrite,
+	ScopeSectionsRead, ScopeSectionsWrite,
+	ScopeTroikiRead, ScopeTroikiWrite,
+	ScopeSettingsRead, ScopeSettingsWrite,
+	ScopeSearchRead,
+	ScopeCalendarsRead,
 }
 
 // ValidateScopes enforces the rules described in PLAN.md §3:

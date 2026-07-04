@@ -9,6 +9,8 @@ import (
 	"github.com/lebe-dev/turboist/internal/repo"
 )
 
+const opStatePatch = "handler.State.Patch"
+
 // StateHandler exposes the per-user UI state blob.
 //
 //	GET   /api/v1/state         -> returns the JSON object verbatim
@@ -48,14 +50,14 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 	if userID == 0 {
 		return httpapi.ErrAuthInvalid("missing auth claims")
 	}
-	logEntry(c, "handler.State.Patch", slog.Int64("user_id", userID))
+	logEntry(c, opStatePatch, slog.Int64("user_id", userID))
 	if len(c.Body()) > 64*1024 {
-		logValidation(c, "handler.State.Patch", "payload too large", slog.Int("bytes", len(c.Body())))
+		logValidation(c, opStatePatch, "payload too large", slog.Int("bytes", len(c.Body())))
 		return httpapi.ErrValidation("state payload too large")
 	}
 	var patch map[string]json.RawMessage
 	if err := json.Unmarshal(c.Body(), &patch); err != nil {
-		logValidation(c, "handler.State.Patch", "invalid JSON")
+		logValidation(c, opStatePatch, "invalid JSON")
 		return httpapi.ErrValidation("invalid JSON object")
 	}
 
@@ -83,7 +85,7 @@ func (h *StateHandler) patch(c fiber.Ctx) error {
 	if err := h.users.SetState(c.Context(), userID, string(merged)); err != nil {
 		return httpapi.ErrInternal("save state").WithCause(err)
 	}
-	logMutation(c, "handler.State.Patch", slog.Int64("user_id", userID))
+	logMutation(c, opStatePatch, slog.Int64("user_id", userID))
 	c.Set("Content-Type", "application/json")
 	return c.Send(merged)
 }

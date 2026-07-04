@@ -21,7 +21,7 @@
 		showProject?: boolean;
 		mutator?: ListMutator;
 		belongs?: (task: Task) => boolean;
-		onToggle?: (task: Task) => void;
+		onToggle?: (task: Task) => void | Promise<void>;
 	} = $props();
 
 	const visibleTasks = $derived.by(() => {

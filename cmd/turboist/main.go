@@ -176,6 +176,7 @@ func main() {
 		userRepo,
 		env.BaseURL,
 		env.JWTSecret,
+		env.CalendarCacheTTL,
 		log,
 	)
 	calendarHandler := handlers.NewCalendarHandler(
@@ -209,8 +210,8 @@ func main() {
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).Register(api)
 	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL).Register(api.Group("/inbox"))
-	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, env.BaseURL).Register(api)
-	handlers.NewTaskViewHandler(taskRepo, cfg, env.BaseURL).Register(api)
+	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, taskSvc, env.BaseURL).Register(api)
+	handlers.NewTaskViewHandler(taskRepo, userRepo, troikiSvc, cfg, env.BaseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
 	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)

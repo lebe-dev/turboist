@@ -6,11 +6,20 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+)
+
+const (
+	opContextCreate     = "handler.Context.Create"
+	opContextPatch      = "handler.Context.Patch"
+	opContextCreateTask = "handler.Context.CreateTask"
+	msgGetContext       = "get context"
+	msgInvalidStatus    = "invalid status"
 )
 
 // ContextHandler implements CRUD and sub-resource routes for /api/v1/contexts.
@@ -29,14 +38,14 @@ func NewContextHandler(ctxs *repo.ContextRepo, projects *repo.ProjectRepo, tasks
 
 // Register wires context routes onto r.
 func (h *ContextHandler) Register(r fiber.Router) {
-	r.Get("/", httpapi.RequireScope("contexts:read"), h.list)
-	r.Post("/", httpapi.RequireScope("contexts:write"), h.create)
-	r.Get("/:id", httpapi.RequireScope("contexts:read"), h.get)
-	r.Patch("/:id", httpapi.RequireScope("contexts:write"), h.patch)
-	r.Delete("/:id", httpapi.RequireScope("contexts:write"), h.delete)
-	r.Get("/:id/projects", httpapi.RequireScope("projects:read"), h.listProjects)
-	r.Get("/:id/tasks", httpapi.RequireScope("tasks:read"), h.listTasks)
-	r.Post("/:id/tasks", httpapi.RequireScope("tasks:write"), h.createTask)
+	r.Get("/", httpapi.RequireScope(auth.ScopeContextsRead), h.list)
+	r.Post("/", httpapi.RequireScope(auth.ScopeContextsWrite), h.create)
+	r.Get("/:id", httpapi.RequireScope(auth.ScopeContextsRead), h.get)
+	r.Patch("/:id", httpapi.RequireScope(auth.ScopeContextsWrite), h.patch)
+	r.Delete("/:id", httpapi.RequireScope(auth.ScopeContextsWrite), h.delete)
+	r.Get("/:id/projects", httpapi.RequireScope(auth.ScopeProjectsRead), h.listProjects)
+	r.Get("/:id/tasks", httpapi.RequireScope(auth.ScopeTasksRead), h.listTasks)
+	r.Post("/:id/tasks", httpapi.RequireScope(auth.ScopeTasksWrite), h.createTask)
 }
 
 func (h *ContextHandler) list(c fiber.Ctx) error {
@@ -53,19 +62,19 @@ func (h *ContextHandler) list(c fiber.Ctx) error {
 }
 
 func (h *ContextHandler) create(c fiber.Ctx) error {
-	logEntry(c, "handler.Context.Create")
+	logEntry(c, opContextCreate)
 	var req dto.CreateContextRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Context.Create", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opContextCreate, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Name == "" {
-		logValidation(c, "handler.Context.Create", "name required")
+		logValidation(c, opContextCreate, "name required")
 		return httpapi.ErrValidation("name is required")
 	}
 	if req.Color != "" && !isValidColor(req.Color) {
-		logValidation(c, "handler.Context.Create", "invalid color")
-		return httpapi.ErrValidation("invalid color")
+		logValidation(c, opContextCreate, msgInvalidColor)
+		return httpapi.ErrValidation(msgInvalidColor)
 	}
 	ctx, err := h.ctxs.Create(c.Context(), req.Name, req.Color, req.IsFavourite)
 	if err != nil {
@@ -74,7 +83,7 @@ func (h *ContextHandler) create(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal("create context").WithCause(err)
 	}
-	logMutation(c, "handler.Context.Create", slog.Int64("context_id", ctx.ID))
+	logMutation(c, opContextCreate, slog.Int64("context_id", ctx.ID))
 	return c.Status(fiber.StatusCreated).JSON(dto.ContextFromModel(*ctx))
 }
 
@@ -86,9 +95,9 @@ func (h *ContextHandler) get(c fiber.Ctx) error {
 	ctx, err := h.ctxs.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+			return httpapi.ErrNotFound(msgContextNotFound)
 		}
-		return httpapi.ErrInternal("get context").WithCause(err)
+		return httpapi.ErrInternal(msgGetContext).WithCause(err)
 	}
 	return c.JSON(dto.ContextFromModel(*ctx))
 }
@@ -98,15 +107,15 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Context.Patch", slog.Int64("context_id", id))
+	logEntry(c, opContextPatch, slog.Int64("context_id", id))
 	var req dto.PatchContextRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Context.Patch", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opContextPatch, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Color != nil && !isValidColor(*req.Color) {
-		logValidation(c, "handler.Context.Patch", "invalid color")
-		return httpapi.ErrValidation("invalid color")
+		logValidation(c, opContextPatch, msgInvalidColor)
+		return httpapi.ErrValidation(msgInvalidColor)
 	}
 	ctx, err := h.ctxs.Update(c.Context(), id, repo.ContextUpdate{
 		Name:        req.Name,
@@ -115,14 +124,14 @@ func (h *ContextHandler) patch(c fiber.Ctx) error {
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+			return httpapi.ErrNotFound(msgContextNotFound)
 		}
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("context name already exists")
 		}
 		return httpapi.ErrInternal("update context").WithCause(err)
 	}
-	logMutation(c, "handler.Context.Patch", slog.Int64("context_id", ctx.ID))
+	logMutation(c, opContextPatch, slog.Int64("context_id", ctx.ID))
 	return c.JSON(dto.ContextFromModel(*ctx))
 }
 
@@ -134,7 +143,7 @@ func (h *ContextHandler) delete(c fiber.Ctx) error {
 	logEntry(c, "handler.Context.Delete", slog.Int64("context_id", id))
 	if err := h.ctxs.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+			return httpapi.ErrNotFound(msgContextNotFound)
 		}
 		return httpapi.ErrInternal("delete context").WithCause(err)
 	}
@@ -149,17 +158,17 @@ func (h *ContextHandler) listProjects(c fiber.Ctx) error {
 	}
 	if _, err := h.ctxs.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+			return httpapi.ErrNotFound(msgContextNotFound)
 		}
-		return httpapi.ErrInternal("get context").WithCause(err)
+		return httpapi.ErrInternal(msgGetContext).WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := repo.ProjectListFilter{ContextID: &id}
 	if s := c.Query("status"); s != "" {
 		ps := model.ProjectStatus(s)
 		if !ps.IsValid() {
-			logValidation(c, "handler.Context.ListProjects", "invalid status")
-			return httpapi.ErrValidation("invalid status")
+			logValidation(c, "handler.Context.ListProjects", msgInvalidStatus)
+			return httpapi.ErrValidation(msgInvalidStatus)
 		}
 		filter.Status = &ps
 	}
@@ -181,16 +190,16 @@ func (h *ContextHandler) listTasks(c fiber.Ctx) error {
 	}
 	if _, err := h.ctxs.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+			return httpapi.ErrNotFound(msgContextNotFound)
 		}
-		return httpapi.ErrInternal("get context").WithCause(err)
+		return httpapi.ErrInternal(msgGetContext).WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := repo.TaskFilter{}
 	if s := c.Query("status"); s != "" {
 		ts := model.TaskStatus(s)
 		if !ts.IsValid() {
-			return httpapi.ErrValidation("invalid status")
+			return httpapi.ErrValidation(msgInvalidStatus)
 		}
 		filter.Status = &ts
 	}
@@ -227,20 +236,20 @@ func (h *ContextHandler) createTask(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Context.CreateTask", slog.Int64("context_id", id))
+	logEntry(c, opContextCreateTask, slog.Int64("context_id", id))
 	if _, err := h.ctxs.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+			return httpapi.ErrNotFound(msgContextNotFound)
 		}
-		return httpapi.ErrInternal("get context").WithCause(err)
+		return httpapi.ErrInternal(msgGetContext).WithCause(err)
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Context.CreateTask", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opContextCreateTask, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Title == "" {
-		logValidation(c, "handler.Context.CreateTask", "title required")
+		logValidation(c, opContextCreateTask, "title required")
 		return httpapi.ErrValidation("title is required")
 	}
 	return doCreateTask(c, h.taskSvc, repo.Placement{ContextID: &id}, req, h.baseURL)

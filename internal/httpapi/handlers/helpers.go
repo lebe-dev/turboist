@@ -16,6 +16,8 @@ import (
 	rrule "github.com/teambition/rrule-go"
 )
 
+const opTaskCreate = "handler.Task.Create"
+
 // logEntry emits a DEBUG record marking the start of a handler invocation.
 // op should be "handler.<Domain>.<Action>" — used both as message and `op` attr.
 func logEntry(c fiber.Ctx, op string, attrs ...any) {
@@ -127,22 +129,22 @@ func buildTaskCreate(req dto.CreateTaskRequest, placement repo.Placement) (repo.
 func doCreateTask(c fiber.Ctx, svc *service.TaskService, placement repo.Placement, req dto.CreateTaskRequest, baseURL string) error {
 	in, appErr := buildTaskCreate(req, placement)
 	if appErr != nil {
-		logValidation(c, "handler.Task.Create", appErr.Message)
+		logValidation(c, opTaskCreate, appErr.Message)
 		return appErr
 	}
 	t, err := svc.Create(c.Context(), in, req.Labels, req.RemovedAutoLabels)
 	if err != nil {
 		var ule *service.UnknownLabelError
 		if errors.As(err, &ule) {
-			logValidation(c, "handler.Task.Create", "unknown label", slog.String("label", ule.Name))
+			logValidation(c, opTaskCreate, "unknown label", slog.String("label", ule.Name))
 			return httpapi.ErrValidation("unknown label: " + ule.Name)
 		}
 		if errors.Is(err, repo.ErrInvalidPlacement) {
-			logValidation(c, "handler.Task.Create", "invalid placement")
+			logValidation(c, opTaskCreate, "invalid placement")
 			return httpapi.ErrForbiddenPlacement("invalid task placement")
 		}
 		return httpapi.ErrInternal("create task").WithCause(err)
 	}
-	logMutation(c, "handler.Task.Create", slog.Int64("task_id", t.ID))
+	logMutation(c, opTaskCreate, slog.Int64("task_id", t.ID))
 	return c.Status(fiber.StatusCreated).JSON(dto.TaskFromModel(*t, baseURL))
 }

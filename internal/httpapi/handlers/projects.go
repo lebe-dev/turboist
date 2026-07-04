@@ -8,11 +8,26 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
+)
+
+const (
+	opProjectCreate        = "handler.Project.Create"
+	opProjectPatch         = "handler.Project.Patch"
+	opProjectCreateSection = "handler.Project.CreateSection"
+	opProjectCreateTask    = "handler.Project.CreateTask"
+	opProjectPin           = "handler.Project.Pin"
+	msgInvalidContextID    = "invalid contextId"
+	msgProjectNotFound     = "project not found"
+	msgGetProject          = "get project"
+	msgTitleRequired       = "title required"
+	msgTitleIsRequired     = "title is required"
+	msgInvalidProjectType  = "invalid projectType"
 )
 
 // ProjectHandler implements routes for projects, including creation via /contexts/:id/projects.
@@ -52,24 +67,24 @@ func NewProjectHandler(
 // Register wires all project-related routes onto r (expected to be the /api/v1 group).
 func (h *ProjectHandler) Register(r fiber.Router) {
 	p := r.Group("/projects")
-	p.Get("/", httpapi.RequireScope("projects:read"), h.list)
-	p.Get("/:id", httpapi.RequireScope("projects:read"), h.get)
-	p.Get("/:id/bundle", httpapi.RequireAllScopes("projects:read", "sections:read", "tasks:read"), h.bundle)
-	p.Patch("/:id", httpapi.RequireScope("projects:write"), h.patch)
-	p.Delete("/:id", httpapi.RequireScope("projects:write"), h.delete)
-	p.Get("/:id/sections", httpapi.RequireScope("sections:read"), h.listSections)
-	p.Post("/:id/sections", httpapi.RequireScope("sections:write"), h.createSection)
-	p.Get("/:id/tasks", httpapi.RequireScope("tasks:read"), h.listTasks)
-	p.Post("/:id/tasks", httpapi.RequireScope("tasks:write"), h.createTask)
-	p.Post("/:id/complete", httpapi.RequireScope("projects:write"), h.complete)
-	p.Post("/:id/uncomplete", httpapi.RequireScope("projects:write"), h.uncomplete)
-	p.Post("/:id/cancel", httpapi.RequireScope("projects:write"), h.cancel)
-	p.Post("/:id/archive", httpapi.RequireScope("projects:write"), h.archive)
-	p.Post("/:id/unarchive", httpapi.RequireScope("projects:write"), h.unarchive)
-	p.Post("/:id/pin", httpapi.RequireScope("projects:write"), h.pin)
-	p.Post("/:id/unpin", httpapi.RequireScope("projects:write"), h.unpin)
+	p.Get("/", httpapi.RequireScope(auth.ScopeProjectsRead), h.list)
+	p.Get("/:id", httpapi.RequireScope(auth.ScopeProjectsRead), h.get)
+	p.Get("/:id/bundle", httpapi.RequireAllScopes(auth.ScopeProjectsRead, auth.ScopeSectionsRead, auth.ScopeTasksRead), h.bundle)
+	p.Patch("/:id", httpapi.RequireScope(auth.ScopeProjectsWrite), h.patch)
+	p.Delete("/:id", httpapi.RequireScope(auth.ScopeProjectsWrite), h.delete)
+	p.Get("/:id/sections", httpapi.RequireScope(auth.ScopeSectionsRead), h.listSections)
+	p.Post("/:id/sections", httpapi.RequireScope(auth.ScopeSectionsWrite), h.createSection)
+	p.Get("/:id/tasks", httpapi.RequireScope(auth.ScopeTasksRead), h.listTasks)
+	p.Post("/:id/tasks", httpapi.RequireScope(auth.ScopeTasksWrite), h.createTask)
+	p.Post("/:id/complete", httpapi.RequireScope(auth.ScopeProjectsWrite), h.complete)
+	p.Post("/:id/uncomplete", httpapi.RequireScope(auth.ScopeProjectsWrite), h.uncomplete)
+	p.Post("/:id/cancel", httpapi.RequireScope(auth.ScopeProjectsWrite), h.cancel)
+	p.Post("/:id/archive", httpapi.RequireScope(auth.ScopeProjectsWrite), h.archive)
+	p.Post("/:id/unarchive", httpapi.RequireScope(auth.ScopeProjectsWrite), h.unarchive)
+	p.Post("/:id/pin", httpapi.RequireScope(auth.ScopeProjectsWrite), h.pin)
+	p.Post("/:id/unpin", httpapi.RequireScope(auth.ScopeProjectsWrite), h.unpin)
 
-	r.Post("/contexts/:id/projects", httpapi.RequireScope("projects:write"), h.createForContext)
+	r.Post("/contexts/:id/projects", httpapi.RequireScope(auth.ScopeProjectsWrite), h.createForContext)
 }
 
 func (h *ProjectHandler) list(c fiber.Ctx) error {
@@ -78,7 +93,7 @@ func (h *ProjectHandler) list(c fiber.Ctx) error {
 	if cid := c.Query("contextId"); cid != "" {
 		n, err := strconv.ParseInt(cid, 10, 64)
 		if err != nil || n <= 0 {
-			return httpapi.ErrValidation("invalid contextId")
+			return httpapi.ErrValidation(msgInvalidContextID)
 		}
 		filter.ContextID = &n
 	}
@@ -108,9 +123,9 @@ func (h *ProjectHandler) get(c fiber.Ctx) error {
 	p, err := h.projects.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	return c.JSON(dto.ProjectFromModel(*p))
 }
@@ -142,9 +157,9 @@ func (h *ProjectHandler) bundle(c fiber.Ctx) error {
 	p, err := h.projects.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 
 	var (
@@ -192,32 +207,32 @@ func (h *ProjectHandler) createForContext(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Project.Create", slog.Int64("context_id", contextID))
+	logEntry(c, opProjectCreate, slog.Int64("context_id", contextID))
 	if _, err := h.contexts.Get(c.Context(), contextID); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("context not found")
+			return httpapi.ErrNotFound(msgContextNotFound)
 		}
 		return httpapi.ErrInternal("get context").WithCause(err)
 	}
 	var req dto.CreateProjectRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Project.Create", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opProjectCreate, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Title == "" {
-		logValidation(c, "handler.Project.Create", "title required")
-		return httpapi.ErrValidation("title is required")
+		logValidation(c, opProjectCreate, msgTitleRequired)
+		return httpapi.ErrValidation(msgTitleIsRequired)
 	}
 	if req.Color != "" && !isValidColor(req.Color) {
-		logValidation(c, "handler.Project.Create", "invalid color")
-		return httpapi.ErrValidation("invalid color")
+		logValidation(c, opProjectCreate, msgInvalidColor)
+		return httpapi.ErrValidation(msgInvalidColor)
 	}
 	projectType := model.ProjectTypeGeneric
 	if req.ProjectType != "" {
 		pt := model.ProjectType(req.ProjectType)
 		if !pt.IsValid() {
-			logValidation(c, "handler.Project.Create", "invalid projectType")
-			return httpapi.ErrValidation("invalid projectType")
+			logValidation(c, opProjectCreate, msgInvalidProjectType)
+			return httpapi.ErrValidation(msgInvalidProjectType)
 		}
 		projectType = pt
 	}
@@ -241,10 +256,10 @@ func (h *ProjectHandler) createForContext(c fiber.Ctx) error {
 		}
 		p, err = h.projects.Get(c.Context(), p.ID)
 		if err != nil {
-			return httpapi.ErrInternal("get project").WithCause(err)
+			return httpapi.ErrInternal(msgGetProject).WithCause(err)
 		}
 	}
-	logMutation(c, "handler.Project.Create", slog.Int64("project_id", p.ID), slog.Int64("context_id", contextID))
+	logMutation(c, opProjectCreate, slog.Int64("project_id", p.ID), slog.Int64("context_id", contextID))
 	return c.Status(fiber.StatusCreated).JSON(dto.ProjectFromModel(*p))
 }
 
@@ -253,34 +268,34 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Project.Patch", slog.Int64("project_id", id))
+	logEntry(c, opProjectPatch, slog.Int64("project_id", id))
 	var req dto.PatchProjectRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Project.Patch", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opProjectPatch, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Color != nil && !isValidColor(*req.Color) {
-		logValidation(c, "handler.Project.Patch", "invalid color")
-		return httpapi.ErrValidation("invalid color")
+		logValidation(c, opProjectPatch, msgInvalidColor)
+		return httpapi.ErrValidation(msgInvalidColor)
 	}
 	var projectType *model.ProjectType
 	if req.ProjectType != nil {
 		pt := model.ProjectType(*req.ProjectType)
 		if !pt.IsValid() {
-			logValidation(c, "handler.Project.Patch", "invalid projectType")
-			return httpapi.ErrValidation("invalid projectType")
+			logValidation(c, opProjectPatch, msgInvalidProjectType)
+			return httpapi.ErrValidation(msgInvalidProjectType)
 		}
 		projectType = &pt
 	}
 	if req.ContextID != nil {
 		if *req.ContextID <= 0 {
-			logValidation(c, "handler.Project.Patch", "invalid contextId")
-			return httpapi.ErrValidation("invalid contextId")
+			logValidation(c, opProjectPatch, msgInvalidContextID)
+			return httpapi.ErrValidation(msgInvalidContextID)
 		}
 		if _, err := h.contexts.Get(c.Context(), *req.ContextID); err != nil {
 			if errors.Is(err, repo.ErrNotFound) {
-				logValidation(c, "handler.Project.Patch", "context not found")
-				return httpapi.ErrValidation("context not found")
+				logValidation(c, opProjectPatch, msgContextNotFound)
+				return httpapi.ErrValidation(msgContextNotFound)
 			}
 			return httpapi.ErrInternal("get context").WithCause(err)
 		}
@@ -295,7 +310,7 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
 		return httpapi.ErrInternal("update project").WithCause(err)
 	}
@@ -309,10 +324,10 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 		}
 		p, err = h.projects.Get(c.Context(), id)
 		if err != nil {
-			return httpapi.ErrInternal("get project").WithCause(err)
+			return httpapi.ErrInternal(msgGetProject).WithCause(err)
 		}
 	}
-	logMutation(c, "handler.Project.Patch", slog.Int64("project_id", p.ID))
+	logMutation(c, opProjectPatch, slog.Int64("project_id", p.ID))
 	return c.JSON(dto.ProjectFromModel(*p))
 }
 
@@ -324,7 +339,7 @@ func (h *ProjectHandler) delete(c fiber.Ctx) error {
 	logEntry(c, "handler.Project.Delete", slog.Int64("project_id", id))
 	if err := h.projects.Delete(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
 		return httpapi.ErrInternal("delete project").WithCause(err)
 	}
@@ -339,9 +354,9 @@ func (h *ProjectHandler) listSections(c fiber.Ctx) error {
 	}
 	if _, err := h.projects.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	items, total, err := h.sections.ListByProject(c.Context(), id, repo.Page{Limit: pp.Limit, Offset: pp.Offset})
@@ -360,27 +375,27 @@ func (h *ProjectHandler) createSection(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Project.CreateSection", slog.Int64("project_id", id))
+	logEntry(c, opProjectCreateSection, slog.Int64("project_id", id))
 	if _, err := h.projects.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	var req dto.CreateSectionRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Project.CreateSection", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opProjectCreateSection, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Title == "" {
-		logValidation(c, "handler.Project.CreateSection", "title required")
-		return httpapi.ErrValidation("title is required")
+		logValidation(c, opProjectCreateSection, msgTitleRequired)
+		return httpapi.ErrValidation(msgTitleIsRequired)
 	}
 	s, err := h.sections.Create(c.Context(), id, req.Title)
 	if err != nil {
 		return httpapi.ErrInternal("create section").WithCause(err)
 	}
-	logMutation(c, "handler.Project.CreateSection", slog.Int64("section_id", s.ID), slog.Int64("project_id", id))
+	logMutation(c, opProjectCreateSection, slog.Int64("section_id", s.ID), slog.Int64("project_id", id))
 	return c.Status(fiber.StatusCreated).JSON(dto.SectionFromModel(*s))
 }
 
@@ -391,9 +406,9 @@ func (h *ProjectHandler) listTasks(c fiber.Ctx) error {
 	}
 	if _, err := h.projects.Get(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
 	filter := repo.TaskFilter{}
@@ -434,22 +449,22 @@ func (h *ProjectHandler) createTask(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Project.CreateTask", slog.Int64("project_id", id))
+	logEntry(c, opProjectCreateTask, slog.Int64("project_id", id))
 	p, err := h.projects.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Project.CreateTask", "invalid body")
-		return httpapi.ErrValidation("invalid request body")
+		logValidation(c, opProjectCreateTask, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	if req.Title == "" {
-		logValidation(c, "handler.Project.CreateTask", "title required")
-		return httpapi.ErrValidation("title is required")
+		logValidation(c, opProjectCreateTask, msgTitleRequired)
+		return httpapi.ErrValidation(msgTitleIsRequired)
 	}
 	placement := repo.Placement{
 		ContextID: &p.ContextID,
@@ -486,13 +501,13 @@ func (h *ProjectHandler) setStatus(c fiber.Ctx, status model.ProjectStatus) erro
 	logEntry(c, "handler.Project.SetStatus", slog.Int64("project_id", id), slog.String("status", string(status)))
 	if err := h.projects.UpdateStatus(c.Context(), id, status); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
 		return httpapi.ErrInternal("update project status").WithCause(err)
 	}
 	p, err := h.projects.Get(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	logMutation(c, "handler.Project.SetStatus", slog.Int64("project_id", id), slog.String("status", string(status)))
 	return c.JSON(dto.ProjectFromModel(*p))
@@ -503,16 +518,16 @@ func (h *ProjectHandler) pin(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Project.Pin", slog.Int64("project_id", id))
+	logEntry(c, opProjectPin, slog.Int64("project_id", id))
 	p, err := h.projects.Get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	if p.Status != model.ProjectStatusOpen {
-		logValidation(c, "handler.Project.Pin", "not open", slog.String("status", string(p.Status)))
+		logValidation(c, opProjectPin, "not open", slog.String("status", string(p.Status)))
 		return httpapi.ErrValidation("only open projects can be pinned")
 	}
 	if err := h.pinSvc.PinProject(c.Context(), id); err != nil {
@@ -520,15 +535,15 @@ func (h *ProjectHandler) pin(c fiber.Ctx) error {
 			return httpapi.ErrLimitExceeded("max pinned projects limit reached")
 		}
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
 		return httpapi.ErrInternal("pin project").WithCause(err)
 	}
 	p, err = h.projects.Get(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
-	logMutation(c, "handler.Project.Pin", slog.Int64("project_id", id))
+	logMutation(c, opProjectPin, slog.Int64("project_id", id))
 	return c.JSON(dto.ProjectFromModel(*p))
 }
 
@@ -540,13 +555,13 @@ func (h *ProjectHandler) unpin(c fiber.Ctx) error {
 	logEntry(c, "handler.Project.Unpin", slog.Int64("project_id", id))
 	if err := h.pinSvc.UnpinProject(c.Context(), id); err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return httpapi.ErrNotFound("project not found")
+			return httpapi.ErrNotFound(msgProjectNotFound)
 		}
 		return httpapi.ErrInternal("unpin project").WithCause(err)
 	}
 	p, err := h.projects.Get(c.Context(), id)
 	if err != nil {
-		return httpapi.ErrInternal("get project").WithCause(err)
+		return httpapi.ErrInternal(msgGetProject).WithCause(err)
 	}
 	logMutation(c, "handler.Project.Unpin", slog.Int64("project_id", id))
 	return c.JSON(dto.ProjectFromModel(*p))

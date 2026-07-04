@@ -4,23 +4,24 @@ import "fmt"
 
 // Error code constants matching the API.md error table.
 const (
-	CodeValidationFailed   = "validation_failed"
-	CodeAuthInvalid        = "auth_invalid"
-	CodeAuthExpired        = "auth_expired"
-	CodeAuthRateLimited    = "auth_rate_limited"
-	CodeForbidden          = "forbidden"
-	CodeNotFound           = "not_found"
-	CodeConflict           = "conflict"
-	CodeSetupAlreadyDone   = "setup_already_done"
-	CodeLimitExceeded      = "limit_exceeded"
-	CodeForbiddenPlacement = "forbidden_placement"
-	CodeRecurrenceInvalid  = "recurrence_invalid"
-	CodeTroikiSlotFull     = "troiki_slot_full"
-	CodeTOTPInvalidCode    = "totp_invalid_code"
-	CodeTOTPAlreadyEnabled = "totp_already_enabled"
-	CodeTOTPNotEnabled     = "totp_not_enabled"
-	CodeInternalError      = "internal_error"
-	CodeSetupRequired      = "setup_required"
+	CodeValidationFailed       = "validation_failed"
+	CodeAuthInvalid            = "auth_invalid"
+	CodeAuthExpired            = "auth_expired"
+	CodeAuthRateLimited        = "auth_rate_limited"
+	CodeForbidden              = "forbidden"
+	CodeNotFound               = "not_found"
+	CodeConflict               = "conflict"
+	CodeSetupAlreadyDone       = "setup_already_done"
+	CodeLimitExceeded          = "limit_exceeded"
+	CodeForbiddenPlacement     = "forbidden_placement"
+	CodeRecurrenceInvalid      = "recurrence_invalid"
+	CodeTroikiSlotFull         = "troiki_slot_full"
+	CodeTOTPInvalidCode        = "totp_invalid_code"
+	CodeTOTPAlreadyEnabled     = "totp_already_enabled"
+	CodeTOTPNotEnabled         = "totp_not_enabled"
+	CodeInternalError          = "internal_error"
+	CodeSetupRequired          = "setup_required"
+	CodeCalendarReauthRequired = "calendar_reauth_required"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -116,6 +117,15 @@ func ErrTroikiSlotFull(msg string) *AppError {
 
 func ErrInternal(msg string) *AppError {
 	return newErr(500, CodeInternalError, msg)
+}
+
+// ErrCalendarReauthRequired signals that a connected calendar account's stored
+// authorization is no longer valid (OAuth refresh token revoked or expired) and
+// the user must reconnect the account. Maps to 409 so it is treated as an
+// expected, client-actionable state rather than a 500 server failure — which
+// also keeps it out of Sentry, since SentryMiddleware only reports 400 and 5xx.
+func ErrCalendarReauthRequired() *AppError {
+	return newErr(409, CodeCalendarReauthRequired, "calendar authorization expired; reconnect required")
 }
 
 // ErrSetupRequired signals that the instance has no admin user yet — the

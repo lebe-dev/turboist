@@ -11,6 +11,8 @@ import (
 
 const inboxID = int64(1)
 
+const opInboxCreateTask = "handler.Inbox.CreateTask"
+
 // InboxHandler handles /api/v1/inbox endpoints.
 type InboxHandler struct {
 	tasks   *repo.TaskRepo
@@ -53,14 +55,14 @@ func (h *InboxHandler) get(c fiber.Ctx) error {
 }
 
 func (h *InboxHandler) createTask(c fiber.Ctx) error {
-	logEntry(c, "handler.Inbox.CreateTask")
+	logEntry(c, opInboxCreateTask)
 	var req dto.CreateTaskRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Inbox.CreateTask", "invalid body")
+		logValidation(c, opInboxCreateTask, "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	if req.Title == "" {
-		logValidation(c, "handler.Inbox.CreateTask", "title required")
+		logValidation(c, opInboxCreateTask, "title required")
 		return httpapi.ErrValidation("title is required")
 	}
 	id := inboxID

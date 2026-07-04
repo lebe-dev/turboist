@@ -12,6 +12,11 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 )
 
+const (
+	opTroikiSetCategory = "handler.Troiki.SetCategory"
+	msgTroikiView       = "troiki view"
+)
+
 // TroikiHandler exposes the Troiki view, start, and category-assignment endpoints.
 type TroikiHandler struct {
 	svc     *service.TroikiService
@@ -83,7 +88,7 @@ func RenderTroikiView(v service.TroikiView, baseURL string) any {
 func (h *TroikiHandler) view(c fiber.Ctx) error {
 	v, err := h.svc.View(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("troiki view").WithCause(err)
+		return httpapi.ErrInternal(msgTroikiView).WithCause(err)
 	}
 	return c.JSON(h.renderView(v))
 }
@@ -95,7 +100,7 @@ func (h *TroikiHandler) start(c fiber.Ctx) error {
 	}
 	v, err := h.svc.View(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("troiki view").WithCause(err)
+		return httpapi.ErrInternal(msgTroikiView).WithCause(err)
 	}
 	logMutation(c, "handler.Troiki.Start")
 	return c.JSON(h.renderView(v))
@@ -108,7 +113,7 @@ func (h *TroikiHandler) reset(c fiber.Ctx) error {
 	}
 	v, err := h.svc.View(c.Context())
 	if err != nil {
-		return httpapi.ErrInternal("troiki view").WithCause(err)
+		return httpapi.ErrInternal(msgTroikiView).WithCause(err)
 	}
 	logMutation(c, "handler.Troiki.Reset")
 	return c.JSON(h.renderView(v))
@@ -125,17 +130,17 @@ func (h *TroikiHandler) setProjectCategory(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	logEntry(c, "handler.Troiki.SetCategory", slog.Int64("project_id", id))
+	logEntry(c, opTroikiSetCategory, slog.Int64("project_id", id))
 	var req SetTroikiCategoryRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		logValidation(c, "handler.Troiki.SetCategory", "invalid body")
+		logValidation(c, opTroikiSetCategory, "invalid body")
 		return httpapi.ErrValidation("invalid request body")
 	}
 	var cat *model.TroikiCategory
 	if req.Category != nil {
 		v := model.TroikiCategory(*req.Category)
 		if !v.IsValid() {
-			logValidation(c, "handler.Troiki.SetCategory", "invalid category", slog.String("category", *req.Category))
+			logValidation(c, opTroikiSetCategory, "invalid category", slog.String("category", *req.Category))
 			return httpapi.ErrValidation("invalid troiki category")
 		}
 		cat = &v
@@ -157,6 +162,6 @@ func (h *TroikiHandler) setProjectCategory(c fiber.Ctx) error {
 	if cat != nil {
 		catStr = string(*cat)
 	}
-	logMutation(c, "handler.Troiki.SetCategory", slog.Int64("project_id", id), slog.String("category", catStr))
+	logMutation(c, opTroikiSetCategory, slog.Int64("project_id", id), slog.String("category", catStr))
 	return c.JSON(dto.ProjectFromModel(*p))
 }

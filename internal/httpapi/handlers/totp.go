@@ -16,6 +16,11 @@ import (
 	"github.com/lebe-dev/turboist/internal/service/totp"
 )
 
+const (
+	opTOTPConfirm = "handler.TOTP.Confirm"
+	opTOTPDisable = "handler.TOTP.Disable"
+)
+
 // TOTPHandler implements /auth/totp/* endpoints.
 type TOTPHandler struct {
 	users   *repo.UserRepo
@@ -40,7 +45,7 @@ func (h *TOTPHandler) setup(c fiber.Ctx) error {
 	log := logging.FromContext(ctx)
 	claims := httpapi.GetClaims(c)
 	if claims == nil {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	user, err := h.users.Get(ctx, claims.UserID)
 	if err != nil {
@@ -73,18 +78,18 @@ func (h *TOTPHandler) confirm(c fiber.Ctx) error {
 	log := logging.FromContext(ctx)
 	if !h.limiter.Allow(c.IP()) {
 		log.WarnContext(ctx, "totp: confirm rate limited",
-			slog.String("op", "handler.TOTP.Confirm"),
+			slog.String("op", opTOTPConfirm),
 			slog.String("ip", c.IP()),
 		)
 		return httpapi.ErrAuthRateLimited()
 	}
 	claims := httpapi.GetClaims(c)
 	if claims == nil {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	var req dto.TOTPCodeRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return httpapi.ErrValidation("invalid request body")
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	code := strings.TrimSpace(req.Code)
 	if code == "" {
@@ -92,10 +97,10 @@ func (h *TOTPHandler) confirm(c fiber.Ctx) error {
 	}
 	codes, err := h.svc.ConfirmSetup(ctx, claims.UserID, code)
 	if err != nil {
-		return mapTOTPError(ctx, log, "handler.TOTP.Confirm", claims.UserID, err)
+		return mapTOTPError(ctx, log, opTOTPConfirm, claims.UserID, err)
 	}
 	log.InfoContext(ctx, "totp: enabled",
-		slog.String("op", "handler.TOTP.Confirm"),
+		slog.String("op", opTOTPConfirm),
 		slog.Int64("user_id", claims.UserID),
 	)
 	return c.JSON(dto.TOTPConfirmResponse{RecoveryCodes: codes})
@@ -106,28 +111,28 @@ func (h *TOTPHandler) disable(c fiber.Ctx) error {
 	log := logging.FromContext(ctx)
 	if !h.limiter.Allow(c.IP()) {
 		log.WarnContext(ctx, "totp: disable rate limited",
-			slog.String("op", "handler.TOTP.Disable"),
+			slog.String("op", opTOTPDisable),
 			slog.String("ip", c.IP()),
 		)
 		return httpapi.ErrAuthRateLimited()
 	}
 	claims := httpapi.GetClaims(c)
 	if claims == nil {
-		return httpapi.ErrAuthInvalid("missing auth claims")
+		return httpapi.ErrAuthInvalid(msgMissingAuthClaims)
 	}
 	var req dto.TOTPCodeRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return httpapi.ErrValidation("invalid request body")
+		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
 	code := strings.TrimSpace(req.Code)
 	if code == "" {
 		return httpapi.ErrValidation("code is required")
 	}
 	if err := h.svc.Disable(ctx, claims.UserID, code); err != nil {
-		return mapTOTPError(ctx, log, "handler.TOTP.Disable", claims.UserID, err)
+		return mapTOTPError(ctx, log, opTOTPDisable, claims.UserID, err)
 	}
 	log.InfoContext(ctx, "totp: disabled",
-		slog.String("op", "handler.TOTP.Disable"),
+		slog.String("op", opTOTPDisable),
 		slog.Int64("user_id", claims.UserID),
 	)
 	return c.SendStatus(fiber.StatusNoContent)
