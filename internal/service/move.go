@@ -11,10 +11,11 @@ import (
 )
 
 // MoveService wraps repo.TaskRepo.Move and re-fetches the updated task.
-// When the destination project carries a Troiki category, every task of that
-// project (including the moved subtree) is re-pinned to the derived priority
-// to keep the slot invariant: "all tasks of a categorised project share the
-// category-derived priority".
+// Move relocates only the given task — descendants stay in their current
+// project and are linked solely via parent_id. When the destination project
+// carries a Troiki category, every task already in that project is re-pinned
+// to the derived priority to keep the slot invariant: "all tasks of a
+// categorised project share the category-derived priority".
 type MoveService struct {
 	tasks    *repo.TaskRepo
 	projects *repo.ProjectRepo

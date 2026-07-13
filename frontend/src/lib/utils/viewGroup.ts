@@ -2,6 +2,7 @@ import type { ConfigResponse, DayPart, Task } from '$lib/api/types';
 import { dayKeyInTz, dayStartUtcInTz } from './format';
 import { get } from 'svelte/store';
 import { locale, t } from '$lib/i18n';
+import { flattenTree, type TaskNode } from './taskTree';
 
 export interface DayPartInterval {
 	start: number;
@@ -171,6 +172,46 @@ export function groupByDay(
 			date: v.date,
 			tasks: v.tasks
 	}));
+	if (noDate.length) {
+		groups.push({ dayKey: 'no-date', label: get(t)('common.noDate'), date: new Date(0), tasks: noDate });
+	}
+	return groups;
+}
+
+// groupTreeByDay buckets whole task subtrees by their root's due date, instead
+// of each task's own due date. This keeps a subtask nested under its parent's
+// day group even when the subtask itself has no due date (or one that falls
+// on a different day / outside the fetched range) — e.g. the /week view,
+// where subtasks are fetched regardless of their own schedule so they stay
+// visible alongside a parent that belongs to the week.
+export function groupTreeByDay(
+	roots: TaskNode[],
+	tz?: string | null,
+	now: Date = new Date()
+): DayGroup[] {
+	const buckets = new Map<string, { date: Date; tasks: Task[] }>();
+	const noDate: Task[] = [];
+	for (const root of roots) {
+		const subtree = flattenTree([root]);
+		if (!root.task.dueAt) {
+			noDate.push(...subtree);
+			continue;
+		}
+		const d = new Date(root.task.dueAt);
+		const key = dayKeyInTz(d, tz);
+		const bucket = buckets.get(key);
+		if (bucket) bucket.tasks.push(...subtree);
+		else buckets.set(key, { date: dayStartUtcInTz(key, tz), tasks: subtree });
+	}
+	const todayKey = dayKeyInTz(now, tz);
+	const groups: DayGroup[] = [...buckets.entries()]
+		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+		.map(([key, v]) => ({
+			dayKey: key,
+			label: labelFor(key, todayKey, tz),
+			date: v.date,
+			tasks: v.tasks
+		}));
 	if (noDate.length) {
 		groups.push({ dayKey: 'no-date', label: get(t)('common.noDate'), date: new Date(0), tasks: noDate });
 	}

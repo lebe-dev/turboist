@@ -18,7 +18,8 @@
 	import LimitReachedBanner from '$lib/components/view/LimitReachedBanner.svelte';
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import CompletedThisWeekFooter from '$lib/components/view/CompletedThisWeekFooter.svelte';
-	import { groupByDay } from '$lib/utils/viewGroup';
+	import { groupTreeByDay } from '$lib/utils/viewGroup';
+	import { buildTree, flattenTree } from '$lib/utils/taskTree';
 	import { calendarEventsOrEmpty, groupCalendarEventsByDay, isPastCalendarEvent } from '$lib/utils/calendar';
 	import {
 		dayKeyInTz,
@@ -67,10 +68,16 @@
 			? calendarEvents.filter((event) => !isPastCalendarEvent(event, now, tz))
 			: calendarEvents
 	);
-	const visibleTasks = $derived(
-		onlyPlanned ? list.items.filter((t) => t.planState === 'week') : list.items
+	// Group by the root task of each subtree (not each task's own due date) so
+	// subtasks stay nested under their parent's day group even when they have
+	// no due date of their own — the API already includes them regardless of
+	// whether they individually belong to the week.
+	const allRoots = $derived(buildTree(list.items));
+	const visibleRoots = $derived(
+		onlyPlanned ? allRoots.filter((r) => r.task.planState === 'week') : allRoots
 	);
-	const groups = $derived(groupByDay(visibleTasks, tz, nowStore.now));
+	const visibleTasks = $derived(flattenTree(visibleRoots));
+	const groups = $derived(groupTreeByDay(visibleRoots, tz, nowStore.now));
 	const eventGroups = $derived(
 		groupCalendarEventsByDay(activeCalendarEvents, {
 			today: $t('common.today'),

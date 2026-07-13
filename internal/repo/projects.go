@@ -251,18 +251,25 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 // UpdateStatus changes the project status. Transitioning out of 'open' also
 // clears troiki_category — a non-open project no longer occupies a Troiki slot,
 // and reopening it must require an explicit re-assignment so capacity is
-// re-checked against the current state of the slot.
+// re-checked against the current state of the slot. Archiving additionally
+// unpins the project — an archived project must not linger at the top of
+// pinned lists.
 func (r *ProjectRepo) UpdateStatus(ctx context.Context, id int64, status model.ProjectStatus) error {
 	const op = "repo.projects.UpdateStatus"
 	logQuery(ctx, op, id, status)
 	now := model.FormatUTC(time.Now())
 	var res sql.Result
 	var err error
-	if status == model.ProjectStatusOpen {
+	switch status {
+	case model.ProjectStatusOpen:
 		res, err = r.db.ExecContext(ctx,
 			`UPDATE projects SET status = ?, updated_at = ? WHERE id = ?`,
 			string(status), now, id)
-	} else {
+	case model.ProjectStatusArchived:
+		res, err = r.db.ExecContext(ctx,
+			`UPDATE projects SET status = ?, troiki_category = NULL, is_pinned = 0, pinned_at = NULL, updated_at = ? WHERE id = ?`,
+			string(status), now, id)
+	default:
 		res, err = r.db.ExecContext(ctx,
 			`UPDATE projects SET status = ?, troiki_category = NULL, updated_at = ? WHERE id = ?`,
 			string(status), now, id)

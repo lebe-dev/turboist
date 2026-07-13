@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { activeDayPart, groupByCompletedDay, groupByDay, groupByDayPart } from './viewGroup';
+import { activeDayPart, groupByCompletedDay, groupByDay, groupByDayPart, groupTreeByDay } from './viewGroup';
+import { buildTree } from './taskTree';
 import type { ConfigResponse, Task } from '../api/types';
 
 function makeTask(overrides: Partial<Task>): Task {
@@ -85,6 +86,45 @@ describe('groupByDay', () => {
 		const groups = groupByDay(tasks);
 		expect(groups[groups.length - 1].dayKey).toBe('no-date');
 		expect(groups[groups.length - 1].tasks.map((t) => t.id)).toEqual([1]);
+	});
+});
+
+describe('groupTreeByDay', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('nests a subtask with no due date under its parent\'s day, not "no date"', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-15T10:00:00.000Z'));
+		const today = new Date('2026-01-15T10:00:00.000Z');
+		const parent = makeTask({ id: 1, dueAt: today.toISOString(), planState: 'week' });
+		const child = makeTask({ id: 2, dueAt: null, parentId: 1 });
+		const roots = buildTree([parent, child]);
+		const groups = groupTreeByDay(roots);
+		expect(groups).toHaveLength(1);
+		expect(groups[0].tasks.map((t) => t.id).sort()).toEqual([1, 2]);
+	});
+
+	it('nests a subtask due on a different day under its parent\'s day', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-15T10:00:00.000Z'));
+		const today = new Date('2026-01-15T10:00:00.000Z');
+		const farAway = new Date('2026-03-01T10:00:00.000Z');
+		const parent = makeTask({ id: 1, dueAt: today.toISOString(), planState: 'week' });
+		const child = makeTask({ id: 2, dueAt: farAway.toISOString(), parentId: 1 });
+		const roots = buildTree([parent, child]);
+		const groups = groupTreeByDay(roots);
+		expect(groups).toHaveLength(1);
+		expect(groups[0].tasks.map((t) => t.id).sort()).toEqual([1, 2]);
+	});
+
+	it('buckets a dateless root subtree into no-date', () => {
+		const parent = makeTask({ id: 1, dueAt: null, planState: 'week' });
+		const child = makeTask({ id: 2, dueAt: null, parentId: 1 });
+		const roots = buildTree([parent, child]);
+		const groups = groupTreeByDay(roots, 'UTC', new Date('2026-01-15T10:00:00.000Z'));
+		expect(groups).toHaveLength(1);
+		expect(groups[0].dayKey).toBe('no-date');
+		expect(groups[0].tasks.map((t) => t.id).sort()).toEqual([1, 2]);
 	});
 });
 
