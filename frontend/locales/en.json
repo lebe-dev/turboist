@@ -402,7 +402,11 @@
 			"syncFailed": "Failed to sync calendars",
 			"disconnectFailed": "Failed to disconnect calendar",
 			"synced": "Calendars synced",
-			"disconnected": "Calendar disconnected"
+			"disconnected": "Calendar disconnected",
+			"reconnect": "Reconnect",
+			"reauthBanner": "Google Calendar needs to be reconnected — its access has expired.",
+			"reauthTitle": "Reconnect required",
+			"reauthDescription": "Google revoked or expired the access grant. Events will not load until you re-authorize access."
 		}
 	},
 	"connect": {

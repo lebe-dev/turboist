@@ -2,6 +2,7 @@
 	import Sidebar from '$lib/components/app/Sidebar.svelte';
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
+	import CalendarReauthBanner from '$lib/components/app/CalendarReauthBanner.svelte';
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
@@ -725,6 +726,7 @@
 			/>
 			{#if !page.url.pathname.startsWith('/settings')}
 				<ContextFilterBanner />
+				<CalendarReauthBanner />
 			{/if}
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />

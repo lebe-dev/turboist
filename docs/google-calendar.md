@@ -45,6 +45,12 @@ Cache entries for a user are invalidated whenever the user's calendar configurat
 
 Tokens are encrypted at rest using AES (via `crypto.TokenCipher`). If a token is expired, `FreshGoogleToken()` refreshes it automatically and persists the new value back to the DB.
 
+### Re-authorization required
+
+If Google revokes the grant or the refresh token stops working (e.g. the consent was withdrawn, the app is still in *Testing* publishing status, or the token aged out), refreshing fails. The backend detects the token-endpoint error codes (`invalid_grant`, `invalid_client`, …) via `calendar.IsReauthRequired` and returns `409 calendar_reauth_required` from both `GET /events` and `POST /google/sync`.
+
+The frontend surfaces this instead of silently dropping events: a failed background event fetch sets a `calendarReauthStore` flag that renders an amber "reconnect" banner in the app shell (and an inline notice in Settings → Calendars). The user reconnects via the normal `google/start` flow; a successful reconnect, sync, disconnect, or event fetch clears the flag.
+
 ## Manual sync
 
 `POST /api/v1/calendars/google/sync` refreshes the calendar source list from the Google Calendar API (adds new calendars, keeps existing ones). It does **not** pre-fetch events — events are always fetched lazily on the next `GET /events` request.

@@ -1,4 +1,6 @@
 import type { CalendarEvent, ConfigResponse, DayPart } from '$lib/api/types';
+import { isCalendarReauthError } from '$lib/api/errors';
+import { calendarReauthStore } from '$lib/stores/calendarReauth.svelte';
 import { dayKeyInTz, dayStartUtcInTz, timeKeyInTz } from './format';
 
 export interface CalendarDayGroup {
@@ -74,7 +76,20 @@ export function calendarEventsOrEmpty(
 	const timeout = new Promise<CalendarEvent[]>((resolve) => {
 		timer = setTimeout(() => resolve([]), timeoutMs);
 	});
-	return Promise.race([load.catch(() => []), timeout]).finally(() => {
+	// A background fetch never surfaces its error to the caller, but a
+	// re-authorization requirement must not be swallowed: flag it so the app can
+	// prompt the user to reconnect. A successful fetch means the grant is healthy
+	// again, so clear the flag. Any other failure leaves the flag untouched.
+	const guarded = load
+		.then((events) => {
+			calendarReauthStore.clear();
+			return events;
+		})
+		.catch((err) => {
+			if (isCalendarReauthError(err)) calendarReauthStore.flag();
+			return [];
+		});
+	return Promise.race([guarded, timeout]).finally(() => {
 		if (timer) clearTimeout(timer);
 	});
 }

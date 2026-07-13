@@ -8,11 +8,14 @@
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import PencilSimpleIcon from 'phosphor-svelte/lib/PencilSimple';
 	import QuestionIcon from 'phosphor-svelte/lib/Question';
+	import WarningIcon from 'phosphor-svelte/lib/Warning';
 	import { t } from '$lib/i18n';
 	import { calendars as calendarsApi } from '$lib/api/endpoints/calendars';
 	import { getApiClient } from '$lib/api/client';
 	import type { CalendarSettingsResponse } from '$lib/api/types';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { calendarReauthStore } from '$lib/stores/calendarReauth.svelte';
+	import { isCalendarReauthError } from '$lib/api/errors';
 	import { describeError } from '$lib/utils/taskActions';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -144,8 +147,10 @@
 		busy = true;
 		try {
 			calendarsState = await calendarsApi.googleSync(getApiClient());
+			calendarReauthStore.clear();
 			toast.success($t('settings.calendars.synced'));
 		} catch (err) {
+			if (isCalendarReauthError(err)) calendarReauthStore.flag();
 			toast.error(describeError(err, $t('settings.calendars.syncFailed')));
 		} finally {
 			busy = false;
@@ -176,6 +181,7 @@
 		busy = true;
 		try {
 			await calendarsApi.deleteAccount(getApiClient(), id);
+			calendarReauthStore.clear();
 			await refreshState();
 			toast.success($t('settings.calendars.disconnected'));
 		} catch (err) {
@@ -459,6 +465,23 @@
 					<h2 class="text-sm font-semibold">{$t('settings.calendars.accountsHeading')}</h2>
 					<p class="text-xs text-muted-foreground">{$t('settings.calendars.accountsDescription')}</p>
 				</div>
+				{#if calendarReauthStore.needed}
+					<div class="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2.5" role="alert">
+						<WarningIcon class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" weight="fill" />
+						<div class="flex min-w-0 flex-1 flex-col gap-2">
+							<div class="flex flex-col gap-0.5">
+								<p class="text-sm font-medium">{$t('settings.calendars.reauthTitle')}</p>
+								<p class="text-xs text-muted-foreground">{$t('settings.calendars.reauthDescription')}</p>
+							</div>
+							<div>
+								<Button type="button" variant="outline" size="sm" onclick={connectGoogleCalendar} disabled={busy}>
+									<ArrowsClockwiseIcon class="size-3.5" />
+									{$t('settings.calendars.reconnect')}
+								</Button>
+							</div>
+						</div>
+					</div>
+				{/if}
 				<div class="flex flex-col gap-1">
 					{#each calendarsState.accounts as account (account.id)}
 						<div class="flex items-center justify-between gap-3 rounded-md px-3 py-2">
