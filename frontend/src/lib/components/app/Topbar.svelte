@@ -114,7 +114,7 @@
 </script>
 
 <header
-	class="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-background/80 px-3 backdrop-blur-sm sm:gap-3 sm:px-4"
+	class="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-background/80 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:gap-3 sm:px-4"
 >
 	<div class="flex min-w-0 flex-1 items-center gap-2">
 		{#if mobileSearchOpen}

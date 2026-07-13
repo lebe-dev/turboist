@@ -6,7 +6,7 @@ export type ProjectStatus = 'open' | 'completed' | 'archived' | 'cancelled';
 export type ProjectType = 'generic' | 'software';
 export type DayPart = 'none' | 'morning' | 'afternoon' | 'evening';
 export type PlanState = 'none' | 'week' | 'backlog';
-export type ClientKind = 'web' | 'ios' | 'cli';
+export type ClientKind = 'web' | 'ios' | 'android' | 'cli';
 export type TroikiCategory = 'important' | 'medium' | 'rest';
 
 // Color palette is open-ended on the backend; alias for clarity.

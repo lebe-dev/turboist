@@ -266,8 +266,12 @@ func TestTaskRepo_Move_AcrossProjects(t *testing.T) {
 	if gotParent.ProjectID == nil || *gotParent.ProjectID != other.ID {
 		t.Errorf("parent project: %+v", gotParent.ProjectID)
 	}
-	if gotChild.ProjectID == nil || *gotChild.ProjectID != other.ID {
-		t.Errorf("child project: %+v", gotChild.ProjectID)
+	// Subtasks stay in their current project — only the moved task itself relocates.
+	if gotChild.ProjectID == nil || *gotChild.ProjectID != f.projectID {
+		t.Errorf("child project: got %+v, want unchanged %d", gotChild.ProjectID, f.projectID)
+	}
+	if gotChild.ParentID == nil || *gotChild.ParentID != parent.ID {
+		t.Errorf("child parent link: got %+v, want %d", gotChild.ParentID, parent.ID)
 	}
 }
 

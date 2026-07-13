@@ -239,6 +239,7 @@
 			"hideUserAgent": "Скрыть user agent",
 			"clientWeb": "Web",
 			"clientIos": "iOS",
+			"clientAndroid": "Android",
 			"clientCli": "CLI",
 			"revoke": "Завершить",
 			"revoking": "Завершаем…",
@@ -401,8 +402,20 @@
 			"syncFailed": "Не удалось обновить календари",
 			"disconnectFailed": "Не удалось отключить календарь",
 			"synced": "Календари обновлены",
-			"disconnected": "Календарь отключён"
+			"disconnected": "Календарь отключён",
+			"reconnect": "Переподключить",
+			"reauthBanner": "Нужно переподключить Google Календарь — доступ истёк.",
+			"reauthTitle": "Требуется переподключение",
+			"reauthDescription": "Google отозвал доступ или срок его действия истёк. События не будут загружаться, пока вы заново не разрешите доступ."
 		}
+	},
+	"connect": {
+		"title": "Подключение к серверу",
+		"subtitle": "Введите адрес вашего сервера Turboist, чтобы продолжить.",
+		"connect": "Подключиться",
+		"checking": "Проверка…",
+		"invalidUrl": "Введите полный URL, начинающийся с http:// или https://",
+		"unreachable": "Не удалось подключиться к серверу. Проверьте адрес и попробуйте снова."
 	},
 	"auth": {
 		"signIn": "Войти",

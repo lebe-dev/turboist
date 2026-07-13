@@ -189,18 +189,60 @@ func (r *TaskRepo) ListOverdue(ctx context.Context, todayStart time.Time, filter
 }
 
 // ListWeek returns tasks for the weekly view: open tasks either planned for the
-// current week (plan_state = 'week') OR with due_at falling inside [start, end).
-// The returned `total` counts only planned-for-week tasks — it drives the
-// weekly limit badge, so due-in-week additions must not consume the limit.
+// current week (plan_state = 'week') OR with due_at falling inside [start, end)
+// — plus, for every such matched task, its entire open descendant subtree, so
+// subtasks are always shown alongside a parent that belongs to the week even
+// when the subtask itself has no due date or plan_state for this week. The
+// returned `total` counts only planned-for-week tasks (not the pulled-in
+// subtasks) — it drives the weekly limit badge, so due-in-week and subtask
+// additions must not consume the limit.
 func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter TaskFilter) ([]model.Task, int, error) {
-	base := "FROM tasks t WHERE t.status = 'open' AND (t.plan_state = 'week' OR (t.due_at >= ? AND t.due_at < ?))"
-	args := []any{model.FormatUTC(start), model.FormatUTC(end)}
-	items, _, err := r.listWithBaseArgs(ctx, base, args, filter, Page{Limit: 200}, true)
-	if err != nil {
-		return nil, 0, err
-	}
-	plannedBase := "FROM tasks t WHERE t.status = 'open' AND t.plan_state = 'week'"
+	const op = "repo.tasks.ListWeek"
+	logQuery(ctx, op, start, end, filter)
+
 	whereExtra, extraArgs := filter.where()
+	rootArgs := append([]any{model.FormatUTC(start), model.FormatUTC(end)}, extraArgs...)
+
+	rows, err := r.db.QueryContext(ctx,
+		`WITH RECURSIVE week_tree(id) AS (
+			SELECT t.id FROM tasks t
+			WHERE t.status = 'open' AND (t.plan_state = 'week' OR (t.due_at >= ? AND t.due_at < ?))`+whereExtra+`
+			UNION
+			SELECT t.id FROM tasks t JOIN week_tree wt ON t.parent_id = wt.id
+			WHERE t.status = 'open'
+		 )
+		 SELECT `+taskColumns+` FROM tasks t
+		 WHERE t.id IN (SELECT id FROM week_tree)
+		 ORDER BY `+taskOrderBy, rootArgs...)
+	if err != nil {
+		return nil, 0, logErr(ctx, op, fmt.Errorf("list week tasks: %w", err))
+	}
+	defer logging.LogClose(ctx, op+".rows", rows)
+
+	items := make([]model.Task, 0)
+	ids := make([]int64, 0)
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, 0, logErr(ctx, op, err)
+		}
+		items = append(items, *t)
+		ids = append(ids, t.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, logErr(ctx, op, err)
+	}
+	if r.labels != nil && len(ids) > 0 {
+		hydrated, err := r.labels.LabelsByTaskIDs(ctx, ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range items {
+			items[i].Labels = hydrated[items[i].ID]
+		}
+	}
+
+	plannedBase := "FROM tasks t WHERE t.status = 'open' AND t.plan_state = 'week'"
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+plannedBase+whereExtra, extraArgs...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count week planned: %w", err)

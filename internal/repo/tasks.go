@@ -708,7 +708,9 @@ func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// Move relocates a task and all its descendants atomically. Cycles (target ∈
+// Move relocates a task only — descendants keep their current
+// inbox/context/project/section and only stay linked via parent_id, so a
+// moved task's subtree may end up spanning two projects. Cycles (target ∈
 // subtree of taskID) are rejected with ErrCycle. Subtasks in inbox are
 // rejected by Placement.Validate (parent_id forbidden alongside inbox_id).
 func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) error {
@@ -745,20 +747,6 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 		return fmt.Errorf("move task: %w", err)
 	}
 
-	// Cascade: descendants inherit context/project/section but keep their parent links.
-	descendants, err := collectDescendants(ctx, tx, taskID)
-	if err != nil {
-		return err
-	}
-	for _, did := range descendants {
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE tasks SET inbox_id = NULL, context_id = ?, project_id = ?, section_id = ?, updated_at = ?
-			 WHERE id = ?`,
-			nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID), now, did,
-		); err != nil {
-			return fmt.Errorf("cascade move: %w", err)
-		}
-	}
 	return tx.Commit()
 }
 

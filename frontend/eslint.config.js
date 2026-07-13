@@ -11,7 +11,13 @@ export default ts.config(
 			'build/**',
 			'.svelte-kit/**',
 			'node_modules/**',
-			'static/**'
+			'static/**',
+			// Native Capacitor projects (frontend/ios, frontend/android): contain
+			// copied web build output, Gradle/Xcode build dirs, and vendored
+			// Cordova plugin JS — not source we own or want linted.
+			'ios/**',
+			'android/**',
+			'coverage/**'
 		]
 	},
 	js.configs.recommended,

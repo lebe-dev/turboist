@@ -130,7 +130,7 @@
 </script>
 
 <header class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
-	<div class="flex items-center justify-between gap-3">
+	<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
 		<div class="flex min-w-0 items-center gap-2">
 			<Button
 				variant="ghost"
@@ -166,7 +166,7 @@
 				<Badge variant="outline">{$t(STATUS_KEY[project.status])}</Badge>
 			{/if}
 		</div>
-		<div class="flex shrink-0 items-center gap-2">
+		<div class="flex shrink-0 flex-wrap items-center gap-2">
 			{#if project.status === 'completed' || project.status === 'cancelled'}
 				<Button size="sm" variant="outline" onclick={onUncomplete}>
 					<ArrowCounterClockwiseIcon class="size-4" />

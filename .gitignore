@@ -11,6 +11,7 @@
 /.env
 /config.yml
 /data/
+.claude
 /plans/
 /coverage.*
 .playwright-mcp

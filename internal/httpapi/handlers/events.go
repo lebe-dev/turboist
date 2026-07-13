@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/service/events"
@@ -41,8 +42,20 @@ func (h *EventsHandler) Register(r fiber.Router) {
 
 // RegisterPublic wires the streaming endpoint onto app (no auth middleware).
 // Ticket-based auth happens inside the handler.
+//
+// CORS is attached ONLY to this route because the native (Capacitor) app opens
+// the SSE stream with a real cross-origin EventSource from the WebView origin
+// (capacitor://localhost on iOS, https://localhost on Android). CapacitorHttp
+// patches fetch/XHR to go through the native bridge — bypassing CORS — but it
+// does NOT patch EventSource, so this one endpoint needs the allow-list. The
+// stream authenticates via a ticket in the query string (no cookie, no
+// Authorization header), so credentials/allow-headers stay off.
 func (h *EventsHandler) RegisterPublic(app *fiber.App) {
-	app.Get("/api/v1/events", h.stream)
+	app.Get("/api/v1/events", cors.New(cors.Config{
+		AllowOrigins:     []string{"capacitor://localhost", "https://localhost", "http://localhost"},
+		AllowMethods:     []string{fiber.MethodGet},
+		AllowCredentials: false,
+	}), h.stream)
 }
 
 type ticketRequest struct {

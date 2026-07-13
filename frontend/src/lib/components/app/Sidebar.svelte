@@ -251,7 +251,7 @@
 <aside
 	class="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
 >
-	<div class="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
+	<div class="flex items-center justify-between gap-2 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))]">
 		<a
 			href={resolve('/today')}
 			class="flex min-w-0 items-center gap-2 rounded-md text-foreground transition-colors hover:opacity-80"
@@ -395,7 +395,7 @@
 		</SidebarSection>
 	</div>
 
-	<div class="mt-auto border-t border-sidebar-border px-2 py-2">
+	<div class="mt-auto border-t border-sidebar-border px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2">
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}

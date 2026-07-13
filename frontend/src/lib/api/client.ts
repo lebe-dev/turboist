@@ -25,6 +25,12 @@ export interface ApiClientOptions {
 	// originating client no longer receives the SSE echo of its own change, this
 	// is the hook that refreshes derived data (sidebar counts etc.) locally.
 	onMutation?: (path: string, method: string) => void;
+	// Native refresh-token accessors. Undefined on web, where the rotating token
+	// lives in an HttpOnly cookie sent via credentials:'include'. When provided
+	// (native), performRefresh sends the stored token in the request body and
+	// persists the rotated token from the response.
+	getRefreshToken?: () => Promise<string | null>;
+	setRefreshToken?: (token: string | null) => Promise<void>;
 }
 
 export type QueryValue = string | number | boolean | undefined | null;
@@ -50,6 +56,8 @@ export class ApiClient {
 	private readonly onLog?: (entry: ApiLogEntry) => void;
 	private readonly clientOrigin?: string;
 	private readonly onMutation?: (path: string, method: string) => void;
+	private readonly getRefreshToken?: () => Promise<string | null>;
+	private readonly setRefreshToken?: (token: string | null) => Promise<void>;
 	private refreshInflight: Promise<string | null> | null = null;
 
 	constructor(options: ApiClientOptions) {
@@ -61,6 +69,8 @@ export class ApiClient {
 		this.onLog = options.onLog;
 		this.clientOrigin = options.clientOrigin;
 		this.onMutation = options.onMutation;
+		this.getRefreshToken = options.getRefreshToken;
+		this.setRefreshToken = options.setRefreshToken;
 	}
 
 	private static readonly mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -220,11 +230,28 @@ export class ApiClient {
 	}
 
 	private async performRefresh(): Promise<string | null> {
+		const headers = new Headers();
+		let body: string | undefined;
+		// Native: send the persisted rotating token in the body (the backend reads
+		// body when there is no cookie). Web: no body — the HttpOnly cookie rides
+		// on credentials:'include'.
+		if (this.getRefreshToken) {
+			const stored = await this.getRefreshToken();
+			if (!stored) {
+				this.setAccessToken(null);
+				this.onRefreshFailure();
+				return null;
+			}
+			headers.set('Content-Type', 'application/json');
+			body = JSON.stringify({ refresh: stored });
+		}
 		let response: Response;
 		try {
 			response = await this.fetchImpl(this.baseUrl + '/auth/refresh', {
 				method: 'POST',
-				credentials: 'include'
+				credentials: 'include',
+				headers,
+				body
 			});
 		} catch {
 			// Network error: leave session intact; caller will see the original 401 and surface it.
@@ -234,12 +261,14 @@ export class ApiClient {
 			// Only treat actual auth rejection as a forced logout; transient 5xx must not log the user out.
 			if (response.status === 401 || response.status === 403) {
 				this.setAccessToken(null);
+				if (this.setRefreshToken) await this.setRefreshToken(null);
 				this.onRefreshFailure();
 			}
 			return null;
 		}
 		const data = (await response.json()) as RefreshResponseBody;
 		this.setAccessToken(data.access);
+		if (this.setRefreshToken && data.refresh) await this.setRefreshToken(data.refresh);
 		return data.access;
 	}
 

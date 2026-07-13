@@ -239,6 +239,7 @@
 			"hideUserAgent": "Hide user agent",
 			"clientWeb": "Web",
 			"clientIos": "iOS",
+			"clientAndroid": "Android",
 			"clientCli": "CLI",
 			"revoke": "Revoke",
 			"revoking": "Revoking…",
@@ -401,8 +402,20 @@
 			"syncFailed": "Failed to sync calendars",
 			"disconnectFailed": "Failed to disconnect calendar",
 			"synced": "Calendars synced",
-			"disconnected": "Calendar disconnected"
+			"disconnected": "Calendar disconnected",
+			"reconnect": "Reconnect",
+			"reauthBanner": "Google Calendar needs to be reconnected — its access has expired.",
+			"reauthTitle": "Reconnect required",
+			"reauthDescription": "Google revoked or expired the access grant. Events will not load until you re-authorize access."
 		}
+	},
+	"connect": {
+		"title": "Connect to your server",
+		"subtitle": "Enter the address of your Turboist server to continue.",
+		"connect": "Connect",
+		"checking": "Checking…",
+		"invalidUrl": "Enter a full URL starting with http:// or https://",
+		"unreachable": "Could not reach that server. Check the address and try again."
 	},
 	"auth": {
 		"signIn": "Sign in",

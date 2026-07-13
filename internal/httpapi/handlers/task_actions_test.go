@@ -211,7 +211,7 @@ func TestTaskMove_CycleDetected(t *testing.T) {
 	}
 }
 
-func TestTaskMove_SubtreeMovedTogether(t *testing.T) {
+func TestTaskMove_SubtreeStaysBehind(t *testing.T) {
 	e := setupAPIEnv(t)
 	ctx1 := createTestContext(t, e, "Work")
 	ctx2 := createTestContext(t, e, "Personal")
@@ -234,7 +234,7 @@ func TestTaskMove_SubtreeMovedTogether(t *testing.T) {
 		fmt.Sprintf("/api/v1/tasks/%d/move", parent.ID),
 		map[string]any{"contextId": ctx2.ID}))
 
-	// Verify child moved too.
+	// Verify child stayed in ctx1 — only the moved task itself relocates.
 	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodGet,
 		fmt.Sprintf("/api/v1/tasks/%d", child.ID), nil))
 	if resp2.StatusCode != 200 {
@@ -244,8 +244,11 @@ func TestTaskMove_SubtreeMovedTogether(t *testing.T) {
 	if err := json.Unmarshal(body2, &updated); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if updated.ContextID == nil || *updated.ContextID != ctx2.ID {
-		t.Errorf("child contextId: got %v, want %d (subtree should move)", updated.ContextID, ctx2.ID)
+	if updated.ContextID == nil || *updated.ContextID != ctx1.ID {
+		t.Errorf("child contextId: got %v, want %d (subtask should stay behind)", updated.ContextID, ctx1.ID)
+	}
+	if updated.ParentID == nil || *updated.ParentID != parent.ID {
+		t.Errorf("child parentId: got %v, want %d (link preserved)", updated.ParentID, parent.ID)
 	}
 }
 
