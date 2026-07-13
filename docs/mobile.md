@@ -55,6 +55,17 @@ sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
 Android Studio must be **Otter (2025.2.1)+** for Capacitor 8.
 
+For a **headless** setup (no Android Studio) — enough to build and deploy with `just deploy-android`:
+
+```sh
+brew install --cask android-commandlinetools android-platform-tools
+export ANDROID_SDK_ROOT="/opt/homebrew/share/android-commandlinetools"   # brew SDK root
+yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
+sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+```
+
+The first Gradle build may auto-pull an extra Build-Tools revision a plugin pins; it accepts the license from the `licenses/` dir populated above.
+
 ## Build & run
 
 All recipes rebuild the web bundle and sync it into the native projects first.
@@ -85,6 +96,14 @@ The signing team is **not** committed into the Xcode project. It comes from `IOS
 
 **First launch on a personal (free) profile** is blocked by iOS until you trust the developer once: **Settings → General → VPN & Device Management → Developer App → Trust**. After that the app icon launches normally.
 
+### Deploy a Debug APK to a physical Android device
+
+`just deploy-android` rebuilds the web bundle, syncs it, assembles a **Debug** APK (`./gradlew assembleDebug`, auto-signed with Gradle's debug keystore — no dev team or keystore needed), then installs and launches it over `adb`.
+
+The SDK is located from `ANDROID_SDK_ROOT`/`ANDROID_HOME`, else common install paths (Homebrew `android-commandlinetools`, `~/Library/Android/sdk`). With several devices attached, pick one with `ANDROID_DEVICE_ID=<serial>` (from `adb devices`).
+
+On the phone, **enable USB debugging** first (Settings → About → tap *Build number* ×7, then Developer options → *USB debugging*), set the USB mode to *File transfer*, and accept the **"Allow USB debugging?"** prompt. There is no trust-the-developer dance like iOS — a Debug APK launches straight away.
+
 ### App icon
 
 The icon is the same mark as the web app — the orange (`#e2580e`) tile with the white lightning bolt from `frontend/static/icons/icon.svg`.
@@ -113,7 +132,9 @@ The icon is the same mark as the web app — the orange (`#e2580e`) tile with th
 
 - **Blank screen / API calls fail** — check the entered server URL; ensure HTTPS (or add the cleartext opt-in for HTTP).
 - **Live updates don't arrive** — SSE CORS: confirm the server is on this build (the `/api/v1/events` CORS allow-list) and that the URL is reachable.
-- **Android build can't find the SDK** — `ANDROID_HOME` is unset; see Prerequisites.
+- **Android build can't find the SDK** — `ANDROID_HOME`/`ANDROID_SDK_ROOT` is unset; see Prerequisites.
+- **`adb devices` is empty** — USB debugging is off or unauthorized: enable it, set the USB mode to *File transfer* (not charge-only), and accept the on-device "Allow USB debugging?" prompt. A charge-only cable also shows nothing — try another cable/port.
+- **`deploy-android` fails with `mapfile: command not found`** — shouldn't happen (the recipe is bash-3.2 safe); if you forked it, avoid `mapfile` on macOS's system bash.
 - **iOS plugin not found after adding one** — re-run `yarn cap sync`; if it persists, use the CocoaPods fallback (`#8325`).
 - **iOS signing fails with "requires a development team"** — `IOS_DEV_TEAM_ID` is not in `.env`; set it in `.env.dev` and run `just init-dev` (see *Deploy a signed Debug build*).
 - **Old app icon still shows after redeploy** — SpringBoard caches icons; delete the app and reinstall, or reboot the device.
