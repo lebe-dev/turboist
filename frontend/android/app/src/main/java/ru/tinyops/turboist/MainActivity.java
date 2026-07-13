@@ -1,4 +1,4 @@
-package com.itkey.turboist;
+package ru.tinyops.turboist;
 
 import com.getcapacitor.BridgeActivity;
 
