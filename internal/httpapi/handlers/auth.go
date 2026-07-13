@@ -568,7 +568,7 @@ func validateLoginRequest(req dto.LoginRequest) *httpapi.AppError {
 		return httpapi.ErrValidation("password is required")
 	}
 	if !req.ClientKind.IsValid() {
-		return httpapi.ErrValidation("clientKind must be web, ios, or cli")
+		return httpapi.ErrValidation("clientKind must be web, ios, android, or cli")
 	}
 	return nil
 }

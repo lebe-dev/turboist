@@ -79,12 +79,12 @@ func Test_TroikiCategory_IsValid(t *testing.T) {
 }
 
 func TestClientKindIsValid(t *testing.T) {
-	for _, c := range []ClientKind{ClientWeb, ClientIOS, ClientCLI} {
+	for _, c := range []ClientKind{ClientWeb, ClientIOS, ClientCLI, ClientAndroid} {
 		if !c.IsValid() {
 			t.Errorf("expected %q valid", c)
 		}
 	}
-	if ClientKind("android").IsValid() {
+	if ClientKind("fax").IsValid() {
 		t.Error("unexpected valid")
 	}
 }

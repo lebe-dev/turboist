@@ -87,6 +87,123 @@ dev:
     cd frontend && yarn dev &
     go run ./cmd/turboist
 
+# Bootstrap the local .env by merging the committed template (.env.example) with
+# your personal overrides (.env.dev). Keys in .env.dev win; keys only
+# in .env.dev are appended. Refuses to clobber an existing .env — edit it by hand
+# or delete it and re-run.
+init-dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -f .env ]; then
+        echo ".env already exists — not overwriting. Edit it directly, or delete it and re-run 'just init-dev'." >&2
+        exit 1
+    fi
+    [ -f .env.example ] || { echo "error: .env.example not found" >&2; exit 1; }
+    cp .env.example .env
+    if [ -f .env.dev ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                ''|'#'*) continue ;;                      # skip blanks/comments
+                *=*) ;;                                    # a KEY=VALUE line
+                *) continue ;;
+            esac
+            key=${line%%=*}
+            if grep -qE "^[[:space:]]*${key}=" .env; then
+                # override the template's value in place
+                tmp=$(mktemp)
+                grep -vE "^[[:space:]]*${key}=" .env > "$tmp"
+                mv "$tmp" .env
+            fi
+            printf '%s\n' "$line" >> .env
+        done < .env.dev
+        echo "==> .env created from .env.example + .env.dev"
+    else
+        echo "==> .env created from .env.example (no .env.dev found)"
+    fi
+
+# --- Mobile (Capacitor) ---
+# Rebuild the SPA bundle and copy it into the native iOS + Android projects.
+# Run after every web change before building a native app.
+cap-sync:
+    cd frontend && yarn build && yarn cap sync
+
+# Full mobile refresh (web bundle + native sync of both platforms).
+mobile: cap-sync
+
+# iOS: rebuild web, sync, open the project in Xcode. Capacitor 8 uses Swift
+# Package Manager — no CocoaPods needed. Requires Xcode.
+ios-build: cap-sync
+    cd frontend && yarn cap open ios
+
+# iOS: rebuild web, sync iOS, run on a simulator/device.
+ios-run:
+    cd frontend && yarn build && yarn cap sync ios && yarn cap run ios
+
+# iOS: build a signed Debug app and deploy it onto a connected iPhone.
+# Rebuilds the web bundle, syncs it into the native project, code-signs with your
+# Apple Development team, then installs (and tries to launch) via devicectl.
+#
+# The team is NOT hardcoded in the checked-in Xcode project. It comes from
+# IOS_DEV_TEAM_ID, which lives in .env.dev and is merged into .env by
+# `just init-dev`; `set dotenv-load` (top of this file) then loads it. Find your team id:
+#   security find-identity -v -p codesigning   (the OU field of the Apple Development cert).
+# Override the device with IOS_DEVICE_ID=<udid>; otherwise the first connected one is used.
+#
+# First launch on a personal (free) profile: iOS blocks the app until you trust the
+# developer once in Settings -> General -> VPN & Device Management -> Developer App.
+iosDeviceId := env_var_or_default("IOS_DEVICE_ID", "")
+iosDevTeamId := env_var_or_default("IOS_DEV_TEAM_ID", "")
+deploy-ios: cap-sync
+    #!/usr/bin/env bash
+    set -euo pipefail
+    TEAM="{{ iosDevTeamId }}"
+    if [ -z "$TEAM" ]; then
+        echo "error: IOS_DEV_TEAM_ID is not set (expected in .env)." >&2
+        echo "  Put it in .env.dev and run 'just init-dev' to merge it into .env. Find it via:" >&2
+        echo "  security find-identity -v -p codesigning   (the OU field of the Apple Development cert)." >&2
+        exit 1
+    fi
+    DEVICE="{{ iosDeviceId }}"
+    if [ -z "$DEVICE" ]; then
+        # First physical device in the Devices section — its line carries the iOS
+        # version in parens (the Mac's does not); grab the trailing UDID group.
+        DEVICE=$(xcrun xctrace list devices 2>&1 \
+            | sed -n '/== Devices ==/,/== Simulators ==/p' \
+            | grep -E '\([0-9]+\.[0-9]+' \
+            | head -1 \
+            | sed -E 's/.*\(([^)]+)\)[[:space:]]*$/\1/')
+    fi
+    if [ -z "$DEVICE" ]; then
+        echo "error: no connected iPhone found (and IOS_DEVICE_ID unset)." >&2
+        echo "  Plug in the device, trust this Mac, then retry." >&2
+        exit 1
+    fi
+    echo "==> deploying to device $DEVICE (team $TEAM)"
+    cd frontend/ios/App
+    xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+        -destination "id=$DEVICE" \
+        -derivedDataPath ../DerivedData \
+        -allowProvisioningUpdates \
+        DEVELOPMENT_TEAM="$TEAM" \
+        build
+    APP="../DerivedData/Build/Products/Debug-iphoneos/App.app"
+    echo "==> installing $APP"
+    xcrun devicectl device install app --device "$DEVICE" "$APP"
+    echo "==> launching"
+    xcrun devicectl device process launch --device "$DEVICE" com.itkey.turboist || {
+        echo "note: launch was denied — on a personal profile trust the developer once in" >&2
+        echo "      Settings -> General -> VPN & Device Management, then tap the app icon." >&2
+    }
+
+# Android: rebuild web, sync, open the project in Android Studio. Requires
+# ANDROID_HOME + an installed SDK to build.
+android-build: cap-sync
+    cd frontend && yarn cap open android
+
+# Android: rebuild web, sync Android, run on an emulator/device.
+android-run:
+    cd frontend && yarn build && yarn cap sync android && yarn cap run android
+
 # --- Development Environment ---
 start-env: stop-env
     docker compose up -d

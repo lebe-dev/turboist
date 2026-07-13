@@ -100,6 +100,7 @@
 	function clientIcon(kind: Session['clientKind']): typeof DesktopIcon {
 		switch (kind) {
 			case 'ios':
+			case 'android':
 				return DeviceMobileIcon;
 			case 'cli':
 				return TerminalIcon;
@@ -112,6 +113,8 @@
 		switch (kind) {
 			case 'ios':
 				return $t('settings.sessions.clientIos');
+			case 'android':
+				return $t('settings.sessions.clientAndroid');
 			case 'cli':
 				return $t('settings.sessions.clientCli');
 			default:

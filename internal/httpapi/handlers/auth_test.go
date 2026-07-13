@@ -184,6 +184,30 @@ func TestSetup_NonWebNoCookie(t *testing.T) {
 	}
 }
 
+func TestSetup_AndroidNoCookie(t *testing.T) {
+	env := setupAuthTest(t)
+	req := httptest.NewRequest(http.MethodPost, "/auth/setup", jsonBody(map[string]string{
+		"username":   "admin",
+		"password":   "secret123",
+		"clientKind": "android",
+	}))
+	req.Header.Set("Content-Type", "application/json")
+	resp, body := doReq(t, env.app, req)
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	if resp.Header.Get("Set-Cookie") != "" {
+		t.Error("android setup should not set cookie")
+	}
+	var ar authResp
+	if err := json.Unmarshal(body, &ar); err != nil {
+		t.Fatalf("parse auth resp: %v", err)
+	}
+	if ar.Refresh == "" {
+		t.Error("android setup must return refresh token in body")
+	}
+}
+
 func TestSetup_AlreadyDone(t *testing.T) {
 	env := setupAuthTest(t)
 	doSetup(t, env, "cli")

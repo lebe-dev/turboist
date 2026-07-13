@@ -117,14 +117,15 @@ func (c TroikiCategory) IsValid() bool {
 type ClientKind string
 
 const (
-	ClientWeb ClientKind = "web"
-	ClientIOS ClientKind = "ios"
-	ClientCLI ClientKind = "cli"
+	ClientWeb     ClientKind = "web"
+	ClientIOS     ClientKind = "ios"
+	ClientCLI     ClientKind = "cli"
+	ClientAndroid ClientKind = "android"
 )
 
 func (c ClientKind) IsValid() bool {
 	switch c {
-	case ClientWeb, ClientIOS, ClientCLI:
+	case ClientWeb, ClientIOS, ClientCLI, ClientAndroid:
 		return true
 	}
 	return false

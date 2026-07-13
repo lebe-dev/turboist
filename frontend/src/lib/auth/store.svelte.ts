@@ -1,16 +1,23 @@
 import { ApiClient, setApiClient } from '../api/client';
 import { ApiError } from '../api/errors';
 import { auth, type AuthCredentials } from '../api/endpoints/auth';
-import type { User } from '../api/types';
+import type { User, ClientKind, AuthLoginSuccessResponse } from '../api/types';
 import { addApiLogEntry } from '../stores/apiLog.svelte';
 import { clientOrigin } from '../realtime/origin';
 import { onSelfMutation } from '../realtime/selfRefresh';
+import { isNativePlatform, resolveClientKind } from '../native/platform';
+import { nativeRefreshTokenStore, type RefreshTokenStore } from '../native/secureToken';
+import { getServerUrl } from '../native/serverUrl';
 
 export type AuthStatus = 'loading' | 'guest' | 'authenticated';
 
 export interface AuthStoreOptions {
 	baseUrl?: string;
 	fetchImpl?: typeof fetch;
+	// Native only. Web leaves both unset: clientKind defaults to 'web' and the
+	// refresh token stays in the HttpOnly cookie (no tokenStore).
+	clientKind?: ClientKind;
+	tokenStore?: RefreshTokenStore | null;
 }
 
 interface BootstrapResult {
@@ -30,8 +37,12 @@ export class AuthStore {
 	private otpTicket: string | null = null;
 
 	readonly client: ApiClient;
+	private readonly clientKind: ClientKind;
+	private readonly tokenStore: RefreshTokenStore | null;
 
 	constructor(options: AuthStoreOptions = {}) {
+		this.clientKind = options.clientKind ?? 'web';
+		this.tokenStore = options.tokenStore ?? null;
 		this.client = new ApiClient({
 			baseUrl: options.baseUrl,
 			fetchImpl: options.fetchImpl,
@@ -46,7 +57,9 @@ export class AuthStore {
 			},
 			onLog: (entry) => addApiLogEntry(entry),
 			clientOrigin,
-			onMutation: (path) => onSelfMutation(path)
+			onMutation: (path) => onSelfMutation(path),
+			getRefreshToken: this.tokenStore ? () => this.tokenStore!.get() : undefined,
+			setRefreshToken: this.tokenStore ? (t) => this.tokenStore!.set(t) : undefined
 		});
 		setApiClient(this.client);
 	}
@@ -96,32 +109,49 @@ export class AuthStore {
 
 	private async tryRefresh(): Promise<boolean> {
 		try {
-			const res = await auth.refresh(this.client);
+			let stored: string | undefined;
+			if (this.tokenStore) {
+				const rt = await this.tokenStore.get();
+				// Native and logged out: no stored token → plain guest, no network call.
+				if (!rt) return false;
+				stored = rt;
+			}
+			const res = await auth.refresh(this.client, stored);
 			this.accessToken = res.access;
+			if (this.tokenStore && res.refresh) await this.tokenStore.set(res.refresh);
 			return true;
 		} catch (err) {
-			if (err instanceof ApiError && err.status === 401) {
-				return false;
+			if (this.tokenStore && err instanceof ApiError && err.status === 401) {
+				// Dead token — clear it so we don't retry the same one every launch.
+				await this.tokenStore.set(null);
 			}
 			return false;
 		}
 	}
 
-	async login(
-		credentials: Omit<AuthCredentials, 'clientKind'>
-	): Promise<{ otpRequired: boolean }> {
-		const res = await auth.login(this.client, { ...credentials, clientKind: 'web' });
-		if ('otpRequired' in res) {
-			this.otpTicket = res.ticket;
-			this.awaitingOtp = true;
-			return { otpRequired: true };
-		}
+	// finaliseAuth applies a successful login/setup/otp response. On native it
+	// also persists the returned refresh token (there is no Set-Cookie for
+	// non-web clients); on web tokenStore is null and the cookie was already set.
+	private async finaliseAuth(res: AuthLoginSuccessResponse): Promise<void> {
 		this.otpTicket = null;
 		this.awaitingOtp = false;
 		this.accessToken = res.access;
 		this.user = res.user;
 		this.status = 'authenticated';
 		this.setupRequired = false;
+		if (this.tokenStore && res.refresh) await this.tokenStore.set(res.refresh);
+	}
+
+	async login(
+		credentials: Omit<AuthCredentials, 'clientKind'>
+	): Promise<{ otpRequired: boolean }> {
+		const res = await auth.login(this.client, { ...credentials, clientKind: this.clientKind });
+		if ('otpRequired' in res) {
+			this.otpTicket = res.ticket;
+			this.awaitingOtp = true;
+			return { otpRequired: true };
+		}
+		await this.finaliseAuth(res);
 		return { otpRequired: false };
 	}
 
@@ -130,12 +160,7 @@ export class AuthStore {
 			throw new Error('No OTP challenge in progress');
 		}
 		const res = await auth.loginOtp(this.client, { ticket: this.otpTicket, code });
-		this.otpTicket = null;
-		this.awaitingOtp = false;
-		this.accessToken = res.access;
-		this.user = res.user;
-		this.status = 'authenticated';
-		this.setupRequired = false;
+		await this.finaliseAuth(res);
 	}
 
 	cancelOtp(): void {
@@ -144,11 +169,8 @@ export class AuthStore {
 	}
 
 	async setup(credentials: Omit<AuthCredentials, 'clientKind'>): Promise<void> {
-		const res = await auth.setup(this.client, { ...credentials, clientKind: 'web' });
-		this.accessToken = res.access;
-		this.user = res.user;
-		this.status = 'authenticated';
-		this.setupRequired = false;
+		const res = await auth.setup(this.client, { ...credentials, clientKind: this.clientKind });
+		await this.finaliseAuth(res);
 	}
 
 	async logout(): Promise<void> {
@@ -157,7 +179,7 @@ export class AuthStore {
 		} catch {
 			// best-effort; clear local state regardless
 		}
-		this.clear();
+		await this.clear();
 	}
 
 	async logoutAll(): Promise<void> {
@@ -166,22 +188,35 @@ export class AuthStore {
 		} catch {
 			// best-effort
 		}
-		this.clear();
+		await this.clear();
 	}
 
-	private clear(): void {
+	// clear wipes in-memory auth state and, on native, the stored refresh token
+	// (so a relaunch requires login). The server URL is left intact — it is
+	// configuration, not a credential.
+	private async clear(): Promise<void> {
 		this.user = null;
 		this.accessToken = null;
 		this.status = 'guest';
 		this.otpTicket = null;
 		this.awaitingOtp = false;
+		if (this.tokenStore) await this.tokenStore.set(null);
 	}
 }
 
 let storeInstance: AuthStore | null = null;
 
 export function createAuthStore(options: AuthStoreOptions = {}): AuthStore {
-	storeInstance = new AuthStore(options);
+	// The factory is the ONLY place the platform is resolved, so unit tests that
+	// construct `new AuthStore({...})` directly stay hermetic — web defaults,
+	// never touching the Capacitor bridge.
+	const resolved: AuthStoreOptions = {
+		...options,
+		clientKind: options.clientKind ?? resolveClientKind(),
+		tokenStore: options.tokenStore ?? (isNativePlatform() ? nativeRefreshTokenStore : null),
+		baseUrl: options.baseUrl ?? (isNativePlatform() ? getServerUrl() : undefined)
+	};
+	storeInstance = new AuthStore(resolved);
 	return storeInstance;
 }
 
