@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.itkey.turboist"
+    namespace = "ru.tinyops.turboist"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.itkey.turboist"
+        applicationId "ru.tinyops.turboist"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -197,7 +197,7 @@ deploy-ios: cap-sync
     echo "==> installing $APP"
     xcrun devicectl device install app --device "$DEVICE" "$APP"
     echo "==> launching"
-    xcrun devicectl device process launch --device "$DEVICE" com.itkey.turboist || {
+    xcrun devicectl device process launch --device "$DEVICE" ru.tinyops.turboist || {
         echo "note: launch was denied — on a personal profile trust the developer once in" >&2
         echo "      Settings -> General -> VPN & Device Management, then tap the app icon." >&2
     }
@@ -262,7 +262,7 @@ deploy-android: cap-sync
     echo "==> installing $APK"
     "$ADB" -s "$DEVICE" install -r "$APK"
     echo "==> launching"
-    "$ADB" -s "$DEVICE" shell am start -n com.itkey.turboist/.MainActivity
+    "$ADB" -s "$DEVICE" shell am start -n ru.tinyops.turboist/.MainActivity
 
 # --- Development Environment ---
 start-env: stop-env

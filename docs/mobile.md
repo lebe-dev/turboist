@@ -153,7 +153,7 @@ on disk under `App/TurboistWidget/`.
 
 Signing is automatic: `just deploy-ios` passes `DEVELOPMENT_TEAM` to `xcodebuild`
 (applied to every target) with `-allowProvisioningUpdates`, so Xcode provisions the
-widget's `com.itkey.turboist.TurboistWidget` bundle id alongside the app.
+widget's `ru.tinyops.turboist.TurboistWidget` bundle id alongside the app.
 
 ## First launch flow
 

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-	appId: 'com.itkey.turboist',
+	appId: 'ru.tinyops.turboist',
 	appName: 'Turboist',
 	// SvelteKit adapter-static output (relative to this file). `yarn build` must
 	// run before `cap add`/`cap sync`.

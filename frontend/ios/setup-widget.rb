@@ -16,7 +16,7 @@
 require 'xcodeproj'
 
 WIDGET_NAME = 'TurboistWidget'
-BUNDLE_ID = 'com.itkey.turboist.TurboistWidget'
+BUNDLE_ID = 'ru.tinyops.turboist.TurboistWidget'
 DEPLOYMENT = '16.0' # lock-screen accessory widgets require iOS 16+
 
 project_path = File.expand_path('App/App.xcodeproj', __dir__)
