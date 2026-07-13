@@ -204,6 +204,59 @@ android-build: cap-sync
 android-run:
     cd frontend && yarn build && yarn cap sync android && yarn cap run android
 
+# Android: build a Debug APK and deploy it onto a connected device.
+# Rebuilds the web bundle, syncs it into the native project, assembles a Debug APK
+# (auto-signed with Gradle's debug keystore — no dev team/keystore needed), then
+# installs and launches it over adb.
+#
+# The SDK is found via ANDROID_SDK_ROOT/ANDROID_HOME, else common install paths
+# (Homebrew android-commandlinetools, ~/Library/Android/sdk). Override the target
+# with ANDROID_DEVICE_ID=<serial> (from `adb devices`) when several are attached.
+androidDeviceId := env_var_or_default("ANDROID_DEVICE_ID", "")
+deploy-android: cap-sync
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Locate the Android SDK.
+    SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+    if [ -z "$SDK" ]; then
+        for c in /opt/homebrew/share/android-commandlinetools "$HOME/Library/Android/sdk"; do
+            [ -d "$c/platform-tools" ] && { SDK="$c"; break; }
+        done
+    fi
+    if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+        echo "error: Android SDK not found. Set ANDROID_SDK_ROOT, or install the SDK." >&2
+        echo "  brew install --cask android-commandlinetools android-platform-tools" >&2
+        exit 1
+    fi
+    export ANDROID_SDK_ROOT="$SDK" ANDROID_HOME="$SDK"
+    ADB="$(command -v adb || echo "$SDK/platform-tools/adb")"
+    # Pick the target device.
+    DEVICE="{{ androidDeviceId }}"
+    if [ -z "$DEVICE" ]; then
+        # Portable (bash 3.2, no mapfile): collect authorized serials into a string.
+        devs=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}')
+        count=$(printf '%s\n' "$devs" | grep -c . || true)
+        if [ "$count" -eq 0 ]; then
+            echo "error: no authorized Android device found." >&2
+            echo "  Enable USB debugging and accept the 'Allow USB debugging?' prompt, then: adb devices" >&2
+            exit 1
+        fi
+        if [ "$count" -gt 1 ]; then
+            echo "error: multiple devices attached — set ANDROID_DEVICE_ID to one of:" >&2
+            printf '%s\n' "$devs" | sed 's/^/  /' >&2
+            exit 1
+        fi
+        DEVICE=$(printf '%s\n' "$devs" | head -1)
+    fi
+    echo "==> deploying to device $DEVICE (sdk $SDK)"
+    cd frontend/android
+    ./gradlew assembleDebug
+    APK="app/build/outputs/apk/debug/app-debug.apk"
+    echo "==> installing $APK"
+    "$ADB" -s "$DEVICE" install -r "$APK"
+    echo "==> launching"
+    "$ADB" -s "$DEVICE" shell am start -n com.itkey.turboist/.MainActivity
+
 # --- Development Environment ---
 start-env: stop-env
     docker compose up -d
