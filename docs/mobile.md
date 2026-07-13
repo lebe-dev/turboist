@@ -116,6 +116,45 @@ The icon is the same mark as the web app — the orange (`#e2580e`) tile with th
   ```
   Xcode derives every smaller size at build time; rebuild (`just deploy-ios`) to apply.
 
+## Lock-screen widget (iOS)
+
+iOS ships a **lock-screen widget** — a round `+` accessory button. Tapping it opens
+the app and pops the **QuickAdd** (new task) dialog straight away. It carries no
+live data: it is a pure launcher, so the widget extension makes no API calls and
+needs no auth or App Group.
+
+How it is wired:
+
+- **Widget extension** — `frontend/ios/App/TurboistWidget/` (`TurboistWidget.swift`
+  + `Info.plist`). A WidgetKit `StaticConfiguration` limited to the
+  `.accessoryCircular` family (lock screen). Its view's `widgetURL` is
+  `turboist://quick-add`. Minimum iOS 16 (accessory widgets); the required
+  `containerBackground` is applied only on iOS 17+ via an availability guard.
+- **URL scheme** — `turboist` is registered in the App target's `Info.plist`
+  (`CFBundleURLTypes`). Capacitor's `AppDelegate` already forwards `open url:` to
+  the bridge, so `@capacitor/app` emits `appUrlOpen`.
+- **SPA glue** — `frontend/src/lib/native/deepLink.ts` (`initDeepLinks()`, called
+  once from the root `+layout.svelte`) turns a `turboist://quick-add` open into the
+  same `turboist:quick-add` window event the top-bar `+` dispatches. It covers both
+  a **warm** open (app running → dispatch immediately) and a **cold** launch (app
+  started by the widget → a pending flag that `(app)/+layout.svelte` drains once it
+  mounts, surviving the login → today redirect on a fresh launch).
+
+To add the widget on the phone: long-press the lock screen → **Customize** → the
+widgets row below the clock → add **Turboist**.
+
+### If you regenerate the iOS project
+
+The widget **target** lives in the committed `App.xcodeproj`; `cap sync` does not
+touch it. Only a full `yarn cap add ios` (scaffolding from scratch) drops it — then
+re-run `just ios-widget` (needs the `xcodeproj` gem: `gem install xcodeproj`) to
+re-add the target, embed phase, and build settings. The Swift sources are already
+on disk under `App/TurboistWidget/`.
+
+Signing is automatic: `just deploy-ios` passes `DEVELOPMENT_TEAM` to `xcodebuild`
+(applied to every target) with `-allowProvisioningUpdates`, so Xcode provisions the
+widget's `com.itkey.turboist.TurboistWidget` bundle id alongside the app.
+
 ## First launch flow
 
 1. **Connect** screen → enter the server URL (`https://…`). Validated against `GET /api/config`.

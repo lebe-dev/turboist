@@ -12,6 +12,7 @@
 	import { onMount } from 'svelte';
 	import { initI18n, t } from '$lib/i18n';
 	import { isNativePlatform } from '$lib/native/platform';
+	import { initDeepLinks } from '$lib/native/deepLink';
 	import { loadServerUrl, saveServerUrl } from '$lib/native/serverUrl';
 	import { initSentry } from '$lib/observability/sentry';
 	import ConnectServer from '$lib/components/ConnectServer.svelte';
@@ -74,6 +75,10 @@
 
 	onMount(() => {
 		void boot();
+
+		// Register the native deep-link listener (lock-screen widget → QuickAdd).
+		// No-op on web.
+		void initDeepLinks();
 
 		// The chunk-reload recovery below is web-only: native assets are bundled
 		// and never 404 on a stale hash.

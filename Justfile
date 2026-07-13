@@ -139,6 +139,13 @@ ios-build: cap-sync
 ios-run:
     cd frontend && yarn build && yarn cap sync ios && yarn cap run ios
 
+# iOS: (re)wire the lock-screen widget extension target into App.xcodeproj.
+# The widget sources (App/TurboistWidget/) and the target are committed, so this
+# is only needed after regenerating the iOS project from scratch (cap add ios).
+# Idempotent; requires the xcodeproj gem (`gem install xcodeproj`).
+ios-widget:
+    ruby frontend/ios/setup-widget.rb
+
 # iOS: build a signed Debug app and deploy it onto a connected iPhone.
 # Rebuilds the web bundle, syncs it into the native project, code-signs with your
 # Apple Development team, then installs (and tries to launch) via devicectl.

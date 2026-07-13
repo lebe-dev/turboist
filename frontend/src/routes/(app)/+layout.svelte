@@ -41,6 +41,7 @@
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
+	import { markAppLayoutReady, markAppLayoutGone, consumePendingQuickAdd } from '$lib/native/deepLink';
 
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import CardsIcon from 'phosphor-svelte/lib/Cards';
@@ -287,7 +288,17 @@
 			quickOpen = true;
 		};
 		window.addEventListener('turboist:quick-add', handler);
-		return () => window.removeEventListener('turboist:quick-add', handler);
+
+		// A native deep link (lock-screen widget) that arrived before this layout
+		// was mounted stashes a pending flag instead of dispatching; drain it now
+		// that the listener is live, and let warm deep links dispatch normally.
+		markAppLayoutReady();
+		if (consumePendingQuickAdd()) onQuickAdd();
+
+		return () => {
+			markAppLayoutGone();
+			window.removeEventListener('turboist:quick-add', handler);
+		};
 	});
 
 	async function onGroupRequest(): Promise<void> {
