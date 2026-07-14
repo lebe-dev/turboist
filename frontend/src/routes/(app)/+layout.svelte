@@ -43,11 +43,15 @@
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
 	import { markAppLayoutReady, markAppLayoutGone, consumePendingQuickAdd } from '$lib/native/deepLink';
+	import { isNativePlatform } from '$lib/native/platform';
+	import PullToRefresh from '$lib/components/app/PullToRefresh.svelte';
 
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import CardsIcon from 'phosphor-svelte/lib/Cards';
 
 	let { children } = $props();
+
+	const native = isNativePlatform();
 
 	const TITLE_KEYS: Record<string, string> = {
 		'/today': 'nav.today',
@@ -228,15 +232,11 @@
 		};
 	});
 
-	// On SSE reconnect after a drop (e.g., the tab was suspended), the server
-	// has no replay — so refresh everything once and notify page-level views
-	// to revalidate.
-	let lastReconnect = $state<number | null>(null);
-	$effect(() => {
-		const at = eventsClient.reconnectedAt;
-		if (at === null || at === lastReconnect) return;
-		lastReconnect = at;
-		void Promise.all([
+	// Reloads shell stores and tells every page-level view (via `useInvalidation`)
+	// to revalidate. Used both after an SSE reconnect (the server has no replay)
+	// and from the native pull-to-refresh gesture.
+	async function refreshAll(): Promise<void> {
+		await Promise.all([
 			contextsStore.load(),
 			labelsStore.load(),
 			projectsStore.load(),
@@ -257,6 +257,16 @@
 		for (const scope of scopes) {
 			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
 		}
+	}
+
+	// On SSE reconnect after a drop (e.g., the tab was suspended), the server
+	// has no replay — so refresh everything once.
+	let lastReconnect = $state<number | null>(null);
+	$effect(() => {
+		const at = eventsClient.reconnectedAt;
+		if (at === null || at === lastReconnect) return;
+		lastReconnect = at;
+		void refreshAll();
 	});
 
 	$effect(() => {
@@ -731,9 +741,19 @@
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
 			{/if}
-			<main class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
-				{@render children()}
-			</main>
+			{#if native}
+				<PullToRefresh
+					tag="main"
+					onRefresh={refreshAll}
+					class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}"
+				>
+					{@render children()}
+				</PullToRefresh>
+			{:else}
+				<main class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
+					{@render children()}
+				</main>
+			{/if}
 		</div>
 	</div>
 	<Sheet.Root bind:open={mobileSidebarOpen}>
