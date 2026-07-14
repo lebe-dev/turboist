@@ -4,6 +4,8 @@ set dotenv-load
 # --- Variables ---
 
 version := `cat VERSION`
+gitShortHash := `git rev-parse --short HEAD`
+mobileVersion := version + "+" + gitShortHash
 imageName := 'tinyops/turboist'
 
 # --- Demo environment (init-env / reset-env) ---
@@ -127,6 +129,22 @@ init-dev:
 cap-sync:
     cd frontend && yarn build && yarn cap sync
 
+# Same as cap-sync, but stamps frontend/package.json's version with the current
+# VERSION + short git commit hash (e.g. "1.14.0-dev+a1b2c3d") before building, so
+# a locally sideloaded Debug build shows exactly what's installed in
+# Settings -> Version on the device. Mirrors the Docker build's version
+# substitution (see Dockerfile) but adds the commit hash, since local debug
+# builds share a VERSION between commits. package.json is restored afterwards
+# so the stamp never leaks into a git diff.
+cap-sync-versioned:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd frontend
+    trap 'git checkout -- package.json' EXIT
+    perl -pi -e 's/"version": "[^"]*"/"version": "{{ mobileVersion }}"/' package.json
+    yarn build
+    yarn cap sync
+
 # Full mobile refresh (web bundle + native sync of both platforms).
 mobile: cap-sync
 
@@ -160,7 +178,7 @@ ios-widget:
 # developer once in Settings -> General -> VPN & Device Management -> Developer App.
 iosDeviceId := env_var_or_default("IOS_DEVICE_ID", "")
 iosDevTeamId := env_var_or_default("IOS_DEV_TEAM_ID", "")
-deploy-ios: cap-sync
+deploy-ios: cap-sync-versioned
     #!/usr/bin/env bash
     set -euo pipefail
     TEAM="{{ iosDevTeamId }}"
@@ -220,7 +238,7 @@ android-run:
 # (Homebrew android-commandlinetools, ~/Library/Android/sdk). Override the target
 # with ANDROID_DEVICE_ID=<serial> (from `adb devices`) when several are attached.
 androidDeviceId := env_var_or_default("ANDROID_DEVICE_ID", "")
-deploy-android: cap-sync
+deploy-android: cap-sync-versioned
     #!/usr/bin/env bash
     set -euo pipefail
     # Locate the Android SDK.

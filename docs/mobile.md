@@ -104,6 +104,10 @@ The SDK is located from `ANDROID_SDK_ROOT`/`ANDROID_HOME`, else common install p
 
 On the phone, **enable USB debugging** first (Settings → About → tap *Build number* ×7, then Developer options → *USB debugging*), set the USB mode to *File transfer*, and accept the **"Allow USB debugging?"** prompt. There is no trust-the-developer dance like iOS — a Debug APK launches straight away.
 
+### Local build version stamp
+
+`just deploy-ios` and `just deploy-android` build through `cap-sync-versioned` instead of plain `cap-sync`: it stamps `frontend/package.json`'s `version` field with `VERSION` + the short git commit hash (e.g. `1.14.0-dev+a1b2c3d`) before running `yarn build`, then restores the file afterwards (`git checkout -- package.json`), so the stamp never shows up as a working-tree diff. That value is what renders in the app's **Settings → Version** row, so a locally sideloaded Debug build tells you exactly which commit it was built from. `just ios-run`/`just android-run`/`just ios-build`/`just android-build` still use plain `cap-sync` and show the untouched `package.json` version (normally `0.0.0` outside of the Docker build, which does the same substitution without the commit hash — see `Dockerfile`).
+
 ### App icon
 
 The icon is the same mark as the web app — the orange (`#e2580e`) tile with the white lightning bolt from `frontend/static/icons/icon.svg`.
@@ -160,6 +164,10 @@ widget's `ru.tinyops.turboist.TurboistWidget` bundle id alongside the app.
 1. **Connect** screen → enter the server URL (`https://…`). Validated against `GET /api/config`.
 2. First-ever server → setup (create the single user). Otherwise → login (+ TOTP if enabled).
 3. The app loads tasks/projects over REST and subscribes to SSE for live updates.
+
+## Pull-to-refresh
+
+Native-only: on the current screen, pulling down from the top of the scroll area with an elastic drag re-fetches shell data (contexts/labels/projects/inbox/plan/pinned tasks) and re-broadcasts the same `turboist:invalidate` scopes the SSE reconnect sweep uses, so every open page's `useInvalidation` listener revalidates. Implemented in `frontend/src/lib/components/app/PullToRefresh.svelte`, wired around `<main>` in `routes/(app)/+layout.svelte` and gated by `isNativePlatform()` — the web app has no equivalent gesture and stays fresh via SSE alone.
 
 ## Known native gaps (deferred)
 
