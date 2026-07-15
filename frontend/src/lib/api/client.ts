@@ -11,6 +11,30 @@ export interface ApiLogEntry {
 	responseBody: string | null;
 }
 
+/**
+ * Bridge into the optional offline layer (`lib/offline`, FEATURE-OFFLINE-ARCH.md
+ * §4.4). When absent, `ApiClient` is purely online and behaves exactly as before.
+ * The concrete implementation lives in `lib/offline` and is wired at app
+ * bootstrap; `client.ts` depends only on this interface so it never pulls the
+ * IndexedDB/`idb` code into the core bundle.
+ */
+export interface OfflineBridge {
+	/** True when the online/offline heuristic currently believes we are offline. */
+	isOffline(): boolean;
+	/** Look up a cached GET response by (path, query); null on a miss. */
+	cacheGet(path: string, query: unknown): Promise<{ payload: unknown; storedAt: string } | null>;
+	/** Write a successful GET response through to the cache. */
+	cachePut(path: string, query: unknown, payload: unknown): Promise<void>;
+	/**
+	 * Enqueue a whitelisted mutation and synthesize a success response, or null
+	 * when the operation is not supported offline. Wired in Epic C — the B3
+	 * read-path integration never calls it.
+	 */
+	tryEnqueue(path: string, method: string, body: unknown): Promise<{ response: unknown } | null>;
+	/** Signal for the online/offline heuristic: a request succeeded (true) or hit a network error (false). */
+	noteRequestOutcome(ok: boolean): void;
+}
+
 export interface ApiClientOptions {
 	baseUrl?: string;
 	getAccessToken: () => string | null;
@@ -31,6 +55,8 @@ export interface ApiClientOptions {
 	// persists the rotated token from the response.
 	getRefreshToken?: () => Promise<string | null>;
 	setRefreshToken?: (token: string | null) => Promise<void>;
+	// Optional offline layer. Undefined → purely-online behaviour (unchanged).
+	offline?: OfflineBridge;
 }
 
 export type QueryValue = string | number | boolean | undefined | null;
@@ -40,6 +66,11 @@ interface ApiFetchInit extends Omit<RequestInit, 'body'> {
 	query?: Record<string, QueryValue> | object;
 	skipAuth?: boolean;
 	skipRefresh?: boolean;
+	// Set by the offline replay engine so a replayed request neither reads the
+	// read-through cache nor (Epic C) re-enqueues itself when the network drops.
+	skipOffline?: boolean;
+	// Idempotency key carried by a replayed mutation (Epic C); unused on the B3 read path.
+	idempotencyKey?: string;
 }
 
 interface RefreshResponseBody {
@@ -58,6 +89,7 @@ export class ApiClient {
 	private readonly onMutation?: (path: string, method: string) => void;
 	private readonly getRefreshToken?: () => Promise<string | null>;
 	private readonly setRefreshToken?: (token: string | null) => Promise<void>;
+	private readonly offline?: OfflineBridge;
 	private refreshInflight: Promise<string | null> | null = null;
 
 	constructor(options: ApiClientOptions) {
@@ -71,6 +103,7 @@ export class ApiClient {
 		this.onMutation = options.onMutation;
 		this.getRefreshToken = options.getRefreshToken;
 		this.setRefreshToken = options.setRefreshToken;
+		this.offline = options.offline;
 	}
 
 	private static readonly mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -78,25 +111,79 @@ export class ApiClient {
 	async fetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
 		const url = this.buildUrl(path, init.query);
 		const method = (init.method ?? 'GET').toUpperCase();
+		const isMutation = ApiClient.mutatingMethods.has(method);
 		const reqBody = init.body != null
 			? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body))
 			: null;
 		const start = performance.now();
 
+		// Cache-first when we already believe we are offline (GET only): return the
+		// cached payload immediately without waiting on the 15s network timeout, and
+		// fire a background probe that refreshes the cache and flips us back online on
+		// success. skipOffline (replay engine) opts a request out of the cache entirely.
+		if (!isMutation && !init.skipOffline && this.offline?.isOffline()) {
+			const hit = await this.offline.cacheGet(path, init.query);
+			if (hit) {
+				this.emitLog(method, url, null, start, reqBody, hit.payload, null);
+				this.probeNetworkInBackground(path, init);
+				return hit.payload as T;
+			}
+		}
+
 		try {
 			const response = await this.doRequest(url, init, /*isRetry*/ false);
 			const result = await this.parseResponse<T>(response);
 			this.emitLog(method, url, response.status, start, reqBody, result, null);
-			if (this.onMutation && ApiClient.mutatingMethods.has(method)) {
+			this.offline?.noteRequestOutcome(true);
+			if (!isMutation && this.offline) {
+				await this.offline.cachePut(path, init.query, result);
+			}
+			if (this.onMutation && isMutation) {
 				this.onMutation(path, method);
 			}
 			return result;
 		} catch (err) {
+			// A network error (status 0) with the offline layer active: serve a stale
+			// GET from cache if we have one; otherwise fall through and rethrow.
+			// (Epic C adds the mutation-enqueue branch here — B3 leaves mutations
+			// untouched, so a failed mutation just rethrows as before.)
+			if (err instanceof ApiError && err.status === 0 && this.offline && !init.skipOffline) {
+				this.offline.noteRequestOutcome(false);
+				if (!isMutation) {
+					const hit = await this.offline.cacheGet(path, init.query);
+					if (hit) {
+						this.emitLog(method, url, null, start, reqBody, hit.payload, null);
+						return hit.payload as T;
+					}
+				}
+				// TODO(Epic C, §4.4): mutation → this.offline.tryEnqueue(...) and, on
+				// success, return the synthesized response; else throw 'offline_unsupported'.
+			}
 			const status = err instanceof ApiError ? err.status : null;
 			const errMsg = err instanceof Error ? err.message : String(err);
 			this.emitLog(method, url, status, start, reqBody, null, errMsg);
 			throw err;
 		}
+	}
+
+	/**
+	 * Fire-and-forget network probe used after a cache-first hit while offline: on
+	 * success it refreshes the read-through cache and flips the heuristic back to
+	 * online; on failure we stay offline (the foreground already served cache).
+	 */
+	private probeNetworkInBackground(path: string, init: ApiFetchInit): void {
+		if (!this.offline) return;
+		const url = this.buildUrl(path, init.query);
+		void (async () => {
+			try {
+				const response = await this.doRequest(url, init, /*isRetry*/ false);
+				const result = await this.parseResponse<unknown>(response);
+				this.offline?.noteRequestOutcome(true);
+				await this.offline?.cachePut(path, init.query, result);
+			} catch {
+				// Probe failed — remain offline; the caller was already served from cache.
+			}
+		})();
 	}
 
 	private emitLog(
@@ -133,13 +220,7 @@ export class ApiClient {
 		query: ApiFetchInit['query']
 	): string {
 		const base = this.baseUrl + path;
-		if (!query) return base;
-		const params = new URLSearchParams();
-		for (const [key, value] of Object.entries(query as Record<string, unknown>)) {
-			if (value === undefined || value === null) continue;
-			params.append(key, String(value));
-		}
-		const qs = params.toString();
+		const qs = canonicalizeQuery(query);
 		return qs ? `${base}?${qs}` : base;
 	}
 
@@ -304,6 +385,26 @@ function safeJsonParse(text: string): unknown {
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * Canonicalize a query object into a stable query string: keys are sorted and
+ * null/undefined values dropped. Used both to build request URLs (`buildUrl`)
+ * and, via `buildCacheKey` in `lib/offline/db.ts`, to derive the offline
+ * read-through cache key — so a request and its cache entry always agree
+ * regardless of key insertion order (FEATURE-OFFLINE-ARCH.md §4.2/§4.3).
+ * Returns '' (no leading '?') when there is nothing to append.
+ */
+export function canonicalizeQuery(query: unknown): string {
+	if (query === null || query === undefined || typeof query !== 'object') return '';
+	const source = query as Record<string, unknown>;
+	const params = new URLSearchParams();
+	for (const key of Object.keys(source).sort()) {
+		const value = source[key];
+		if (value === undefined || value === null) continue;
+		params.append(key, String(value));
+	}
+	return params.toString();
 }
 
 let clientInstance: ApiClient | null = null;

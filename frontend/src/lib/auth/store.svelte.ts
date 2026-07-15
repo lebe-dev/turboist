@@ -1,5 +1,6 @@
-import { ApiClient, setApiClient } from '../api/client';
+import { ApiClient, setApiClient, type OfflineBridge } from '../api/client';
 import { ApiError } from '../api/errors';
+import { createOfflineBridge } from '../offline';
 import { auth, type AuthCredentials } from '../api/endpoints/auth';
 import type { User, ClientKind, AuthLoginSuccessResponse } from '../api/types';
 import { addApiLogEntry } from '../stores/apiLog.svelte';
@@ -18,6 +19,10 @@ export interface AuthStoreOptions {
 	// refresh token stays in the HttpOnly cookie (no tokenStore).
 	clientKind?: ClientKind;
 	tokenStore?: RefreshTokenStore | null;
+	// Offline read/queue bridge (§4.10). Undefined → purely-online ApiClient
+	// (unchanged behaviour). The `createAuthStore` factory assembles the real
+	// bridge; `new AuthStore(...)` in unit tests leaves it unset and hermetic.
+	offline?: OfflineBridge;
 }
 
 interface BootstrapResult {
@@ -59,7 +64,8 @@ export class AuthStore {
 			clientOrigin,
 			onMutation: (path) => onSelfMutation(path),
 			getRefreshToken: this.tokenStore ? () => this.tokenStore!.get() : undefined,
-			setRefreshToken: this.tokenStore ? (t) => this.tokenStore!.set(t) : undefined
+			setRefreshToken: this.tokenStore ? (t) => this.tokenStore!.set(t) : undefined,
+			offline: options.offline
 		});
 		setApiClient(this.client);
 	}
@@ -210,11 +216,16 @@ export function createAuthStore(options: AuthStoreOptions = {}): AuthStore {
 	// The factory is the ONLY place the platform is resolved, so unit tests that
 	// construct `new AuthStore({...})` directly stay hermetic — web defaults,
 	// never touching the Capacitor bridge.
+	const baseUrl = options.baseUrl ?? (isNativePlatform() ? getServerUrl() : undefined);
 	const resolved: AuthStoreOptions = {
 		...options,
 		clientKind: options.clientKind ?? resolveClientKind(),
 		tokenStore: options.tokenStore ?? (isNativePlatform() ? nativeRefreshTokenStore : null),
-		baseUrl: options.baseUrl ?? (isNativePlatform() ? getServerUrl() : undefined)
+		baseUrl,
+		// Assemble the offline bridge here (the one place the platform is resolved)
+		// so it is namespaced to the resolved server and `new AuthStore(...)` in
+		// tests stays purely online (§4.10). Degrades to a no-op without IndexedDB.
+		offline: options.offline ?? createOfflineBridge({ serverUrl: baseUrl ?? '' })
 	};
 	storeInstance = new AuthStore(resolved);
 	return storeInstance;

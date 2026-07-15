@@ -50,6 +50,14 @@ Each browser tab generates a per-tab origin id and:
 
 `Hub.Publish` skips any subscriber whose origin matches the mutation's `X-Client-Origin`. The tab that made a change therefore never receives the echo of its own mutation — it already applied the change from the mutation's own response, so re-fetching would only cost a round-trip and cause a visible re-render. Other tabs and devices still receive the event. An empty origin (older clients, server-side) disables suppression. To refresh data it can no longer derive from the echo, the originating client refetches the [`GET /api/v1/stats/sidebar`](../../API.md) bundle once after its own mutation.
 
+## Idempotency
+
+`IdempotencyMiddleware` (`internal/httpapi/idempotency_middleware.go`) makes mutating `/api/v1/*` requests safe to retry. When a request carries an `Idempotency-Key` header, the middleware reserves the key, runs the handler once, and stores the `2xx` response; a later request with the same key replays the stored response (`X-Idempotent-Replay: true`) without re-running the handler. A concurrent duplicate (the first request still in flight) is rejected with `409 idempotency_in_flight`; non-2xx responses are released so a corrected retry re-runs the handler.
+
+The middleware sits **after** `APIAuthMiddleware` (it needs the resolved user id) and **before** `PublishMiddleware` in the `/api/v1` group, so a replay short-circuits before Publish and never re-emits an SSE invalidation. A nil `IdempotencyRepo` disables it (used in tests). Client-facing behaviour is documented in [API.md → Idempotency](../../API.md#idempotency).
+
+Keys are persisted in the `idempotency_keys` table (migration `044_idempotency_keys.sql`: `key` PK, `user_id` FK, `method`, `path`, `status`, `response`, `created_at`; `status = 0` marks a reservation still in flight). A background prune runs in `cmd/turboist` — once at startup and then every 12 hours on the shared cleanup context — deleting rows older than 48 hours via `IdempotencyRepo.DeleteOlderThan`.
+
 ## Storage
 
 All data lives in the SQLite file pointed to by `-db`. WAL mode is enabled — back up `*.db`, `*.db-wal`, and `*.db-shm` together, or use `VACUUM INTO` for a single-file snapshot.

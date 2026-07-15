@@ -3,6 +3,7 @@
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
 	import CalendarReauthBanner from '$lib/components/app/CalendarReauthBanner.svelte';
+	import OfflineBanner from '$lib/components/app/OfflineBanner.svelte';
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
@@ -42,6 +43,7 @@
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
+	import { cacheWarmer } from '$lib/offline';
 	import { markAppLayoutReady, markAppLayoutGone, consumePendingQuickAdd } from '$lib/native/deepLink';
 	import { isNativePlatform } from '$lib/native/platform';
 	import PullToRefresh from '$lib/components/app/PullToRefresh.svelte';
@@ -169,6 +171,12 @@
 				// settings editor; load out-of-band so a failure never blocks
 				// the workspace.
 				void templatesStore.load().catch(() => {});
+				// Background-prewarm the key screens (today/tomorrow/week/inbox and
+				// the projects/labels/contexts lists) into the offline read-through
+				// cache (FEATURE-OFFLINE-ARCH.md §7 B5). Debounced, online-gated and
+				// fire-and-forget — never blocks the workspace, degrades to a no-op
+				// when IndexedDB is unavailable.
+				cacheWarmer.schedule();
 			} catch (err) {
 				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
 				toast.error(message);
@@ -734,6 +742,7 @@
 				onPickTemplate={quickAddHidden ? undefined : onPickTemplate}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
+			<OfflineBanner />
 			{#if !page.url.pathname.startsWith('/settings')}
 				<ContextFilterBanner />
 				<CalendarReauthBanner />

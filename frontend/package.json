@@ -34,6 +34,7 @@
 		"clsx": "^2.1.1",
 		"eslint": "^9.18.0",
 		"eslint-plugin-svelte": "^3.0.0",
+		"fake-indexeddb": "^6.2.5",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
 		"mode-watcher": "^1.1.0",
@@ -66,6 +67,7 @@
 		"@capacitor/status-bar": "^8",
 		"@fontsource-variable/outfit": "^5.2.8",
 		"@sentry/sveltekit": "^10.56.0",
+		"idb": "^8.0.3",
 		"svelte-intl-precompile": "^0.12.3"
 	},
 	"resolutions": {

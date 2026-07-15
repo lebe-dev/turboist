@@ -41,6 +41,7 @@ type apiEnv struct {
 	apiTokenSalt []byte
 	sessions     *repo.SessionRepo
 	calendarRepo *repo.CalendarRepo
+	idempotency  *repo.IdempotencyRepo
 	eventsHub    *events.Hub
 	eventsTix    *events.TicketStore
 }
@@ -80,17 +81,19 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	apiTokens := repo.NewAPITokenRepo(d)
 	salt := []byte("test-api-token-salt-32-bytes-pad!")
 	sessions := repo.NewSessionRepo(d)
+	idempotency := repo.NewIdempotencyRepo(d)
 
 	hub := events.NewHub(slog.Default())
 	t.Cleanup(hub.Close)
 	tix := events.NewTicketStore()
 
 	deps := httpapi.Deps{
-		JWTIssuer:    issuer,
-		UserRepo:     users,
-		APITokenRepo: apiTokens,
-		APITokenSalt: salt,
-		EventsHub:    hub,
+		JWTIssuer:       issuer,
+		UserRepo:        users,
+		APITokenRepo:    apiTokens,
+		APITokenSalt:    salt,
+		EventsHub:       hub,
+		IdempotencyRepo: idempotency,
 	}
 	app := httpapi.NewApp(deps)
 
@@ -154,6 +157,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		apiTokenSalt: salt,
 		sessions:     sessions,
 		calendarRepo: calendarRepo,
+		idempotency:  idempotency,
 		eventsHub:    hub,
 		eventsTix:    tix,
 	}

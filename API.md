@@ -80,6 +80,7 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `CodeValidation` | 422 |
 | `CodeForbidden` | 403 |
 | `CodeConflict` | 409 |
+| `idempotency_in_flight` | 409 |
 | `CodeLimitExceeded` | 409 |
 | `CodeForbiddenPlacement` | 422 |
 | `totp_invalid_code` | 401 |
@@ -124,6 +125,24 @@ Color fields accept named CSS colors or hex strings `#RRGGBB`.
 
 - Fields absent from the request body → unchanged
 - Optional fields that support null-clearing (e.g. `dueAt`, `deadlineAt`, `recurrenceRule`) use three-state semantics: **absent** = unchanged, **`null`** = clear, **string** = set value
+
+### Idempotency
+
+Any mutating request (`POST`/`PUT`/`PATCH`/`DELETE`) to `/api/v1/*` may carry an `Idempotency-Key` header. It lets a client safely retry a request whose response it never received (e.g. the network dropped after the server committed the change) without risking a duplicate side effect.
+
+```sh
+curl -X POST "$BASE/api/v1/tasks/42/complete" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: 3f0c1c2e-8a4b-4e9d-9d1a-2b7c9f6e0a11"
+```
+
+- **Key format**: 8–128 characters from `[A-Za-z0-9_-]` (UUIDs qualify). A malformed key returns `400 validation_failed`.
+- **First request** with a given key runs normally; its response is stored only if the status is `2xx`.
+- **Replay** — a later request with the **same** key — returns the stored response verbatim (same status and body) with the header `X-Idempotent-Replay: true`. The handler does not run again and no SSE invalidation is re-emitted.
+- **Concurrent duplicate** — a second request arriving while the first is still executing returns `409 idempotency_in_flight`.
+- **Non-2xx responses are not stored**: a request that failed validation can be corrected and retried with the same key.
+- **Retention**: keys are kept for 48 hours, then pruned; a replay after expiry re-runs the handler.
+- The header is optional and scoped per user; omitting it preserves the previous behaviour with zero overhead.
 
 ---
 

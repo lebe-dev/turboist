@@ -38,6 +38,11 @@ type Deps struct {
 	// stale views without polling.
 	EventsHub *events.Hub
 
+	// IdempotencyRepo is optional. When set, the API group installs
+	// IdempotencyMiddleware so mutating requests carrying an Idempotency-Key
+	// can be safely retried (replayed) without re-executing the handler.
+	IdempotencyRepo *repo.IdempotencyRepo
+
 	// SentryEnabled gates the SentryMiddleware (400 + 5xx + panic reporting); set
 	// when the backend DSN is configured. SentryFrontendDSN and SentryEnvironment
 	// are served to the browser via GET /api/config so the SPA can initialise
@@ -106,6 +111,9 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 		"/api/v1",
 		SetupCheckMiddleware(deps.UserRepo),
 		APIAuthMiddleware(deps.JWTIssuer, deps.APITokenRepo, deps.APITokenSalt),
+		// Idempotency must sit after auth (it needs the resolved user id) and
+		// before Publish so a replay short-circuits before any SSE is emitted.
+		IdempotencyMiddleware(deps.IdempotencyRepo),
 		PublishMiddleware(deps.EventsHub),
 	)
 }

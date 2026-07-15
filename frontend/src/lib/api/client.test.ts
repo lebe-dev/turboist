@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiClient } from './client';
+import { ApiClient, canonicalizeQuery, type OfflineBridge } from './client';
 import { ApiError } from './errors';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -298,4 +298,260 @@ describe('ApiClient.fetch', () => {
 		expect(tokens.refreshFailures).toBe(0);
 	});
 
+	it('appends the canonicalized (sorted) query to the request URL', async () => {
+		const { client, fetchMock } = makeClient();
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+		await client.fetch('/api/v1/tasks', { query: { b: 2, a: 1, skip: undefined } });
+
+		const url = String(fetchMock.mock.calls[0][0]);
+		// buildUrl reuses canonicalizeQuery, so the two agree bit-for-bit.
+		expect(url).toBe('/api/v1/tasks?' + canonicalizeQuery({ b: 2, a: 1, skip: undefined }));
+		expect(url).toBe('/api/v1/tasks?a=1&b=2');
+	});
+
+});
+
+describe('canonicalizeQuery', () => {
+	it('returns an empty string for nullish or empty input', () => {
+		expect(canonicalizeQuery(undefined)).toBe('');
+		expect(canonicalizeQuery(null)).toBe('');
+		expect(canonicalizeQuery({})).toBe('');
+	});
+
+	it('sorts keys and drops null/undefined values', () => {
+		expect(canonicalizeQuery({ b: 2, a: 1, c: undefined, d: null })).toBe('a=1&b=2');
+	});
+
+	it('is stable across key insertion order', () => {
+		expect(canonicalizeQuery({ q: 'x', limit: 50 })).toBe(canonicalizeQuery({ limit: 50, q: 'x' }));
+	});
+
+	it('encodes values the way URLSearchParams does', () => {
+		expect(canonicalizeQuery({ q: 'a b', tag: 'c&d' })).toBe('q=a+b&tag=c%26d');
+	});
+
+	it('ignores non-object input', () => {
+		expect(canonicalizeQuery('foo')).toBe('');
+		expect(canonicalizeQuery(42)).toBe('');
+	});
+});
+
+type BridgeMock = OfflineBridge & {
+	isOffline: ReturnType<typeof vi.fn>;
+	cacheGet: ReturnType<typeof vi.fn>;
+	cachePut: ReturnType<typeof vi.fn>;
+	tryEnqueue: ReturnType<typeof vi.fn>;
+	noteRequestOutcome: ReturnType<typeof vi.fn>;
+};
+
+function makeBridge(overrides: Partial<OfflineBridge> = {}): BridgeMock {
+	return {
+		isOffline: vi.fn(() => false),
+		cacheGet: vi.fn(async () => null),
+		cachePut: vi.fn(async () => {}),
+		tryEnqueue: vi.fn(async () => null),
+		noteRequestOutcome: vi.fn(),
+		...overrides
+	} as BridgeMock;
+}
+
+function makeOfflineClient(bridge: OfflineBridge, initial: string | null = 'access-1') {
+	const tokens = { access: initial as string | null, refreshFailures: 0 };
+	const fetchMock = vi.fn<typeof fetch>();
+	const client = new ApiClient({
+		fetchImpl: fetchMock as unknown as typeof fetch,
+		getAccessToken: () => tokens.access,
+		setAccessToken: (t) => {
+			tokens.access = t;
+		},
+		onRefreshFailure: () => {
+			tokens.refreshFailures += 1;
+		},
+		offline: bridge
+	});
+	return { client, fetchMock, tokens };
+}
+
+// Flush the microtask/macrotask queue so a fire-and-forget background probe runs.
+function flush(): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe('ApiClient.fetch offline integration (GET path)', () => {
+	beforeEach(() => {
+		vi.useRealTimers();
+	});
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('writes a successful GET through to the cache and notes online', async () => {
+		const bridge = makeBridge();
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+
+		const result = await client.fetch('/api/v1/tasks/1');
+
+		expect(result).toEqual({ id: 1 });
+		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(true);
+		expect(bridge.cachePut).toHaveBeenCalledWith('/api/v1/tasks/1', undefined, { id: 1 });
+	});
+
+	it('passes the query through to cachePut on write-through', async () => {
+		const bridge = makeBridge();
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+		await client.fetch('/api/v1/tasks', { query: { limit: 50 } });
+
+		expect(bridge.cachePut).toHaveBeenCalledWith('/api/v1/tasks', { limit: 50 }, { ok: true });
+	});
+
+	it('does not cache-write a mutation but still notes online on success', async () => {
+		const bridge = makeBridge();
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+		await client.fetch('/api/v1/tasks/1', { method: 'PATCH', body: { title: 'x' } });
+
+		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(true);
+		expect(bridge.cachePut).not.toHaveBeenCalled();
+	});
+
+	it('serves a stale cache hit when a GET fails with network_error (status 0)', async () => {
+		const bridge = makeBridge({
+			cacheGet: vi.fn(async () => ({ payload: { id: 7, cached: true }, storedAt: 't' }))
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		const result = await client.fetch('/api/v1/tasks/7');
+
+		expect(result).toEqual({ id: 7, cached: true });
+		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(false);
+		expect(bridge.cacheGet).toHaveBeenCalledWith('/api/v1/tasks/7', undefined);
+	});
+
+	it('rethrows the network error when a failed GET has no cache hit', async () => {
+		const bridge = makeBridge(); // cacheGet → null
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await expect(client.fetch('/api/v1/tasks/7')).rejects.toMatchObject({
+			code: 'network_error',
+			status: 0
+		});
+		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(false);
+	});
+
+	it('does not enqueue or synthesize on a failed mutation (Epic C owns that) and rethrows', async () => {
+		const bridge = makeBridge();
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await expect(
+			client.fetch('/api/v1/tasks/1/complete', { method: 'POST' })
+		).rejects.toMatchObject({ status: 0 });
+		expect(bridge.tryEnqueue).not.toHaveBeenCalled();
+	});
+
+	it('serves cache-first when offline and refreshes via a background network probe', async () => {
+		const bridge = makeBridge({
+			isOffline: vi.fn(() => true),
+			cacheGet: vi.fn(async () => ({ payload: { id: 9, stale: true }, storedAt: 't' }))
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ id: 9, fresh: true }));
+
+		const result = await client.fetch('/api/v1/tasks/9');
+		// Immediate return from cache — no waiting on the network.
+		expect(result).toEqual({ id: 9, stale: true });
+
+		// The background probe then hits the network, refreshes cache, flips online.
+		await flush();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(bridge.cachePut).toHaveBeenCalledWith('/api/v1/tasks/9', undefined, {
+			id: 9,
+			fresh: true
+		});
+		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(true);
+	});
+
+	it('when offline with no cache hit, falls through to the network', async () => {
+		const bridge = makeBridge({ isOffline: vi.fn(() => true) }); // cacheGet → null
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ live: true }));
+
+		const result = await client.fetch('/api/v1/tasks/9');
+
+		expect(result).toEqual({ live: true });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('skipOffline bypasses the cache-first path and hits the network even when offline', async () => {
+		const bridge = makeBridge({
+			isOffline: vi.fn(() => true),
+			cacheGet: vi.fn(async () => ({ payload: { cached: true }, storedAt: 't' }))
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ fresh: true }));
+
+		const result = await client.fetch('/api/v1/tasks', { skipOffline: true });
+
+		expect(result).toEqual({ fresh: true });
+		expect(bridge.cacheGet).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('skipOffline does not serve stale on a network failure — it rethrows', async () => {
+		const bridge = makeBridge({
+			cacheGet: vi.fn(async () => ({ payload: { cached: true }, storedAt: 't' }))
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await expect(client.fetch('/api/v1/tasks', { skipOffline: true })).rejects.toMatchObject({
+			status: 0
+		});
+		expect(bridge.cacheGet).not.toHaveBeenCalled();
+	});
+
+	it('does not flip offline on a 4xx/5xx server error (real status, not 0)', async () => {
+		const bridge = makeBridge({
+			cacheGet: vi.fn(async () => ({ payload: { cached: true }, storedAt: 't' }))
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse({ error: { code: 'not_found', message: 'nope' } }, 404)
+		);
+
+		await expect(client.fetch('/api/v1/tasks/7')).rejects.toMatchObject({ status: 404 });
+		expect(bridge.noteRequestOutcome).not.toHaveBeenCalledWith(false);
+		expect(bridge.cacheGet).not.toHaveBeenCalled();
+	});
+});
+
+describe('ApiClient.fetch without an offline bridge (regression)', () => {
+	beforeEach(() => {
+		vi.useRealTimers();
+	});
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('behaves identically when no offline bridge is configured', async () => {
+		const { client, fetchMock } = makeClient();
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+		await expect(client.fetch('/api/v1/config')).resolves.toEqual({ ok: true });
+
+		// A network failure still surfaces as ApiError — never silently served from a cache.
+		fetchMock.mockRejectedValueOnce(new TypeError('down'));
+		await expect(client.fetch('/api/v1/config')).rejects.toMatchObject({
+			code: 'network_error',
+			status: 0
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
 });

@@ -991,5 +991,10 @@
 		"detach": "Unharpoon",
 		"jumpTo": "Jump to: {title}",
 		"toastFailed": "Failed to update harpoon"
+	},
+	"offline": {
+		"banner": "No connection",
+		"bannerStale": "No connection — showing data as of {at}",
+		"retry": "Retry"
 	}
 }
