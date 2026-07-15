@@ -289,6 +289,10 @@ start-env: stop-env
 stop-env:
     docker compose down
 
+stop:
+    lsof -ti :4200 | xargs kill -9
+    lsof -ti :18080 | xargs kill -9
+
 # --- Demo data ---
 # init-env populates the SQLite database with demo contexts/projects/labels/tasks
 # and switches on the Troiki system with 9 projects (3-3-3 across slots).
