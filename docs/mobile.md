@@ -6,7 +6,7 @@ Turboist ships native iOS and Android apps built with [Capacitor](https://capaci
 - the **iOS** app (WebView shell + native bridge),
 - the **Android** app (WebView shell + native bridge).
 
-There is **one** build. The app detects its platform at runtime (`Capacitor.isNativePlatform()`); it does not need separate web/native bundles. The apps are **online-only** — like the web app they read through the REST API and stay fresh over SSE. There is no offline store.
+There is **one** build. The app detects its platform at runtime (`Capacitor.isNativePlatform()`); it does not need separate web/native bundles. Like the web app they read through the REST API and stay fresh over SSE, and they share the same **offline** read cache + write outbox — see [docs/offline.md](offline.md).
 
 The Capacitor project lives under `frontend/` (that is where `package.json` is): `frontend/capacitor.config.ts`, `frontend/ios/`, `frontend/android/`.
 
@@ -174,6 +174,24 @@ Native-only: on the current screen, pulling down from the top of the scroll area
 - **Google Calendar OAuth** — the OAuth redirect is a full-page navigation and does not round-trip inside the WebView. Configure Google Calendar from the **web** UI for now.
 - **Backup download** — the anchor-based file download is a no-op in a WebView. Restore (file picker) works; export from the web UI.
 - The "new version available" toast and stale-chunk reload are **web-only** (native assets are bundled, never stale).
+
+## Offline on native
+
+Native shares the web offline layer (read cache + write outbox), with a few native-only
+notes — see [docs/offline.md](offline.md) for the full model:
+
+- **`CapacitorHttp` bypasses the service worker.** `fetch`/XHR go through the native HTTP
+  stack, so `/api/*` requests never hit the SW. That is fine — the offline cache and outbox
+  live in the JS layer (`frontend/src/lib/offline/`), not the SW, so they work on native
+  without any service worker. The SW only delivers the web shell.
+- **The app shell is always local.** `webDir: 'build'` is bundled into the app, so only
+  *data* can ever be missing offline, never the app itself. There is no PWA install step.
+- **Secure token survives logout of the offline data.** The refresh token is stored in the
+  device secure storage (`frontend/src/lib/native/secureToken.ts`), separate from the
+  IndexedDB cache/outbox. Clearing offline data does not by itself drop the session, and an
+  expired refresh routes to login without wiping the queued outbox.
+- **No Background Sync.** Replay runs only while the app is open/foregrounded (kicks on app
+  start, network recovery, and foreground), never in the background.
 
 ## Troubleshooting
 

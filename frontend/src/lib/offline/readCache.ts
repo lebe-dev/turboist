@@ -36,9 +36,12 @@ export interface ReadCacheReader {
 	/** Look up a cached response by (path, query); null on a miss. */
 	get(path: string, query?: unknown): Promise<CachedResponse | null>;
 	/**
-	 * Locate a cached Task by id across the known response shapes. Stub for now:
-	 * Epic C (outbox) implements the cross-shape scan; today it always reports
-	 * "not found" (null) and op synthesizers fall back to a minimal Task (§4.5).
+	 * Locate a cached Task by id across the known response shapes, for op response
+	 * synthesis (§4.5). Scans every cached entry's `Page<Task>` / `ViewList<Task>`
+	 * (`.items`), `InboxResponse` (`.tasks[]`), `ProjectBundle`/`SearchResponse`
+	 * (`.tasks.items`), `TodayBundle` (`today`/`overdue`/`completedToday`) and a
+	 * bare `Task` response. Returns null when the task is nowhere in cache, and op
+	 * synthesizers fall back to a minimal Task.
 	 */
 	findTask(id: number): Promise<unknown | null>;
 }
@@ -71,8 +74,11 @@ export function createReadCache(
 		async get(path, query) {
 			return db.getResponse(buildCacheKey(path, query));
 		},
-		async findTask() {
-			// Epic C implements the cross-shape scan; null === not cached.
+		async findTask(id) {
+			for (const entry of await db.getAllResponses()) {
+				const found = findTaskInPayload(entry.payload, id);
+				if (found) return found;
+			}
 			return null;
 		},
 		async getAll() {
@@ -93,4 +99,59 @@ export function createReadCache(
 			await db.putResponse(entry);
 		}
 	};
+}
+
+/**
+ * A cached object is a Task only if it carries a Task-distinctive field on top of
+ * `id`/`status` — `id`/`status` alone also match a Project, which shares the
+ * `responses` store. `dayPart`/`planState`/`postponeCount` are Task-only.
+ *
+ * Exported so the op cache-patchers (`ops/patch.ts`, §4.5) apply the exact same
+ * task/project discrimination as `findTask` when rewriting cached records.
+ */
+export function looksLikeTask(value: unknown): value is { id: number } {
+	if (!value || typeof value !== 'object') return false;
+	const o = value as Record<string, unknown>;
+	return (
+		typeof o.id === 'number' &&
+		'status' in o &&
+		('dayPart' in o || 'planState' in o || 'postponeCount' in o)
+	);
+}
+
+/**
+ * Every task array reachable from a known cached response shape (§4.5). Exported
+ * so the op cache-patchers (`ops/patch.ts`) traverse the same shapes as `findTask`
+ * — the returned arrays are the live payload arrays, so mutating their items (or
+ * pushing) rewrites the payload the caller then persists via `putEntry`.
+ */
+export function candidateLists(payload: unknown): unknown[][] {
+	if (Array.isArray(payload)) return [payload];
+	if (!payload || typeof payload !== 'object') return [];
+	const p = payload as Record<string, unknown>;
+	const lists: unknown[][] = [];
+	const push = (value: unknown): void => {
+		if (Array.isArray(value)) {
+			lists.push(value);
+		} else if (value && typeof value === 'object' && Array.isArray((value as { items?: unknown }).items)) {
+			lists.push((value as { items: unknown[] }).items);
+		}
+	};
+	push(p.items); // Page<Task>, ViewList<Task>
+	push(p.tasks); // InboxResponse (array) | ProjectBundle / SearchResponse ({ items })
+	push(p.today); // TodayBundle
+	push(p.overdue);
+	push(p.completedToday);
+	return lists;
+}
+
+function findTaskInPayload(payload: unknown, id: number): unknown | null {
+	// A bare Task response (GET /api/v1/tasks/:id).
+	if (looksLikeTask(payload) && payload.id === id) return payload;
+	for (const list of candidateLists(payload)) {
+		for (const item of list) {
+			if (looksLikeTask(item) && item.id === id) return item;
+		}
+	}
+	return null;
 }

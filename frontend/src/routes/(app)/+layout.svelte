@@ -43,7 +43,8 @@
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
-	import { cacheWarmer } from '$lib/offline';
+	import { cacheWarmer, kickReplay, wireReplayTriggers, statusStore } from '$lib/offline';
+	import { useCatchupRefetch } from '$lib/hooks';
 	import { markAppLayoutReady, markAppLayoutGone, consumePendingQuickAdd } from '$lib/native/deepLink';
 	import { isNativePlatform } from '$lib/native/platform';
 	import PullToRefresh from '$lib/components/app/PullToRefresh.svelte';
@@ -269,13 +270,37 @@
 
 	// On SSE reconnect after a drop (e.g., the tab was suspended), the server
 	// has no replay — so refresh everything once.
-	let lastReconnect = $state<number | null>(null);
+	useCatchupRefetch(
+		() => eventsClient.reconnectedAt,
+		() => void refreshAll()
+	);
+
+	// Outbox replay triggers (FEATURE-OFFLINE-ARCH.md §4.6). The DOM/lifecycle
+	// triggers (window 'online', visibilitychange, app-start kick) are centralised
+	// in the offline module; wire them once the workspace is up.
 	$effect(() => {
-		const at = eventsClient.reconnectedAt;
-		if (at === null || at === lastReconnect) return;
-		lastReconnect = at;
-		void refreshAll();
+		if (auth.status !== 'authenticated' || !dataReady) return;
+		return wireReplayTriggers();
 	});
+
+	// A fresh SSE connection is real-time proof the network is back (and healthier
+	// than 'online', which misses captive portals) — drain the outbox on every
+	// transition to connected. Ordering vs. the reconnect refetch above does not
+	// matter: the drain fires its own catch-up refetch when it empties (§4.8).
+	let lastReplayConnected = $state(false);
+	$effect(() => {
+		const connected = eventsClient.connected;
+		if (connected && !lastReplayConnected) kickReplay();
+		lastReplayConnected = connected;
+	});
+
+	// After the outbox drains (§4.8), pull server truth once — the same one-shot
+	// catch-up as the SSE reconnect above, but keyed on the replay-finished signal
+	// so a page that reconnected before replay completed still sees the result.
+	useCatchupRefetch(
+		() => statusStore.syncedAt,
+		() => void refreshAll()
+	);
 
 	$effect(() => {
 		if (auth.status !== 'authenticated') {

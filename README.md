@@ -19,6 +19,7 @@ Turboist is a task management app for the rest of us.
 - Public View — [docs/public-mode.md](docs/public-mode.md)
 - Google Calendar integration (read-only) — [docs/google-calendar.md](docs/google-calendar.md)
 - Native iOS & Android apps (Capacitor) — [docs/mobile.md](docs/mobile.md)
+- Offline support — read cached screens plus queued task complete/uncomplete/inbox-add — [docs/offline.md](docs/offline.md)
 - [Public API](API.md)
 
 ## Quick start
@@ -43,10 +44,10 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [Public mode](docs/public-mode.md)
 - [Google Calendar](docs/google-calendar.md)
 - [Mobile apps (iOS & Android)](docs/mobile.md)
+- [Offline support](docs/offline.md)
 
 ## RoadMap
 
-- Offline-first
 - Feature: Constraints
 
 ## License

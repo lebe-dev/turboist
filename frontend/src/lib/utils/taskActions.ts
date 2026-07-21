@@ -17,7 +17,13 @@ function tr(key: string, values?: Record<string, string | number | Date>): strin
 }
 
 export function describeError(err: unknown, fallback: string): string {
-	if (err instanceof ApiError) return err.message || fallback;
+	if (err instanceof ApiError) {
+		// A whitelisted mutation attempted while offline (client.ts, §4.4): the
+		// synthetic `offline_unsupported` code carries an English message; map it to
+		// the localized string instead of surfacing that raw text.
+		if (err.code === 'offline_unsupported') return tr('offline.unsupported');
+		return err.message || fallback;
+	}
 	if (err instanceof Error) return err.message;
 	return fallback;
 }

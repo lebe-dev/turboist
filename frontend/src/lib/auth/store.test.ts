@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthStore } from './store.svelte';
+import { decideAuthRedirect } from './guard';
+import type { RefreshTokenStore } from '../native/secureToken';
 
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -191,5 +193,88 @@ describe('AuthStore', () => {
 		expect(store.status).toBe('authenticated');
 		expect(store.setupRequired).toBe(false);
 		expect(store.user).toEqual({ id: 1, username: 'eu' });
+	});
+
+	// §4.9 — boot without network: /auth/refresh fails by network error (status 0).
+	it('bootstrap → refresh network error → offlineSession, renders from cache, no /login', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		// A single rejected /auth/refresh; NO follow-up /config probe must be made.
+		fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+		const result = await store.bootstrap();
+
+		expect(store.offlineSession).toBe(true);
+		// Stays 'authenticated' so the (app) shell renders the cached workspace.
+		expect(store.status).toBe('authenticated');
+		expect(store.user).toBeNull();
+		expect(result.authenticated).toBe(false);
+		// Server unreachable: we must NOT probe /config after the network failure.
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		// The redirect guard must keep the user on their current route.
+		expect(decideAuthRedirect(store, '/today')).toBeNull();
+	});
+
+	// §4.9 — an explicit 401 from /auth/refresh is a real rejection → guest → /login.
+	it('bootstrap → refresh 401 → guest, offlineSession stays false, redirects to /login', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(emptyResponse(401))
+			.mockResolvedValueOnce(emptyResponse(401));
+
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+		await store.bootstrap();
+
+		expect(store.offlineSession).toBe(false);
+		expect(store.status).toBe('guest');
+		expect(decideAuthRedirect(store, '/today')).toBe('/login');
+	});
+
+	// §4.9 — native: a stored refresh token that fails by network must NOT be
+	// cleared (the session survives the offline boot); we enter an offline session.
+	it('bootstrap (native) → stored token + network error → offlineSession, token kept', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+		const set = vi.fn<RefreshTokenStore['set']>().mockResolvedValue();
+		const tokenStore: RefreshTokenStore = {
+			get: vi.fn<RefreshTokenStore['get']>().mockResolvedValue('RT'),
+			set
+		};
+
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			clientKind: 'ios',
+			tokenStore
+		});
+		await store.bootstrap();
+
+		expect(store.offlineSession).toBe(true);
+		expect(store.status).toBe('authenticated');
+		// The dead-token clear (set(null)) must NOT run on a network error.
+		expect(set).not.toHaveBeenCalled();
+	});
+
+	// §4.9 — native: a stored token rejected by the server (401) IS dead → cleared.
+	it('bootstrap (native) → stored token rejected 401 → guest, token cleared', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock
+			.mockResolvedValueOnce(emptyResponse(401)) // /auth/refresh
+			.mockResolvedValueOnce(emptyResponse(401)); // /config probe
+		const set = vi.fn<RefreshTokenStore['set']>().mockResolvedValue();
+		const tokenStore: RefreshTokenStore = {
+			get: vi.fn<RefreshTokenStore['get']>().mockResolvedValue('RT'),
+			set
+		};
+
+		const store = new AuthStore({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			clientKind: 'ios',
+			tokenStore
+		});
+		await store.bootstrap();
+
+		expect(store.offlineSession).toBe(false);
+		expect(store.status).toBe('guest');
+		expect(set).toHaveBeenCalledWith(null);
 	});
 });

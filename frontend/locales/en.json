@@ -995,6 +995,20 @@
 	"offline": {
 		"banner": "No connection",
 		"bannerStale": "No connection — showing data as of {at}",
-		"retry": "Retry"
+		"retry": "Retry",
+		"unsupported": "Unavailable offline",
+		"replayFailed": "{count} changes could not be sent",
+		"pendingCount": "{count} changes waiting to send",
+		"awaitingSend": "Awaiting send",
+		"unsentTitle": "Unsent changes",
+		"unsentSectionDescription": "Changes you made offline that the server rejected. Retry to send again, or remove to discard.",
+		"unsentEmpty": "No unsent changes.",
+		"unsentOpComplete": "Complete task",
+		"unsentOpUncomplete": "Reopen task",
+		"unsentOpCreateInbox": "New inbox task",
+		"unsentRetry": "Retry",
+		"unsentRemove": "Remove",
+		"unsentBody": "You have {count} unsent changes. Sign out and discard them?",
+		"unsentDiscard": "Sign out & discard"
 	}
 }

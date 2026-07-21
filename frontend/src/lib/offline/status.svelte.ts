@@ -30,6 +30,14 @@ function createStatusStore(isSseConnected: () => boolean = () => false) {
 	// `eventsClient.reconnectedAt`. Driven by the replay engine in Epic C/E; it
 	// lives here so subscribers can wire against it alongside `reconnectedAt`.
 	let syncedAt = $state<number | null>(null);
+	// Number of mutations waiting in the outbox (§4.7). The outbox is the source
+	// of truth: the bridge pushes the queue length after each offline enqueue
+	// (`tryEnqueue`), and the replay engine (Epic C3) after each drain.
+	let pendingOps = $state(0);
+	// Number of quarantined mutations in `failedOps` (§4.7). Mirrors `pendingOps`:
+	// the bridge pushes the failed-store length on assembly and after each replay
+	// drain (via the `onFailed` hook), and on manual retry/remove from settings.
+	let failedOps = $state(0);
 
 	if (typeof window !== 'undefined') {
 		window.addEventListener('online', () => {
@@ -60,6 +68,12 @@ function createStatusStore(isSseConnected: () => boolean = () => false) {
 		get syncedAt(): number | null {
 			return syncedAt;
 		},
+		get pendingOps(): number {
+			return pendingOps;
+		},
+		get failedOps(): number {
+			return failedOps;
+		},
 		/**
 		 * Record a request outcome — the authoritative online/offline signal. A
 		 * success also stamps `lastSyncAt` (last time we reached the server).
@@ -80,6 +94,14 @@ function createStatusStore(isSseConnected: () => boolean = () => false) {
 		/** One-shot replay-finished signal (driven by the replay engine, Epic C/E). */
 		noteSynced(): void {
 			syncedAt = Date.now();
+		},
+		/** Set the pending-op count from the outbox (its source of truth, §4.7). */
+		setPendingOps(count: number): void {
+			pendingOps = count;
+		},
+		/** Set the failed-op count from `failedOps` (its source of truth, §4.7). */
+		setFailedOps(count: number): void {
+			failedOps = count;
 		}
 	};
 }

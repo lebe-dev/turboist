@@ -995,6 +995,20 @@
 	"offline": {
 		"banner": "Нет соединения",
 		"bannerStale": "Нет соединения — показаны данные на {at}",
-		"retry": "Повторить"
+		"retry": "Повторить",
+		"unsupported": "Недоступно без сети",
+		"replayFailed": "Не удалось отправить изменений: {count}",
+		"pendingCount": "Изменений ждут отправки: {count}",
+		"awaitingSend": "Ожидает отправки",
+		"unsentTitle": "Неотправленные изменения",
+		"unsentSectionDescription": "Изменения, сделанные без сети, которые сервер отклонил. Повторите отправку или удалите их.",
+		"unsentEmpty": "Нет неотправленных изменений.",
+		"unsentOpComplete": "Завершение задачи",
+		"unsentOpUncomplete": "Отмена завершения задачи",
+		"unsentOpCreateInbox": "Новая задача в инбоксе",
+		"unsentRetry": "Повторить",
+		"unsentRemove": "Убрать",
+		"unsentBody": "У вас {count} неотправленных изменений. Выйти и удалить их?",
+		"unsentDiscard": "Выйти и удалить"
 	}
 }

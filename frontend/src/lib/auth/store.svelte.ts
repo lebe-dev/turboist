@@ -12,6 +12,16 @@ import { getServerUrl } from '../native/serverUrl';
 
 export type AuthStatus = 'loading' | 'guest' | 'authenticated';
 
+// Outcome of the boot-time refresh attempt (§4.9). Distinguishing a network
+// failure from an auth rejection is what lets an offline boot render from cache
+// instead of bouncing to /login.
+//  - 'ok'       — refresh succeeded, an access token is set;
+//  - 'network'  — the server was unreachable (ApiError.status === 0): offline
+//                 session, NOT a rejection — the stored token is left intact;
+//  - 'rejected' — the server responded and rejected the token (401/403), or
+//                 (native) there is no stored token at all → plain guest.
+type RefreshOutcome = 'ok' | 'network' | 'rejected';
+
 export interface AuthStoreOptions {
 	baseUrl?: string;
 	fetchImpl?: typeof fetch;
@@ -36,6 +46,11 @@ export class AuthStore {
 	status = $state<AuthStatus>('loading');
 	setupRequired = $state<boolean>(false);
 	awaitingOtp = $state<boolean>(false);
+	// True when the app booted without reaching the server (§4.9): the session
+	// could not be validated, so we render from the read-through cache instead of
+	// redirecting to /login. Cleared the moment we get a definitive answer — a
+	// successful login, a real refresh rejection (onRefreshFailure) or logout.
+	offlineSession = $state<boolean>(false);
 
 	// Ticket from /auth/login that authorises a follow-up /auth/login/otp.
 	// Kept in memory only — never persisted to localStorage.
@@ -59,6 +74,8 @@ export class AuthStore {
 				this.user = null;
 				this.accessToken = null;
 				this.status = 'guest';
+				// A hard rejection ends any offline session: fall through to /login.
+				this.offlineSession = false;
 			},
 			onLog: (entry) => addApiLogEntry(entry),
 			clientOrigin,
@@ -72,13 +89,28 @@ export class AuthStore {
 
 	async bootstrap(): Promise<BootstrapResult> {
 		this.status = 'loading';
+		this.offlineSession = false;
 
-		const refreshed = await this.tryRefresh();
-		if (!refreshed) {
-			// Refresh failed (no cookie or expired): probe /api/v1/config without
-			// auth. SetupCheckMiddleware runs before the auth middleware on the
-			// /api/v1 group, so an un-set-up instance returns 503 setup_required;
-			// a set-up instance returns 401 (which we treat as plain guest).
+		const outcome = await this.tryRefresh();
+
+		if (outcome === 'network') {
+			// Boot without network (§4.9): the server was unreachable, so the
+			// session cannot be validated. Do NOT bounce to /login — enter an
+			// offline session and let the (app) shell render from the read-through
+			// cache. `status` stays 'authenticated' so the existing render/load
+			// gates work unchanged; the first request after reconnect either
+			// refreshes silently or, on a truly dead token, 401s →
+			// onRefreshFailure → guest → /login.
+			this.offlineSession = true;
+			this.status = 'authenticated';
+			return { setupRequired: false, authenticated: false };
+		}
+
+		if (outcome === 'rejected') {
+			// Refresh failed with a server response (no/expired token): probe
+			// /api/v1/config without auth. SetupCheckMiddleware runs before the auth
+			// middleware on the /api/v1 group, so an un-set-up instance returns 503
+			// setup_required; a set-up instance returns 401 (plain guest).
 			const setupNeeded = await this.probeSetupRequired();
 			this.setupRequired = setupNeeded;
 			this.status = 'guest';
@@ -113,25 +145,36 @@ export class AuthStore {
 		}
 	}
 
-	private async tryRefresh(): Promise<boolean> {
+	private async tryRefresh(): Promise<RefreshOutcome> {
+		let stored: string | undefined;
+		if (this.tokenStore) {
+			const rt = await this.tokenStore.get();
+			// Native and logged out: no stored token → plain guest, no network call
+			// (and therefore no offline session — there is nothing to render).
+			if (!rt) return 'rejected';
+			stored = rt;
+		}
 		try {
-			let stored: string | undefined;
-			if (this.tokenStore) {
-				const rt = await this.tokenStore.get();
-				// Native and logged out: no stored token → plain guest, no network call.
-				if (!rt) return false;
-				stored = rt;
-			}
 			const res = await auth.refresh(this.client, stored);
 			this.accessToken = res.access;
 			if (this.tokenStore && res.refresh) await this.tokenStore.set(res.refresh);
-			return true;
+			return 'ok';
 		} catch (err) {
-			if (this.tokenStore && err instanceof ApiError && err.status === 401) {
+			// Network error (ApiError.status === 0): the server is unreachable, not
+			// rejecting us. Keep the stored token — it may still be valid — and let
+			// bootstrap enter an offline session (§4.9).
+			if (err instanceof ApiError && err.status === 0) {
+				return 'network';
+			}
+			if (
+				this.tokenStore &&
+				err instanceof ApiError &&
+				(err.status === 401 || err.status === 403)
+			) {
 				// Dead token — clear it so we don't retry the same one every launch.
 				await this.tokenStore.set(null);
 			}
-			return false;
+			return 'rejected';
 		}
 	}
 
@@ -145,6 +188,7 @@ export class AuthStore {
 		this.user = res.user;
 		this.status = 'authenticated';
 		this.setupRequired = false;
+		this.offlineSession = false;
 		if (this.tokenStore && res.refresh) await this.tokenStore.set(res.refresh);
 	}
 
@@ -206,6 +250,7 @@ export class AuthStore {
 		this.status = 'guest';
 		this.otpTicket = null;
 		this.awaitingOtp = false;
+		this.offlineSession = false;
 		if (this.tokenStore) await this.tokenStore.set(null);
 	}
 }

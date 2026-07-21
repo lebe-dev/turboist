@@ -62,6 +62,9 @@ export interface FailedOp extends QueuedOp {
 	errorMessage: string;
 }
 
+/** Failure metadata stamped onto an op when it is quarantined (§4.6). */
+export type OpFailure = Pick<FailedOp, 'failedAt' | 'errorCode' | 'errorMessage'>;
+
 interface MetaRow {
 	key: string;
 	value: unknown;
@@ -83,6 +86,8 @@ export interface OfflineDB {
 	listOutbox(): Promise<QueuedOp[]>;
 	updateOutbox(op: QueuedOp): Promise<void>;
 	deleteOutbox(seq: number): Promise<void>;
+	/** Atomically relocate a queued op into `failedOps`, stamping failure metadata (§4.6). */
+	moveToFailed(op: QueuedOp, failure: OpFailure): Promise<void>;
 
 	// failedOps (quarantined mutations, surfaced to the user)
 	listFailed(): Promise<FailedOp[]>;
@@ -93,6 +98,12 @@ export interface OfflineDB {
 	// meta (key/value)
 	getMeta<T = unknown>(key: string): Promise<T | undefined>;
 	setMeta(key: string, value: unknown): Promise<void>;
+	/**
+	 * Mint the next tmp id for an offline-created entity: a strictly-decreasing
+	 * NEGATIVE integer `-(++meta.tmpIdCounter)`, persisted so ids stay unique
+	 * across restarts and never collide with server autoincrement ids (§4.5).
+	 */
+	nextTmpId(): Promise<number>;
 
 	// whole database
 	clearAll(): Promise<void>;
@@ -220,6 +231,13 @@ function createWrapper(db: IDBPDatabase<OfflineSchema>): OfflineDB {
 		async deleteOutbox(seq) {
 			await db.delete('outbox', seq);
 		},
+		async moveToFailed(op, failure) {
+			// One transaction so an op is never lost between the two stores.
+			const tx = db.transaction(['outbox', 'failedOps'], 'readwrite');
+			await tx.objectStore('failedOps').put({ ...op, ...failure });
+			await tx.objectStore('outbox').delete(op.seq);
+			await tx.done;
+		},
 
 		async listFailed() {
 			return db.getAll('failedOps');
@@ -240,6 +258,18 @@ function createWrapper(db: IDBPDatabase<OfflineSchema>): OfflineDB {
 		},
 		async setMeta(key, value) {
 			await db.put('meta', { key, value });
+		},
+		async nextTmpId() {
+			// Read-modify-write the counter in one transaction so concurrent enqueues
+			// never mint the same tmp id.
+			const tx = db.transaction('meta', 'readwrite');
+			const store = tx.objectStore('meta');
+			const row = await store.get('tmpIdCounter');
+			const current = typeof row?.value === 'number' ? row.value : 0;
+			const next = current + 1;
+			await store.put({ key: 'tmpIdCounter', value: next });
+			await tx.done;
+			return -next;
 		},
 
 		async clearAll() {
@@ -311,6 +341,10 @@ async function migrateSchema(db: OfflineDB): Promise<void> {
 }
 
 function createNoopDB(): OfflineDB {
+	// In-memory only; nothing persists. Offline mutations are unsupported without
+	// IndexedDB (the bridge answers `offline_unsupported`), so this counter never
+	// needs to survive a restart — it exists only so the surface stays total.
+	let tmpCounter = 0;
 	return {
 		available: false,
 		getResponse: async () => null,
@@ -322,12 +356,14 @@ function createNoopDB(): OfflineDB {
 		listOutbox: async () => [],
 		updateOutbox: async () => {},
 		deleteOutbox: async () => {},
+		moveToFailed: async () => {},
 		listFailed: async () => [],
 		pushFailed: async () => {},
 		deleteFailed: async () => {},
 		clearFailed: async () => {},
 		getMeta: async () => undefined,
 		setMeta: async () => {},
+		nextTmpId: async () => -(++tmpCounter),
 		clearAll: async () => {},
 		close: () => {}
 	};

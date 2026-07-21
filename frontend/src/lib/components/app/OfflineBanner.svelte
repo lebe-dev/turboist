@@ -1,8 +1,10 @@
 <script lang="ts">
 	import WifiSlashIcon from 'phosphor-svelte/lib/WifiSlash';
 	import ArrowsClockwiseIcon from 'phosphor-svelte/lib/ArrowsClockwise';
+	import HourglassMediumIcon from 'phosphor-svelte/lib/HourglassMedium';
 	import { t } from '$lib/i18n';
 	import { statusStore } from '$lib/offline/status.svelte';
+	import { syncReplay } from '$lib/offline';
 	import { configStore } from '$lib/stores/config.svelte';
 	import type { EventScope } from '$lib/realtime/events.svelte';
 
@@ -35,6 +37,9 @@
 			// runs through ApiClient, so its outcome updates the online/offline
 			// heuristic and — on success — the banner hides reactively.
 			await configStore.load();
+			// Manual "Sync" (§4.6): flush any queued offline mutations now that we
+			// may be back online. Fire-and-forget — its own refetch signal follows.
+			void syncReplay();
 		} catch {
 			// Still offline: the failed request already recorded the outcome, so the
 			// banner stays. Nothing else to do here.
@@ -61,6 +66,14 @@
 				{$t('offline.banner')}
 			{/if}
 		</span>
+		{#if statusStore.pendingOps > 0}
+			<span
+				class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300"
+			>
+				<HourglassMediumIcon class="size-3.5" weight="fill" />
+				{$t('offline.pendingCount', { values: { count: statusStore.pendingOps } })}
+			</span>
+		{/if}
 		<button
 			type="button"
 			onclick={retry}

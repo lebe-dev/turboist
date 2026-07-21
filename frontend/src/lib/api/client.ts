@@ -26,11 +26,17 @@ export interface OfflineBridge {
 	/** Write a successful GET response through to the cache. */
 	cachePut(path: string, query: unknown, payload: unknown): Promise<void>;
 	/**
-	 * Enqueue a whitelisted mutation and synthesize a success response, or null
-	 * when the operation is not supported offline. Wired in Epic C — the B3
-	 * read-path integration never calls it.
+	 * Enqueue a whitelisted mutation (§4.4/§4.5) and synthesize a success response,
+	 * or null when the operation is not supported offline (not whitelisted, targets
+	 * a tmp task, or no IndexedDB). `fetch` calls this on a status-0 mutation and
+	 * turns null into an `offline_unsupported` ApiError.
 	 */
-	tryEnqueue(path: string, method: string, body: unknown): Promise<{ response: unknown } | null>;
+	tryEnqueue(
+		path: string,
+		method: string,
+		body: unknown,
+		idempotencyKey?: string
+	): Promise<{ response: unknown } | null>;
 	/** Signal for the online/offline heuristic: a request succeeded (true) or hit a network error (false). */
 	noteRequestOutcome(ok: boolean): void;
 }
@@ -117,6 +123,27 @@ export class ApiClient {
 			: null;
 		const start = performance.now();
 
+		// Idempotency-Key on every mutation while the offline layer is active
+		// (§4.4 step 1). One key per fetch() call: setting it on init.headers here
+		// means doRequest — which rebuilds Headers from init on each attempt —
+		// reuses the SAME key on its internal 401 retry, so a refresh-and-retry
+		// never double-executes on the backend. A replayed op passes its stored
+		// key via init.idempotencyKey; otherwise we mint a fresh UUID. Purely-online
+		// builds (no bridge) add nothing, keeping their behaviour bit-for-bit.
+		// The exact key sent to the server, captured so a lost-response mutation is
+		// enqueued and replayed under THE SAME key (§6 scenario 3) — otherwise the
+		// server would not recognise the replay and would re-execute (duplicate task
+		// / double RRULE advance).
+		let idempotencyKey: string | undefined;
+		if (isMutation && this.offline) {
+			const headers = new Headers(init.headers ?? {});
+			if (!headers.has('Idempotency-Key')) {
+				headers.set('Idempotency-Key', init.idempotencyKey ?? crypto.randomUUID());
+				init = { ...init, headers };
+			}
+			idempotencyKey = headers.get('Idempotency-Key') ?? undefined;
+		}
+
 		// Cache-first when we already believe we are offline (GET only): return the
 		// cached payload immediately without waiting on the 15s network timeout, and
 		// fire a background probe that refreshes the cache and flips us back online on
@@ -144,9 +171,8 @@ export class ApiClient {
 			return result;
 		} catch (err) {
 			// A network error (status 0) with the offline layer active: serve a stale
-			// GET from cache if we have one; otherwise fall through and rethrow.
-			// (Epic C adds the mutation-enqueue branch here — B3 leaves mutations
-			// untouched, so a failed mutation just rethrows as before.)
+			// GET from cache, or queue a whitelisted mutation and hand back a
+			// synthesized success (§4.4). skipOffline (replay reissue) opts out.
 			if (err instanceof ApiError && err.status === 0 && this.offline && !init.skipOffline) {
 				this.offline.noteRequestOutcome(false);
 				if (!isMutation) {
@@ -155,9 +181,19 @@ export class ApiClient {
 						this.emitLog(method, url, null, start, reqBody, hit.payload, null);
 						return hit.payload as T;
 					}
+				} else {
+					// The bridge enqueues the op and synthesizes its response. We do NOT
+					// fire onMutation — the change is not on the server yet, and the
+					// outbox owns the pending-count update; firing it would kick a
+					// pointless offline refetch storm. A non-whitelisted op → null →
+					// offline_unsupported, surfaced by describeError.
+					const queued = await this.offline.tryEnqueue(path, method, init.body, idempotencyKey);
+					if (queued) {
+						this.emitLog(method, url, null, start, reqBody, queued.response, null);
+						return queued.response as T;
+					}
+					throw new ApiError('offline_unsupported', 'action unavailable offline', 0);
 				}
-				// TODO(Epic C, §4.4): mutation → this.offline.tryEnqueue(...) and, on
-				// success, return the synthesized response; else throw 'offline_unsupported'.
 			}
 			const status = err instanceof ApiError ? err.status : null;
 			const errMsg = err instanceof Error ? err.message : String(err);

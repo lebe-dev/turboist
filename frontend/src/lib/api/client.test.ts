@@ -445,17 +445,6 @@ describe('ApiClient.fetch offline integration (GET path)', () => {
 		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(false);
 	});
 
-	it('does not enqueue or synthesize on a failed mutation (Epic C owns that) and rethrows', async () => {
-		const bridge = makeBridge();
-		const { client, fetchMock } = makeOfflineClient(bridge);
-		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
-
-		await expect(
-			client.fetch('/api/v1/tasks/1/complete', { method: 'POST' })
-		).rejects.toMatchObject({ status: 0 });
-		expect(bridge.tryEnqueue).not.toHaveBeenCalled();
-	});
-
 	it('serves cache-first when offline and refreshes via a background network probe', async () => {
 		const bridge = makeBridge({
 			isOffline: vi.fn(() => true),
@@ -532,6 +521,155 @@ describe('ApiClient.fetch offline integration (GET path)', () => {
 	});
 });
 
+describe('ApiClient.fetch offline integration (mutation path)', () => {
+	beforeEach(() => {
+		vi.useRealTimers();
+	});
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('attaches one Idempotency-Key to a mutation and reuses it across a 401 retry', async () => {
+		const bridge = makeBridge();
+		const { client, fetchMock } = makeOfflineClient(bridge, 'old-access');
+		fetchMock
+			// initial POST → 401 auth_expired
+			.mockResolvedValueOnce(
+				jsonResponse({ error: { code: 'auth_expired', message: 'e' } }, 401)
+			)
+			// /auth/refresh → new access
+			.mockResolvedValueOnce(jsonResponse({ access: 'new-access', refresh: 'r' }))
+			// retried POST → success
+			.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+		await client.fetch('/api/v1/tasks/1/complete', { method: 'POST' });
+
+		const firstHeaders = fetchMock.mock.calls[0][1]!.headers as Headers;
+		const retryHeaders = fetchMock.mock.calls[2][1]!.headers as Headers;
+		const key = firstHeaders.get('Idempotency-Key');
+		expect(key).toBeTruthy();
+		// The internal retry reuses the exact same key (one key per fetch() call).
+		expect(retryHeaders.get('Idempotency-Key')).toBe(key);
+		// The refresh request itself carries no idempotency key.
+		const refreshHeaders = fetchMock.mock.calls[1][1]!.headers as Headers;
+		expect(refreshHeaders.get('Idempotency-Key')).toBeNull();
+	});
+
+	it('honors an explicit init.idempotencyKey (replay reuse)', async () => {
+		const bridge = makeBridge();
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+		await client.fetch('/api/v1/tasks/1/complete', {
+			method: 'POST',
+			idempotencyKey: 'replay-key'
+		});
+
+		const headers = fetchMock.mock.calls[0][1]!.headers as Headers;
+		expect(headers.get('Idempotency-Key')).toBe('replay-key');
+	});
+
+	it('does not attach an Idempotency-Key to GET requests', async () => {
+		const bridge = makeBridge();
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+		await client.fetch('/api/v1/tasks/1');
+
+		const headers = fetchMock.mock.calls[0][1]!.headers as Headers;
+		expect(headers.get('Idempotency-Key')).toBeNull();
+	});
+
+	it('enqueues a mutation that failed with network_error and returns the synthesized response', async () => {
+		const synthesized = { id: 1, status: 'completed' };
+		const bridge = makeBridge({ tryEnqueue: vi.fn(async () => ({ response: synthesized })) });
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		const result = await client.fetch('/api/v1/tasks/1/complete', { method: 'POST' });
+
+		expect(result).toEqual(synthesized);
+		expect(bridge.tryEnqueue).toHaveBeenCalledWith(
+			'/api/v1/tasks/1/complete',
+			'POST',
+			undefined,
+			expect.any(String)
+		);
+		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(false);
+	});
+
+	it('passes the request body through to tryEnqueue', async () => {
+		const bridge = makeBridge({ tryEnqueue: vi.fn(async () => ({ response: { id: -1 } })) });
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await client.fetch('/api/v1/inbox/tasks', { method: 'POST', body: { title: 'x' } });
+
+		expect(bridge.tryEnqueue).toHaveBeenCalledWith(
+			'/api/v1/inbox/tasks',
+			'POST',
+			{ title: 'x' },
+			expect.any(String)
+		);
+	});
+
+	it('enqueues under the SAME Idempotency-Key it sent to the server (§6.3 lost-response replay)', async () => {
+		const bridge = makeBridge({ tryEnqueue: vi.fn(async () => ({ response: { id: 1 } })) });
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await client.fetch('/api/v1/tasks/1/complete', { method: 'POST' });
+
+		// The key attached to the (failed) network attempt...
+		const sentKey = (fetchMock.mock.calls[0][1]!.headers as Headers).get('Idempotency-Key');
+		expect(sentKey).toBeTruthy();
+		// ...must be handed to the outbox verbatim, so replay resends it and the
+		// backend recognises the lost-response retry instead of re-executing.
+		expect(bridge.tryEnqueue.mock.calls[0][3]).toBe(sentKey);
+	});
+
+	it('throws offline_unsupported when tryEnqueue declines the op (null)', async () => {
+		const bridge = makeBridge(); // tryEnqueue → null
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await expect(
+			client.fetch('/api/v1/tasks/1/move', { method: 'POST', body: {} })
+		).rejects.toMatchObject({ code: 'offline_unsupported', status: 0 });
+		expect(bridge.tryEnqueue).toHaveBeenCalled();
+	});
+
+	it('does not fire onMutation for a queued (offline) mutation', async () => {
+		const calls: Array<[string, string]> = [];
+		const bridge = makeBridge({ tryEnqueue: vi.fn(async () => ({ response: { ok: true } })) });
+		const fetchMock = vi.fn<typeof fetch>();
+		const client = new ApiClient({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			getAccessToken: () => 'tok',
+			setAccessToken: () => {},
+			onRefreshFailure: () => {},
+			onMutation: (path, method) => calls.push([path, method]),
+			offline: bridge
+		});
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await client.fetch('/api/v1/tasks/1/complete', { method: 'POST' });
+
+		expect(calls).toHaveLength(0);
+	});
+
+	it('skipOffline mutation does not enqueue — it rethrows the network error (replay reissue)', async () => {
+		const bridge = makeBridge({ tryEnqueue: vi.fn(async () => ({ response: {} })) });
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+		await expect(
+			client.fetch('/api/v1/tasks/1/complete', { method: 'POST', skipOffline: true })
+		).rejects.toMatchObject({ status: 0 });
+		expect(bridge.tryEnqueue).not.toHaveBeenCalled();
+	});
+});
+
 describe('ApiClient.fetch without an offline bridge (regression)', () => {
 	beforeEach(() => {
 		vi.useRealTimers();
@@ -553,5 +691,15 @@ describe('ApiClient.fetch without an offline bridge (regression)', () => {
 			status: 0
 		});
 		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not attach an Idempotency-Key to mutations when no offline bridge is configured', async () => {
+		const { client, fetchMock } = makeClient();
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+		await client.fetch('/api/v1/tasks/1/complete', { method: 'POST' });
+
+		const headers = fetchMock.mock.calls[0][1]!.headers as Headers;
+		expect(headers.get('Idempotency-Key')).toBeNull();
 	});
 });

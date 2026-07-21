@@ -121,9 +121,82 @@ describe('createReadCache', () => {
 		expect((await cache.get('/api/v1/tasks'))?.payload).toEqual({ items: [{ id: 1 }] });
 	});
 
-	it('findTask is a defined reader stub that resolves to null for now (§4.5)', async () => {
+});
+
+describe('findTask cross-shape scan (§4.5)', () => {
+	let db: OfflineDB;
+	let cache: ReadCache;
+
+	afterEach(() => {
+		db?.close();
+	});
+
+	// Minimal Task carrying a Task-distinctive field (dayPart) so it is told apart
+	// from a Project, which shares the responses store and also has id/status.
+	function task(id: number, extra: Record<string, unknown> = {}) {
+		return { id, title: `t${id}`, status: 'open', dayPart: 'none', ...extra };
+	}
+
+	async function open() {
 		db = await openOfflineDB(SERVER);
 		cache = createReadCache(db);
+	}
+
+	it('returns null when nothing is cached', async () => {
+		await open();
 		expect(await cache.findTask(1)).toBeNull();
+	});
+
+	it('finds a task inside a Page<Task> (.items)', async () => {
+		await open();
+		await cache.put('/api/v1/tasks', { limit: 50 }, {
+			items: [task(1), task(2)],
+			total: 2,
+			limit: 50,
+			offset: 0
+		});
+		expect(await cache.findTask(2)).toMatchObject({ id: 2, title: 't2' });
+		expect(await cache.findTask(99)).toBeNull();
+	});
+
+	it('finds a task inside an InboxResponse (.tasks[])', async () => {
+		await open();
+		await cache.put('/api/v1/inbox', undefined, {
+			count: 1,
+			warnThresholdExceeded: false,
+			tasks: [task(3)]
+		});
+		expect(await cache.findTask(3)).toMatchObject({ id: 3 });
+	});
+
+	it('finds a task inside a TodayBundle (today / overdue / completedToday)', async () => {
+		await open();
+		await cache.put('/api/v1/views/today', undefined, {
+			today: { items: [task(4)], total: 1 },
+			overdue: { items: [task(5)], total: 1 },
+			completedToday: { items: [task(6, { status: 'completed' })], total: 1 }
+		});
+		expect(await cache.findTask(4)).toMatchObject({ id: 4 });
+		expect(await cache.findTask(5)).toMatchObject({ id: 5 });
+		expect(await cache.findTask(6)).toMatchObject({ id: 6, status: 'completed' });
+	});
+
+	it('finds a task inside a ProjectBundle (.tasks.items) without matching the project', async () => {
+		await open();
+		await cache.put('/api/v1/projects/1/bundle', undefined, {
+			// The project shares the id namespace but is NOT a task and must be ignored.
+			project: { id: 1, title: 'proj', status: 'open', projectType: 'generic' },
+			sections: { items: [], total: 0, limit: 0, offset: 0 },
+			tasks: { items: [task(7)], total: 1, limit: 50, offset: 0 }
+		});
+		expect(await cache.findTask(7)).toMatchObject({ id: 7 });
+		// id 1 is the project, not a task — no false positive.
+		expect(await cache.findTask(1)).toBeNull();
+	});
+
+	it('finds a bare Task response (GET /api/v1/tasks/:id)', async () => {
+		await open();
+		await cache.put('/api/v1/tasks/8', undefined, task(8));
+		expect(await cache.findTask(8)).toMatchObject({ id: 8 });
 	});
 });

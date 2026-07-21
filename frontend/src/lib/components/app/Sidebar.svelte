@@ -36,11 +36,14 @@
 	import { modShortcut } from '$lib/utils/platform';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { getAuthStore } from '$lib/auth/store.svelte';
+	import { runLogout } from '$lib/auth/logoutFlow';
+	import { statusStore, clearOfflineData } from '$lib/offline';
 	import { goto } from '$app/navigation';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import SidebarSection from './SidebarSection.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
+	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
 	import type { TroikiCategory } from '$lib/api/types';
 	import { t } from '$lib/i18n';
@@ -159,8 +162,48 @@
 		userStateStore.clear();
 	}
 
+	// Logout with the §4.9 unsent-changes gate. When the offline outbox is
+	// non-empty we confirm before discarding it; the offline IndexedDB is only
+	// wiped once the user agrees (runLogout owns that ordering).
+	let logoutConfirmOpen = $state(false);
+	let logoutPendingCount = $state(0);
+	let confirmResolver: ((ok: boolean) => void) | null = null;
+
+	// Bridge the confirm dialog to a promise: open it and resolve when the user
+	// confirms (onConfirmDiscard) or dismisses it (the effect below).
+	function confirmDiscard(count: number): Promise<boolean> {
+		logoutPendingCount = count;
+		confirmResolver = null;
+		logoutConfirmOpen = true;
+		return new Promise<boolean>((res) => {
+			confirmResolver = res;
+		});
+	}
+
+	// Dialog dismissed without confirming (Cancel / overlay / Esc) → abort logout.
+	$effect(() => {
+		if (!logoutConfirmOpen && confirmResolver) {
+			const res = confirmResolver;
+			confirmResolver = null;
+			res(false);
+		}
+	});
+
+	function onConfirmDiscard(): void {
+		const res = confirmResolver;
+		confirmResolver = null;
+		res?.(true);
+	}
+
 	async function onLogout(): Promise<void> {
-		await auth.logout();
+		const completed = await runLogout({
+			pendingOps: () => statusStore.pendingOps,
+			failedOps: () => statusStore.failedOps,
+			confirmDiscard,
+			logout: () => auth.logout(),
+			clearOffline: () => clearOfflineData()
+		});
+		if (!completed) return;
 		clearStores();
 		await goto(resolve('/login'));
 	}
@@ -428,3 +471,10 @@
 
 <LabelDialog bind:open={labelDialogOpen} />
 <ProjectDialog bind:open={projectDialogOpen} defaultContextId={projectDialogContextId} />
+<ConfirmDestructiveDialog
+	bind:open={logoutConfirmOpen}
+	title={$t('offline.unsentTitle')}
+	description={$t('offline.unsentBody', { values: { count: logoutPendingCount } })}
+	confirmLabel={$t('offline.unsentDiscard')}
+	onConfirm={onConfirmDiscard}
+/>

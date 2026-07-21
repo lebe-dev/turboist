@@ -14,6 +14,8 @@
 	import { isNativePlatform } from '$lib/native/platform';
 	import { initDeepLinks } from '$lib/native/deepLink';
 	import { loadServerUrl, saveServerUrl } from '$lib/native/serverUrl';
+	import { shouldForceReload } from '$lib/sw/reload';
+	import { statusStore } from '$lib/offline';
 	import { initSentry } from '$lib/observability/sentry';
 	import ConnectServer from '$lib/components/ConnectServer.svelte';
 
@@ -31,10 +33,21 @@
 	// chunk hashes no longer exist, so a SPA navigation would crash the router
 	// with "Cannot read properties of undefined (reading 'universal')".
 	// Web-only: the native bundle is local and version.json never flips.
+	// §5.3: gate the forced reload on `statusStore.online` — reloading while
+	// offline (before the service worker is active) would white-screen, and with
+	// the SW active it is pointless. The 60s version poll itself is untouched.
 	beforeNavigate((nav) => {
-		if (!native && updated.current && !nav.willUnload && nav.to?.url) {
+		const target = nav.to?.url;
+		const force = shouldForceReload({
+			native,
+			updated: updated.current,
+			willUnload: nav.willUnload,
+			hasTarget: Boolean(target),
+			online: statusStore.online
+		});
+		if (force && target) {
 			nav.cancel();
-			window.location.href = nav.to.url.href;
+			window.location.href = target.href;
 		}
 	});
 

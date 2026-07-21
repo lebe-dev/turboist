@@ -23,4 +23,9 @@ describe('describeError', () => {
 		expect(describeError(null, 'Fallback')).toBe('Fallback');
 		expect(describeError({ code: 'x' }, 'Fallback')).toBe('Fallback');
 	});
+
+	it('maps the offline_unsupported code to the localized message, ignoring the raw text', () => {
+		const err = new ApiError('offline_unsupported', 'action unavailable offline', 0);
+		expect(describeError(err, 'Fallback')).toBe('Unavailable offline');
+	});
 });

@@ -91,6 +91,42 @@ describe('openOfflineDB', () => {
 		expect(await db.getMeta<string>('serverUrl')).toBe(SERVER_A);
 	});
 
+	it('mints strictly-decreasing negative tmp ids, persisted across reopen', async () => {
+		db = await openOfflineDB(SERVER_A);
+		expect(await db.nextTmpId()).toBe(-1);
+		expect(await db.nextTmpId()).toBe(-2);
+		expect(await db.getMeta<number>('tmpIdCounter')).toBe(2);
+		db.close();
+
+		// The counter survives a restart so a tmp id is never reused.
+		db = await openOfflineDB(SERVER_A);
+		expect(await db.nextTmpId()).toBe(-3);
+	});
+
+	it('moveToFailed relocates a queued op into failedOps with failure metadata', async () => {
+		db = await openOfflineDB(SERVER_A);
+		const seq = await db.enqueue(op({ type: 'task.complete', payload: { taskId: 5 } }));
+		const [queued] = await db.listOutbox();
+
+		await db.moveToFailed(queued, {
+			failedAt: '2026-02-02T00:00:00.000Z',
+			errorCode: 'conflict',
+			errorMessage: 'task not found'
+		});
+
+		expect(await db.listOutbox()).toHaveLength(0);
+		const failed = await db.listFailed();
+		expect(failed).toHaveLength(1);
+		expect(failed[0]).toMatchObject({
+			seq,
+			type: 'task.complete',
+			payload: { taskId: 5 },
+			failedAt: '2026-02-02T00:00:00.000Z',
+			errorCode: 'conflict',
+			errorMessage: 'task not found'
+		});
+	});
+
 	it('evicts the oldest responses beyond the 500 cap', async () => {
 		db = await openOfflineDB(SERVER_A);
 		const base = Date.UTC(2020, 0, 1);

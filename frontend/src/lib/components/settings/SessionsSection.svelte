@@ -5,11 +5,21 @@
 	import DesktopIcon from 'phosphor-svelte/lib/Desktop';
 	import DeviceMobileIcon from 'phosphor-svelte/lib/DeviceMobile';
 	import TerminalIcon from 'phosphor-svelte/lib/Terminal';
+	import ArrowsClockwiseIcon from 'phosphor-svelte/lib/ArrowsClockwise';
+	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { t, locale } from '$lib/i18n';
 	import { getApiClient, sessions, auth, type Session } from '$lib/api';
 	import { getAuthStore } from '$lib/auth/store.svelte';
+	import {
+		statusStore,
+		clearOfflineData,
+		listFailedOps,
+		retryFailed,
+		removeFailed,
+		type FailedOp
+	} from '$lib/offline';
 	import { describeError } from '$lib/utils/taskActions';
 	import { Button } from '$lib/components/ui/button';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
@@ -27,6 +37,60 @@
 	let logoutAllOpen = $state(false);
 
 	const hasOthers = $derived(items.some((s) => !s.isCurrent));
+
+	// Offline "Unsent changes" recovery (§4.7.3): ops the replay engine gave up on.
+	// Re-fetched from IndexedDB whenever statusStore.failedOps changes — a manual
+	// retry/remove here, or a background replay quarantine, all move it.
+	let failedItems = $state<FailedOp[]>([]);
+	let failedBusySeq = $state<number | null>(null);
+	// Both counts must be gone before a logout wipe is silent (§4.7.3, §4.9).
+	const unsentTotal = $derived(statusStore.pendingOps + statusStore.failedOps);
+
+	$effect(() => {
+		// Registers the reactive dependency (same idiom as +layout.svelte); the list
+		// then mirrors the counter after every change.
+		void statusStore.failedOps;
+		void loadFailed();
+	});
+
+	async function loadFailed(): Promise<void> {
+		failedItems = await listFailedOps();
+	}
+
+	function failedOpLabel(type: FailedOp['type']): string {
+		switch (type) {
+			case 'task.complete':
+				return $t('offline.unsentOpComplete');
+			case 'task.uncomplete':
+				return $t('offline.unsentOpUncomplete');
+			case 'task.createInbox':
+				return $t('offline.unsentOpCreateInbox');
+			default:
+				return type;
+		}
+	}
+
+	async function onRetryFailed(seq: number): Promise<void> {
+		if (failedBusySeq !== null) return;
+		failedBusySeq = seq;
+		try {
+			await retryFailed(seq);
+			await loadFailed();
+		} finally {
+			failedBusySeq = null;
+		}
+	}
+
+	async function onRemoveFailed(seq: number): Promise<void> {
+		if (failedBusySeq !== null) return;
+		failedBusySeq = seq;
+		try {
+			await removeFailed(seq);
+			await loadFailed();
+		} finally {
+			failedBusySeq = null;
+		}
+	}
 
 	onMount(load);
 
@@ -88,6 +152,9 @@
 		logoutAllBusy = true;
 		try {
 			await authStore.logoutAll();
+			// Confirmed logout wipes the offline cache + outbox (§4.9); the dialog
+			// already warned about any unsent changes before we got here.
+			await clearOfflineData();
 			await goto(resolve('/login'));
 		} catch {
 			toast.error($t('settings.session.logoutAllFailed'));
@@ -263,6 +330,56 @@
 	</div>
 </section>
 
+<section class="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+	<div class="flex flex-col gap-0.5">
+		<h2 class="text-sm font-semibold">{$t('offline.unsentTitle')}</h2>
+		<p class="text-xs text-muted-foreground">{$t('offline.unsentSectionDescription')}</p>
+	</div>
+
+	{#if failedItems.length === 0}
+		<p class="text-xs text-muted-foreground">{$t('offline.unsentEmpty')}</p>
+	{:else}
+		<ul class="flex flex-col gap-2">
+			{#each failedItems as f (f.seq)}
+				<li
+					class="flex items-start justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2.5"
+				>
+					<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+						<span class="truncate text-sm font-medium">{failedOpLabel(f.type)}</span>
+						<span class="text-xs text-muted-foreground">
+							<code
+								class="rounded bg-muted/50 px-1 py-0.5 font-mono text-[11px] text-foreground/70"
+								>{f.errorCode}</code
+							>
+							{f.errorMessage}
+						</span>
+					</div>
+					<div class="flex shrink-0 items-center gap-1.5">
+						<button
+							type="button"
+							class="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+							onclick={() => onRetryFailed(f.seq)}
+							disabled={failedBusySeq !== null}
+						>
+							<ArrowsClockwiseIcon class="size-3.5 {failedBusySeq === f.seq ? 'animate-spin' : ''}" />
+							{$t('offline.unsentRetry')}
+						</button>
+						<button
+							type="button"
+							class="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+							onclick={() => onRemoveFailed(f.seq)}
+							disabled={failedBusySeq !== null}
+						>
+							<TrashIcon class="size-3.5" />
+							{$t('offline.unsentRemove')}
+						</button>
+					</div>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+</section>
+
 <AlertDialog.Root bind:open={revokeOpen}>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
@@ -304,6 +421,11 @@
 			<AlertDialog.Description>
 				{$t('settings.sessions.confirmLogoutAllDescription')}
 			</AlertDialog.Description>
+			{#if unsentTotal > 0}
+				<p class="text-sm font-medium text-amber-600 dark:text-amber-400">
+					{$t('offline.unsentBody', { values: { count: unsentTotal } })}
+				</p>
+			{/if}
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>{$t('common.cancel')}</AlertDialog.Cancel>

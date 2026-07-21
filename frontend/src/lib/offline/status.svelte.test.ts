@@ -86,4 +86,28 @@ describe('status store', () => {
 		s.noteSynced();
 		expect(typeof s.syncedAt).toBe('number');
 	});
+
+	it('mirrors setFailedOps into the failedOps getter', () => {
+		const s = createStatusStore(() => false);
+		expect(s.failedOps).toBe(0);
+
+		s.setFailedOps(3);
+		expect(s.failedOps).toBe(3);
+
+		s.setFailedOps(0);
+		expect(s.failedOps).toBe(0);
+	});
+
+	it('tracks pendingOps and failedOps as independent counters', () => {
+		const s = createStatusStore(() => false);
+		s.setPendingOps(2);
+		s.setFailedOps(5);
+		expect(s.pendingOps).toBe(2);
+		expect(s.failedOps).toBe(5);
+
+		// Draining the queue must not disturb the quarantined count.
+		s.setPendingOps(0);
+		expect(s.pendingOps).toBe(0);
+		expect(s.failedOps).toBe(5);
+	});
 });
