@@ -11,7 +11,7 @@ import {
 	type ReplayEngine
 } from './outbox';
 import { matchOp } from './ops/registry';
-import { createReadCache, type ReadCache } from './readCache';
+import { createReadCache, matchTaskDetailPath, type ReadCache } from './readCache';
 import { statusStore } from './status.svelte';
 
 export { statusStore, createStatusStore } from './status.svelte';
@@ -42,6 +42,23 @@ export interface OfflineBridgeOptions {
  * degrades to a pure-online pass-through (every cache read misses, every mutation
  * reports unsupported).
  */
+/**
+ * Last resort for `GET /api/v1/tasks/:id` (the task detail page): the detail GET
+ * itself is only cached after the page has been opened online, so a task the user
+ * can see in a cached list would otherwise fail to open offline. Rebuild the
+ * response from the tasks the cache already holds.
+ */
+async function taskDetailFallback(
+	cache: ReadCache,
+	path: string,
+	query: unknown
+): Promise<{ payload: unknown; storedAt: string } | null> {
+	const id = matchTaskDetailPath(path);
+	if (id === null) return null;
+	const wantsSubtasks = (query as { subtasks?: unknown } | undefined)?.subtasks === 'true';
+	return cache.findTaskDetail(id, wantsSubtasks);
+}
+
 export function createOfflineBridge(options: OfflineBridgeOptions): OfflineBridge {
 	// Open the DB once and share the handle between the read-through cache and the
 	// outbox: the mutation path needs both the raw DB (enqueue / tmpId / queue
@@ -83,7 +100,7 @@ export function createOfflineBridge(options: OfflineBridgeOptions): OfflineBridg
 		},
 		async cacheGet(path, query) {
 			const cache = await cachePromise;
-			const hit = await cache.get(path, query);
+			const hit = (await cache.get(path, query)) ?? (await taskDetailFallback(cache, path, query));
 			if (!hit) return null;
 			// A cache hit is only ever consulted when live data could not be served
 			// (cache-first while offline, or a network-error fallback), so the view

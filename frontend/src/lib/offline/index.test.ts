@@ -52,6 +52,19 @@ describe('createOfflineBridge', () => {
 		expect(statusStore.servedStale).toBe(false);
 	});
 
+	it('serves the task detail GET from a task cached inside a list', async () => {
+		const b = bridge();
+		await b.cachePut('/api/v1/inbox', undefined, {
+			tasks: [
+				{ id: 7, title: 't7', status: 'open', dayPart: 'none', parentId: null },
+				{ id: 8, title: 't8', status: 'open', dayPart: 'none', parentId: 7 }
+			]
+		});
+
+		const hit = await b.cacheGet('/api/v1/tasks/7', { subtasks: 'true' });
+		expect(hit?.payload).toMatchObject({ id: 7, subtasks: { items: [{ id: 8 }], total: 1 } });
+	});
+
 	it('returns null and leaves servedStale untouched on a cache miss', async () => {
 		const b = bridge();
 		statusStore.clearStale();

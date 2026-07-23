@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openOfflineDB, type OfflineDB } from './db';
-import { createReadCache, isCacheable, type ReadCache } from './readCache';
+import { createReadCache, isCacheable, matchTaskDetailPath, type ReadCache } from './readCache';
 
 const SERVER = 'https://x.example.com';
 
@@ -198,5 +198,88 @@ describe('findTask cross-shape scan (§4.5)', () => {
 		await open();
 		await cache.put('/api/v1/tasks/8', undefined, task(8));
 		expect(await cache.findTask(8)).toMatchObject({ id: 8 });
+	});
+});
+
+describe('matchTaskDetailPath', () => {
+	it('matches the task detail GET and extracts the id (tmp ids included)', () => {
+		expect(matchTaskDetailPath('/api/v1/tasks/42')).toBe(42);
+		expect(matchTaskDetailPath('/api/v1/tasks/42?subtasks=true')).toBe(42);
+		expect(matchTaskDetailPath('/api/v1/tasks/-3')).toBe(-3);
+	});
+
+	it('does not match list or sub-resource paths', () => {
+		expect(matchTaskDetailPath('/api/v1/tasks')).toBeNull();
+		expect(matchTaskDetailPath('/api/v1/tasks/42/complete')).toBeNull();
+		expect(matchTaskDetailPath('/api/v1/projects/42')).toBeNull();
+	});
+});
+
+describe('findTaskDetail synthesis for the task page', () => {
+	let db: OfflineDB;
+	let cache: ReadCache;
+
+	afterEach(() => {
+		db?.close();
+	});
+
+	function task(id: number, extra: Record<string, unknown> = {}) {
+		return { id, title: `t${id}`, status: 'open', dayPart: 'none', parentId: null, ...extra };
+	}
+
+	async function open(now?: () => string) {
+		db = await openOfflineDB(SERVER);
+		cache = createReadCache(db, now);
+	}
+
+	it('returns null when the task is nowhere in cache', async () => {
+		await open();
+		await cache.put('/api/v1/inbox', undefined, { tasks: [task(1)] });
+		expect(await cache.findTaskDetail(2, true)).toBeNull();
+	});
+
+	it('synthesizes a detail payload from a task cached inside a list', async () => {
+		await open(() => '2026-07-15T00:00:00.000Z');
+		await cache.put('/api/v1/inbox', undefined, { tasks: [task(1), task(2)] });
+
+		const hit = await cache.findTaskDetail(2, false);
+		expect(hit?.payload).toMatchObject({ id: 2, title: 't2' });
+		expect(hit?.storedAt).toBe('2026-07-15T00:00:00.000Z');
+	});
+
+	it('collects subtasks by parentId across cached entries', async () => {
+		await open();
+		await cache.put('/api/v1/views/today', undefined, { today: { items: [task(1)] } });
+		await cache.put('/api/v1/inbox', undefined, {
+			tasks: [task(10, { parentId: 1 }), task(11, { parentId: 1 }), task(12)]
+		});
+
+		const hit = await cache.findTaskDetail(1, true);
+		const payload = hit?.payload as { subtasks: { items: { id: number }[]; total: number } };
+		expect(payload.subtasks.items.map((t) => t.id).sort()).toEqual([10, 11]);
+		expect(payload.subtasks.total).toBe(2);
+	});
+
+	it('reuses subtasks embedded in a previously cached detail response', async () => {
+		await open();
+		await cache.put('/api/v1/tasks/1', { subtasks: 'true' }, {
+			...task(1),
+			subtasks: { items: [task(10, { parentId: 1 })], total: 1, limit: 50, offset: 0 }
+		});
+
+		// A request without the subtasks flag misses the exact key, but the task is
+		// still reachable through the detail scan.
+		const hit = await cache.findTaskDetail(1, true);
+		const payload = hit?.payload as { subtasks: { items: { id: number }[] } };
+		expect(payload.subtasks.items.map((t) => t.id)).toEqual([10]);
+	});
+
+	it('omits the subtasks field when the caller did not ask for it', async () => {
+		await open();
+		await cache.put('/api/v1/inbox', undefined, {
+			tasks: [task(1), task(10, { parentId: 1 })]
+		});
+		const hit = await cache.findTaskDetail(1, false);
+		expect(hit?.payload).not.toHaveProperty('subtasks');
 	});
 });

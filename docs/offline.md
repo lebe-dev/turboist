@@ -36,7 +36,10 @@ The whole data layer (cache + outbox) lives in `frontend/src/lib/offline/` and w
 - **Read-through cache.** GET responses are cached in IndexedDB (`db.ts`, `readCache.ts`).
   On a network error the client serves the cached copy (cache-first with a background
   probe) and flips the offline banner; a cache miss surfaces a clear "needs connection"
-  error rather than an infinite spinner.
+  error rather than an infinite spinner. `GET /api/v1/tasks/:id` (the task detail page)
+  has one extra fallback: when its own response was never cached, the payload is rebuilt
+  from the task as it appears in any cached list, with its subtasks gathered by
+  `parentId` — so any task visible offline can also be opened.
 - **Semantic outbox.** A whitelisted mutation issued offline is matched to one of the three
   ops, synthesized into an optimistic response, applied to the cache (so it survives a
   restart), and enqueued (`outbox.ts`, `ops/`). The replay engine drains the queue FIFO
@@ -103,6 +106,8 @@ Before each run: be logged in and online once so the cache is warm.
 - [ ] **Today renders from cache** — no infinite spinner.
 - [ ] The **offline banner** is visible and shows the "data as of {time}" timestamp.
 - [ ] Navigate to a project you visited online → it renders from cache.
+- [ ] Open a **task page** for a task visible in a cached list but never opened online →
+      it renders from cache (title, fields, subtasks), not a "fetch failed" toast.
 - [ ] Navigate to a project you did **not** visit online → a clear "needs connection"
       error appears (NOT an infinite spinner, NOT a blank screen).
 - [ ] Go back online → banner clears, a background refetch pulls live data.

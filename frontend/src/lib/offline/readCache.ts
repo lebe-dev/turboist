@@ -44,6 +44,27 @@ export interface ReadCacheReader {
 	 * synthesizers fall back to a minimal Task.
 	 */
 	findTask(id: number): Promise<unknown | null>;
+	/**
+	 * Synthesize a `GET /api/v1/tasks/:id` response for the task detail page from
+	 * whatever the cache already holds. The page is reachable from every list, but
+	 * its own detail GET is only cached once it has been opened online (and under
+	 * its exact `?subtasks=true` key), so without this a cached task opened offline
+	 * fails with a bare network error. The task is looked up across all cached
+	 * shapes (like `findTask`) and, when `includeSubtasks` is set, its children are
+	 * gathered by `parentId` from every cached entry. Null when the task is nowhere
+	 * in cache.
+	 */
+	findTaskDetail(
+		id: number,
+		includeSubtasks: boolean
+	): Promise<{ payload: unknown; storedAt: string } | null>;
+}
+
+/** `GET /api/v1/tasks/:id` (task detail, tmp ids included) → the id; null otherwise. */
+export function matchTaskDetailPath(path: string): number | null {
+	const clean = path.split('?', 1)[0];
+	const match = /^\/api\/v1\/tasks\/(-?\d+)$/.exec(clean);
+	return match ? Number(match[1]) : null;
 }
 
 /**
@@ -80,6 +101,35 @@ export function createReadCache(
 				if (found) return found;
 			}
 			return null;
+		},
+		async findTaskDetail(id, includeSubtasks) {
+			// One pass over the cache: remember every task it holds (for the subtask
+			// scan) and keep the freshest copy of the requested one.
+			const known = new Map<number, Record<string, unknown>>();
+			let found: Record<string, unknown> | null = null;
+			let storedAt: string | null = null;
+			for (const entry of await db.getAllResponses()) {
+				const inEntry = new Map<number, Record<string, unknown>>();
+				collectTasks(entry.payload, inEntry);
+				const hit = inEntry.get(id);
+				if (hit && (storedAt === null || entry.storedAt > storedAt)) {
+					found = hit;
+					storedAt = entry.storedAt;
+				}
+				for (const [taskId, task] of inEntry) {
+					if (!known.has(taskId)) known.set(taskId, task);
+				}
+			}
+			if (!found || storedAt === null) return null;
+
+			const { subtasks: _embedded, ...task } = found;
+			if (!includeSubtasks) return { payload: task, storedAt };
+
+			const items = [...known.values()].filter((t) => t.parentId === id);
+			return {
+				payload: { ...task, subtasks: { items, total: items.length, limit: items.length, offset: 0 } },
+				storedAt
+			};
 		},
 		async getAll() {
 			return db.getAllResponses();
@@ -143,6 +193,30 @@ export function candidateLists(payload: unknown): unknown[][] {
 	push(p.overdue);
 	push(p.completedToday);
 	return lists;
+}
+
+/**
+ * Index every Task reachable from a cached response into `out` (first copy wins),
+ * descending into a detail response's embedded `subtasks.items` so children that
+ * appear nowhere else are still known to `findTaskDetail`.
+ */
+function collectTasks(payload: unknown, out: Map<number, Record<string, unknown>>): void {
+	if (looksLikeTask(payload)) addTask(payload, out);
+	for (const list of candidateLists(payload)) {
+		for (const item of list) {
+			if (looksLikeTask(item)) addTask(item, out);
+		}
+	}
+}
+
+function addTask(task: { id: number }, out: Map<number, Record<string, unknown>>): void {
+	const record = task as Record<string, unknown>;
+	if (!out.has(task.id)) out.set(task.id, record);
+	const embedded = (record.subtasks as { items?: unknown } | undefined)?.items;
+	if (!Array.isArray(embedded)) return;
+	for (const child of embedded) {
+		if (looksLikeTask(child)) addTask(child, out);
+	}
 }
 
 function findTaskInPayload(payload: unknown, id: number): unknown | null {
