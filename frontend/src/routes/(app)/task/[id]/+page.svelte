@@ -10,6 +10,7 @@
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
+	import ArrowElbowUpLeftIcon from 'phosphor-svelte/lib/ArrowElbowUpLeft';
 	import { Popover as PopoverPrimitive } from 'bits-ui';
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
@@ -33,6 +34,7 @@
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import { comparePriority } from '$lib/utils/priority';
+	import { splitByRootCompletion } from '$lib/utils/taskTree';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import { describeError, toggleComplete } from '$lib/utils/taskActions';
@@ -62,8 +64,12 @@
 	const sortedSubtasks = $derived(
 		[...subtasks.items].sort((a, b) => comparePriority(a.priority, b.priority))
 	);
-	const openSubtasks = $derived(sortedSubtasks.filter((t) => t.status !== 'completed'));
-	const completedSubtasks = $derived(sortedSubtasks.filter((t) => t.status === 'completed'));
+	// Split on each task's top-most ancestor within this (now multi-level)
+	// subtree, so a completed grandchild still renders inline under an open
+	// parent instead of being pulled out into the completed group on its own.
+	const subtasksSplit = $derived(splitByRootCompletion(sortedSubtasks));
+	const openSubtasks = $derived(subtasksSplit.open);
+	const completedSubtasks = $derived(subtasksSplit.done);
 
 	let title = $state('');
 	let description = $state('');
@@ -333,10 +339,12 @@
 				})
 			);
 			newSubtaskTitle = '';
-			const subs = await tasksApi
-				.listSubtasks(getApiClient(), task.id)
+			// Re-fetch the full (multi-level) subtree rather than direct children
+			// only, so existing grandchildren already in state aren't dropped.
+			const refreshed = await tasksApi
+				.get(getApiClient(), task.id, { includeSubtasks: true })
 				.catch(() => null);
-			if (subs) subtasks.items = subs.items;
+			if (refreshed?.subtasks) subtasks.items = refreshed.subtasks.items;
 		} catch (err) {
 			toast.error(describeError(err, $t('page.task.failedAddSubtask')));
 		} finally {
@@ -426,6 +434,15 @@ async function save(): Promise<void> {
 					style={`background-color: ${project.color}`}
 				></span>
 				<span class="truncate">{project.title}{#if settingsStore.troikiEnabled && project.troikiCategory}<TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50" />{/if}</span>
+			</a>
+		{/if}
+		{#if task?.parentId}
+			<a
+				href={resolve('/(app)/task/[id]', { id: String(task.parentId) })}
+				class="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+			>
+				<ArrowElbowUpLeftIcon class="size-3 shrink-0" />
+				<span class="truncate">{task.parentTitle ?? task.parentId}</span>
 			</a>
 		{/if}
 	</div>

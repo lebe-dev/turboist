@@ -161,6 +161,25 @@ func (r *TaskRepo) ListSubtasks(ctx context.Context, parentID int64) ([]model.Ta
 	return out, err
 }
 
+// ListSubtasksRecursive returns every descendant of parentID at any depth
+// (children, grandchildren, ...), flat and label-hydrated, for the task
+// detail page — which nests them back into a tree client-side via
+// buildTree()'s parentId links (unlike ListSubtasks, which is direct-children
+// only and used where callers specifically want one level, e.g. the
+// add-subtask refresh and the bulk subtask-label apply).
+func (r *TaskRepo) ListSubtasksRecursive(ctx context.Context, parentID int64) ([]model.Task, error) {
+	base := `FROM tasks t WHERE t.id IN (
+		WITH RECURSIVE subtree(id) AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT tt.id FROM tasks tt JOIN subtree s ON tt.parent_id = s.id
+		)
+		SELECT id FROM subtree
+	)`
+	out, _, err := r.listWithBaseArgs(ctx, base, []any{parentID}, TaskFilter{}, Page{Limit: 500}, true)
+	return out, err
+}
+
 // --- views ---
 
 // ListToday returns open tasks with due_at within [start, start+24h).
@@ -177,10 +196,15 @@ func (r *TaskRepo) ListTomorrow(ctx context.Context, todayStart time.Time, filte
 	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true)
 }
 
-// ListCompletedInRange returns tasks marked completed within [start, end).
+// ListCompletedInRange returns tasks marked completed within [start, end),
+// ordered by completion recency (newest first). The completed view is a history
+// grouped by day, so it must be ordered by completed_at — the generic
+// priority/created_at ordering would let old high-priority completions crowd out
+// recently-completed low-priority ones once the result is truncated to the page
+// limit, dropping "yesterday" rows from the view.
 func (r *TaskRepo) ListCompletedInRange(ctx context.Context, start, end time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
 	base := "FROM tasks t WHERE t.status = 'completed' AND t.completed_at >= ? AND t.completed_at < ?"
-	return r.listWithBaseArgs(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true)
+	return r.listWithBaseArgsOrdered(ctx, base, []any{model.FormatUTC(start), model.FormatUTC(end)}, filter, page, true, "t.completed_at DESC")
 }
 
 func (r *TaskRepo) ListOverdue(ctx context.Context, todayStart time.Time, filter TaskFilter, page Page) ([]model.Task, int, error) {
@@ -318,6 +342,13 @@ func (r *TaskRepo) listWithBase(ctx context.Context, base string, filter TaskFil
 }
 
 func (r *TaskRepo) listWithBaseArgs(ctx context.Context, base string, baseArgs []any, filter TaskFilter, page Page, hydrate bool) ([]model.Task, int, error) {
+	return r.listWithBaseArgsOrdered(ctx, base, baseArgs, filter, page, hydrate, taskOrderBy)
+}
+
+// listWithBaseArgsOrdered is listWithBaseArgs with a caller-supplied ORDER BY
+// clause (already-safe SQL, never user input). Most views use the shared
+// taskOrderBy; the completed history overrides it with completed_at DESC.
+func (r *TaskRepo) listWithBaseArgsOrdered(ctx context.Context, base string, baseArgs []any, filter TaskFilter, page Page, hydrate bool, orderBy string) ([]model.Task, int, error) {
 	const op = "repo.tasks.list"
 	logQuery(ctx, op, base, baseArgs, filter, page)
 	page = page.Normalize()
@@ -334,7 +365,7 @@ func (r *TaskRepo) listWithBaseArgs(ctx context.Context, base string, baseArgs [
 	listArgs = append(listArgs, page.Limit, page.Offset)
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT `+taskColumns+` `+base+whereExtra+
-			` ORDER BY `+taskOrderBy+` LIMIT ? OFFSET ?`, listArgs...)
+			` ORDER BY `+orderBy+` LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("list tasks: %w", err))
 	}

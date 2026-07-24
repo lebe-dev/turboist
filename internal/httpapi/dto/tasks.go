@@ -38,6 +38,10 @@ type TaskDTO struct {
 	// round-trip. Other endpoints leave it nil and the `omitempty` tag
 	// keeps it out of the wire format.
 	Subtasks *PagedResponse[TaskDTO] `json:"subtasks,omitempty"`
+	// ParentTitle is populated only by the single-task GET handler (a cheap
+	// extra PK lookup) so the task detail page can show a link to the
+	// parent without a second round-trip. Nil when there is no parent.
+	ParentTitle *string `json:"parentTitle,omitempty"`
 }
 
 func TaskFromModel(t model.Task, baseURL string) TaskDTO {

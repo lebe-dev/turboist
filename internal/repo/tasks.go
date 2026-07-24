@@ -446,6 +446,28 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	return r.Get(ctx, id)
 }
 
+// CascadeDayPartToDescendants sets day_part to dp on every open descendant of
+// parentID, at any depth. Used to keep a parent's phase-of-day grouping
+// consistent with its subtasks when the parent is moved between day parts
+// (see handler.Task.Patch).
+func (r *TaskRepo) CascadeDayPartToDescendants(ctx context.Context, parentID int64, dp model.DayPart) error {
+	const op = "repo.tasks.CascadeDayPartToDescendants"
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id FROM tasks t JOIN descendants d ON t.parent_id = d.id
+		 )
+		 UPDATE tasks SET day_part = ?, updated_at = ?
+		 WHERE id IN (SELECT id FROM descendants) AND status = 'open'`,
+		parentID, string(dp), now)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("cascade day part: %w", err))
+	}
+	return nil
+}
+
 // ResetTroikiGrantedByProject clears the troiki_capacity_granted flag on every
 // task of the given project. Used when the project's Troiki category changes
 // (or is cleared) so a future complete in a new category grants capacity again.

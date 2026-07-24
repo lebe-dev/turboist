@@ -39,6 +39,27 @@ func TestParsePageParams_Clamp(t *testing.T) {
 	}
 }
 
+func TestParsePageParamsMax(t *testing.T) {
+	cases := []struct {
+		limitStr  string
+		maxLimit  int
+		wantLimit int
+	}{
+		{"500", dto.CompletedMaxLimit, 500},
+		{"1000", dto.CompletedMaxLimit, 1000},
+		{"1001", dto.CompletedMaxLimit, dto.CompletedMaxLimit},
+		{"0", dto.CompletedMaxLimit, dto.DefaultLimit},
+		// The default MaxLimit ceiling still applies through the wrapper.
+		{"500", dto.MaxLimit, dto.MaxLimit},
+	}
+	for _, tc := range cases {
+		p := dto.ParsePageParamsMax(tc.limitStr, "0", tc.maxLimit)
+		if p.Limit != tc.wantLimit {
+			t.Errorf("ParsePageParamsMax(%q, max=%d).Limit = %d; want %d", tc.limitStr, tc.maxLimit, p.Limit, tc.wantLimit)
+		}
+	}
+}
+
 func TestParsePageParams_NegativeOffset(t *testing.T) {
 	p := dto.ParsePageParams("50", "-10")
 	if p.Offset != 0 {

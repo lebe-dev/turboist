@@ -162,7 +162,7 @@ func (h *TaskViewHandler) tomorrow(c fiber.Ctx) error {
 // timezone, so today is always included. `days=1` keeps the original
 // today-only behavior.
 func (h *TaskViewHandler) completed(c fiber.Ctx) error {
-	pp := dto.ParsePageParams(c.Query("limit"), c.Query("offset"))
+	pp := dto.ParsePageParamsMax(c.Query("limit"), c.Query("offset"), dto.CompletedMaxLimit)
 	filter := parseViewFilter(c)
 	days := 1
 	if v := c.Query("days"); v != "" {

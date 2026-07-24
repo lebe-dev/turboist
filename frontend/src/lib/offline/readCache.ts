@@ -125,7 +125,7 @@ export function createReadCache(
 			const { subtasks: _embedded, ...task } = found;
 			if (!includeSubtasks) return { payload: task, storedAt };
 
-			const items = [...known.values()].filter((t) => t.parentId === id);
+			const items = collectDescendants(known, id);
 			return {
 				payload: { ...task, subtasks: { items, total: items.length, limit: items.length, offset: 0 } },
 				storedAt
@@ -228,6 +228,29 @@ function addTask(task: { id: number }, out: Map<number, Record<string, unknown>>
 	for (const child of embedded) {
 		if (looksLikeTask(child)) addTask(child, out);
 	}
+}
+
+/**
+ * Every descendant of `rootId` in `known` (children, grandchildren, ...),
+ * mirroring the backend's recursive subtree query so the offline-degraded
+ * task detail view nests the same way the online one does.
+ */
+function collectDescendants(
+	known: Map<number, Record<string, unknown>>,
+	rootId: number
+): Record<string, unknown>[] {
+	const out: Record<string, unknown>[] = [];
+	const queue = [rootId];
+	while (queue.length) {
+		const parentId = queue.shift()!;
+		for (const task of known.values()) {
+			if (task.parentId === parentId) {
+				out.push(task);
+				queue.push(task.id as number);
+			}
+		}
+	}
+	return out;
 }
 
 function findTaskInPayload(payload: unknown, id: number): unknown | null {

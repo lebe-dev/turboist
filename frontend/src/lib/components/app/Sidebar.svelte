@@ -134,13 +134,17 @@
 		)
 	);
 
-	const sidebarPinnedProjects = $derived(
-		projectsStore.pinned.filter(
-			(p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView)
-		)
-	);
-	const sidebarPinnedTasks = $derived(
-		pinnedTasksStore.items.filter((task) => {
+	const sidebarPinnedProjects = $derived.by(() => {
+		const active = userStateStore.activeContextId;
+		const scoped =
+			active == null ? projectsStore.pinned : projectsStore.pinned.filter((p) => p.contextId === active);
+		return scoped.filter((p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView));
+	});
+	const sidebarPinnedTasks = $derived.by(() => {
+		const active = userStateStore.activeContextId;
+		const scoped =
+			active == null ? pinnedTasksStore.items : pinnedTasksStore.items.filter((t) => t.contextId === active);
+		return scoped.filter((task) => {
 			if (!settingsStore.publicView) return true;
 			if (task.isPrivate) return false;
 			if (task.projectId !== null) {
@@ -148,8 +152,8 @@
 				if (project && project.isPrivate) return false;
 			}
 			return true;
-		})
-	);
+		});
+	});
 
 	function clearStores(): void {
 		contextsStore.clear();

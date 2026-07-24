@@ -78,8 +78,13 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
 	out := dto.TaskFromModel(*t, h.baseURL)
+	if t.ParentID != nil {
+		if parent, err := h.tasks.Get(c.Context(), *t.ParentID); err == nil {
+			out.ParentTitle = &parent.Title
+		}
+	}
 	if includeSubtasks {
-		items, err := h.tasks.ListSubtasks(c.Context(), id)
+		items, err := h.tasks.ListSubtasksRecursive(c.Context(), id)
 		if err != nil {
 			return httpapi.ErrInternal(msgListSubtasks).WithCause(err)
 		}
@@ -167,12 +172,14 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 	if req.DeadlineHasTime != nil {
 		u.DeadlineHasTime = req.DeadlineHasTime
 	}
+	var newDayPart *model.DayPart
 	if req.DayPart != nil {
 		dp := model.DayPart(*req.DayPart)
 		if !dp.IsValid() {
 			return httpapi.ErrValidation("invalid dayPart")
 		}
 		u.DayPart = &dp
+		newDayPart = &dp
 	}
 	if req.PlanState != nil {
 		ps := model.PlanState(*req.PlanState)
@@ -230,6 +237,12 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
 		return httpapi.ErrInternal("update task").WithCause(err)
+	}
+
+	if newDayPart != nil {
+		if err := h.taskSvc.CascadeDayPart(c.Context(), id, *newDayPart); err != nil {
+			return httpapi.ErrInternal("cascade day part").WithCause(err)
+		}
 	}
 
 	needsLabelUpdate := req.Title != nil || req.Labels != nil || len(req.RemovedAutoLabels) > 0
