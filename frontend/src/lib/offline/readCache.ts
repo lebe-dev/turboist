@@ -192,6 +192,17 @@ export function candidateLists(payload: unknown): unknown[][] {
 	push(p.today); // TodayBundle
 	push(p.overdue);
 	push(p.completedToday);
+	// TroikiViewResponse: tasks are nested two levels deep under each of the three
+	// slots (important/medium/rest) → projects[].tasks[]. Without this, a task the
+	// user can see on the cached Troiki board can't be found by findTask /
+	// findTaskDetail, so opening it offline fails (docs/offline.md).
+	for (const slot of [p.important, p.medium, p.rest]) {
+		const projects = (slot as { projects?: unknown } | undefined)?.projects;
+		if (!Array.isArray(projects)) continue;
+		for (const project of projects) {
+			push((project as { tasks?: unknown } | undefined)?.tasks);
+		}
+	}
 	return lists;
 }
 

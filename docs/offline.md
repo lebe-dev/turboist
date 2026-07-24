@@ -15,7 +15,13 @@ installed web-PWA, and the native iOS/Android apps.
 1. **Reading previously-viewed screens.** Every screen you opened while online
    (today / tomorrow / week / inbox / projects / labels / contexts / search / …) reopens
    without a network connection and shows the last known state. An offline banner appears
-   with the "data as of {time}" timestamp.
+   with the "data as of {time}" timestamp. The background cache warmer additionally
+   pre-fetches the primary sidebar destinations even if you never opened them —
+   today / tomorrow / week / **next-week (backlog)** / **pinned** / inbox / **the Troiki
+   board** / the projects, labels and contexts lists — plus the board (sections + tasks)
+   of every **pinned project**, so those open offline out of the box. A non-pinned project
+   still only opens offline once you have visited it online; an unvisited one shows a clear
+   "no connection" message rather than a raw fetch error.
 2. **A small whitelist of writes** — queued locally and replayed when the network returns:
    - `task.complete` — complete a task,
    - `task.uncomplete` — undo a completion,
@@ -106,10 +112,16 @@ Before each run: be logged in and online once so the cache is warm.
 - [ ] **Today renders from cache** — no infinite spinner.
 - [ ] The **offline banner** is visible and shows the "data as of {time}" timestamp.
 - [ ] Navigate to a project you visited online → it renders from cache.
-- [ ] Open a **task page** for a task visible in a cached list but never opened online →
-      it renders from cache (title, fields, subtasks), not a "fetch failed" toast.
-- [ ] Navigate to a project you did **not** visit online → a clear "needs connection"
-      error appears (NOT an infinite spinner, NOT a blank screen).
+- [ ] Navigate to a **pinned project** you never opened this session → it still renders
+      from cache (its board is warmed automatically).
+- [ ] Open **Next week** and the **Troiki board** without having visited them online this
+      session → both render from cache (backlog/week and the Troiki view are warmed).
+- [ ] Open a **task page** for a task visible in a cached list — including a task on the
+      **Troiki board** — but never opened online → it renders from cache (title, fields,
+      subtasks), not a "fetch failed" toast.
+- [ ] Navigate to a non-pinned project you did **not** visit online → a clear localized
+      "no connection" message appears (NOT a raw "Load failed", NOT an infinite spinner,
+      NOT a blank screen).
 - [ ] Go back online → banner clears, a background refetch pulls live data.
 
 ### 2. Complete a task offline, survive restart (§6.2)

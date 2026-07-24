@@ -199,6 +199,26 @@ describe('findTask cross-shape scan (§4.5)', () => {
 		await cache.put('/api/v1/tasks/8', undefined, task(8));
 		expect(await cache.findTask(8)).toMatchObject({ id: 8 });
 	});
+
+	it('finds a task nested in a TroikiViewResponse (slot → projects[].tasks[])', async () => {
+		await open();
+		await cache.put('/api/v1/troiki', undefined, {
+			started: true,
+			important: {
+				capacity: 3,
+				// The project shares the id namespace but is NOT a task and must be ignored.
+				projects: [{ id: 1, title: 'proj', status: 'open', projectType: 'generic', tasks: [task(10)] }]
+			},
+			medium: { capacity: 3, projects: [{ id: 2, title: 'proj2', status: 'open', projectType: 'generic', tasks: [task(11)] }] },
+			rest: { capacity: 3, projects: [] }
+		});
+		expect(await cache.findTask(10)).toMatchObject({ id: 10 });
+		expect(await cache.findTask(11)).toMatchObject({ id: 11 });
+		// The Troiki projects are not tasks — no false positive on their ids.
+		expect(await cache.findTask(1)).toBeNull();
+		// And the detail synthesis can rebuild the page for such a task.
+		expect(await cache.findTaskDetail(10, false)).not.toBeNull();
+	});
 });
 
 describe('matchTaskDetailPath', () => {

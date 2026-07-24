@@ -22,6 +22,12 @@ export function describeError(err: unknown, fallback: string): string {
 		// synthetic `offline_unsupported` code carries an English message; map it to
 		// the localized string instead of surfacing that raw text.
 		if (err.code === 'offline_unsupported') return tr('offline.unsupported');
+		// A network error / timeout that reached no cache (status 0) — e.g. opening a
+		// project offline that was never visited online. WebKit surfaces a raw
+		// "Load failed"; map it to a clear localized "needs connection" message.
+		if (err.status === 0 && (err.code === 'network_error' || err.code === 'timeout')) {
+			return tr('offline.needsConnection');
+		}
 		return err.message || fallback;
 	}
 	if (err instanceof Error) return err.message;

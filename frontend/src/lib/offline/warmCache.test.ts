@@ -12,7 +12,9 @@ describe('warmTargets', () => {
 			onRefreshFailure: () => {},
 			fetchImpl: (async (url: string) => {
 				calls.push(String(url));
-				return new Response('{}', {
+				// An empty list keeps `warmPinnedProjectBundles` from throwing on
+				// `list.items` and warms no bundles (no project is pinned here).
+				return new Response('{"items":[]}', {
 					status: 200,
 					headers: { 'Content-Type': 'application/json' }
 				});
@@ -29,13 +31,46 @@ describe('warmTargets', () => {
 				'/api/v1/tasks/today',
 				'/api/v1/tasks/tomorrow',
 				'/api/v1/tasks/week',
+				'/api/v1/tasks/backlog',
+				'/api/v1/tasks/pinned',
 				'/api/v1/inbox',
+				'/api/v1/troiki',
 				'/api/v1/projects?limit=500',
 				'/api/v1/labels?limit=500',
 				'/api/v1/contexts?limit=200'
 			])
 		);
-		expect(calls).toHaveLength(7);
+		expect(calls).toHaveLength(10);
+	});
+
+	it('warms the bundle of each pinned project (and no others)', async () => {
+		const calls: string[] = [];
+		const client = new ApiClient({
+			baseUrl: '',
+			getAccessToken: () => null,
+			setAccessToken: () => {},
+			onRefreshFailure: () => {},
+			fetchImpl: (async (url: string) => {
+				const u = String(url);
+				calls.push(u);
+				// The projects list carries one pinned + one unpinned project; every
+				// other warm GET just needs a valid empty body.
+				const body =
+					u === '/api/v1/projects?limit=500'
+						? '{"items":[{"id":7,"isPinned":true},{"id":9,"isPinned":false}]}'
+						: '{"items":[]}';
+				return new Response(body, {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				});
+			}) as unknown as typeof fetch
+		});
+		setApiClient(client);
+
+		await Promise.allSettled(warmTargets());
+
+		expect(calls).toContain('/api/v1/projects/7/bundle');
+		expect(calls).not.toContain('/api/v1/projects/9/bundle');
 	});
 });
 

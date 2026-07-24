@@ -997,6 +997,7 @@
 		"bannerStale": "No connection — showing data as of {at}",
 		"retry": "Retry",
 		"unsupported": "Unavailable offline",
+		"needsConnection": "No connection — this page hasn't been opened online yet, so there's nothing cached to show.",
 		"replayFailed": "{count} changes could not be sent",
 		"pendingCount": "{count} changes waiting to send",
 		"awaitingSend": "Awaiting send",

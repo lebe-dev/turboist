@@ -3,6 +3,7 @@ import { contexts as contextsApi } from '../api/endpoints/contexts';
 import { labels as labelsApi } from '../api/endpoints/labels';
 import { projects as projectsApi } from '../api/endpoints/projects';
 import { tasks as tasksApi } from '../api/endpoints/tasks';
+import { troiki as troikiApi } from '../api/endpoints/troiki';
 import { views as viewsApi } from '../api/endpoints/views';
 import { statusStore } from './status.svelte';
 
@@ -19,11 +20,20 @@ export const WARM_DEBOUNCE_MS = 800;
  * The paths and queries mirror exactly what the pages and domain stores request,
  * so a warmed response lands under the same canonical cache key
  * (`canonicalizeQuery`, §4.2/§4.3):
- *   - today / tomorrow / week are warmed WITHOUT a context filter, i.e. the
- *     common no-active-context case (the pages send `{ contextId: undefined }`,
- *     which canonicalizes to no query — the same key). A context-scoped visit
- *     caches its own key via that page's own online write-through.
+ *   - today / tomorrow / week / backlog / pinned are warmed WITHOUT a context
+ *     filter, i.e. the common no-active-context case (the pages send
+ *     `{ contextId: undefined }`, which canonicalizes to no query — the same key).
+ *     A context-scoped visit caches its own key via that page's own online
+ *     write-through.
+ *   - `backlog` backs the Next-week screen (it fetches backlog + week); `troiki`
+ *     backs the Troiki board — both are primary sidebar destinations that would
+ *     otherwise fail offline until visited online once.
  *   - the list limits match the stores (projects/labels 500, contexts 200).
+ *   - project bundles are per-id and cannot all be pre-warmed, so only the
+ *     *pinned* projects' bundles are warmed (`warmPinnedProjectBundles`): those
+ *     are the ones surfaced at the top of the sidebar and thus the likely offline
+ *     targets. Any other project still caches its bundle on its own online visit;
+ *     an unvisited one shows a localized "needs connection" message offline.
  *
  * Returns the in-flight promises; the caller swallows rejections.
  */
@@ -33,11 +43,29 @@ export function warmTargets(): Promise<unknown>[] {
 		viewsApi.today(client),
 		viewsApi.tomorrow(client),
 		viewsApi.week(client),
+		viewsApi.backlog(client),
+		viewsApi.pinned(client),
 		tasksApi.inbox(client),
-		projectsApi.list(client, { limit: 500 }),
+		troikiApi.view(client),
+		// Fetches (and thus caches) the projects list, then the pinned bundles.
+		warmPinnedProjectBundles(client),
 		labelsApi.list(client, { limit: 500 }),
 		contextsApi.list(client, { limit: 200 })
 	];
+}
+
+/**
+ * Warm the projects list and then the bundle of each pinned project, so the
+ * pinned projects open offline (their board — sections + tasks) without a prior
+ * online visit. The list GET write-throughs into the cache on success just like
+ * any other, so this also warms the `/projects?limit=500` entry the projects
+ * store reads. Bundle failures are isolated (`allSettled`) — one uncached
+ * project never blocks the others.
+ */
+async function warmPinnedProjectBundles(client: ReturnType<typeof getApiClient>): Promise<void> {
+	const list = await projectsApi.list(client, { limit: 500 });
+	const pinned = list.items.filter((p) => p.isPinned);
+	await Promise.allSettled(pinned.map((p) => projectsApi.bundle(client, p.id)));
 }
 
 export interface CacheWarmer {
