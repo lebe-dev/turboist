@@ -220,6 +220,43 @@ deploy-ios: cap-sync-versioned
         echo "      Settings -> General -> VPN & Device Management, then tap the app icon." >&2
     }
 
+# iOS: package an UNSIGNED Release .ipa for sideloading with AltStore/AltServer.
+# Rebuilds the web bundle, syncs it into the native project, builds the App scheme
+# for a generic iOS device with code signing switched off, then wraps the product
+# into the Payload/ layout an .ipa expects. The result lands in dist/.
+#
+# No IOS_DEV_TEAM_ID and no connected device are needed: AltStore re-signs the
+# bundle (app + the TurboistWidget extension) with your own Apple ID when you
+# install it, so any signature baked in here would just be thrown away. Transfer
+# dist/Turboist-<version>.ipa to the iPhone (AirDrop / Files / iCloud) and open it
+# with AltStore -> "+" -> pick the file. On a free Apple ID the app expires after
+# 7 days; keep AltServer reachable on this Mac so AltStore can refresh it.
+build-ipa: cap-sync-versioned
+    #!/usr/bin/env bash
+    set -euo pipefail
+    OUT="{{ justfile_directory() }}/dist"
+    IPA="$OUT/Turboist-{{ mobileVersion }}.ipa"
+    mkdir -p "$OUT"
+    cd frontend/ios/App
+    echo "==> building unsigned Release (generic/platform=iOS)"
+    xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+        -destination 'generic/platform=iOS' \
+        -derivedDataPath ../DerivedData \
+        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_REQUIRED=NO \
+        CODE_SIGN_IDENTITY="" \
+        build
+    APP="../DerivedData/Build/Products/Release-iphoneos/App.app"
+    [ -d "$APP" ] || { echo "error: $APP not found after build" >&2; exit 1; }
+    echo "==> packaging $IPA"
+    STAGE=$(mktemp -d)
+    trap 'rm -rf "$STAGE"' EXIT
+    mkdir -p "$STAGE/Payload"
+    cp -R "$APP" "$STAGE/Payload/"
+    rm -f "$IPA"
+    (cd "$STAGE" && zip -qry "$IPA" Payload)
+    echo "==> done: $IPA ($(du -h "$IPA" | cut -f1))"
+
 # Android: rebuild web, sync, open the project in Android Studio. Requires
 # ANDROID_HOME + an installed SDK to build.
 android-build: cap-sync
