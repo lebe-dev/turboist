@@ -103,6 +103,7 @@ func main() {
 	taskRepo := repo.NewTaskRepo(sqlDB, tlabels)
 	templateRepo := repo.NewTemplateRepo(sqlDB)
 	searchRepo := repo.NewSearchRepo(taskRepo, projectRepo)
+	idempotencyRepo := repo.NewIdempotencyRepo(sqlDB)
 
 	// auth
 	jwtIssuer := auth.NewJWTIssuer([]byte(env.JWTSecret))
@@ -135,10 +136,11 @@ func main() {
 		log.Info("totp 2FA disabled (TOTP_SECRET_KEY not set)")
 	}
 
-	// session cleanup
+	// session + idempotency-key cleanup (share the shutdown-scoped context)
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	defer cleanupCancel()
 	auth.StartSessionCleanup(cleanupCtx, sessionRepo, log)
+	startIdempotencyCleanup(cleanupCtx, idempotencyRepo, log)
 
 	// events hub (SSE pub/sub) — owned by main so that Deps and the events
 	// handler share the same instance.
@@ -147,24 +149,25 @@ func main() {
 
 	// HTTP app
 	deps := httpapi.Deps{
-		Log:          log,
-		JWTIssuer:    jwtIssuer,
-		UserRepo:     userRepo,
-		SessionRepo:  sessionRepo,
-		APITokenRepo: apiTokenRepo,
-		APITokenSalt: []byte(env.APITokenSalt),
-		IPLimiter:    ipLimiter,
-		ContextRepo:  ctxRepo,
-		LabelRepo:    labelRepo,
-		SectionRepo:  sectionRepo,
-		ProjectRepo:  projectRepo,
-		TaskRepo:     taskRepo,
-		PinService:   pinSvc,
-		BackupSvc:    backupSvc,
-		Cfg:          cfg,
-		BaseURL:      env.BaseURL,
-		Version:      Version,
-		EventsHub:    eventsHub,
+		Log:             log,
+		JWTIssuer:       jwtIssuer,
+		UserRepo:        userRepo,
+		SessionRepo:     sessionRepo,
+		APITokenRepo:    apiTokenRepo,
+		APITokenSalt:    []byte(env.APITokenSalt),
+		IPLimiter:       ipLimiter,
+		ContextRepo:     ctxRepo,
+		LabelRepo:       labelRepo,
+		SectionRepo:     sectionRepo,
+		ProjectRepo:     projectRepo,
+		TaskRepo:        taskRepo,
+		PinService:      pinSvc,
+		BackupSvc:       backupSvc,
+		Cfg:             cfg,
+		BaseURL:         env.BaseURL,
+		Version:         Version,
+		EventsHub:       eventsHub,
+		IdempotencyRepo: idempotencyRepo,
 
 		SentryEnabled:     env.SentryDSN != "",
 		SentryFrontendDSN: env.SentryFrontendDSN,

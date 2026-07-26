@@ -5,6 +5,7 @@
 /frontend/node_modules
 /frontend/build
 /frontend/coverage
+.claude
 /helm-chart
 *.md
 !ToS.md

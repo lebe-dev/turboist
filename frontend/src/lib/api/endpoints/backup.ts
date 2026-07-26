@@ -1,4 +1,5 @@
 import { ApiError, isApiErrorEnvelope } from '../errors';
+import { getApiClient } from '../client';
 import { getAuthStore } from '$lib/auth/store.svelte';
 
 // Backup endpoints bypass the typed ApiClient since they exchange binary
@@ -27,7 +28,7 @@ async function asApiError(response: Response): Promise<ApiError> {
 
 export const backup = {
 	async download(includeSettings: boolean): Promise<{ blob: Blob; filename: string }> {
-		const url = `/api/v1/backup${includeSettings ? '?settings=1' : ''}`;
+		const url = `${getApiClient().baseUrl}/api/v1/backup${includeSettings ? '?settings=1' : ''}`;
 		const response = await fetch(url, { headers: authHeader() });
 		if (!response.ok) {
 			throw await asApiError(response);
@@ -38,7 +39,7 @@ export const backup = {
 	},
 
 	async restore(file: File): Promise<void> {
-		const response = await fetch('/api/v1/restore', {
+		const response = await fetch(`${getApiClient().baseUrl}/api/v1/restore`, {
 			method: 'POST',
 			headers: { ...authHeader(), 'Content-Type': 'application/octet-stream' },
 			body: file

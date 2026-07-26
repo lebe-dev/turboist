@@ -17,6 +17,7 @@
 		"test:watch": "vitest"
 	},
 	"devDependencies": {
+		"@capacitor/cli": "^8",
 		"@eslint/js": "^9.18.0",
 		"@fontsource-variable/geist": "^5.2.8",
 		"@fontsource-variable/geist-mono": "^5.2.7",
@@ -33,6 +34,7 @@
 		"clsx": "^2.1.1",
 		"eslint": "^9.18.0",
 		"eslint-plugin-svelte": "^3.0.0",
+		"fake-indexeddb": "^6.2.5",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
 		"mode-watcher": "^1.1.0",
@@ -41,7 +43,7 @@
 		"prettier-plugin-svelte": "^3.3.3",
 		"prettier-plugin-tailwindcss": "^0.6.11",
 		"shadcn-svelte": "^1.2.7",
-		"svelte": "^5.55.2",
+		"svelte": "^5.0.0",
 		"svelte-check": "^4.4.6",
 		"svelte-sonner": "^1.1.0",
 		"tailwind-merge": "^3.5.0",
@@ -54,8 +56,18 @@
 		"vitest": "^3.0.0"
 	},
 	"dependencies": {
+		"@aparajita/capacitor-secure-storage": "^8",
+		"@capacitor/android": "^8",
+		"@capacitor/app": "^8",
+		"@capacitor/core": "^8",
+		"@capacitor/ios": "^8",
+		"@capacitor/keyboard": "^8",
+		"@capacitor/preferences": "^8",
+		"@capacitor/splash-screen": "^8",
+		"@capacitor/status-bar": "^8",
 		"@fontsource-variable/outfit": "^5.2.8",
 		"@sentry/sveltekit": "^10.56.0",
+		"idb": "^8.0.3",
 		"svelte-intl-precompile": "^0.12.3"
 	},
 	"resolutions": {

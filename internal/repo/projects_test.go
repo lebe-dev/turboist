@@ -336,3 +336,27 @@ func TestProjectRepo_UpdateStatus_ClearsTroikiCategoryWhenLeavingOpen(t *testing
 		t.Errorf("category after reopen: got %v, want nil", got.TroikiCategory)
 	}
 }
+
+func TestProjectRepo_UpdateStatus_ArchiveUnpins(t *testing.T) {
+	_, projects, _, _, ctxID := newProjectFixtures(t)
+	ctx := context.Background()
+
+	p, _ := projects.Create(ctx, CreateProject{ContextID: ctxID, Title: "p", Color: "blue"})
+	if err := projects.SetPinned(ctx, p.ID, true); err != nil {
+		t.Fatalf("pin: %v", err)
+	}
+
+	if err := projects.UpdateStatus(ctx, p.ID, model.ProjectStatusArchived); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	got, err := projects.Get(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.IsPinned {
+		t.Errorf("pinned after archive: got true, want false")
+	}
+	if got.PinnedAt != nil {
+		t.Errorf("pinnedAt after archive: got %v, want nil", got.PinnedAt)
+	}
+}

@@ -74,7 +74,11 @@ function createEventsClient() {
 		try {
 			const { ticket } = await eventsApi.issueTicket(getApiClient(), clientOrigin);
 			if (!started) return;
-			const url = `/api/v1/events?ticket=${encodeURIComponent(ticket)}`;
+			// Absolute against the API base so the native EventSource targets the
+			// remote server (baseUrl is '' on web → identical relative URL). This
+			// is the one cross-origin GET on the WebView stack, hence the CORS
+			// allow-list on /api/v1/events in the backend.
+			const url = `${getApiClient().baseUrl}/api/v1/events?ticket=${encodeURIComponent(ticket)}`;
 			const es = new EventSource(url);
 			source = es;
 			es.onopen = () => {

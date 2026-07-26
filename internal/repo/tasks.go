@@ -446,6 +446,28 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	return r.Get(ctx, id)
 }
 
+// CascadeDayPartToDescendants sets day_part to dp on every open descendant of
+// parentID, at any depth. Used to keep a parent's phase-of-day grouping
+// consistent with its subtasks when the parent is moved between day parts
+// (see handler.Task.Patch).
+func (r *TaskRepo) CascadeDayPartToDescendants(ctx context.Context, parentID int64, dp model.DayPart) error {
+	const op = "repo.tasks.CascadeDayPartToDescendants"
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id FROM tasks t JOIN descendants d ON t.parent_id = d.id
+		 )
+		 UPDATE tasks SET day_part = ?, updated_at = ?
+		 WHERE id IN (SELECT id FROM descendants) AND status = 'open'`,
+		parentID, string(dp), now)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("cascade day part: %w", err))
+	}
+	return nil
+}
+
 // ResetTroikiGrantedByProject clears the troiki_capacity_granted flag on every
 // task of the given project. Used when the project's Troiki category changes
 // (or is cleared) so a future complete in a new category grants capacity again.
@@ -708,7 +730,9 @@ func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// Move relocates a task and all its descendants atomically. Cycles (target ∈
+// Move relocates a task only — descendants keep their current
+// inbox/context/project/section and only stay linked via parent_id, so a
+// moved task's subtree may end up spanning two projects. Cycles (target ∈
 // subtree of taskID) are rejected with ErrCycle. Subtasks in inbox are
 // rejected by Placement.Validate (parent_id forbidden alongside inbox_id).
 func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) error {
@@ -745,20 +769,6 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 		return fmt.Errorf("move task: %w", err)
 	}
 
-	// Cascade: descendants inherit context/project/section but keep their parent links.
-	descendants, err := collectDescendants(ctx, tx, taskID)
-	if err != nil {
-		return err
-	}
-	for _, did := range descendants {
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE tasks SET inbox_id = NULL, context_id = ?, project_id = ?, section_id = ?, updated_at = ?
-			 WHERE id = ?`,
-			nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID), now, did,
-		); err != nil {
-			return fmt.Errorf("cascade move: %w", err)
-		}
-	}
 	return tx.Commit()
 }
 

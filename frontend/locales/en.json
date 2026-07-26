@@ -239,6 +239,7 @@
 			"hideUserAgent": "Hide user agent",
 			"clientWeb": "Web",
 			"clientIos": "iOS",
+			"clientAndroid": "Android",
 			"clientCli": "CLI",
 			"revoke": "Revoke",
 			"revoking": "Revoking…",
@@ -401,8 +402,20 @@
 			"syncFailed": "Failed to sync calendars",
 			"disconnectFailed": "Failed to disconnect calendar",
 			"synced": "Calendars synced",
-			"disconnected": "Calendar disconnected"
+			"disconnected": "Calendar disconnected",
+			"reconnect": "Reconnect",
+			"reauthBanner": "Google Calendar needs to be reconnected — its access has expired.",
+			"reauthTitle": "Reconnect required",
+			"reauthDescription": "Google revoked or expired the access grant. Events will not load until you re-authorize access."
 		}
+	},
+	"connect": {
+		"title": "Connect to your server",
+		"subtitle": "Enter the address of your Turboist server to continue.",
+		"connect": "Connect",
+		"checking": "Checking…",
+		"invalidUrl": "Enter a full URL starting with http:// or https://",
+		"unreachable": "Could not reach that server. Check the address and try again."
 	},
 	"auth": {
 		"signIn": "Sign in",
@@ -978,5 +991,25 @@
 		"detach": "Unharpoon",
 		"jumpTo": "Jump to: {title}",
 		"toastFailed": "Failed to update harpoon"
+	},
+	"offline": {
+		"banner": "No connection",
+		"bannerStale": "No connection — showing data as of {at}",
+		"retry": "Retry",
+		"unsupported": "Unavailable offline",
+		"needsConnection": "No connection — this page hasn't been opened online yet, so there's nothing cached to show.",
+		"replayFailed": "{count} changes could not be sent",
+		"pendingCount": "{count} changes waiting to send",
+		"awaitingSend": "Awaiting send",
+		"unsentTitle": "Unsent changes",
+		"unsentSectionDescription": "Changes you made offline that the server rejected. Retry to send again, or remove to discard.",
+		"unsentEmpty": "No unsent changes.",
+		"unsentOpComplete": "Complete task",
+		"unsentOpUncomplete": "Reopen task",
+		"unsentOpCreateInbox": "New inbox task",
+		"unsentRetry": "Retry",
+		"unsentRemove": "Remove",
+		"unsentBody": "You have {count} unsent changes. Sign out and discard them?",
+		"unsentDiscard": "Sign out & discard"
 	}
 }

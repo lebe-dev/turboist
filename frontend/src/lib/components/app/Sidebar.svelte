@@ -36,11 +36,14 @@
 	import { modShortcut } from '$lib/utils/platform';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { getAuthStore } from '$lib/auth/store.svelte';
+	import { runLogout } from '$lib/auth/logoutFlow';
+	import { statusStore, clearOfflineData } from '$lib/offline';
 	import { goto } from '$app/navigation';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import SidebarSection from './SidebarSection.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
+	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
 	import type { TroikiCategory } from '$lib/api/types';
 	import { t } from '$lib/i18n';
@@ -131,13 +134,17 @@
 		)
 	);
 
-	const sidebarPinnedProjects = $derived(
-		projectsStore.pinned.filter(
-			(p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView)
-		)
-	);
-	const sidebarPinnedTasks = $derived(
-		pinnedTasksStore.items.filter((task) => {
+	const sidebarPinnedProjects = $derived.by(() => {
+		const active = userStateStore.activeContextId;
+		const scoped =
+			active == null ? projectsStore.pinned : projectsStore.pinned.filter((p) => p.contextId === active);
+		return scoped.filter((p) => p.status === 'open' && isProjectVisible(p, settingsStore.publicView));
+	});
+	const sidebarPinnedTasks = $derived.by(() => {
+		const active = userStateStore.activeContextId;
+		const scoped =
+			active == null ? pinnedTasksStore.items : pinnedTasksStore.items.filter((t) => t.contextId === active);
+		return scoped.filter((task) => {
 			if (!settingsStore.publicView) return true;
 			if (task.isPrivate) return false;
 			if (task.projectId !== null) {
@@ -145,8 +152,8 @@
 				if (project && project.isPrivate) return false;
 			}
 			return true;
-		})
-	);
+		});
+	});
 
 	function clearStores(): void {
 		contextsStore.clear();
@@ -159,8 +166,48 @@
 		userStateStore.clear();
 	}
 
+	// Logout with the §4.9 unsent-changes gate. When the offline outbox is
+	// non-empty we confirm before discarding it; the offline IndexedDB is only
+	// wiped once the user agrees (runLogout owns that ordering).
+	let logoutConfirmOpen = $state(false);
+	let logoutPendingCount = $state(0);
+	let confirmResolver: ((ok: boolean) => void) | null = null;
+
+	// Bridge the confirm dialog to a promise: open it and resolve when the user
+	// confirms (onConfirmDiscard) or dismisses it (the effect below).
+	function confirmDiscard(count: number): Promise<boolean> {
+		logoutPendingCount = count;
+		confirmResolver = null;
+		logoutConfirmOpen = true;
+		return new Promise<boolean>((res) => {
+			confirmResolver = res;
+		});
+	}
+
+	// Dialog dismissed without confirming (Cancel / overlay / Esc) → abort logout.
+	$effect(() => {
+		if (!logoutConfirmOpen && confirmResolver) {
+			const res = confirmResolver;
+			confirmResolver = null;
+			res(false);
+		}
+	});
+
+	function onConfirmDiscard(): void {
+		const res = confirmResolver;
+		confirmResolver = null;
+		res?.(true);
+	}
+
 	async function onLogout(): Promise<void> {
-		await auth.logout();
+		const completed = await runLogout({
+			pendingOps: () => statusStore.pendingOps,
+			failedOps: () => statusStore.failedOps,
+			confirmDiscard,
+			logout: () => auth.logout(),
+			clearOffline: () => clearOfflineData()
+		});
+		if (!completed) return;
 		clearStores();
 		await goto(resolve('/login'));
 	}
@@ -251,7 +298,7 @@
 <aside
 	class="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
 >
-	<div class="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
+	<div class="flex items-center justify-between gap-2 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))]">
 		<a
 			href={resolve('/today')}
 			class="flex min-w-0 items-center gap-2 rounded-md text-foreground transition-colors hover:opacity-80"
@@ -395,7 +442,7 @@
 		</SidebarSection>
 	</div>
 
-	<div class="mt-auto border-t border-sidebar-border px-2 py-2">
+	<div class="mt-auto border-t border-sidebar-border px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2">
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}
@@ -428,3 +475,10 @@
 
 <LabelDialog bind:open={labelDialogOpen} />
 <ProjectDialog bind:open={projectDialogOpen} defaultContextId={projectDialogContextId} />
+<ConfirmDestructiveDialog
+	bind:open={logoutConfirmOpen}
+	title={$t('offline.unsentTitle')}
+	description={$t('offline.unsentBody', { values: { count: logoutPendingCount } })}
+	confirmLabel={$t('offline.unsentDiscard')}
+	onConfirm={onConfirmDiscard}
+/>

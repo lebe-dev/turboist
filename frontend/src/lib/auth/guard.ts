@@ -20,6 +20,14 @@ export function decideAuthRedirect(store: AuthStore, pathname: string): AuthRedi
 
 	if (isPublicRoute(pathname)) return null;
 
+	// Offline boot (§4.9): the server was unreachable at startup, so the session
+	// could not be validated. Never bounce to /login — stay on the current route
+	// and render from the read-through cache. A real rejection (401/403) clears
+	// offlineSession and flips status to 'guest', which falls through below.
+	if (store.offlineSession) {
+		return isAuthRoute(pathname) ? '/' : null;
+	}
+
 	if (store.setupRequired) {
 		return pathname === '/setup' ? null : '/setup';
 	}

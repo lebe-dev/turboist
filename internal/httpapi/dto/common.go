@@ -16,10 +16,21 @@ type PageParams struct {
 const (
 	DefaultLimit = 50
 	MaxLimit     = 200
+	// CompletedMaxLimit is a higher ceiling for the completed-history view,
+	// which is fetched in one shot (no pagination) and grouped by day on the
+	// client — it can legitimately span hundreds of rows over its window.
+	CompletedMaxLimit = 1000
 )
 
-// ParsePageParams reads limit/offset strings, applies defaults and clamps.
+// ParsePageParams reads limit/offset strings, applies defaults and clamps to
+// MaxLimit.
 func ParsePageParams(limitStr, offsetStr string) PageParams {
+	return ParsePageParamsMax(limitStr, offsetStr, MaxLimit)
+}
+
+// ParsePageParamsMax is ParsePageParams with a caller-supplied upper bound, for
+// views (e.g. completed history) that fetch a full window in a single request.
+func ParsePageParamsMax(limitStr, offsetStr string, maxLimit int) PageParams {
 	p := PageParams{Limit: DefaultLimit}
 	if n, err := strconv.Atoi(limitStr); err == nil {
 		p.Limit = n
@@ -30,8 +41,8 @@ func ParsePageParams(limitStr, offsetStr string) PageParams {
 	if p.Limit <= 0 {
 		p.Limit = DefaultLimit
 	}
-	if p.Limit > MaxLimit {
-		p.Limit = MaxLimit
+	if p.Limit > maxLimit {
+		p.Limit = maxLimit
 	}
 	if p.Offset < 0 {
 		p.Offset = 0

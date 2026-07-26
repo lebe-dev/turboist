@@ -2,6 +2,8 @@
 	import Sidebar from '$lib/components/app/Sidebar.svelte';
 	import Topbar from '$lib/components/app/Topbar.svelte';
 	import ContextFilterBanner from '$lib/components/app/ContextFilterBanner.svelte';
+	import CalendarReauthBanner from '$lib/components/app/CalendarReauthBanner.svelte';
+	import OfflineBanner from '$lib/components/app/OfflineBanner.svelte';
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
@@ -41,11 +43,18 @@
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
+	import { cacheWarmer, kickReplay, wireReplayTriggers, statusStore } from '$lib/offline';
+	import { useCatchupRefetch } from '$lib/hooks';
+	import { markAppLayoutReady, markAppLayoutGone, consumePendingQuickAdd } from '$lib/native/deepLink';
+	import { isNativePlatform } from '$lib/native/platform';
+	import PullToRefresh from '$lib/components/app/PullToRefresh.svelte';
 
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import CardsIcon from 'phosphor-svelte/lib/Cards';
 
 	let { children } = $props();
+
+	const native = isNativePlatform();
 
 	const TITLE_KEYS: Record<string, string> = {
 		'/today': 'nav.today',
@@ -163,6 +172,12 @@
 				// settings editor; load out-of-band so a failure never blocks
 				// the workspace.
 				void templatesStore.load().catch(() => {});
+				// Background-prewarm the key screens (today/tomorrow/week/inbox and
+				// the projects/labels/contexts lists) into the offline read-through
+				// cache (FEATURE-OFFLINE-ARCH.md §7 B5). Debounced, online-gated and
+				// fire-and-forget — never blocks the workspace, degrades to a no-op
+				// when IndexedDB is unavailable.
+				cacheWarmer.schedule();
 			} catch (err) {
 				const message = err instanceof Error ? err.message : $t('app.workspaceFailed');
 				toast.error(message);
@@ -226,15 +241,11 @@
 		};
 	});
 
-	// On SSE reconnect after a drop (e.g., the tab was suspended), the server
-	// has no replay — so refresh everything once and notify page-level views
-	// to revalidate.
-	let lastReconnect = $state<number | null>(null);
-	$effect(() => {
-		const at = eventsClient.reconnectedAt;
-		if (at === null || at === lastReconnect) return;
-		lastReconnect = at;
-		void Promise.all([
+	// Reloads shell stores and tells every page-level view (via `useInvalidation`)
+	// to revalidate. Used both after an SSE reconnect (the server has no replay)
+	// and from the native pull-to-refresh gesture.
+	async function refreshAll(): Promise<void> {
+		await Promise.all([
 			contextsStore.load(),
 			labelsStore.load(),
 			projectsStore.load(),
@@ -255,7 +266,41 @@
 		for (const scope of scopes) {
 			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
 		}
+	}
+
+	// On SSE reconnect after a drop (e.g., the tab was suspended), the server
+	// has no replay — so refresh everything once.
+	useCatchupRefetch(
+		() => eventsClient.reconnectedAt,
+		() => void refreshAll()
+	);
+
+	// Outbox replay triggers (FEATURE-OFFLINE-ARCH.md §4.6). The DOM/lifecycle
+	// triggers (window 'online', visibilitychange, app-start kick) are centralised
+	// in the offline module; wire them once the workspace is up.
+	$effect(() => {
+		if (auth.status !== 'authenticated' || !dataReady) return;
+		return wireReplayTriggers();
 	});
+
+	// A fresh SSE connection is real-time proof the network is back (and healthier
+	// than 'online', which misses captive portals) — drain the outbox on every
+	// transition to connected. Ordering vs. the reconnect refetch above does not
+	// matter: the drain fires its own catch-up refetch when it empties (§4.8).
+	let lastReplayConnected = $state(false);
+	$effect(() => {
+		const connected = eventsClient.connected;
+		if (connected && !lastReplayConnected) kickReplay();
+		lastReplayConnected = connected;
+	});
+
+	// After the outbox drains (§4.8), pull server truth once — the same one-shot
+	// catch-up as the SSE reconnect above, but keyed on the replay-finished signal
+	// so a page that reconnected before replay completed still sees the result.
+	useCatchupRefetch(
+		() => statusStore.syncedAt,
+		() => void refreshAll()
+	);
 
 	$effect(() => {
 		if (auth.status !== 'authenticated') {
@@ -287,7 +332,17 @@
 			quickOpen = true;
 		};
 		window.addEventListener('turboist:quick-add', handler);
-		return () => window.removeEventListener('turboist:quick-add', handler);
+
+		// A native deep link (lock-screen widget) that arrived before this layout
+		// was mounted stashes a pending flag instead of dispatching; drain it now
+		// that the listener is live, and let warm deep links dispatch normally.
+		markAppLayoutReady();
+		if (consumePendingQuickAdd()) onQuickAdd();
+
+		return () => {
+			markAppLayoutGone();
+			window.removeEventListener('turboist:quick-add', handler);
+		};
 	});
 
 	async function onGroupRequest(): Promise<void> {
@@ -712,15 +767,27 @@
 				onPickTemplate={quickAddHidden ? undefined : onPickTemplate}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
+			<OfflineBanner />
 			{#if !page.url.pathname.startsWith('/settings')}
 				<ContextFilterBanner />
+				<CalendarReauthBanner />
 			{/if}
 			{#if page.url.pathname === '/today'}
 				<TodayBanner />
 			{/if}
-			<main class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
-				{@render children()}
-			</main>
+			{#if native}
+				<PullToRefresh
+					tag="main"
+					onRefresh={refreshAll}
+					class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}"
+				>
+					{@render children()}
+				</PullToRefresh>
+			{:else}
+				<main class="flex-1 overflow-x-hidden overflow-y-auto {quickAddHidden ? '' : 'pb-24 md:pb-0'}">
+					{@render children()}
+				</main>
+			{/if}
 		</div>
 	</div>
 	<Sheet.Root bind:open={mobileSidebarOpen}>

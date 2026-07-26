@@ -142,3 +142,16 @@ type APIToken struct {
 	Scopes    []string
 	CreatedAt time.Time
 }
+
+// IdempotencyRecord is a reserved idempotency key. Status 0 means the request
+// is still in flight (reserved before the handler ran); a non-zero Status plus
+// Response is the stored 2xx result replayed on a duplicate request.
+type IdempotencyRecord struct {
+	Key       string
+	UserID    int64
+	Method    string
+	Path      string
+	Status    int
+	Response  string
+	CreatedAt time.Time
+}

@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '$lib/api/types';
-import { isPastCalendarEvent } from './calendar';
+import { ApiError } from '$lib/api/errors';
+import { calendarReauthStore } from '$lib/stores/calendarReauth.svelte';
+import { calendarEventsOrEmpty, isPastCalendarEvent } from './calendar';
 
 function makeEvent(overrides: Partial<CalendarEvent>): CalendarEvent {
 	return {
@@ -35,5 +37,30 @@ describe('isPastCalendarEvent', () => {
 		});
 		expect(isPastCalendarEvent(event, new Date('2026-05-16T12:00:00.000Z'), 'UTC')).toBe(false);
 		expect(isPastCalendarEvent(event, new Date('2026-05-17T00:00:00.000Z'), 'UTC')).toBe(true);
+	});
+});
+
+describe('calendarEventsOrEmpty', () => {
+	beforeEach(() => calendarReauthStore.clear());
+
+	it('flags reauth when the fetch fails with calendar_reauth_required', async () => {
+		const load = Promise.reject(
+			new ApiError('calendar_reauth_required', 'authorization expired', 409)
+		);
+		await expect(calendarEventsOrEmpty(load)).resolves.toEqual([]);
+		expect(calendarReauthStore.needed).toBe(true);
+	});
+
+	it('clears the reauth flag after a successful fetch', async () => {
+		calendarReauthStore.flag();
+		await expect(calendarEventsOrEmpty(Promise.resolve([]))).resolves.toEqual([]);
+		expect(calendarReauthStore.needed).toBe(false);
+	});
+
+	it('leaves the reauth flag untouched on an unrelated failure', async () => {
+		calendarReauthStore.flag();
+		const load = Promise.reject(new ApiError('internal_error', 'boom', 500));
+		await expect(calendarEventsOrEmpty(load)).resolves.toEqual([]);
+		expect(calendarReauthStore.needed).toBe(true);
 	});
 });

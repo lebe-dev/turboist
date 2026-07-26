@@ -266,8 +266,12 @@ func TestTaskRepo_Move_AcrossProjects(t *testing.T) {
 	if gotParent.ProjectID == nil || *gotParent.ProjectID != other.ID {
 		t.Errorf("parent project: %+v", gotParent.ProjectID)
 	}
-	if gotChild.ProjectID == nil || *gotChild.ProjectID != other.ID {
-		t.Errorf("child project: %+v", gotChild.ProjectID)
+	// Subtasks stay in their current project — only the moved task itself relocates.
+	if gotChild.ProjectID == nil || *gotChild.ProjectID != f.projectID {
+		t.Errorf("child project: got %+v, want unchanged %d", gotChild.ProjectID, f.projectID)
+	}
+	if gotChild.ParentID == nil || *gotChild.ParentID != parent.ID {
+		t.Errorf("child parent link: got %+v, want %d", gotChild.ParentID, parent.ID)
 	}
 }
 
@@ -647,6 +651,79 @@ func TestTaskRepo_Sort_PinnedAndPriority(t *testing.T) {
 	}
 	if items[2].ID != c.ID {
 		t.Errorf("third should be c, got %d", items[2].ID)
+	}
+}
+
+// completeAt is a test helper: flips a task to completed with an explicit
+// completion timestamp, mirroring what CompleteService does on the wire.
+func (f *taskFixture) completeAt(t *testing.T, id int64, at time.Time) {
+	t.Helper()
+	completed := model.TaskStatusCompleted
+	if _, err := f.tasks.Update(context.Background(), id, TaskUpdate{Status: &completed, CompletedAt: &at}); err != nil {
+		t.Fatalf("complete task %d: %v", id, err)
+	}
+}
+
+func TestTaskRepo_ListCompletedInRange_OrdersByCompletionRecency(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	base := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+
+	// Created oldest-first, but completed in a scrambled order.
+	older, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "older"})
+	middle, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "middle"})
+	newer, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "newer"})
+
+	f.completeAt(t, middle.ID, base.Add(24*time.Hour))
+	f.completeAt(t, newer.ID, base.Add(48*time.Hour))
+	f.completeAt(t, older.ID, base)
+
+	items, total, err := f.tasks.ListCompletedInRange(ctx, base.Add(-time.Hour), base.Add(72*time.Hour), TaskFilter{}, Page{Limit: 50})
+	if err != nil {
+		t.Fatalf("list completed: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total: got %d, want 3", total)
+	}
+	wantOrder := []int64{newer.ID, middle.ID, older.ID}
+	for i, want := range wantOrder {
+		if items[i].ID != want {
+			t.Errorf("position %d: got id %d, want %d", i, items[i].ID, want)
+		}
+	}
+}
+
+// A recently-completed low-priority task must survive the page limit even when
+// many higher-priority tasks were completed earlier in the window. This is the
+// regression: the completed view used to order by priority/created_at, so a
+// truncated result dropped "yesterday" rows that ranked low by priority.
+func TestTaskRepo_ListCompletedInRange_RecentSurvivesLimit(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	high := model.PriorityHigh
+	base := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+
+	// 5 high-priority tasks completed early in the window.
+	for i := range 5 {
+		tk, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "old-high", Priority: high})
+		f.completeAt(t, tk.ID, base.Add(time.Duration(i)*time.Minute))
+	}
+	// One no-priority task completed most recently.
+	recent, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "recent-low"})
+	f.completeAt(t, recent.ID, base.Add(72*time.Hour))
+
+	items, total, err := f.tasks.ListCompletedInRange(ctx, base.Add(-time.Hour), base.Add(96*time.Hour), TaskFilter{}, Page{Limit: 3})
+	if err != nil {
+		t.Fatalf("list completed: %v", err)
+	}
+	if total != 6 {
+		t.Errorf("total: got %d, want 6", total)
+	}
+	if len(items) != 3 {
+		t.Fatalf("items: got %d, want 3 (page limit)", len(items))
+	}
+	if items[0].ID != recent.ID {
+		t.Errorf("recent completion must lead the truncated page: got id %d, want %d", items[0].ID, recent.ID)
 	}
 }
 

@@ -6,7 +6,7 @@ export type ProjectStatus = 'open' | 'completed' | 'archived' | 'cancelled';
 export type ProjectType = 'generic' | 'software';
 export type DayPart = 'none' | 'morning' | 'afternoon' | 'evening';
 export type PlanState = 'none' | 'week' | 'backlog';
-export type ClientKind = 'web' | 'ios' | 'cli';
+export type ClientKind = 'web' | 'ios' | 'android' | 'cli';
 export type TroikiCategory = 'important' | 'medium' | 'rest';
 
 // Color palette is open-ended on the backend; alias for clarity.
@@ -138,6 +138,9 @@ export interface Task {
 	// Populated only by GET /tasks/:id?subtasks=true so the task detail page
 	// can fetch parent + children in one round-trip. Omitted otherwise.
 	subtasks?: Page<Task>;
+
+	// Populated only by the single-task GET handler when parentId is set.
+	parentTitle?: string;
 }
 
 export interface Page<T> {

@@ -11,6 +11,7 @@ export type ApiErrorCode =
 	| 'limit_exceeded'
 	| 'forbidden_placement'
 	| 'recurrence_invalid'
+	| 'calendar_reauth_required'
 	| 'internal_error'
 	| 'network_error'
 	| 'unknown_error';
@@ -44,6 +45,15 @@ export interface ApiErrorEnvelope {
 		message: string;
 		details?: ApiErrorDetails;
 	};
+}
+
+/**
+ * True when the failure is a Google Calendar re-authorization requirement —
+ * the stored OAuth grant expired or was revoked, so the user must reconnect.
+ * Backend signals this with a 409 `calendar_reauth_required` envelope.
+ */
+export function isCalendarReauthError(err: unknown): boolean {
+	return err instanceof ApiError && err.code === 'calendar_reauth_required';
 }
 
 export function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {

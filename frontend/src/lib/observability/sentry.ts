@@ -1,4 +1,7 @@
 import * as Sentry from '@sentry/sveltekit';
+import { isNativePlatform } from '$lib/native/platform';
+import { getServerUrl } from '$lib/native/serverUrl';
+import { ApiError } from '$lib/api/errors';
 
 interface RuntimeConfig {
 	sentry?: {
@@ -21,9 +24,14 @@ let initialized = false;
 export async function initSentry(): Promise<void> {
 	if (initialized) return;
 
+	// Native: nothing to fetch until the server URL is entered on first launch.
+	// +layout.svelte re-calls initSentry() once the URL is known. Web keeps the
+	// same-origin path ('' + '/api/config').
+	if (isNativePlatform() && !getServerUrl()) return;
+
 	let config: RuntimeConfig;
 	try {
-		const res = await fetch('/api/config', { headers: { accept: 'application/json' } });
+		const res = await fetch(`${getServerUrl()}/api/config`, { headers: { accept: 'application/json' } });
 		if (!res.ok) {
 			console.warn(`Sentry config unavailable: /api/config returned ${res.status}`);
 			return;
@@ -50,7 +58,17 @@ export async function initSentry(): Promise<void> {
 			/Failed to fetch dynamically imported module/i,
 			/Importing a module script failed/i,
 			/error loading dynamically imported module/i
-		]
+		],
+		// Offline degradation (lib/offline/) is expected behavior, not a bug to
+		// track — and attempting the report would itself just fail the same way
+		// (ERR_INTERNET_DISCONNECTED), adding noise for nothing. ApiClient wraps
+		// every failed fetch as ApiError('network_error', …, 0), so drop those
+		// here rather than at each call site.
+		beforeSend(event, hint) {
+			const err = hint?.originalException;
+			if (err instanceof ApiError && err.code === 'network_error') return null;
+			return event;
+		}
 	});
 	initialized = true;
 }

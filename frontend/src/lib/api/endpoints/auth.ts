@@ -47,9 +47,10 @@ export const auth = {
 		});
 	},
 
-	refresh(client: ApiClient): Promise<AuthRefreshResponse> {
+	refresh(client: ApiClient, refreshToken?: string): Promise<AuthRefreshResponse> {
 		return client.fetch('/auth/refresh', {
 			method: 'POST',
+			body: refreshToken ? { refresh: refreshToken } : undefined,
 			skipAuth: true,
 			skipRefresh: true,
 			credentials: 'include'

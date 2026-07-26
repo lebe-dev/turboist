@@ -19,6 +19,7 @@
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { calendarReauthStore } from '$lib/stores/calendarReauth.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { isLabelVisible } from '$lib/utils/visibility';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
@@ -51,6 +52,11 @@
 		}
 		if (page.url.searchParams.has('calendar')) {
 			activeTab = 'calendars';
+			// Returning from a successful (re)connect means the OAuth grant is
+			// healthy again — dismiss any pending re-authorization notice.
+			if (page.url.searchParams.get('calendar') === 'connected') {
+				calendarReauthStore.clear();
+			}
 		}
 	});
 

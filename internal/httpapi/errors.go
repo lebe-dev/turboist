@@ -22,6 +22,7 @@ const (
 	CodeInternalError          = "internal_error"
 	CodeSetupRequired          = "setup_required"
 	CodeCalendarReauthRequired = "calendar_reauth_required"
+	CodeIdempotencyInFlight    = "idempotency_in_flight"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -113,6 +114,14 @@ func ErrRecurrenceInvalid(msg string) *AppError {
 
 func ErrTroikiSlotFull(msg string) *AppError {
 	return newErr(409, CodeTroikiSlotFull, msg)
+}
+
+// ErrIdempotencyInFlight signals that a request carrying an Idempotency-Key
+// arrived while an earlier request with the same key is still executing (its
+// reservation has status 0). The client should retry after a short delay rather
+// than treat this as a permanent failure.
+func ErrIdempotencyInFlight() *AppError {
+	return newErr(409, CodeIdempotencyInFlight, "duplicate request in flight")
 }
 
 func ErrInternal(msg string) *AppError {

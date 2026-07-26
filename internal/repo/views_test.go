@@ -155,6 +155,70 @@ func TestTaskRepo_Views_WeekIncludesDueInRange(t *testing.T) {
 	}
 }
 
+func TestTaskRepo_Views_WeekIncludesSubtasksOutsideRange(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	weekStart := time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC) // Mon
+	weekEnd := weekStart.AddDate(0, 0, 7)
+
+	parent, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID},
+		Title:     "parent",
+		PlanState: model.PlanStateWeek,
+	})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	// Subtask with no due date and no plan_state for this week — should still
+	// surface because its ancestor belongs to the week.
+	child, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ParentID: &parent.ID},
+		Title:     "child",
+	})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	// Grandchild due far outside the week — should still surface too.
+	far := time.Date(2026, 6, 25, 9, 0, 0, 0, time.UTC)
+	grandchild, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ParentID: &child.ID},
+		Title:     "grandchild",
+		DueAt:     &far,
+	})
+	if err != nil {
+		t.Fatalf("create grandchild: %v", err)
+	}
+	// Unrelated task outside the week, no ancestor in week — must stay excluded.
+	if _, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID},
+		Title:     "unrelated-far",
+		DueAt:     &far,
+	}); err != nil {
+		t.Fatalf("create unrelated: %v", err)
+	}
+
+	items, total, err := f.tasks.ListWeek(ctx, weekStart, weekEnd, TaskFilter{})
+	if err != nil {
+		t.Fatalf("list week: %v", err)
+	}
+	if total != 1 {
+		t.Errorf("total: got %d, want 1 (subtasks must not inflate the planned count)", total)
+	}
+	got := map[int64]bool{}
+	for _, it := range items {
+		got[it.ID] = true
+	}
+	for _, want := range []int64{parent.ID, child.ID, grandchild.ID} {
+		if !got[want] {
+			t.Errorf("missing task %d in items", want)
+		}
+	}
+	if len(items) != 3 {
+		t.Errorf("items: got %d, want 3 (unrelated far task must stay excluded)", len(items))
+	}
+}
+
 func TestTaskRepo_CountOverdue(t *testing.T) {
 	f := newTaskFixture(t)
 	ctx := context.Background()

@@ -7,6 +7,9 @@ import (
 	"fmt"
 
 	"github.com/pressly/goose/v3"
+
+	// Registers the Go migrations that live alongside the .sql files.
+	_ "github.com/lebe-dev/turboist/internal/db/migrations"
 )
 
 //go:embed migrations/*.sql
