@@ -170,7 +170,7 @@ export class ApiClient {
 		// fire a background probe that refreshes the cache and flips us back online on
 		// success. skipOffline (replay engine) opts a request out of the cache entirely.
 		if (!isMutation && !init.skipOffline && this.offline?.isOffline()) {
-			const hit = await this.offline.cacheGet(path, init.query);
+			const hit = await this.cacheGetSafe(path, init.query);
 			if (hit) {
 				this.emitLog(method, url, null, start, reqBody, hit.payload, null);
 				this.probeNetworkInBackground(path, init);
@@ -243,7 +243,7 @@ export class ApiClient {
 			this.emitLog(method, url, response.status, start, reqBody, result, null);
 			this.offline?.noteRequestOutcome(true);
 			if (!isMutation && this.offline) {
-				await this.offline.cachePut(path, init.query, result);
+				await this.cachePutSafe(path, init.query, result);
 			}
 			if (this.onMutation && isMutation) {
 				this.onMutation(path, method);
@@ -256,7 +256,7 @@ export class ApiClient {
 			if (err instanceof ApiError && err.status === 0 && this.offline && !init.skipOffline) {
 				this.offline.noteRequestOutcome(false);
 				if (!isMutation) {
-					const hit = await this.offline.cacheGet(path, init.query);
+					const hit = await this.cacheGetSafe(path, init.query);
 					if (hit) {
 						this.emitLog(method, url, null, start, reqBody, hit.payload, null);
 						return hit.payload as T;
@@ -279,6 +279,38 @@ export class ApiClient {
 			const errMsg = err instanceof Error ? err.message : String(err);
 			this.emitLog(method, url, status, start, reqBody, null, errMsg);
 			throw err;
+		}
+	}
+
+	/**
+	 * Read the offline cache without ever failing the caller. The cache is a
+	 * degradation layer: a broken IndexedDB (an iOS-suspended web view, a private
+	 * window, an eviction mid-read) must look exactly like a cache miss, never like
+	 * a failed request.
+	 */
+	private async cacheGetSafe(
+		path: string,
+		query: unknown
+	): Promise<{ payload: unknown; storedAt: string } | null> {
+		try {
+			return (await this.offline?.cacheGet(path, query)) ?? null;
+		} catch (err) {
+			console.warn('[offline] cache read failed; treating as a miss', err);
+			return null;
+		}
+	}
+
+	/**
+	 * Write-through into the offline cache, best-effort. A cache write happens
+	 * AFTER the response is in hand, so letting it throw would turn a perfectly
+	 * good 200 into a failed request for the caller — which is precisely what an
+	 * IndexedDB connection killed by an app suspend used to do.
+	 */
+	private async cachePutSafe(path: string, query: unknown, result: unknown): Promise<void> {
+		try {
+			await this.offline?.cachePut(path, query, result);
+		} catch (err) {
+			console.warn('[offline] cache write failed; response served uncached', err);
 		}
 	}
 

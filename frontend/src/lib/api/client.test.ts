@@ -734,6 +734,57 @@ describe('ApiClient.fetch offline integration (GET path)', () => {
 		expect(bridge.cachePut).not.toHaveBeenCalled();
 	});
 
+	it('still returns the response when the cache write throws', async () => {
+		// A dead IndexedDB (iOS suspended the web view) must not turn a 200 into a
+		// failed request — the cache is a degradation layer, not a dependency.
+		const bridge = makeBridge({
+			cachePut: vi.fn(async () => {
+				throw Object.assign(new Error('The database connection is closing.'), {
+					name: 'InvalidStateError'
+				});
+			})
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ id: 3 }));
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await expect(client.fetch('/api/v1/tasks/3')).resolves.toEqual({ id: 3 });
+		expect(bridge.noteRequestOutcome).toHaveBeenCalledWith(true);
+		expect(warn).toHaveBeenCalled();
+	});
+
+	it('treats a throwing cache read as a miss and rethrows the network error', async () => {
+		const bridge = makeBridge({
+			cacheGet: vi.fn(async () => {
+				throw new Error('idb unavailable');
+			})
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await expect(client.fetch('/api/v1/tasks/7')).rejects.toMatchObject({
+			code: 'network_error',
+			status: 0
+		});
+		expect(warn).toHaveBeenCalled();
+	});
+
+	it('falls through to the network when the offline cache-first read throws', async () => {
+		const bridge = makeBridge({
+			isOffline: vi.fn(() => true),
+			cacheGet: vi.fn(async () => {
+				throw new Error('idb unavailable');
+			})
+		});
+		const { client, fetchMock } = makeOfflineClient(bridge);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ live: true }));
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await expect(client.fetch('/api/v1/tasks/9')).resolves.toEqual({ live: true });
+		expect(warn).toHaveBeenCalled();
+	});
+
 	it('serves a stale cache hit when a GET fails with network_error (status 0)', async () => {
 		const bridge = makeBridge({
 			cacheGet: vi.fn(async () => ({ payload: { id: 7, cached: true }, storedAt: 't' }))
