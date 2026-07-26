@@ -14,6 +14,7 @@
 .claude
 /plans/
 /coverage.*
+/dist/
 .playwright-mcp
 *.log
 .DS_Store
