@@ -31,6 +31,16 @@ export type NowFn = () => string;
 export interface OfflineOp {
 	readonly type: OfflineOpType;
 	match(path: string, method: string, body: unknown): Record<string, unknown> | null;
+	/**
+	 * Optional pre-enqueue check, run by `tryEnqueue` before anything is synthesized
+	 * or persisted. Returning false takes the same path as the tmp-id block: the
+	 * caller answers `offline_unsupported` and the UI does not change.
+	 *
+	 * Separate from `match` because `match` is synchronous and has no cache access —
+	 * a rule that depends on the cached entity (e.g. "is this task blocked?") cannot
+	 * live there.
+	 */
+	guard?(payload: Record<string, unknown>, cache: ReadCacheReader): Promise<boolean>;
 	buildRequest(payload: Record<string, unknown>): OpRequest;
 	synthesizeResponse(
 		payload: Record<string, unknown>,

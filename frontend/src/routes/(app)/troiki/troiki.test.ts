@@ -84,6 +84,8 @@ function makeTask(id: number, projectId: number, over: Partial<Task> = {}): Task
 		recurrenceRule: null,
 		sourceTaskId: null,
 		postponeCount: 0,
+		blockedByCount: 0,
+		relationCount: 0,
 		labels: [],
 		url: '',
 		createdAt: '',

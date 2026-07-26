@@ -24,6 +24,7 @@ type backupFixtures struct {
 	sections *repo.ProjectSectionRepo
 	tasks    *repo.TaskRepo
 	tlabels  *repo.TaskLabelsRepo
+	trels    *repo.TaskRelationsRepo
 	plabels  *repo.ProjectLabelsRepo
 	users    *repo.UserRepo
 	appSet   *repo.AppSettingsRepo
@@ -33,6 +34,7 @@ func setupBackupFixtures(t *testing.T) *backupFixtures {
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
+	trels := repo.NewTaskRelationsRepo(d)
 	plabels := repo.NewProjectLabelsRepo(d)
 	users := repo.NewUserRepo(d)
 	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
@@ -45,8 +47,9 @@ func setupBackupFixtures(t *testing.T) *backupFixtures {
 		labels:   repo.NewLabelRepo(d),
 		projects: repo.NewProjectRepo(d, plabels),
 		sections: repo.NewProjectSectionRepo(d),
-		tasks:    repo.NewTaskRepo(d, tlabels),
+		tasks:    repo.NewTaskRepo(d, tlabels, trels),
 		tlabels:  tlabels,
+		trels:    trels,
 		plabels:  plabels,
 		users:    users,
 		appSet:   repo.NewAppSettingsRepo(d),
@@ -104,11 +107,21 @@ func seedSample(t *testing.T, f *backupFixtures) {
 	}
 
 	// inbox task to exercise the (inbox_id IS NOT NULL XOR context_id) branch
-	if _, err := f.tasks.Create(ctx, repo.CreateTask{
+	it, err := f.tasks.Create(ctx, repo.CreateTask{
 		Placement: repo.Placement{InboxID: ptr(int64(1))},
 		Title:     "think about this later",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("inbox task: %v", err)
+	}
+
+	// One relation of each type, so the round-trip covers both the enum values and
+	// the cross-placement (project task ↔ inbox task) case.
+	if _, err := f.trels.Create(ctx, pt.ID, it.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("blocks relation: %v", err)
+	}
+	if _, err := f.trels.Create(ctx, pt.ID, it.ID, model.RelationTypeRelated); err != nil {
+		t.Fatalf("related relation: %v", err)
 	}
 }
 
@@ -677,7 +690,7 @@ func TestBackupService_RestoreEmptyPayloadWipesAll(t *testing.T) {
 	if len(got.Data.Contexts) != 0 || len(got.Data.Labels) != 0 ||
 		len(got.Data.Projects) != 0 || len(got.Data.ProjectSections) != 0 ||
 		len(got.Data.Tasks) != 0 || len(got.Data.TaskLabels) != 0 ||
-		len(got.Data.ProjectLabels) != 0 {
+		len(got.Data.ProjectLabels) != 0 || len(got.Data.TaskRelations) != 0 {
 		t.Errorf("data after empty restore: %#v, want all empty", got.Data)
 	}
 }
@@ -845,3 +858,87 @@ func mustJSON(t *testing.T, v any) []byte {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// Relations must survive an export/restore cycle with their ids intact — the API
+// addresses a relation by id, so a restore that renumbered them would break any
+// client holding one.
+func TestBackupService_RoundTripPreservesTaskRelations(t *testing.T) {
+	src := setupBackupFixtures(t)
+	seedSample(t, src)
+	ctx := context.Background()
+
+	payload, err := src.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(payload.Data.TaskRelations) != 2 {
+		t.Fatalf("exported relations: got %d, want 2", len(payload.Data.TaskRelations))
+	}
+
+	dst := setupBackupFixtures(t)
+	if err := dst.svc.Restore(ctx, payload); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := dst.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("re-export: %v", err)
+	}
+	if len(got.Data.TaskRelations) != 2 {
+		t.Fatalf("restored relations: got %d, want 2", len(got.Data.TaskRelations))
+	}
+	for i, want := range payload.Data.TaskRelations {
+		if got.Data.TaskRelations[i] != want {
+			t.Errorf("relation %d: got %+v, want %+v", i, got.Data.TaskRelations[i], want)
+		}
+	}
+	// And the restored graph must still block: a summary of zero would mean the rows
+	// landed but nothing reads them.
+	blocked, err := dst.tasks.Get(ctx, payload.Data.TaskRelations[0].TargetTaskID)
+	if err != nil {
+		t.Fatalf("get restored target: %v", err)
+	}
+	if blocked.RelationSummary.BlockedByOpen != 1 {
+		t.Errorf("restored blocked-by: got %d, want 1", blocked.RelationSummary.BlockedByOpen)
+	}
+}
+
+// Both FKs are NOT NULL, so a relation whose task was dropped by the sanitiser is
+// unrestorable and must be pruned rather than aborting the whole restore.
+func TestBackupService_SanitizeDropsTaskRelationWhenTaskMissing(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	bad := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Tasks: []service.BackupTask{
+				{
+					ID: 1, Title: "surviving inbox task", InboxID: ptr(int64(1)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: "2026-05-19T00:00:00.000Z", UpdatedAt: "2026-05-19T00:00:00.000Z",
+				},
+			},
+			TaskRelations: []service.BackupTaskRelation{
+				{ID: 1, SourceTaskID: 1, TargetTaskID: 999, Type: string(model.RelationTypeBlocks),
+					CreatedAt: "2026-05-19T00:00:00.000Z"},
+				{ID: 2, SourceTaskID: 999, TargetTaskID: 1, Type: string(model.RelationTypeRelated),
+					CreatedAt: "2026-05-19T00:00:00.000Z"},
+			},
+		},
+	}
+	if err := f.svc.Restore(ctx, bad); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(got.Data.Tasks) != 1 {
+		t.Fatalf("tasks: got %d, want 1", len(got.Data.Tasks))
+	}
+	if len(got.Data.TaskRelations) != 0 {
+		t.Errorf("task_relations: got %d, want 0 (both endpoints must exist)", len(got.Data.TaskRelations))
+	}
+}

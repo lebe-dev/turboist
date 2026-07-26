@@ -11,7 +11,7 @@ import (
 func TestTaskRepo_ListInbox(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := NewTaskLabelsRepo(d)
-	tasks := NewTaskRepo(d, tlabels)
+	tasks := NewTaskRepo(d, tlabels, NewTaskRelationsRepo(d))
 	ctx := context.Background()
 
 	inboxID := int64(1)

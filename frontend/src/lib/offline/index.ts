@@ -126,6 +126,10 @@ export function createOfflineBridge(options: OfflineBridgeOptions): OfflineBridg
 
 			const { op, payload } = match;
 			const cache = await cachePromise;
+			// Op-specific precondition against the cache (e.g. task.complete refuses a
+			// blocked task). Before synthesize/applyToCache so a refusal leaves no trace,
+			// and reusing the same null → `offline_unsupported` answer as a tmp-id block.
+			if (op.guard && !(await op.guard(payload, cache))) return null;
 			// task.createInbox: mint the stable negative id BEFORE synthesizing, so the
 			// tmp task keeps the same id across a restart and is shared with applyToCache.
 			if (op.type === 'task.createInbox') {

@@ -5,6 +5,8 @@ import type {
 	InboxResponse,
 	Page,
 	Priority,
+	RelationDirection,
+	RelationType,
 	Task,
 	TaskInput,
 	TaskMoveInput,
@@ -16,10 +18,13 @@ export const tasks = {
 	get(
 		client: ApiClient,
 		id: number,
-		options: { includeSubtasks?: boolean } = {}
+		options: { includeSubtasks?: boolean; includeRelations?: boolean } = {}
 	): Promise<Task> {
+		const query: Record<string, string> = {};
+		if (options.includeSubtasks) query.subtasks = 'true';
+		if (options.includeRelations) query.relations = 'true';
 		return client.fetch(`/api/v1/tasks/${id}`, {
-			query: options.includeSubtasks ? { subtasks: 'true' } : undefined
+			query: Object.keys(query).length > 0 ? query : undefined
 		});
 	},
 
@@ -59,6 +64,23 @@ export const tasks = {
 
 	listSubtasks(client: ApiClient, parentId: number): Promise<Page<Task>> {
 		return client.fetch(`/api/v1/tasks/${parentId}/subtasks`);
+	},
+
+	// Relations are write-only here on purpose: there is no GET for them. They ride
+	// inside `get(..., { includeRelations: true })`, and both mutations answer with
+	// the updated task (relations hydrated), so nothing needs a follow-up read —
+	// which also matters because selfRefresh deliberately does not re-dispatch the
+	// `tasks` scope for this client's own mutation.
+	addRelation(
+		client: ApiClient,
+		id: number,
+		body: { targetTaskId: number; type: RelationType; direction: RelationDirection }
+	): Promise<Task> {
+		return client.fetch(`/api/v1/tasks/${id}/relations`, { method: 'POST', body });
+	},
+
+	removeRelation(client: ApiClient, id: number, relationId: number): Promise<Task> {
+		return client.fetch(`/api/v1/tasks/${id}/relations/${relationId}`, { method: 'DELETE' });
 	},
 
 	// Build an unsaved template draft from a task and its (flattened) subtree.

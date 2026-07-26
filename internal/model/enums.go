@@ -114,6 +114,42 @@ func (c TroikiCategory) IsValid() bool {
 	return false
 }
 
+// RelationType is the kind of link between two tasks. `related` is symmetric and
+// purely informational; `blocks` is directed and enforced — a task cannot be
+// completed while any task blocking it is still open.
+type RelationType string
+
+const (
+	RelationTypeRelated RelationType = "related"
+	RelationTypeBlocks  RelationType = "blocks"
+)
+
+func (r RelationType) IsValid() bool {
+	switch r {
+	case RelationTypeRelated, RelationTypeBlocks:
+		return true
+	}
+	return false
+}
+
+// RelationDirection expresses a `blocks` relation from the point of view of the
+// task being looked at: outgoing = this task blocks the peer, incoming = the peer
+// blocks this task. Meaningless for `related`, which is symmetric.
+type RelationDirection string
+
+const (
+	RelationDirectionOutgoing RelationDirection = "outgoing"
+	RelationDirectionIncoming RelationDirection = "incoming"
+)
+
+func (d RelationDirection) IsValid() bool {
+	switch d {
+	case RelationDirectionOutgoing, RelationDirectionIncoming:
+		return true
+	}
+	return false
+}
+
 type ClientKind string
 
 const (

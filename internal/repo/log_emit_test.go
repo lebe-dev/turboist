@@ -12,7 +12,7 @@ import (
 func TestTaskRepo_LogsDebugOnGetAndErrorAbsentOnNotFound(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := NewTaskLabelsRepo(d)
-	tr := NewTaskRepo(d, tlabels)
+	tr := NewTaskRepo(d, tlabels, NewTaskRelationsRepo(d))
 	ctx, cap := ctxWithCapture(t)
 
 	_, err := tr.Get(ctx, 999999)
@@ -37,7 +37,7 @@ func TestTaskRepo_LogsDebugOnHappyPathCreate(t *testing.T) {
 	d := setupTestDB(t)
 	cr := NewContextRepo(d)
 	tlabels := NewTaskLabelsRepo(d)
-	tr := NewTaskRepo(d, tlabels)
+	tr := NewTaskRepo(d, tlabels, NewTaskRelationsRepo(d))
 	ctx, cap := ctxWithCapture(t)
 
 	c, err := cr.Create(ctx, "work", "blue", false)

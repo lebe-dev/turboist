@@ -13,7 +13,7 @@ func setupTaskService(t *testing.T, autoLabels []model.AutoLabelRule) (*service.
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	labels := repo.NewLabelRepo(d)
@@ -74,7 +74,7 @@ func TestTaskService_Create_WithExplicitLabels(t *testing.T) {
 func TestTaskService_Create_WithAutoLabel(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	labels := repo.NewLabelRepo(d)

@@ -34,23 +34,24 @@ func (e *RecurrenceError) Unwrap() error { return e.Err }
 // Troiki capacity grants are derived from the parent project's category, so the
 // service depends on ProjectRepo to look up the project on each completion.
 type CompleteService struct {
-	tasks    *repo.TaskRepo
-	projects *repo.ProjectRepo
-	users    *repo.UserRepo
-	loc      *time.Location
+	tasks     *repo.TaskRepo
+	projects  *repo.ProjectRepo
+	users     *repo.UserRepo
+	relations *repo.TaskRelationsRepo
+	loc       *time.Location
 }
 
-func NewCompleteService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, users *repo.UserRepo) *CompleteService {
-	return &CompleteService{tasks: tasks, projects: projects, users: users, loc: time.UTC}
+func NewCompleteService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, users *repo.UserRepo, relations *repo.TaskRelationsRepo) *CompleteService {
+	return &CompleteService{tasks: tasks, projects: projects, users: users, relations: relations, loc: time.UTC}
 }
 
 // NewCompleteServiceWithLoc constructs a CompleteService anchored to a specific
 // timezone for RRULE evaluation (so e.g. daily 9 AM rules align with the user's clock).
-func NewCompleteServiceWithLoc(tasks *repo.TaskRepo, projects *repo.ProjectRepo, users *repo.UserRepo, loc *time.Location) *CompleteService {
+func NewCompleteServiceWithLoc(tasks *repo.TaskRepo, projects *repo.ProjectRepo, users *repo.UserRepo, relations *repo.TaskRelationsRepo, loc *time.Location) *CompleteService {
 	if loc == nil {
 		loc = time.UTC
 	}
-	return &CompleteService{tasks: tasks, projects: projects, users: users, loc: loc}
+	return &CompleteService{tasks: tasks, projects: projects, users: users, relations: relations, loc: loc}
 }
 
 func (s *CompleteService) Complete(ctx context.Context, taskID int64) (*model.Task, error) {
@@ -72,6 +73,20 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 	if err != nil {
 		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
 		return nil, err
+	}
+	// Blocker guard, before the recurrence branch so a blocked recurring task is
+	// refused rather than silently advanced to its next occurrence. Placed here
+	// rather than in the handler because this is the single choke point every
+	// completion path funnels through: the single-task endpoint, bulk complete, and
+	// the Troiki board.
+	//
+	// Skipped for an already-completed task: re-completion is deliberately
+	// idempotent (see the capacity-bump comment below), and a task completed before
+	// a blocker was added must stay recoverable.
+	if t.Status != model.TaskStatusCompleted {
+		if err := s.assertNotBlocked(ctx, t.ID); err != nil {
+			return nil, err
+		}
 	}
 	if t.RecurrenceRule != nil {
 		return s.advanceRecurring(ctx, t, completedAt)
@@ -96,6 +111,27 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 	}
 	log.InfoContext(ctx, "task completed", slog.String("op", op), slog.Int64("task_id", taskID))
 	return t, nil
+}
+
+// assertNotBlocked returns a *TaskBlockedError when any still-open task blocks
+// taskID. Completed and cancelled blockers are already filtered out by the repo
+// query — a cancelled blocker must not deadlock its dependents.
+func (s *CompleteService) assertNotBlocked(ctx context.Context, taskID int64) error {
+	const op = "service.CompleteService.assertNotBlocked"
+	if s.relations == nil {
+		return nil
+	}
+	blockers, err := s.relations.OpenBlockerIDs(ctx, taskID)
+	if err != nil {
+		logRepoErr(ctx, op+": open blockers", err, slog.Int64("task_id", taskID))
+		return err
+	}
+	if len(blockers) == 0 {
+		return nil
+	}
+	logging.FromContext(ctx).WarnContext(ctx, op+": task blocked",
+		slog.Int64("task_id", taskID), slog.Any("blocker_ids", blockers))
+	return &TaskBlockedError{BlockerIDs: blockers}
 }
 
 func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, completedAt *time.Time) (*model.Task, error) {

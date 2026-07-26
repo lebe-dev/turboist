@@ -487,6 +487,7 @@
 		"actions": {
 			"ariaLabel": "Действия с задачей",
 			"copy": "Копировать",
+			"copyId": "Копировать ID",
 			"duplicate": "Дублировать",
 			"pin": "Закрепить",
 			"unpin": "Открепить",
@@ -581,9 +582,14 @@
 			"decomposed": "Разбито на {count}",
 			"failedDecompose": "Не удалось разбить задачу",
 			"subtaskLabelsApplied": "Метки применены к {count} подзадачам",
-			"failedApplySubtaskLabels": "Не удалось применить метки к подзадачам"
+			"failedApplySubtaskLabels": "Не удалось применить метки к подзадачам",
+			"blockedCannotComplete": "Нельзя завершить: задача заблокирована незавершённой задачей",
+			"blockedNotCompletedOnMove": "Перенесена, но не завершена: задача всё ещё заблокирована",
+			"idCopied": "ID задачи скопирован"
 		},
-		"backlogLabel": "В бэклоге"
+		"backlogLabel": "В бэклоге",
+		"blockedTooltip": "Заблокирована незавершённой задачей",
+		"relationCountLabel": "Связанных задач: {count}"
 	},
 	"dialog": {
 		"context": {
@@ -950,7 +956,21 @@
 			"labels": "Метки",
 			"editLabels": "Редактировать метки",
 			"inboxSubtasksNoticePre": "Подзадачи недоступны для задач из Inbox. Переместите задачу",
-			"inboxSubtasksNoticeLink": "в проект"
+			"inboxSubtasksNoticeLink": "в проект",
+			"relations": "Связи",
+			"addRelation": "Добавить связь",
+			"addRelationDescription": "Найдите задачу и выберите, как она связана с текущей.",
+			"relationEmpty": "Связей пока нет.",
+			"relation_blockedBy": "Заблокирована задачей",
+			"relation_blocks": "Блокирует",
+			"relation_related": "Связана с",
+			"relationRemove": "Удалить связь",
+			"relationSearchPlaceholder": "Поиск задач или ввод ID…",
+			"relationSearchHint": "Введите минимум 2 символа или ID задачи.",
+			"relationSearchFailed": "Не удалось выполнить поиск",
+			"relationAddFailed": "Не удалось добавить связь",
+			"relationRemoveFailed": "Не удалось удалить связь",
+			"copyId": "Скопировать ID задачи"
 		},
 		"context": {
 			"errorLoading": "Не удалось загрузить контекст",

@@ -6,9 +6,9 @@ package service
 // enforced, and the user's intent is clearly to recover what they have.
 //
 // WARNING: this function mutates the input *BackupData in place — slices
-// (Projects, ProjectSections, Tasks, TaskLabels, ProjectLabels) are rewritten
-// with shorter lengths backed by the same underlying arrays. Do not reuse the
-// payload after calling sanitizePayload.
+// (Projects, ProjectSections, Tasks, TaskLabels, TaskRelations, ProjectLabels)
+// are rewritten with shorter lengths backed by the same underlying arrays. Do not
+// reuse the payload after calling sanitizePayload.
 func sanitizePayload(d *BackupData) {
 	contextIDs := idSet(d.Contexts, func(c BackupContext) int64 { return c.ID })
 	labelIDs := idSet(d.Labels, func(l BackupLabel) int64 { return l.ID })
@@ -91,6 +91,20 @@ func sanitizePayload(d *BackupData) {
 		tl = append(tl, l)
 	}
 	d.TaskLabels = tl
+
+	// A relation needs both of its tasks; either one dropped above makes the row
+	// unrestorable (both FKs are NOT NULL).
+	trel := d.TaskRelations[:0]
+	for _, r := range d.TaskRelations {
+		if _, s := taskIDs[r.SourceTaskID]; !s {
+			continue
+		}
+		if _, t := taskIDs[r.TargetTaskID]; !t {
+			continue
+		}
+		trel = append(trel, r)
+	}
+	d.TaskRelations = trel
 
 	pl := d.ProjectLabels[:0]
 	for _, l := range d.ProjectLabels {

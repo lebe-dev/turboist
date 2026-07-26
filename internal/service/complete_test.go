@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -28,27 +29,29 @@ func setupTestDB(t *testing.T) *sql.DB {
 }
 
 type completeFixtures struct {
-	svc      *service.CompleteService
-	tasks    *repo.TaskRepo
-	projects *repo.ProjectRepo
-	ctxs     *repo.ContextRepo
-	users    *repo.UserRepo
+	svc       *service.CompleteService
+	tasks     *repo.TaskRepo
+	projects  *repo.ProjectRepo
+	ctxs      *repo.ContextRepo
+	users     *repo.UserRepo
+	relations *repo.TaskRelationsRepo
 }
 
 func setupCompleteService(t *testing.T) *completeFixtures {
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
+	trelations := repo.NewTaskRelationsRepo(d)
 	plabels := repo.NewProjectLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, trelations)
 	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)
 	users := repo.NewUserRepo(d)
 	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
-	svc := service.NewCompleteService(tasks, projects, users)
-	return &completeFixtures{svc: svc, tasks: tasks, projects: projects, ctxs: ctxs, users: users}
+	svc := service.NewCompleteService(tasks, projects, users, trelations)
+	return &completeFixtures{svc: svc, tasks: tasks, projects: projects, ctxs: ctxs, users: users, relations: trelations}
 }
 
 // projectInCategory creates an open project bound to ctxID with the given
@@ -688,5 +691,171 @@ func TestCompleteService_Cancel(t *testing.T) {
 	}
 	if result.Status != model.TaskStatusCancelled {
 		t.Errorf("status: got %q, want cancelled", result.Status)
+	}
+}
+
+// blockedPair creates two tasks in a fresh context and makes the first block the
+// second, returning (blocker, blocked).
+func blockedPair(t *testing.T, f *completeFixtures) (*model.Task, *model.Task) {
+	t.Helper()
+	ctx := context.Background()
+	c, err := f.ctxs.Create(ctx, "Work", "blue", false)
+	if err != nil {
+		t.Fatalf("create context: %v", err)
+	}
+	cid := c.ID
+	blocker, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Blocker",
+	})
+	if err != nil {
+		t.Fatalf("create blocker: %v", err)
+	}
+	blocked, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Blocked",
+	})
+	if err != nil {
+		t.Fatalf("create blocked: %v", err)
+	}
+	if _, err := f.relations.Create(ctx, blocker.ID, blocked.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create relation: %v", err)
+	}
+	return blocker, blocked
+}
+
+func TestCompleteService_BlockedTaskIsRefused(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	blocker, blocked := blockedPair(t, f)
+
+	_, err := f.svc.Complete(ctx, blocked.ID)
+	var be *service.TaskBlockedError
+	if !errors.As(err, &be) {
+		t.Fatalf("complete: got %v, want *TaskBlockedError", err)
+	}
+	if len(be.BlockerIDs) != 1 || be.BlockerIDs[0] != blocker.ID {
+		t.Errorf("blocker ids: got %v, want [%d]", be.BlockerIDs, blocker.ID)
+	}
+	// The refusal must leave the task untouched, not half-completed.
+	after, err := f.tasks.Get(ctx, blocked.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if after.Status != model.TaskStatusOpen {
+		t.Errorf("status: got %q, want open", after.Status)
+	}
+}
+
+func TestCompleteService_UnblockedAfterBlockerCompleted(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	blocker, blocked := blockedPair(t, f)
+
+	if _, err := f.svc.Complete(ctx, blocker.ID); err != nil {
+		t.Fatalf("complete blocker: %v", err)
+	}
+	result, err := f.svc.Complete(ctx, blocked.ID)
+	if err != nil {
+		t.Fatalf("complete blocked: %v", err)
+	}
+	if result.Status != model.TaskStatusCompleted {
+		t.Errorf("status: got %q, want completed", result.Status)
+	}
+}
+
+// A cancelled blocker must release its dependents — otherwise cancelling a task
+// would deadlock everything downstream of it permanently.
+func TestCompleteService_CancelledBlockerDoesNotBlock(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	blocker, blocked := blockedPair(t, f)
+
+	if _, err := f.svc.Cancel(ctx, blocker.ID); err != nil {
+		t.Fatalf("cancel blocker: %v", err)
+	}
+	if _, err := f.svc.Complete(ctx, blocked.ID); err != nil {
+		t.Errorf("complete blocked: got %v, want nil", err)
+	}
+}
+
+// Cancelling a blocked task is not a completion and must not be refused.
+func TestCompleteService_BlockedTaskCanStillBeCancelled(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	_, blocked := blockedPair(t, f)
+
+	result, err := f.svc.Cancel(ctx, blocked.ID)
+	if err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if result.Status != model.TaskStatusCancelled {
+		t.Errorf("status: got %q, want cancelled", result.Status)
+	}
+}
+
+// Re-completing an already-completed task stays idempotent even once a blocker has
+// been added afterwards: the retry path exists to recover a lost Troiki capacity
+// grant, and the guard must not seal it off.
+func TestCompleteService_AlreadyCompletedSkipsBlockerGuard(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	blocker, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Blocker",
+	})
+	task, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Done first",
+	})
+	if _, err := f.svc.Complete(ctx, task.ID); err != nil {
+		t.Fatalf("first complete: %v", err)
+	}
+	if _, err := f.relations.Create(ctx, blocker.ID, task.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create relation: %v", err)
+	}
+
+	result, err := f.svc.Complete(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("re-complete: got %v, want nil", err)
+	}
+	if result.Status != model.TaskStatusCompleted {
+		t.Errorf("status: got %q, want completed", result.Status)
+	}
+}
+
+// The guard sits before the recurrence branch, so a blocked recurring task must be
+// refused rather than silently advanced to its next occurrence.
+func TestCompleteService_BlockedRecurringIsNotAdvanced(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	blocker, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Blocker",
+	})
+	due := time.Now().Add(24 * time.Hour)
+	rule := "FREQ=DAILY"
+	recurring, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Daily",
+		DueAt:          &due,
+		RecurrenceRule: &rule,
+	})
+	if err != nil {
+		t.Fatalf("create recurring: %v", err)
+	}
+	if _, err := f.relations.Create(ctx, blocker.ID, recurring.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create relation: %v", err)
+	}
+
+	var be *service.TaskBlockedError
+	if _, err := f.svc.Complete(ctx, recurring.ID); !errors.As(err, &be) {
+		t.Fatalf("complete: got %v, want *TaskBlockedError", err)
+	}
+	after, err := f.tasks.Get(ctx, recurring.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !after.DueAt.Equal(*recurring.DueAt) {
+		t.Errorf("due_at advanced despite the block: got %v, want %v", after.DueAt, recurring.DueAt)
 	}
 }

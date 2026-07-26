@@ -6,6 +6,8 @@
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
+	import CopyIcon from 'phosphor-svelte/lib/Copy';
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
@@ -32,12 +34,13 @@
 	import HarpoonJumpButton from '$lib/components/app/HarpoonJumpButton.svelte';
 	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
+	import TaskRelationsSection from '$lib/components/task/TaskRelationsSection.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
 	import { comparePriority } from '$lib/utils/priority';
 	import { splitByRootCompletion } from '$lib/utils/taskTree';
 	import { dayKeyInTz, dayStartUtcInTz, parseIso, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
 	import { nowStore } from '$lib/stores/now.svelte';
-	import { describeError, toggleComplete } from '$lib/utils/taskActions';
+	import { copyTaskId, describeError, isBlocked, toggleComplete } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
@@ -53,6 +56,10 @@
 	const taskId = $derived(Number(page.params.id));
 
 	let task = $state<Task | null>(null);
+
+	// Mirrors TaskItem: an open task with unfinished blockers cannot be completed, so
+	// the checkbox is disabled rather than left to fail on click.
+	const blocked = $derived(!!task && isBlocked(task) && task.status !== 'completed');
 	let notFound = $state(false);
 	let saving = $state(false);
 
@@ -131,9 +138,23 @@
 	});
 	let priority = $state<Priority>('no-priority');
 
+	// The priority colour as a text colour, for the padlock a blocked task shows in
+	// place of the checkbox glyph. Mirrors the border colours below.
+	const priorityTextClass = $derived.by(() => {
+		if (priority === 'high') return 'text-red-500';
+		if (priority === 'medium') return 'text-amber-500';
+		if (priority === 'low') return 'text-blue-500';
+		return 'text-muted-foreground';
+	});
+
 	const checkboxClass = $derived.by(() => {
 		const base = 'mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
 		const completed = task?.status === 'completed';
+		// A blocked task drops the ring and shows a bare filled padlock — the ring reads
+		// as "clickable", which this one is not. Matches TaskItem in the lists.
+		if (blocked) {
+			return 'mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+		}
 		if (completed) {
 			if (priority === 'high') return `${base} border-red-500 bg-red-500 text-white`;
 			if (priority === 'medium') return `${base} border-amber-500 bg-amber-500 text-white`;
@@ -291,7 +312,7 @@
 				return;
 			}
 			const client = getApiClient();
-			const t = await tasksApi.get(client, taskId, { includeSubtasks: true });
+			const t = await tasksApi.get(client, taskId, { includeSubtasks: true, includeRelations: true });
 			if (!isValid()) return;
 			hydrate(t);
 			subtasks.setFromServer(t.subtasks?.items ?? []);
@@ -473,11 +494,20 @@ async function save(): Promise<void> {
 				<button
 					type="button"
 					onclick={() => task && void toggleComplete(task, pageMutator, { removeWhenCompleted: false })}
-					aria-label={task?.status === 'completed' ? $t('task.markIncomplete') : $t('task.markComplete')}
+					disabled={blocked}
+					title={blocked ? $t('task.blockedTooltip') : undefined}
+					aria-label={blocked
+						? $t('task.blockedTooltip')
+						: task?.status === 'completed'
+							? $t('task.markIncomplete')
+							: $t('task.markComplete')}
 					class={checkboxClass}
+					class:cursor-not-allowed={blocked}
 				>
 					{#if task?.status === 'completed'}
 						<CheckIcon class="size-3" weight="bold" />
+					{:else if blocked}
+						<LockSimpleIcon class="size-5 {priorityTextClass}" weight="fill" />
 					{/if}
 				</button>
 				<div class="min-w-0 flex-1">
@@ -522,6 +552,20 @@ async function save(): Promise<void> {
 							class="block w-full resize-none overflow-hidden break-words bg-transparent text-xl font-semibold leading-tight outline-none placeholder:text-muted-foreground/60 {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
 						></textarea>
 					{/if}
+					{#if task}
+						<div class="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+							<span>#{task.id}</span>
+							<button
+								type="button"
+								onclick={() => task && void copyTaskId(task)}
+								aria-label={$t('page.task.copyId')}
+								title={$t('page.task.copyId')}
+								class="rounded p-0.5 transition-colors hover:bg-accent hover:text-foreground"
+							>
+								<CopyIcon class="size-3" />
+							</button>
+						</div>
+					{/if}
 				</div>
 			</div>
 			<div class="relative pl-2">
@@ -562,6 +606,12 @@ async function save(): Promise<void> {
 					></textarea>
 				{/if}
 			</div>
+
+			{#if task}
+				<div class="px-2">
+					<TaskRelationsSection {task} onUpdated={hydrate} />
+				</div>
+			{/if}
 
 			<section class="flex flex-col gap-2">
 				<div class="flex items-baseline justify-between gap-2">

@@ -69,8 +69,19 @@ func (h *TaskHandler) get(c fiber.Ctx) error {
 		return err
 	}
 	includeSubtasks := c.Query("subtasks") == "true"
-	logEntry(c, "handler.Task.Get", slog.Int64("task_id", id), slog.Bool("subtasks", includeSubtasks))
-	t, err := h.tasks.Get(c.Context(), id)
+	includeRelations := c.Query("relations") == "true"
+	logEntry(c, "handler.Task.Get",
+		slog.Int64("task_id", id),
+		slog.Bool("subtasks", includeSubtasks),
+		slog.Bool("relations", includeRelations))
+	// Relations are opt-in: only the detail page renders them, and every list view
+	// funnels through the same repo, so making them unconditional would add a join
+	// to every task read for nobody's benefit.
+	get := h.tasks.Get
+	if includeRelations {
+		get = h.tasks.GetWithRelations
+	}
+	t, err := get(c.Context(), id)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound(msgTaskNotFound)

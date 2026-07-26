@@ -15,7 +15,7 @@ import (
 func TestPlanService_WarnOnWeeklyLimit(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 1, 10)
 
@@ -42,7 +42,7 @@ func TestPlanService_WarnOnWeeklyLimit(t *testing.T) {
 func TestPinService_WarnOnLimit(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)
@@ -69,7 +69,7 @@ func TestPinService_WarnOnLimit(t *testing.T) {
 func TestGroupService_WarnOnEmptyChildren(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	labels := repo.NewLabelRepo(d)
@@ -103,7 +103,7 @@ func TestTroikiService_WarnOnSlotFull(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
 	plabels := repo.NewProjectLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	projects := repo.NewProjectRepo(d, plabels)
 	users := repo.NewUserRepo(d)
 	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
@@ -138,7 +138,7 @@ func TestTaskService_WarnOnUnknownLabel(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
 	plabels := repo.NewProjectLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	projects := repo.NewProjectRepo(d, plabels)
 	labels := repo.NewLabelRepo(d)
 	appSet := repo.NewAppSettingsRepo(d)
@@ -215,7 +215,7 @@ func TestBackupService_WarnOnUnsupportedVersion(t *testing.T) {
 func TestMoveService_WarnOnInvalidPlacement(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	svc := service.NewMoveService(tasks, projects)

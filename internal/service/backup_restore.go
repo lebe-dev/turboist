@@ -18,6 +18,7 @@ import (
 // touches.
 func wipeAll(ctx context.Context, tx *sql.Tx) error {
 	stmts := []string{
+		`DELETE FROM task_relations`,
 		`DELETE FROM task_labels`,
 		`DELETE FROM project_labels`,
 		`DELETE FROM tasks`,
@@ -26,7 +27,7 @@ func wipeAll(ctx context.Context, tx *sql.Tx) error {
 		`DELETE FROM labels`,
 		`DELETE FROM contexts`,
 		`DELETE FROM sqlite_sequence
-		   WHERE name IN ('tasks','project_sections','projects','labels','contexts')`,
+		   WHERE name IN ('tasks','project_sections','projects','labels','contexts','task_relations')`,
 	}
 	for _, q := range stmts {
 		if _, err := tx.ExecContext(ctx, q); err != nil {
@@ -122,6 +123,17 @@ func insertTaskLabels(ctx context.Context, tx *sql.Tx, rows []BackupTaskLabel) e
 	const q = `INSERT INTO task_labels (task_id, label_id) VALUES (?, ?)`
 	for _, r := range rows {
 		if _, err := tx.ExecContext(ctx, q, r.TaskID, r.LabelID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func insertTaskRelations(ctx context.Context, tx *sql.Tx, rows []BackupTaskRelation) error {
+	const q = `INSERT INTO task_relations (id, source_task_id, target_task_id, type, created_at)
+	           VALUES (?, ?, ?, ?, ?)`
+	for _, r := range rows {
+		if _, err := tx.ExecContext(ctx, q, r.ID, r.SourceTaskID, r.TargetTaskID, r.Type, r.CreatedAt); err != nil {
 			return err
 		}
 	}

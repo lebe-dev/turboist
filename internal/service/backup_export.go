@@ -227,6 +227,25 @@ func (s *BackupService) readProjectLabels(ctx context.Context) ([]BackupProjectL
 	return out, rows.Err()
 }
 
+func (s *BackupService) readTaskRelations(ctx context.Context) ([]BackupTaskRelation, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, source_task_id, target_task_id, type, created_at
+		 FROM task_relations ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer logging.LogClose(ctx, "service.backup.export.rows", rows)
+	out := make([]BackupTaskRelation, 0)
+	for rows.Next() {
+		var r BackupTaskRelation
+		if err := rows.Scan(&r.ID, &r.SourceTaskID, &r.TargetTaskID, &r.Type, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 func (s *BackupService) readSettings(ctx context.Context) (*BackupConfig, error) {
 	cfg := &BackupConfig{}
 

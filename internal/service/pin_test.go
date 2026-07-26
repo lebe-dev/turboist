@@ -13,7 +13,7 @@ func setupPinService(t *testing.T, maxPinned int) (*service.PinService, *repo.Ta
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)

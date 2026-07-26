@@ -62,6 +62,10 @@ func (s *BackupService) Export(ctx context.Context, opts ExportOptions) (*Backup
 		log.ErrorContext(ctx, op+": read project labels", slog.String("err", err.Error()))
 		return nil, fmt.Errorf("export project labels: %w", err)
 	}
+	if p.Data.TaskRelations, err = s.readTaskRelations(ctx); err != nil {
+		log.ErrorContext(ctx, op+": read task relations", slog.String("err", err.Error()))
+		return nil, fmt.Errorf("export task relations: %w", err)
+	}
 	if opts.IncludeSettings {
 		cfg, err := s.readSettings(ctx)
 		if err != nil {
@@ -79,6 +83,7 @@ func (s *BackupService) Export(ctx context.Context, opts ExportOptions) (*Backup
 		slog.Int("tasks", len(p.Data.Tasks)),
 		slog.Int("task_labels", len(p.Data.TaskLabels)),
 		slog.Int("project_labels", len(p.Data.ProjectLabels)),
+		slog.Int("task_relations", len(p.Data.TaskRelations)),
 	)
 	return p, nil
 }
@@ -107,6 +112,7 @@ func (s *BackupService) Restore(ctx context.Context, p *BackupPayload) error {
 		slog.Int("tasks", len(p.Data.Tasks)),
 		slog.Int("task_labels", len(p.Data.TaskLabels)),
 		slog.Int("project_labels", len(p.Data.ProjectLabels)),
+		slog.Int("task_relations", len(p.Data.TaskRelations)),
 	)
 
 	preProjects := len(p.Data.Projects)
@@ -114,6 +120,7 @@ func (s *BackupService) Restore(ctx context.Context, p *BackupPayload) error {
 	preTasks := len(p.Data.Tasks)
 	preTaskLabels := len(p.Data.TaskLabels)
 	preProjectLabels := len(p.Data.ProjectLabels)
+	preTaskRelations := len(p.Data.TaskRelations)
 
 	// Heal dangling FKs that may exist in older databases (e.g. tasks pointing
 	// at a section/project/parent that was deleted in a buggy code path).
@@ -136,6 +143,9 @@ func (s *BackupService) Restore(ctx context.Context, p *BackupPayload) error {
 	}
 	if d := preProjectLabels - len(p.Data.ProjectLabels); d > 0 {
 		log.WarnContext(ctx, op+": project labels sanitised", slog.Int("dropped", d))
+	}
+	if d := preTaskRelations - len(p.Data.TaskRelations); d > 0 {
+		log.WarnContext(ctx, op+": task relations sanitised", slog.Int("dropped", d))
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -184,6 +194,10 @@ func (s *BackupService) Restore(ctx context.Context, p *BackupPayload) error {
 	if err := insertTaskLabels(ctx, tx, p.Data.TaskLabels); err != nil {
 		log.ErrorContext(ctx, op+": insert task labels", slog.String("err", err.Error()))
 		return fmt.Errorf("task labels: %w", err)
+	}
+	if err := insertTaskRelations(ctx, tx, p.Data.TaskRelations); err != nil {
+		log.ErrorContext(ctx, op+": insert task relations", slog.String("err", err.Error()))
+		return fmt.Errorf("task relations: %w", err)
 	}
 	if p.Settings != nil {
 		if err := applySettings(ctx, tx, p.Settings); err != nil {

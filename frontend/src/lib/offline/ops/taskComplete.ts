@@ -25,6 +25,17 @@ export const taskComplete: OfflineOp = {
 		const completedAt = readCompletedAt(body);
 		return completedAt !== undefined ? { taskId, completedAt } : { taskId };
 	},
+	// Offline mirror of the backend's blocker guard (internal/service/complete.go):
+	// a task with open blockers cannot be completed, so it must not be queued either.
+	// Enqueuing it anyway would show the task as done, then have the server reject the
+	// replay and dump the op into the quarantine — a worse outcome than refusing now.
+	//
+	// The cache can be stale (a blocker completed on another device), in which case the
+	// replay rejection + quarantine remains the backstop.
+	async guard(payload, cache) {
+		const cached = (await cache.findTask(payload.taskId as number)) as Task | null;
+		return !cached || (cached.blockedByCount ?? 0) === 0;
+	},
 	buildRequest(payload): OpRequest {
 		const taskId = payload.taskId as number;
 		const completedAt = payload.completedAt as string | undefined;

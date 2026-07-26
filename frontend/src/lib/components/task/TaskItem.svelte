@@ -13,6 +13,7 @@
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
+	import LinkIcon from 'phosphor-svelte/lib/Link';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import HourglassMediumIcon from 'phosphor-svelte/lib/HourglassMedium';
 	import { t } from '$lib/i18n';
@@ -22,7 +23,7 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import { isOverdue } from '$lib/utils/format';
-	import type { ListMutator } from '$lib/utils/taskActions';
+	import { isBlocked, type ListMutator } from '$lib/utils/taskActions';
 	import LabelChips from './LabelChips.svelte';
 	import DateBadge from './DateBadge.svelte';
 	import PostponeBadge from './PostponeBadge.svelte';
@@ -167,7 +168,7 @@
 	let toggling = $state(false);
 
 	async function handleToggle() {
-		if (toggling) return;
+		if (toggling || blocked) return;
 		const result = onToggle?.(task);
 		if (!(result instanceof Promise)) return;
 		let settled = false;
@@ -188,6 +189,11 @@
 	// (§4.5): show an unobtrusive "awaiting send" badge until replay assigns it a
 	// real server id and the list refetches (§4.7.2). Visual only.
 	const awaitingSend = $derived(task.id < 0);
+	// An open task with unfinished blockers cannot be completed. Reflected here as a
+	// disabled checkbox so the refusal is visible before the click; the guard itself
+	// lives in toggleComplete (and the server enforces it independently).
+	const blocked = $derived(isBlocked(task) && task.status !== 'completed');
+	const relationCount = $derived(task.relationCount ?? 0);
 	const project = $derived(
 		task.projectId ? projectsStore.items.find((p) => p.id === task.projectId) : null
 	);
@@ -226,15 +232,33 @@
 			(showProject && !!project) ||
 			task.labels.length > 0 ||
 			task.postponeCount >= 2 ||
+			relationCount > 0 ||
 			isRecurring ||
 			showCalendarSlash ||
 			showWeekBadge ||
 			showBacklogBadge
 	);
 
+	// The priority colour as a text colour, for marks drawn as a glyph rather than as
+	// a ring. Mirrors the border colours in checkboxClass, including the day-part
+	// dimming: an inactive phase greys the whole row's signalling.
+	const priorityTextClass = $derived.by(() => {
+		if (!phaseActive) return 'text-muted-foreground';
+		if (task.priority === 'high') return 'text-red-500';
+		if (task.priority === 'medium') return 'text-amber-500';
+		if (task.priority === 'low') return 'text-blue-500';
+		return 'text-muted-foreground';
+	});
+
 	const checkboxClass = $derived.by(() => {
 		const base =
 			'inline-flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+		// A blocked task shows a bare filled padlock instead of the checkbox ring: the
+		// ring reads as "clickable", which this one is not. Priority still comes through,
+		// carried by the glyph's colour instead of the border's.
+		if (blocked) {
+			return 'inline-flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+		}
 		if (!checked) {
 			if (task.priority === 'high' && phaseActive) return `${base} border-red-500`;
 			if (task.priority === 'medium' && phaseActive) return `${base} border-amber-500`;
@@ -320,15 +344,23 @@
 	<button
 		type="button"
 		onclick={() => void handleToggle()}
-		disabled={toggling}
+		disabled={toggling || blocked}
 		class={checkboxClass}
 		class:mt-0.5={hasMeta}
+		class:cursor-not-allowed={blocked}
 		aria-pressed={checked}
 		aria-busy={toggling}
-		aria-label={checked ? $t('task.markIncomplete') : $t('task.markComplete')}
+		title={blocked ? $t('task.blockedTooltip') : undefined}
+		aria-label={blocked
+			? $t('task.blockedTooltip')
+			: checked
+				? $t('task.markIncomplete')
+				: $t('task.markComplete')}
 	>
 		{#if toggling}
 			<Spinner class="size-2.5" />
+		{:else if blocked}
+			<LockSimpleIcon class="size-4 {priorityTextClass}" weight="fill" />
 		{:else if checked}
 			<CheckIcon class="size-2.5" weight="bold" />
 		{/if}
@@ -369,7 +401,7 @@
 			>{descriptionPreview}</p>
 		{/if}
 
-		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || showCalendarSlash || showWeekBadge || showBacklogBadge}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || relationCount > 0 || showCalendarSlash || showWeekBadge || showBacklogBadge}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -393,6 +425,16 @@
 					/>
 				{/if}
 				<PostponeBadge count={task.postponeCount} completed={checked} />
+				{#if relationCount > 0}
+					<span
+						class="inline-flex items-center gap-0.5 text-muted-foreground"
+						title={blocked ? $t('task.blockedTooltip') : $t('task.relationCountLabel', { values: { count: relationCount } })}
+						aria-label={$t('task.relationCountLabel', { values: { count: relationCount } })}
+					>
+						<LinkIcon class="size-3.5 shrink-0" />
+						{relationCount}
+					</span>
+				{/if}
 				{#if showProject && project}
 					<span class="inline-flex items-center gap-1 text-muted-foreground">
 						<FolderIcon class="size-3.5" />

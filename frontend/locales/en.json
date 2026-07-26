@@ -487,6 +487,7 @@
 		"actions": {
 			"ariaLabel": "Task actions",
 			"copy": "Copy",
+			"copyId": "Copy ID",
 			"duplicate": "Duplicate",
 			"pin": "Pin",
 			"unpin": "Unpin",
@@ -581,9 +582,14 @@
 			"decomposed": "Decomposed into {count} task(s)",
 			"failedDecompose": "Failed to decompose task",
 			"subtaskLabelsApplied": "Labels applied to {count} subtask(s)",
-			"failedApplySubtaskLabels": "Failed to apply labels to subtasks"
+			"failedApplySubtaskLabels": "Failed to apply labels to subtasks",
+			"blockedCannotComplete": "Cannot complete: this task is blocked by an unfinished task",
+			"blockedNotCompletedOnMove": "Moved, but not completed: the task is still blocked",
+			"idCopied": "Task ID copied"
 		},
-		"backlogLabel": "In backlog"
+		"backlogLabel": "In backlog",
+		"blockedTooltip": "Blocked by an unfinished task",
+		"relationCountLabel": "{count} related tasks"
 	},
 	"dialog": {
 		"context": {
@@ -950,7 +956,21 @@
 			"labels": "Labels",
 			"editLabels": "Edit labels",
 			"inboxSubtasksNoticePre": "Subtasks are not available for inbox tasks. Move the task",
-			"inboxSubtasksNoticeLink": "to a project"
+			"inboxSubtasksNoticeLink": "to a project",
+			"relations": "Relations",
+			"addRelation": "Add relation",
+			"addRelationDescription": "Search for a task and choose how it relates to this one.",
+			"relationEmpty": "No relations yet.",
+			"relation_blockedBy": "Blocked by",
+			"relation_blocks": "Blocks",
+			"relation_related": "Related",
+			"relationRemove": "Remove relation",
+			"relationSearchPlaceholder": "Search tasks, or enter an ID…",
+			"relationSearchHint": "Type at least 2 characters, or a task ID.",
+			"relationSearchFailed": "Search failed",
+			"relationAddFailed": "Failed to add relation",
+			"relationRemoveFailed": "Failed to remove relation",
+			"copyId": "Copy task ID"
 		},
 		"context": {
 			"errorLoading": "Failed to load context",

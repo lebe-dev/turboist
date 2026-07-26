@@ -142,6 +142,64 @@ describe('createOfflineBridge tryEnqueue (offline mutation queue)', () => {
 		expect(statusStore.pendingOps).toBe(1);
 	});
 
+	// The offline mirror of the backend's blocker guard: a blocked task must not be
+	// queued at all, otherwise the UI shows it done and the server rejects the replay
+	// into the quarantine.
+	it('declines completing a task the cache reports as blocked', async () => {
+		const b = bridge();
+		await b.cachePut('/api/v1/tasks', undefined, {
+			items: [
+				{
+					id: 5,
+					title: 'blocked',
+					status: 'open',
+					dayPart: 'none',
+					priority: 'no-priority',
+					planState: 'none',
+					completedAt: null,
+					blockedByCount: 1,
+					relationCount: 1
+				}
+			],
+			total: 1,
+			limit: 50,
+			offset: 0
+		});
+
+		expect(await b.tryEnqueue('/api/v1/tasks/5/complete', 'POST', undefined)).toBeNull();
+		// A refusal must leave no trace: nothing queued, and the cached task untouched.
+		expect(statusStore.pendingOps).toBe(0);
+		const hit = await b.cacheGet('/api/v1/tasks', undefined);
+		const items = (hit!.payload as { items: { status: string }[] }).items;
+		expect(items[0].status).toBe('open');
+	});
+
+	// Uncompleting is never blocked — only completion is.
+	it('still enqueues uncomplete for a blocked task', async () => {
+		const b = bridge();
+		await b.cachePut('/api/v1/tasks', undefined, {
+			items: [
+				{
+					id: 6,
+					title: 'blocked but completed',
+					status: 'completed',
+					dayPart: 'none',
+					priority: 'no-priority',
+					planState: 'none',
+					completedAt: '2026-01-01T00:00:00.000Z',
+					blockedByCount: 1,
+					relationCount: 1
+				}
+			],
+			total: 1,
+			limit: 50,
+			offset: 0
+		});
+
+		expect(await b.tryEnqueue('/api/v1/tasks/6/uncomplete', 'POST', undefined)).not.toBeNull();
+		expect(statusStore.pendingOps).toBe(1);
+	});
+
 	it('bumps statusStore.pendingOps to the outbox length after each enqueue', async () => {
 		const b = bridge();
 		expect(statusStore.pendingOps).toBe(0);

@@ -18,12 +18,30 @@ var (
 )
 
 type TaskRepo struct {
-	db     *sql.DB
-	labels *TaskLabelsRepo
+	db        *sql.DB
+	labels    *TaskLabelsRepo
+	relations *TaskRelationsRepo
 }
 
-func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo) *TaskRepo {
-	return &TaskRepo{db: db, labels: labels}
+func NewTaskRepo(db *sql.DB, labels *TaskLabelsRepo, relations *TaskRelationsRepo) *TaskRepo {
+	return &TaskRepo{db: db, labels: labels, relations: relations}
+}
+
+// hydrateRelationSummaries batch-loads the relation rollup for a page of tasks.
+// Called from Get and from the single list funnel, so every read path reports a
+// blocked task as blocked without any caller opting in.
+func (r *TaskRepo) hydrateRelationSummaries(ctx context.Context, tasks []model.Task, ids []int64) error {
+	if r.relations == nil || len(ids) == 0 {
+		return nil
+	}
+	summaries, err := r.relations.SummaryByTaskIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for i := range tasks {
+		tasks[i].RelationSummary = summaries[tasks[i].ID]
+	}
+	return nil
 }
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
@@ -302,6 +320,31 @@ func (r *TaskRepo) Get(ctx context.Context, id int64) (*model.Task, error) {
 		}
 		t.Labels = hydrated[t.ID]
 	}
+	// A one-element slice so the batch loader is the only summary code path.
+	one := []model.Task{*t}
+	if err := r.hydrateRelationSummaries(ctx, one, []int64{t.ID}); err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	t.RelationSummary = one[0].RelationSummary
+	return t, nil
+}
+
+// GetWithRelations is Get plus the full relation list, for the single-task detail
+// path. Lists deliberately do not pay for this join — they only need the summary.
+func (r *TaskRepo) GetWithRelations(ctx context.Context, id int64) (*model.Task, error) {
+	const op = "repo.tasks.GetWithRelations"
+	t, err := r.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if r.relations == nil {
+		return t, nil
+	}
+	rels, err := r.relations.ListForTask(ctx, id)
+	if err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	t.Relations = rels
 	return t, nil
 }
 

@@ -28,10 +28,26 @@ export function describeError(err: unknown, fallback: string): string {
 		if (err.status === 0 && (err.code === 'network_error' || err.code === 'timeout')) {
 			return tr('offline.needsConnection');
 		}
+		// A completion refused because the task still has open blockers. The client
+		// normally guards this before sending, so reaching here means a stale view —
+		// still worth a localized message rather than the backend's English one.
+		if (err.code === 'task_blocked') return tr('task.toast.blockedCannotComplete');
 		return err.message || fallback;
 	}
 	if (err instanceof Error) return err.message;
 	return fallback;
+}
+
+/**
+ * Whether a task cannot be completed because something still blocks it.
+ * `blockedByCount` counts only OPEN blockers (the backend filters completed and
+ * cancelled ones out), so this needs no extra status check on the peers.
+ *
+ * Optional-chained on the count: a Task synthesized by an older offline-cache entry
+ * predates the field, and treating that as blocked would wedge the checkbox.
+ */
+export function isBlocked(task: Task): boolean {
+	return (task.blockedByCount ?? 0) > 0;
 }
 
 export interface ListMutator {
@@ -65,6 +81,14 @@ export async function toggleComplete(
 	const { removeWhenCompleted = true, belongs, completedAt } = options;
 	const client = getApiClient();
 	const wasOpen = task.status !== 'completed';
+	// Single guard for every checkbox in the app: all list views, the detail page and
+	// the completed-footer cards route their toggle through here. The backend refuses
+	// it too (409 task_blocked) — this keeps the refusal instant and offline-safe.
+	// Uncompleting is never blocked, hence the wasOpen check.
+	if (wasOpen && isBlocked(task)) {
+		toast.error(tr('task.toast.blockedCannotComplete'));
+		return;
+	}
 	try {
 		const updated = wasOpen
 			? await tasksApi.complete(client, task.id, completedAt)
@@ -271,9 +295,16 @@ export async function moveTaskToProject(
 				? { contextId, projectId, sectionId: options.sectionId }
 				: { contextId, projectId };
 		let updated = await tasksApi.move(client, task.id, moveInput);
-		const completedHere = !!options.projectCompleted && updated.status !== 'completed';
+		// Moving into a completed project auto-completes the task — unless something
+		// still blocks it. Skipping the completion (rather than letting the 409 bubble)
+		// keeps the move itself, which already succeeded, instead of reporting the
+		// whole operation as failed.
+		const completedHere =
+			!!options.projectCompleted && updated.status !== 'completed' && !isBlocked(updated);
 		if (completedHere) {
 			updated = await tasksApi.complete(client, updated.id);
+		} else if (!!options.projectCompleted && isBlocked(updated)) {
+			toast.warning(tr('task.toast.blockedNotCompletedOnMove'));
 		}
 		applyUpdate(updated, mutator, options.belongs);
 		const destination = options.projectName
@@ -366,6 +397,16 @@ export async function copyTaskTitle(task: Task): Promise<void> {
 	try {
 		await navigator.clipboard.writeText(task.title);
 		toast.success(tr('task.toast.copied'));
+	} catch (err) {
+		toast.error(describeError(err, tr('task.toast.failedCopy')));
+	}
+}
+
+/** Copies the bare numeric id — what the relation picker and the API both take. */
+export async function copyTaskId(task: Task): Promise<void> {
+	try {
+		await navigator.clipboard.writeText(String(task.id));
+		toast.success(tr('task.toast.idCopied'));
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedCopy')));
 	}

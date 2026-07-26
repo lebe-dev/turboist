@@ -25,6 +25,7 @@
 	import { PRIORITY_COLOR, PRIORITY_LABEL, PRIORITY_ORDER } from '$lib/utils/priority';
 	import {
 		applyParentLabelsToSubtasks,
+		copyTaskId,
 		copyTaskTitle,
 		deleteTask,
 		describeError,
@@ -45,6 +46,7 @@
 	import CalendarBlankIcon from 'phosphor-svelte/lib/CalendarBlank';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import CopySimpleIcon from 'phosphor-svelte/lib/CopySimple';
+	import HashIcon from 'phosphor-svelte/lib/Hash';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import FlagIcon from 'phosphor-svelte/lib/Flag';
 	import MoonIcon from 'phosphor-svelte/lib/Moon';
@@ -261,6 +263,9 @@
 	<DropdownMenu.Content align="end" class="min-w-[15rem]">
 		<DropdownMenu.Item onclick={() => void copyTaskTitle(task)}>
 			<CopyIcon class="size-4" /> {$t('task.actions.copy')}
+		</DropdownMenu.Item>
+		<DropdownMenu.Item onclick={() => void copyTaskId(task)}>
+			<HashIcon class="size-4" /> {$t('task.actions.copyId')}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void duplicateTask(task, mutator)}>
 			<CopySimpleIcon class="size-4" /> {$t('task.actions.duplicate')}

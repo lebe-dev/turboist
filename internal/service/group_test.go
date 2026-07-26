@@ -14,7 +14,7 @@ func setupGroupService(t *testing.T) (*service.GroupService, *repo.TaskRepo, *re
 	t.Helper()
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	labels := repo.NewLabelRepo(d)

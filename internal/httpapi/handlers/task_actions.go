@@ -98,6 +98,9 @@ func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrNotFound) {
 			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
+		if blocked := taskBlockedErr(err); blocked != nil {
+			return blocked
+		}
 		var re *service.RecurrenceError
 		if errors.As(err, &re) {
 			return httpapi.ErrRecurrenceInvalid(re.Err.Error())

@@ -42,6 +42,18 @@ type TaskDTO struct {
 	// extra PK lookup) so the task detail page can show a link to the
 	// parent without a second round-trip. Nil when there is no parent.
 	ParentTitle *string `json:"parentTitle,omitempty"`
+	// BlockedByCount is how many still-open tasks block this one; non-zero means
+	// completion is refused with `task_blocked`. RelationCount is every relation
+	// touching the task. Both are hydrated on every read path (single get and all
+	// list views) because they drive whether the checkbox is clickable at all —
+	// omitting them from a list would render a completable blocked task.
+	BlockedByCount int `json:"blockedByCount"`
+	RelationCount  int `json:"relationCount"`
+	// Relations is populated only by GET /tasks/:id?relations=true and by the
+	// relation mutations, so the detail page gets the graph in the same
+	// round-trip. Same precedent as Subtasks — `omitempty` keeps it off the wire
+	// everywhere else.
+	Relations []TaskRelationDTO `json:"relations,omitempty"`
 }
 
 func TaskFromModel(t model.Task, baseURL string) TaskDTO {
@@ -78,6 +90,9 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		URL:             t.URL(baseURL),
 		CreatedAt:       FormatTime(t.CreatedAt),
 		UpdatedAt:       FormatTime(t.UpdatedAt),
+		BlockedByCount:  t.RelationSummary.BlockedByOpen,
+		RelationCount:   t.RelationSummary.Total,
+		Relations:       taskRelationsFromModel(t.Relations, baseURL),
 	}
 }
 

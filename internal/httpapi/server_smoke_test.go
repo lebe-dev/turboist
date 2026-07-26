@@ -52,13 +52,14 @@ func smokeApp(t *testing.T) *smokeEnv {
 
 	plabels := repo.NewProjectLabelsRepo(sqlDB)
 	tlabels := repo.NewTaskLabelsRepo(sqlDB)
+	trelations := repo.NewTaskRelationsRepo(sqlDB)
 	userRepo := repo.NewUserRepo(sqlDB)
 	sessionRepo := repo.NewSessionRepo(sqlDB)
 	ctxRepo := repo.NewContextRepo(sqlDB)
 	labelRepo := repo.NewLabelRepo(sqlDB)
 	sectionRepo := repo.NewProjectSectionRepo(sqlDB)
 	projectRepo := repo.NewProjectRepo(sqlDB, plabels)
-	taskRepo := repo.NewTaskRepo(sqlDB, tlabels)
+	taskRepo := repo.NewTaskRepo(sqlDB, tlabels, trelations)
 	searchRepo := repo.NewSearchRepo(taskRepo, projectRepo)
 
 	jwtIssuer := auth.NewJWTIssuer([]byte("smoke-secret-key-32-bytes-padding"))
@@ -68,7 +69,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	appSettingsRepo := repo.NewAppSettingsRepo(sqlDB)
 	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, appSettingsRepo)
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
-	completeSvc := service.NewCompleteService(taskRepo, projectRepo, userRepo)
+	completeSvc := service.NewCompleteService(taskRepo, projectRepo, userRepo, trelations)
 	moveSvc := service.NewMoveService(taskRepo, projectRepo)
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, taskRepo, tlabels)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
@@ -101,6 +102,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewTaskViewHandler(taskRepo, userRepo, troikiSvc, cfg, baseURL).Register(api)
 	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, baseURL).Register(api)
 	handlers.NewTroikiHandler(troikiSvc, baseURL).Register(api)
+	handlers.NewTaskRelationHandler(service.NewRelationService(taskRepo, trelations), baseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, baseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, baseURL).Register(api)
 	handlers.NewMetaHandler(cfg, false, ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo,

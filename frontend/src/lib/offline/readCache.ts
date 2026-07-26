@@ -225,12 +225,33 @@ const EXTRACTORS: Record<string, Extractor> = {
 	'/api/v1/search': (p, push) => push(p.tasks)
 };
 
+/**
+ * Relation peers on a task detail payload: `relations[].task`, one level down.
+ *
+ * The pushed array is freshly built, so its *elements* are the same objects the
+ * payload holds — mutating an item (what patchCachedTask does) writes through, while
+ * pushing into it would not persist. Nothing pushes into relations, so that is fine.
+ *
+ * Without this, completing a peer offline would leave the other task's relations
+ * section still showing it as open after a restart.
+ */
+function pushRelationPeers(relations: unknown, push: (value: unknown) => void): void {
+	if (!Array.isArray(relations)) return;
+	push(relations.map((r) => (r as { task?: unknown } | undefined)?.task).filter(Boolean));
+}
+
 /** Parameterised paths, tried after the exact map. */
 const EXTRACTOR_PATTERNS: [RegExp, Extractor][] = [
 	[/^\/api\/v1\/projects\/-?\d+\/bundle$/, (p, push) => push(p.tasks)],
 	// Task detail: the payload is itself a Task (handled by looksLikeTask at the
-	// callsites); this exposes the embedded subtask page.
-	[/^\/api\/v1\/tasks\/-?\d+$/, (p, push) => push(p.subtasks)]
+	// callsites); this exposes the embedded subtask page and the relation peers.
+	[
+		/^\/api\/v1\/tasks\/-?\d+$/,
+		(p, push) => {
+			push(p.subtasks);
+			pushRelationPeers(p.relations, push);
+		}
+	]
 ];
 
 /** Every list view: Page<Task> / ViewList<Task>. */
@@ -253,6 +274,7 @@ const SNIFF_EXTRACTOR: Extractor = (p, push) => {
 	push(p.pinned);
 	push(p.pinnedTasks);
 	push(p.subtasks);
+	pushRelationPeers(p.relations, push);
 	pushTroikiSlots(p, push);
 	pushTroikiSlots(p.troiki, push);
 };

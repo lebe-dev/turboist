@@ -41,12 +41,29 @@ func logMutation(c fiber.Ctx, op string, attrs ...any) {
 }
 
 func parseID(c fiber.Ctx) (int64, error) {
-	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	return parseNamedID(c, "id")
+}
+
+// parseNamedID parses any positive-integer path param, for routes that carry a
+// second id (e.g. /tasks/:id/relations/:relationId).
+func parseNamedID(c fiber.Ctx, name string) (int64, error) {
+	id, err := strconv.ParseInt(c.Params(name), 10, 64)
 	if err != nil || id <= 0 {
-		logValidation(c, "handler.parseID", "invalid id", slog.String("raw", c.Params("id")))
-		return 0, httpapi.ErrValidation("invalid id")
+		logValidation(c, "handler.parseID", "invalid "+name, slog.String("raw", c.Params(name)))
+		return 0, httpapi.ErrValidation("invalid " + name)
 	}
 	return id, nil
+}
+
+// taskBlockedErr converts a service.TaskBlockedError into the typed 409 response,
+// or returns nil when err is something else. Shared by the single-complete handler
+// and the bulk mapper so a blocked task reads identically either way.
+func taskBlockedErr(err error) *httpapi.AppError {
+	var be *service.TaskBlockedError
+	if !errors.As(err, &be) {
+		return nil
+	}
+	return httpapi.ErrTaskBlocked("task is blocked by an incomplete task", be.BlockerIDs)
 }
 
 var validNamedColors = map[string]struct{}{

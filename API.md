@@ -106,6 +106,7 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `totp_already_enabled` | 409 |
 | `totp_not_enabled` | 409 |
 | `calendar_reauth_required` | 409 |
+| `task_blocked` | 409 |
 | `CodeInternalError` | 500 |
 
 #### `403 Forbidden`
@@ -520,7 +521,7 @@ The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tok
 | Scope | Description |
 |-------|-------------|
 | `tasks:read` | Read tasks: get by id, all task views (`today`, `tomorrow`, `overdue`, `week`, `backlog`, `pinned`, `completed`), subtasks list, `stats/sidebar`, `stats/week-summary`, inbox list, tasks listed under a context / project / section / label |
-| `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; bulk operations (`bulk/complete`, `bulk/move`, `bulk/priority`); `tasks/group`; create tasks in inbox / context / project / section |
+| `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; add / remove task relations; bulk operations (`bulk/complete`, `bulk/move`, `bulk/priority`); `tasks/group`; create tasks in inbox / context / project / section |
 | `projects:read` | Read projects: list, get by id, list tasks/sections of a project, list projects in a context or by label |
 | `projects:write` | Create, update, delete projects; complete / uncomplete / cancel / archive / unarchive; pin / unpin; assign or clear Troiki category |
 | `contexts:read` | Read contexts: list, get by id |
@@ -566,6 +567,8 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `POST /api/v1/tasks/:id/unpin` | `tasks:write` |
 | `POST /api/v1/tasks/:id/move` | `tasks:write` |
 | `POST /api/v1/tasks/:id/plan` | `tasks:write` |
+| `POST /api/v1/tasks/:id/relations` | `tasks:write` |
+| `DELETE /api/v1/tasks/:id/relations/:relationId` | `tasks:write` |
 | `GET /api/v1/tasks/today` | `tasks:read` |
 | `GET /api/v1/tasks/tomorrow` | `tasks:read` |
 | `GET /api/v1/tasks/overdue` | `tasks:read` |
@@ -777,6 +780,8 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
   "recurrenceRule": null,
   "postponeCount": 0,
   "labels": [{ "id": 3, "name": "bug", "color": "red", "isFavourite": false, "isPrivate": false, "createdAt": "...", "updatedAt": "..." }],
+  "blockedByCount": 0,
+  "relationCount": 0,
   "url": "https://example.com/task/42",
   "createdAt": "2024-01-15T09:30:00.000Z",
   "updatedAt": "2024-01-15T09:30:00.000Z"
@@ -784,6 +789,10 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
 ```
 
 A task belongs to exactly one placement: `inboxId`, `contextId`, `projectId`, or `sectionId`. `parentId` identifies a subtask relationship.
+
+`blockedByCount` is how many still-open tasks block this one (see [Task Relations](#task-relations)); a non-zero value means completion is refused with `task_blocked`. `relationCount` is every relation touching the task, both directions and both types. Both are present on **every** task-returning endpoint — the single get, all list and view endpoints, and `GET /api/v1/config`'s `pinnedTasks` — so a client never has to ask separately whether a task is blocked.
+
+`relations` is present only where noted below (`GET /api/v1/tasks/:id?relations=true` and the two relation mutations).
 
 ### `GET /api/v1/tasks/:id`
 
@@ -794,8 +803,10 @@ curl "$BASE/api/v1/tasks/42" \
 
 Pass `?subtasks=true` to receive the children inline under a `subtasks` paged envelope — the task detail page uses this so it can render in one round-trip instead of two.
 
+Pass `?relations=true` to receive the task's relations inline under `relations` (see [Task Relations](#task-relations)). Both flags combine, so the detail page fetches the task, its subtree and its relation graph in a single request. Relations are opt-in because every list view shares this repository path and would otherwise pay for a join nobody reads there.
+
 ```sh
-curl "$BASE/api/v1/tasks/42?subtasks=true" \
+curl "$BASE/api/v1/tasks/42?subtasks=true&relations=true" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -937,6 +948,20 @@ Mark a task complete. Optional body to specify exact completion time (useful for
 
 Returns the updated task. If the task has a recurrence rule, a new task is scheduled and returned.
 
+Fails with `409 task_blocked` when the task has at least one **open** task blocking it (see [Task Relations](#task-relations)). The blocker ids travel in `details.blockerIds`:
+
+```json
+{
+  "error": {
+    "code": "task_blocked",
+    "message": "task is blocked by an incomplete task",
+    "details": { "blockerIds": [7, 9] }
+  }
+}
+```
+
+Only `open` blockers count — a `completed` or `cancelled` blocker releases its dependents, so cancelling a task never deadlocks whatever it was holding back. Re-completing an already-completed task skips the check (that retry path exists to recover a lost Troiki capacity grant), and `uncomplete` / `cancel` are never blocked.
+
 ```sh
 # Complete now
 curl -X POST "$BASE/api/v1/tasks/42/complete" \
@@ -1038,6 +1063,95 @@ curl -X POST "$BASE/api/v1/tasks/42/plan" \
   -H "Content-Type: application/json" \
   -d '{"state":"none"}'
 ```
+
+---
+
+## Task Relations
+
+Directed links between two tasks. Two types:
+
+| Type | Meaning |
+|------|---------|
+| `related` | Symmetric, purely informational. Adding it from either side produces the same single relation (the pair is normalised), so a duplicate is rejected with `409 conflict`. |
+| `blocks` | Directed and **enforced**: the blocked task cannot be completed while the blocking task is still `open`. |
+
+`direction` is interpreted **relative to the task in the path** and only matters for `blocks`:
+
+- `incoming` — the other task blocks this one ("blocked by"),
+- `outgoing` — this task blocks the other one ("blocks").
+
+Both endpoints below answer with the **updated task**, with `relations` hydrated. There is deliberately no `GET` for relations: they ride inside `GET /api/v1/tasks/:id?relations=true`, and the mutations return the task, so a client never needs a follow-up read.
+
+### Relation Object
+
+```json
+{
+  "id": 3,
+  "type": "blocks",
+  "direction": "incoming",
+  "createdAt": "2026-07-20T10:00:00.000Z",
+  "task": { "id": 7, "title": "Ship the migration", "status": "open", "...": "full Task object" }
+}
+```
+
+`task` is the **peer** end — the task at the other side of the relation, not the one in the path. The same stored relation therefore serialises as `incoming` on one of its tasks and `outgoing` on the other.
+
+### `POST /api/v1/tasks/:id/relations`
+
+```json
+{ "targetTaskId": 7, "type": "blocks", "direction": "incoming" }
+```
+
+`direction` defaults to `outgoing` and is ignored for `type: "related"`.
+
+Returns `200` with the updated task (`relations` hydrated). Errors:
+
+| Condition | Response |
+|-----------|----------|
+| Either task does not exist | `404 not_found` |
+| `targetTaskId` equals the path id | `400 validation_failed` |
+| Unknown `type` or `direction` | `400 validation_failed` |
+| The relation already exists | `409 conflict` |
+| A `blocks` relation would close a loop in the blocking graph | `400 validation_failed` |
+
+The cycle check matters: `A blocks B blocks A` would leave both tasks permanently uncompletable. Only `blocks` edges participate — a `related` link cannot deadlock anything.
+
+```sh
+# "Task 42 is blocked by task 7"
+curl -X POST "$BASE/api/v1/tasks/42/relations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"targetTaskId":7,"type":"blocks","direction":"incoming"}'
+
+# "Task 42 blocks task 9"
+curl -X POST "$BASE/api/v1/tasks/42/relations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"targetTaskId":9,"type":"blocks","direction":"outgoing"}'
+
+# "Task 42 is related to task 11"
+curl -X POST "$BASE/api/v1/tasks/42/relations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"targetTaskId":11,"type":"related"}'
+```
+
+### `DELETE /api/v1/tasks/:id/relations/:relationId`
+
+Removes a relation. Works from **either** of its two tasks; a relation that does not touch `:id` returns `404 not_found` rather than silently succeeding. Returns `200` with the updated task.
+
+```sh
+curl -X DELETE "$BASE/api/v1/tasks/42/relations/3" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Notes
+
+- Creating or removing a relation bumps `updatedAt` on **both** tasks, so a client watching either one sees the change.
+- Tasks are hard-deleted and relations cascade with them — deleting a blocker releases everything it was blocking.
+- `duplicate`, `decompose` and recurrence snapshots do **not** copy relations; a cloned dependency graph would be ambiguous.
+- Relations are included in backup export/restore, with their ids preserved.
+- Relation mutations publish the `tasks` SSE scope like any other task write.
 
 ---
 

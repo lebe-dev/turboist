@@ -16,7 +16,7 @@ func setupTroikiService(t *testing.T) (*service.TroikiService, *repo.TaskRepo, *
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
 	plabels := repo.NewProjectLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)
 	users := repo.NewUserRepo(d)

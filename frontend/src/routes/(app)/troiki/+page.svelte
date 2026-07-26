@@ -24,7 +24,7 @@
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { splitByRootCompletion } from '$lib/utils/taskTree';
-	import { describeError } from '$lib/utils/taskActions';
+	import { describeError, isBlocked } from '$lib/utils/taskActions';
 	import { followUpStore } from '$lib/stores/followUp.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
@@ -91,6 +91,13 @@
 	async function onTaskToggle(task: Task): Promise<void> {
 		const client = getApiClient();
 		const wasOpen = task.status !== 'completed';
+		// This page completes directly rather than through toggleComplete (it has to
+		// refetch slots for the capacity grant), so it needs its own copy of the
+		// blocker guard.
+		if (wasOpen && isBlocked(task)) {
+			toast.error($t('task.toast.blockedCannotComplete'));
+			return;
+		}
 		try {
 			const updated = wasOpen
 				? await tasksApi.complete(client, task.id)

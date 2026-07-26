@@ -10,15 +10,16 @@ import (
 )
 
 type taskFixture struct {
-	contexts  *ContextRepo
-	projects  *ProjectRepo
-	sections  *ProjectSectionRepo
-	labels    *LabelRepo
-	tasks     *TaskRepo
-	tlabels   *TaskLabelsRepo
-	contextID int64
-	projectID int64
-	sectionID int64
+	contexts   *ContextRepo
+	projects   *ProjectRepo
+	sections   *ProjectSectionRepo
+	labels     *LabelRepo
+	tasks      *TaskRepo
+	tlabels    *TaskLabelsRepo
+	trelations *TaskRelationsRepo
+	contextID  int64
+	projectID  int64
+	sectionID  int64
 }
 
 func newTaskFixture(t *testing.T) *taskFixture {
@@ -30,7 +31,8 @@ func newTaskFixture(t *testing.T) *taskFixture {
 	sr := NewProjectSectionRepo(d)
 	lr := NewLabelRepo(d)
 	tlr := NewTaskLabelsRepo(d)
-	tr := NewTaskRepo(d, tlr)
+	trr := NewTaskRelationsRepo(d)
+	tr := NewTaskRepo(d, tlr, trr)
 
 	ctx := context.Background()
 	c, err := cr.Create(ctx, "work", "blue", false)
@@ -46,15 +48,16 @@ func newTaskFixture(t *testing.T) *taskFixture {
 		t.Fatalf("create section: %v", err)
 	}
 	return &taskFixture{
-		contexts:  cr,
-		projects:  pr,
-		sections:  sr,
-		labels:    lr,
-		tasks:     tr,
-		tlabels:   tlr,
-		contextID: c.ID,
-		projectID: p.ID,
-		sectionID: s.ID,
+		contexts:   cr,
+		projects:   pr,
+		sections:   sr,
+		labels:     lr,
+		tasks:      tr,
+		tlabels:    tlr,
+		trelations: trr,
+		contextID:  c.ID,
+		projectID:  p.ID,
+		sectionID:  s.ID,
 	}
 }
 

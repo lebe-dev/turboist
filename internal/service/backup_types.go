@@ -28,6 +28,9 @@ type BackupData struct {
 	Tasks           []BackupTask           `json:"tasks"`
 	TaskLabels      []BackupTaskLabel      `json:"taskLabels"`
 	ProjectLabels   []BackupProjectLabel   `json:"projectLabels"`
+	// TaskRelations is additive (migration 046): a payload written before it
+	// existed simply decodes to nil, which is why BackupSchemaVersion stays at 1.
+	TaskRelations []BackupTaskRelation `json:"taskRelations"`
 }
 
 type BackupConfig struct {
@@ -118,6 +121,18 @@ type BackupTaskLabel struct {
 type BackupProjectLabel struct {
 	ProjectID int64 `json:"projectId"`
 	LabelID   int64 `json:"labelId"`
+}
+
+// BackupTaskRelation mirrors one task_relations row. Unlike the label link tables
+// this one carries its surrogate id, because the API addresses a relation by id
+// (DELETE /tasks/:id/relations/:relationId) and a restore that renumbered them
+// would break any client holding one.
+type BackupTaskRelation struct {
+	ID           int64  `json:"id"`
+	SourceTaskID int64  `json:"sourceTaskId"`
+	TargetTaskID int64  `json:"targetTaskId"`
+	Type         string `json:"type"`
+	CreatedAt    string `json:"createdAt"`
 }
 
 // ExportOptions controls what is included in the backup.

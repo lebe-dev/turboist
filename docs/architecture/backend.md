@@ -24,6 +24,7 @@ The server runs migrations from `internal/db/migrations` on every start. The sch
 | `POST /auth/logout-all` | — | Invalidate all sessions |
 | `GET /auth/me` | JWT | Current user info |
 | `/api/v1/{contexts,labels,sections,projects,inbox,tasks,search,config}` | Bearer | Authenticated REST resources |
+| `POST\|DELETE /api/v1/tasks/:id/relations[/:relationId]` | Bearer | Task relation graph (write-only — reads ride on `GET /api/v1/tasks/:id?relations=true`) |
 
 All `/api/v1/*` endpoints require `Authorization: Bearer <token>`. The token can be a 15-minute JWT access token or a long-lived API token (generated in Settings → API). Web clients also receive a 30-day refresh token in an HttpOnly cookie scoped to `/auth/refresh`. API tokens are accepted on every `/api/v1/*` route except `/api/v1/api-tokens/*`, which requires a JWT session.
 
@@ -59,6 +60,14 @@ Inbound events are coalesced client-side over a 200 ms window before anything is
 The middleware sits **after** `APIAuthMiddleware` (it needs the resolved user id) and **before** `PublishMiddleware` in the `/api/v1` group, so a replay short-circuits before Publish and never re-emits an SSE invalidation. A nil `IdempotencyRepo` disables it (used in tests). Client-facing behaviour is documented in [API.md → Idempotency](../../API.md#idempotency).
 
 Keys are persisted in the `idempotency_keys` table (migration `044_idempotency_keys.sql`: `key` PK, `user_id` FK, `method`, `path`, `status`, `response`, `created_at`; `status = 0` marks a reservation still in flight). A background prune runs in `cmd/turboist` — once at startup and then every 12 hours on the shared cleanup context — deleting rows older than 48 hours via `IdempotencyRepo.DeleteOlderThan`.
+
+## Task relations
+
+`task_relations` (migration `046_task_relations.sql`) stores directed edges between two tasks: `source_task_id`, `target_task_id`, `type` (`related` | `blocks`), plus a surrogate `id` so the API can address one edge (`DELETE /api/v1/tasks/:id/relations/:relationId`). Both FKs cascade — tasks are hard-deleted, so a deleted blocker takes its edges with it.
+
+`related` is symmetric and normalised on write (lower id first), which lets the `UNIQUE (source, target, type)` constraint dedupe A↔B added from either side. `blocks` is directed and enforced: `CompleteService.completeAt` refuses a task with any `open` blocker, returning `service.TaskBlockedError` → `409 task_blocked` with the blocker ids in `details`. The guard sits at that one choke point deliberately — single complete, `bulk/complete` and the Troiki board all funnel through it. Completed *and cancelled* blockers stop blocking, otherwise cancelling a task would deadlock its dependents forever. A cycle check (recursive CTE over `blocks` edges) rejects a pair that would leave both tasks permanently uncompletable.
+
+Reads are shaped by the "one aggregate" rule: there is no relations endpoint. `TaskDTO` always carries `blockedByCount` / `relationCount`, hydrated by one batch query (`TaskRelationsRepo.SummaryByTaskIDs`) in `TaskRepo.Get` and in the single list funnel `listWithBaseArgsOrdered` — so every list view, `GET /api/v1/config`'s `pinnedTasks` and `/stats/sidebar`'s `pinned` get them without a per-task query. The full relation list is opt-in via `GET /api/v1/tasks/:id?relations=true`, and both mutations answer with the updated task so no follow-up read is needed.
 
 ## Storage
 

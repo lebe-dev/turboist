@@ -416,3 +416,54 @@ describe('findTaskDetail synthesis for the task page', () => {
 		expect(hit?.payload).not.toHaveProperty('subtasks');
 	});
 });
+
+describe('findTask inside a task detail payload relations list', () => {
+	let db: OfflineDB;
+	let cache: ReadCache;
+
+	afterEach(() => {
+		db?.close();
+	});
+
+	function task(id: number, extra: Record<string, unknown> = {}) {
+		return { id, title: `t${id}`, status: 'open', dayPart: 'none', ...extra };
+	}
+
+	async function open() {
+		db = await openOfflineDB(SERVER);
+		cache = createReadCache(db);
+	}
+
+	// The peer sits one level down under relations[].task. Missing it would leave a
+	// blocked peer invisible offline, so the complete guard could not see it and
+	// patchCachedTask could not rewrite it.
+	it('finds a relation peer nested under relations[].task', async () => {
+		await open();
+		await cache.put('/api/v1/tasks/7', { relations: 'true' }, {
+			...task(7, { blockedByCount: 0, relationCount: 1 }),
+			relations: [
+				{
+					id: 1,
+					type: 'blocks',
+					direction: 'incoming',
+					createdAt: '2026-01-01T00:00:00.000Z',
+					task: task(8, { blockedByCount: 0, relationCount: 1 })
+				}
+			]
+		});
+
+		const found = (await cache.findTask(8)) as { id: number; title: string } | null;
+		expect(found?.id).toBe(8);
+		expect(found?.title).toBe('t8');
+	});
+
+	it('tolerates a relations array whose entries carry no task', async () => {
+		await open();
+		await cache.put('/api/v1/tasks/7', { relations: 'true' }, {
+			...task(7),
+			relations: [{ id: 1, type: 'related', direction: 'outgoing' }, null]
+		});
+		expect(await cache.findTask(8)).toBeNull();
+		expect(((await cache.findTask(7)) as { id: number }).id).toBe(7);
+	});
+});

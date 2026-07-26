@@ -393,6 +393,12 @@ func (r *TaskRepo) listWithBaseArgsOrdered(ctx context.Context, base string, bas
 			out[i].Labels = hydrated[out[i].ID]
 		}
 	}
+	// Unconditional (not gated on `hydrate`): the blocked flag drives whether the
+	// checkbox is even clickable, so a view that skipped it would render a
+	// completable checkbox for a blocked task.
+	if err := r.hydrateRelationSummaries(ctx, out, ids); err != nil {
+		return nil, 0, err
+	}
 	return out, total, nil
 }
 

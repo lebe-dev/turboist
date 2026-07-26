@@ -250,6 +250,12 @@ func (h *TaskBulkHandler) groupTasks(c fiber.Ctx) error {
 
 // toErrDetail converts a service/repo error to a bulk error detail.
 func toErrDetail(err error) bulkErrDetail {
+	// Before the generic AppError branch: a blocked task must be reported per-item
+	// as `task_blocked` rather than collapsing into "internal error", so the user
+	// can see which of a bulk selection was held back and why.
+	if blocked := taskBlockedErr(err); blocked != nil {
+		return bulkErrDetail{Code: blocked.Code, Message: blocked.Message}
+	}
 	var appErr *httpapi.AppError
 	if errors.As(err, &appErr) {
 		return bulkErrDetail{Code: appErr.Code, Message: appErr.Message}

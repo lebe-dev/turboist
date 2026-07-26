@@ -13,7 +13,7 @@ import (
 func TestPlanService_SetWeek(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
@@ -37,7 +37,7 @@ func TestPlanService_SetWeek(t *testing.T) {
 func TestPlanService_WeeklyLimitEnforced(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 2, 100) // limit = 2
 	ctx := context.Background()
@@ -71,7 +71,7 @@ func TestPlanService_WeeklyLimitEnforced(t *testing.T) {
 func TestPlanService_InboxTaskMovedToFirstContextOnPlan(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
@@ -101,7 +101,7 @@ func TestPlanService_InboxTaskMovedToFirstContextOnPlan(t *testing.T) {
 func TestPlanService_InboxTaskRejectedWhenNoContexts(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
@@ -121,7 +121,7 @@ func TestPlanService_InboxTaskRejectedWhenNoContexts(t *testing.T) {
 func TestPlanService_SetWeekClearsDue(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
@@ -154,7 +154,7 @@ func TestPlanService_SetWeekClearsDue(t *testing.T) {
 func TestPlanService_SetBacklogClearsDue(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
@@ -187,7 +187,7 @@ func TestPlanService_SetBacklogClearsDue(t *testing.T) {
 func TestPlanService_BacklogToWeekClearsBacklog(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
@@ -215,7 +215,7 @@ func TestPlanService_BacklogToWeekClearsBacklog(t *testing.T) {
 func TestPlanService_SetNoneKeepsDue(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 5, 10)
 	ctx := context.Background()
@@ -245,7 +245,7 @@ func TestPlanService_SetNoneKeepsDue(t *testing.T) {
 func TestPlanService_NoChangeIfSameState(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	ctxs := repo.NewContextRepo(d)
 	svc := service.NewPlanService(tasks, ctxs, 1, 1) // limit = 1
 	ctx := context.Background()

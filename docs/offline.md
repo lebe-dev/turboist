@@ -25,7 +25,7 @@ installed web-PWA, and the native iOS/Android apps.
    still only opens offline once you have visited it online; an unvisited one shows a clear
    "no connection" message rather than a raw fetch error.
 2. **A small whitelist of writes** — queued locally and replayed when the network returns:
-   - `task.complete` — complete a task,
+   - `task.complete` — complete a task (refused for a task the cache reports as blocked, see below),
    - `task.uncomplete` — undo a completion,
    - `task.createInbox` — quick-add a task to the Inbox.
 3. **Offline session.** If the server is unreachable at launch, the app renders from the
@@ -102,6 +102,14 @@ native specifics.
 - **Offline-created tasks are locked.** A task created offline holds a temporary
   client-side id until it syncs; complete/uncomplete on it is blocked ("Unavailable
   offline") until it has a real server id.
+- **Blocked tasks cannot be completed offline either.** The blocker rule is enforced on the
+  server, and the outbox mirrors it before queueing: `task.complete` checks the cached task's
+  `blockedByCount` and declines ("Unavailable offline") rather than showing the task done and
+  having the replay rejected into the quarantine. If the cache is stale — a blocker was
+  completed on another device — the replay rejection remains the backstop.
+- **Completing a blocker offline does not release its dependents until you reconnect.** The
+  cache holds no reverse edges, so it cannot know which tasks a just-completed task was
+  blocking. Those tasks stay disabled until the next online refetch.
 
 ## Offline — manual acceptance checklist (FEATURE-OFFLINE-ARCH.md §6)
 
@@ -145,6 +153,8 @@ Before each run: be logged in and online once so the cache is warm.
 ### 2. Complete a task offline, survive restart (§6.2)
 - [ ] Go offline.
 - [ ] Complete a task → the UI shows it completed **immediately**.
+- [ ] A task with an unfinished blocker shows a **disabled checkbox with a lock**; clicking it
+      changes nothing and the pending counter does **not** move.
 - [ ] The banner's pending counter shows **"1 change waiting to be sent"**.
 - [ ] Relaunch the app **while still offline** → the task is **still completed**
       (served from the patched cache).

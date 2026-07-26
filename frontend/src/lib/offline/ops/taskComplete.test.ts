@@ -140,3 +140,66 @@ describe('taskComplete.synthesizeResponse', () => {
 		expect(res.recurrenceRule).toBe('FREQ=DAILY');
 	});
 });
+
+describe('taskComplete.guard', () => {
+	let db: OfflineDB;
+	let cache: ReadCache;
+	afterEach(() => db?.close());
+
+	async function open() {
+		db = await openOfflineDB(SERVER);
+		cache = createReadCache(db);
+	}
+
+	async function cacheTask(t: Record<string, unknown>) {
+		await cache.put('/api/v1/tasks', undefined, { items: [t], total: 1, limit: 50, offset: 0 });
+	}
+
+	it('refuses a cached task with open blockers', async () => {
+		await open();
+		await cacheTask(task(5, { blockedByCount: 1, relationCount: 1 }));
+		expect(await taskComplete.guard!({ taskId: 5 }, cache)).toBe(false);
+	});
+
+	it('allows a cached task with no open blockers', async () => {
+		await open();
+		await cacheTask(task(5, { blockedByCount: 0, relationCount: 2 }));
+		expect(await taskComplete.guard!({ taskId: 5 }, cache)).toBe(true);
+	});
+
+	// A cache miss must not block: the page has already applied its optimistic update
+	// and the server still enforces the rule on replay.
+	it('allows a task that is not in cache', async () => {
+		await open();
+		expect(await taskComplete.guard!({ taskId: 99 }, cache)).toBe(true);
+	});
+
+	// A pre-upgrade cached entry predates the field. Treating a missing count as
+	// blocked would wedge the checkbox for every such task.
+	it('allows a cached task written before blockedByCount existed', async () => {
+		await open();
+		await cacheTask(task(5));
+		expect(await taskComplete.guard!({ taskId: 5 }, cache)).toBe(true);
+	});
+
+	// The blocked flag must be found wherever findTask looks — including a peer nested
+	// in another task's detail payload.
+	it('sees a blocked task embedded in a detail payload relations list', async () => {
+		await open();
+		await cache.put('/api/v1/tasks/7', { relations: 'true' }, {
+			...task(7),
+			blockedByCount: 0,
+			relationCount: 1,
+			relations: [
+				{
+					id: 1,
+					type: 'blocks',
+					direction: 'outgoing',
+					createdAt: '2026-01-01T00:00:00.000Z',
+					task: task(8, { blockedByCount: 1, relationCount: 1 })
+				}
+			]
+		});
+		expect(await taskComplete.guard!({ taskId: 8 }, cache)).toBe(false);
+	});
+});

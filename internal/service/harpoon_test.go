@@ -18,7 +18,7 @@ func setupHarpoonService(t *testing.T) (*service.HarpoonService, *repo.TaskRepo,
 		t.Fatalf("create user: %v", err)
 	}
 	tlabels := repo.NewTaskLabelsRepo(d)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)

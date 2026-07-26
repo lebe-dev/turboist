@@ -2,9 +2,12 @@ package handlers_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 )
 
 func TestMetaConfig_Success(t *testing.T) {
@@ -260,5 +263,49 @@ func TestVersion_Public(t *testing.T) {
 	}
 	if result["version"] == nil {
 		t.Error("version field missing")
+	}
+}
+
+// The config aggregate is the SPA's boot payload, and its pinnedTasks feed the
+// sidebar directly. Those tasks must carry the relation counters or a pinned
+// blocked task would render with a completable checkbox.
+func TestMetaConfig_PinnedTasksCarryRelationCounters(t *testing.T) {
+	e := setupAPIEnv(t)
+	c := createTestContext(t, e, "Work")
+	blocker := createTestTask(t, e, c.ID, "Blocker")
+	blocked := createTestTask(t, e, c.ID, "Blocked")
+	addRelation(t, e, blocked.ID, map[string]any{
+		"targetTaskId": blocker.ID, "type": "blocks", "direction": "incoming",
+	})
+	pinURL := fmt.Sprintf("/api/v1/tasks/%d/pin", blocked.ID)
+	if resp, raw := doReq(t, e.app, e.authedReq(t, http.MethodPost, pinURL, nil)); resp.StatusCode != 200 {
+		t.Fatalf("pin: got %d, want 200; body: %s", resp.StatusCode, raw)
+	}
+
+	resp, raw := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/config", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("config: got %d, want 200; body: %s", resp.StatusCode, raw)
+	}
+	var cfg struct {
+		PinnedTasks []dto.TaskDTO `json:"pinnedTasks"`
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	var found bool
+	for _, task := range cfg.PinnedTasks {
+		if task.ID != blocked.ID {
+			continue
+		}
+		found = true
+		if task.BlockedByCount != 1 {
+			t.Errorf("blockedByCount: got %d, want 1", task.BlockedByCount)
+		}
+		if task.RelationCount != 1 {
+			t.Errorf("relationCount: got %d, want 1", task.RelationCount)
+		}
+	}
+	if !found {
+		t.Fatalf("pinned blocked task missing from config.pinnedTasks")
 	}
 }

@@ -29,6 +29,8 @@ function makeTask(overrides: Partial<Task>): Task {
 		recurrenceRule: null,
 		sourceTaskId: null,
 		postponeCount: 0,
+		blockedByCount: 0,
+		relationCount: 0,
 		labels: [],
 		url: '',
 		createdAt: '2026-01-01T00:00:00.000Z',

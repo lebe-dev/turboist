@@ -46,12 +46,13 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 
 	plabels := repo.NewProjectLabelsRepo(d)
 	tlabels := repo.NewTaskLabelsRepo(d)
+	trelations := repo.NewTaskRelationsRepo(d)
 
 	ctxs := repo.NewContextRepo(d)
 	lbls := repo.NewLabelRepo(d)
 	secs := repo.NewProjectSectionRepo(d)
 	projs := repo.NewProjectRepo(d, plabels)
-	tasks := repo.NewTaskRepo(d, tlabels)
+	tasks := repo.NewTaskRepo(d, tlabels, trelations)
 	users := repo.NewUserRepo(d)
 	if _, err := users.Create(context.Background(), "admin", "h"); err != nil {
 		t.Fatalf("seed user: %v", err)
@@ -70,7 +71,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	appSettings := repo.NewAppSettingsRepo(d)
 	autoLabelsSvc := service.NewAutoLabelsService(lbls, appSettings)
 	taskSvc := service.NewTaskService(tasks, projs, tlabels, autoLabelsSvc)
-	completeSvc := service.NewCompleteService(tasks, projs, users)
+	completeSvc := service.NewCompleteService(tasks, projs, users, trelations)
 	moveSvc := service.NewMoveService(tasks, projs)
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, tasks, tlabels)
 	planSvc := service.NewPlanService(tasks, ctxs, cfg.Weekly.Limit, cfg.Backlog.Limit)
@@ -85,6 +86,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	handlers.NewTaskViewHandler(tasks, users, troikiSvc, cfg, testBaseURL).Register(api)
 	handlers.NewTaskActionHandler(tasks, completeSvc, planSvc, pinSvc, moveSvc, testBaseURL).Register(api)
 	handlers.NewTroikiHandler(troikiSvc, testBaseURL).Register(api)
+	handlers.NewTaskRelationHandler(service.NewRelationService(tasks, trelations), testBaseURL).Register(api)
 	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings,

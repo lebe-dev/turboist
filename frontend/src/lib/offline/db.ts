@@ -27,8 +27,13 @@ export const DB_VERSION = 1;
  * now fans both out on boot. A pre-v1.15 config payload left in the cache would
  * be read by that new code during an offline-first launch after an upgrade, so
  * the stale responses must go. Costs one cold-cache launch after upgrading.
+ *
+ * 3: `Task` grew `blockedByCount`/`relationCount`, and the offline complete guard
+ * reads them to refuse completing a blocked task. A cached task written before the
+ * fields existed would read as unblocked and queue a completion the server then
+ * rejects on replay, so those responses must go too.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Current `QueuedOp.v`; outbox rows with a different `v` are quarantined. */
 export const OUTBOX_OP_VERSION = 1;

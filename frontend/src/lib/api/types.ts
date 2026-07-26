@@ -144,12 +144,42 @@ export interface Task {
 	createdAt: string;
 	updatedAt: string;
 
+	// How many still-open tasks block this one, and how many relations touch it in
+	// total. Present on EVERY read path — single get, all list views, the /config
+	// aggregate's pinnedTasks — because `blockedByCount > 0` is what disables the
+	// checkbox, so a list without them would offer to complete a blocked task.
+	blockedByCount: number;
+	relationCount: number;
+
 	// Populated only by GET /tasks/:id?subtasks=true so the task detail page
 	// can fetch parent + children in one round-trip. Omitted otherwise.
 	subtasks?: Page<Task>;
 
+	// Populated only by GET /tasks/:id?relations=true and by the relation
+	// mutations, which answer with the updated task. Omitted on list paths.
+	relations?: TaskRelation[];
+
 	// Populated only by the single-task GET handler when parentId is set.
 	parentTitle?: string;
+}
+
+/** `related` is symmetric and informational; `blocks` is enforced on completion. */
+export type RelationType = 'related' | 'blocks';
+
+/**
+ * Direction of a `blocks` relation as seen from the task it was loaded for:
+ * `outgoing` = this task blocks the peer, `incoming` = the peer blocks this task.
+ * Meaningless for `related`, which is symmetric.
+ */
+export type RelationDirection = 'outgoing' | 'incoming';
+
+export interface TaskRelation {
+	id: number;
+	type: RelationType;
+	direction: RelationDirection;
+	/** The peer end — the task at the other side of the relation. */
+	task: Task;
+	createdAt: string;
 }
 
 export interface Page<T> {

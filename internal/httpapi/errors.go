@@ -16,6 +16,7 @@ const (
 	CodeForbiddenPlacement     = "forbidden_placement"
 	CodeRecurrenceInvalid      = "recurrence_invalid"
 	CodeTroikiSlotFull         = "troiki_slot_full"
+	CodeTaskBlocked            = "task_blocked"
 	CodeTOTPInvalidCode        = "totp_invalid_code"
 	CodeTOTPAlreadyEnabled     = "totp_already_enabled"
 	CodeTOTPNotEnabled         = "totp_not_enabled"
@@ -114,6 +115,13 @@ func ErrRecurrenceInvalid(msg string) *AppError {
 
 func ErrTroikiSlotFull(msg string) *AppError {
 	return newErr(409, CodeTroikiSlotFull, msg)
+}
+
+// ErrTaskBlocked signals a refused completion: the task has at least one open
+// task blocking it. blockerIDs travels in details so the client can name and link
+// the blockers instead of just saying "blocked".
+func ErrTaskBlocked(msg string, blockerIDs []int64) *AppError {
+	return newErr(409, CodeTaskBlocked, msg, map[string]any{"blockerIds": blockerIDs})
 }
 
 // ErrIdempotencyInFlight signals that a request carrying an Idempotency-Key
