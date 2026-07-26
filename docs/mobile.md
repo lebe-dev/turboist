@@ -76,6 +76,7 @@ just ios-run         # build, sync iOS, run on a simulator/device
 just android-run     # build, sync Android, run on an emulator/device
 just ios-build       # build, sync, open Xcode
 just android-build   # build, sync, open Android Studio
+just build-ipa       # build, sync, package an unsigned .ipa into dist/ (AltStore)
 ```
 
 Re-run `just cap-sync` after **every** web change — the native projects hold a *copy* of `frontend/build`.
@@ -95,6 +96,23 @@ The signing team is **not** committed into the Xcode project. It comes from `IOS
 4. `just deploy-ios`.
 
 **First launch on a personal (free) profile** is blocked by iOS until you trust the developer once: **Settings → General → VPN & Device Management → Developer App → Trust**. After that the app icon launches normally.
+
+### Sideload an .ipa with AltStore (no cable, no Xcode)
+
+`just build-ipa` produces `dist/Turboist-<VERSION>+<commit>.ipa`: it rebuilds the web bundle through `cap-sync-versioned`, builds the `App` scheme in **Release** for `generic/platform=iOS` with `CODE_SIGNING_ALLOWED=NO`, then wraps `App.app` (including the `TurboistWidget.appex` extension and the embedded `Capacitor`/`Cordova` frameworks) into the `Payload/` layout an `.ipa` expects.
+
+The build is deliberately **unsigned**, so no `IOS_DEV_TEAM_ID` and no connected device are needed — AltStore re-signs the whole bundle with your own Apple ID at install time, and any signature baked in here would just be discarded.
+
+1. `just build-ipa`
+2. Get the file onto the phone — AirDrop, Files, iCloud Drive, whatever.
+3. On the iPhone: **AltStore → My Apps → “+” → pick the .ipa**, and enter your Apple ID when asked.
+4. Trust the developer once: **Settings → General → VPN & Device Management → Developer App → Trust**.
+
+Full walkthrough — AltServer setup, refresh/expiry, free-account quotas, troubleshooting: [docs/deploy-ios.md](deploy-ios.md).
+
+Notes for a **free** Apple ID: the app expires after **7 days** — keep AltServer running on this Mac (and the phone on the same network) so AltStore can refresh it in the background; you get at most 3 sideloaded apps, and the widget extension consumes a second App ID out of the 10-per-7-days quota. A paid developer account raises the expiry to a year.
+
+`deploy-ios` remains the faster loop when the phone is plugged in — it installs a signed Debug build directly, skipping the packaging and the AltStore round-trip.
 
 ### Deploy a Debug APK to a physical Android device
 
