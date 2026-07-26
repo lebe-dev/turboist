@@ -50,7 +50,7 @@
 		});
 		if (!isValid()) return;
 		lastQuery = trimmed;
-		taskList.items = res.tasks?.items ?? [];
+		taskList.setFromServer(res.tasks?.items ?? []);
 		projects = res.projects?.items ?? [];
 		total = {
 			tasks: res.tasks?.total ?? 0,
@@ -58,6 +58,7 @@
 		};
 	}, {
 		autoLoad: false,
+		epoch: () => taskList.epoch,
 		onError(err) {
 			if (err instanceof ApiError && err.code === 'validation_failed') {
 				reset();

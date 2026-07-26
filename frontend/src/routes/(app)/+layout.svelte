@@ -124,25 +124,30 @@
 		}
 	});
 
+	// Wake handling. Besides re-reading the clock, this nudges the SSE stream back
+	// up immediately: a hidden tab's reconnect timer is throttled to minutes, so
+	// the queued attempt would otherwise fire (and run its catch-up refresh) a few
+	// seconds into the user's first interaction. eventsClient.resume() is a no-op
+	// on a healthy stream.
 	$effect(() => {
+		function onWake(): void {
+			nowStore.refresh();
+			eventsClient.resume();
+		}
 		function onVisible(): void {
-			if (document.visibilityState === 'visible') nowStore.refresh();
-		}
-		function onFocus(): void {
-			nowStore.refresh();
-		}
-		function onPageShow(): void {
-			nowStore.refresh();
+			if (document.visibilityState === 'visible') onWake();
 		}
 
 		nowStore.scheduleMidnight();
 		document.addEventListener('visibilitychange', onVisible);
-		window.addEventListener('focus', onFocus);
-		window.addEventListener('pageshow', onPageShow);
+		window.addEventListener('focus', onWake);
+		window.addEventListener('pageshow', onWake);
+		window.addEventListener('online', onWake);
 		return () => {
 			document.removeEventListener('visibilitychange', onVisible);
-			window.removeEventListener('focus', onFocus);
-			window.removeEventListener('pageshow', onPageShow);
+			window.removeEventListener('focus', onWake);
+			window.removeEventListener('pageshow', onWake);
+			window.removeEventListener('online', onWake);
 			nowStore.teardown();
 		};
 	});

@@ -34,25 +34,45 @@ function slotOf(v: TroikiViewResponse, cat: TroikiCategory): TroikiSlot {
 class TroikiStore {
 	value = $state<TroikiViewResponse>(EMPTY);
 
+	// The Troiki page has no `useListMutator`, so this store owns the same two
+	// guards `usePageLoad` applies to list views. Both exist because the page
+	// revalidates on every SSE `tasks` invalidation — including the burst fired
+	// when a long-idle tab reconnects, which lands right as the user reaches for a
+	// checkbox.
+	//
+	//   writeSeq — only the most recently ISSUED write applies. Two `load()`s can
+	//     be in flight (a background revalidation plus the reload `onTaskToggle`
+	//     does after completing a task); without this the older one can resolve
+	//     last and put the completed task back.
+	//   epoch — a local optimistic edit vetoes any read that was already in flight,
+	//     since that read is a snapshot from before the edit.
+	private writeSeq = 0;
+	private epoch = 0;
+
 	async load(): Promise<TroikiViewResponse> {
+		const my = ++this.writeSeq;
+		const at = this.epoch;
 		const v = await troikiApi.view(getApiClient());
-		this.value = v;
+		if (my === this.writeSeq && at === this.epoch) this.value = v;
 		return v;
 	}
 
 	setValue(v: TroikiViewResponse): void {
+		++this.writeSeq;
 		this.value = v;
 	}
 
 	async start(): Promise<TroikiViewResponse> {
+		const my = ++this.writeSeq;
 		const v = await troikiApi.start(getApiClient());
-		this.value = v;
+		if (my === this.writeSeq) this.value = v;
 		return v;
 	}
 
 	async reset(): Promise<TroikiViewResponse> {
+		const my = ++this.writeSeq;
 		const v = await troikiApi.reset(getApiClient());
-		this.value = v;
+		if (my === this.writeSeq) this.value = v;
 		return v;
 	}
 
@@ -66,6 +86,7 @@ class TroikiStore {
 	// stay visible under their project — the backend view includes them so users can
 	// see what they finished in the current cycle.
 	applyTaskUpdate(task: Task): void {
+		++this.epoch;
 		const next = clone(this.value);
 		for (const cat of CATEGORIES) {
 			const slot = slotOf(next, cat);
@@ -94,6 +115,7 @@ class TroikiStore {
 	// drops it when category is cleared, and refreshes its metadata in place. Tasks
 	// already attached to the project are preserved across moves.
 	applyProjectUpdate(project: Project): void {
+		++this.epoch;
 		const next = clone(this.value);
 		let existingTasks: Task[] = [];
 		for (const cat of CATEGORIES) {
@@ -119,6 +141,7 @@ class TroikiStore {
 	// project, the task is appended to the end.
 	insertTaskAfter(referenceId: number, task: Task): void {
 		if (task.projectId === null) return;
+		++this.epoch;
 		const next = clone(this.value);
 		for (const cat of CATEGORIES) {
 			const slot = slotOf(next, cat);
@@ -144,6 +167,7 @@ class TroikiStore {
 	}
 
 	removeTask(id: number): void {
+		++this.epoch;
 		const next = clone(this.value);
 		for (const cat of CATEGORIES) {
 			const slot = slotOf(next, cat);

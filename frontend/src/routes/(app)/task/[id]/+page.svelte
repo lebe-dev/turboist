@@ -284,7 +284,7 @@
 			notFound = false;
 			if (task?.id !== taskId) {
 				task = null;
-				subtasks.items = [];
+				subtasks.setFromServer([]);
 			}
 			if (!Number.isFinite(taskId)) {
 				notFound = true;
@@ -294,11 +294,12 @@
 			const t = await tasksApi.get(client, taskId, { includeSubtasks: true });
 			if (!isValid()) return;
 			hydrate(t);
-			subtasks.items = t.subtasks?.items ?? [];
+			subtasks.setFromServer(t.subtasks?.items ?? []);
 		},
 		{
 			autoLoad: false,
 			initialLoading: true,
+			epoch: () => subtasks.epoch,
 			onError(err) {
 				if (err instanceof ApiError && err.code === 'not_found') {
 					notFound = true;

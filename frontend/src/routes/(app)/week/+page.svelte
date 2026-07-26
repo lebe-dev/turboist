@@ -35,6 +35,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { untrack } from 'svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 
 
@@ -155,9 +156,14 @@
 			contextId: userStateStore.activeContextId ?? undefined
 		});
 		if (!isValid()) return;
-		list.items = res.items;
+		list.setFromServer(res.items);
 		void loadCalendarEvents(start, end, isValid);
-	}, { errorMessage: $t('page.week.errorLoading'), autoLoad: false, initialLoading: true });
+	}, {
+		errorMessage: $t('page.week.errorLoading'),
+		autoLoad: false,
+		initialLoading: true,
+		epoch: () => list.epoch
+	});
 
 	async function loadCalendarEvents(
 		start: string,
@@ -168,9 +174,12 @@
 		if (isValid()) calendarEvents = events;
 	}
 
+	// See today/+page.svelte: $derived gates equal values, untrack keeps the
+	// fetcher's own store reads out of this effect's dependency set.
+	const activeContextId = $derived(userStateStore.activeContextId);
 	$effect(() => {
-		void userStateStore.activeContextId;
-		void loader.refetch();
+		void activeContextId;
+		untrack(() => void loader.refetch());
 	});
 
 	let lastDayKey = $state(nowStore.todayKey);

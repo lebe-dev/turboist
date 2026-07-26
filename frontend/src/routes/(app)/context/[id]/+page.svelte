@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -52,12 +52,21 @@
 			: taskList.items.filter((t) => t.projectId === activeProjectId)
 	);
 
+	// Nothing is cleared before the await: a background revalidation runs this same
+	// fetcher, and blanking `context` mid-flight made the template fall through to
+	// "context not found" and destroy the whole page — every SSE event flashed the
+	// list away and swallowed whatever the user was clicking. Navigation is already
+	// covered by `loading`, which the template renders as a spinner. The project
+	// filter is reset on navigation only (see the contextId effect), not on every
+	// refresh.
 	const loader = usePageLoad(async (isValid) => {
-		context = null;
-		notFound = false;
-		projects = [];
-		taskList.items = [];
-		if (!Number.isFinite(contextId)) return;
+		if (!Number.isFinite(contextId)) {
+			context = null;
+			notFound = false;
+			projects = [];
+			taskList.setFromServer([]);
+			return;
+		}
 		const client = getApiClient();
 		const [c, projs, ts] = await Promise.all([
 			contextsApi.get(client, contextId),
@@ -65,14 +74,15 @@
 			contextsApi.listTasks(client, contextId, { limit: 500 })
 		]);
 		if (!isValid()) return;
+		notFound = false;
 		context = c;
 		projects = projs.items;
-		taskList.items = ts.items;
-		activeProjectId = 'all';
+		taskList.setFromServer(ts.items);
 	}, {
 		errorMessage: $t('page.context.errorLoading'),
 		autoLoad: false,
 		initialLoading: true,
+		epoch: () => taskList.epoch,
 		onError(err) {
 			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
 		}
@@ -131,7 +141,10 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(contextId)) void loader.refetch();
+		if (!Number.isFinite(contextId)) return;
+		// A different context means a different project set, so drop the filter.
+		activeProjectId = 'all';
+		untrack(() => void loader.refetch());
 	});
 
 	useInvalidation(['tasks'], () => void loader.revalidate());

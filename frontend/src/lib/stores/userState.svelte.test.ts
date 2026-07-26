@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { flushSync } from 'svelte';
 
 const patch = vi.fn();
 vi.mock('../api/endpoints/state', () => ({
@@ -92,5 +93,58 @@ describe('userStateStore.reconcileFromServer', () => {
 		await b;
 		userStateStore.reconcileFromServer({ activeContextId: 1 });
 		expect(userStateStore.activeContextId).toBe(1);
+	});
+
+	// An equal-but-new object still flips the `$state` source's identity, which
+	// invalidates every reader. The readers are the `activeContextId` effects on
+	// today/tomorrow/week/next-week/completed, and their refetch blanks the list
+	// behind a spinner — so on a phone that reconnects (and refreshes /config) on
+	// every unlock, the open list was blanked on each wake and ate the first tap.
+	describe('identity stability', () => {
+		/** Counts how many times an effect reading the whole state object re-runs. */
+		function watchValue(): { runs: () => number; stop: () => void } {
+			let runs = 0;
+			const stop = $effect.root(() => {
+				$effect(() => {
+					void userStateStore.value;
+					runs += 1;
+				});
+			});
+			flushSync();
+			return { runs: () => runs, stop };
+		}
+
+		it('does not notify readers when the incoming value is unchanged', () => {
+			userStateStore.setValue({ activeContextId: 4 });
+			const w = watchValue();
+			expect(w.runs()).toBe(1);
+
+			userStateStore.reconcileFromServer({ activeContextId: 4 });
+			flushSync();
+			expect(w.runs()).toBe(1);
+
+			userStateStore.reconcileFromServer({ activeContextId: 5 });
+			flushSync();
+			expect(w.runs()).toBe(2);
+			w.stop();
+		});
+
+		it('treats a missing key and an explicit null as the same empty state', () => {
+			userStateStore.setValue({});
+			const w = watchValue();
+			userStateStore.reconcileFromServer({ activeContextId: null });
+			flushSync();
+			expect(w.runs()).toBe(1);
+			w.stop();
+		});
+
+		it('notifies readers when the server adds a key this client does not model', () => {
+			userStateStore.setValue({ activeContextId: 1 });
+			const w = watchValue();
+			userStateStore.reconcileFromServer({ activeContextId: 1, futureFlag: true } as never);
+			flushSync();
+			expect(w.runs()).toBe(2);
+			w.stop();
+		});
 	});
 });

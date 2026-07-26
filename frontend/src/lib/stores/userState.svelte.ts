@@ -2,6 +2,20 @@ import { state as stateApi } from '../api/endpoints/state';
 import { getApiClient } from '../api/client';
 import type { UserState } from '../api/types';
 
+// sameUserState compares two states by content. The backend echoes `userState`
+// back as a verbatim JSON blob, so it may carry keys this client does not model;
+// comparing every key (not just `activeContextId`) keeps the check honest as the
+// shape grows. `undefined` and `null` are the same "no active context".
+function sameUserState(a: UserState, b: UserState): boolean {
+	const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+	for (const key of keys) {
+		const left = (a as Record<string, unknown>)[key] ?? null;
+		const right = (b as Record<string, unknown>)[key] ?? null;
+		if (left !== right) return false;
+	}
+	return true;
+}
+
 class UserStateStore {
 	value = $state<UserState>({});
 
@@ -19,9 +33,18 @@ class UserStateStore {
 	// clobbering it would visibly revert the user's context switch AND, via the
 	// activeContextId effect on today/tomorrow/week, trigger a full page refetch.
 	// The in-flight PATCH is the one that wins; the next refresh picks it up.
+	//
+	// An unchanged payload is not applied at all. Assigning an equal-but-new object
+	// still changes the `$state` source's identity, which invalidates every reader
+	// — and the readers here are the `activeContextId` effects on
+	// today/tomorrow/week/next-week/completed, whose refetch blanks the list behind
+	// a spinner. A phone reconnecting on every unlock would otherwise blank the
+	// open list on each wake, swallowing the first tap.
 	reconcileFromServer(v: UserState): void {
 		if (this.pendingWrites > 0) return;
-		this.value = v ?? {};
+		const next = v ?? {};
+		if (sameUserState(this.value, next)) return;
+		this.value = next;
 	}
 
 	get activeContextId(): number | null {

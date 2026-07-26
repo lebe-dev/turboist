@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, setContext } from 'svelte';
+	import { onMount, setContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -121,7 +121,7 @@
 			project = null;
 			notFound = false;
 			sectionList = [];
-			taskList.items = [];
+			taskList.setFromServer([]);
 			return;
 		}
 		// One round-trip for project + sections + tasks (subtasks flattened).
@@ -136,11 +136,12 @@
 			project = data.project;
 		}
 		sectionList = reconcileByVersion(sectionList, data.sections.items);
-		taskList.items = reconcileByVersion(taskList.items, data.tasks.items);
+		taskList.setFromServer(reconcileByVersion(taskList.items, data.tasks.items));
 	}, {
 		errorMessage: $t('page.project.errorLoading'),
 		autoLoad: false,
 		initialLoading: true,
+		epoch: () => taskList.epoch,
 		onError(err) {
 			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
 		}
@@ -416,7 +417,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(projectId)) void loader.refetch();
+		if (Number.isFinite(projectId)) untrack(() => void loader.refetch());
 	});
 
 	useInvalidation(['tasks', 'sections', 'projects'], () => void loader.revalidate());

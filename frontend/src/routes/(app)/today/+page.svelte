@@ -25,6 +25,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { untrack } from 'svelte';
 
 	let total = $state(0);
 	let completedCount = $state(0);
@@ -109,12 +110,17 @@
 				seen[t.id] = true;
 				merged.push(t);
 			}
-			list.items = merged;
+			list.setFromServer(merged);
 			total = open.total + overdue.total;
 			completedCount = completed.total;
 			void loadCalendarEvents(start, end, isValid);
 		},
-		{ errorMessage: $t('page.today.errorLoading'), autoLoad: false, initialLoading: true }
+		{
+			errorMessage: $t('page.today.errorLoading'),
+			autoLoad: false,
+			initialLoading: true,
+			epoch: () => list.epoch
+		}
 	);
 
 	async function loadCalendarEvents(
@@ -126,9 +132,16 @@
 		if (isValid()) calendarEvents = events;
 	}
 
+	// Reload when the user switches the active context — and ONLY then. The trigger
+	// goes through a $derived so an equal value never fires, and the refetch is
+	// untracked so the reads the fetcher performs before its first await (timezone,
+	// context id) do not silently become dependencies of this effect. Without
+	// either guard a routine /api/v1/config refresh re-ran this and blanked the
+	// list behind a spinner mid-click.
+	const activeContextId = $derived(userStateStore.activeContextId);
 	$effect(() => {
-		void userStateStore.activeContextId;
-		void loader.refetch();
+		void activeContextId;
+		untrack(() => void loader.refetch());
 	});
 
 	let lastDayKey = $state(nowStore.todayKey);

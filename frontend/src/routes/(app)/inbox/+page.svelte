@@ -35,11 +35,12 @@
 		[...list.items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 	);
 
-	const loader = usePageLoad(async () => {
+	const loader = usePageLoad(async (isValid) => {
 		const res = await tasksApi.inbox(getApiClient());
-		list.items = res.tasks;
+		if (!isValid()) return;
+		list.setFromServer(res.tasks);
 		inboxStatsStore.set(res.count, res.warnThresholdExceeded);
-	}, { errorMessage: $t('page.inbox.errorLoading') });
+	}, { errorMessage: $t('page.inbox.errorLoading'), epoch: () => list.epoch });
 
 	useInvalidation(['tasks', 'inbox'], () => void loader.revalidate());
 

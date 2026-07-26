@@ -21,6 +21,7 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import { untrack } from 'svelte';
 	import { formatDayKeyRange, nextWeekRangeKeys } from '$lib/utils/format';
 	import { t, locale } from '$lib/i18n';
 
@@ -62,17 +63,27 @@
 				refreshSidebarBundle().catch(() => {})
 			]);
 			if (!isValid()) return;
-			backlog.items = backlogRes.items;
+			backlog.setFromServer(backlogRes.items);
 			// The week view also returns tasks that merely have a due date inside the
 			// current week; here we only want tasks explicitly planned for the week.
-			week.items = weekRes.items.filter((t) => t.planState === 'week');
+			week.setFromServer(weekRes.items.filter((t) => t.planState === 'week'));
 		},
-		{ errorMessage: $t('page.nextWeek.errorLoading'), autoLoad: false, initialLoading: true }
+		{
+			errorMessage: $t('page.nextWeek.errorLoading'),
+			autoLoad: false,
+			initialLoading: true,
+			// Two lists, one loader: either mutation must invalidate an in-flight
+			// revalidation, since the fetcher rewrites both.
+			epoch: () => backlog.epoch + week.epoch
+		}
 	);
 
+	// See today/+page.svelte: $derived gates equal values, untrack keeps the
+	// fetcher's own store reads out of this effect's dependency set.
+	const activeContextId = $derived(userStateStore.activeContextId);
 	$effect(() => {
-		void userStateStore.activeContextId;
-		void loader.refetch();
+		void activeContextId;
+		untrack(() => void loader.refetch());
 	});
 
 	useInvalidation(['tasks', 'plan'], () => void loader.revalidate());

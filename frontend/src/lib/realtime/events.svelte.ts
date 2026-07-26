@@ -142,6 +142,29 @@ function createEventsClient() {
 			started = true;
 			void connect();
 		},
+		/**
+		 * Reconnect now instead of waiting out the backoff. Call this on wake
+		 * (visibilitychange → visible, `online`).
+		 *
+		 * A hidden tab's timers are throttled to minutes, so the reconnect scheduled
+		 * when the stream dropped fires only once the tab is foregrounded again —
+		 * seconds after the user is already reaching for a checkbox. Its catch-up
+		 * refresh then lands mid-interaction, which is exactly the "the page
+		 * refreshed and my click did nothing" symptom. Reconnecting eagerly moves
+		 * that refresh into the wake itself. Resetting `attempt` also discards
+		 * backoff accumulated while the device had no network at all.
+		 *
+		 * A healthy, open stream is left alone.
+		 */
+		resume(): void {
+			if (!started || connected) return;
+			if (source && source.readyState === EventSource.OPEN) return;
+			attempt = 0;
+			// Drops a source stuck in CONNECTING (the native retry after a suspend)
+			// so connect() re-handshakes for a fresh single-use ticket.
+			teardown();
+			void connect();
+		},
 		stop(): void {
 			started = false;
 			teardown();

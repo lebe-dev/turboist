@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -34,23 +35,32 @@
 	const taskList = useListMutator<Task>();
 	const mutator = taskList.mutator;
 
+	// Nothing is cleared before the await: a background revalidation runs this same
+	// fetcher, and blanking `label` mid-flight made the template fall through to
+	// "label not found" and destroy the whole page — every SSE event flashed the
+	// list away and swallowed whatever the user was clicking. Navigation is already
+	// covered by `loading`, which the template renders as a spinner.
 	const loader = usePageLoad(async (isValid) => {
-		label = null;
-		notFound = false;
-		taskList.items = [];
-		if (!Number.isFinite(labelId)) return;
+		if (!Number.isFinite(labelId)) {
+			label = null;
+			notFound = false;
+			taskList.setFromServer([]);
+			return;
+		}
 		const client = getApiClient();
 		const [l, ts] = await Promise.all([
 			labelsApi.get(client, labelId),
 			labelsApi.listTasks(client, labelId, { limit: 500 })
 		]);
 		if (!isValid()) return;
+		notFound = false;
 		label = l;
-		taskList.items = ts.items;
+		taskList.setFromServer(ts.items);
 	}, {
 		errorMessage: $t('page.label.errorLoading'),
 		autoLoad: false,
 		initialLoading: true,
+		epoch: () => taskList.epoch,
 		onError(err) {
 			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
 		}
@@ -103,7 +113,7 @@
 	}
 
 	$effect(() => {
-		if (Number.isFinite(labelId)) void loader.refetch();
+		if (Number.isFinite(labelId)) untrack(() => void loader.refetch());
 	});
 
 	useInvalidation(['tasks', 'labels'], () => void loader.revalidate());

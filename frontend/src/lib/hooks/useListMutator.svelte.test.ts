@@ -108,4 +108,48 @@ describe('useListMutator', () => {
 			expect(list.items).toEqual([{ id: 1, title: 'a' }]);
 		});
 	});
+
+	describe('epoch', () => {
+		it('starts at zero', () => {
+			expect(useListMutator<Item>().epoch).toBe(0);
+		});
+
+		it('advances on every local mutation', () => {
+			const list = useListMutator<Item>();
+			list.items = [{ id: 1, title: 'a' }];
+			const start = list.epoch;
+			list.mutator.replace({ id: 1, title: 'a2' });
+			list.mutator.add({ id: 2, title: 'b' });
+			list.mutator.insertAfter(1, { id: 3, title: 'c' });
+			list.mutator.remove(2);
+			expect(list.epoch).toBe(start + 4);
+		});
+
+		it('advances even when the mutation matched nothing', () => {
+			// The epoch tracks intent, not effect: a replace/remove whose id is absent
+			// still means the user acted, so an in-flight revalidation is still stale.
+			const list = useListMutator<Item>();
+			const start = list.epoch;
+			list.mutator.replace({ id: 42, title: 'x' });
+			list.mutator.remove(42);
+			expect(list.epoch).toBe(start + 2);
+		});
+
+		it('advances on a direct items= assignment', () => {
+			// Optimistic inserts, rollbacks and reorders assign the array directly;
+			// they are local writes and must beat an in-flight revalidation too.
+			const list = useListMutator<Item>();
+			list.items = [{ id: 1, title: 'a' }];
+			expect(list.epoch).toBe(1);
+		});
+
+		it('does NOT advance when a loader applies server truth', () => {
+			// Otherwise every fetch would invalidate its own isValid() guard.
+			const list = useListMutator<Item>();
+			list.setFromServer([{ id: 1, title: 'a' }]);
+			list.setFromServer([{ id: 2, title: 'b' }]);
+			expect(list.epoch).toBe(0);
+			expect(list.items.map((i) => i.id)).toEqual([2]);
+		});
+	});
 });
