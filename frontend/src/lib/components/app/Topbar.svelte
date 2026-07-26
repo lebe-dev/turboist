@@ -278,37 +278,37 @@
 		{/if}
 		{#if onQuickAdd}
 			<div class="hidden items-center md:inline-flex">
-				<Button
-					variant="secondary"
-					size="icon-sm"
-					onclick={() => onQuickAdd?.()}
-					class="rounded-r-none bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
-					aria-label={$t('topbar.quickAdd')}
-					title={$t('topbar.quickAdd')}
-				>
-					<PlusIcon class="size-4" />
-				</Button>
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="secondary"
-								size="icon-sm"
-								class="!w-7 rounded-l-none border-l border-background/40 bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
-								aria-label={$t('topbar.quickAddMenu')}
-								title={$t('topbar.quickAddMenu')}
-							>
-								<CaretDownIcon class="size-3" />
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" class="min-w-[12rem]">
-						<DropdownMenu.Item onSelect={() => onQuickAdd?.()} class="gap-2">
-							<PlusIcon class="size-4" />
-							{$t('topbar.newTask')}
-						</DropdownMenu.Item>
-						{#if templatesStore.items.length > 0}
+				{#if templatesStore.items.length > 0}
+					<Button
+						variant="secondary"
+						size="icon-sm"
+						onclick={() => onQuickAdd?.()}
+						class="rounded-r-none bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
+						aria-label={$t('topbar.quickAdd')}
+						title={$t('topbar.quickAdd')}
+					>
+						<PlusIcon class="size-4" />
+					</Button>
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="secondary"
+									size="icon-sm"
+									class="!w-7 rounded-l-none border-l border-background/40 bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
+									aria-label={$t('topbar.quickAddMenu')}
+									title={$t('topbar.quickAddMenu')}
+								>
+									<CaretDownIcon class="size-3" />
+								</Button>
+							{/snippet}
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="end" class="min-w-[12rem]">
+							<DropdownMenu.Item onSelect={() => onQuickAdd?.()} class="gap-2">
+								<PlusIcon class="size-4" />
+								{$t('topbar.newTask')}
+							</DropdownMenu.Item>
 							<DropdownMenu.Sub>
 								<DropdownMenu.SubTrigger class="gap-2">
 									<CardsIcon class="size-4" />
@@ -322,9 +322,20 @@
 									{/each}
 								</DropdownMenu.SubContent>
 							</DropdownMenu.Sub>
-						{/if}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+				{:else}
+					<Button
+						variant="secondary"
+						size="icon-sm"
+						onclick={() => onQuickAdd?.()}
+						class="bg-muted-foreground/15 text-foreground hover:bg-muted-foreground/25"
+						aria-label={$t('topbar.quickAdd')}
+						title={$t('topbar.quickAdd')}
+					>
+						<PlusIcon class="size-4" />
+					</Button>
+				{/if}
 			</div>
 		{/if}
 		{#if settingsStore.troikiEnabled}
