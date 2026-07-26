@@ -13,6 +13,7 @@ Turboist is a task management app for the rest of us.
 - Weekly / backlog planning with per-bucket caps
 - Pinned tasks and pinned projects (separate caps)
 - Recurring tasks (RRULE, advanced on completion)
+- Task relations — `related` cross-references plus `blocks` dependencies that prevent completing a blocked task — [docs/task-relations.md](docs/task-relations.md)
 - Single-user JWT auth with refresh-token rotation
 - Optional TOTP 2FA (RFC 6238) with single-use recovery codes
 - [Troiki System](docs/troiki-system.md)
@@ -40,6 +41,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [Configuration](docs/configuration.md) — env vars, log levels, config.yml
 - [Backend architecture](docs/architecture/backend.md) — endpoints, auth, storage, dev commands
 - [API reference](API.md)
+- [Task relations](docs/task-relations.md) — `related` / `blocks`, and how blocking works
 - [Troiki System](docs/troiki-system.md)
 - [Localization](docs/locales.md)
 - [Public mode](docs/public-mode.md)
