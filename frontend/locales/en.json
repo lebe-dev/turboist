@@ -156,6 +156,11 @@
 			"updated": "Language updated",
 			"updateFailed": "Failed to update language"
 		},
+		"sound": {
+			"heading": "Task sounds",
+			"description": "Play a short chime when a task is completed or reopened. Saved on this device only.",
+			"toggle": "Enable task sounds"
+		},
 		"weekly": {
 			"heading": "Weekly unplanned exclusions",
 			"description": "Tasks with these labels will not show the unplanned badge even if not scheduled for the week.",
