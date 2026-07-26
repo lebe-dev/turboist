@@ -544,10 +544,11 @@ func TestProjectPin_Success(t *testing.T) {
 func TestProjectPin_LimitExceeded(t *testing.T) {
 	e := setupAPIEnv(t)
 	ctx := createTestContext(t, e, "Work")
-	cfg := makeTestConfig() // MaxPinned = 5
+	const maxPinnedProjects = 5
+	setMaxPinned(t, e, map[string]int{"maxPinnedProjects": maxPinnedProjects})
 
-	// Pin exactly cfg.MaxPinned projects directly through repo to reach the limit
-	for i := 0; i < cfg.MaxPinned; i++ {
+	// Pin exactly maxPinnedProjects projects directly through repo to reach the limit
+	for i := 0; i < maxPinnedProjects; i++ {
 		p, err := e.projects.Create(context.Background(), repo.CreateProject{
 			ContextID: ctx.ID,
 			Title:     fmt.Sprintf("Proj%d", i),

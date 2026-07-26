@@ -326,3 +326,29 @@ func TestScope_Config_RequiresEveryEmbeddedDomain(t *testing.T) {
 		t.Fatalf("wildcard token: got %d, want 200; body: %s", resp.StatusCode, body)
 	}
 }
+
+// The label usage report is guarded by labels:read even though it aggregates task
+// data: a tasks-only token must not be able to enumerate the label set through it.
+func TestScope_LabelStats_RequiresLabelsRead(t *testing.T) {
+	e := setupAPIEnv(t)
+	const url = "/api/v1/labels/stats"
+
+	wrong := issueAPIToken(t, e, "tasks-only", []string{"tasks:read"})
+	resp, body := runRequest(t, e.app, tokenReq(http.MethodGet, url, wrong, nil))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("tasks:read only: got %d, want 403; body: %s", resp.StatusCode, body)
+	}
+
+	right := issueAPIToken(t, e, "labels-reader", []string{"labels:read"})
+	resp, body = runRequest(t, e.app, tokenReq(http.MethodGet, url, right, nil))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("labels:read: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+
+	// A write-only token is not a read token.
+	writeOnly := issueAPIToken(t, e, "labels-writer", []string{"labels:write"})
+	resp, body = runRequest(t, e.app, tokenReq(http.MethodGet, url, writeOnly, nil))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("labels:write only: got %d, want 403; body: %s", resp.StatusCode, body)
+	}
+}

@@ -67,7 +67,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	app := httpapi.NewApp(deps)
 	api := httpapi.RegisterRoutes(app, deps)
 
-	pinSvc := service.NewPinService(tasks, projs, cfg.MaxPinned)
+	pinSvc := service.NewPinService(tasks, projs, users)
 	appSettings := repo.NewAppSettingsRepo(d)
 	autoLabelsSvc := service.NewAutoLabelsService(lbls, appSettings)
 	taskSvc := service.NewTaskService(tasks, projs, tlabels, autoLabelsSvc)
@@ -77,7 +77,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	planSvc := service.NewPlanService(tasks, ctxs, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	searchRepo := repo.NewSearchRepo(tasks, projs)
 	handlers.NewContextHandler(ctxs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/contexts"))
-	handlers.NewLabelHandler(lbls, projs, tasks, testBaseURL).Register(api.Group("/labels"))
+	handlers.NewLabelHandler(lbls, projs, tasks, cfg, testBaseURL).Register(api.Group("/labels"))
 	handlers.NewSectionHandler(secs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projs, secs, tasks, taskSvc, lbls, ctxs, pinSvc, testBaseURL).Register(api)
 	handlers.NewInboxHandler(tasks, taskSvc, cfg, testBaseURL).Register(api.Group("/inbox"))

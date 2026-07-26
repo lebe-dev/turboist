@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v3"
@@ -39,6 +40,8 @@ type settingsResp struct {
 	CalendarEnabled                 bool    `json:"calendarEnabled"`
 	CalendarHidePastEvents          bool    `json:"calendarHidePastEvents"`
 	TroikiEnabled                   bool    `json:"troikiEnabled"`
+	MaxPinnedTasks                  int     `json:"maxPinnedTasks"`
+	MaxPinnedProjects               int     `json:"maxPinnedProjects"`
 }
 
 type settingsPatchReq struct {
@@ -52,6 +55,8 @@ type settingsPatchReq struct {
 	CalendarEnabled                 *bool    `json:"calendarEnabled"`
 	CalendarHidePastEvents          *bool    `json:"calendarHidePastEvents"`
 	TroikiEnabled                   *bool    `json:"troikiEnabled"`
+	MaxPinnedTasks                  *int     `json:"maxPinnedTasks"`
+	MaxPinnedProjects               *int     `json:"maxPinnedProjects"`
 }
 
 // supportedLocales is the whitelist accepted by PATCH /settings. Empty string
@@ -70,6 +75,17 @@ var bannerDayParts = map[string]struct{}{
 	string(model.DayPartMorning):   {},
 	string(model.DayPartAfternoon): {},
 	string(model.DayPartEvening):   {},
+}
+
+// validateMaxPinned bounds a pinned cap to [model.MinMaxPinned, model.MaxMaxPinned].
+// Zero is rejected rather than treated as "default" — the client always sends an
+// explicit number, and a silent 0 would read as "pinning disabled".
+func validateMaxPinned(c fiber.Ctx, field string, v int) error {
+	if v < model.MinMaxPinned || v > model.MaxMaxPinned {
+		logValidation(c, opSettingsPatch, "pinned cap out of range", slog.String("field", field), slog.Int("value", v))
+		return httpapi.ErrValidation(fmt.Sprintf("%s must be between %d and %d", field, model.MinMaxPinned, model.MaxMaxPinned))
+	}
+	return nil
 }
 
 func toResp(s *model.UserSettings) settingsResp {
@@ -92,6 +108,8 @@ func toResp(s *model.UserSettings) settingsResp {
 		CalendarEnabled:                 s.CalendarEnabled,
 		CalendarHidePastEvents:          s.CalendarHidePastEvents,
 		TroikiEnabled:                   s.TroikiEnabled,
+		MaxPinnedTasks:                  s.MaxPinnedTasks,
+		MaxPinnedProjects:               s.MaxPinnedProjects,
 	}
 }
 
@@ -130,6 +148,16 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 			return httpapi.ErrValidation("unsupported banner day part")
 		}
 	}
+	if req.MaxPinnedTasks != nil {
+		if err := validateMaxPinned(c, "maxPinnedTasks", *req.MaxPinnedTasks); err != nil {
+			return err
+		}
+	}
+	if req.MaxPinnedProjects != nil {
+		if err := validateMaxPinned(c, "maxPinnedProjects", *req.MaxPinnedProjects); err != nil {
+			return err
+		}
+	}
 	current, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
 		return httpapi.ErrInternal("load settings").WithCause(err)
@@ -163,6 +191,12 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	if req.TroikiEnabled != nil {
 		current.TroikiEnabled = *req.TroikiEnabled
+	}
+	if req.MaxPinnedTasks != nil {
+		current.MaxPinnedTasks = *req.MaxPinnedTasks
+	}
+	if req.MaxPinnedProjects != nil {
+		current.MaxPinnedProjects = *req.MaxPinnedProjects
 	}
 	if err := h.users.SetSettings(c.Context(), userID, current); err != nil {
 		return httpapi.ErrInternal("save settings").WithCause(err)

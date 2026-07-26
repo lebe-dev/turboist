@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	"github.com/lebe-dev/turboist/internal/model"
 )
 
 func TestSettingsHandler_GetDefault(t *testing.T) {
@@ -572,5 +574,177 @@ func TestSettingsHandler_GetDefaultBannerDayPart(t *testing.T) {
 	}
 	if part != "" {
 		t.Errorf("bannerDayPart: got %q, want \"\"", part)
+	}
+}
+
+func TestSettingsHandler_GetDefaultMaxPinned(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"maxPinnedTasks", "maxPinnedProjects"} {
+		v, ok := body[field].(float64)
+		if !ok {
+			t.Fatalf("%s: missing or wrong type: %T", field, body[field])
+		}
+		if v != model.DefaultMaxPinned {
+			t.Errorf("%s: got %v, want %d", field, v, model.DefaultMaxPinned)
+		}
+	}
+}
+
+func TestSettingsHandler_PatchMaxPinned(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"maxPinnedTasks":    3,
+		"maxPinnedProjects": 25,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if got := body["maxPinnedTasks"]; got != float64(3) {
+		t.Errorf("maxPinnedTasks: got %v, want 3", got)
+	}
+	if got := body["maxPinnedProjects"]; got != float64(25) {
+		t.Errorf("maxPinnedProjects: got %v, want 25", got)
+	}
+
+	// The value must survive a round-trip through users.settings.
+	resp, err = env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reread map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&reread); err != nil {
+		t.Fatal(err)
+	}
+	if got := reread["maxPinnedTasks"]; got != float64(3) {
+		t.Errorf("reread maxPinnedTasks: got %v, want 3", got)
+	}
+	if got := reread["maxPinnedProjects"]; got != float64(25) {
+		t.Errorf("reread maxPinnedProjects: got %v, want 25", got)
+	}
+}
+
+func TestSettingsHandler_PatchMaxPinnedOutOfRange(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	for _, field := range []string{"maxPinnedTasks", "maxPinnedProjects"} {
+		for _, v := range []int{0, -1, model.MaxMaxPinned + 1} {
+			resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+				field: v,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Errorf("%s=%d: status: got %d, want %d", field, v, resp.StatusCode, http.StatusBadRequest)
+			}
+		}
+	}
+}
+
+func TestSettingsHandler_PatchMaxPinnedPreservesOtherFields(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"locale":     "ru",
+		"publicView": true,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"maxPinnedTasks": 7,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if got := body["locale"]; got != "ru" {
+		t.Errorf("locale: got %v, want ru", got)
+	}
+	if got := body["publicView"]; got != true {
+		t.Errorf("publicView: got %v, want true", got)
+	}
+	if got := body["maxPinnedTasks"]; got != float64(7) {
+		t.Errorf("maxPinnedTasks: got %v, want 7", got)
+	}
+	if got := body["maxPinnedProjects"]; got != float64(model.DefaultMaxPinned) {
+		t.Errorf("maxPinnedProjects: got %v, want %d", got, model.DefaultMaxPinned)
+	}
+}
+
+// TestSettingsHandler_PatchMaxPinnedBoundaries asserts the inclusive ends of the
+// accepted range go through — an off-by-one in validateMaxPinned would make the
+// UI's own min/max unreachable.
+func TestSettingsHandler_PatchMaxPinnedBoundaries(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"maxPinnedTasks":    model.MinMaxPinned,
+		"maxPinnedProjects": model.MaxMaxPinned,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["maxPinnedTasks"] != float64(model.MinMaxPinned) {
+		t.Errorf("maxPinnedTasks: got %v, want %d", body["maxPinnedTasks"], model.MinMaxPinned)
+	}
+	if body["maxPinnedProjects"] != float64(model.MaxMaxPinned) {
+		t.Errorf("maxPinnedProjects: got %v, want %d", body["maxPinnedProjects"], model.MaxMaxPinned)
+	}
+}
+
+// TestSettingsHandler_PatchMaxPinnedNonInteger asserts fractional and
+// non-numeric values are refused rather than silently truncated.
+func TestSettingsHandler_PatchMaxPinnedNonInteger(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	for _, v := range []any{3.5, "5", true} {
+		resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+			"maxPinnedTasks": v,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("maxPinnedTasks=%v: status: got %d, want %d", v, resp.StatusCode, http.StatusBadRequest)
+		}
+	}
+	// The rejected patches must not have moved the stored value.
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["maxPinnedTasks"] != float64(model.DefaultMaxPinned) {
+		t.Errorf("maxPinnedTasks: got %v, want %d", body["maxPinnedTasks"], model.DefaultMaxPinned)
 	}
 }

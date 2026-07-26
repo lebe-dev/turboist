@@ -37,10 +37,9 @@ func smokeApp(t *testing.T) *smokeEnv {
 
 	loc, _ := time.LoadLocation("UTC")
 	cfg := &config.Config{
-		Timezone:  "UTC",
-		MaxPinned: 5,
-		Weekly:    config.WeeklyConfig{Limit: 7},
-		Backlog:   config.BacklogConfig{Limit: 100},
+		Timezone: "UTC",
+		Weekly:   config.WeeklyConfig{Limit: 7},
+		Backlog:  config.BacklogConfig{Limit: 100},
 		Inbox: config.InboxConfig{
 			WarnThreshold: 5,
 			OverflowTask:  config.OverflowTask{Title: "Clear inbox", Priority: "high"},
@@ -65,7 +64,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	jwtIssuer := auth.NewJWTIssuer([]byte("smoke-secret-key-32-bytes-padding"))
 	ipLimiter := auth.NewIPLimiter(rate.Every(time.Second), 100, time.Minute)
 
-	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
+	pinSvc := service.NewPinService(taskRepo, projectRepo, userRepo)
 	appSettingsRepo := repo.NewAppSettingsRepo(sqlDB)
 	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, appSettingsRepo)
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
@@ -93,7 +92,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 
 	handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, auth.DefaultArgon2Params()).RegisterAuth(app.Group("/auth"), jwtIssuer)
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, baseURL).Register(api.Group("/contexts"))
-	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, baseURL).Register(api.Group("/labels"))
+	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, cfg, baseURL).Register(api.Group("/labels"))
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, baseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, baseURL).Register(api)
 	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, baseURL).Register(api.Group("/inbox"))

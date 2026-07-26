@@ -12,12 +12,11 @@ import (
 )
 
 type Config struct {
-	Timezone  string             `yaml:"timezone"`
-	MaxPinned int                `yaml:"max-pinned"`
-	Weekly    WeeklyConfig       `yaml:"weekly"`
-	Backlog   BacklogConfig      `yaml:"backlog"`
-	Inbox     InboxConfig        `yaml:"inbox"`
-	DayParts  map[string]DayPart `yaml:"day-parts"`
+	Timezone string             `yaml:"timezone"`
+	Weekly   WeeklyConfig       `yaml:"weekly"`
+	Backlog  BacklogConfig      `yaml:"backlog"`
+	Inbox    InboxConfig        `yaml:"inbox"`
+	DayParts map[string]DayPart `yaml:"day-parts"`
 
 	Location *time.Location `yaml:"-"`
 }
@@ -84,9 +83,6 @@ func (c *Config) Validate() error {
 	}
 	c.Location = loc
 
-	if c.MaxPinned <= 0 {
-		return fmt.Errorf("config: max-pinned must be > 0")
-	}
 	if c.Weekly.Limit <= 0 {
 		return fmt.Errorf("config: weekly.limit must be > 0")
 	}

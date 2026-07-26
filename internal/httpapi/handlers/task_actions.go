@@ -240,7 +240,7 @@ func (h *TaskActionHandler) pin(c fiber.Ctx) error {
 			return httpapi.ErrNotFound(msgTaskNotFound)
 		}
 		if errors.Is(err, service.ErrPinLimitExceeded) {
-			return httpapi.ErrLimitExceeded("max-pinned limit reached")
+			return httpapi.ErrLimitExceeded("pinned tasks limit reached")
 		}
 		return httpapi.ErrInternal("pin task").WithCause(err)
 	}

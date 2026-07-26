@@ -98,6 +98,7 @@
 		"subtitle": "Personalise how your workspace looks and behaves.",
 		"tabs": {
 			"general": "General",
+			"menu": "Menu",
 			"labels": "Labels",
 			"templates": "Templates",
 			"project": "Project",
@@ -108,6 +109,19 @@
 			"backup": "Backup & Restore",
 			"calendars": "Calendar",
 			"logs": "Logs"
+		},
+		"menu": {
+			"pinned": {
+				"heading": "Pinned items",
+				"description": "How many tasks and projects you can pin to the sidebar menu at the same time. The two limits are independent.",
+				"tasksLabel": "Max pinned tasks",
+				"projectsLabel": "Max pinned projects",
+				"hint": "From {min} to {max}. Lowering a limit never unpins anything — it only stops you from pinning more until you unpin something.",
+				"save": "Save",
+				"toastSaved": "Pinned limits saved",
+				"toastFailed": "Failed to save pinned limits",
+				"toastRange": "Enter a whole number between {min} and {max}"
+			}
 		},
 		"project": {
 			"bugLabelsHeading": "Bug labels",
@@ -896,6 +910,48 @@
 			"filterGeneric": "Generic",
 			"filterSoftware": "Software",
 			"searchPlaceholder": "Search projects…"
+		},
+		"labels": {
+			"title": "Labels",
+			"errorLoading": "Failed to load label stats",
+			"emptyTitle": "No labels yet",
+			"emptyDescription": "Create a label and its usage will show up here.",
+			"period": {
+				"week": "Week",
+				"month": "Month",
+				"quarter": "Quarter"
+			},
+			"periodAria": "Stats period",
+			"rangeDays": {
+				"week": "Last 7 days",
+				"month": "Last 30 days",
+				"quarter": "Last 90 days"
+			},
+			"stats": {
+				"applied": "Times applied",
+				"active": "Labels in use",
+				"completed": "Tasks completed",
+				"overdue": "Overdue tasks"
+			},
+			"rankingTitle": "By frequency",
+			"appliedHint": "times applied in the period",
+			"noActivity": "No label was used in this period.",
+			"trendTooltip": "{previous} in the previous period",
+			"row": {
+				"completed": "{count} completed",
+				"open": "{count} open",
+				"overdue": "{count} overdue",
+				"total": "{count} tasks total",
+				"projects": "{count} projects"
+			},
+			"idleTitle": "Unused in this period ({count})",
+			"idleDescription": "No task was tagged or completed under these labels — candidates for cleanup.",
+			"lastUsed": {
+				"never": "never used",
+				"today": "used today",
+				"yesterday": "used yesterday",
+				"daysAgo": "used {days} days ago"
+			}
 		},
 		"search": {
 			"searchFailed": "Search failed",

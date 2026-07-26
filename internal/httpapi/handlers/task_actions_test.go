@@ -337,9 +337,11 @@ func TestTaskPin_Success(t *testing.T) {
 }
 
 func TestTaskPin_LimitExceeded(t *testing.T) {
-	// Config MaxPinned = 5; pin 5 tasks then try 6th.
+	// The cap comes from users.settings.maxPinnedTasks — lower it to 5, pin 5
+	// tasks, then try a 6th.
 	e := setupAPIEnv(t)
 	ctx := createTestContext(t, e, "Work")
+	setMaxPinned(t, e, map[string]int{"maxPinnedTasks": 5})
 
 	for i := 0; i < 5; i++ {
 		task := createTestTask(t, e, ctx.ID, fmt.Sprintf("Pin task %d", i))
@@ -380,5 +382,84 @@ func TestTaskUnpin(t *testing.T) {
 	}
 	if result.IsPinned {
 		t.Error("isPinned: got true, want false after unpin")
+	}
+}
+
+// TestTaskPin_DefaultLimitIsTenAndFollowsSettings asserts the shipped default
+// (migration 048) is 10 pinned tasks end-to-end, and that raising the cap in
+// Settings immediately unblocks the pin that had just been refused — no restart,
+// no re-wiring of PinService.
+func TestTaskPin_DefaultLimitIsTenAndFollowsSettings(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	for i := 0; i < 10; i++ {
+		task := createTestTask(t, e, ctx.ID, fmt.Sprintf("Pin task %d", i))
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/pin", task.ID), nil))
+		if resp.StatusCode != 200 {
+			t.Fatalf("pin task %d: got %d; body: %s", i, resp.StatusCode, body)
+		}
+	}
+
+	eleventh := createTestTask(t, e, ctx.ID, "Pin task 11")
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/pin", eleventh.ID), nil))
+	if resp.StatusCode != 422 {
+		t.Fatalf("11th pin at default cap: got %d, want 422; body: %s", resp.StatusCode, body)
+	}
+
+	setMaxPinned(t, e, map[string]int{"maxPinnedTasks": 11})
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/pin", eleventh.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("11th pin after raising the cap: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+}
+
+// TestTaskPin_LoweringLimitKeepsExistingPins asserts a cap lowered below the
+// current count neither unpins anything nor errors on read — it only refuses the
+// next pin.
+func TestTaskPin_LoweringLimitKeepsExistingPins(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	var pinned []int64
+	for i := 0; i < 3; i++ {
+		task := createTestTask(t, e, ctx.ID, fmt.Sprintf("Kept %d", i))
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/pin", task.ID), nil))
+		if resp.StatusCode != 200 {
+			t.Fatalf("pin task %d: got %d; body: %s", i, resp.StatusCode, body)
+		}
+		pinned = append(pinned, task.ID)
+	}
+
+	setMaxPinned(t, e, map[string]int{"maxPinnedTasks": 1})
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/pinned", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("list pinned: got %d; body: %s", resp.StatusCode, body)
+	}
+	var page struct {
+		Items []dto.TaskDTO `json:"items"`
+		Total int           `json:"total"`
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		t.Fatalf("parse: %v — body: %s", err, body)
+	}
+	if len(page.Items) != len(pinned) {
+		t.Errorf("pinned tasks after lowering the cap: got %d, want %d", len(page.Items), len(pinned))
+	}
+
+	extra := createTestTask(t, e, ctx.ID, "Refused")
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/pin", extra.ID), nil))
+	if resp.StatusCode != 422 {
+		t.Fatalf("pin over lowered cap: got %d, want 422; body: %s", resp.StatusCode, body)
+	}
+	er := parseErr(t, body)
+	if er.Error.Code != httpapi.CodeLimitExceeded {
+		t.Errorf("code: got %q, want %q", er.Error.Code, httpapi.CodeLimitExceeded)
 	}
 }

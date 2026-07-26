@@ -232,6 +232,48 @@ export interface SidebarStatsResponse {
 	pinned: ViewList<Task>;
 }
 
+// LabelStatsPeriod is one of the rolling windows the label usage report is
+// bucketed by: the last 7 / 30 / 90 days, ending at the end of today in the
+// server timezone.
+export type LabelStatsPeriod = 'week' | 'month' | 'quarter';
+
+// LabelStatsPeriodStats holds one window's counters for a single label.
+// `applied` counts tagging events (how often the label was reached for),
+// `previousApplied` the same over the equally long window right before it — the
+// two produce the trend arrow. `completed` counts tasks carrying the label that
+// were completed inside the window, independently of when they were tagged.
+export interface LabelStatsPeriodStats {
+	applied: number;
+	previousApplied: number;
+	completed: number;
+}
+
+export interface LabelStatsRange {
+	start: string;
+	end: string;
+	days: number;
+}
+
+export interface LabelStatsItem {
+	label: Label;
+	totalTasks: number;
+	openTasks: number;
+	overdue: number;
+	// projects is the number of distinct projects the label appears in; inbox
+	// tasks do not count.
+	projects: number;
+	lastUsedAt: string | null;
+	periods: Record<LabelStatsPeriod, LabelStatsPeriodStats>;
+}
+
+// LabelStatsResponse backs the /labels page. Every label is present, unused ones
+// with zeros — the page sorts, filters and derives its totals client-side, so
+// switching the displayed period costs no round-trip.
+export interface LabelStatsResponse {
+	ranges: Record<LabelStatsPeriod, LabelStatsRange>;
+	items: LabelStatsItem[];
+}
+
 // WeekSummaryResponse backs the /week/summary review page. `completed` carries
 // every task completed in the current week (incl. subtasks and recurrence
 // snapshots); the page derives the by-priority/project/context breakdowns from
@@ -296,6 +338,10 @@ export interface UserSettings {
 	calendarEnabled: boolean;
 	calendarHidePastEvents: boolean;
 	troikiEnabled: boolean;
+	/** Max simultaneously pinned tasks (1..50). Independent of maxPinnedProjects. */
+	maxPinnedTasks: number;
+	/** Max simultaneously pinned projects (1..50). Independent of maxPinnedTasks. */
+	maxPinnedProjects: number;
 }
 
 export type HarpoonKind = 'task' | 'project';
@@ -418,7 +464,6 @@ export interface Session {
 
 export interface ConfigResponse {
 	timezone: string;
-	maxPinned: number;
 	weekly: { limit: number };
 	backlog: { limit: number };
 	inbox: {

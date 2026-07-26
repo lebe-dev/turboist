@@ -526,7 +526,7 @@ The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tok
 | `projects:write` | Create, update, delete projects; complete / uncomplete / cancel / archive / unarchive; pin / unpin; assign or clear Troiki category |
 | `contexts:read` | Read contexts: list, get by id |
 | `contexts:write` | Create, update, delete contexts |
-| `labels:read` | Read labels: list (with search), get by id |
+| `labels:read` | Read labels: list (with search), get by id, usage stats |
 | `labels:write` | Create, update, delete labels |
 | `sections:read` | Read sections: get by id, list sections of a project |
 | `sections:write` | Create, update, delete sections; reorder |
@@ -630,6 +630,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | Endpoint | Scope |
 |----------|-------|
 | `GET /api/v1/labels` | `labels:read` |
+| `GET /api/v1/labels/stats` | `labels:read` |
 | `GET /api/v1/labels/:id` | `labels:read` |
 | `POST /api/v1/labels` | `labels:write` |
 | `PATCH /api/v1/labels/:id` | `labels:write` |
@@ -994,7 +995,8 @@ curl -X POST "$BASE/api/v1/tasks/42/cancel" \
 
 ### `POST /api/v1/tasks/:id/pin`
 
-Pins the task. Fails with `CodeLimitExceeded` if the max-pinned limit is reached.
+Pins the task. Fails with `CodeLimitExceeded` if `settings.maxPinnedTasks` is
+already reached.
 
 ```sh
 curl -X POST "$BASE/api/v1/tasks/42/pin" \
@@ -1732,7 +1734,8 @@ curl -X POST "$BASE/api/v1/projects/10/unarchive" \
 
 ### `POST /api/v1/projects/:id/pin`
 
-Only open projects can be pinned. Fails with `CodeLimitExceeded` if max is reached.
+Only open projects can be pinned. Fails with `CodeLimitExceeded` if
+`settings.maxPinnedProjects` is already reached.
 
 ```sh
 curl -X POST "$BASE/api/v1/projects/10/pin" \
@@ -1895,6 +1898,54 @@ curl -X POST "$BASE/api/v1/labels" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"urgent","color":"red","isFavourite":false}'
+```
+
+### `GET /api/v1/labels/stats`
+
+Label usage report backing the Labels page. No query params: every label is
+returned (capped at 500, ordered by name), with counters for all three rolling
+windows at once so a client can switch periods without another round-trip.
+
+Windows are **rolling**, not calendar-aligned: `week` = last 7 days, `month` =
+last 30, `quarter` = last 90, each ending at the end of today in the server
+timezone. `previousApplied` is the same counter over the equally long window
+immediately before, which is what a trend arrow is built from.
+
+- `applied` — tagging events in the window (`task_labels.created_at`, migration
+  `047`; rows predating it were backfilled from the task's creation time)
+- `completed` — tasks carrying the label completed in the window, regardless of
+  when they were tagged
+- `totalTasks` / `openTasks` / `overdue` / `projects` / `lastUsedAt` — all-time,
+  period-independent (`projects` counts distinct projects; inbox tasks excluded)
+
+```json
+{
+  "ranges": {
+    "week": { "start": "2026-07-20T00:00:00.000Z", "end": "2026-07-27T00:00:00.000Z", "days": 7 },
+    "month": { "start": "2026-06-27T00:00:00.000Z", "end": "2026-07-27T00:00:00.000Z", "days": 30 },
+    "quarter": { "start": "2026-04-28T00:00:00.000Z", "end": "2026-07-27T00:00:00.000Z", "days": 90 }
+  },
+  "items": [
+    {
+      "label": { "id": 3, "name": "bug", "color": "red", "isFavourite": false, "isPrivate": false, "createdAt": "...", "updatedAt": "..." },
+      "totalTasks": 42,
+      "openTasks": 5,
+      "overdue": 1,
+      "projects": 3,
+      "lastUsedAt": "2026-07-25T09:12:00.000Z",
+      "periods": {
+        "week": { "applied": 6, "previousApplied": 2, "completed": 4 },
+        "month": { "applied": 18, "previousApplied": 15, "completed": 16 },
+        "quarter": { "applied": 40, "previousApplied": 2, "completed": 37 }
+      }
+    }
+  ]
+}
+```
+
+```sh
+curl "$BASE/api/v1/labels/stats" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### `GET /api/v1/labels/:id`
@@ -2241,7 +2292,6 @@ sessions bypass scope checks entirely.
 ```json
 {
   "timezone": "Europe/Moscow",
-  "maxPinned": 5,
   "weekly": { "limit": 20 },
   "backlog": { "limit": 50 },
   "inbox": {
@@ -2346,7 +2396,12 @@ curl -X PATCH "$BASE/api/v1/state" \
   "publicView": false,
   "bannerText": "",
   "bannerPublished": false,
-  "bannerDayPart": ""
+  "bannerDayPart": "",
+  "calendarEnabled": false,
+  "calendarHidePastEvents": true,
+  "troikiEnabled": false,
+  "maxPinnedTasks": 10,
+  "maxPinnedProjects": 10
 }
 ```
 
@@ -2364,6 +2419,13 @@ All fields optional. `locale` must be `"en"`, `"ru"`, or `""` (client decides).
 set, the banner is shown only while that phase is active: it stays hidden until
 the phase begins and disappears once it is over. `"none"` is rejected.
 
+`maxPinnedTasks` and `maxPinnedProjects` cap how many tasks / projects may be
+pinned at once. The two caps are independent, must be whole numbers in
+**1..50** (anything else is a `validation` error), and default to **10**
+(migration `048`). They are read on every pin, so a change applies immediately.
+Lowering a cap below the current count never unpins anything — it only refuses
+further pins with `CodeLimitExceeded`.
+
 ```json
 {
   "weeklyUnplannedExcludedLabelIds": [3, 7],
@@ -2372,7 +2434,9 @@ the phase begins and disappears once it is over. `"none"` is rejected.
   "publicView": false,
   "bannerText": "Under maintenance",
   "bannerPublished": true,
-  "bannerDayPart": "morning"
+  "bannerDayPart": "morning",
+  "maxPinnedTasks": 8,
+  "maxPinnedProjects": 12
 }
 ```
 

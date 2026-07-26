@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
+	"github.com/lebe-dev/turboist/internal/model"
 )
 
 func TestMetaConfig_Success(t *testing.T) {
@@ -23,8 +24,10 @@ func TestMetaConfig_Success(t *testing.T) {
 	if result["timezone"] != "UTC" {
 		t.Errorf("timezone: got %v, want UTC", result["timezone"])
 	}
-	if result["maxPinned"] == nil {
-		t.Error("maxPinned missing from config")
+	// The pinned caps are per-user preferences now, carried by `settings`, not
+	// by the config meta block.
+	if result["maxPinned"] != nil {
+		t.Errorf("maxPinned: got %v, want it gone from the meta block", result["maxPinned"])
 	}
 	if result["weekly"] == nil {
 		t.Error("weekly missing from config")
@@ -77,6 +80,11 @@ func TestMetaConfig_Success(t *testing.T) {
 	}
 	if _, ok := settings["locale"]; !ok {
 		t.Error("settings.locale missing")
+	}
+	for _, key := range []string{"maxPinnedTasks", "maxPinnedProjects"} {
+		if settings[key] != float64(model.DefaultMaxPinned) {
+			t.Errorf("settings.%s: got %v, want %d", key, settings[key], model.DefaultMaxPinned)
+		}
 	}
 	appSettings, ok := result["appSettings"].(map[string]any)
 	if !ok {

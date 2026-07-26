@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/auth"
+	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/repo"
@@ -23,18 +24,22 @@ type LabelHandler struct {
 	labels   *repo.LabelRepo
 	projects *repo.ProjectRepo
 	tasks    *repo.TaskRepo
+	cfg      *config.Config
 	baseURL  string
 }
 
-// NewLabelHandler constructs a LabelHandler.
-func NewLabelHandler(labels *repo.LabelRepo, projects *repo.ProjectRepo, tasks *repo.TaskRepo, baseURL string) *LabelHandler {
-	return &LabelHandler{labels: labels, projects: projects, tasks: tasks, baseURL: baseURL}
+// NewLabelHandler constructs a LabelHandler. cfg supplies the timezone the
+// usage-stats windows are anchored to.
+func NewLabelHandler(labels *repo.LabelRepo, projects *repo.ProjectRepo, tasks *repo.TaskRepo, cfg *config.Config, baseURL string) *LabelHandler {
+	return &LabelHandler{labels: labels, projects: projects, tasks: tasks, cfg: cfg, baseURL: baseURL}
 }
 
 // Register wires label routes onto r.
 func (h *LabelHandler) Register(r fiber.Router) {
 	r.Get("/", httpapi.RequireScope(auth.ScopeLabelsRead), h.list)
 	r.Post("/", httpapi.RequireScope(auth.ScopeLabelsWrite), h.create)
+	// Static before parameterized: /stats must not be swallowed by /:id.
+	r.Get("/stats", httpapi.RequireScope(auth.ScopeLabelsRead), h.stats)
 	r.Get("/:id", httpapi.RequireScope(auth.ScopeLabelsRead), h.get)
 	r.Patch("/:id", httpapi.RequireScope(auth.ScopeLabelsWrite), h.patch)
 	r.Delete("/:id", httpapi.RequireScope(auth.ScopeLabelsWrite), h.delete)

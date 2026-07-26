@@ -273,3 +273,76 @@ func TestUserRepo_UpdatePasswordHash(t *testing.T) {
 		t.Errorf("hash: got %q, want h2", u.PasswordHash)
 	}
 }
+
+// TestUserRepo_GetSettings_MaxPinnedDefaults asserts blobs written before
+// migration 048 (no maxPinned* keys at all) and out-of-range leftovers are
+// normalized to model.DefaultMaxPinned instead of a zero that would block
+// pinning outright.
+func TestUserRepo_GetSettings_MaxPinnedDefaults(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "hash"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"empty object", `{}`},
+		{"pre-048 blob", `{"locale":"ru","publicView":true}`},
+		{"zero values", `{"maxPinnedTasks":0,"maxPinnedProjects":0}`},
+		{"negative values", `{"maxPinnedTasks":-3,"maxPinnedProjects":-1}`},
+		{"above max", `{"maxPinnedTasks":999,"maxPinnedProjects":51}`},
+		{"malformed blob", `not json`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := db.ExecContext(ctx, `UPDATE users SET settings = ? WHERE id = 1`, tc.raw); err != nil {
+				t.Fatalf("seed settings: %v", err)
+			}
+			s, err := r.GetSettings(ctx, 1)
+			if err != nil {
+				t.Fatalf("get settings: %v", err)
+			}
+			if s.MaxPinnedTasks != model.DefaultMaxPinned {
+				t.Errorf("maxPinnedTasks: got %d, want %d", s.MaxPinnedTasks, model.DefaultMaxPinned)
+			}
+			if s.MaxPinnedProjects != model.DefaultMaxPinned {
+				t.Errorf("maxPinnedProjects: got %d, want %d", s.MaxPinnedProjects, model.DefaultMaxPinned)
+			}
+		})
+	}
+}
+
+// TestUserRepo_GetSettings_MaxPinnedRoundTrip asserts in-range values survive
+// a SetSettings/GetSettings round-trip untouched.
+func TestUserRepo_GetSettings_MaxPinnedRoundTrip(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewUserRepo(db)
+	ctx := context.Background()
+	if _, err := r.Create(ctx, "admin", "hash"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	s, err := r.GetSettings(ctx, 1)
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+	s.MaxPinnedTasks = model.MinMaxPinned
+	s.MaxPinnedProjects = model.MaxMaxPinned
+	if err := r.SetSettings(ctx, 1, s); err != nil {
+		t.Fatalf("set settings: %v", err)
+	}
+	got, err := r.GetSettings(ctx, 1)
+	if err != nil {
+		t.Fatalf("re-get settings: %v", err)
+	}
+	if got.MaxPinnedTasks != model.MinMaxPinned {
+		t.Errorf("maxPinnedTasks: got %d, want %d", got.MaxPinnedTasks, model.MinMaxPinned)
+	}
+	if got.MaxPinnedProjects != model.MaxMaxPinned {
+		t.Errorf("maxPinnedProjects: got %d, want %d", got.MaxPinnedProjects, model.MaxMaxPinned)
+	}
+}

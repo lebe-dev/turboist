@@ -69,6 +69,27 @@ Keys are persisted in the `idempotency_keys` table (migration `044_idempotency_k
 
 Reads are shaped by the "one aggregate" rule: there is no relations endpoint. `TaskDTO` always carries `blockedByCount` / `relationCount`, hydrated by one batch query (`TaskRelationsRepo.SummaryByTaskIDs`) in `TaskRepo.Get` and in the single list funnel `listWithBaseArgsOrdered` — so every list view, `GET /api/v1/config`'s `pinnedTasks` and `/stats/sidebar`'s `pinned` get them without a per-task query. The full relation list is opt-in via `GET /api/v1/tasks/:id?relations=true`, and both mutations answer with the updated task so no follow-up read is needed.
 
+## Label usage stats
+
+`GET /api/v1/labels/stats` powers the Labels page. One `GROUP BY` over
+`labels LEFT JOIN task_labels LEFT JOIN tasks` (`LabelRepo.UsageStats`) returns
+every label with counters for all three rolling windows — last 7 / 30 / 90 days,
+each ending at the end of today in the server timezone — plus the equally long
+preceding window for the trend, and the period-independent totals (open,
+overdue, all-time tasks, distinct projects, last used).
+
+Deliberately not folded into `GET /api/v1/config`: that aggregate is refetched on
+every SSE burst on every device, and this is a heavier scan needed by exactly one
+screen. It stays offline-capable regardless — the frontend's read-through cache
+write-throughs every `/api/v1/*` GET and serves the stale copy on a network
+error, so the page opens offline once it has been visited online.
+
+The tagging timestamp it buckets by is `task_labels.created_at`
+(migration `047_task_labels_created_at.sql`, nullable + backfilled from the
+task's creation time). `TaskLabelsRepo.SetForTask` is therefore a diff, not a
+delete-and-reinsert: surviving rows keep their timestamp, so editing an unrelated
+field on a task does not move all of its tagging events into the current week.
+
 ## Storage
 
 All data lives in the SQLite file pointed to by `-db`. WAL mode is enabled — back up `*.db`, `*.db-wal`, and `*.db-shm` together, or use `VACUUM INTO` for a single-file snapshot.

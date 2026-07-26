@@ -1,9 +1,6 @@
 # IANA timezone for day-part calculations (e.g. "Europe/Moscow", "America/New_York").
 timezone: "Europe/Moscow"
 
-# Maximum number of pinned tasks/projects shown in the sidebar (separately for each kind).
-max-pinned: 5
-
 weekly:
   # Maximum number of tasks with plan_state = 'week'.
   limit: 30

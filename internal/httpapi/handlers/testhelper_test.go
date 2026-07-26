@@ -104,7 +104,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	api := httpapi.RegisterRoutes(app, deps)
 	eventsHandler.Register(api)
 
-	pinSvc := service.NewPinService(tasks, projs, cfg.MaxPinned)
+	pinSvc := service.NewPinService(tasks, projs, users)
 	appSettings := repo.NewAppSettingsRepo(d)
 	autoLabelsSvc := service.NewAutoLabelsService(lbls, appSettings)
 	taskSvc := service.NewTaskService(tasks, projs, tlabels, autoLabelsSvc)
@@ -114,7 +114,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	planSvc := service.NewPlanService(tasks, ctxs, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	searchRepo := repo.NewSearchRepo(tasks, projs)
 	handlers.NewContextHandler(ctxs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/contexts"))
-	handlers.NewLabelHandler(lbls, projs, tasks, testBaseURL).Register(api.Group("/labels"))
+	handlers.NewLabelHandler(lbls, projs, tasks, cfg, testBaseURL).Register(api.Group("/labels"))
 	templateSvc := service.NewTemplateService(templates, projs, taskSvc)
 	handlers.NewTemplateHandler(templates, templateSvc, testBaseURL).Register(api.Group("/task-templates"))
 	handlers.NewSectionHandler(secs, projs, tasks, taskSvc, testBaseURL).Register(api.Group("/sections"))
@@ -190,13 +190,22 @@ func (e *apiEnv) authedReq(t *testing.T, method, url string, body any) *http.Req
 	return req
 }
 
+// setMaxPinned patches the pinned caps through the real PATCH /settings
+// endpoint, so a test exercises the same path the Settings UI uses.
+func setMaxPinned(t *testing.T, e *apiEnv, patch map[string]int) {
+	t.Helper()
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch, "/api/v1/settings", patch))
+	if resp.StatusCode != 200 {
+		t.Fatalf("patch settings: got %d; body: %s", resp.StatusCode, body)
+	}
+}
+
 func makeTestConfig() *config.Config {
 	loc, _ := time.LoadLocation("UTC")
 	return &config.Config{
-		Timezone:  "UTC",
-		MaxPinned: 5,
-		Weekly:    config.WeeklyConfig{Limit: 7},
-		Backlog:   config.BacklogConfig{Limit: 100},
+		Timezone: "UTC",
+		Weekly:   config.WeeklyConfig{Limit: 7},
+		Backlog:  config.BacklogConfig{Limit: 100},
 		Inbox: config.InboxConfig{
 			WarnThreshold: 5,
 			OverflowTask:  config.OverflowTask{Title: "Clear inbox", Priority: "high"},

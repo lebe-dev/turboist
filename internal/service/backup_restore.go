@@ -120,9 +120,12 @@ func insertTasks(ctx context.Context, tx *sql.Tx, rows []BackupTask) error {
 }
 
 func insertTaskLabels(ctx context.Context, tx *sql.Tx, rows []BackupTaskLabel) error {
-	const q = `INSERT INTO task_labels (task_id, label_id) VALUES (?, ?)`
+	// A payload from before migration 047 carries no tagging time; fall back to
+	// the task's creation time, exactly like the migration's own backfill.
+	const q = `INSERT INTO task_labels (task_id, label_id, created_at)
+	           VALUES (?, ?, COALESCE(?, (SELECT created_at FROM tasks WHERE id = ?)))`
 	for _, r := range rows {
-		if _, err := tx.ExecContext(ctx, q, r.TaskID, r.LabelID); err != nil {
+		if _, err := tx.ExecContext(ctx, q, r.TaskID, r.LabelID, nullable(r.CreatedAt), r.TaskID); err != nil {
 			return err
 		}
 	}

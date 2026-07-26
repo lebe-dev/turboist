@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 )
 
 type taskFixture struct {
+	db         *sql.DB
 	contexts   *ContextRepo
 	projects   *ProjectRepo
 	sections   *ProjectSectionRepo
@@ -48,6 +50,7 @@ func newTaskFixture(t *testing.T) *taskFixture {
 		t.Fatalf("create section: %v", err)
 	}
 	return &taskFixture{
+		db:         d,
 		contexts:   cr,
 		projects:   pr,
 		sections:   sr,

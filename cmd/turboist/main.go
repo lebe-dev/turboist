@@ -112,7 +112,7 @@ func main() {
 	ipLimiter := auth.NewIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
 
 	// services
-	pinSvc := service.NewPinService(taskRepo, projectRepo, cfg.MaxPinned)
+	pinSvc := service.NewPinService(taskRepo, projectRepo, userRepo)
 	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, appSettingsRepo)
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
 	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, projectRepo, userRepo, trelations, cfg.Location)
@@ -210,7 +210,7 @@ func main() {
 		totpHandler.RegisterTOTP(authGroup.Group("", httpapi.AuthMiddleware(jwtIssuer)))
 	}
 	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/contexts"))
-	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, env.BaseURL).Register(api.Group("/labels"))
+	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, cfg, env.BaseURL).Register(api.Group("/labels"))
 	handlers.NewTemplateHandler(templateRepo, templateSvc, env.BaseURL).Register(api.Group("/task-templates"))
 	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))
 	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).Register(api)

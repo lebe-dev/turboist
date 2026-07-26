@@ -126,7 +126,6 @@ type inboxStatsResp struct {
 
 type configResp struct {
 	Timezone      string                 `json:"timezone"`
-	MaxPinned     int                    `json:"maxPinned"`
 	Weekly        limitResp              `json:"weekly"`
 	Backlog       limitResp              `json:"backlog"`
 	Inbox         inboxResp              `json:"inbox"`
@@ -350,10 +349,9 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 	}
 
 	return sendWithETag(c, configResp{
-		Timezone:  cfg.Timezone,
-		MaxPinned: cfg.MaxPinned,
-		Weekly:    limitResp{Limit: cfg.Weekly.Limit},
-		Backlog:   limitResp{Limit: cfg.Backlog.Limit},
+		Timezone: cfg.Timezone,
+		Weekly:   limitResp{Limit: cfg.Weekly.Limit},
+		Backlog:  limitResp{Limit: cfg.Backlog.Limit},
 		Inbox: inboxResp{
 			WarnThreshold: cfg.Inbox.WarnThreshold,
 			OverflowTask: overflowTaskResp{

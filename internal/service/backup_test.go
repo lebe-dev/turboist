@@ -942,3 +942,177 @@ func TestBackupService_SanitizeDropsTaskRelationWhenTaskMissing(t *testing.T) {
 		t.Errorf("task_relations: got %d, want 0 (both endpoints must exist)", len(got.Data.TaskRelations))
 	}
 }
+
+// TestBackupService_RoundTripsPinnedCaps asserts the two pinned caps travel in
+// the payload — they ride model.UserSettings, so a missed field would silently
+// reset a restored instance to the defaults.
+func TestBackupService_RoundTripsPinnedCaps(t *testing.T) {
+	src := setupBackupFixtures(t)
+	ctx := context.Background()
+	if err := src.users.SetSettings(ctx, 1, &model.UserSettings{
+		MaxPinnedTasks:    3,
+		MaxPinnedProjects: 42,
+	}); err != nil {
+		t.Fatalf("set src user settings: %v", err)
+	}
+	payload, err := src.svc.Export(ctx, service.ExportOptions{IncludeSettings: true})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if payload.Settings == nil || payload.Settings.User == nil {
+		t.Fatal("payload carries no user settings")
+	}
+	if payload.Settings.User.MaxPinnedTasks != 3 {
+		t.Errorf("exported maxPinnedTasks: got %d, want 3", payload.Settings.User.MaxPinnedTasks)
+	}
+	if payload.Settings.User.MaxPinnedProjects != 42 {
+		t.Errorf("exported maxPinnedProjects: got %d, want 42", payload.Settings.User.MaxPinnedProjects)
+	}
+
+	dst := setupBackupFixtures(t)
+	if err := dst.svc.Restore(ctx, payload); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := dst.users.GetSettings(ctx, 1)
+	if err != nil {
+		t.Fatalf("get dst settings: %v", err)
+	}
+	if got.MaxPinnedTasks != 3 || got.MaxPinnedProjects != 42 {
+		t.Errorf("restored caps: got %d/%d, want 3/42", got.MaxPinnedTasks, got.MaxPinnedProjects)
+	}
+}
+
+// TestBackupService_RestoreLegacyPayloadWithoutPinnedCaps asserts a payload
+// written before migration 048 (no cap fields at all → zero values) restores to
+// a working instance: the read path normalizes the zeros to the default rather
+// than leaving pinning permanently blocked.
+func TestBackupService_RestoreLegacyPayloadWithoutPinnedCaps(t *testing.T) {
+	ctx := context.Background()
+	dst := setupBackupFixtures(t)
+
+	legacy := []byte(`{
+		"version": 1,
+		"exportedAt": "2024-01-01T00:00:00.000Z",
+		"data": {},
+		"settings": { "user": { "locale": "ru", "publicView": true } }
+	}`)
+	payload, err := service.DecodeBackup(legacy)
+	if err != nil {
+		t.Fatalf("decode legacy payload: %v", err)
+	}
+	if err := dst.svc.Restore(ctx, payload); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	got, err := dst.users.GetSettings(ctx, 1)
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+	if got.MaxPinnedTasks != model.DefaultMaxPinned || got.MaxPinnedProjects != model.DefaultMaxPinned {
+		t.Errorf("caps: got %d/%d, want %d/%d",
+			got.MaxPinnedTasks, got.MaxPinnedProjects, model.DefaultMaxPinned, model.DefaultMaxPinned)
+	}
+	if got.Locale != "ru" {
+		t.Errorf("locale: got %q, want ru", got.Locale)
+	}
+}
+
+// Tagging times (migration 047) survive an export → restore cycle: they drive the
+// label usage windows, so losing them would silently reset every label's history.
+func TestBackupService_RoundTripPreservesTaskLabelCreatedAt(t *testing.T) {
+	f := setupBackupFixtures(t)
+	seedSample(t, f)
+	ctx := context.Background()
+
+	const taggedAt = "2026-03-14T15:09:00.000Z"
+	if _, err := f.db.Exec(`UPDATE task_labels SET created_at = ?`, taggedAt); err != nil {
+		t.Fatalf("backdate tag times: %v", err)
+	}
+
+	payload, err := f.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(payload.Data.TaskLabels) == 0 {
+		t.Fatal("exported task labels: got none, want at least one")
+	}
+	for _, tl := range payload.Data.TaskLabels {
+		if tl.CreatedAt == nil {
+			t.Fatalf("task %d label %d: createdAt missing from export", tl.TaskID, tl.LabelID)
+		}
+		if *tl.CreatedAt != taggedAt {
+			t.Errorf("task %d label %d createdAt: got %s, want %s", tl.TaskID, tl.LabelID, *tl.CreatedAt, taggedAt)
+		}
+	}
+
+	dst := setupBackupFixtures(t)
+	if err := dst.svc.Restore(ctx, payload); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	rows, err := dst.db.QueryContext(ctx, `SELECT created_at FROM task_labels`)
+	if err != nil {
+		t.Fatalf("query restored tag times: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	restored := 0
+	for rows.Next() {
+		var got sql.NullString
+		if err := rows.Scan(&got); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if !got.Valid || got.String != taggedAt {
+			t.Errorf("restored created_at: got %v, want %s", got, taggedAt)
+		}
+		restored++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	if restored != len(payload.Data.TaskLabels) {
+		t.Errorf("restored rows: got %d, want %d", restored, len(payload.Data.TaskLabels))
+	}
+}
+
+// A payload written before migration 047 carries no tagging time at all. Restore
+// falls back to the task's own creation time — the same approximation the
+// migration's backfill uses — instead of leaving a NULL that no window can see.
+func TestBackupService_RestoreBackfillsMissingTaskLabelCreatedAt(t *testing.T) {
+	f := setupBackupFixtures(t)
+	ctx := context.Background()
+
+	const taskCreatedAt = "2026-02-02T02:02:00.000Z"
+	old := &service.BackupPayload{
+		Version:    service.BackupSchemaVersion,
+		ExportedAt: "2026-05-19T00:00:00.000Z",
+		Data: service.BackupData{
+			Labels: []service.BackupLabel{
+				{ID: 7, Name: "legacy", Color: "red", CreatedAt: taskCreatedAt, UpdatedAt: taskCreatedAt},
+			},
+			Tasks: []service.BackupTask{
+				{
+					ID: 1, Title: "pre-047 task", InboxID: ptr(int64(1)),
+					Priority: string(model.PriorityNone), Status: string(model.TaskStatusOpen),
+					DayPart: string(model.DayPartNone), PlanState: string(model.PlanStateNone),
+					CreatedAt: taskCreatedAt, UpdatedAt: taskCreatedAt,
+				},
+			},
+			// No CreatedAt — exactly what an older export produces.
+			TaskLabels: []service.BackupTaskLabel{{TaskID: 1, LabelID: 7}},
+		},
+	}
+
+	if err := f.svc.Restore(ctx, old); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	var got sql.NullString
+	if err := f.db.QueryRow(`SELECT created_at FROM task_labels WHERE task_id = 1`).Scan(&got); err != nil {
+		t.Fatalf("read restored created_at: %v", err)
+	}
+	if !got.Valid {
+		t.Fatal("restored created_at: got NULL, want the task's creation time")
+	}
+	if got.String != taskCreatedAt {
+		t.Errorf("restored created_at: got %s, want %s", got.String, taskCreatedAt)
+	}
+}

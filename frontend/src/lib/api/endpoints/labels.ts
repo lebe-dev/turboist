@@ -1,5 +1,13 @@
 import type { ApiClient } from '../client';
-import type { Label, LabelInput, ListQuery, Page, Task, TasksQuery } from '../types';
+import type {
+	Label,
+	LabelInput,
+	LabelStatsResponse,
+	ListQuery,
+	Page,
+	Task,
+	TasksQuery
+} from '../types';
 
 export interface LabelsListQuery extends ListQuery {
 	q?: string;
@@ -8,6 +16,12 @@ export interface LabelsListQuery extends ListQuery {
 export const labels = {
 	list(client: ApiClient, query: LabelsListQuery = {}): Promise<Page<Label>> {
 		return client.fetch('/api/v1/labels', { query });
+	},
+
+	// stats returns the usage report for every label across all three rolling
+	// windows in one round-trip; the page switches periods without refetching.
+	stats(client: ApiClient): Promise<LabelStatsResponse> {
+		return client.fetch('/api/v1/labels/stats');
 	},
 
 	get(client: ApiClient, id: number): Promise<Label> {

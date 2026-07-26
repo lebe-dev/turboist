@@ -12,6 +12,7 @@
 	import BackupRestoreSection from '$lib/components/settings/BackupRestoreSection.svelte';
 	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
 	import LogsSection from '$lib/components/settings/LogsSection.svelte';
+	import PinnedLimitsSection from '$lib/components/settings/PinnedLimitsSection.svelte';
 	import ProjectSuggestionsSection from '$lib/components/settings/ProjectSuggestionsSection.svelte';
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
 	import TemplatesSection from '$lib/components/settings/TemplatesSection.svelte';
@@ -38,7 +39,7 @@
 	const appVersion = __APP_VERSION__;
 	const totpAvailable = $derived(configStore.value?.totpAvailable ?? false);
 
-	const settingsTabs = ['general', 'labels', 'templates', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
+	const settingsTabs = ['general', 'menu', 'labels', 'templates', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -138,6 +139,7 @@
 
 	const tabItems = $derived([
 		{ value: 'general', labelKey: 'settings.tabs.general' },
+		{ value: 'menu', labelKey: 'settings.tabs.menu' },
 		{ value: 'labels', labelKey: 'settings.tabs.labels' },
 		{ value: 'templates', labelKey: 'settings.tabs.templates' },
 		{ value: 'calendars', labelKey: 'settings.tabs.calendars' },
@@ -445,6 +447,10 @@
 				</div>
 				<span class="font-mono text-sm text-muted-foreground">v{appVersion}</span>
 			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="menu" class="flex flex-col gap-4">
+			<PinnedLimitsSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="calendars" class="flex flex-col gap-4">

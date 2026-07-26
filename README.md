@@ -7,11 +7,12 @@ Turboist is a task management app for the rest of us.
 ## Features
 
 - Contexts, projects, sections, labels (with auto-label rules)
+- Label usage stats — frequency per rolling week / month / quarter, trend against the previous window, and unused-label cleanup hints
 - Mask-based project suggestions on task creation (up to 3, A-Z)
 - Inbox with overflow handling
 - Day phases (morning / day / evening / anytime)
 - Weekly / backlog planning with per-bucket caps
-- Pinned tasks and pinned projects (separate caps)
+- Pinned tasks and pinned projects (separate caps, configurable in Settings → Menu)
 - Recurring tasks (RRULE, advanced on completion)
 - Task relations — `related` cross-references plus `blocks` dependencies that prevent completing a blocked task — [docs/task-relations.md](docs/task-relations.md)
 - Single-user JWT auth with refresh-token rotation

@@ -59,6 +59,7 @@
 		'/inbox': 'nav.inbox',
 		'/week': 'nav.thisWeek',
 		'/next-week': 'nav.nextWeek',
+		'/labels': 'nav.labels',
 		'/completed': 'nav.completed',
 		'/search': 'nav.search',
 		'/troiki': 'nav.troiki',

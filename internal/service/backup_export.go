@@ -193,7 +193,7 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 
 func (s *BackupService) readTaskLabels(ctx context.Context) ([]BackupTaskLabel, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT task_id, label_id FROM task_labels ORDER BY task_id, label_id`)
+		`SELECT task_id, label_id, created_at FROM task_labels ORDER BY task_id, label_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -201,8 +201,13 @@ func (s *BackupService) readTaskLabels(ctx context.Context) ([]BackupTaskLabel, 
 	out := make([]BackupTaskLabel, 0)
 	for rows.Next() {
 		var l BackupTaskLabel
-		if err := rows.Scan(&l.TaskID, &l.LabelID); err != nil {
+		var createdAt sql.NullString
+		if err := rows.Scan(&l.TaskID, &l.LabelID, &createdAt); err != nil {
 			return nil, err
+		}
+		if createdAt.Valid {
+			v := createdAt.String
+			l.CreatedAt = &v
 		}
 		out = append(out, l)
 	}

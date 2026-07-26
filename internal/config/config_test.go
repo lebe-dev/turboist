@@ -10,7 +10,6 @@ import (
 
 const validYAML = `
 timezone: "Europe/Moscow"
-max-pinned: 5
 weekly:
   limit: 30
 backlog:
@@ -51,7 +50,7 @@ func TestLoad_Valid(t *testing.T) {
 	if cfg.Location == nil || cfg.Location.String() != "Europe/Moscow" {
 		t.Fatalf("location not loaded: %+v", cfg.Location)
 	}
-	if cfg.Weekly.Limit != 30 || cfg.Backlog.Limit != 30 || cfg.MaxPinned != 5 {
+	if cfg.Weekly.Limit != 30 || cfg.Backlog.Limit != 30 {
 		t.Fatalf("limits not parsed: %+v", cfg)
 	}
 }

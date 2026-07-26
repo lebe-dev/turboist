@@ -89,6 +89,7 @@
 			limit: weekLimit
 		},
 		{ href: resolve('/projects'), label: $t('nav.projects'), icon: FolderIcon },
+		{ href: resolve('/labels'), label: $t('nav.labels'), icon: TagIcon },
 		{ href: resolve('/completed'), label: $t('nav.completed'), icon: CheckCircleIcon }
 	]);
 

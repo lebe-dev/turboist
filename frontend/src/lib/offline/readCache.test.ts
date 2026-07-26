@@ -33,6 +33,12 @@ describe('isCacheable', () => {
 		expect(isCacheable('/api/v1/backup?foo=1')).toBe(false);
 		expect(isCacheable('/api/v1/tasks?done=1')).toBe(true);
 	});
+
+	// The label usage report is the /labels page's only data source, so it must be
+	// cacheable for that page to degrade offline instead of erroring out.
+	it('caches the label usage report', () => {
+		expect(isCacheable('/api/v1/labels/stats')).toBe(true);
+	});
 });
 
 describe('createReadCache', () => {
@@ -465,5 +471,54 @@ describe('findTask inside a task detail payload relations list', () => {
 		});
 		expect(await cache.findTask(8)).toBeNull();
 		expect(((await cache.findTask(7)) as { id: number }).id).toBe(7);
+	});
+});
+
+// The label usage report nests objects under `items` that look superficially like
+// a Page<Task>. They are label rows, and the outbox cache-patchers walk every
+// cached entry — mistaking one for a task would let an offline complete/uncomplete
+// rewrite the stats payload.
+describe('label usage report is not mistaken for a task list', () => {
+	let db: OfflineDB;
+	let cache: ReadCache;
+
+	afterEach(() => {
+		db?.close();
+	});
+
+	const statsPayload = {
+		ranges: {
+			week: { start: '2026-07-20T00:00:00.000Z', end: '2026-07-27T00:00:00.000Z', days: 7 }
+		},
+		items: [
+			{
+				label: { id: 3, name: 'bug', color: 'red', isFavourite: false, isPrivate: false },
+				totalTasks: 4,
+				openTasks: 1,
+				overdue: 0,
+				projects: 2,
+				lastUsedAt: '2026-07-25T09:00:00.000Z',
+				periods: { week: { applied: 2, previousApplied: 1, completed: 1 } }
+			}
+		]
+	};
+
+	it('never yields a task from the report, by id or by detail lookup', async () => {
+		db = await openOfflineDB(SERVER);
+		cache = createReadCache(db);
+		await cache.put('/api/v1/labels/stats', undefined, statsPayload);
+
+		// 3 is the label id inside the row — it must not surface as a task.
+		expect(await cache.findTask(3)).toBeNull();
+		expect(await cache.findTaskDetail(3, false)).toBeNull();
+	});
+
+	it('round-trips the report unchanged', async () => {
+		db = await openOfflineDB(SERVER);
+		cache = createReadCache(db);
+		await cache.put('/api/v1/labels/stats', undefined, statsPayload);
+
+		const entry = await cache.get('/api/v1/labels/stats');
+		expect(entry?.payload).toEqual(statsPayload);
 	});
 });

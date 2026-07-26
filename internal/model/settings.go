@@ -16,6 +16,15 @@ type HarpoonRef struct {
 	ID   int64       `json:"id"`
 }
 
+// Pinned-limit bounds. DefaultMaxPinned is what migration 048 writes into
+// existing rows and what a settings blob missing the key falls back to;
+// MinMaxPinned/MaxMaxPinned bound what the user may set from the UI.
+const (
+	DefaultMaxPinned = 10
+	MinMaxPinned     = 1
+	MaxMaxPinned     = 50
+)
+
 // UserSettings holds user-configurable application preferences persisted on the server.
 type UserSettings struct {
 	WeeklyUnplannedExcludedLabelIDs []int64 `json:"weeklyUnplannedExcludedLabelIds"`
@@ -34,6 +43,13 @@ type UserSettings struct {
 	CalendarEnabled        bool `json:"calendarEnabled"`
 	CalendarHidePastEvents bool `json:"calendarHidePastEvents"`
 	TroikiEnabled          bool `json:"troikiEnabled"`
+
+	// MaxPinnedTasks and MaxPinnedProjects cap how many tasks / projects may be
+	// pinned at once — the two caps are independent. Enforced by
+	// service.PinService on every pin; lowering a cap below the current count
+	// never unpins anything, it only blocks further pins.
+	MaxPinnedTasks    int `json:"maxPinnedTasks"`
+	MaxPinnedProjects int `json:"maxPinnedProjects"`
 
 	// Harpoon is the ordered "jump pair": at most two references the user can
 	// quickly hop between. Order is significant — slot 0 is the first member,

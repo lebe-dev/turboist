@@ -122,7 +122,8 @@ func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettin
 	var s model.UserSettings
 	if raw != "" && raw != "{}" {
 		if err := json.Unmarshal([]byte(raw), &s); err != nil {
-			return &model.UserSettings{}, nil
+			s = model.UserSettings{}
+			raw = "{}"
 		}
 	}
 	if raw == "" || raw == "{}" || !jsonObjectHasKey(raw, "calendarHidePastEvents") {
@@ -133,6 +134,15 @@ func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettin
 	}
 	if s.BugLabelIDs == nil {
 		s.BugLabelIDs = []int64{}
+	}
+	// Blobs written before migration 048 (and any out-of-range leftovers) fall
+	// back to the default cap instead of a meaningless zero that would block
+	// pinning outright.
+	if s.MaxPinnedTasks < model.MinMaxPinned || s.MaxPinnedTasks > model.MaxMaxPinned {
+		s.MaxPinnedTasks = model.DefaultMaxPinned
+	}
+	if s.MaxPinnedProjects < model.MinMaxPinned || s.MaxPinnedProjects > model.MaxMaxPinned {
+		s.MaxPinnedProjects = model.DefaultMaxPinned
 	}
 	return &s, nil
 }

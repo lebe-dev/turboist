@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
@@ -18,6 +19,11 @@ func NewTaskLabelsRepo(db *sql.DB) *TaskLabelsRepo {
 	return &TaskLabelsRepo{db: db}
 }
 
+// SetForTask replaces the task's label set with labelIDs.
+//
+// It is a diff, not a delete-and-reinsert: rows that survive keep their
+// `created_at` (migration 047), so editing an unrelated field on a task does not
+// move all of its tagging events into the current week and skew the usage stats.
 func (r *TaskLabelsRepo) SetForTask(ctx context.Context, taskID int64, labelIDs []int64) error {
 	const op = "repo.task_labels.SetForTask"
 	logQuery(ctx, op, taskID, labelIDs)
@@ -27,11 +33,25 @@ func (r *TaskLabelsRepo) SetForTask(ctx context.Context, taskID int64, labelIDs 
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM task_labels WHERE task_id = ?`, taskID); err != nil {
-		return logErr(ctx, op, fmt.Errorf("clear task_labels: %w", err))
+	del := `DELETE FROM task_labels WHERE task_id = ?`
+	delArgs := []any{taskID}
+	if len(labelIDs) > 0 {
+		placeholders := make([]string, len(labelIDs))
+		for i, lid := range labelIDs {
+			placeholders[i] = "?"
+			delArgs = append(delArgs, lid)
+		}
+		del += ` AND label_id NOT IN (` + strings.Join(placeholders, ",") + `)`
 	}
+	if _, err := tx.ExecContext(ctx, del, delArgs...); err != nil {
+		return logErr(ctx, op, fmt.Errorf("prune task_labels: %w", err))
+	}
+
+	now := model.FormatUTC(time.Now())
 	for _, lid := range labelIDs {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO task_labels (task_id, label_id) VALUES (?, ?)`, taskID, lid); err != nil {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT OR IGNORE INTO task_labels (task_id, label_id, created_at) VALUES (?, ?, ?)`,
+			taskID, lid, now); err != nil {
 			return logErr(ctx, op, fmt.Errorf("insert task_label: %w", err))
 		}
 	}

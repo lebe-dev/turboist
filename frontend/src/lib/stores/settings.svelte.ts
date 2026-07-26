@@ -3,6 +3,11 @@ import { getApiClient } from '../api/client';
 import type { BannerDayPart, UserSettings } from '../api/types';
 import { setLocale, type SupportedLocale } from '../i18n';
 
+/** Mirrors model.DefaultMaxPinned / MinMaxPinned / MaxMaxPinned on the server. */
+export const DEFAULT_MAX_PINNED = 10;
+export const MIN_MAX_PINNED = 1;
+export const MAX_MAX_PINNED = 50;
+
 const EMPTY: UserSettings = {
 	weeklyUnplannedExcludedLabelIds: [],
 	bugLabelIds: [],
@@ -13,7 +18,9 @@ const EMPTY: UserSettings = {
 	bannerDayPart: '',
 	calendarEnabled: false,
 	calendarHidePastEvents: true,
-	troikiEnabled: false
+	troikiEnabled: false,
+	maxPinnedTasks: DEFAULT_MAX_PINNED,
+	maxPinnedProjects: DEFAULT_MAX_PINNED
 };
 
 class SettingsStore {
@@ -61,6 +68,14 @@ class SettingsStore {
 
 	get troikiEnabled(): boolean {
 		return this.value.troikiEnabled ?? false;
+	}
+
+	get maxPinnedTasks(): number {
+		return this.value.maxPinnedTasks ?? DEFAULT_MAX_PINNED;
+	}
+
+	get maxPinnedProjects(): number {
+		return this.value.maxPinnedProjects ?? DEFAULT_MAX_PINNED;
 	}
 
 	async setWeeklyUnplannedExcludedLabelIds(ids: number[]): Promise<void> {
@@ -112,6 +127,17 @@ class SettingsStore {
 	async setTroikiEnabled(v: boolean): Promise<void> {
 		this.value = { ...this.value, troikiEnabled: v };
 		await settingsApi.patch(getApiClient(), { troikiEnabled: v });
+	}
+
+	// Unlike the toggles above these are not written optimistically: the server
+	// bounds them to [MIN_MAX_PINNED, MAX_MAX_PINNED], so a rejected PATCH must
+	// not leave an unsaved number in the store. The response is the truth.
+	async setMaxPinnedTasks(v: number): Promise<void> {
+		this.value = await settingsApi.patch(getApiClient(), { maxPinnedTasks: v });
+	}
+
+	async setMaxPinnedProjects(v: number): Promise<void> {
+		this.value = await settingsApi.patch(getApiClient(), { maxPinnedProjects: v });
 	}
 
 	clear(): void {

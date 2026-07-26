@@ -46,7 +46,9 @@ func TestPinService_WarnOnLimit(t *testing.T) {
 	plabels := repo.NewProjectLabelsRepo(d)
 	projects := repo.NewProjectRepo(d, plabels)
 	ctxs := repo.NewContextRepo(d)
-	svc := service.NewPinService(tasks, projects, 1)
+	users := seedPinUser(t, d)
+	setPinnedCaps(t, users, 1, 1)
+	svc := service.NewPinService(tasks, projects, users)
 
 	ctx, h := ctxWithCapture(t)
 	c, _ := ctxs.Create(ctx, "Work", "blue", false)

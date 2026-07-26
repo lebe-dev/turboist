@@ -116,6 +116,10 @@ type BackupTask struct {
 type BackupTaskLabel struct {
 	TaskID  int64 `json:"taskId"`
 	LabelID int64 `json:"labelId"`
+	// CreatedAt is the tagging time (migration 047). Additive like TaskRelations:
+	// a payload written before the column existed decodes to nil, and restore
+	// then falls back to the task's own creation time.
+	CreatedAt *string `json:"createdAt,omitempty"`
 }
 
 type BackupProjectLabel struct {
