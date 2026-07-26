@@ -453,6 +453,13 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 // keep their original titles. Each subtask is re-fetched via Get so its labels
 // are hydrated (ListSubtasks does not hydrate labels).
 func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *int64, title string) (*model.Task, error) {
+	// A completed task's due date is history, not a plan — carrying an already
+	// expired one onto the clone would just reproduce the stale label instead
+	// of letting the user set a fresh date.
+	dueAt, dueHasTime := src.DueAt, src.DueHasTime
+	if src.Status == model.TaskStatusCompleted && dueAt != nil && dueAt.Before(time.Now()) {
+		dueAt, dueHasTime = nil, false
+	}
 	in := repo.CreateTask{
 		Placement: repo.Placement{
 			InboxID:   src.InboxID,
@@ -464,8 +471,8 @@ func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *
 		Title:           title,
 		Description:     src.Description,
 		Priority:        src.Priority,
-		DueAt:           src.DueAt,
-		DueHasTime:      src.DueHasTime,
+		DueAt:           dueAt,
+		DueHasTime:      dueHasTime,
 		DeadlineAt:      src.DeadlineAt,
 		DeadlineHasTime: src.DeadlineHasTime,
 		DayPart:         src.DayPart,

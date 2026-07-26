@@ -1003,3 +1003,75 @@ func TestTaskDuplicate_WithSubtasks(t *testing.T) {
 		t.Errorf("subtask titles: got %v, want Child A and Child B", got)
 	}
 }
+
+func TestTaskDuplicate_CompletedWithExpiredDueAt_ClearsDueAt(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	url := fmt.Sprintf("/api/v1/contexts/%d/tasks", ctx.ID)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, url, map[string]any{
+		"title": "Past due task", "dueAt": "2020-01-15T10:00:00.000Z",
+	}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create: got %d; body: %s", resp.StatusCode, body)
+	}
+	var task dto.TaskDTO
+	if err := json.Unmarshal(body, &task); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	respC, bodyC := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", task.ID), nil))
+	if respC.StatusCode != 200 {
+		t.Fatalf("complete: got %d, want 200; body: %s", respC.StatusCode, bodyC)
+	}
+
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", task.ID), nil))
+	if resp2.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d, want 201; body: %s", resp2.StatusCode, body2)
+	}
+	var dup dto.TaskDTO
+	if err := json.Unmarshal(body2, &dup); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if dup.DueAt != nil {
+		t.Errorf("dueAt: got %v, want nil for a clone of a completed task with an expired due date", dup.DueAt)
+	}
+}
+
+func TestTaskDuplicate_CompletedWithFutureDueAt_KeepsDueAt(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	url := fmt.Sprintf("/api/v1/contexts/%d/tasks", ctx.ID)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, url, map[string]any{
+		"title": "Future due task", "dueAt": "2099-01-15T10:00:00.000Z",
+	}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create: got %d; body: %s", resp.StatusCode, body)
+	}
+	var task dto.TaskDTO
+	if err := json.Unmarshal(body, &task); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	respC, bodyC := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", task.ID), nil))
+	if respC.StatusCode != 200 {
+		t.Fatalf("complete: got %d, want 200; body: %s", respC.StatusCode, bodyC)
+	}
+
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", task.ID), nil))
+	if resp2.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d, want 201; body: %s", resp2.StatusCode, body2)
+	}
+	var dup dto.TaskDTO
+	if err := json.Unmarshal(body2, &dup); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if dup.DueAt == nil {
+		t.Error("dueAt: got nil, want the future due date to be preserved")
+	}
+}
