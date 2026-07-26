@@ -28,16 +28,16 @@
 </script>
 
 <div
-	class="flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg"
+	class="flex w-[356px] max-w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg"
 	role="status"
 >
 	<div class="flex items-start justify-between gap-2">
 		<div class="min-w-0 flex-1">
 			<p class="text-xs font-medium">{$t('task.toast.movedTitle')}</p>
-			<p class="mt-0.5 truncate text-xs text-muted-foreground" {title}>
+			<p class="mt-0.5 break-words text-xs text-muted-foreground">
 				{title}
 			</p>
-			<p class="mt-0.5 truncate text-xs text-muted-foreground">
+			<p class="mt-0.5 break-words text-xs text-muted-foreground">
 				{$t('task.toast.movedTo', { values: { destination } })}
 			</p>
 		</div>
