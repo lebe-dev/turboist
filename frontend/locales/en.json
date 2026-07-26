@@ -114,6 +114,23 @@
 			"bugLabelsDescription": "Labels applied automatically when filing a bug from a Software project.",
 			"bugLabelsEmpty": "No labels yet. Create labels first to configure bug filing."
 		},
+		"projectSuggestions": {
+			"heading": "Project suggestions",
+			"description": "When a task title contains the mask, the selected projects are offered as a choice (up to {max}, sorted A-Z). Nothing is applied automatically.",
+			"empty": "No project suggestion rules yet.",
+			"mask": "Mask",
+			"projects": "Projects",
+			"ignoreCase": "Ignore case",
+			"maskPlaceholder": "e.g. deploy",
+			"projectsPlaceholder": "Select projects…",
+			"noProjectsAvailable": "No projects available. Create projects first.",
+			"add": "Add rule",
+			"remove": "Remove rule",
+			"save": "Save",
+			"toastSaved": "Project suggestion rules saved",
+			"toastFailed": "Failed to save project suggestion rules",
+			"toastEmptyFields": "Mask must not be empty and at least one project must be selected"
+		},
 		"troiki": {
 			"heading": "Troiki System",
 			"description": "Enable the Troiki productivity system to organise projects into priority categories and lock task priority by category. When disabled, existing Troiki assignments stay linked but all related icons and menu items are hidden, and task priority is no longer locked.",
@@ -643,6 +660,7 @@
 			"descriptionAriaLabel": "Description",
 			"autoLabelHint": "Auto-detected from title — will be applied on save",
 			"rejectAutoLabel": "Reject auto-label {name}",
+			"projectSuggestionHint": "Suggested projects:",
 			"dueDateAriaLabel": "Due date",
 			"customDateAriaLabel": "Custom date",
 			"pickDateTitle": "Pick a date",

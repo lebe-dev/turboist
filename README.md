@@ -7,6 +7,7 @@ Turboist is a task management app for the rest of us.
 ## Features
 
 - Contexts, projects, sections, labels (with auto-label rules)
+- Mask-based project suggestions on task creation (up to 3, A-Z)
 - Inbox with overflow handling
 - Day phases (morning / day / evening / anytime)
 - Weekly / backlog planning with per-bucket caps

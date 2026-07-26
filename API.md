@@ -2160,6 +2160,66 @@ curl -X PATCH "$BASE/api/v1/settings" \
 
 ---
 
+## App Settings
+
+Global, server-wide rules (single-row `app_settings` table). Reads require the
+`settings:read` scope, writes `settings:write`. The same payload is embedded as
+`appSettings` in `GET /api/v1/meta`.
+
+- **Auto-labels** — when a task title contains `mask`, the listed labels are
+  attached automatically on create / title change.
+- **Project suggestions** — when a task title contains `mask`, the listed
+  projects are *offered* in the quick-add dialog (deduped across matching rules,
+  sorted A-Z, capped at 3). Advisory only: the server never assigns a project.
+
+`ignoreCase: true` makes the mask match case-insensitively.
+
+### `GET /api/v1/app-settings`
+
+```json
+{
+  "autoLabels": [
+    { "mask": "buy", "labelIds": [3], "ignoreCase": true }
+  ],
+  "projectSuggestions": [
+    { "mask": "deploy", "projectIds": [4, 7], "ignoreCase": true }
+  ]
+}
+```
+
+```sh
+curl "$BASE/api/v1/app-settings" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `PUT /api/v1/app-settings/auto-labels`
+
+Replaces the whole auto-label rules list. Each `mask` must be non-empty after
+trimming and each `labelIds` must contain at least one existing label id
+(duplicates within a rule are dropped). Returns the full app settings.
+
+```sh
+curl -X PUT "$BASE/api/v1/app-settings/auto-labels" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"autoLabels":[{"mask":"buy","labelIds":[3],"ignoreCase":true}]}'
+```
+
+### `PUT /api/v1/app-settings/project-suggestions`
+
+Replaces the whole project-suggestion rules list. Each `mask` must be non-empty
+after trimming and each `projectIds` must contain at least one existing project
+id (duplicates within a rule are dropped). Returns the full app settings.
+
+```sh
+curl -X PUT "$BASE/api/v1/app-settings/project-suggestions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"projectSuggestions":[{"mask":"deploy","projectIds":[4,7],"ignoreCase":true}]}'
+```
+
+---
+
 ## Harpoon
 
 A per-user "jump pair": at most **two** task/project references the user can hop

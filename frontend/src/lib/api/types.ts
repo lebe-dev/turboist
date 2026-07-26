@@ -409,8 +409,15 @@ export interface AutoLabelRule {
 	ignoreCase: boolean;
 }
 
+export interface ProjectSuggestionRule {
+	mask: string;
+	projectIds: number[];
+	ignoreCase: boolean;
+}
+
 export interface AppSettings {
 	autoLabels: AutoLabelRule[];
+	projectSuggestions: ProjectSuggestionRule[];
 }
 
 // Request payloads

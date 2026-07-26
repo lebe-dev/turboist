@@ -10,8 +10,20 @@ type AutoLabelRule struct {
 	IgnoreCase bool    `json:"ignoreCase"`
 }
 
+// ProjectSuggestionRule is a single project-suggestion match rule: when a task
+// title contains Mask, the projects with the listed IDs are offered to the user
+// as a choice. If IgnoreCase is true, comparison is case-insensitive. Unlike
+// auto-labels, nothing is applied automatically — the rules only feed the
+// suggestion chips in the quick-add dialog; missing IDs are silently skipped.
+type ProjectSuggestionRule struct {
+	Mask       string  `json:"mask"`
+	ProjectIDs []int64 `json:"projectIds"`
+	IgnoreCase bool    `json:"ignoreCase"`
+}
+
 // AppSettings holds global, server-wide settings persisted in the app_settings
 // table (single-row, id=1).
 type AppSettings struct {
-	AutoLabels []AutoLabelRule `json:"autoLabels"`
+	AutoLabels         []AutoLabelRule         `json:"autoLabels"`
+	ProjectSuggestions []ProjectSuggestionRule `json:"projectSuggestions"`
 }

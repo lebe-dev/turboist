@@ -90,7 +90,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings, troikiSvc, testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewStateHandler(users).Register(api)
-	handlers.NewAppSettingsHandler(appSettings, lbls).Register(api)
+	handlers.NewAppSettingsHandler(appSettings, lbls, projs).Register(api)
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewBackupHandler(service.NewBackupService(d)).

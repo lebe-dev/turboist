@@ -14,6 +14,7 @@
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
 	import { dayStartUtcInTz, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
+	import { matchProjectSuggestions } from '$lib/utils/projectSuggestions';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import XIcon from 'phosphor-svelte/lib/X';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -216,6 +217,14 @@
 			dismissedAutoLabels = [...dismissedAutoLabels, name];
 		}
 	}
+
+	// Projects offered for the typed title (settings → Projects → suggestion
+	// rules). Purely advisory: nothing is applied until a chip is clicked.
+	const suggestedProjects = $derived(
+		matchProjectSuggestions(appSettingsStore.projectSuggestions, titles, visibleProjects, {
+			excludeIds: projectId ? [Number(projectId)] : []
+		})
+	);
 	const projectName = $derived(
 		projectsStore.items.find((p) => String(p.id) === projectId)?.title ?? emptyProjectLabel
 	);
@@ -639,6 +648,24 @@
 							{/if}
 						{/if}
 					</div>
+
+					{#if suggestedProjects.length > 0}
+						<div class="mt-2 flex flex-wrap items-center gap-1.5">
+							<span class="text-[11px] text-muted-foreground">
+								{$t('dialog.quickAdd.projectSuggestionHint')}
+							</span>
+							{#each suggestedProjects as project (project.id)}
+								<button
+									type="button"
+									onclick={() => selectProject(String(project.id))}
+									class="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+								>
+									<SparkleIcon class="size-3" weight="fill" />
+									<span class="max-w-[10rem] truncate">{project.title}</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
 
 					{#snippet projectPicker()}
 						<PopoverPrimitive.Root bind:open={projectMenuOpen} onOpenChange={onProjectMenuOpenChange}>

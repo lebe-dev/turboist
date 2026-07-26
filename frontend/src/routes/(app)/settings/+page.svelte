@@ -12,6 +12,7 @@
 	import BackupRestoreSection from '$lib/components/settings/BackupRestoreSection.svelte';
 	import GoogleCalendarSection from '$lib/components/settings/GoogleCalendarSection.svelte';
 	import LogsSection from '$lib/components/settings/LogsSection.svelte';
+	import ProjectSuggestionsSection from '$lib/components/settings/ProjectSuggestionsSection.svelte';
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
 	import TemplatesSection from '$lib/components/settings/TemplatesSection.svelte';
 	import TwoFactorSection from '$lib/components/settings/TwoFactorSection.svelte';
@@ -596,7 +597,7 @@
 			<TemplatesSection />
 		</Tabs.Content>
 
-		<Tabs.Content value="project">
+		<Tabs.Content value="project" class="flex flex-col gap-4">
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
 				<div class="flex flex-col gap-0.5">
 					<h2 class="text-sm font-semibold">{$t('settings.project.bugLabelsHeading')}</h2>
@@ -628,6 +629,8 @@
 					</div>
 				{/if}
 			</section>
+
+			<ProjectSuggestionsSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="troiki">

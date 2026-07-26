@@ -223,7 +223,7 @@ func main() {
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
-	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo).Register(api)
+	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo, projectRepo).Register(api)
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewSessionsHandler(sessionRepo).
