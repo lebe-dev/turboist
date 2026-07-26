@@ -169,7 +169,6 @@
 			"labels": "Labels",
 			"ignoreCase": "Ignore case",
 			"maskPlaceholder": "e.g. buy",
-			"labelsPlaceholder": "Select labels…",
 			"noLabelsAvailable": "No labels available. Create labels first.",
 			"add": "Add rule",
 			"remove": "Remove rule",
@@ -720,7 +719,12 @@
 		"deleteAriaLabel": "Delete section"
 	},
 	"label": {
-		"actionsAriaLabel": "Label actions"
+		"actionsAriaLabel": "Label actions",
+		"picker": {
+			"searchPlaceholder": "Search labels...",
+			"noMatches": "No matches",
+			"noLabelsAvailable": "No labels available"
+		}
 	},
 	"context": {
 		"actionsAriaLabel": "Context actions",
@@ -954,7 +958,6 @@
 			"dayPart": "Day part",
 			"repeat": "Repeat",
 			"labels": "Labels",
-			"editLabels": "Edit labels",
 			"inboxSubtasksNoticePre": "Subtasks are not available for inbox tasks. Move the task",
 			"inboxSubtasksNoticeLink": "to a project",
 			"relations": "Relations",

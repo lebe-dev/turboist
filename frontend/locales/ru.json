@@ -169,7 +169,6 @@
 			"labels": "Метки",
 			"ignoreCase": "Без учёта регистра",
 			"maskPlaceholder": "например, купить",
-			"labelsPlaceholder": "Выберите метки…",
 			"noLabelsAvailable": "Меток нет. Сначала создайте метки.",
 			"add": "Добавить правило",
 			"remove": "Удалить правило",
@@ -720,7 +719,12 @@
 		"deleteAriaLabel": "Удалить раздел"
 	},
 	"label": {
-		"actionsAriaLabel": "Действия с меткой"
+		"actionsAriaLabel": "Действия с меткой",
+		"picker": {
+			"searchPlaceholder": "Поиск меток...",
+			"noMatches": "Совпадений нет",
+			"noLabelsAvailable": "Нет доступных меток"
+		}
 	},
 	"context": {
 		"actionsAriaLabel": "Действия с контекстом",
@@ -954,7 +958,6 @@
 			"dayPart": "Часть дня",
 			"repeat": "Повтор",
 			"labels": "Метки",
-			"editLabels": "Редактировать метки",
 			"inboxSubtasksNoticePre": "Подзадачи недоступны для задач из Inbox. Переместите задачу",
 			"inboxSubtasksNoticeLink": "в проект",
 			"relations": "Связи",

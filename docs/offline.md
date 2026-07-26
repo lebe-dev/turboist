@@ -83,6 +83,18 @@ The offline bridge is a progressive enhancement. When IndexedDB is unavailable (
 private-mode Safari) the bridge degrades to a **no-op** and the app behaves exactly like
 the purely-online build — reads hit the network, offline writes are not queued.
 
+The same holds when the database breaks *mid-session*: a failed cache read is treated as a
+miss and a failed cache write is logged and skipped, so an unusable IndexedDB never turns a
+successful request into a failed one.
+
+**The connection is disposable.** iOS suspends the WKWebView when the app is backgrounded
+and WebKit force-closes its IndexedDB connections; the handle that survives in memory then
+throws `InvalidStateError: the database connection is closing` on every transaction. So
+`db.ts` never assumes its handle is alive: it drops the handle when the browser reports the
+connection terminated, and reopens + retries once on a lost-connection error (`InvalidStateError`,
+`AbortError`). Coming back to a long-backgrounded app therefore heals on the first call
+instead of needing an app restart.
+
 ## Native shells
 
 `CapacitorHttp` routes `fetch`/XHR through the native HTTP stack, so on iOS/Android

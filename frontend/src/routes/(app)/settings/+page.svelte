@@ -29,8 +29,7 @@
 	import { iconFor as dayPartIcon } from '$lib/components/view/dayPartIcon';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
-	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import LabelPicker from '$lib/components/label/LabelPicker.svelte';
 	import { t, locale, SUPPORTED_LOCALES, localeLabel, type SupportedLocale } from '$lib/i18n';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -101,15 +100,11 @@
 
 	let localeBusy = $state<SupportedLocale | null>(null);
 
-	function toggleLabel(id: number) {
-		const excluded = settingsStore.weeklyUnplannedExcludedLabelIds;
-		const next = excluded.includes(id) ? excluded.filter((x) => x !== id) : [...excluded, id];
+	function onWeeklyExcludedLabelsChange(next: number[]): void {
 		settingsStore.setWeeklyUnplannedExcludedLabelIds(next).catch(console.error);
 	}
 
-	function toggleBugLabel(id: number) {
-		const current = settingsStore.bugLabelIds;
-		const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+	function onBugLabelsChange(next: number[]): void {
 		settingsStore.setBugLabelIds(next).catch(console.error);
 	}
 
@@ -214,9 +209,6 @@
 			isLabelVisible(l, settingsStore.publicView)
 		)
 	);
-	const labelNameById = $derived(
-		new Map([...labelsStore.favourites, ...labelsStore.rest].map((l) => [l.id, l.name]))
-	);
 
 	const autoLabelsDirty = $derived.by(() => {
 		const a = autoLabelsDraft;
@@ -250,15 +242,6 @@
 
 	function removeAutoLabelRule(idx: number): void {
 		autoLabelsDraft = autoLabelsDraft.filter((_, i) => i !== idx);
-	}
-
-	function toggleRuleLabel(ruleIdx: number, labelId: number): void {
-		const rule = autoLabelsDraft[ruleIdx];
-		if (!rule) return;
-		const ids = rule.labelIds.includes(labelId)
-			? rule.labelIds.filter((id) => id !== labelId)
-			: [...rule.labelIds, labelId];
-		autoLabelsDraft = autoLabelsDraft.map((r, i) => (i === ruleIdx ? { ...r, labelIds: ids } : r));
 	}
 
 	async function saveAutoLabels(): Promise<void> {
@@ -456,24 +439,10 @@
 				{#if labelsStore.items.length === 0}
 					<p class="text-sm text-muted-foreground">{$t('settings.weekly.empty')}</p>
 				{:else}
-					<div class="flex flex-wrap gap-2">
-						{#each labelsStore.items as label (label.id)}
-							{@const excluded = settingsStore.weeklyUnplannedExcludedLabelIds.includes(label.id)}
-							<button
-								type="button"
-								onclick={() => toggleLabel(label.id)}
-								class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 {excluded
-									? 'border-foreground/20 bg-muted text-foreground'
-									: 'border-border bg-accent/50 text-muted-foreground hover:bg-accent'}"
-								aria-pressed={excluded}
-							>
-								{#if excluded}
-									<CheckIcon class="size-3" weight="bold" />
-								{/if}
-								{label.name}
-							</button>
-						{/each}
-					</div>
+					<LabelPicker
+						value={settingsStore.weeklyUnplannedExcludedLabelIds}
+						onValueChange={onWeeklyExcludedLabelsChange}
+					/>
 				{/if}
 			</section>
 
@@ -494,9 +463,6 @@
 							<span class="sr-only">{$t('settings.autoLabels.remove')}</span>
 						</div>
 						{#each autoLabelsDraft as rule, idx (idx)}
-							{@const selectedNames = rule.labelIds
-								.map((id) => labelNameById.get(id))
-								.filter((n): n is string => !!n)}
 							<!-- mobile card -->
 							<div class="flex flex-col gap-2 rounded-md border border-border p-3 sm:hidden">
 								<div class="flex items-center gap-2">
@@ -523,35 +489,13 @@
 										<TrashIcon class="size-4" />
 									</button>
 								</div>
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger
-										class="flex w-full items-center justify-between gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-									>
-										<span class="truncate text-left {selectedNames.length === 0 ? 'text-muted-foreground' : ''}">
-											{selectedNames.length === 0
-												? $t('settings.autoLabels.labelsPlaceholder')
-												: selectedNames.join(', ')}
-										</span>
-										<CaretDownIcon class="size-3.5 shrink-0 text-muted-foreground" />
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content class="max-h-60 w-56 overflow-auto">
-										{#if allLabels.length === 0}
-											<div class="px-2 py-1.5 text-xs text-muted-foreground">
-												{$t('settings.autoLabels.noLabelsAvailable')}
-											</div>
-										{:else}
-											{#each allLabels as label (label.id)}
-												<DropdownMenu.CheckboxItem
-													checked={rule.labelIds.includes(label.id)}
-													onCheckedChange={() => toggleRuleLabel(idx, label.id)}
-													closeOnSelect={false}
-												>
-													{label.name}
-												</DropdownMenu.CheckboxItem>
-											{/each}
-										{/if}
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
+								{#if allLabels.length > 0}
+									<LabelPicker bind:value={rule.labelIds} />
+								{:else}
+									<span class="text-xs text-muted-foreground">
+										{$t('settings.autoLabels.noLabelsAvailable')}
+									</span>
+								{/if}
 							</div>
 							<!-- desktop row (unchanged) -->
 							<div class="hidden sm:grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
@@ -564,35 +508,13 @@
 									placeholder={$t('settings.autoLabels.maskPlaceholder')}
 									class="rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 								/>
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger
-										class="flex items-center justify-between gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-									>
-										<span class="truncate text-left {selectedNames.length === 0 ? 'text-muted-foreground' : ''}">
-											{selectedNames.length === 0
-												? $t('settings.autoLabels.labelsPlaceholder')
-												: selectedNames.join(', ')}
-										</span>
-										<CaretDownIcon class="size-3.5 shrink-0 text-muted-foreground" />
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content class="max-h-60 w-56 overflow-auto">
-										{#if allLabels.length === 0}
-											<div class="px-2 py-1.5 text-xs text-muted-foreground">
-												{$t('settings.autoLabels.noLabelsAvailable')}
-											</div>
-										{:else}
-											{#each allLabels as label (label.id)}
-												<DropdownMenu.CheckboxItem
-													checked={rule.labelIds.includes(label.id)}
-													onCheckedChange={() => toggleRuleLabel(idx, label.id)}
-													closeOnSelect={false}
-												>
-													{label.name}
-												</DropdownMenu.CheckboxItem>
-											{/each}
-										{/if}
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
+								{#if allLabels.length > 0}
+									<LabelPicker bind:value={rule.labelIds} />
+								{:else}
+									<span class="text-xs text-muted-foreground">
+										{$t('settings.autoLabels.noLabelsAvailable')}
+									</span>
+								{/if}
 								<Switch
 									checked={rule.ignoreCase}
 									onCheckedChange={(v) => (rule.ignoreCase = v)}
@@ -645,27 +567,7 @@
 				{#if labelsStore.items.length === 0}
 					<p class="text-sm text-muted-foreground">{$t('settings.project.bugLabelsEmpty')}</p>
 				{:else}
-					<div class="flex flex-col gap-1">
-						{#each labelsStore.items as label (label.id)}
-							{@const active = settingsStore.bugLabelIds.includes(label.id)}
-							<button
-								type="button"
-								onclick={() => toggleBugLabel(label.id)}
-								class="flex items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-								class:bg-muted={active}
-								aria-pressed={active}
-							>
-								<span
-									class="inline-flex items-center rounded-full bg-accent/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-								>
-									{label.name}
-								</span>
-								{#if active}
-									<CheckIcon class="size-4 text-foreground/50" weight="bold" />
-								{/if}
-							</button>
-						{/each}
-					</div>
+					<LabelPicker value={settingsStore.bugLabelIds} onValueChange={onBugLabelsChange} />
 				{/if}
 			</section>
 

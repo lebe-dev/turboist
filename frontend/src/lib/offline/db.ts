@@ -12,6 +12,8 @@ import { canonicalizeQuery } from '../api/client';
 // If IndexedDB is unavailable (old Safari private mode, SSR) `openOfflineDB`
 // returns a no-op implementation so the app behaves exactly like the
 // pure-online build — no store, no queue, every call a silent no-op.
+//
+// The connection itself is never treated as permanent: see `createConnection`.
 
 export const DB_NAME = 'turboist-offline';
 
@@ -154,6 +156,134 @@ export function buildCacheKey(path: string, query?: unknown): string {
 	return qs ? `${path}?${qs}` : path;
 }
 
+type Conn = IDBPDatabase<OfflineSchema>;
+
+function createStores(database: Conn): void {
+	if (!database.objectStoreNames.contains('responses')) {
+		const store = database.createObjectStore('responses', { keyPath: 'cacheKey' });
+		store.createIndex('by-storedAt', 'storedAt');
+	}
+	if (!database.objectStoreNames.contains('outbox')) {
+		database.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true });
+	}
+	if (!database.objectStoreNames.contains('failedOps')) {
+		database.createObjectStore('failedOps', { keyPath: 'seq' });
+	}
+	if (!database.objectStoreNames.contains('meta')) {
+		database.createObjectStore('meta', { keyPath: 'key' });
+	}
+}
+
+/**
+ * True for errors that mean "this handle is dead", not "this operation is wrong":
+ *
+ *  - `InvalidStateError` — `IDBDatabase.transaction()` on a connection that is
+ *    closing, i.e. every call made through a handle the browser already killed;
+ *  - `AbortError` — a transaction that was in flight when that happened.
+ *
+ * Both are worth one reopen-and-retry; any other failure is a real error and is
+ * rethrown untouched.
+ */
+function isConnectionLost(err: unknown): boolean {
+	const name = (err as { name?: unknown } | null | undefined)?.name;
+	return name === 'InvalidStateError' || name === 'AbortError';
+}
+
+/**
+ * A connection to the offline database that reopens itself.
+ *
+ * iOS suspends the WKWebView when the Capacitor app is backgrounded, and WebKit
+ * force-closes its IndexedDB connections. The handle the app kept is then dead:
+ * every transaction throws `InvalidStateError: the database connection is
+ * closing`, and — because the handle used to be opened once per page load —
+ * nothing short of restarting the app brought the cache and the outbox back.
+ *
+ * So the handle is treated as disposable. `terminated` (fired when the browser
+ * closes a connection behind our back) forgets it, and `withConnection` also
+ * heals on demand: no `terminated` is guaranteed to arrive, and one may arrive
+ * only after a call has already failed.
+ */
+interface Connection {
+	/** The open connection, opening one if there is none. */
+	get(): Promise<Conn>;
+	/** Forget `dead` if it is still the current handle, so the next `get` reopens. */
+	discard(dead: Conn): void;
+	/** Close and forget the current handle; a later `get` transparently reopens. */
+	close(): void;
+}
+
+function createConnection(): Connection {
+	let opening: Promise<Conn> | null = null;
+	let live: Conn | null = null;
+	// Identifies the current open attempt, so a late `terminated` from a connection
+	// that has already been replaced cannot drop its successor.
+	let generation = 0;
+
+	function forget(): void {
+		opening = null;
+		live = null;
+	}
+
+	function get(): Promise<Conn> {
+		if (opening) return opening;
+		const mine = ++generation;
+		const pending: Promise<Conn> = (async () => {
+			try {
+				const db = await openDB<OfflineSchema>(DB_NAME, DB_VERSION, {
+					upgrade: createStores,
+					terminated() {
+						if (generation === mine) forget();
+					}
+				});
+				live = db;
+				return db;
+			} catch (err) {
+				if (generation === mine) forget();
+				throw err;
+			}
+		})();
+		opening = pending;
+		return pending;
+	}
+
+	return {
+		get,
+		discard(dead) {
+			// A concurrent caller may already have healed the connection — in that
+			// case `live` is a fresh handle and must be left alone.
+			if (live !== dead) return;
+			forget();
+			try {
+				dead.close();
+			} catch {
+				// Already closing; nothing to release.
+			}
+		},
+		close() {
+			const db = live;
+			forget();
+			db?.close();
+		}
+	};
+}
+
+/**
+ * Run one database operation, reopening the connection and retrying once if the
+ * handle turns out to be dead (see `createConnection`). A second failure is the
+ * caller's to handle.
+ */
+async function withConnection<T>(conn: Connection, fn: (db: Conn) => Promise<T>): Promise<T> {
+	const db = await conn.get();
+	try {
+		return await fn(db);
+	} catch (err) {
+		if (!isConnectionLost(err)) throw err;
+		console.warn('[offline] IndexedDB connection was closed; reopening', err);
+		conn.discard(db);
+		return fn(await conn.get());
+	}
+}
+
 /**
  * Open the offline database bound to `serverUrl`, reconciling server-url and
  * schema-version drift. Never throws: on any failure it warns once and returns
@@ -165,31 +295,17 @@ export async function openOfflineDB(serverUrl: string): Promise<OfflineDB> {
 		return createNoopDB();
 	}
 
-	let db: IDBPDatabase<OfflineSchema>;
+	const conn = createConnection();
 	try {
-		db = await openDB<OfflineSchema>(DB_NAME, DB_VERSION, {
-			upgrade(database) {
-				if (!database.objectStoreNames.contains('responses')) {
-					const store = database.createObjectStore('responses', { keyPath: 'cacheKey' });
-					store.createIndex('by-storedAt', 'storedAt');
-				}
-				if (!database.objectStoreNames.contains('outbox')) {
-					database.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true });
-				}
-				if (!database.objectStoreNames.contains('failedOps')) {
-					database.createObjectStore('failedOps', { keyPath: 'seq' });
-				}
-				if (!database.objectStoreNames.contains('meta')) {
-					database.createObjectStore('meta', { keyPath: 'key' });
-				}
-			}
-		});
+		await conn.get();
 	} catch (err) {
+		// Only a failure to open at all is fatal — a connection lost later is healed
+		// by `withConnection` instead of downgrading the app to pure-online.
 		console.warn('[offline] failed to open IndexedDB; running in pure-online mode', err);
 		return createNoopDB();
 	}
 
-	const wrapper = createWrapper(db);
+	const wrapper = createWrapper(conn);
 	try {
 		await reconcile(wrapper, serverUrl);
 	} catch (err) {
@@ -199,104 +315,116 @@ export async function openOfflineDB(serverUrl: string): Promise<OfflineDB> {
 	return wrapper;
 }
 
-function createWrapper(db: IDBPDatabase<OfflineSchema>): OfflineDB {
+function createWrapper(conn: Connection): OfflineDB {
+	// Every operation goes through the connection guard: any of them can be the
+	// first call after the web view was suspended.
+	const run = <T>(fn: (db: Conn) => Promise<T>): Promise<T> => withConnection(conn, fn);
+
 	return {
 		available: true,
 
 		async getResponse(cacheKey) {
-			return (await db.get('responses', cacheKey)) ?? null;
+			return run(async (db) => (await db.get('responses', cacheKey)) ?? null);
 		},
 		async putResponse(entry) {
-			const tx = db.transaction('responses', 'readwrite');
-			await tx.store.put(entry);
-			const count = await tx.store.count();
-			if (count > MAX_RESPONSES) {
-				let remaining = count - MAX_RESPONSES;
-				let cursor = await tx.store.index('by-storedAt').openCursor();
-				while (cursor && remaining > 0) {
-					await cursor.delete();
-					remaining -= 1;
-					cursor = await cursor.continue();
+			await run(async (db) => {
+				const tx = db.transaction('responses', 'readwrite');
+				await tx.store.put(entry);
+				const count = await tx.store.count();
+				if (count > MAX_RESPONSES) {
+					let remaining = count - MAX_RESPONSES;
+					let cursor = await tx.store.index('by-storedAt').openCursor();
+					while (cursor && remaining > 0) {
+						await cursor.delete();
+						remaining -= 1;
+						cursor = await cursor.continue();
+					}
 				}
-			}
-			await tx.done;
+				await tx.done;
+			});
 		},
 		async getAllResponses() {
-			return db.getAll('responses');
+			return run((db) => db.getAll('responses'));
 		},
 		async deleteResponse(cacheKey) {
-			await db.delete('responses', cacheKey);
+			await run((db) => db.delete('responses', cacheKey));
 		},
 		async clearResponses() {
-			await db.clear('responses');
+			await run((db) => db.clear('responses'));
 		},
 
 		async enqueue(op) {
 			// autoIncrement fills `seq`; the input intentionally omits it.
-			return db.add('outbox', op as QueuedOp);
+			return run((db) => db.add('outbox', op as QueuedOp));
 		},
 		async listOutbox() {
-			return db.getAll('outbox');
+			return run((db) => db.getAll('outbox'));
 		},
 		async updateOutbox(op) {
-			await db.put('outbox', op);
+			await run((db) => db.put('outbox', op));
 		},
 		async deleteOutbox(seq) {
-			await db.delete('outbox', seq);
+			await run((db) => db.delete('outbox', seq));
 		},
 		async moveToFailed(op, failure) {
 			// One transaction so an op is never lost between the two stores.
-			const tx = db.transaction(['outbox', 'failedOps'], 'readwrite');
-			await tx.objectStore('failedOps').put({ ...op, ...failure });
-			await tx.objectStore('outbox').delete(op.seq);
-			await tx.done;
+			await run(async (db) => {
+				const tx = db.transaction(['outbox', 'failedOps'], 'readwrite');
+				await tx.objectStore('failedOps').put({ ...op, ...failure });
+				await tx.objectStore('outbox').delete(op.seq);
+				await tx.done;
+			});
 		},
 
 		async listFailed() {
-			return db.getAll('failedOps');
+			return run((db) => db.getAll('failedOps'));
 		},
 		async pushFailed(op) {
-			await db.put('failedOps', op);
+			await run((db) => db.put('failedOps', op));
 		},
 		async deleteFailed(seq) {
-			await db.delete('failedOps', seq);
+			await run((db) => db.delete('failedOps', seq));
 		},
 		async clearFailed() {
-			await db.clear('failedOps');
+			await run((db) => db.clear('failedOps'));
 		},
 
 		async getMeta<T = unknown>(key: string) {
-			const row = await db.get('meta', key);
+			const row = await run((db) => db.get('meta', key));
 			return row === undefined ? undefined : (row.value as T);
 		},
 		async setMeta(key, value) {
-			await db.put('meta', { key, value });
+			await run((db) => db.put('meta', { key, value }));
 		},
 		async nextTmpId() {
 			// Read-modify-write the counter in one transaction so concurrent enqueues
 			// never mint the same tmp id.
-			const tx = db.transaction('meta', 'readwrite');
-			const store = tx.objectStore('meta');
-			const row = await store.get('tmpIdCounter');
-			const current = typeof row?.value === 'number' ? row.value : 0;
-			const next = current + 1;
-			await store.put({ key: 'tmpIdCounter', value: next });
-			await tx.done;
-			return -next;
+			return run(async (db) => {
+				const tx = db.transaction('meta', 'readwrite');
+				const store = tx.objectStore('meta');
+				const row = await store.get('tmpIdCounter');
+				const current = typeof row?.value === 'number' ? row.value : 0;
+				const next = current + 1;
+				await store.put({ key: 'tmpIdCounter', value: next });
+				await tx.done;
+				return -next;
+			});
 		},
 
 		async clearAll() {
-			const tx = db.transaction(['responses', 'outbox', 'failedOps', 'meta'], 'readwrite');
-			await Promise.all([
-				tx.objectStore('responses').clear(),
-				tx.objectStore('outbox').clear(),
-				tx.objectStore('failedOps').clear(),
-				tx.objectStore('meta').clear()
-			]);
-			await tx.done;
+			await run(async (db) => {
+				const tx = db.transaction(['responses', 'outbox', 'failedOps', 'meta'], 'readwrite');
+				await Promise.all([
+					tx.objectStore('responses').clear(),
+					tx.objectStore('outbox').clear(),
+					tx.objectStore('failedOps').clear(),
+					tx.objectStore('meta').clear()
+				]);
+				await tx.done;
+			});
 		},
 		close() {
-			db.close();
+			conn.close();
 		}
 	};
 }

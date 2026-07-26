@@ -2,7 +2,7 @@ import { get } from 'svelte/store';
 import { t } from '$lib/i18n';
 import { toast } from 'svelte-sonner';
 import type { OfflineBridge } from '../api/client';
-import { openOfflineDB, type FailedOp } from './db';
+import { openOfflineDB, type FailedOp, type OfflineDB } from './db';
 import {
 	createReplayEngine,
 	enqueueOp,
@@ -59,6 +59,21 @@ async function taskDetailFallback(
 	return cache.findTaskDetail(id, wantsSubtasks);
 }
 
+/**
+ * Push both reactive counters from the database, swallowing failures. Used from
+ * fire-and-forget call sites, where an IndexedDB error must stay a warning: it is
+ * a stale badge, not something to surface as an unhandled rejection.
+ */
+async function refreshCounters(dbPromise: Promise<OfflineDB>): Promise<void> {
+	try {
+		const db = await dbPromise;
+		statusStore.setPendingOps((await db.listOutbox()).length);
+		statusStore.setFailedOps((await db.listFailed()).length);
+	} catch (err) {
+		console.warn('[offline] failed to read the outbox counters', err);
+	}
+}
+
 export function createOfflineBridge(options: OfflineBridgeOptions): OfflineBridge {
 	// Open the DB once and share the handle between the read-through cache and the
 	// outbox: the mutation path needs both the raw DB (enqueue / tmpId / queue
@@ -72,10 +87,9 @@ export function createOfflineBridge(options: OfflineBridgeOptions): OfflineBridg
 
 	// Seed the reactive counters from what a previous (offline) session left behind
 	// so a queue/quarantine survives a restart in the UI, not just on disk (§4.7).
-	void dbPromise.then(async (db) => {
-		statusStore.setPendingOps((await db.listOutbox()).length);
-		statusStore.setFailedOps((await db.listFailed()).length);
-	});
+	// Fire-and-forget, so it must swallow: a database that cannot be read leaves the
+	// counters at zero, it does not raise an unhandled rejection.
+	void refreshCounters(dbPromise);
 
 	// The replay engine (§4.6) shares the bridge's DB handle: the mutation path
 	// enqueues, replay drains. Triggers are wired separately (wireReplayTriggers +
@@ -89,7 +103,7 @@ export function createOfflineBridge(options: OfflineBridgeOptions): OfflineBridg
 				toast.error(get(t)('offline.replayFailed', { values: { count } }));
 				// A drain quarantined ops — refresh the failed counter from the store of
 				// truth so the settings recovery UI and logout gate stay accurate (§4.7).
-				void dbPromise.then(async (db) => statusStore.setFailedOps((await db.listFailed()).length));
+				void refreshCounters(dbPromise);
 			}
 		}
 	});

@@ -11,9 +11,10 @@ paths:
 
 ## Handler structs
 
-- One struct per domain: `TasksHandler`, `ProjectsHandler`, `ContextsHandler`, `LabelsHandler`, `AuthHandler`, `InboxHandler`, etc.
+- One struct per domain: `TaskHandler`, `ProjectHandler`, `ContextHandler`, `LabelHandler`, `AuthHandler`, `InboxHandler`, `TaskRelationHandler`, etc.
 - Constructor: `NewXxxHandler(deps) *XxxHandler` — all dependencies injected, stored in unexported fields
-- Handler methods are exported receiver methods returning `error` (Fiber v3 signature)
+- Each handler owns its routes: `func (h *XxxHandler) Register(r fiber.Router)`. Handler methods themselves are unexported receiver methods returning `error` (Fiber v3 signature) — only `Register` and the constructor are exported
+- Message literals shared by more than one handler file live in `consts.go` (`msgTaskNotFound`, `msgInvalidRequestBody`, …) — reuse them instead of re-typing the string
 
 ## Fiber context usage
 
@@ -22,7 +23,7 @@ paths:
 - Parse body: `c.Bind().JSON(&req)` (Fiber v3 binders)
 - Success: `c.JSON(value)` or `c.SendStatus(fiber.StatusNoContent)`
 - Errors: return typed errors from `internal/httpapi/errors.go` — the central `ErrorHandler` maps them to `{error: {code, message, details}}`
-- Pass context to services/repos: `c.Context()` (or `c.UserContext()` if request-scoped values are needed)
+- Pass context to services/repos: always `c.Context()` — it already carries the request-scoped logger and auth fields (`logging.FromContext`). Fiber v3 has no `UserContext()`
 
 ## DTOs
 
@@ -30,11 +31,25 @@ paths:
 - Pointer fields for optional/patchable values (e.g., `*string`, `*int`)
 - DTO field names mirror the frontend `types.ts` (camelCase via JSON tags); times are ISO-8601 UTC with millisecond precision (`model.FormatUTC`)
 
-## Route registration (`server.go`)
+## Route registration
 
-- Static routes before parameterized routes (e.g., `/api/v1/tasks/bulk/complete` before `/api/v1/tasks/:id`)
-- Group routes by handler under `/api/v1/<domain>` prefixes
-- Authentication middleware is applied at the group level
+`server.go`'s `RegisterRoutes(app, deps)` mounts the unauthenticated endpoints (`/healthz`, `/version`, `/api/config` — the SPA's Sentry bootstrap) and returns the `/api/v1` group with the middleware chain already attached, in this order:
+
+`SetupCheckMiddleware` → `APIAuthMiddleware` → `IdempotencyMiddleware` → `PublishMiddleware`
+
+The order is load-bearing: idempotency needs the resolved user id from auth, and must sit *before* publish so a replay short-circuits without re-emitting SSE. It returns the group (rather than registering handlers itself) to avoid an import cycle between `httpapi` and `httpapi/handlers`.
+
+`cmd/turboist/main.go` then calls `Register` on each handler, passing either the bare group or a sub-group:
+
+```go
+handlers.NewTaskHandler(...).Register(api)
+handlers.NewLabelHandler(...).Register(api.Group("/labels"))
+handlers.NewSessionHandler(...).Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
+```
+
+- Static routes before parameterized ones (`/tasks/bulk/complete` before `/tasks/:id`) — within a single `Register` and across handlers, so registration order in `main.go` matters
+- Per-route authorization is declarative: `httpapi.RequireScope(auth.ScopeTasksRead)` for API-token scopes, `httpapi.RequireJWTAuth()` (group level) for endpoints an API token must never reach — sessions, api-tokens, backup
+- Tests wire the same way via `setupAPIEnv(t)` (`handlers/testhelper_test.go`)
 
 ## Logging
 
@@ -56,5 +71,6 @@ paths:
 
 - The app is single-user — `users` row id=1 is seeded by migration `002_users_sessions.sql`
 - First call must be `POST /auth/setup`; thereafter login → access (15 min JWT HS256) + refresh (rotated, sha256-hashed, single-use)
-- Sessions are scoped by `client_kind` (web/ios/cli), max 5 per kind (oldest evicted)
-- Web refresh token lives in an `HttpOnly` cookie; other clients get it in the response body
+- Sessions are scoped by `client_kind` — `web`/`ios`/`android`/`cli` (`model.ClientKind`, `android` added by migration `043`) — max 5 per kind (oldest evicted)
+- Web refresh token lives in an `HttpOnly` cookie; other clients (native iOS/Android, CLI) get it in the response body
+- API tokens carry granular `resource:action` scopes (`["*"]` = full access); enforce them with `RequireScope` at the route, never by hand inside the handler

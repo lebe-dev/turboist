@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
-	import LabelMultiSelect from '$lib/components/task/LabelMultiSelect.svelte';
+	import LabelPicker from '$lib/components/label/LabelPicker.svelte';
 	import type { DayPart, Priority, TaskTemplate, TaskTemplateInput } from '$lib/api/types';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
@@ -141,7 +141,7 @@
 						<div class="flex flex-wrap items-center gap-2">
 							<PriorityPicker bind:value={priority} />
 							<DayPartPicker bind:value={dayPart} />
-							<LabelMultiSelect bind:value={labelIds} />
+							<LabelPicker bind:value={labelIds} />
 						</div>
 					</div>
 
@@ -177,7 +177,7 @@
 								<div class="flex flex-wrap items-center gap-2">
 									<PriorityPicker bind:value={subtask.priority} />
 									<DayPartPicker bind:value={subtask.dayPart} />
-									<LabelMultiSelect bind:value={subtask.labelIds} />
+									<LabelPicker bind:value={subtask.labelIds} />
 								</div>
 							</div>
 						{/each}

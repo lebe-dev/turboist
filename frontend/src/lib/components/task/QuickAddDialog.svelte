@@ -4,8 +4,6 @@
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
 	import { Calendar } from '$lib/components/ui/calendar';
-	import * as Sheet from '$lib/components/ui/sheet';
-	import { IsMobile } from '$lib/hooks';
 	import type { DayPart, Priority, TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -13,11 +11,11 @@
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
+	import LabelPicker from '$lib/components/label/LabelPicker.svelte';
 	import { dayStartUtcInTz, shiftDayKey, toIsoUtc, weekRangeKeys } from '$lib/utils/format';
 	import { matchProjectSuggestions } from '$lib/utils/projectSuggestions';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import XIcon from 'phosphor-svelte/lib/X';
-	import TagIcon from 'phosphor-svelte/lib/Tag';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
@@ -66,17 +64,15 @@
 	} = $props();
 
 	const isWrap = $derived(wrap !== null);
-	const isMobile = new IsMobile();
 
-	function initialLabelIds(): string[] {
-		const base = defaultLabelIds.map(String);
+	function initialLabelIds(): number[] {
+		const base = defaultLabelIds.map(Number);
 		if (!defaultProjectId || defaultParentId !== null) return base;
 		const project = projectsStore.items.find((p) => p.id === defaultProjectId);
 		if (!project || project.labels.length === 0) return base;
 		const result = [...base];
 		for (const l of project.labels) {
-			const id = String(l.id);
-			if (!result.includes(id)) result.push(id);
+			if (!result.includes(l.id)) result.push(l.id);
 		}
 		return result;
 	}
@@ -93,16 +89,13 @@
 	let dueDate = $state<string>(defaultDueDate ?? '');
 	// svelte-ignore state_referenced_locally
 	let projectId = $state<string>(defaultProjectId ? String(defaultProjectId) : '');
-	let labelIds = $state<string[]>(initialLabelIds());
+	let labelIds = $state<number[]>(initialLabelIds());
 	// svelte-ignore state_referenced_locally
 	let parentId = $state<number | null>(defaultParentId);
 	// svelte-ignore state_referenced_locally
 	let sectionId = $state<number | null>(defaultSectionId);
 	let recurrenceRule = $state<string | null>(null);
 	let submitting = $state(false);
-	let labelMenuOpen = $state(false);
-	let labelQuery = $state('');
-	let labelSearchInput = $state<HTMLInputElement | null>(null);
 	let projectMenuOpen = $state(false);
 	let projectQuery = $state('');
 	let projectSearchInput = $state<HTMLInputElement | null>(null);
@@ -150,11 +143,10 @@
 	function selectProject(id: string): void {
 		if (isWrap && id === '') return;
 		const oldProjectLabels = new Set(
-			projectsStore.items.find((p) => String(p.id) === projectId)?.labels.map((l) => String(l.id)) ?? []
+			projectsStore.items.find((p) => String(p.id) === projectId)?.labels.map((l) => l.id) ?? []
 		);
-		const newProjectLabels = projectsStore.items
-			.find((p) => String(p.id) === id)
-			?.labels.map((l) => String(l.id)) ?? [];
+		const newProjectLabels =
+			projectsStore.items.find((p) => String(p.id) === id)?.labels.map((l) => l.id) ?? [];
 		const custom = labelIds.filter((l) => !oldProjectLabels.has(l));
 		labelIds = [...new Set([...custom, ...newProjectLabels])];
 		projectId = id;
@@ -166,24 +158,9 @@
 			a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 		return [...labelsStore.favourites, ...labelsStore.rest].toSorted(byName);
 	});
-	const filteredLabels = $derived.by(() => {
-		const q = labelQuery.trim().toLowerCase();
-		if (!q) return allLabels;
-		return allLabels.filter((l) => l.name.toLowerCase().includes(q));
-	});
-
-	// Reset the query whenever the picker closes and focus the search box when it
-	// opens, so the user can start typing to filter labels right away.
-	$effect(() => {
-		if (labelMenuOpen) {
-			tick().then(() => labelSearchInput?.focus());
-		} else {
-			labelQuery = '';
-		}
-	});
 	const selectedLabels = $derived(
 		labelIds
-			.map((id) => allLabels.find((l) => String(l.id) === id))
+			.map((id) => allLabels.find((l) => l.id === id))
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
 	const titleLines = $derived(titles.split('\n').map((l) => l.trim()).filter(Boolean));
@@ -299,8 +276,6 @@
 		labelIds = initialLabelIds();
 		parentId = defaultParentId;
 		sectionId = defaultSectionId;
-		labelMenuOpen = false;
-		labelQuery = '';
 		dismissedAutoLabels = [];
 	}
 
@@ -320,7 +295,7 @@
 		prevOpen = open;
 	});
 
-	function toggleLabel(id: string) {
+	function toggleLabel(id: number) {
 		labelIds = labelIds.includes(id)
 			? labelIds.filter((x) => x !== id)
 			: [...labelIds, id];
@@ -332,7 +307,7 @@
 		submitting = true;
 		try {
 			const resolvedLabels = labelIds
-				.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
+				.map((id) => allLabels.find((l) => l.id === id)?.name)
 				.filter((n): n is string => !!n);
 			const commonPayload = {
 				description: description.trim() || undefined,
@@ -433,7 +408,7 @@
 								{#each selectedLabels as label (label.id)}
 									<button
 										type="button"
-										onclick={() => toggleLabel(String(label.id))}
+										onclick={() => toggleLabel(label.id)}
 										class="group/chip inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/70"
 									>
 										{#if label.color}
@@ -542,111 +517,7 @@
 					<div class="mt-2 flex flex-wrap items-center gap-2">
 						{@render projectPicker()}
 
-						{#if allLabels.length > 0}
-							{#snippet labelSearch()}
-								<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
-									<MagnifyingGlassIcon class="size-3.5 text-muted-foreground" />
-									<input
-										bind:this={labelSearchInput}
-										bind:value={labelQuery}
-										type="text"
-										placeholder={$t('dialog.quickAdd.searchLabelsPlaceholder')}
-										class="w-full bg-transparent {isMobile.current ? 'h-7 text-sm' : 'h-6 text-xs'} outline-none placeholder:text-muted-foreground"
-										onkeydown={(e) => {
-											if (e.key === 'Escape') {
-												e.stopPropagation();
-												labelMenuOpen = false;
-											}
-										}}
-									/>
-								</div>
-							{/snippet}
-							{#snippet labelOptions()}
-								{#each filteredLabels as label (label.id)}
-									{@const id = String(label.id)}
-									{@const active = labelIds.includes(id)}
-									<button
-										type="button"
-										onclick={() => toggleLabel(id)}
-										class="inline-flex items-center rounded-md text-left transition-colors {isMobile.current
-											? 'gap-3 px-3 py-3 text-sm'
-											: 'gap-2 px-2 py-1.5 text-xs'}"
-										class:bg-accent={active}
-										class:text-accent-foreground={active}
-										class:hover:bg-accent={!active}
-									>
-										{#if label.color}
-											<span
-												class="rounded-full {isMobile.current ? 'size-3' : 'size-2'}"
-												style={`background-color: ${label.color}`}
-											></span>
-										{/if}
-										<span class="flex-1 truncate">{label.name}</span>
-										{#if active}
-											<XIcon class="opacity-60 {isMobile.current ? 'size-4' : 'size-3'}" />
-										{/if}
-									</button>
-								{/each}
-								{#if filteredLabels.length === 0}
-									<div class="px-2 py-3 text-center text-xs text-muted-foreground">
-										{$t('dialog.quickAdd.noMatches')}
-									</div>
-								{/if}
-							{/snippet}
-
-							{#if isMobile.current}
-								<button
-									type="button"
-									onclick={() => (labelMenuOpen = !labelMenuOpen)}
-									aria-expanded={labelMenuOpen}
-									class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent"
-								>
-									<TagIcon class="size-3.5" />
-									<span>{$t('common.labels')}</span>
-								</button>
-								<Sheet.Root bind:open={labelMenuOpen}>
-									<Sheet.Content
-										side="bottom"
-										class="max-h-[80vh] overflow-y-auto rounded-t-lg p-3"
-									>
-										<Sheet.Header class="px-2 pb-2 pt-0">
-											<Sheet.Title>{$t('common.labels')}</Sheet.Title>
-										</Sheet.Header>
-										{@render labelSearch()}
-										<div class="flex flex-col gap-2 pb-4 pt-2">
-											{@render labelOptions()}
-										</div>
-									</Sheet.Content>
-								</Sheet.Root>
-							{:else}
-								<PopoverPrimitive.Root bind:open={labelMenuOpen}>
-									<PopoverPrimitive.Trigger>
-										{#snippet child({ props })}
-											<button
-												{...props}
-												type="button"
-												class="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent"
-											>
-												<TagIcon class="size-3.5" />
-												<span>{$t('common.labels')}</span>
-											</button>
-										{/snippet}
-									</PopoverPrimitive.Trigger>
-									<PopoverPrimitive.Portal>
-										<PopoverPrimitive.Content
-											align="start"
-											sideOffset={4}
-											class="z-[60] flex max-h-64 w-56 flex-col rounded-md border border-border bg-popover shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-										>
-											{@render labelSearch()}
-											<div class="flex flex-col gap-1 overflow-y-auto p-2">
-												{@render labelOptions()}
-											</div>
-										</PopoverPrimitive.Content>
-									</PopoverPrimitive.Portal>
-								</PopoverPrimitive.Root>
-							{/if}
-						{/if}
+						<LabelPicker bind:value={labelIds} />
 					</div>
 
 					{#if suggestedProjects.length > 0}

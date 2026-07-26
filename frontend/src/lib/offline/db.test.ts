@@ -247,6 +247,76 @@ describe('openOfflineDB', () => {
 		}
 	});
 
+	// iOS suspends the Capacitor web view in the background and WebKit force-closes
+	// the IndexedDB connection; every later call through that handle throws
+	// `InvalidStateError` until the handle is replaced (a restart, before this).
+	function killConnectionOnce(name = 'InvalidStateError'): () => void {
+		const proto = IDBDatabase.prototype as unknown as {
+			transaction: (...args: unknown[]) => unknown;
+		};
+		const original = proto.transaction;
+		proto.transaction = function (this: unknown) {
+			proto.transaction = original;
+			throw Object.assign(new Error('The database connection is closing.'), { name });
+		};
+		return () => {
+			proto.transaction = original;
+		};
+	}
+
+	it('reopens and retries when the connection was closed behind our back', async () => {
+		db = await openOfflineDB(SERVER_A);
+		await db.putResponse(response('/api/v1/tasks', '2026-01-01T00:00:00.000Z', { items: [7] }));
+
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const restore = killConnectionOnce();
+		try {
+			const got = await db.getResponse('/api/v1/tasks');
+			expect(got?.payload).toEqual({ items: [7] });
+			expect(warn).toHaveBeenCalled();
+		} finally {
+			restore();
+			warn.mockRestore();
+		}
+
+		// The healed handle keeps working for reads and writes alike.
+		await db.enqueue(op());
+		expect(await db.listOutbox()).toHaveLength(1);
+	});
+
+	it('reopens after a transaction aborted by a dying connection', async () => {
+		db = await openOfflineDB(SERVER_A);
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const restore = killConnectionOnce('AbortError');
+		try {
+			await db.enqueue(op({ type: 'task.complete' }));
+			expect(await db.listOutbox()).toHaveLength(1);
+		} finally {
+			restore();
+			warn.mockRestore();
+		}
+	});
+
+	it('rethrows failures that are not a lost connection', async () => {
+		db = await openOfflineDB(SERVER_A);
+		const restore = killConnectionOnce('DataError');
+		try {
+			await expect(db.getResponse('/api/v1/tasks')).rejects.toThrow('connection is closing');
+		} finally {
+			restore();
+		}
+	});
+
+	it('reopens transparently after close, keeping the stored data', async () => {
+		db = await openOfflineDB(SERVER_A);
+		await db.putResponse(response('/api/v1/tasks', '2026-01-01T00:00:00.000Z', { items: [1] }));
+		db.close();
+
+		// No explicit reopen: the same handle serves the next call.
+		const got = await db.getResponse('/api/v1/tasks');
+		expect(got?.payload).toEqual({ items: [1] });
+	});
+
 	it('degrades to a no-op when opening IndexedDB throws', async () => {
 		const saved = globalThis.indexedDB;
 		(globalThis as unknown as { indexedDB: { open: () => never } }).indexedDB = {

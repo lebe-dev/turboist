@@ -14,6 +14,7 @@
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import type { Project, ProjectType } from '$lib/api/types';
 	import ColorPicker from './ColorPicker.svelte';
+	import LabelPicker from '$lib/components/label/LabelPicker.svelte';
 	import { DEFAULT_COLOR } from './colorPalette';
 	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
 	import { t } from '$lib/i18n';
@@ -34,7 +35,7 @@
 	let description = $state('');
 	let color = $state<string>(DEFAULT_COLOR);
 	let contextId = $state<string>('');
-	let labelIds = $state<string[]>([]);
+	let labelIds = $state<number[]>([]);
 	let projectType = $state<ProjectType>('generic');
 
 	const form = useFormDialog();
@@ -49,7 +50,7 @@
 			color = initial?.color ?? DEFAULT_COLOR;
 			const fallback = defaultContextId ?? allContexts[0]?.id ?? null;
 			contextId = String(initial?.contextId ?? fallback ?? '');
-			labelIds = (initial?.labels ?? []).map((l) => String(l.id));
+			labelIds = (initial?.labels ?? []).map((l) => l.id);
 			projectType = initial?.projectType ?? 'generic';
 		}
 	});
@@ -66,7 +67,7 @@
 			async () => {
 				const client = getApiClient();
 				const labelNames = labelIds
-					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
+					.map((id) => allLabels.find((l) => l.id === id)?.name)
 					.filter((n): n is string => !!n);
 
 				if (initial) {
@@ -169,24 +170,7 @@
 			{#if allLabels.length > 0}
 				<div class="flex flex-col gap-1">
 					<Label>{$t('common.labels')}</Label>
-					<div class="flex flex-wrap gap-1">
-						{#each allLabels as label (label.id)}
-							{@const id = String(label.id)}
-							{@const active = labelIds.includes(id)}
-							<button
-								type="button"
-								class="rounded border px-2 py-0.5 text-xs"
-								class:bg-primary={active}
-								class:text-primary-foreground={active}
-								onclick={() =>
-									(labelIds = active
-										? labelIds.filter((x) => x !== id)
-										: [...labelIds, id])}
-							>
-								@{label.name}
-							</button>
-						{/each}
-					</div>
+					<LabelPicker bind:value={labelIds} />
 				</div>
 			{/if}
 

@@ -290,7 +290,10 @@ export function createReplayEngine(options: ReplayEngineOptions): ReplayEngine {
 			if (debounceTimer !== null) clearTimeout(debounceTimer);
 			debounceTimer = setTimeout(() => {
 				debounceTimer = null;
-				void run();
+				// An automatic trigger has no caller to reject to: a drain that cannot
+				// even read the queue (unreachable IndexedDB) is logged and retried on
+				// the next kick, never raised as an unhandled rejection.
+				void run().catch((err) => console.warn('[offline] outbox replay failed', err));
 			}, debounceMs);
 		},
 		sync(): Promise<void> {

@@ -30,6 +30,7 @@
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
 	import RecurrencePicker from '$lib/components/task/RecurrencePicker.svelte';
+	import LabelPicker from '$lib/components/label/LabelPicker.svelte';
 	import TaskActionsMenu from '$lib/components/task/TaskActionsMenu.svelte';
 	import HarpoonJumpButton from '$lib/components/app/HarpoonJumpButton.svelte';
 	import MoveTaskDialog from '$lib/components/dialog/MoveTaskDialog.svelte';
@@ -169,7 +170,7 @@
 	let dayPart = $state<DayPart>('none');
 	let dueDate = $state('');
 	let recurrence = $state<string | null>(null);
-	let labelIds = $state<string[]>([]);
+	let labelIds = $state<number[]>([]);
 	let removedAuto = $state<string[]>([]);
 	const projectTroikiCategory = $derived.by(() => {
 		const t = task;
@@ -232,11 +233,11 @@
 	});
 	const selectedLabels = $derived(
 		labelIds
-			.map((id) => allLabels.find((l) => String(l.id) === id))
+			.map((id) => allLabels.find((l) => l.id === id))
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
 
-	function arrayEquals(a: readonly string[], b: readonly string[]): boolean {
+	function arrayEquals(a: readonly number[], b: readonly number[]): boolean {
 		if (a.length !== b.length) return false;
 		for (let i = 0; i < a.length; i++) {
 			if (a[i] !== b[i]) return false;
@@ -262,7 +263,7 @@
 		const dt = parseIso(t.dueAt);
 		const nextDueDate = dt ? dayKeyInTz(dt, configStore.value?.timezone ?? null) : '';
 		if (dueDate !== nextDueDate) dueDate = nextDueDate;
-		const nextLabelIds = t.labels.map((l) => String(l.id));
+		const nextLabelIds = t.labels.map((l) => l.id);
 		if (!arrayEquals(labelIds, nextLabelIds)) labelIds = nextLabelIds;
 		if (removedAuto.length > 0) removedAuto = [];
 		// Permit auto-save only after all reactive effects from hydration have flushed
@@ -383,7 +384,7 @@
 		}
 	}
 
-	function toggleLabel(id: string, name: string, isAuto: boolean): void {
+	function toggleLabel(id: number, name: string, isAuto: boolean): void {
 		if (labelIds.includes(id)) {
 			labelIds = labelIds.filter((x) => x !== id);
 			if (isAuto && !removedAuto.includes(name)) removedAuto = [...removedAuto, name];
@@ -391,6 +392,23 @@
 			labelIds = [...labelIds, id];
 			if (isAuto) removedAuto = removedAuto.filter((n) => n !== name);
 		}
+		scheduleSave();
+	}
+
+	function onLabelsChange(next: number[]): void {
+		const removed = labelIds.filter((id) => !next.includes(id));
+		const added = next.filter((id) => !labelIds.includes(id));
+		for (const id of removed) {
+			const name = allLabels.find((l) => l.id === id)?.name;
+			if (name && autoLabelNames.has(name) && !removedAuto.includes(name)) {
+				removedAuto = [...removedAuto, name];
+			}
+		}
+		for (const id of added) {
+			const name = allLabels.find((l) => l.id === id)?.name;
+			if (name && removedAuto.includes(name)) removedAuto = removedAuto.filter((n) => n !== name);
+		}
+		labelIds = next;
 		scheduleSave();
 	}
 
@@ -415,7 +433,7 @@ async function save(): Promise<void> {
 				dueHasTime: false,
 				recurrenceRule: recurrence,
 				labels: labelIds
-					.map((id) => allLabels.find((l) => String(l.id) === id)?.name)
+					.map((id) => allLabels.find((l) => l.id === id)?.name)
 					.filter((n): n is string => !!n),
 				removedAutoLabels: removedAuto
 			};
@@ -808,7 +826,7 @@ async function save(): Promise<void> {
 								<button
 									type="button"
 									onclick={() =>
-										toggleLabel(String(label.id), label.name, autoLabelNames.has(label.name))}
+										toggleLabel(label.id, label.name, autoLabelNames.has(label.name))}
 									class="group/chip inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-foreground transition-opacity hover:opacity-80"
 									style={label.color
 										? `background-color: color-mix(in srgb, ${label.color} 32%, transparent);`
@@ -820,35 +838,7 @@ async function save(): Promise<void> {
 							{/each}
 						</div>
 					{/if}
-					<details class="group/labels">
-						<summary
-							class="inline-flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-						>
-							<span>{$t('page.task.editLabels')}</span>
-						</summary>
-						<div class="mt-2 flex flex-wrap gap-1">
-							{#each allLabels as label (label.id)}
-								{@const id = String(label.id)}
-								{@const active = labelIds.includes(id)}
-								<button
-									type="button"
-									onclick={() => toggleLabel(id, label.name, autoLabelNames.has(label.name))}
-									class="rounded-md px-2 py-0.5 text-xs transition-colors"
-									class:font-medium={active}
-									class:text-foreground={active}
-									class:border={!active}
-									class:border-border={!active}
-									class:text-muted-foreground={!active}
-									class:hover:bg-accent={!active}
-									style={active && label.color
-										? `background-color: color-mix(in srgb, ${label.color} 32%, transparent);`
-										: undefined}
-								>
-									{label.name}
-								</button>
-							{/each}
-						</div>
-					</details>
+					<LabelPicker value={labelIds} onValueChange={onLabelsChange} />
 				</div>
 			{/if}
 		</aside>
