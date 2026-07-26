@@ -17,9 +17,11 @@ installed web-PWA, and the native iOS/Android apps.
    without a network connection and shows the last known state. An offline banner appears
    with the "data as of {time}" timestamp. The background cache warmer additionally
    pre-fetches the primary sidebar destinations even if you never opened them —
-   today / tomorrow / week / **next-week (backlog)** / **pinned** / inbox / **the Troiki
-   board** / the projects, labels and contexts lists — plus the board (sections + tasks)
-   of every **pinned project**, so those open offline out of the box. A non-pinned project
+   today / tomorrow / week / **next-week (backlog)** / inbox / **the Troiki board** — plus
+   the board (sections + tasks) of every **pinned project**, so those open offline out of
+   the box. The projects, labels, contexts and pinned-task lists are not warmed
+   separately: they arrive inside the `/api/v1/config` bootstrap aggregate, which
+   write-throughs into the same cache on every boot. A non-pinned project
    still only opens offline once you have visited it online; an unvisited one shows a clear
    "no connection" message rather than a raw fetch error.
 2. **A small whitelist of writes** — queued locally and replayed when the network returns:
@@ -46,6 +48,22 @@ The whole data layer (cache + outbox) lives in `frontend/src/lib/offline/` and w
   has one extra fallback: when its own response was never cached, the payload is rebuilt
   from the task as it appears in any cached list, with its subtasks gathered by
   `parentId` — so any task visible offline can also be opened.
+- **Where a response keeps its tasks.** Cache entries are keyed by request path, and each
+  entry stores that path. `readCache.ts` uses it to pick the right extractor per endpoint
+  (`EXTRACTORS`), because response shapes are a property of the endpoint, not something
+  inferable from the payload: `/api/v1/config` keeps tasks under `pinnedTasks` and, two
+  levels down, under `troiki.*.projects[].tasks`; `/stats/sidebar` under `pinned.items`;
+  `/stats/week-summary` under `completed`; list views under `items`. An unregistered path
+  falls back to probing every key any known shape uses, so an entry written by an older
+  build stays traversable. Getting this wrong is silent — the task simply cannot be found
+  offline, and an offline complete of it does not survive a restart, because the cache
+  patcher never rewrites that entry.
+- **Schema version.** `SCHEMA_VERSION` in `db.ts` guards the *shape* of cached values
+  (`DB_VERSION` guards the object stores). On a mismatch the cached responses are wiped
+  and incompatible outbox rows are quarantined; pending ops at the current version
+  survive. Bump it whenever a cached payload gains a field the new code reads
+  unconditionally — v1.15 did, when `/api/v1/config` grew `harpoon` and `taskTemplates`.
+  The cost is one cold-cache launch after upgrading.
 - **Semantic outbox.** A whitelisted mutation issued offline is matched to one of the three
   ops, synthesized into an optimistic response, applied to the cache (so it survives a
   restart), and enqueued (`outbox.ts`, `ops/`). The replay engine drains the queue FIFO
@@ -130,6 +148,9 @@ Before each run: be logged in and online once so the cache is warm.
 - [ ] The banner's pending counter shows **"1 change waiting to be sent"**.
 - [ ] Relaunch the app **while still offline** → the task is **still completed**
       (served from the patched cache).
+- [ ] Repeat with a **pinned** task, and with a task on the **Troiki board**: both live
+      only inside the `/api/v1/config` aggregate, so they exercise the path→extractor
+      registry. Relaunch offline → still completed, in the sidebar and on the board.
 - [ ] Go back online → auto-replay fires; the pending counter drops to 0.
 - [ ] The banner clears and SSE/refetch reconciles server truth.
 - [ ] On a **second device**, the task shows completed.

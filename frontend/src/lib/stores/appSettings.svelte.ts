@@ -19,11 +19,6 @@ function createAppSettingsStore() {
 		get projectSuggestions(): ProjectSuggestionRule[] {
 			return value.projectSuggestions ?? [];
 		},
-		async load(): Promise<AppSettings> {
-			const v = await appSettingsApi.get(getApiClient());
-			value = v;
-			return v;
-		},
 		setValue(v: AppSettings): void {
 			value = v;
 		},

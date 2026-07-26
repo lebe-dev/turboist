@@ -19,10 +19,6 @@ export const projects = {
 		return client.fetch('/api/v1/projects', { query });
 	},
 
-	get(client: ApiClient, id: number): Promise<Project> {
-		return client.fetch(`/api/v1/projects/${id}`);
-	},
-
 	// bundle returns the project, its sections and all its tasks in one request.
 	// The project page uses it instead of the three separate get/listSections/
 	// listTasks round-trips.

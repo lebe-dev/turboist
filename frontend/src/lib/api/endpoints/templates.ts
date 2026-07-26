@@ -1,15 +1,7 @@
 import type { ApiClient } from '../client';
-import type { InstantiateTemplateResult, Page, TaskTemplate, TaskTemplateInput } from '../types';
+import type { InstantiateTemplateResult, TaskTemplate, TaskTemplateInput } from '../types';
 
 export const templates = {
-	list(client: ApiClient): Promise<Page<TaskTemplate>> {
-		return client.fetch('/api/v1/task-templates');
-	},
-
-	get(client: ApiClient, id: number): Promise<TaskTemplate> {
-		return client.fetch(`/api/v1/task-templates/${id}`);
-	},
-
 	create(client: ApiClient, input: TaskTemplateInput): Promise<TaskTemplate> {
 		return client.fetch('/api/v1/task-templates', { method: 'POST', body: input });
 	},

@@ -51,7 +51,13 @@ var validPriorities = map[string]struct{}{
 
 // defaultCalendarCacheTTL is the server-side TTL for cached calendar events
 // when CALENDAR_CACHE_TTL is unset.
-const defaultCalendarCacheTTL = 2 * time.Minute
+//
+// Ten minutes rather than a couple: the day/week views reload their calendar
+// events on every catch-up refetch, and on mobile that means an outbound
+// request to Google each time the phone is unlocked and the SSE stream
+// reconnects. Calendar events are not latency-critical, and
+// POST /api/v1/calendars/google/sync forces a refresh when one is wanted.
+const defaultCalendarCacheTTL = 10 * time.Minute
 
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)

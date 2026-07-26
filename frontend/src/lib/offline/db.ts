@@ -22,8 +22,13 @@ export const DB_VERSION = 1;
  * Logical data schema version stored in `meta.schemaVersion`. Bump when the
  * *shape* of cached/queued values changes without an IndexedDB store change:
  * on mismatch the cache is wiped and incompatible outbox rows are quarantined.
+ *
+ * 2 (v1.15): `/api/v1/config` grew `harpoon` and `taskTemplates`, and the shell
+ * now fans both out on boot. A pre-v1.15 config payload left in the cache would
+ * be read by that new code during an offline-first launch after an upgrade, so
+ * the stale responses must go. Costs one cold-cache launch after upgrading.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Current `QueuedOp.v`; outbox rows with a different `v` are quarantined. */
 export const OUTBOX_OP_VERSION = 1;
@@ -38,7 +43,10 @@ export interface CachedResponse {
 	payload: unknown;
 	/** ISO-8601 UTC — also the eviction key (lexicographic === chronological). */
 	storedAt: string;
-	/** Request path, kept for cross-entry lookups (e.g. findTask in readCache). */
+	/**
+	 * Request path (query included). Read back by readCache's path→extractor
+	 * registry to know where a given endpoint keeps its task arrays.
+	 */
 	path: string;
 }
 

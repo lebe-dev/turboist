@@ -14,17 +14,12 @@
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { decideAuthRedirect } from '$lib/auth/guard';
 	import { page } from '$app/state';
-	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
-	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
-	import { planStatsStore } from '$lib/stores/planStats.svelte';
 	import { inboxStatsStore } from '$lib/stores/inboxStats.svelte';
-	import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
-	import { harpoonStore } from '$lib/stores/harpoon.svelte';
 	import { templatesStore } from '$lib/stores/templates.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -43,6 +38,8 @@
 	import type { TaskInput } from '$lib/api/types';
 	import { t, setLocale, isSupportedLocale } from '$lib/i18n';
 	import { eventsClient, type EventScope } from '$lib/realtime/events.svelte';
+	import { refreshForScopes, refreshWorkspace } from '$lib/realtime/refresh';
+	import { createScopeCoalescer } from '$lib/realtime/scopeCoalescer';
 	import { cacheWarmer, kickReplay, wireReplayTriggers, statusStore } from '$lib/offline';
 	import { useCatchupRefetch } from '$lib/hooks';
 	import { markAppLayoutReady, markAppLayoutGone, consumePendingQuickAdd } from '$lib/native/deepLink';
@@ -158,20 +155,14 @@
 				// configStore.load() pulls everything the workspace needs in one
 				// round-trip and fans it out to the per-domain stores: contexts,
 				// projects, labels, settings, appSettings, userState, troiki,
-				// planStats, inboxStats and pinnedTasks. Per-domain stores keep
-				// their own load() / SSE invalidation channels for refreshes.
+				// planStats, inboxStats, pinnedTasks, harpoon and taskTemplates.
+				// Per-domain stores keep their own SSE invalidation channels for
+				// refreshes.
 				await configStore.load();
 				if (isSupportedLocale(settingsStore.locale)) {
 					setLocale(settingsStore.locale);
 				}
 				dataReady = true;
-				// Harpoon is a small navigation convenience loaded out-of-band: a
-				// failure here must not block the workspace, so it is fire-and-forget.
-				void harpoonStore.load().catch(() => {});
-				// Templates power the quick-add "from template" menu and the
-				// settings editor; load out-of-band so a failure never blocks
-				// the workspace.
-				void templatesStore.load().catch(() => {});
 				// Background-prewarm the key screens (today/tomorrow/week/inbox and
 				// the projects/labels/contexts lists) into the offline read-through
 				// cache (FEATURE-OFFLINE-ARCH.md §7 B5). Debounced, online-gated and
@@ -196,76 +187,63 @@
 		startLoad();
 	});
 
+	const ALL_SCOPES: EventScope[] = [
+		'tasks',
+		'calendar',
+		'inbox',
+		'projects',
+		'labels',
+		'contexts',
+		'sections',
+		'plan'
+	];
+
+	function dispatchInvalidate(scope: EventScope): void {
+		window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
+	}
+
 	// Real-time invalidation channel. Started after the user is authenticated
-	// and the initial workspace load has finished — so that handlers for shell
-	// stores (which we re-load below) do not race the initial fetch. Page-level
-	// views subscribe via `useInvalidation` and receive their own scope events.
+	// and the initial workspace load has finished — so that the shell refresh
+	// below does not race the initial fetch. Page-level views subscribe via
+	// `useInvalidation` and receive their own scope events.
+	//
+	// Scopes are coalesced over a short window before we refetch anything. A
+	// single remote change fans out to several scopes (a bulk move emits tasks +
+	// plan + inbox + projects), and this used to mean one GET per scope handler.
+	// Now the whole burst resolves to at most one aggregate request.
 	$effect(() => {
 		if (auth.status !== 'authenticated' || !dataReady) return;
 		eventsClient.start();
 
-		const dispatch = (scope: EventScope): void => {
-			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
-		};
+		const coalescer = createScopeCoalescer({
+			flush(scopes) {
+				// At most one aggregate GET for the whole burst — see refreshForScopes.
+				void refreshForScopes(scopes).catch(() => {});
+				// Page-level views revalidate off the scopes exactly as before.
+				for (const s of scopes) dispatchInvalidate(s);
+			}
+		});
 
-		const unsubs = [
-			eventsClient.on('contexts', () => {
-				void contextsStore.load();
-				dispatch('contexts');
-			}),
-			eventsClient.on('labels', () => {
-				void labelsStore.load();
-				dispatch('labels');
-			}),
-			eventsClient.on('projects', () => {
-				void projectsStore.load();
-				dispatch('projects');
-			}),
-			eventsClient.on('inbox', () => {
-				void inboxStatsStore.load();
-				dispatch('inbox');
-			}),
-			eventsClient.on('plan', () => {
-				void planStatsStore.load();
-				dispatch('plan');
-			}),
-			eventsClient.on('tasks', () => {
-				void pinnedTasksStore.load();
-				dispatch('tasks');
-			}),
-			eventsClient.on('calendar', () => dispatch('calendar')),
-			eventsClient.on('sections', () => dispatch('sections'))
-		];
+		const unsubs = ALL_SCOPES.map((scope) =>
+			eventsClient.on(scope, () => coalescer.add(scope))
+		);
 		return () => {
+			coalescer.cancel();
 			for (const u of unsubs) u();
 		};
 	});
 
-	// Reloads shell stores and tells every page-level view (via `useInvalidation`)
-	// to revalidate. Used both after an SSE reconnect (the server has no replay)
-	// and from the native pull-to-refresh gesture.
+	// Refreshes the whole shell and tells every page-level view (via
+	// `useInvalidation`) to revalidate. Used after an SSE reconnect (the server
+	// has no replay), after the outbox drains, and from the native
+	// pull-to-refresh gesture.
+	//
+	// One GET /api/v1/config, not the six per-store GETs this used to fan out:
+	// the aggregate is a superset of all of them, and a phone that reconnects on
+	// every unlock pays for connection count far more than for payload size.
 	async function refreshAll(): Promise<void> {
-		await Promise.all([
-			contextsStore.load(),
-			labelsStore.load(),
-			projectsStore.load(),
-			inboxStatsStore.load(),
-			planStatsStore.load(),
-			pinnedTasksStore.load()
-		]);
-		const scopes: EventScope[] = [
-			'tasks',
-			'calendar',
-			'inbox',
-			'projects',
-			'labels',
-			'contexts',
-			'sections',
-			'plan'
-		];
-		for (const scope of scopes) {
-			window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
-		}
+		await refreshWorkspace();
+		for (const scope of ALL_SCOPES) dispatchInvalidate(scope);
 	}
 
 	// On SSE reconnect after a drop (e.g., the tab was suspended), the server

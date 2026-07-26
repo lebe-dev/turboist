@@ -34,6 +34,26 @@ describe('AuthStore', () => {
 		expect(store.user).toBeNull();
 	});
 
+	// Since v1.15 the refresh response embeds the user, so boot renders after a
+	// single round-trip instead of a serial /auth/refresh → /auth/me chain.
+	it('bootstrap → refresh carries the user → authenticated with no /auth/me call', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse({ access: 'A', refresh: 'R', user: { id: 1, username: 'eu' } })
+		);
+
+		const store = new AuthStore({ fetchImpl: fetchMock as unknown as typeof fetch });
+		const result = await store.bootstrap();
+
+		expect(result).toEqual({ setupRequired: false, authenticated: true });
+		expect(store.status).toBe('authenticated');
+		expect(store.user).toEqual({ id: 1, username: 'eu' });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(String(fetchMock.mock.calls[0][0])).toContain('/auth/refresh');
+	});
+
+	// A new bundle can be talking to a not-yet-restarted older server, whose
+	// refresh response has no `user` — the /auth/me fallback must stay live.
 	it('bootstrap → refresh ok, /auth/me returns user → authenticated', async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 		fetchMock

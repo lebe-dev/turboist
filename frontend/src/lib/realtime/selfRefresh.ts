@@ -1,12 +1,9 @@
 import { browser } from '$app/environment';
-import { getApiClient } from '../api/client';
-import { views as viewsApi } from '../api/endpoints/views';
 import { projectsStore } from '../stores/projects.svelte';
 import { labelsStore } from '../stores/labels.svelte';
 import { contextsStore } from '../stores/contexts.svelte';
-import { planStatsStore } from '../stores/planStats.svelte';
-import { inboxStatsStore } from '../stores/inboxStats.svelte';
-import { pinnedTasksStore } from '../stores/pinnedTasks.svelte';
+import { refreshSidebarBundle } from './refresh';
+import { createScopeCoalescer } from './scopeCoalescer';
 import type { EventScope } from './events.svelte';
 
 // selfRefresh keeps the originating client's derived data fresh after its own
@@ -61,28 +58,12 @@ function scopesForPath(path: string): EventScope[] {
 	}
 }
 
-const COALESCE_MS = 200;
-
-const pending = new Set<EventScope>();
-let timer: ReturnType<typeof setTimeout> | null = null;
-
 function dispatchInvalidate(scope: EventScope): void {
 	if (!browser) return;
 	window.dispatchEvent(new CustomEvent('turboist:invalidate', { detail: { scope } }));
 }
 
-async function refreshSidebarBundle(): Promise<void> {
-	const stats = await viewsApi.sidebarStats(getApiClient());
-	planStatsStore.setValue(stats.planStats);
-	inboxStatsStore.set(stats.inboxStats.count, stats.inboxStats.warnThresholdExceeded);
-	pinnedTasksStore.setItems(stats.pinned.items);
-}
-
-function flush(): void {
-	timer = null;
-	const scopes = new Set(pending);
-	pending.clear();
-
+function flush(scopes: Set<EventScope>): void {
 	// One bundle call covers every count-style scope.
 	if (scopes.has('tasks') || scopes.has('plan') || scopes.has('inbox')) {
 		void refreshSidebarBundle().catch((err) => {
@@ -112,13 +93,11 @@ function flush(): void {
 	}
 }
 
+const coalescer = createScopeCoalescer({ flush });
+
 // onSelfMutation is wired to ApiClient.onMutation. It records the scopes the
 // mutation touched and flushes them after a short coalescing window, so a burst
 // of mutations (e.g. add-subtask then reload) results in a single refresh.
 export function onSelfMutation(path: string): void {
-	const scopes = scopesForPath(path);
-	if (scopes.length === 0) return;
-	for (const s of scopes) pending.add(s);
-	if (timer !== null) return;
-	timer = setTimeout(flush, COALESCE_MS);
+	for (const s of scopesForPath(path)) coalescer.add(s);
 }

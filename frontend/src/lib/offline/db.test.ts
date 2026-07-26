@@ -5,6 +5,8 @@ import {
 	buildCacheKey,
 	openOfflineDB,
 	MAX_RESPONSES,
+	OUTBOX_OP_VERSION,
+	SCHEMA_VERSION,
 	type CachedResponse,
 	type OfflineDB,
 	type QueuedOp
@@ -167,7 +169,26 @@ describe('openOfflineDB', () => {
 		expect(failed[0].failedAt).toBeTruthy();
 
 		// schemaVersion is repaired to the current constant.
-		expect(await db.getMeta<number>('schemaVersion')).toBe(1);
+		expect(await db.getMeta<number>('schemaVersion')).toBe(SCHEMA_VERSION);
+	});
+
+	// The concrete v1.15 upgrade: /api/v1/config grew `harpoon` and
+	// `taskTemplates`, so a payload cached by a v1 bundle must not be fanned out
+	// by the new shell code on an offline-first launch after upgrading.
+	it('wipes a schema-v1 cache on upgrade while keeping current-version outbox ops', async () => {
+		db = await openOfflineDB(SERVER_A);
+		await db.putResponse(response('/api/v1/config', '2026-01-01T00:00:00.000Z'));
+		const keptSeq = await db.enqueue(op({ v: OUTBOX_OP_VERSION }));
+		await db.setMeta('schemaVersion', 1);
+		db.close();
+
+		db = await openOfflineDB(SERVER_A);
+
+		expect(await db.getAllResponses()).toHaveLength(0);
+		// A pending offline mutation is NOT collateral damage of a cache wipe.
+		expect((await db.listOutbox()).map((o) => o.seq)).toEqual([keptSeq]);
+		expect(await db.listFailed()).toHaveLength(0);
+		expect(await db.getMeta<number>('schemaVersion')).toBe(SCHEMA_VERSION);
 	});
 
 	it('clears everything when the server url changes, warning about pending ops', async () => {

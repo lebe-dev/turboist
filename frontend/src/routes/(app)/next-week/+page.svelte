@@ -16,6 +16,7 @@
 	import { configStore } from '$lib/stores/config.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
+	import { refreshSidebarBundle } from '$lib/realtime/refresh';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -55,7 +56,10 @@
 			const [backlogRes, weekRes] = await Promise.all([
 				viewsApi.backlog(client, { contextId: ctx }),
 				viewsApi.week(client, { contextId: ctx }),
-				planStatsStore.load().catch(() => {})
+				// The plan counters are shown as a cap ("3 of 5"), so they must be
+				// server truth rather than list lengths. They now ride in the sidebar
+				// bundle — the standalone /stats/plan endpoint was a strict subset.
+				refreshSidebarBundle().catch(() => {})
 			]);
 			if (!isValid()) return;
 			backlog.items = backlogRes.items;
@@ -82,7 +86,7 @@
 			const updated = await tasksApi.plan(getApiClient(), task.id, { state: 'week' });
 			backlog.mutator.remove(task.id);
 			week.items = [updated, ...week.items];
-			void planStatsStore.load().catch(() => {});
+			void refreshSidebarBundle().catch(() => {});
 		} catch (err) {
 			toast.error(describeError(err, $t('page.nextWeek.failedPlan')));
 		}
@@ -97,7 +101,7 @@
 			const updated = await tasksApi.plan(getApiClient(), task.id, { state: 'backlog' });
 			week.mutator.remove(task.id);
 			backlog.items = [updated, ...backlog.items];
-			void planStatsStore.load().catch(() => {});
+			void refreshSidebarBundle().catch(() => {});
 		} catch (err) {
 			toast.error(describeError(err, $t('page.nextWeek.failedMove')));
 		}

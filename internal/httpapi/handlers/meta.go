@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/httpapi/dto"
@@ -23,7 +26,12 @@ const configListLimit = 500
 // This handler exposes /api/v1/config (requires auth) which doubles as the
 // workspace-bootstrap endpoint: a single round-trip returns the static config
 // values plus the user's contexts, projects, labels, settings, app settings,
-// UI state and troiki view.
+// UI state, troiki view, sidebar aggregates, harpoon pair and task templates.
+//
+// It is also the SPA's steady-state refresh endpoint: an SSE reconnect or a
+// burst of remote invalidations refetches this one aggregate instead of the six
+// per-domain GETs the shell used to issue, which matters most on mobile where
+// every extra connection wakes the radio.
 type MetaHandler struct {
 	cfg             *config.Config
 	totpAvailable   bool
@@ -33,7 +41,9 @@ type MetaHandler struct {
 	tasks           *repo.TaskRepo
 	users           *repo.UserRepo
 	appSettingsRepo *repo.AppSettingsRepo
+	templates       *repo.TemplateRepo
 	troikiSvc       *service.TroikiService
+	harpoonSvc      *service.HarpoonService
 	baseURL         string
 }
 
@@ -49,7 +59,9 @@ func NewMetaHandler(
 	tasks *repo.TaskRepo,
 	users *repo.UserRepo,
 	appSettingsRepo *repo.AppSettingsRepo,
+	templates *repo.TemplateRepo,
 	troikiSvc *service.TroikiService,
+	harpoonSvc *service.HarpoonService,
 	baseURL string,
 ) *MetaHandler {
 	return &MetaHandler{
@@ -61,14 +73,31 @@ func NewMetaHandler(
 		tasks:           tasks,
 		users:           users,
 		appSettingsRepo: appSettingsRepo,
+		templates:       templates,
 		troikiSvc:       troikiSvc,
+		harpoonSvc:      harpoonSvc,
 		baseURL:         baseURL,
 	}
 }
 
 // Register wires /config onto the authenticated API group r.
+//
+// The scope set mirrors what the payload actually exposes. A single
+// "settings:read" used to be enough to read every task, project, label,
+// context, template and the troiki board through this one endpoint; an API
+// token must now hold each domain's read scope. JWT sessions bypass scope
+// checks entirely (see RequireAllScopes), so the SPA and the native apps are
+// unaffected.
 func (h *MetaHandler) Register(r fiber.Router) {
-	r.Get("/config", httpapi.RequireScope("settings:read"), h.config)
+	r.Get("/config", httpapi.RequireAllScopes(
+		auth.ScopeSettingsRead,
+		auth.ScopeTasksRead,
+		auth.ScopeProjectsRead,
+		auth.ScopeLabelsRead,
+		auth.ScopeContextsRead,
+		auth.ScopeTroikiRead,
+		auth.ScopeTemplatesRead,
+	), h.config)
 }
 
 type dayPartResp struct {
@@ -90,11 +119,6 @@ type limitResp struct {
 	Limit int `json:"limit"`
 }
 
-type planStatsResp struct {
-	Week    int `json:"week"`
-	Backlog int `json:"backlog"`
-}
-
 type inboxStatsResp struct {
 	Count                 int  `json:"count"`
 	WarnThresholdExceeded bool `json:"warnThresholdExceeded"`
@@ -109,16 +133,50 @@ type configResp struct {
 	DayParts      map[string]dayPartResp `json:"dayParts"`
 	TOTPAvailable bool                   `json:"totpAvailable"`
 
-	Contexts    []dto.ContextDTO `json:"contexts"`
-	Projects    []dto.ProjectDTO `json:"projects"`
-	Labels      []dto.LabelDTO   `json:"labels"`
-	Settings    settingsResp     `json:"settings"`
-	AppSettings appSettingsResp  `json:"appSettings"`
-	UserState   json.RawMessage  `json:"userState"`
-	Troiki      any              `json:"troiki"`
-	PlanStats   planStatsResp    `json:"planStats"`
-	InboxStats  inboxStatsResp   `json:"inboxStats"`
-	PinnedTasks []dto.TaskDTO    `json:"pinnedTasks"`
+	Contexts    []dto.ContextDTO  `json:"contexts"`
+	Projects    []dto.ProjectDTO  `json:"projects"`
+	Labels      []dto.LabelDTO    `json:"labels"`
+	Settings    settingsResp      `json:"settings"`
+	AppSettings appSettingsResp   `json:"appSettings"`
+	UserState   json.RawMessage   `json:"userState"`
+	Troiki      any               `json:"troiki"`
+	PlanStats   statsPlanResponse `json:"planStats"`
+	InboxStats  inboxStatsResp    `json:"inboxStats"`
+	PinnedTasks []dto.TaskDTO     `json:"pinnedTasks"`
+	Harpoon     harpoonResp       `json:"harpoon"`
+
+	// TaskTemplates is a BARE array, matching contexts/projects/labels above —
+	// NOT the dto.PagedResponse envelope that GET /api/v1/task-templates returns.
+	// The frontend type must mirror that (TaskTemplate[], no `.items`).
+	TaskTemplates []dto.TaskTemplateDTO `json:"taskTemplates"`
+}
+
+// sendWithETag marshals resp, tags it with a strong ETag over the body bytes,
+// and answers 304 when the client already holds that exact version.
+//
+// This saves no database work — every query still runs to produce the bytes to
+// hash. What it saves is on the client: transferring and parsing the payload,
+// and then fanning it out across ten stores, which re-renders the whole shell.
+// The SPA refetches /api/v1/config unconditionally on every SSE reconnect, i.e.
+// on every phone unlock, and for a single-user app most of those reconnects find
+// nothing changed.
+//
+// Correctness rests on the response being byte-stable for unchanged data: Go
+// marshals maps with sorted keys, `userState` is a verbatim json.RawMessage from
+// SQLite, and no field in this payload derives from the current time.
+func sendWithETag(c fiber.Ctx, resp any) error {
+	body, err := json.Marshal(resp)
+	if err != nil {
+		return httpapi.ErrInternal("marshal response").WithCause(err)
+	}
+	sum := sha256.Sum256(body)
+	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
+	c.Set(fiber.HeaderETag, etag)
+	if c.Get(fiber.HeaderIfNoneMatch) == etag {
+		return c.SendStatus(fiber.StatusNotModified)
+	}
+	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	return c.Send(body)
 }
 
 func (h *MetaHandler) config(c fiber.Ctx) error {
@@ -137,16 +195,18 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 	page := repo.Page{Limit: configListLimit, Offset: 0}
 
 	var (
-		contexts    []dto.ContextDTO
-		projects    []dto.ProjectDTO
-		labels      []dto.LabelDTO
-		settings    settingsResp
-		appSettings appSettingsResp
-		userState   json.RawMessage
-		troiki      any
-		planStats   planStatsResp
-		inboxStats  inboxStatsResp
-		pinnedTasks []dto.TaskDTO
+		contexts      []dto.ContextDTO
+		projects      []dto.ProjectDTO
+		labels        []dto.LabelDTO
+		settings      settingsResp
+		appSettings   appSettingsResp
+		userState     json.RawMessage
+		troiki        any
+		planStats     statsPlanResponse
+		inboxStats    inboxStatsResp
+		pinnedTasks   []dto.TaskDTO
+		harpoon       harpoonResp
+		taskTemplates []dto.TaskTemplateDTO
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -235,7 +295,29 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
-		planStats = planStatsResp{Week: week, Backlog: backlog}
+		planStats = statsPlanResponse{Week: week, Backlog: backlog}
+		return nil
+	})
+
+	g.Go(func() error {
+		slots, err := h.harpoonSvc.Get(gctx, userID)
+		if err != nil {
+			return err
+		}
+		harpoon = harpoonToResp(slots)
+		return nil
+	})
+
+	g.Go(func() error {
+		items, err := h.templates.List(gctx)
+		if err != nil {
+			return err
+		}
+		// make(…, len) so an empty set marshals to [] rather than null.
+		taskTemplates = make([]dto.TaskTemplateDTO, len(items))
+		for i, t := range items {
+			taskTemplates[i] = dto.TaskTemplateFromModel(t)
+		}
 		return nil
 	})
 
@@ -267,7 +349,7 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		return httpapi.ErrInternal("load config").WithCause(err)
 	}
 
-	return c.JSON(configResp{
+	return sendWithETag(c, configResp{
 		Timezone:  cfg.Timezone,
 		MaxPinned: cfg.MaxPinned,
 		Weekly:    limitResp{Limit: cfg.Weekly.Limit},
@@ -291,5 +373,7 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		PlanStats:     planStats,
 		InboxStats:    inboxStats,
 		PinnedTasks:   pinnedTasks,
+		Harpoon:       harpoon,
+		TaskTemplates: taskTemplates,
 	})
 }

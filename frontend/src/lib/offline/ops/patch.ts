@@ -7,12 +7,14 @@ import { candidateLists, looksLikeTask, type ReadCacheWriter } from '../readCach
 // is closed and reopened while still offline (a page's in-memory `useListMutator`
 // change does NOT survive a restart; the cache does).
 //
-// The traversal reuses `candidateLists`/`looksLikeTask` from `readCache`, so the
-// patchers touch exactly the same response shapes as `findTask` (Page/ViewList
-// `.items`, `InboxResponse.tasks[]`, ProjectBundle/SearchResponse `.tasks.items`,
-// TodayBundle `today`/`overdue`/`completedToday`, and a bare Task). Depending on
-// `readCache` (which the ops already import as a type) keeps a single shape
-// definition; it introduces no cycle (`readCache` imports nothing from `ops`).
+// The traversal reuses `candidateLists`/`looksLikeTask` from `readCache` and
+// passes each entry's stored `path`, so the patchers reach exactly the same task
+// arrays `findTask` does — including the ones nested inside aggregates such as
+// `/api/v1/config` (`pinnedTasks`, `troiki.*.projects[].tasks`). Missing one of
+// those is what made an offline complete of a pinned task silently revert on
+// restart. Depending on `readCache` (which the ops already import as a type)
+// keeps a single shape definition; it introduces no cycle (`readCache` imports
+// nothing from `ops`).
 
 /** Mutation applied in place to each cached copy of a task matched by id. */
 type TaskMutation = (task: Record<string, unknown>) => void;
@@ -29,20 +31,25 @@ export async function patchCachedTask(
 	mutate: TaskMutation
 ): Promise<void> {
 	for (const entry of await cache.getAll()) {
-		if (mutateTaskInPayload(entry.payload, taskId, mutate)) {
+		if (mutateTaskInPayload(entry.payload, taskId, mutate, entry.path)) {
 			await cache.putEntry(entry);
 		}
 	}
 }
 
-function mutateTaskInPayload(payload: unknown, taskId: number, mutate: TaskMutation): boolean {
+function mutateTaskInPayload(
+	payload: unknown,
+	taskId: number,
+	mutate: TaskMutation,
+	path?: string
+): boolean {
 	let changed = false;
 	// A bare Task response (GET /api/v1/tasks/:id).
 	if (looksLikeTask(payload) && payload.id === taskId) {
 		mutate(payload as Record<string, unknown>);
 		changed = true;
 	}
-	for (const list of candidateLists(payload)) {
+	for (const list of candidateLists(payload, path)) {
 		for (const item of list) {
 			if (looksLikeTask(item) && item.id === taskId) {
 				mutate(item as Record<string, unknown>);
@@ -60,8 +67,19 @@ interface InboxResponseShape {
 	tasks: Record<string, unknown>[];
 }
 
-function isInboxResponse(payload: unknown): payload is InboxResponseShape {
+/** The one endpoint whose payload IS an inbox list. */
+const INBOX_PATH = '/api/v1/inbox';
+
+/**
+ * Path-first: only `/api/v1/inbox` holds an inbox list, so an aggregate that
+ * happens to expose top-level `tasks` + `count` + `warnThresholdExceeded` is not
+ * mistaken for one (which would push a Task into an unrelated array and bump the
+ * wrong counter). Duck-typing survives only as the fallback for an entry whose
+ * path is unknown.
+ */
+function isInboxResponse(payload: unknown, path?: string): payload is InboxResponseShape {
 	if (!payload || typeof payload !== 'object') return false;
+	if (path !== undefined && path.split('?', 1)[0] !== INBOX_PATH) return false;
 	const p = payload as Record<string, unknown>;
 	return Array.isArray(p.tasks) && 'count' in p && 'warnThresholdExceeded' in p;
 }
@@ -76,7 +94,7 @@ export async function insertTaskIntoInboxCache(
 	task: Task
 ): Promise<void> {
 	for (const entry of await cache.getAll()) {
-		if (!isInboxResponse(entry.payload)) continue;
+		if (!isInboxResponse(entry.payload, entry.path)) continue;
 		const inbox = entry.payload;
 		if (inbox.tasks.some((t) => looksLikeTask(t) && t.id === task.id)) continue;
 		inbox.tasks.push(task as unknown as Record<string, unknown>);

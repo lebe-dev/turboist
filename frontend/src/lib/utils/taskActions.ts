@@ -2,7 +2,7 @@ import type { Task, TaskInput, TaskMoveInput } from '$lib/api/types';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
-import { planStatsStore } from '$lib/stores/planStats.svelte';
+import { refreshSidebarBundle } from '$lib/realtime/refresh';
 import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 import { followUpStore } from '$lib/stores/followUp.svelte';
 import { configStore } from '$lib/stores/config.svelte';
@@ -164,7 +164,7 @@ export async function moveToBacklog(
 		}
 		const updated = await tasksApi.plan(client, task.id, { state: 'backlog' });
 		applyUpdate(updated, mutator, options.belongs);
-		void planStatsStore.load().catch(() => {});
+		void refreshSidebarBundle().catch(() => {});
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedMoveToBacklog')));
 	}
@@ -179,7 +179,7 @@ export async function removeFromBacklog(
 	try {
 		const updated = await tasksApi.plan(client, task.id, { state: 'none' });
 		applyUpdate(updated, mutator, options.belongs);
-		void planStatsStore.load().catch(() => {});
+		void refreshSidebarBundle().catch(() => {});
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedRemoveFromBacklog')));
 	}

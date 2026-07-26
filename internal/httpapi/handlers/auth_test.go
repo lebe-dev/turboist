@@ -425,6 +425,38 @@ func TestRefresh_FromBody(t *testing.T) {
 	}
 }
 
+// The SPA boots off the refresh response alone; a missing user here would cost
+// it a serial GET /auth/me round-trip before it could render.
+func TestRefresh_IncludesUser(t *testing.T) {
+	env := setupAuthTest(t)
+	ar := doSetup(t, env, "cli")
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", jsonBody(map[string]string{
+		"refresh": ar.Refresh,
+	}))
+	req.Header.Set("Content-Type", "application/json")
+	resp, body := doReq(t, env.app, req)
+	if resp.StatusCode != 200 {
+		t.Fatalf("refresh status: got %d; body: %s", resp.StatusCode, body)
+	}
+	var rr struct {
+		User struct {
+			ID          int64  `json:"id"`
+			Username    string `json:"username"`
+			TOTPEnabled bool   `json:"totpEnabled"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(body, &rr); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if rr.User.ID != 1 {
+		t.Errorf("user.id: got %d, want 1", rr.User.ID)
+	}
+	if rr.User.Username != "admin" {
+		t.Errorf("user.username: got %q, want %q", rr.User.Username, "admin")
+	}
+}
+
 func TestRefresh_FromCookie(t *testing.T) {
 	env := setupAuthTest(t)
 	// Setup as web so cookie is set.

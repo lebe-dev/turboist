@@ -37,7 +37,6 @@ func (h *TaskViewHandler) Register(r fiber.Router) {
 	r.Get("/tasks/backlog", httpapi.RequireScope(auth.ScopeTasksRead), h.backlog)
 	r.Get("/tasks/pinned", httpapi.RequireScope(auth.ScopeTasksRead), h.pinned)
 	r.Get("/tasks/completed", httpapi.RequireScope(auth.ScopeTasksRead), h.completed)
-	r.Get("/stats/plan", httpapi.RequireScope(auth.ScopeTasksRead), h.statsPlan)
 	r.Get("/stats/sidebar", httpapi.RequireScope(auth.ScopeTasksRead), h.statsSidebar)
 	r.Get("/stats/week-summary", httpapi.RequireScope(auth.ScopeTasksRead), h.weekSummary)
 }
@@ -224,21 +223,13 @@ func (h *TaskViewHandler) pinned(c fiber.Ctx) error {
 	return c.JSON(viewResponse{Items: tasksToDTO(items, h.baseURL), Total: total})
 }
 
+// statsPlanResponse carries the two plan counters (week / backlog). It is
+// embedded in /stats/sidebar and /config rather than served on its own: the
+// former standalone GET /api/v1/stats/plan was a strict subset of both and cost
+// the SPA an extra round-trip per refresh.
 type statsPlanResponse struct {
 	Week    int `json:"week"`
 	Backlog int `json:"backlog"`
-}
-
-func (h *TaskViewHandler) statsPlan(c fiber.Ctx) error {
-	week, err := h.tasks.CountWeek(c.Context())
-	if err != nil {
-		return httpapi.ErrInternal("count week").WithCause(err)
-	}
-	backlog, err := h.tasks.CountBacklog(c.Context())
-	if err != nil {
-		return httpapi.ErrInternal("count backlog").WithCause(err)
-	}
-	return c.JSON(statsPlanResponse{Week: week, Backlog: backlog})
 }
 
 type sidebarInboxStats struct {

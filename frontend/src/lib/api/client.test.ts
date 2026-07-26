@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiClient, canonicalizeQuery, type OfflineBridge } from './client';
+import { ApiClient, canonicalizeQuery, NOT_MODIFIED, type OfflineBridge } from './client';
 import { ApiError } from './errors';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -310,6 +310,321 @@ describe('ApiClient.fetch', () => {
 		expect(url).toBe('/api/v1/tasks?a=1&b=2');
 	});
 
+});
+
+// Concurrent identical GETs share one wire request. The motivating case is a
+// route's own load and the offline cache warmer both wanting the same view.
+describe('ApiClient.fetch GET singleflight', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	/** A fetch mock that resolves only when `release()` is called. */
+	function deferredFetch(body: unknown): {
+		fetchMock: ReturnType<typeof vi.fn>;
+		release: () => void;
+	} {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const fetchMock = vi.fn(async () => {
+			await gate;
+			return jsonResponse(body);
+		});
+		return { fetchMock, release };
+	}
+
+	function clientWith(fetchMock: ReturnType<typeof vi.fn>): ApiClient {
+		return new ApiClient({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			getAccessToken: () => 'tok',
+			setAccessToken: () => {},
+			onRefreshFailure: () => {}
+		});
+	}
+
+	it('merges two concurrent identical GETs into one request', async () => {
+		const { fetchMock, release } = deferredFetch({ ok: true });
+		const client = clientWith(fetchMock);
+
+		const a = client.fetch<{ ok: boolean }>('/api/v1/tasks/today');
+		const b = client.fetch<{ ok: boolean }>('/api/v1/tasks/today');
+		release();
+
+		expect(await a).toEqual({ ok: true });
+		expect(await b).toEqual({ ok: true });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	// The cache warmer sends `{ contextId: undefined }` where the page sends
+	// nothing; canonicalizeQuery collapses both to the same URL, so they merge.
+	it('merges GETs whose queries canonicalize to the same URL', async () => {
+		const { fetchMock, release } = deferredFetch({ ok: true });
+		const client = clientWith(fetchMock);
+
+		const a = client.fetch('/api/v1/tasks/today', { query: { contextId: undefined } });
+		const b = client.fetch('/api/v1/tasks/today');
+		release();
+
+		await Promise.all([a, b]);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not merge GETs with different queries', async () => {
+		const { fetchMock, release } = deferredFetch({ ok: true });
+		const client = clientWith(fetchMock);
+
+		const a = client.fetch('/api/v1/tasks/today', { query: { contextId: 1 } });
+		const b = client.fetch('/api/v1/tasks/today', { query: { contextId: 2 } });
+		release();
+
+		await Promise.all([a, b]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	// /api/v1/config is fetched both authenticated and via the skipAuth setup
+	// probe. Same URL, different expected outcome — they must never share.
+	it('does not merge an authenticated GET with a skipAuth GET of the same URL', async () => {
+		const { fetchMock, release } = deferredFetch({ ok: true });
+		const client = clientWith(fetchMock);
+
+		const a = client.fetch('/api/v1/config');
+		const b = client.fetch('/api/v1/config', { skipAuth: true, skipRefresh: true });
+		release();
+
+		await Promise.all([a, b]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('releases the entry once settled, so a later identical GET refetches', async () => {
+		// A fresh Response per call: a body can only be read once.
+		const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
+		const client = clientWith(fetchMock);
+
+		await client.fetch('/api/v1/tasks/today');
+		await client.fetch('/api/v1/tasks/today');
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not merge mutations — two identical POSTs are two intents', async () => {
+		const { fetchMock, release } = deferredFetch({ ok: true });
+		const client = clientWith(fetchMock);
+
+		const a = client.fetch('/api/v1/tasks/1/complete', { method: 'POST' });
+		const b = client.fetch('/api/v1/tasks/1/complete', { method: 'POST' });
+		release();
+
+		await Promise.all([a, b]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not merge a skipOffline GET — a replay reissue must reach the wire', async () => {
+		const { fetchMock, release } = deferredFetch({ ok: true });
+		const client = clientWith(fetchMock);
+
+		const a = client.fetch('/api/v1/tasks/today');
+		const b = client.fetch('/api/v1/tasks/today', { skipOffline: true });
+		release();
+
+		await Promise.all([a, b]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not merge a GET carrying an AbortSignal', async () => {
+		const { fetchMock, release } = deferredFetch({ ok: true });
+		const client = clientWith(fetchMock);
+
+		const a = client.fetch('/api/v1/tasks/today');
+		const b = client.fetch('/api/v1/tasks/today', { signal: new AbortController().signal });
+		release();
+
+		await Promise.all([a, b]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('shares a rejection with both callers and clears the entry afterwards', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+		const client = clientWith(fetchMock as unknown as ReturnType<typeof vi.fn>);
+
+		const a = client.fetch('/api/v1/tasks/today');
+		const b = client.fetch('/api/v1/tasks/today');
+
+		await expect(a).rejects.toBeInstanceOf(ApiError);
+		await expect(b).rejects.toBeInstanceOf(ApiError);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+
+		// The failed entry must not be sticky.
+		fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+		await expect(client.fetch('/api/v1/tasks/today')).resolves.toEqual({ ok: true });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('merged 401s trigger a single refresh, and both callers get the retried body', async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		let refreshes = 0;
+		const client = new ApiClient({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			getAccessToken: () => 'stale',
+			setAccessToken: () => {},
+			onRefreshFailure: () => {}
+		});
+
+		let releaseFirst!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		fetchMock.mockImplementation(async (input) => {
+			const url = String(input);
+			if (url.endsWith('/auth/refresh')) {
+				refreshes += 1;
+				return jsonResponse({ access: 'fresh' });
+			}
+			if (fetchMock.mock.calls.length === 1) {
+				await gate;
+				return jsonResponse({ error: { code: 'auth_expired', message: 'expired' } }, 401);
+			}
+			return jsonResponse({ ok: true });
+		});
+
+		const a = client.fetch<{ ok: boolean }>('/api/v1/tasks/today');
+		const b = client.fetch<{ ok: boolean }>('/api/v1/tasks/today');
+		releaseFirst();
+
+		expect(await a).toEqual({ ok: true });
+		expect(await b).toEqual({ ok: true });
+		expect(refreshes).toBe(1);
+	});
+});
+
+describe('ApiClient.fetch conditional GET (ETag / 304)', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	function etagServer(etag: string, body: unknown) {
+		return vi.fn(async (_url: unknown, init?: RequestInit) => {
+			const headers = new Headers(init?.headers ?? {});
+			if (headers.get('If-None-Match') === etag) {
+				return new Response(null, { status: 304, headers: { ETag: etag } });
+			}
+			return new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json', ETag: etag }
+			});
+		});
+	}
+
+	function clientWith(fetchMock: ReturnType<typeof vi.fn>, offline?: OfflineBridge): ApiClient {
+		return new ApiClient({
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			getAccessToken: () => 'tok',
+			setAccessToken: () => {},
+			onRefreshFailure: () => {},
+			offline
+		});
+	}
+
+	it('sends no If-None-Match on the first conditional GET and returns the payload', async () => {
+		const fetchMock = etagServer('"v1"', { ok: true });
+		const client = clientWith(fetchMock);
+
+		const first = await client.fetch('/api/v1/config', { conditional: true });
+
+		expect(first).toEqual({ ok: true });
+		const headers = new Headers((fetchMock.mock.calls[0][1] as RequestInit).headers ?? {});
+		expect(headers.get('If-None-Match')).toBeNull();
+	});
+
+	it('replays the stored ETag and resolves to NOT_MODIFIED when unchanged', async () => {
+		const fetchMock = etagServer('"v1"', { ok: true });
+		const client = clientWith(fetchMock);
+
+		await client.fetch('/api/v1/config', { conditional: true });
+		const second = await client.fetch('/api/v1/config', { conditional: true });
+
+		expect(second).toBe(NOT_MODIFIED);
+		const headers = new Headers((fetchMock.mock.calls[1][1] as RequestInit).headers ?? {});
+		expect(headers.get('If-None-Match')).toBe('"v1"');
+	});
+
+	it('does not send If-None-Match on a plain (non-conditional) GET', async () => {
+		const fetchMock = etagServer('"v1"', { ok: true });
+		const client = clientWith(fetchMock);
+
+		await client.fetch('/api/v1/config', { conditional: true });
+		const plain = await client.fetch('/api/v1/config');
+
+		expect(plain).toEqual({ ok: true });
+		const headers = new Headers((fetchMock.mock.calls[1][1] as RequestInit).headers ?? {});
+		expect(headers.get('If-None-Match')).toBeNull();
+	});
+
+	// A 304 carries no body; writing the sentinel through would destroy the very
+	// cache entry the 304 is telling us is still current.
+	it('does not write the cache on a 304', async () => {
+		const fetchMock = etagServer('"v1"', { ok: true });
+		const cachePut = vi.fn(async () => {});
+		const offline: OfflineBridge = {
+			isOffline: () => false,
+			cacheGet: async () => null,
+			cachePut,
+			tryEnqueue: async () => null,
+			noteRequestOutcome: () => {}
+		};
+		const client = clientWith(fetchMock, offline);
+
+		await client.fetch('/api/v1/config', { conditional: true });
+		expect(cachePut).toHaveBeenCalledTimes(1);
+
+		await client.fetch('/api/v1/config', { conditional: true });
+		expect(cachePut).toHaveBeenCalledTimes(1);
+	});
+
+	it('returns the fresh payload once the ETag changes', async () => {
+		let etag = '"v1"';
+		let body: unknown = { n: 1 };
+		const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
+			const headers = new Headers(init?.headers ?? {});
+			if (headers.get('If-None-Match') === etag) {
+				return new Response(null, { status: 304, headers: { ETag: etag } });
+			}
+			return new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json', ETag: etag }
+			});
+		});
+		const client = clientWith(fetchMock);
+
+		expect(await client.fetch('/api/v1/config', { conditional: true })).toEqual({ n: 1 });
+		expect(await client.fetch('/api/v1/config', { conditional: true })).toBe(NOT_MODIFIED);
+
+		etag = '"v2"';
+		body = { n: 2 };
+		expect(await client.fetch('/api/v1/config', { conditional: true })).toEqual({ n: 2 });
+		// The new ETag is what gets replayed next.
+		expect(await client.fetch('/api/v1/config', { conditional: true })).toBe(NOT_MODIFIED);
+	});
+
+	// A conditional and an unconditional GET of the same URL have different
+	// outcomes, so the singleflight must not merge them.
+	it('does not merge a conditional GET with a plain one', async () => {
+		const fetchMock = etagServer('"v1"', { ok: true });
+		const client = clientWith(fetchMock);
+		await client.fetch('/api/v1/config', { conditional: true });
+		fetchMock.mockClear();
+
+		const [a, b] = await Promise.all([
+			client.fetch('/api/v1/config', { conditional: true }),
+			client.fetch('/api/v1/config')
+		]);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(a).toBe(NOT_MODIFIED);
+		expect(b).toEqual({ ok: true });
+	});
 });
 
 describe('canonicalizeQuery', () => {

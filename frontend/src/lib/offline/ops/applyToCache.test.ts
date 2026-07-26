@@ -52,6 +52,10 @@ interface TodayShape {
 	overdue: { items: CachedTask[] };
 	completedToday: { items: CachedTask[] };
 }
+interface ConfigShape {
+	pinnedTasks: CachedTask[];
+	troiki: { important: { projects: { tasks: CachedTask[] }[] } };
+}
 
 async function payload<T>(cache: ReadCache, path: string, query?: unknown): Promise<T> {
 	const hit = await cache.get(path, query);
@@ -311,6 +315,80 @@ describe('§6.2 an offline change survives a restart (db reopen)', () => {
 		expect(inbox.count).toBe(1);
 		expect(inbox.tasks).toHaveLength(1);
 		expect(inbox.tasks[0]).toMatchObject({ id: tmpId, title: 'Buy milk', status: 'open' });
+	});
+
+	// The headline regression: a pinned task's only cached copies live inside the
+	// /api/v1/config aggregate — under `pinnedTasks` and, two levels down, under
+	// `troiki.*.projects[].tasks`. Neither was reachable before the path→extractor
+	// registry, so completing such a task offline silently reverted on restart.
+	it('completing a task offline patches it inside the config aggregate and survives a reopen', async () => {
+		db = await openOfflineDB(SERVER);
+		let cache = createReadCache(db);
+		await cache.put('/api/v1/config', undefined, {
+			timezone: 'UTC',
+			projects: [{ id: 200, title: 'proj', status: 'open', projectType: 'generic' }],
+			pinnedTasks: [task(1)],
+			troiki: {
+				started: true,
+				important: {
+					capacity: 3,
+					projects: [
+						{ id: 201, title: 'p', status: 'open', projectType: 'generic', tasks: [task(1), task(2)] }
+					]
+				},
+				medium: { capacity: 3, projects: [] },
+				rest: { capacity: 3, projects: [] }
+			}
+		});
+
+		await taskComplete.applyToCache({ taskId: 1, completedAt: '2026-03-03T00:00:00.000Z' }, cache);
+
+		db.close();
+		db = await openOfflineDB(SERVER);
+		cache = createReadCache(db);
+
+		const cfg = await payload<ConfigShape>(cache, '/api/v1/config');
+		expect(cfg.pinnedTasks[0]).toMatchObject({
+			status: 'completed',
+			completedAt: '2026-03-03T00:00:00.000Z'
+		});
+		expect(cfg.troiki.important.projects[0].tasks[0]).toMatchObject({ status: 'completed' });
+		// A different task in the same array is untouched.
+		expect(cfg.troiki.important.projects[0].tasks[1]).toMatchObject({ status: 'open' });
+	});
+
+	it('uncompleting a task offline patches it inside the config aggregate', async () => {
+		db = await openOfflineDB(SERVER);
+		const cache = createReadCache(db);
+		await cache.put('/api/v1/config', undefined, {
+			pinnedTasks: [task(1, { status: 'completed', completedAt: '2026-01-01T00:00:00.000Z' })],
+			troiki: { important: { projects: [] }, medium: { projects: [] }, rest: { projects: [] } }
+		});
+
+		await taskUncomplete.applyToCache({ taskId: 1 }, cache);
+
+		const cfg = await payload<ConfigShape>(cache, '/api/v1/config');
+		expect(cfg.pinnedTasks[0]).toMatchObject({ status: 'open', completedAt: null });
+	});
+
+	// isInboxResponse is path-first, so an aggregate that happens to carry
+	// top-level `tasks` + `count` + `warnThresholdExceeded` is not treated as an
+	// inbox list and does not get a stray task pushed into it.
+	it('does not insert an offline-created task into a non-inbox payload that looks like one', async () => {
+		db = await openOfflineDB(SERVER);
+		const cache = createReadCache(db);
+		await cache.put('/api/v1/config', undefined, {
+			count: 5,
+			warnThresholdExceeded: true,
+			tasks: [],
+			pinnedTasks: []
+		});
+
+		await taskCreateInbox.applyToCache({ input: { title: 'x' }, tmpId: -1 }, cache);
+
+		const cfg = await payload<{ count: number; tasks: unknown[] }>(cache, '/api/v1/config');
+		expect(cfg.tasks).toHaveLength(0);
+		expect(cfg.count).toBe(5);
 	});
 
 	it('uncompleting offline persists across a db reopen', async () => {

@@ -77,7 +77,19 @@ interface ApiFetchInit extends Omit<RequestInit, 'body'> {
 	skipOffline?: boolean;
 	// Idempotency key carried by a replayed mutation (Epic C); unused on the B3 read path.
 	idempotencyKey?: string;
+	// Opt in to a conditional GET. When the client already holds an ETag for this
+	// exact URL it sends If-None-Match, and an unchanged resource answers 304 —
+	// `fetch` then resolves to NOT_MODIFIED instead of a payload. Callers must
+	// handle that sentinel; only /api/v1/config opts in today.
+	conditional?: boolean;
 }
+
+/**
+ * Resolution of a conditional GET whose resource has not changed (HTTP 304).
+ * The caller keeps whatever it already had; there is no payload to apply.
+ */
+export const NOT_MODIFIED = Symbol('not-modified');
+export type NotModified = typeof NOT_MODIFIED;
 
 interface RefreshResponseBody {
 	access: string;
@@ -97,6 +109,15 @@ export class ApiClient {
 	private readonly setRefreshToken?: (token: string | null) => Promise<void>;
 	private readonly offline?: OfflineBridge;
 	private refreshInflight: Promise<string | null> | null = null;
+	// In-flight GETs keyed by canonical URL (singleflight). Two callers asking for
+	// the same URL in the same window — the classic case being a route's own load
+	// and the offline cache warmer both wanting /api/v1/tasks/today — share one
+	// wire request instead of opening two connections. Entries are removed as soon
+	// as the request settles, so this is a coalescing window, never a cache.
+	private readonly inflightGets = new Map<string, Promise<unknown>>();
+	// Last ETag seen per canonical URL, for `conditional: true` requests. Bounded
+	// by the number of conditional endpoints (one today), so it needs no eviction.
+	private readonly etags = new Map<string, string>();
 
 	constructor(options: ApiClientOptions) {
 		this.baseUrl = options.baseUrl ?? '';
@@ -157,9 +178,68 @@ export class ApiClient {
 			}
 		}
 
+		// Coalesce concurrent identical GETs onto one wire request. Deliberately
+		// placed BELOW the cache-first branch above: that branch already returns
+		// without touching the network and fires its own background probe.
+		//   - mutations are never merged: two identical POSTs are two intents, each
+		//     with its own Idempotency-Key;
+		//   - `skipOffline` (the outbox replay engine) must always reach the wire;
+		//   - a request carrying an AbortSignal is never merged, since one caller
+		//     aborting would reject the shared promise for the other.
+		// Because doRequest's internal 401-refresh retry lives inside the shared
+		// unit, two concurrent GETs that would both 401 now trigger a single refresh.
+		if (method !== 'GET' || init.skipOffline || init.signal != null) {
+			return this.performFetch<T>(path, url, method, init, isMutation, reqBody, start, idempotencyKey);
+		}
+
+		// The key is the canonical URL plus the request variants that change the
+		// outcome, never the URL alone: `/api/v1/config` is fetched both
+		// authenticated (configStore) and with skipAuth/skipRefresh (the setup probe
+		// in auth/store.svelte.ts), and a conditional GET can resolve to NOT_MODIFIED
+		// where an unconditional one resolves to a payload.
+		const key = [
+			url,
+			init.skipAuth ? 'a' : '',
+			init.skipRefresh ? 'r' : '',
+			init.conditional ? 'c' : ''
+		].join(' ');
+		const existing = this.inflightGets.get(key);
+		if (existing) return existing as Promise<T>;
+
+		const inflight: Promise<T> = this.performFetch<T>(
+			path, url, method, init, isMutation, reqBody, start, idempotencyKey
+		).finally(() => {
+			// Identity check: a late settle must not evict a newer entry registered
+			// under the same key after this one was already removed.
+			if (this.inflightGets.get(key) === inflight) this.inflightGets.delete(key);
+		});
+		this.inflightGets.set(key, inflight);
+		return inflight;
+	}
+
+	private async performFetch<T>(
+		path: string,
+		url: string,
+		method: string,
+		init: ApiFetchInit,
+		isMutation: boolean,
+		reqBody: string | null,
+		start: number,
+		idempotencyKey: string | undefined
+	): Promise<T> {
 		try {
 			const response = await this.doRequest(url, init, /*isRetry*/ false);
+			// Conditional GET, unchanged: there is no body, and deliberately no
+			// cachePut — the cached entry is still the current one, and overwriting
+			// it with the sentinel would destroy it.
+			if (response.status === 304) {
+				this.emitLog(method, url, 304, start, reqBody, null, null);
+				this.offline?.noteRequestOutcome(true);
+				return NOT_MODIFIED as T;
+			}
 			const result = await this.parseResponse<T>(response);
+			const etag = response.headers.get('ETag');
+			if (etag) this.etags.set(url, etag);
 			this.emitLog(method, url, response.status, start, reqBody, result, null);
 			this.offline?.noteRequestOutcome(true);
 			if (!isMutation && this.offline) {
@@ -283,6 +363,11 @@ export class ApiClient {
 		if (!init.skipAuth) {
 			const token = this.getAccessToken();
 			if (token) headers.set('Authorization', `Bearer ${token}`);
+		}
+
+		if (init.conditional) {
+			const known = this.etags.get(url);
+			if (known) headers.set('If-None-Match', known);
 		}
 
 		// Tag mutations so the backend can suppress this client's own SSE echo.

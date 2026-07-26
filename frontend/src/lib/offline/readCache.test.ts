@@ -221,6 +221,119 @@ describe('findTask cross-shape scan (§4.5)', () => {
 	});
 });
 
+// Aggregate endpoints keep their task arrays under names and at depths a
+// top-level probe cannot see. Each entry is traversed with the extractor
+// registered for its stored `path`.
+describe('findTask inside aggregate responses (path→extractor registry)', () => {
+	let db: OfflineDB;
+	let cache: ReadCache;
+
+	afterEach(() => {
+		db?.close();
+	});
+
+	function task(id: number, extra: Record<string, unknown> = {}) {
+		return { id, title: `t${id}`, status: 'open', dayPart: 'none', ...extra };
+	}
+
+	function project(id: number, tasks: unknown[]) {
+		return { id, title: `p${id}`, status: 'open', projectType: 'generic', tasks };
+	}
+
+	/** A /api/v1/config payload reduced to the task-bearing parts. */
+	function configPayload() {
+		return {
+			timezone: 'UTC',
+			contexts: [{ id: 100, name: 'ctx' }],
+			projects: [{ id: 200, title: 'proj', status: 'open', projectType: 'generic' }],
+			labels: [{ id: 300, name: 'lbl' }],
+			pinnedTasks: [task(1)],
+			troiki: {
+				started: true,
+				important: { capacity: 3, projects: [project(201, [task(2)])] },
+				medium: { capacity: 3, projects: [project(202, [task(3)])] },
+				rest: { capacity: 3, projects: [] }
+			}
+		};
+	}
+
+	async function open() {
+		db = await openOfflineDB(SERVER);
+		cache = createReadCache(db);
+	}
+
+	it('finds a task in ConfigResponse.pinnedTasks', async () => {
+		await open();
+		await cache.put('/api/v1/config', undefined, configPayload());
+		expect(await cache.findTask(1)).toMatchObject({ id: 1 });
+	});
+
+	// One level deeper than the /api/v1/troiki case: the slots hang off
+	// `payload.troiki`, not off the payload root.
+	it('finds a task in ConfigResponse.troiki.*.projects[].tasks', async () => {
+		await open();
+		await cache.put('/api/v1/config', undefined, configPayload());
+		expect(await cache.findTask(2)).toMatchObject({ id: 2 });
+		expect(await cache.findTask(3)).toMatchObject({ id: 3 });
+	});
+
+	it('never mistakes a config project, context or label for a task', async () => {
+		await open();
+		await cache.put('/api/v1/config', undefined, configPayload());
+		for (const id of [100, 200, 201, 202, 300]) {
+			expect(await cache.findTask(id)).toBeNull();
+		}
+	});
+
+	it('finds a task in SidebarStatsResponse.pinned.items', async () => {
+		await open();
+		await cache.put('/api/v1/stats/sidebar', undefined, {
+			planStats: { week: 1, backlog: 2 },
+			inboxStats: { count: 0, warnThresholdExceeded: false },
+			pinned: { items: [task(4)], total: 1 }
+		});
+		expect(await cache.findTask(4)).toMatchObject({ id: 4 });
+	});
+
+	it('finds a task in WeekSummaryResponse.completed', async () => {
+		await open();
+		await cache.put('/api/v1/stats/week-summary', undefined, {
+			range: { start: 'x', end: 'y' },
+			stats: { completedCount: 1, plannedOpen: 0, overdue: 0 },
+			completed: [task(5, { status: 'completed' })],
+			troiki: null
+		});
+		expect(await cache.findTask(5)).toMatchObject({ id: 5 });
+	});
+
+	// Regression: opening a task offline used to fail outright when the only
+	// cached copy lived inside an aggregate.
+	it('synthesizes a detail payload for a task cached only in the config aggregate', async () => {
+		await open();
+		await cache.put('/api/v1/config', undefined, configPayload());
+		await cache.put('/api/v1/tasks/backlog', undefined, {
+			items: [task(42, { parentId: 1 })],
+			total: 1
+		});
+
+		const detail = await cache.findTaskDetail(1, true);
+
+		expect(detail).not.toBeNull();
+		expect(detail?.payload).toMatchObject({ id: 1 });
+		const subtasks = (detail?.payload as { subtasks: { items: { id: number }[] } }).subtasks;
+		expect(subtasks.items.map((t) => t.id)).toEqual([42]);
+	});
+
+	// An entry written by an older bundle, or an endpoint nobody registered,
+	// must stay traversable rather than becoming silently invisible.
+	it('falls back to shape sniffing for an unregistered path', async () => {
+		await open();
+		await cache.put('/api/v1/future-bundle', undefined, configPayload());
+		expect(await cache.findTask(1)).toMatchObject({ id: 1 });
+		expect(await cache.findTask(2)).toMatchObject({ id: 2 });
+	});
+});
+
 describe('matchTaskDetailPath', () => {
 	it('matches the task detail GET and extracts the id (tmp ids included)', () => {
 		expect(matchTaskDetailPath('/api/v1/tasks/42')).toBe(42);

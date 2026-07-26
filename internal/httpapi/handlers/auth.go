@@ -421,13 +421,25 @@ func (h *AuthHandler) refresh(c fiber.Ctx) error {
 		setRefreshCookie(c, newToken)
 	}
 
+	// Embed the user so a booting client does not have to follow up with
+	// GET /auth/me: that was a serial round-trip on the critical path, and this
+	// is the same indexed PK read /auth/me performs.
+	user, err := h.users.Get(ctx, session.UserID)
+	if err != nil {
+		return httpapi.ErrInternal("get user").WithCause(err)
+	}
+
 	log.InfoContext(ctx, "auth: refresh ok",
 		slog.String("op", opAuthRefresh),
 		slog.Int64("user_id", session.UserID),
 		slog.Int64("session_id", session.ID),
 		slog.String("client_kind", string(session.ClientKind)),
 	)
-	return c.JSON(dto.RefreshResponse{Access: access, Refresh: newToken})
+	return c.JSON(dto.RefreshResponse{
+		Access:  access,
+		Refresh: newToken,
+		User:    dto.UserDTO{ID: user.ID, Username: user.Username, TOTPEnabled: user.TOTPEnabled},
+	})
 }
 
 func (h *AuthHandler) logout(c fiber.Ctx) error {

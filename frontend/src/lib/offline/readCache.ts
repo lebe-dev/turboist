@@ -37,10 +37,9 @@ export interface ReadCacheReader {
 	get(path: string, query?: unknown): Promise<CachedResponse | null>;
 	/**
 	 * Locate a cached Task by id across the known response shapes, for op response
-	 * synthesis (§4.5). Scans every cached entry's `Page<Task>` / `ViewList<Task>`
-	 * (`.items`), `InboxResponse` (`.tasks[]`), `ProjectBundle`/`SearchResponse`
-	 * (`.tasks.items`), `TodayBundle` (`today`/`overdue`/`completedToday`) and a
-	 * bare `Task` response. Returns null when the task is nowhere in cache, and op
+	 * synthesis (§4.5). Each entry is traversed with the extractor registered for
+	 * its path (see `EXTRACTORS`), which covers the list views, the bundles and the
+	 * aggregates alike. Returns null when the task is nowhere in cache, and op
 	 * synthesizers fall back to a minimal Task.
 	 */
 	findTask(id: number): Promise<unknown | null>;
@@ -97,7 +96,7 @@ export function createReadCache(
 		},
 		async findTask(id) {
 			for (const entry of await db.getAllResponses()) {
-				const found = findTaskInPayload(entry.payload, id);
+				const found = findTaskInPayload(entry.payload, id, entry.path);
 				if (found) return found;
 			}
 			return null;
@@ -110,7 +109,7 @@ export function createReadCache(
 			let storedAt: string | null = null;
 			for (const entry of await db.getAllResponses()) {
 				const inEntry = new Map<number, Record<string, unknown>>();
-				collectTasks(entry.payload, inEntry);
+				collectTasks(entry.payload, inEntry, entry.path);
 				const hit = inEntry.get(id);
 				if (hit && (storedAt === null || entry.storedAt > storedAt)) {
 					found = hit;
@@ -169,16 +168,118 @@ export function looksLikeTask(value: unknown): value is { id: number } {
 	);
 }
 
+/** Strip the query string from a cache-entry path. */
+function stripQuery(path: string): string {
+	return path.split('?', 1)[0];
+}
+
+/** Collects the task arrays a given response shape exposes. */
+type Extractor = (p: Record<string, unknown>, push: (value: unknown) => void) => void;
+
 /**
- * Every task array reachable from a known cached response shape (§4.5). Exported
- * so the op cache-patchers (`ops/patch.ts`) traverse the same shapes as `findTask`
- * — the returned arrays are the live payload arrays, so mutating their items (or
- * pushing) rewrites the payload the caller then persists via `putEntry`.
+ * TroikiViewResponse slots: tasks live two levels down, under each of the three
+ * slots (important/medium/rest) → projects[].tasks[]. `holder` is the payload
+ * root for `GET /api/v1/troiki` and `payload.troiki` for the config aggregate —
+ * the same shape at two different depths, which is exactly the mistake a
+ * top-level-only sniffer makes.
  */
-export function candidateLists(payload: unknown): unknown[][] {
+function pushTroikiSlots(holder: unknown, push: (value: unknown) => void): void {
+	if (!holder || typeof holder !== 'object') return;
+	const h = holder as Record<string, unknown>;
+	for (const slot of [h.important, h.medium, h.rest]) {
+		const projects = (slot as { projects?: unknown } | undefined)?.projects;
+		if (!Array.isArray(projects)) continue;
+		for (const project of projects) {
+			push((project as { tasks?: unknown } | undefined)?.tasks);
+		}
+	}
+}
+
+/**
+ * Where each endpoint keeps its tasks. Keyed by path because response shapes are
+ * a property of the endpoint, not something reliably inferable from the payload:
+ * aggregates nest their task lists at depths and under key names that a
+ * top-level probe cannot see (`ConfigResponse.pinnedTasks`,
+ * `ConfigResponse.troiki.*.projects[].tasks`, `SidebarStatsResponse.pinned.items`,
+ * `WeekSummaryResponse.completed`). Missing one is silent: the task simply
+ * cannot be found offline, and an offline complete of it does not survive a
+ * restart because `patchCachedTask` never rewrites that entry.
+ *
+ * `CachedResponse.path` is persisted alongside every entry, so this works for
+ * rows written in an earlier session too.
+ */
+const EXTRACTORS: Record<string, Extractor> = {
+	'/api/v1/config': (p, push) => {
+		push(p.pinnedTasks);
+		pushTroikiSlots(p.troiki, push);
+	},
+	'/api/v1/troiki': (p, push) => pushTroikiSlots(p, push),
+	'/api/v1/stats/sidebar': (p, push) => push(p.pinned),
+	'/api/v1/stats/week-summary': (p, push) => push(p.completed),
+	'/api/v1/tasks/today': (p, push) => {
+		push(p.today);
+		push(p.overdue);
+		push(p.completedToday);
+	},
+	'/api/v1/inbox': (p, push) => push(p.tasks),
+	'/api/v1/search': (p, push) => push(p.tasks)
+};
+
+/** Parameterised paths, tried after the exact map. */
+const EXTRACTOR_PATTERNS: [RegExp, Extractor][] = [
+	[/^\/api\/v1\/projects\/-?\d+\/bundle$/, (p, push) => push(p.tasks)],
+	// Task detail: the payload is itself a Task (handled by looksLikeTask at the
+	// callsites); this exposes the embedded subtask page.
+	[/^\/api\/v1\/tasks\/-?\d+$/, (p, push) => push(p.subtasks)]
+];
+
+/** Every list view: Page<Task> / ViewList<Task>. */
+const DEFAULT_EXTRACTOR: Extractor = (p, push) => push(p.items);
+
+/**
+ * Fallback for an unregistered or unknown path: probe every key any known shape
+ * has ever used. Registry-first keeps this from producing false positives on
+ * ordinary responses, while the fallback keeps entries written by an older build
+ * — or by an endpoint nobody remembered to register — traversable rather than
+ * silently invisible.
+ */
+const SNIFF_EXTRACTOR: Extractor = (p, push) => {
+	push(p.items);
+	push(p.tasks);
+	push(p.today);
+	push(p.overdue);
+	push(p.completedToday);
+	push(p.completed);
+	push(p.pinned);
+	push(p.pinnedTasks);
+	push(p.subtasks);
+	pushTroikiSlots(p, push);
+	pushTroikiSlots(p.troiki, push);
+};
+
+function extractorFor(path: string | undefined): Extractor {
+	if (path === undefined) return SNIFF_EXTRACTOR;
+	const clean = stripQuery(path);
+	const exact = EXTRACTORS[clean];
+	if (exact) return exact;
+	for (const [pattern, extractor] of EXTRACTOR_PATTERNS) {
+		if (pattern.test(clean)) return extractor;
+	}
+	return clean.startsWith(CACHEABLE_PREFIX) ? DEFAULT_EXTRACTOR : SNIFF_EXTRACTOR;
+}
+
+/**
+ * Every task array reachable from a cached response (§4.5). Pass the entry's
+ * `path` so the right extractor is chosen; omit it and a shape-sniffing fallback
+ * is used.
+ *
+ * Exported so the op cache-patchers (`ops/patch.ts`) traverse the same shapes as
+ * `findTask` — the returned arrays are the live payload arrays, so mutating their
+ * items (or pushing) rewrites the payload the caller then persists via `putEntry`.
+ */
+export function candidateLists(payload: unknown, path?: string): unknown[][] {
 	if (Array.isArray(payload)) return [payload];
 	if (!payload || typeof payload !== 'object') return [];
-	const p = payload as Record<string, unknown>;
 	const lists: unknown[][] = [];
 	const push = (value: unknown): void => {
 		if (Array.isArray(value)) {
@@ -187,21 +288,11 @@ export function candidateLists(payload: unknown): unknown[][] {
 			lists.push((value as { items: unknown[] }).items);
 		}
 	};
-	push(p.items); // Page<Task>, ViewList<Task>
-	push(p.tasks); // InboxResponse (array) | ProjectBundle / SearchResponse ({ items })
-	push(p.today); // TodayBundle
-	push(p.overdue);
-	push(p.completedToday);
-	// TroikiViewResponse: tasks are nested two levels deep under each of the three
-	// slots (important/medium/rest) → projects[].tasks[]. Without this, a task the
-	// user can see on the cached Troiki board can't be found by findTask /
-	// findTaskDetail, so opening it offline fails (docs/offline.md).
-	for (const slot of [p.important, p.medium, p.rest]) {
-		const projects = (slot as { projects?: unknown } | undefined)?.projects;
-		if (!Array.isArray(projects)) continue;
-		for (const project of projects) {
-			push((project as { tasks?: unknown } | undefined)?.tasks);
-		}
+	extractorFor(path)(payload as Record<string, unknown>, push);
+	// A registered endpoint whose payload turns out not to match (an older cached
+	// shape, a partial response) still gets the broad probe rather than nothing.
+	if (lists.length === 0 && path !== undefined) {
+		SNIFF_EXTRACTOR(payload as Record<string, unknown>, push);
 	}
 	return lists;
 }
@@ -211,9 +302,13 @@ export function candidateLists(payload: unknown): unknown[][] {
  * descending into a detail response's embedded `subtasks.items` so children that
  * appear nowhere else are still known to `findTaskDetail`.
  */
-function collectTasks(payload: unknown, out: Map<number, Record<string, unknown>>): void {
+function collectTasks(
+	payload: unknown,
+	out: Map<number, Record<string, unknown>>,
+	path?: string
+): void {
 	if (looksLikeTask(payload)) addTask(payload, out);
-	for (const list of candidateLists(payload)) {
+	for (const list of candidateLists(payload, path)) {
 		for (const item of list) {
 			if (looksLikeTask(item)) addTask(item, out);
 		}
@@ -253,10 +348,10 @@ function collectDescendants(
 	return out;
 }
 
-function findTaskInPayload(payload: unknown, id: number): unknown | null {
+function findTaskInPayload(payload: unknown, id: number, path?: string): unknown | null {
 	// A bare Task response (GET /api/v1/tasks/:id).
 	if (looksLikeTask(payload) && payload.id === id) return payload;
-	for (const list of candidateLists(payload)) {
+	for (const list of candidateLists(payload, path)) {
 		for (const item of list) {
 			if (looksLikeTask(item) && item.id === id) return item;
 		}

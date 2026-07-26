@@ -2,7 +2,7 @@
 
 ## Overview
 
-Turboist integrates with Google Calendar in read-only mode. Events are fetched live from the Google Calendar API — they are **not** stored in the application database. An in-memory cache (2-minute TTL by default, configurable via `CALENDAR_CACHE_TTL`) reduces redundant API calls within a session.
+Turboist integrates with Google Calendar in read-only mode. Events are fetched live from the Google Calendar API — they are **not** stored in the application database. An in-memory cache (10-minute TTL by default, configurable via `CALENDAR_CACHE_TTL`) reduces redundant API calls within a session.
 
 ## What is stored in the database
 
@@ -26,7 +26,7 @@ The maximum request range is 92 days. The API call has a 20-second timeout.
 
 ## In-memory event cache
 
-`EventCache` (`internal/service/calendar/cache.go`) is a thread-safe in-memory map with a configurable TTL (**default 2 minutes**, set via the `CALENDAR_CACHE_TTL` env var). It is process-local — the cache is lost on restart.
+`EventCache` (`internal/service/calendar/cache.go`) is a thread-safe in-memory map with a configurable TTL (**default 10 minutes**, set via the `CALENDAR_CACHE_TTL` env var). It is process-local — the cache is lost on restart.
 
 Cache entries for a user are invalidated whenever the user's calendar configuration changes:
 

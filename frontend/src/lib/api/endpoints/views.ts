@@ -1,6 +1,5 @@
 import type { ApiClient } from '../client';
 import type {
-	PlanStatsResponse,
 	SearchQuery,
 	SearchResponse,
 	SidebarStatsResponse,
@@ -24,10 +23,6 @@ export const views = {
 		return client.fetch('/api/v1/tasks/tomorrow', { query });
 	},
 
-	overdue(client: ApiClient, query: ViewPageQuery = {}): Promise<ViewList<Task>> {
-		return client.fetch('/api/v1/tasks/overdue', { query });
-	},
-
 	completedToday(client: ApiClient, query: ViewPageQuery = {}): Promise<ViewList<Task>> {
 		return client.fetch('/api/v1/tasks/completed', { query });
 	},
@@ -49,10 +44,6 @@ export const views = {
 
 	pinned(client: ApiClient, query: ViewQuery = {}): Promise<ViewList<Task>> {
 		return client.fetch('/api/v1/tasks/pinned', { query });
-	},
-
-	planStats(client: ApiClient): Promise<PlanStatsResponse> {
-		return client.fetch('/api/v1/stats/plan');
 	},
 
 	// sidebarStats bundles plan counters, the inbox badge and the pinned list in

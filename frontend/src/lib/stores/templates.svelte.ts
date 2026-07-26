@@ -1,16 +1,15 @@
-import { templates as templatesApi } from '../api/endpoints/templates';
-import { getApiClient } from '../api/client';
 import type { TaskTemplate } from '../api/types';
 
 class TemplatesStore {
 	items = $state<TaskTemplate[]>([]);
 	loaded = $state<boolean>(false);
 
-	async load(): Promise<TaskTemplate[]> {
-		const page = await templatesApi.list(getApiClient());
-		this.items = page.items;
+	// Hydrated from the /api/v1/config bootstrap aggregate rather than its own
+	// GET. Note the input is a bare array: ConfigResponse.taskTemplates is not
+	// the Page envelope GET /api/v1/task-templates returns.
+	setItems(items: TaskTemplate[]): void {
+		this.items = items;
 		this.loaded = true;
-		return page.items;
 	}
 
 	upsert(template: TaskTemplate): void {

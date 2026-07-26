@@ -1,15 +1,12 @@
-import { views as viewsApi } from '../api/endpoints/views';
-import { getApiClient } from '../api/client';
 import type { PlanStatsResponse } from '../api/types';
 
+// Write-only from the outside: the counters arrive inside an aggregate — the
+// /api/v1/config bootstrap or the /api/v1/stats/sidebar bundle — never from a
+// GET of their own. The standalone /api/v1/stats/plan endpoint was a strict
+// subset of both and has been removed; use refreshSidebarBundle() from
+// lib/realtime/refresh.ts to re-pull just the counters.
 class PlanStatsStore {
 	value = $state<PlanStatsResponse | null>(null);
-
-	async load(): Promise<PlanStatsResponse> {
-		const stats = await viewsApi.planStats(getApiClient());
-		this.value = stats;
-		return stats;
-	}
 
 	setValue(v: PlanStatsResponse): void {
 		this.value = v;

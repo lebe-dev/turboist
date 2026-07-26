@@ -61,3 +61,63 @@ describe('initSentry beforeSend', () => {
 		expect(config.beforeSend(event, { originalException: new Error('boom') })).toBe(event);
 	});
 });
+
+describe('initSentry singleflight', () => {
+	beforeEach(() => {
+		initMock.mockClear();
+		vi.stubGlobal('__APP_VERSION__', 'test');
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.resetModules();
+	});
+
+	function stubConfigFetch(body: unknown): ReturnType<typeof vi.fn> {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' }
+			})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+		return fetchMock;
+	}
+
+	// The real boot does exactly this: hooks.client.ts fires initSentry() without
+	// awaiting it, then +layout.svelte awaits it while the first fetch is still in
+	// flight. A guard set at the end of the body cannot latch in time.
+	it('fetches /api/config once when two callers overlap', async () => {
+		const fetchMock = stubConfigFetch({ sentry: { dsn: 'https://example.test/1' } });
+		const { initSentry } = await import('./sentry');
+
+		const first = initSentry();
+		const second = initSentry();
+		await Promise.all([first, second]);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(initMock).toHaveBeenCalledOnce();
+	});
+
+	// Regression: `initialized` was only set after a DSN was found, so a deploy
+	// with Sentry disabled refetched /api/config on every single call.
+	it('does not refetch on a later call when the DSN is blank', async () => {
+		const fetchMock = stubConfigFetch({ sentry: { dsn: '' } });
+		const { initSentry } = await import('./sentry');
+
+		await initSentry();
+		await initSentry();
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(initMock).not.toHaveBeenCalled();
+	});
+
+	it('resolves rather than rejecting when the config endpoint is unreachable', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+		const { initSentry } = await import('./sentry');
+
+		await expect(initSentry()).resolves.toBeUndefined();
+		await expect(initSentry()).resolves.toBeUndefined();
+		expect(initMock).not.toHaveBeenCalled();
+	});
+});

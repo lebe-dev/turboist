@@ -24,9 +24,13 @@ type AuthResponse struct {
 	User    UserDTO `json:"user"`
 }
 
+// RefreshResponse carries the rotated token pair plus the authenticated user,
+// so the SPA's boot sequence does not need a follow-up GET /auth/me round-trip
+// before it can render. GET /auth/me remains available for API consumers.
 type RefreshResponse struct {
-	Access  string `json:"access"`
-	Refresh string `json:"refresh"`
+	Access  string  `json:"access"`
+	Refresh string  `json:"refresh"`
+	User    UserDTO `json:"user"`
 }
 
 type TOTPSetupResponse struct {

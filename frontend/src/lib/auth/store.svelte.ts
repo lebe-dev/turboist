@@ -56,6 +56,10 @@ export class AuthStore {
 	// Kept in memory only — never persisted to localStorage.
 	private otpTicket: string | null = null;
 
+	// User carried by the last successful POST /auth/refresh. Lets bootstrap skip
+	// the follow-up GET /auth/me; null when the server predates v1.15.
+	private refreshedUser: User | null = null;
+
 	readonly client: ApiClient;
 	private readonly clientKind: ClientKind;
 	private readonly tokenStore: RefreshTokenStore | null;
@@ -117,6 +121,15 @@ export class AuthStore {
 			return { setupRequired: setupNeeded, authenticated: false };
 		}
 
+		// The refresh response carries the user (since v1.15), so boot no longer
+		// spends a serial GET /auth/me round-trip before it can render.
+		if (this.refreshedUser) {
+			this.user = this.refreshedUser;
+			this.status = 'authenticated';
+			return { setupRequired: false, authenticated: true };
+		}
+
+		// Fallback for a new bundle against a not-yet-restarted older server.
 		try {
 			const me = await auth.me(this.client);
 			this.user = me.user;
@@ -157,6 +170,9 @@ export class AuthStore {
 		try {
 			const res = await auth.refresh(this.client, stored);
 			this.accessToken = res.access;
+			// Undefined when the server predates v1.15; bootstrap then falls back
+			// to GET /auth/me.
+			this.refreshedUser = res.user ?? null;
 			if (this.tokenStore && res.refresh) await this.tokenStore.set(res.refresh);
 			return 'ok';
 		} catch (err) {

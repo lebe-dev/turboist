@@ -1,5 +1,5 @@
 import type { ApiClient } from '../client';
-import type { Label, LabelInput, ListQuery, Page, Project, Task, TasksQuery } from '../types';
+import type { Label, LabelInput, ListQuery, Page, Task, TasksQuery } from '../types';
 
 export interface LabelsListQuery extends ListQuery {
 	q?: string;
@@ -28,9 +28,5 @@ export const labels = {
 
 	listTasks(client: ApiClient, id: number, query: TasksQuery = {}): Promise<Page<Task>> {
 		return client.fetch(`/api/v1/labels/${id}/tasks`, { query });
-	},
-
-	listProjects(client: ApiClient, id: number, query: ListQuery = {}): Promise<Page<Project>> {
-		return client.fetch(`/api/v1/labels/${id}/projects`, { query });
 	}
 };

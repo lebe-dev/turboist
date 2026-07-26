@@ -19,12 +19,6 @@ const EMPTY: UserSettings = {
 class SettingsStore {
 	value = $state<UserSettings>({ ...EMPTY });
 
-	async load(): Promise<UserSettings> {
-		const v = await settingsApi.get(getApiClient());
-		this.value = v;
-		return v;
-	}
-
 	setValue(v: UserSettings): void {
 		this.value = v;
 	}

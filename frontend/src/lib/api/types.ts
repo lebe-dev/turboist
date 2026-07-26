@@ -51,6 +51,13 @@ export interface AuthOTPLoginRequest {
 export interface AuthRefreshResponse {
 	access: string;
 	refresh: string;
+	/**
+	 * Present since v1.15 so boot does not need a follow-up `GET /auth/me`.
+	 * Optional on the type: a freshly-deployed bundle can still be talking to a
+	 * not-yet-restarted older server, and `AuthStore.bootstrap` falls back to
+	 * `/auth/me` when it is missing.
+	 */
+	user?: User;
 }
 
 export interface Label {
@@ -404,6 +411,13 @@ export interface ConfigResponse {
 	planStats: PlanStatsResponse;
 	inboxStats: { count: number; warnThresholdExceeded: boolean };
 	pinnedTasks: Task[];
+	harpoon: HarpoonState;
+	/**
+	 * A BARE array, unlike `GET /api/v1/task-templates` which returns a
+	 * `Page<TaskTemplate>` envelope. Mirrors `configResp.TaskTemplates` in
+	 * `internal/httpapi/handlers/meta.go` — do not reach for `.items` here.
+	 */
+	taskTemplates: TaskTemplate[];
 }
 
 export interface AutoLabelRule {

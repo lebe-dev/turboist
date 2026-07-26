@@ -297,3 +297,32 @@ func TestScope_Bundle_RequiresAllDomains(t *testing.T) {
 		t.Fatalf("full scope: got %d, want 200; body: %s", resp.StatusCode, body)
 	}
 }
+
+// /api/v1/config is the workspace bootstrap aggregate: it returns tasks,
+// projects, labels, contexts, templates and the troiki board. A lone
+// settings:read token used to be enough to read all of it.
+func TestScope_Config_RequiresEveryEmbeddedDomain(t *testing.T) {
+	e := setupAPIEnv(t)
+	const url = "/api/v1/config"
+
+	partial := issueAPIToken(t, e, "settings-only", []string{"settings:read"})
+	resp, body := runRequest(t, e.app, tokenReq(http.MethodGet, url, partial, nil))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("settings:read alone: got %d, want 403; body: %s", resp.StatusCode, body)
+	}
+
+	full := issueAPIToken(t, e, "config-reader", []string{
+		"settings:read", "tasks:read", "projects:read",
+		"labels:read", "contexts:read", "troiki:read", "templates:read",
+	})
+	resp, body = runRequest(t, e.app, tokenReq(http.MethodGet, url, full, nil))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("full scope set: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+
+	wildcard := issueAPIToken(t, e, "config-wildcard", []string{"*"})
+	resp, body = runRequest(t, e.app, tokenReq(http.MethodGet, url, wildcard, nil))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("wildcard token: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+}

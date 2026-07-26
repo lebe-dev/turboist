@@ -36,9 +36,10 @@ function createHarpoonStore() {
 			return { slot: other, direction: i === 0 ? 'down' : 'up' };
 		},
 
-		async load(): Promise<void> {
-			const state = await harpoonApi.get(getApiClient());
-			slots = state.slots;
+		// Hydrated from the /api/v1/config bootstrap aggregate rather than its own
+		// GET — the pair is two rows, never worth a round-trip of its own.
+		setSlots(next: HarpoonSlot[]): void {
+			slots = next;
 		},
 
 		async attach(kind: HarpoonKind, id: number): Promise<void> {

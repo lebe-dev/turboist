@@ -41,6 +41,25 @@ TOKEN="your-api-token-or-jwt"
 
 ---
 
+## Breaking changes
+
+### v1.15
+
+- **`GET /api/v1/stats/plan` is removed.** It returned `{week, backlog}`, a strict
+  subset of both `GET /api/v1/stats/sidebar` (as `planStats`) and
+  `GET /api/v1/config` (likewise). Use either of those.
+- **`GET /api/v1/config` requires more scopes.** It previously accepted a lone
+  `settings:read`, which let such a token read every task, project, label,
+  context, template and the Troiki board through the aggregate. It now requires
+  `settings:read` **and** `tasks:read`, `projects:read`, `labels:read`,
+  `contexts:read`, `troiki:read`, `templates:read`. `*` tokens and JWT sessions
+  are unaffected.
+- **`GET /api/v1/config` gained `harpoon` and `taskTemplates`** and now answers
+  `304` to a matching `If-None-Match`. Both are additive.
+- **`POST /auth/refresh` gained a `user` object.** Additive.
+
+---
+
 ## Conventions
 
 ### Timestamps
@@ -186,16 +205,15 @@ curl "$BASE/api/config"
 
 > Rate limited: 10 requests/minute per IP.
 
-### `GET /auth/setup-required`
+### Checking whether setup is needed
 
-Returns whether initial setup is needed.
-
-```json
-{ "required": true }
-```
+There is no dedicated endpoint. `SetupCheckMiddleware` sits in front of the whole
+`/api/v1` group, so any call to it on an un-set-up instance short-circuits with
+`503` and `{"error": {"code": "setup_required", ...}}` before authentication runs.
+The SPA probes `GET /api/v1/config` without credentials for exactly this.
 
 ```sh
-curl "$BASE/auth/setup-required"
+curl -i "$BASE/api/v1/config"
 ```
 
 ### `POST /auth/setup`
@@ -292,8 +310,15 @@ Exchange a refresh token for a new access token. Send either:
 
 **Response:**
 ```json
-{ "access": "<jwt>", "refresh": "<new-token>" }
+{
+  "access": "<jwt>",
+  "refresh": "<new-token>",
+  "user": { "id": 1, "username": "admin", "totpEnabled": false }
+}
 ```
+
+The `user` object lets a booting client skip a follow-up `GET /auth/me`; that
+endpoint remains available.
 
 Reusing an already-rotated refresh token revokes the session (theft detection).
 
@@ -494,7 +519,7 @@ The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tok
 
 | Scope | Description |
 |-------|-------------|
-| `tasks:read` | Read tasks: get by id, all task views (`today`, `tomorrow`, `overdue`, `week`, `backlog`, `pinned`, `completed`), subtasks list, `stats/plan`, inbox list, tasks listed under a context / project / section / label |
+| `tasks:read` | Read tasks: get by id, all task views (`today`, `tomorrow`, `overdue`, `week`, `backlog`, `pinned`, `completed`), subtasks list, `stats/sidebar`, `stats/week-summary`, inbox list, tasks listed under a context / project / section / label |
 | `tasks:write` | Create, update, delete tasks; complete / uncomplete / cancel; pin / unpin; move; plan; decompose; duplicate; bulk operations (`bulk/complete`, `bulk/move`, `bulk/priority`); `tasks/group`; create tasks in inbox / context / project / section |
 | `projects:read` | Read projects: list, get by id, list tasks/sections of a project, list projects in a context or by label |
 | `projects:write` | Create, update, delete projects; complete / uncomplete / cancel / archive / unarchive; pin / unpin; assign or clear Troiki category |
@@ -548,7 +573,6 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/tasks/backlog` | `tasks:read` |
 | `GET /api/v1/tasks/pinned` | `tasks:read` |
 | `GET /api/v1/tasks/completed` | `tasks:read` |
-| `GET /api/v1/stats/plan` | `tasks:read` |
 | `GET /api/v1/stats/week-summary` | `tasks:read` |
 | `POST /api/v1/tasks/bulk/complete` | `tasks:write` |
 | `POST /api/v1/tasks/bulk/move` | `tasks:write` |
@@ -646,7 +670,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 |----------|-------|
 | `GET /api/v1/settings` | `settings:read` |
 | `PATCH /api/v1/settings` | `settings:write` |
-| `GET /api/v1/config` | `settings:read` |
+| `GET /api/v1/config` | `settings:read` **and** `tasks:read`, `projects:read`, `labels:read`, `contexts:read`, `troiki:read`, `templates:read` (see below) |
 | `GET /api/v1/state` | `settings:read` |
 | `PATCH /api/v1/state` | `settings:write` |
 | `GET /api/v1/harpoon` | `settings:read` |
@@ -663,7 +687,10 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 
 | Endpoint | Scope |
 |----------|-------|
-| `GET /api/v1/calendars` and subroutes | `calendars:read` |
+| `GET /api/v1/calendars` | `calendars:read` |
+| `GET /api/v1/calendars/events` | `calendars:read` |
+| `GET /api/v1/calendars/google/start` | `calendars:read` |
+| other `/api/v1/calendars` subroutes | `calendars:read` |
 
 #### JWT-only endpoints (no API-token access)
 
@@ -1113,25 +1140,15 @@ curl "$BASE/api/v1/tasks/completed?days=7" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### `GET /api/v1/stats/plan`
-
-```json
-{ "week": 8, "backlog": 14 }
-```
-
-```sh
-curl "$BASE/api/v1/stats/plan" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
 ### `GET /api/v1/stats/sidebar`
 
 Bundles every aggregate the app shell shows in the sidebar — plan counters, the
 inbox badge and the pinned list — in one round-trip. A client that just mutated
 its own data refetches this once (its own SSE echo is suppressed — see
 _Real-time invalidation_ in [docs/architecture/backend.md](docs/architecture/backend.md))
-instead of issuing the three separate `stats/plan` + `inbox` + `tasks/pinned`
-requests.
+instead of issuing separate per-aggregate requests. The plan counters it carries
+are also embedded in `GET /api/v1/config`; there is no standalone plan-counter
+endpoint (see [Breaking changes](#breaking-changes)).
 
 ```json
 {
@@ -1954,6 +1971,57 @@ curl -X POST "$BASE/api/v1/inbox/tasks" \
 
 ---
 
+## Calendars
+
+Read-only Google Calendar integration. Events are fetched live from Google and
+cached in-memory server-side (default 10 min, `CALENDAR_CACHE_TTL`); they are
+never stored in the database. See [docs/google-calendar.md](docs/google-calendar.md).
+
+### `GET /api/v1/calendars`
+
+Integration status, connected accounts and calendar sources.
+
+```json
+{
+  "enabled": true,
+  "googleConfigured": true,
+  "googleClientIdConfigured": true,
+  "googleClientSecretConfigured": true,
+  "accounts": [],
+  "sources": []
+}
+```
+
+### `GET /api/v1/calendars/events`
+
+Events in a time range. Both `start` and `end` are **required** (ISO-8601 UTC),
+`end` must be after `start`, and the range may not exceed **92 days**. Returns an
+empty list when the integration is disabled or unconfigured. When the stored
+Google credentials have expired the call fails with `calendar_reauth_required`.
+
+```sh
+curl "$BASE/api/v1/calendars/events?start=2026-07-01T00:00:00.000Z&end=2026-07-08T00:00:00.000Z" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### `GET /api/v1/calendars/google/start`
+
+Returns `{ "url": "..." }`, the Google OAuth authorize URL. **Has a side effect:**
+it persists an OAuth state row.
+
+### `GET /api/v1/calendars/google/callback`
+
+Public OAuth redirect target. Accepts `code`, `state`, `error`; responds with a
+302 back to the settings page. Not called directly by clients.
+
+### Mutations *(JWT only)*
+
+`PATCH /api/v1/calendars/settings`, `PATCH|DELETE /api/v1/calendars/google/config`,
+`POST /api/v1/calendars/google/sync`, `PATCH /api/v1/calendars/sources/:id`,
+`DELETE /api/v1/calendars/accounts/:id`.
+
+---
+
 ## Search
 
 ### `GET /api/v1/search`
@@ -2040,7 +2108,21 @@ curl -X POST "$BASE/api/v1/troiki/reset" \
 
 ### `GET /api/v1/config`
 
-Server configuration.
+**The workspace bootstrap aggregate.** Beyond the static server configuration it
+embeds the caller's contexts, projects, labels, settings, app settings, UI state,
+the Troiki view, the sidebar counters, the pinned tasks, the harpoon pair and the
+task templates — everything the SPA needs to render, in one round-trip. The SPA
+also refetches it as its single steady-state refresh (see
+[Conditional requests](#conditional-requests) below).
+
+**Scopes.** Because the payload spans every read domain, an API token must hold
+**all** of `settings:read`, `tasks:read`, `projects:read`, `labels:read`,
+`contexts:read`, `troiki:read` and `templates:read`. A `*` token qualifies. JWT
+sessions bypass scope checks entirely.
+
+`contexts`, `projects` and `labels` are capped at **500** rows each. Note that
+`taskTemplates` is a **bare array**, not the paged envelope
+`GET /api/v1/task-templates` returns.
 
 ```json
 {
@@ -2057,9 +2139,23 @@ Server configuration.
     "afternoon": { "start": 12, "end": 18 },
     "evening": { "start": 18, "end": 23 }
   },
-  "autoLabels": [
-    { "mask": "*bug*", "label": "bug", "ignoreCase": true }
-  ]
+  "totpAvailable": true,
+
+  "contexts": [ { "id": 1, "name": "Work", "...": "..." } ],
+  "projects": [ { "id": 2, "title": "Inbox", "...": "..." } ],
+  "labels":   [ { "id": 3, "name": "bug", "...": "..." } ],
+  "settings":    { "locale": "en", "...": "..." },
+  "appSettings": { "autoLabels": [], "projectSuggestions": [] },
+  "userState":   { "activeContextId": null },
+  "troiki":      { "important": { "capacity": 3, "projects": [] },
+                   "medium": { "capacity": 3, "projects": [] },
+                   "rest": { "capacity": 3, "projects": [] },
+                   "started": false },
+  "planStats":  { "week": 4, "backlog": 11 },
+  "inboxStats": { "count": 2, "warnThresholdExceeded": false },
+  "pinnedTasks": [],
+  "harpoon": { "slots": [] },
+  "taskTemplates": []
 }
 ```
 
@@ -2067,6 +2163,21 @@ Server configuration.
 curl "$BASE/api/v1/config" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+#### Conditional requests
+
+The response carries a strong `ETag` over the body bytes. Send it back as
+`If-None-Match` and an unchanged workspace answers `304 Not Modified` with an
+empty body — useful for clients that poll or that refetch on reconnect.
+
+```sh
+curl -i "$BASE/api/v1/config" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'If-None-Match: "6f1c..."'
+```
+
+The ETag is derived from the serialized payload, so it changes whenever any
+embedded section does.
 
 ---
 
@@ -2171,7 +2282,7 @@ curl -X PATCH "$BASE/api/v1/settings" \
 
 Global, server-wide rules (single-row `app_settings` table). Reads require the
 `settings:read` scope, writes `settings:write`. The same payload is embedded as
-`appSettings` in `GET /api/v1/meta`.
+`appSettings` in `GET /api/v1/config`.
 
 - **Auto-labels** — when a task title contains `mask`, the listed labels are
   attached automatically on create / title change.

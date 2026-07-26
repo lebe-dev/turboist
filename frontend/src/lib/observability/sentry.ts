@@ -10,7 +10,7 @@ interface RuntimeConfig {
 	};
 }
 
-let initialized = false;
+let initPromise: Promise<void> | null = null;
 
 /**
  * Initialise Sentry from runtime configuration served by the backend.
@@ -20,15 +20,31 @@ let initialized = false;
  * across deploys (and so Sentry can be toggled without rebuilding the SPA). A
  * blank DSN — or an unreachable config endpoint — leaves Sentry disabled; that
  * is non-fatal, telemetry is best-effort and must never block the app.
+ *
+ * Singleflight, not a boolean guard: `hooks.client.ts` fires this without
+ * awaiting it and the root `+layout.svelte` awaits it moments later, so a flag
+ * set at the *end* of the body cannot latch in time — both callers would fetch
+ * `/api/config`. Sharing the in-flight promise collapses them into one request,
+ * and keeping it after it settles means a blank DSN (which returns before
+ * `Sentry.init`) never refetches on a later call either.
  */
-export async function initSentry(): Promise<void> {
-	if (initialized) return;
-
+export function initSentry(): Promise<void> {
 	// Native: nothing to fetch until the server URL is entered on first launch.
-	// +layout.svelte re-calls initSentry() once the URL is known. Web keeps the
-	// same-origin path ('' + '/api/config').
-	if (isNativePlatform() && !getServerUrl()) return;
+	// +layout.svelte re-calls initSentry() once the URL is known, so this path
+	// must NOT latch the promise. Web keeps the same-origin path ('' + '/api/config').
+	if (isNativePlatform() && !getServerUrl()) return Promise.resolve();
 
+	// The cached promise must never reject: a rejection would be replayed to
+	// every later caller (notably the native retry after onConnect) and, since
+	// +layout.svelte awaits this during boot, would take the app down over
+	// best-effort telemetry.
+	initPromise ??= doInit().catch((err) => {
+		console.warn('Sentry initialisation failed; running without error reporting', err);
+	});
+	return initPromise;
+}
+
+async function doInit(): Promise<void> {
 	let config: RuntimeConfig;
 	try {
 		const res = await fetch(`${getServerUrl()}/api/config`, { headers: { accept: 'application/json' } });
@@ -70,5 +86,4 @@ export async function initSentry(): Promise<void> {
 			return event;
 		}
 	});
-	initialized = true;
 }
