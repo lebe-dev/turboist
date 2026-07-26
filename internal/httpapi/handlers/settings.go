@@ -35,6 +35,7 @@ type settingsResp struct {
 	PublicView                      bool    `json:"publicView"`
 	BannerText                      string  `json:"bannerText"`
 	BannerPublished                 bool    `json:"bannerPublished"`
+	BannerDayPart                   string  `json:"bannerDayPart"`
 	CalendarEnabled                 bool    `json:"calendarEnabled"`
 	CalendarHidePastEvents          bool    `json:"calendarHidePastEvents"`
 	TroikiEnabled                   bool    `json:"troikiEnabled"`
@@ -47,6 +48,7 @@ type settingsPatchReq struct {
 	PublicView                      *bool    `json:"publicView"`
 	BannerText                      *string  `json:"bannerText"`
 	BannerPublished                 *bool    `json:"bannerPublished"`
+	BannerDayPart                   *string  `json:"bannerDayPart"`
 	CalendarEnabled                 *bool    `json:"calendarEnabled"`
 	CalendarHidePastEvents          *bool    `json:"calendarHidePastEvents"`
 	TroikiEnabled                   *bool    `json:"troikiEnabled"`
@@ -58,6 +60,16 @@ var supportedLocales = map[string]struct{}{
 	"":   {},
 	"en": {},
 	"ru": {},
+}
+
+// bannerDayParts is the whitelist accepted for bannerDayPart. Empty string means
+// "all day"; model.DayPartNone is deliberately excluded — a banner is either
+// unrestricted or bound to one of the three real phases.
+var bannerDayParts = map[string]struct{}{
+	"":                             {},
+	string(model.DayPartMorning):   {},
+	string(model.DayPartAfternoon): {},
+	string(model.DayPartEvening):   {},
 }
 
 func toResp(s *model.UserSettings) settingsResp {
@@ -76,6 +88,7 @@ func toResp(s *model.UserSettings) settingsResp {
 		PublicView:                      s.PublicView,
 		BannerText:                      s.BannerText,
 		BannerPublished:                 s.BannerPublished,
+		BannerDayPart:                   string(s.BannerDayPart),
 		CalendarEnabled:                 s.CalendarEnabled,
 		CalendarHidePastEvents:          s.CalendarHidePastEvents,
 		TroikiEnabled:                   s.TroikiEnabled,
@@ -111,6 +124,12 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 			return httpapi.ErrValidation("unsupported locale")
 		}
 	}
+	if req.BannerDayPart != nil {
+		if _, ok := bannerDayParts[*req.BannerDayPart]; !ok {
+			logValidation(c, opSettingsPatch, "unsupported banner day part", slog.String("day_part", *req.BannerDayPart))
+			return httpapi.ErrValidation("unsupported banner day part")
+		}
+	}
 	current, err := h.users.GetSettings(c.Context(), userID)
 	if err != nil {
 		return httpapi.ErrInternal("load settings").WithCause(err)
@@ -132,6 +151,9 @@ func (h *SettingsHandler) patch(c fiber.Ctx) error {
 	}
 	if req.BannerPublished != nil {
 		current.BannerPublished = *req.BannerPublished
+	}
+	if req.BannerDayPart != nil {
+		current.BannerDayPart = model.DayPart(*req.BannerDayPart)
 	}
 	if req.CalendarEnabled != nil {
 		current.CalendarEnabled = *req.CalendarEnabled

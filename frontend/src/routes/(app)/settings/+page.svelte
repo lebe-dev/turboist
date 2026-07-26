@@ -24,7 +24,9 @@
 	import { configStore } from '$lib/stores/config.svelte';
 	import { isLabelVisible } from '$lib/utils/visibility';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
-	import type { AutoLabelRule } from '$lib/api/types';
+	import type { AutoLabelRule, BannerDayPart } from '$lib/api/types';
+	import { BANNER_DAY_PART_OPTIONS } from '$lib/utils/banner';
+	import { iconFor as dayPartIcon } from '$lib/components/view/dayPartIcon';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
@@ -182,6 +184,19 @@
 	async function setBannerPublished(v: boolean): Promise<void> {
 		try {
 			await settingsStore.setBannerPublished(v);
+			toast.success($t('settings.banner.toastSaved'));
+		} catch (err) {
+			const message = err instanceof Error ? err.message : $t('settings.banner.toastFailed');
+			toast.error(message);
+		}
+	}
+
+	const bannerDayPart = $derived(settingsStore.bannerDayPart);
+
+	async function setBannerDayPart(part: BannerDayPart): Promise<void> {
+		if (part === settingsStore.bannerDayPart) return;
+		try {
+			await settingsStore.setBannerDayPart(part);
 			toast.success($t('settings.banner.toastSaved'));
 		} catch (err) {
 			const message = err instanceof Error ? err.message : $t('settings.banner.toastFailed');
@@ -378,6 +393,30 @@
 						class="resize-y rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					></textarea>
 				</label>
+				<div class="flex flex-col gap-1.5">
+					<span class="text-xs font-medium text-muted-foreground">{$t('settings.banner.dayPart.label')}</span>
+					<div
+						class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
+						role="radiogroup"
+						aria-label={$t('settings.banner.dayPart.label')}
+					>
+						{#each BANNER_DAY_PART_OPTIONS as option (option.value)}
+							{@const Icon = dayPartIcon(option.value === '' ? 'none' : option.value)}
+							{@const active = bannerDayPart === option.value}
+							<button
+								type="button"
+								role="radio"
+								aria-checked={active}
+								onclick={() => setBannerDayPart(option.value)}
+								class="flex items-center gap-2 rounded-md border p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 {active ? 'border-foreground/30 bg-muted' : 'border-border'}"
+							>
+								<Icon class="size-4 shrink-0" weight={active ? 'fill' : 'regular'} />
+								<span class="truncate text-sm font-medium">{$t(option.labelKey)}</span>
+							</button>
+						{/each}
+					</div>
+					<p class="text-xs text-muted-foreground">{$t('settings.banner.dayPart.hint')}</p>
+				</div>
 			</section>
 
 			<section class="flex flex-col gap-2 rounded-lg border border-border bg-card px-5 py-4 shadow-sm">

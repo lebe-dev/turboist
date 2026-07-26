@@ -2120,7 +2120,8 @@ curl -X PATCH "$BASE/api/v1/state" \
   "locale": "en",
   "publicView": false,
   "bannerText": "",
-  "bannerPublished": false
+  "bannerPublished": false,
+  "bannerDayPart": ""
 }
 ```
 
@@ -2133,6 +2134,11 @@ curl "$BASE/api/v1/settings" \
 
 All fields optional. `locale` must be `"en"`, `"ru"`, or `""` (client decides).
 
+`bannerDayPart` scopes the Today banner to a single day phase — `"morning"`,
+`"afternoon"`, `"evening"`, or `""` for all day (the default). When a phase is
+set, the banner is shown only while that phase is active: it stays hidden until
+the phase begins and disappears once it is over. `"none"` is rejected.
+
 ```json
 {
   "weeklyUnplannedExcludedLabelIds": [3, 7],
@@ -2140,7 +2146,8 @@ All fields optional. `locale` must be `"en"`, `"ru"`, or `""` (client decides).
   "locale": "ru",
   "publicView": false,
   "bannerText": "Under maintenance",
-  "bannerPublished": true
+  "bannerPublished": true,
+  "bannerDayPart": "morning"
 }
 ```
 

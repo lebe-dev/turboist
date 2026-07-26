@@ -476,3 +476,101 @@ func TestSettingsHandler_PatchClear(t *testing.T) {
 		t.Fatalf("weeklyUnplannedExcludedLabelIds: got %v, want []", ids)
 	}
 }
+
+func TestSettingsHandler_PatchBannerDayPart(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bannerDayPart": "afternoon",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	part, ok := body["bannerDayPart"].(string)
+	if !ok {
+		t.Fatalf("bannerDayPart: missing or wrong type: %T", body["bannerDayPart"])
+	}
+	if part != "afternoon" {
+		t.Errorf("bannerDayPart: got %q, want %q", part, "afternoon")
+	}
+}
+
+func TestSettingsHandler_PatchBannerDayPartAllDay(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	if _, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bannerDayPart": "evening",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+		"bannerDayPart": "",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp2, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	part, _ := body["bannerDayPart"].(string)
+	if part != "" {
+		t.Errorf("bannerDayPart: got %q, want \"\"", part)
+	}
+}
+
+func TestSettingsHandler_PatchBannerDayPartInvalid(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	for _, part := range []string{"none", "night", "Morning"} {
+		resp, err := env.app.Test(env.authedReq(t, http.MethodPatch, "/api/v1/settings", map[string]any{
+			"bannerDayPart": part,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%q: status: got %d, want %d", part, resp.StatusCode, http.StatusBadRequest)
+		}
+	}
+}
+
+func TestSettingsHandler_GetDefaultBannerDayPart(t *testing.T) {
+	env := setupAPIEnv(t)
+
+	resp, err := env.app.Test(env.authedReq(t, http.MethodGet, "/api/v1/settings", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	part, ok := body["bannerDayPart"].(string)
+	if !ok {
+		t.Fatalf("bannerDayPart: missing or wrong type: %T", body["bannerDayPart"])
+	}
+	if part != "" {
+		t.Errorf("bannerDayPart: got %q, want \"\"", part)
+	}
+}

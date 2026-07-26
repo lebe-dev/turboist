@@ -1,6 +1,6 @@
 import { settings as settingsApi } from '../api/endpoints/settings';
 import { getApiClient } from '../api/client';
-import type { UserSettings } from '../api/types';
+import type { BannerDayPart, UserSettings } from '../api/types';
 import { setLocale, type SupportedLocale } from '../i18n';
 
 const EMPTY: UserSettings = {
@@ -10,6 +10,7 @@ const EMPTY: UserSettings = {
 	publicView: false,
 	bannerText: '',
 	bannerPublished: false,
+	bannerDayPart: '',
 	calendarEnabled: false,
 	calendarHidePastEvents: true,
 	troikiEnabled: false
@@ -50,6 +51,10 @@ class SettingsStore {
 
 	get bannerPublished(): boolean {
 		return this.value.bannerPublished ?? false;
+	}
+
+	get bannerDayPart(): BannerDayPart {
+		return this.value.bannerDayPart ?? '';
 	}
 
 	get calendarEnabled(): boolean {
@@ -93,6 +98,11 @@ class SettingsStore {
 	async setBannerPublished(v: boolean): Promise<void> {
 		this.value = { ...this.value, bannerPublished: v };
 		await settingsApi.patch(getApiClient(), { bannerPublished: v });
+	}
+
+	async setBannerDayPart(part: BannerDayPart): Promise<void> {
+		this.value = { ...this.value, bannerDayPart: part };
+		await settingsApi.patch(getApiClient(), { bannerDayPart: part });
 	}
 
 	async setCalendarEnabled(v: boolean): Promise<void> {

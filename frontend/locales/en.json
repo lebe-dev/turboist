@@ -289,7 +289,15 @@
 			"textPlaceholder": "Type the announcement…",
 			"publishLabel": "Show",
 			"toastSaved": "Banner updated",
-			"toastFailed": "Failed to update banner"
+			"toastFailed": "Failed to update banner",
+			"dayPart": {
+				"label": "Show during",
+				"allDay": "All day",
+				"morning": "Morning phase",
+				"afternoon": "Afternoon phase",
+				"evening": "Evening phase",
+				"hint": "Pick a day phase to limit the banner to it — it stays hidden until that phase becomes active and disappears once it is over."
+			}
 		},
 		"api": {
 			"heading": "API tokens",

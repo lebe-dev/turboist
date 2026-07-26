@@ -5,6 +5,8 @@ export type TaskStatus = 'open' | 'completed' | 'cancelled';
 export type ProjectStatus = 'open' | 'completed' | 'archived' | 'cancelled';
 export type ProjectType = 'generic' | 'software';
 export type DayPart = 'none' | 'morning' | 'afternoon' | 'evening';
+// BannerDayPart scopes the Today banner to one day phase; '' means all day.
+export type BannerDayPart = '' | 'morning' | 'afternoon' | 'evening';
 export type PlanState = 'none' | 'week' | 'backlog';
 export type ClientKind = 'web' | 'ios' | 'android' | 'cli';
 export type TroikiCategory = 'important' | 'medium' | 'rest';
@@ -253,6 +255,7 @@ export interface UserSettings {
 	publicView: boolean;
 	bannerText: string;
 	bannerPublished: boolean;
+	bannerDayPart: BannerDayPart;
 	calendarEnabled: boolean;
 	calendarHidePastEvents: boolean;
 	troikiEnabled: boolean;

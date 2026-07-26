@@ -24,9 +24,16 @@ type UserSettings struct {
 	PublicView                      bool    `json:"publicView"`
 	BannerText                      string  `json:"bannerText"`
 	BannerPublished                 bool    `json:"bannerPublished"`
-	CalendarEnabled                 bool    `json:"calendarEnabled"`
-	CalendarHidePastEvents          bool    `json:"calendarHidePastEvents"`
-	TroikiEnabled                   bool    `json:"troikiEnabled"`
+
+	// BannerDayPart narrows the Today banner to a single day phase. Empty means
+	// "all day" (no restriction); otherwise the banner is shown only while that
+	// phase is active — it stays hidden until the phase begins and disappears
+	// once it is over. DayPartNone is not a valid value here.
+	BannerDayPart DayPart `json:"bannerDayPart"`
+
+	CalendarEnabled        bool `json:"calendarEnabled"`
+	CalendarHidePastEvents bool `json:"calendarHidePastEvents"`
+	TroikiEnabled          bool `json:"troikiEnabled"`
 
 	// Harpoon is the ordered "jump pair": at most two references the user can
 	// quickly hop between. Order is significant — slot 0 is the first member,

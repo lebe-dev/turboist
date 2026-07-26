@@ -2,15 +2,44 @@
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import MegaphoneIcon from 'phosphor-svelte/lib/Megaphone';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { configStore } from '$lib/stores/config.svelte';
+	import { isBannerVisible } from '$lib/utils/banner';
+	import { activeDayPart } from '$lib/utils/viewGroup';
 
 	const text = $derived(settingsStore.bannerText);
-	const visible = $derived(settingsStore.bannerPublished && text.trim() !== '');
 
-	// On page load the banner shimmers with a flowing gradient for 5s,
-	// then settles into its normal static appearance.
+	// A phase-scoped banner has to appear on its own, without a navigation or an
+	// SSE refetch: re-read the clock every minute so the phase boundary lands.
+	let now = $state(new Date());
+
+	$effect(() => {
+		if (settingsStore.bannerDayPart === '') return;
+		const timer = window.setInterval(() => {
+			now = new Date();
+		}, 60_000);
+		return () => window.clearInterval(timer);
+	});
+
+	const activePart = $derived(
+		activeDayPart(now, configStore.value?.dayParts, configStore.value?.timezone ?? null)
+	);
+	const visible = $derived(
+		isBannerVisible({
+			published: settingsStore.bannerPublished,
+			text,
+			dayPart: settingsStore.bannerDayPart,
+			activePart
+		})
+	);
+
+	// The banner shimmers with a flowing gradient for 5s whenever it shows up —
+	// on page load, or later when its day phase becomes active — then settles
+	// into its normal static appearance.
 	let shimmering = $state(true);
 
 	$effect(() => {
+		if (!visible) return;
+		shimmering = true;
 		const timer = setTimeout(() => {
 			shimmering = false;
 		}, 5000);
