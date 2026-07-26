@@ -20,6 +20,7 @@
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { soundStore } from '$lib/stores/sound.svelte';
 	import { calendarReauthStore } from '$lib/stores/calendarReauth.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { isLabelVisible } from '$lib/utils/visibility';
@@ -106,6 +107,13 @@
 
 	function onBugLabelsChange(next: number[]): void {
 		settingsStore.setBugLabelIds(next).catch(console.error);
+	}
+
+	function setSoundEnabled(v: boolean): void {
+		soundStore.setEnabled(v);
+		// Turning it on inside a click handler is also the gesture iOS needs to allow
+		// audio at all, so the preview doubles as unlocking the AudioContext.
+		if (v) soundStore.playTaskStatus(true);
 	}
 
 	async function setPublicView(v: boolean): Promise<void> {
@@ -351,6 +359,19 @@
 							{/if}
 						</button>
 					{/each}
+				</div>
+			</section>
+			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+				<div class="flex items-start justify-between gap-3">
+					<div class="flex flex-col gap-0.5">
+						<h2 class="text-sm font-semibold">{$t('settings.sound.heading')}</h2>
+						<p class="text-xs text-muted-foreground">{$t('settings.sound.description')}</p>
+					</div>
+					<Switch
+						checked={soundStore.enabled}
+						onCheckedChange={setSoundEnabled}
+						aria-label={$t('settings.sound.toggle')}
+					/>
 				</div>
 			</section>
 			<section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">

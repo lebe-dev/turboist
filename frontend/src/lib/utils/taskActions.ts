@@ -6,6 +6,7 @@ import { refreshSidebarBundle } from '$lib/realtime/refresh';
 import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 import { followUpStore } from '$lib/stores/followUp.svelte';
 import { configStore } from '$lib/stores/config.svelte';
+import { soundStore } from '$lib/stores/sound.svelte';
 import { isOverdue, dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
 import { nowStore } from '$lib/stores/now.svelte';
 import { toast } from 'svelte-sonner';
@@ -93,6 +94,7 @@ export async function toggleComplete(
 		const updated = wasOpen
 			? await tasksApi.complete(client, task.id, completedAt)
 			: await tasksApi.uncomplete(client, task.id);
+		soundStore.playTaskStatus(updated.status === 'completed');
 		if (updated.status === 'completed' && removeWhenCompleted) mutator.remove(task.id);
 		else if (updated.status !== 'completed' && belongs && !belongs(updated)) mutator.remove(task.id);
 		else mutator.replace(updated);
@@ -100,6 +102,7 @@ export async function toggleComplete(
 		if (wasOpen && updated.status === 'completed' && !updated.recurrenceRule) {
 			const undoFn = async () => {
 				const restored = await tasksApi.uncomplete(client, task.id);
+				soundStore.playTaskStatus(false);
 				if (removeWhenCompleted) {
 					if (mutator.add) mutator.add(restored);
 					else mutator.replace(restored);

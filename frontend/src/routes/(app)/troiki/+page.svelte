@@ -17,6 +17,7 @@
 	import type { Task, TaskInput, TroikiCategory, TroikiProject, TroikiSlot } from '$lib/api/types';
 	import { troikiStore } from '$lib/stores/troiki.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { soundStore } from '$lib/stores/sound.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import CompletedTasksGroup from '$lib/components/project/CompletedTasksGroup.svelte';
@@ -102,6 +103,7 @@
 			const updated = wasOpen
 				? await tasksApi.complete(client, task.id)
 				: await tasksApi.uncomplete(client, task.id);
+			soundStore.playTaskStatus(updated.status === 'completed');
 			// Completing a task can grow Medium/Rest capacity; refetch to get fresh slots.
 			if (updated.status === 'completed' || task.status === 'completed') {
 				await troikiStore.load();
@@ -111,6 +113,7 @@
 			if (wasOpen && updated.status === 'completed' && !updated.recurrenceRule) {
 				followUpStore.push(updated, async () => {
 					await tasksApi.uncomplete(client, task.id);
+					soundStore.playTaskStatus(false);
 					await troikiStore.load();
 				});
 			}
