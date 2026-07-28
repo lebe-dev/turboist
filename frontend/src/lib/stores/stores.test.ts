@@ -204,6 +204,25 @@ describe('troikiStore', () => {
 		expect(troikiStore.value.important.projects[0].tasks).toEqual([updated]);
 	});
 
+	// Appending the updated row instead of swapping it in place made every edit on
+	// the Troiki page (day part, due date, …) jump the task to the bottom of its
+	// project card, where it stayed until a full refetch.
+	it('applyTaskUpdate keeps the task at its position within the project', () => {
+		const first = makeTask(1, 10);
+		const second = makeTask(2, 10);
+		const third = makeTask(3, 10);
+		hydrate({
+			important: {
+				capacity: 3,
+				projects: [makeTroikiProject(10, 'important', [first, second, third])]
+			}
+		});
+		troikiStore.applyTaskUpdate(makeTask(1, 10, { dayPart: 'morning' }));
+		const tasks = troikiStore.value.important.projects[0].tasks;
+		expect(tasks.map((x) => x.id)).toEqual([1, 2, 3]);
+		expect(tasks[0].dayPart).toBe('morning');
+	});
+
 	it('applyTaskUpdate moves a task between projects across slots', () => {
 		const t = makeTask(1, 10);
 		hydrate({

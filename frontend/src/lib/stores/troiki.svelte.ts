@@ -31,6 +31,26 @@ function slotOf(v: TroikiViewResponse, cat: TroikiCategory): TroikiSlot {
 	return v[cat];
 }
 
+// replaceTaskInPlace swaps a task inside the project that already holds it,
+// preserving its index. Returns false when no slot holds that project, or when the
+// project is there but does not hold the task yet (it moved projects) — the caller
+// then falls back to remove-and-insert.
+function replaceTaskInPlace(v: TroikiViewResponse, task: Task): boolean {
+	for (const cat of CATEGORIES) {
+		const slot = slotOf(v, cat);
+		const projectIdx = slot.projects.findIndex((p) => p.id === task.projectId);
+		if (projectIdx === -1) continue;
+		const target = slot.projects[projectIdx];
+		const taskIdx = target.tasks.findIndex((t) => t.id === task.id);
+		if (taskIdx === -1) return false;
+		const tasks = target.tasks.slice();
+		tasks[taskIdx] = task;
+		slot.projects = slot.projects.map((p, i) => (i === projectIdx ? { ...target, tasks } : p));
+		return true;
+	}
+	return false;
+}
+
 class TroikiStore {
 	value = $state<TroikiViewResponse>(EMPTY);
 
@@ -88,6 +108,15 @@ class TroikiStore {
 	applyTaskUpdate(task: Task): void {
 		++this.epoch;
 		const next = clone(this.value);
+		// Same project as before: swap the row where it already sits, so the list keeps
+		// the ordering the server gave it. The move path below removes and re-appends,
+		// which on a plain field edit (day part, due date, …) would shove the row to the
+		// bottom of its project card — reading as "the task disappeared" — and leave it
+		// there, because this tab's own mutation raises no SSE invalidation to refetch.
+		if (task.projectId !== null && replaceTaskInPlace(next, task)) {
+			this.value = next;
+			return;
+		}
 		for (const cat of CATEGORIES) {
 			const slot = slotOf(next, cat);
 			slot.projects = slot.projects.map((p) => ({
