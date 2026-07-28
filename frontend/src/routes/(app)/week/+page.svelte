@@ -19,7 +19,7 @@
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import CompletedThisWeekFooter from '$lib/components/view/CompletedThisWeekFooter.svelte';
 	import { groupTreeByDay } from '$lib/utils/viewGroup';
-	import { buildTree, flattenTree } from '$lib/utils/taskTree';
+	import { buildTree, flattenTree, matchesSelfOrAncestor } from '$lib/utils/taskTree';
 	import { calendarEventsOrEmpty, groupCalendarEventsByDay, isPastCalendarEvent } from '$lib/utils/calendar';
 	import {
 		dayKeyInTz,
@@ -145,8 +145,16 @@
 		return key >= weekRange.startKey && key < weekRange.endKey;
 	}
 
-	function belongs(t: Task): boolean {
+	function isWeekMember(t: Task): boolean {
 		return t.planState === 'week' || dueInWeek(t);
+	}
+
+	// The week payload also carries the whole open subtree of every matched task
+	// (see repo.ListWeek), so a subtask is legitimately here without any week
+	// membership of its own. Judging it by `isWeekMember` alone would drop the row
+	// on any in-place edit — changing its day part, for one.
+	function belongs(t: Task): boolean {
+		return matchesSelfOrAncestor(t, list.items, isWeekMember);
 	}
 
 	const loader = usePageLoad(async (isValid) => {

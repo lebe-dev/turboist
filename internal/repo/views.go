@@ -265,6 +265,13 @@ func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter Ta
 			items[i].Labels = hydrated[items[i].ID]
 		}
 	}
+	// The week view builds its own query instead of going through
+	// listWithBaseArgsOrdered, so it has to repeat that funnel's relation
+	// hydration — without it a blocked task would render a clickable checkbox
+	// here and only fail on the server with 409 task_blocked.
+	if err := r.hydrateRelationSummaries(ctx, items, ids); err != nil {
+		return nil, 0, err
+	}
 
 	plannedBase := "FROM tasks t WHERE t.status = 'open' AND t.plan_state = 'week'"
 	var total int

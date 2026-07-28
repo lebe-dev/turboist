@@ -51,6 +51,30 @@ export function splitByRootCompletion(items: Task[]): { open: Task[]; done: Task
 	return { open, done };
 }
 
+/**
+ * Whether `task` itself or any of its ancestors present in `items` satisfies
+ * `pred`. Views that pull in a matched task's whole subtree (the week view) use
+ * it as their `belongs` predicate: a subtask is in the list on its parent's
+ * behalf, so judging it on its own membership would evict it on the first edit.
+ * An ancestor missing from `items` ends the walk — a partial fetch never
+ * promotes a task to belonging.
+ */
+export function matchesSelfOrAncestor(
+	task: Task,
+	items: Task[],
+	pred: (t: Task) => boolean
+): boolean {
+	const byId = new Map(items.map((t) => [t.id, t] as const));
+	const seen = new Set<number>();
+	let current: Task | undefined = task;
+	while (current && !seen.has(current.id)) {
+		seen.add(current.id);
+		if (pred(current)) return true;
+		current = current.parentId !== null ? byId.get(current.parentId) : undefined;
+	}
+	return false;
+}
+
 export function flattenTree(nodes: TaskNode[]): Task[] {
 	const out: Task[] = [];
 	const walk = (list: TaskNode[]) => {

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configStore } from '$lib/stores/config.svelte';
 import { settingsStore } from '$lib/stores/settings.svelte';
+import { nowStore } from '$lib/stores/now.svelte';
 import type {
 	Label,
 	LabelStatsItem,
@@ -164,12 +165,15 @@ describe('Labels stats page', () => {
 	});
 
 	it('separates labels with no activity in the period and dates their last use', async () => {
-		vi.setSystemTime(new Date('2026-07-26T12:00:00.000Z'));
 		configStore.value = { timezone: 'UTC' } as never;
+		// The age caption is relative to `nowStore.now`, a module singleton that reads
+		// the clock at import time — a pinned system time cannot move it afterwards.
+		// Anchor the timestamp to that same clock instead of to a calendar date.
+		const yesterday = new Date(nowStore.now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 		statsMock.mockResolvedValue(
 			makeResponse([
 				makeItem(makeLabel(1, 'busy'), { week: period(2) }),
-				makeItem(makeLabel(2, 'yesterday-tag'), {}, { lastUsedAt: '2026-07-25T09:00:00.000Z' }),
+				makeItem(makeLabel(2, 'yesterday-tag'), {}, { lastUsedAt: yesterday }),
 				makeItem(makeLabel(3, 'never-tag'), {})
 			])
 		);
@@ -181,7 +185,6 @@ describe('Labels stats page', () => {
 		expect(screen.getByText('never used')).toBeTruthy();
 		// The idle ones come after the ranked one, most-recently-used first.
 		expect(renderedLabelNames()).toEqual(['busy', 'yesterday-tag', 'never-tag']);
-		vi.useRealTimers();
 	});
 
 	it('reports the trend against the previous window', async () => {

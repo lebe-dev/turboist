@@ -219,6 +219,50 @@ func TestTaskRepo_Views_WeekIncludesSubtasksOutsideRange(t *testing.T) {
 	}
 }
 
+// ListWeek builds its own recursive query, so the relation rollup every other
+// listing gets for free has to be asserted here: without it the week screen
+// renders a blocked task as completable.
+func TestTaskRepo_Views_WeekHydratesRelationSummary(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	weekStart := time.Date(2026, 5, 11, 0, 0, 0, 0, time.UTC) // Mon
+	weekEnd := weekStart.AddDate(0, 0, 7)
+
+	mk := func(title string) *model.Task {
+		t.Helper()
+		task, err := f.tasks.Create(ctx, CreateTask{
+			Placement: Placement{ContextID: &f.contextID},
+			Title:     title,
+			PlanState: model.PlanStateWeek,
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", title, err)
+		}
+		return task
+	}
+	blocker := mk("blocker")
+	blocked := mk("blocked")
+	if _, err := f.trelations.Create(ctx, blocker.ID, blocked.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create relation: %v", err)
+	}
+
+	items, _, err := f.tasks.ListWeek(ctx, weekStart, weekEnd, TaskFilter{})
+	if err != nil {
+		t.Fatalf("list week: %v", err)
+	}
+	byID := map[int64]model.Task{}
+	for _, it := range items {
+		byID[it.ID] = it
+	}
+	if got := byID[blocked.ID].RelationSummary; got.BlockedByOpen != 1 || got.Total != 1 {
+		t.Errorf("blocked summary: got %+v, want {1 1}", got)
+	}
+	if got := byID[blocker.ID].RelationSummary; got.BlockedByOpen != 0 || got.Total != 1 {
+		t.Errorf("blocker summary: got %+v, want {0 1}", got)
+	}
+}
+
 func TestTaskRepo_CountOverdue(t *testing.T) {
 	f := newTaskFixture(t)
 	ctx := context.Background()

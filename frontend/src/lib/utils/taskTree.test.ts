@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTree, flattenTree, splitByRootCompletion } from './taskTree';
+import { buildTree, flattenTree, matchesSelfOrAncestor, splitByRootCompletion } from './taskTree';
 import type { Task, TaskStatus } from '../api/types';
 
 function task(
@@ -108,5 +108,39 @@ describe('splitByRootCompletion', () => {
 
 	it('returns empty buckets for empty input', () => {
 		expect(splitByRootCompletion([])).toEqual({ open: [], done: [] });
+	});
+});
+
+describe('matchesSelfOrAncestor', () => {
+	const planned = (t: Task) => t.planState === 'week';
+
+	it('matches the task itself', () => {
+		const t = { ...task(1), planState: 'week' as const };
+		expect(matchesSelfOrAncestor(t, [t], planned)).toBe(true);
+	});
+
+	it('matches through a chain of ancestors', () => {
+		const root = { ...task(1), planState: 'week' as const };
+		const child = task(2, 1);
+		const grandchild = task(3, 2);
+		const items = [root, child, grandchild];
+		expect(matchesSelfOrAncestor(child, items, planned)).toBe(true);
+		expect(matchesSelfOrAncestor(grandchild, items, planned)).toBe(true);
+	});
+
+	it('returns false when neither the task nor any ancestor matches', () => {
+		const items = [task(1), task(2, 1)];
+		expect(matchesSelfOrAncestor(items[1], items, planned)).toBe(false);
+	});
+
+	it('stops at an ancestor missing from the list', () => {
+		const orphan = task(2, 99);
+		expect(matchesSelfOrAncestor(orphan, [orphan], planned)).toBe(false);
+	});
+
+	it('terminates on a parent cycle', () => {
+		const a = task(1, 2);
+		const b = task(2, 1);
+		expect(matchesSelfOrAncestor(a, [a, b], planned)).toBe(false);
 	});
 });
