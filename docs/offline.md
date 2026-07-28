@@ -92,8 +92,14 @@ and WebKit force-closes its IndexedDB connections; the handle that survives in m
 throws `InvalidStateError: the database connection is closing` on every transaction. So
 `db.ts` never assumes its handle is alive: it drops the handle when the browser reports the
 connection terminated, and reopens + retries once on a lost-connection error (`InvalidStateError`,
-`AbortError`). Coming back to a long-backgrounded app therefore heals on the first call
-instead of needing an app restart.
+`AbortError`, and WebKit's catch-all `UnknownError: An internal error was encountered in the
+Indexed Database server`). Coming back to a long-backgrounded app therefore heals on the first
+call instead of needing an app restart.
+
+Multi-step transactions always observe `tx.done`, even when the body fails: `idb` rejects
+`tx.done` independently of the individual request promises, so a transaction that aborts
+would otherwise surface twice — once to the caller (who handles it) and once as an unhandled
+promise rejection reported to Sentry.
 
 ## Native shells
 

@@ -179,14 +179,36 @@ function createStores(database: Conn): void {
  *
  *  - `InvalidStateError` — `IDBDatabase.transaction()` on a connection that is
  *    closing, i.e. every call made through a handle the browser already killed;
- *  - `AbortError` — a transaction that was in flight when that happened.
+ *  - `AbortError` — a transaction that was in flight when that happened;
+ *  - `UnknownError` — WebKit's catch-all for a failed IndexedDB backing store
+ *    ("An internal error was encountered in the Indexed Database server"), which
+ *    iOS raises on a connection that outlived a web-view suspend.
  *
- * Both are worth one reopen-and-retry; any other failure is a real error and is
- * rethrown untouched.
+ * All three are worth one reopen-and-retry; any other failure is a real error and
+ * is rethrown untouched.
  */
 function isConnectionLost(err: unknown): boolean {
 	const name = (err as { name?: unknown } | null | undefined)?.name;
-	return name === 'InvalidStateError' || name === 'AbortError';
+	return name === 'InvalidStateError' || name === 'AbortError' || name === 'UnknownError';
+}
+
+/**
+ * Run the body of a multi-step transaction, making sure `tx.done` is always
+ * observed.
+ *
+ * `idb` rejects `tx.done` independently of the individual request promises, so a
+ * body that throws (a rejected `put`, an aborted cursor walk) leaves `tx.done`
+ * rejected with nobody awaiting it — an unhandled promise rejection that reaches
+ * Sentry as a bare `UnknownError` even though the caller handled the failure it
+ * already got. On the happy path the commit is awaited as usual.
+ */
+async function commit<T>(tx: { done: Promise<void> }, body: () => Promise<T>): Promise<T> {
+	const done = tx.done;
+	// Attach the guard up front: the body can reject before we get to await it.
+	done.catch(() => {});
+	const result = await body();
+	await done;
+	return result;
 }
 
 /**
@@ -329,9 +351,10 @@ function createWrapper(conn: Connection): OfflineDB {
 		async putResponse(entry) {
 			await run(async (db) => {
 				const tx = db.transaction('responses', 'readwrite');
-				await tx.store.put(entry);
-				const count = await tx.store.count();
-				if (count > MAX_RESPONSES) {
+				await commit(tx, async () => {
+					await tx.store.put(entry);
+					const count = await tx.store.count();
+					if (count <= MAX_RESPONSES) return;
 					let remaining = count - MAX_RESPONSES;
 					let cursor = await tx.store.index('by-storedAt').openCursor();
 					while (cursor && remaining > 0) {
@@ -339,8 +362,7 @@ function createWrapper(conn: Connection): OfflineDB {
 						remaining -= 1;
 						cursor = await cursor.continue();
 					}
-				}
-				await tx.done;
+				});
 			});
 		},
 		async getAllResponses() {
@@ -370,9 +392,10 @@ function createWrapper(conn: Connection): OfflineDB {
 			// One transaction so an op is never lost between the two stores.
 			await run(async (db) => {
 				const tx = db.transaction(['outbox', 'failedOps'], 'readwrite');
-				await tx.objectStore('failedOps').put({ ...op, ...failure });
-				await tx.objectStore('outbox').delete(op.seq);
-				await tx.done;
+				await commit(tx, async () => {
+					await tx.objectStore('failedOps').put({ ...op, ...failure });
+					await tx.objectStore('outbox').delete(op.seq);
+				});
 			});
 		},
 
@@ -401,26 +424,28 @@ function createWrapper(conn: Connection): OfflineDB {
 			// never mint the same tmp id.
 			return run(async (db) => {
 				const tx = db.transaction('meta', 'readwrite');
-				const store = tx.objectStore('meta');
-				const row = await store.get('tmpIdCounter');
-				const current = typeof row?.value === 'number' ? row.value : 0;
-				const next = current + 1;
-				await store.put({ key: 'tmpIdCounter', value: next });
-				await tx.done;
-				return -next;
+				return commit(tx, async () => {
+					const store = tx.objectStore('meta');
+					const row = await store.get('tmpIdCounter');
+					const current = typeof row?.value === 'number' ? row.value : 0;
+					const next = current + 1;
+					await store.put({ key: 'tmpIdCounter', value: next });
+					return -next;
+				});
 			});
 		},
 
 		async clearAll() {
 			await run(async (db) => {
 				const tx = db.transaction(['responses', 'outbox', 'failedOps', 'meta'], 'readwrite');
-				await Promise.all([
-					tx.objectStore('responses').clear(),
-					tx.objectStore('outbox').clear(),
-					tx.objectStore('failedOps').clear(),
-					tx.objectStore('meta').clear()
-				]);
-				await tx.done;
+				await commit(tx, () =>
+					Promise.all([
+						tx.objectStore('responses').clear(),
+						tx.objectStore('outbox').clear(),
+						tx.objectStore('failedOps').clear(),
+						tx.objectStore('meta').clear()
+					])
+				);
 			});
 		},
 		close() {
