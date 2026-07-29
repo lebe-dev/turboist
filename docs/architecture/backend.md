@@ -42,6 +42,12 @@ Clients keep their views fresh over a Server-Sent Events stream. EventSource can
 
 Mutations publish their scopes through `PublishMiddleware` (after a successful `2xx` on a mutating method), fanning out to every active subscriber of that user via the in-memory `events.Hub`.
 
+### Heartbeat and reconnect
+
+An idle stream emits `event: ping` every 25 s (`sseHeartbeatInterval`). It keeps the connection alive behind nginx (default `proxy_read_timeout` is 60 s) *and* doubles as the client's liveness signal — hence a named event rather than a `:` comment, which EventSource never surfaces to JavaScript. A phone that suspends its radio, or a proxy that drops the connection, leaves `EventSource` in `OPEN` with no `error` event ever firing, so the client's watchdog re-handshakes once the heartbeat stops arriving (`LIVENESS_TIMEOUT_MS` in `lib/realtime/events.svelte.ts`). Raising the server interval means raising that timeout with it.
+
+The ticket lives in the stream URL and is single-use, so the browser's own EventSource retry — which reuses that exact URL — can only ever get a `401`. The client therefore never relies on it: it tears the stream down on any error and re-handshakes for a fresh ticket on its own backoff.
+
 ### SSE echo suppression
 
 Each browser tab generates a per-tab origin id and:

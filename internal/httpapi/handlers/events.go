@@ -14,7 +14,9 @@ import (
 )
 
 // sseHeartbeatInterval is short enough to keep idle connections alive behind
-// nginx (default proxy_read_timeout is 60s).
+// nginx (default proxy_read_timeout is 60s). It is also the client's liveness
+// signal: the frontend re-handshakes when it sees no heartbeat for well over
+// two intervals, so raising this means raising LIVENESS_TIMEOUT_MS with it.
 const sseHeartbeatInterval = 25 * time.Second
 
 // EventsHandler exposes SSE invalidation endpoints. EventSource cannot send
@@ -141,7 +143,13 @@ func (h *EventsHandler) stream(c fiber.Ctx) error {
 					return
 				}
 			case <-ticker.C:
-				if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
+				// A named event rather than a `:` comment. Comments keep proxies from
+				// timing the connection out, but EventSource never surfaces them, so
+				// the browser cannot tell a live stream from one whose socket died
+				// silently (a suspended phone radio fires no error). The client arms a
+				// liveness watchdog on this event and re-handshakes when it stops
+				// arriving — see LIVENESS_TIMEOUT_MS in lib/realtime/events.svelte.ts.
+				if _, err := fmt.Fprint(w, "event: ping\ndata: {}\n\n"); err != nil {
 					return
 				}
 				if err := w.Flush(); err != nil {

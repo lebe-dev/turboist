@@ -84,6 +84,12 @@ describe('selfRefresh.onSelfMutation', () => {
 		expect(seen).toContain('projects');
 	});
 
+	it('refreshes counters after a template is instantiated', async () => {
+		onSelfMutation('/api/v1/task-templates/4/instantiate');
+		await vi.advanceTimersByTimeAsync(250);
+		expect(sidebarStats).toHaveBeenCalledTimes(1);
+	});
+
 	it('ignores paths that map to no scope (events, auth)', async () => {
 		onSelfMutation('/api/v1/events/ticket');
 		onSelfMutation('/auth/login');

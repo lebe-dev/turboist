@@ -92,6 +92,13 @@ func scopesForPath(p string) []events.Scope {
 	case "app-settings":
 		// Auto-label rules etc. affect how tasks are presented.
 		return []events.Scope{events.ScopeLabels, events.ScopeTasks}
+	case "task-templates":
+		// /task-templates/:id/instantiate materialises a whole task tree, so this
+		// domain is a task change like any other — without it a template applied on
+		// one device stayed invisible on the others (and left the originating
+		// device's own plan/inbox counters stale, since selfRefresh mirrors this
+		// map). Template CRUD is coarse enough to share the hint.
+		return []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}
 	}
 	return nil
 }

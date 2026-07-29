@@ -103,6 +103,39 @@ describe('eventsClient', () => {
 		expect(onTasks).toHaveBeenCalledWith('tasks');
 	});
 
+	// The stream URL carries a single-use ticket (TicketStore.Consume), so the
+	// browser's own retry can only ever get a 401. Waiting it out cost ~3s of dead
+	// realtime — and a wasted request — on every transient drop.
+	it('re-handshakes itself when the browser is still CONNECTING', async () => {
+		eventsClient.start();
+		await settle();
+		const first = FakeEventSource.instances[0];
+		first.open();
+		first.stall();
+
+		expect(first.closed).toBe(true);
+		await vi.advanceTimersByTimeAsync(1_000);
+		await settle();
+		expect(FakeEventSource.instances).toHaveLength(2);
+		expect(issueTicket).toHaveBeenCalledTimes(2);
+	});
+
+	// Booting with no network (or during a server restart) never yields a stream to
+	// lose, yet leaves exactly as stale a screen — so the first connect that gets
+	// through must still trigger the catch-up refetch.
+	it('treats a failed handshake as a gap to catch up on', async () => {
+		issueTicket.mockRejectedValueOnce(new Error('offline'));
+		eventsClient.start();
+		await settle();
+		expect(FakeEventSource.instances).toHaveLength(0);
+
+		await vi.advanceTimersByTimeAsync(1_000);
+		await settle();
+		expect(FakeEventSource.instances).toHaveLength(1);
+		FakeEventSource.instances[0].open();
+		expect(eventsClient.reconnectedAt).not.toBeNull();
+	});
+
 	it('reports reconnectedAt only after a real drop', async () => {
 		eventsClient.start();
 		await settle();
@@ -117,6 +150,107 @@ describe('eventsClient', () => {
 		await settle();
 		FakeEventSource.instances[1].open();
 		expect(eventsClient.reconnectedAt).not.toBeNull();
+	});
+
+	// A stream that opens and dies immediately (a proxy killing SSE) used to reset
+	// the backoff on every `open`, reconnecting once per second forever — each
+	// reconnect dragging a catch-up GET /api/v1/config behind it.
+	describe('backoff', () => {
+		const flap = async (): Promise<void> => {
+			const es = FakeEventSource.instances.at(-1)!;
+			es.open();
+			es.fail();
+			await settle();
+		};
+
+		it('keeps growing while the stream flaps', async () => {
+			eventsClient.start();
+			await settle();
+
+			await flap(); // first drop: the 1s step
+			await vi.advanceTimersByTimeAsync(1_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(2);
+
+			await flap(); // opened well under HEALTHY_AFTER_MS → no reset, 2s step
+			await vi.advanceTimersByTimeAsync(1_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(2);
+			await vi.advanceTimersByTimeAsync(1_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(3);
+		});
+
+		it('restarts from the shortest delay after a stream that stayed up', async () => {
+			eventsClient.start();
+			await settle();
+			await flap(); // pushes the backoff to the 2s step
+			await vi.advanceTimersByTimeAsync(1_000);
+			await settle();
+
+			const es = FakeEventSource.instances.at(-1)!;
+			es.open();
+			await vi.advanceTimersByTimeAsync(15_000); // healthy for well over 10s
+			es.fail();
+
+			await vi.advanceTimersByTimeAsync(1_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(3);
+		});
+	});
+
+	// The zombie stream: a suspended radio or a proxy drop leaves EventSource in
+	// OPEN with no error event, so `connected` reported true on a socket that had
+	// been dead for hours and the tab silently stopped updating.
+	describe('liveness watchdog', () => {
+		it('re-handshakes when the heartbeat stops, and reports the gap', async () => {
+			eventsClient.start();
+			await settle();
+			FakeEventSource.instances[0].open();
+
+			await vi.advanceTimersByTimeAsync(60_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(1);
+
+			await vi.advanceTimersByTimeAsync(20_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(2);
+			expect(FakeEventSource.instances[0].closed).toBe(true);
+			expect(eventsClient.connected).toBe(false);
+
+			FakeEventSource.instances[1].open();
+			expect(eventsClient.reconnectedAt).not.toBeNull();
+		});
+
+		it('is re-armed by every inbound message', async () => {
+			eventsClient.on('tasks', () => {});
+			eventsClient.start();
+			await settle();
+			const es = FakeEventSource.instances[0];
+			es.open();
+
+			await vi.advanceTimersByTimeAsync(60_000);
+			es.emit('ping');
+			await vi.advanceTimersByTimeAsync(60_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(1);
+
+			es.emit('tasks');
+			await vi.advanceTimersByTimeAsync(60_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(1);
+		});
+
+		it('is dropped by stop(), so a logged-out client stays quiet', async () => {
+			eventsClient.start();
+			await settle();
+			FakeEventSource.instances[0].open();
+
+			eventsClient.stop();
+			await vi.advanceTimersByTimeAsync(120_000);
+			await settle();
+			expect(FakeEventSource.instances).toHaveLength(1);
+		});
 	});
 
 	describe('resume', () => {
@@ -152,6 +286,24 @@ describe('eventsClient', () => {
 			expect(first.closed).toBe(true);
 			expect(FakeEventSource.instances).toHaveLength(2);
 			expect(issueTicket).toHaveBeenCalledTimes(2);
+		});
+
+		// What the (app) layout does after a long stretch in the background: "open"
+		// is not evidence the socket survived a locked phone, and a woken tab must
+		// not be left showing data from before the screen went off.
+		it('force re-handshakes an open stream and reports the gap', async () => {
+			eventsClient.start();
+			await settle();
+			FakeEventSource.instances[0].open();
+			expect(eventsClient.reconnectedAt).toBeNull();
+
+			eventsClient.resume(true);
+			await settle();
+
+			expect(FakeEventSource.instances[0].closed).toBe(true);
+			expect(FakeEventSource.instances).toHaveLength(2);
+			FakeEventSource.instances[1].open();
+			expect(eventsClient.reconnectedAt).not.toBeNull();
 		});
 
 		it('leaves a healthy open stream alone', async () => {

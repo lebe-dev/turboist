@@ -53,6 +53,11 @@ function scopesForPath(path: string): EventScope[] {
 			return ['tasks', 'plan'];
 		case 'app-settings':
 			return ['labels', 'tasks'];
+		case 'task-templates':
+			// Instantiating a template creates a task tree, so the sidebar counters
+			// move even though the list views already rendered it optimistically from
+			// the `turboist:task-created` events the layout dispatches.
+			return ['tasks', 'plan', 'inbox'];
 		default:
 			return [];
 	}

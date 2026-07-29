@@ -125,30 +125,59 @@
 		}
 	});
 
+	// Spending longer than this in the background makes an "open" SSE stream
+	// untrustworthy. A locked phone suspends the radio and a proxy drops idle
+	// connections without the browser ever firing an error, so `connected` keeps
+	// reporting true on a socket that has been dead for hours — and the woken tab
+	// shows data that stopped updating when the screen went off. Past the
+	// threshold we re-handshake unconditionally; the fresh stream reports a gap,
+	// which runs the one-shot catch-up refresh below. Short tab-switches stay
+	// free.
+	const FORCE_RECONNECT_AFTER_HIDDEN_MS = 60_000;
+	let hiddenSince: number | null = null;
+
 	// Wake handling. Besides re-reading the clock, this nudges the SSE stream back
 	// up immediately: a hidden tab's reconnect timer is throttled to minutes, so
 	// the queued attempt would otherwise fire (and run its catch-up refresh) a few
 	// seconds into the user's first interaction. eventsClient.resume() is a no-op
-	// on a healthy stream.
+	// on a healthy stream unless we force it.
 	$effect(() => {
-		function onWake(): void {
+		function onWake(force = false): void {
 			nowStore.refresh();
-			eventsClient.resume();
+			const hiddenFor = hiddenSince === null ? 0 : Date.now() - hiddenSince;
+			hiddenSince = null;
+			eventsClient.resume(force || hiddenFor >= FORCE_RECONNECT_AFTER_HIDDEN_MS);
 		}
-		function onVisible(): void {
-			if (document.visibilityState === 'visible') onWake();
+		function onVisibility(): void {
+			if (document.visibilityState === 'visible') {
+				onWake();
+				return;
+			}
+			hiddenSince = Date.now();
+		}
+		function onFocus(): void {
+			onWake();
+		}
+		// A page restored from the back/forward cache was frozen wholesale — its
+		// stream cannot have survived, whatever readyState claims.
+		function onPageShow(e: PageTransitionEvent): void {
+			onWake(e.persisted);
+		}
+		function onOnline(): void {
+			onWake();
 		}
 
+		if (document.visibilityState === 'hidden') hiddenSince = Date.now();
 		nowStore.scheduleMidnight();
-		document.addEventListener('visibilitychange', onVisible);
-		window.addEventListener('focus', onWake);
-		window.addEventListener('pageshow', onWake);
-		window.addEventListener('online', onWake);
+		document.addEventListener('visibilitychange', onVisibility);
+		window.addEventListener('focus', onFocus);
+		window.addEventListener('pageshow', onPageShow);
+		window.addEventListener('online', onOnline);
 		return () => {
-			document.removeEventListener('visibilitychange', onVisible);
-			window.removeEventListener('focus', onWake);
-			window.removeEventListener('pageshow', onWake);
-			window.removeEventListener('online', onWake);
+			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener('focus', onFocus);
+			window.removeEventListener('pageshow', onPageShow);
+			window.removeEventListener('online', onOnline);
 			nowStore.teardown();
 		};
 	});
@@ -271,7 +300,9 @@
 	// than 'online', which misses captive portals) — drain the outbox on every
 	// transition to connected. Ordering vs. the reconnect refetch above does not
 	// matter: the drain fires its own catch-up refetch when it empties (§4.8).
-	let lastReplayConnected = $state(false);
+	// Plain `let`, not $state: writing a rune the same effect reads would schedule
+	// a pointless second run of it on every connection change.
+	let lastReplayConnected = false;
 	$effect(() => {
 		const connected = eventsClient.connected;
 		if (connected && !lastReplayConnected) kickReplay();
