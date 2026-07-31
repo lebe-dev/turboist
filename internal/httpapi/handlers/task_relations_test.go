@@ -204,6 +204,68 @@ func TestTaskComplete_Blocked(t *testing.T) {
 	}
 }
 
+// A subtask of a blocked parent inherits the block: finishing it would start work
+// the parent is still waiting on.
+func TestTaskComplete_BlockedThroughParent(t *testing.T) {
+	e := setupAPIEnv(t)
+	c := createTestContext(t, e, "Work")
+	blocker := createTestTask(t, e, c.ID, "Blocker")
+	parent := createTestTask(t, e, c.ID, "Parent")
+	child := createTestSubtask(t, e, parent.ID, "Child")
+	addRelation(t, e, parent.ID, map[string]any{
+		"targetTaskId": blocker.ID, "type": "blocks", "direction": "incoming",
+	})
+
+	// The badge has to agree with the guard, so the child reads as blocked too.
+	childURL := fmt.Sprintf("/api/v1/tasks/%d", child.ID)
+	resp, raw := doReq(t, e.app, e.authedReq(t, http.MethodGet, childURL, nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("get child: got %d, want 200; body: %s", resp.StatusCode, raw)
+	}
+	var childDTO dto.TaskDTO
+	if err := json.Unmarshal(raw, &childDTO); err != nil {
+		t.Fatalf("parse child: %v", err)
+	}
+	if childDTO.BlockedByCount != 1 {
+		t.Errorf("child blockedByCount: got %d, want 1", childDTO.BlockedByCount)
+	}
+	if childDTO.RelationCount != 0 {
+		t.Errorf("child relationCount: got %d, want 0 — the relation belongs to the parent", childDTO.RelationCount)
+	}
+
+	completeURL := fmt.Sprintf("/api/v1/tasks/%d/complete", child.ID)
+	resp, raw = doReq(t, e.app, e.authedReq(t, http.MethodPost, completeURL, nil))
+	if resp.StatusCode != 409 {
+		t.Fatalf("complete child: got %d, want 409; body: %s", resp.StatusCode, raw)
+	}
+	var envelope struct {
+		Error struct {
+			Code    string `json:"code"`
+			Details struct {
+				BlockerIDs []int64 `json:"blockerIds"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if envelope.Error.Code != httpapi.CodeTaskBlocked {
+		t.Errorf("code: got %q, want %q", envelope.Error.Code, httpapi.CodeTaskBlocked)
+	}
+	if len(envelope.Error.Details.BlockerIDs) != 1 || envelope.Error.Details.BlockerIDs[0] != blocker.ID {
+		t.Errorf("blockerIds: got %v, want [%d]", envelope.Error.Details.BlockerIDs, blocker.ID)
+	}
+
+	// Releasing the parent releases the subtree with it.
+	blockerURL := fmt.Sprintf("/api/v1/tasks/%d/complete", blocker.ID)
+	if resp, raw := doReq(t, e.app, e.authedReq(t, http.MethodPost, blockerURL, nil)); resp.StatusCode != 200 {
+		t.Fatalf("complete blocker: got %d, want 200; body: %s", resp.StatusCode, raw)
+	}
+	if resp, raw := doReq(t, e.app, e.authedReq(t, http.MethodPost, completeURL, nil)); resp.StatusCode != 200 {
+		t.Fatalf("complete child after unblock: got %d, want 200; body: %s", resp.StatusCode, raw)
+	}
+}
+
 // Bulk complete reports a blocked task per item rather than failing the batch, so
 // the user can see which of a selection was held back and why.
 func TestTaskBulkComplete_ReportsBlockedPerItem(t *testing.T) {

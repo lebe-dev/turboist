@@ -791,7 +791,7 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
 
 A task belongs to exactly one placement: `inboxId`, `contextId`, `projectId`, or `sectionId`. `parentId` identifies a subtask relationship.
 
-`blockedByCount` is how many still-open tasks block this one (see [Task Relations](#task-relations)); a non-zero value means completion is refused with `task_blocked`. `relationCount` is every relation touching the task, both directions and both types. Both are present on **every** task-returning endpoint — the single get, all list and view endpoints, and `GET /api/v1/config`'s `pinnedTasks` — so a client never has to ask separately whether a task is blocked.
+`blockedByCount` is how many still-open tasks block this one (see [Task Relations](#task-relations)); a non-zero value means completion is refused with `task_blocked`. It includes blockers **inherited from ancestor tasks** — a subtask of a blocked task is blocked too — so a subtask can report `blockedByCount: 1` with `relationCount: 0`. `relationCount` is every relation touching the task itself, both directions and both types. Both are present on **every** task-returning endpoint — the single get, all list and view endpoints, and `GET /api/v1/config`'s `pinnedTasks` — so a client never has to ask separately whether a task is blocked.
 
 `relations` is present only where noted below (`GET /api/v1/tasks/:id?relations=true` and the two relation mutations).
 
@@ -961,7 +961,7 @@ Fails with `409 task_blocked` when the task has at least one **open** task block
 }
 ```
 
-Only `open` blockers count — a `completed` or `cancelled` blocker releases its dependents, so cancelling a task never deadlocks whatever it was holding back. Re-completing an already-completed task skips the check (that retry path exists to recover a lost Troiki capacity grant), and `uncomplete` / `cancel` are never blocked.
+Blockers are inherited by subtasks: completing a subtask of a blocked task is refused with the *parent's* blocker ids. Only `open` blockers count — a `completed` or `cancelled` blocker releases its dependents (and their subtrees), so cancelling a task never deadlocks whatever it was holding back. Re-completing an already-completed task skips the check (that retry path exists to recover a lost Troiki capacity grant), and `uncomplete` / `cancel` are never blocked.
 
 ```sh
 # Complete now
@@ -1047,6 +1047,8 @@ curl -X POST "$BASE/api/v1/tasks/42/move" \
 ### `POST /api/v1/tasks/:id/plan`
 
 Set the plan state. `state` is one of `none`, `week`, `backlog`. Fails with `CodeLimitExceeded` if the plan limit is exceeded.
+
+Parking a task in the `backlog` parks its **open subtasks** with it, at any depth — their `planState` becomes `backlog` and their due date is cleared, exactly as for the parent. Completed and cancelled subtasks are left untouched, and the cascade is not counted against the backlog limit (it follows the parent rather than being a plan of its own). The same cascade runs when `PATCH /api/v1/tasks/:id` sets `planState` to `backlog`. Moving a task *out* of the backlog does not cascade — a subtask parked deliberately stays parked.
 
 ```json
 { "state": "week" }

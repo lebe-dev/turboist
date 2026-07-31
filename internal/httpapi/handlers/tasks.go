@@ -256,6 +256,14 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		}
 	}
 
+	// Subtasks follow their parent into the backlog, exactly as they do when the
+	// plan endpoint parks it (see service.PlanService.SetPlanState).
+	if updated.PlanState == model.PlanStateBacklog && t.PlanState != model.PlanStateBacklog {
+		if err := h.taskSvc.CascadeBacklog(c.Context(), id); err != nil {
+			return httpapi.ErrInternal("cascade backlog").WithCause(err)
+		}
+	}
+
 	needsLabelUpdate := req.Title != nil || req.Labels != nil || len(req.RemovedAutoLabels) > 0
 	if needsLabelUpdate {
 		if err := h.taskSvc.PatchLabels(c.Context(), t, updated.Title, req.Labels, req.RemovedAutoLabels); err != nil {

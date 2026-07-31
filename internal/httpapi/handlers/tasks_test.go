@@ -30,6 +30,33 @@ func createTestTask(t *testing.T, e *apiEnv, contextID int64, title string) dto.
 	return result
 }
 
+func createTestSubtask(t *testing.T, e *apiEnv, parentID int64, title string) dto.TaskDTO {
+	t.Helper()
+	url := fmt.Sprintf("/api/v1/tasks/%d/subtasks", parentID)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, url, map[string]any{"title": title}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create subtask: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse subtask: %v", err)
+	}
+	return result
+}
+
+func fetchTask(t *testing.T, e *apiEnv, id int64) dto.TaskDTO {
+	t.Helper()
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, fmt.Sprintf("/api/v1/tasks/%d", id), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("get task %d: got %d, want 200; body: %s", id, resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse task: %v", err)
+	}
+	return result
+}
+
 func createTestLabel(t *testing.T, e *apiEnv, name string) dto.LabelDTO {
 	t.Helper()
 	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/labels/", map[string]any{"name": name, "color": "blue"}))

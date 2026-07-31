@@ -90,6 +90,16 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 		logRepoErr(ctx, op+": update task", err, slog.Int64("task_id", taskID))
 		return nil, err
 	}
+	// Subtasks follow their parent into the backlog: half a parked tree would keep
+	// surfacing postponed work in the day views. The cascade is deliberately not
+	// counted against backlogLimit — the limit gates what the user parks by hand,
+	// and refusing here would leave the parent parked and its subtasks scheduled.
+	if state == model.PlanStateBacklog {
+		if err := s.tasks.CascadeBacklogToDescendants(ctx, taskID); err != nil {
+			logRepoErr(ctx, op+": cascade backlog to subtasks", err, slog.Int64("task_id", taskID))
+			return nil, err
+		}
+	}
 	log.InfoContext(ctx, "plan state changed", slog.String("op", op), slog.Int64("task_id", taskID), slog.String("state", string(state)))
 	return updated, nil
 }

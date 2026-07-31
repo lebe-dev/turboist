@@ -184,6 +184,105 @@ func TestPlanService_SetBacklogClearsDue(t *testing.T) {
 	}
 }
 
+// A parent parked in the backlog takes its whole subtree with it: a subtask left
+// scheduled would keep surfacing in the day views for work that was postponed.
+func TestPlanService_SetBacklogCascadesToSubtasks(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	parent, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid},
+		Title:     "Parent",
+	})
+	due := time.Now().Add(24 * time.Hour)
+	child, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement:  repo.Placement{ContextID: &cid, ParentID: &parent.ID},
+		Title:      "Child",
+		DueAt:      &due,
+		DueHasTime: true,
+	})
+	grandchild, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &child.ID},
+		Title:     "Grandchild",
+	})
+	completedChild, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID},
+		Title:     "Done child",
+	})
+	completed := model.TaskStatusCompleted
+	if _, err := tasks.Update(ctx, completedChild.ID, repo.TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete child: %v", err)
+	}
+
+	if _, err := svc.SetPlanState(ctx, parent.ID, model.PlanStateBacklog); err != nil {
+		t.Fatalf("set backlog: %v", err)
+	}
+
+	for _, id := range []int64{child.ID, grandchild.ID} {
+		got, err := tasks.Get(ctx, id)
+		if err != nil {
+			t.Fatalf("get %d: %v", id, err)
+		}
+		if got.PlanState != model.PlanStateBacklog {
+			t.Errorf("task %q planState: got %q, want %q", got.Title, got.PlanState, model.PlanStateBacklog)
+		}
+		if got.DueAt != nil {
+			t.Errorf("task %q dueAt: got %v, want nil", got.Title, *got.DueAt)
+		}
+		if got.DueHasTime {
+			t.Errorf("task %q dueHasTime: got true, want false", got.Title)
+		}
+	}
+
+	// A finished subtask is history — parking the parent must not rewrite it.
+	doneAfter, err := tasks.Get(ctx, completedChild.ID)
+	if err != nil {
+		t.Fatalf("get completed child: %v", err)
+	}
+	if doneAfter.PlanState != model.PlanStateNone {
+		t.Errorf("completed child planState: got %q, want %q", doneAfter.PlanState, model.PlanStateNone)
+	}
+}
+
+// The cascade follows the parent, so it must not be refused halfway by the backlog
+// limit — that would leave the parent parked and its subtasks scheduled.
+func TestPlanService_SetBacklogCascadeIgnoresBacklogLimit(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 1) // backlog limit = 1
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	parent, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid},
+		Title:     "Parent",
+	})
+	child, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID},
+		Title:     "Child",
+	})
+
+	if _, err := svc.SetPlanState(ctx, parent.ID, model.PlanStateBacklog); err != nil {
+		t.Fatalf("set backlog: %v", err)
+	}
+	got, err := tasks.Get(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("get child: %v", err)
+	}
+	if got.PlanState != model.PlanStateBacklog {
+		t.Errorf("child planState: got %q, want %q", got.PlanState, model.PlanStateBacklog)
+	}
+}
+
 func TestPlanService_BacklogToWeekClearsBacklog(t *testing.T) {
 	d := setupTestDB(t)
 	tlabels := repo.NewTaskLabelsRepo(d)

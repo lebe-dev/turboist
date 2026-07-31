@@ -334,6 +334,140 @@ func TestTaskRelationsRepo_CascadeOnTaskDelete(t *testing.T) {
 	}
 }
 
+// newRelSubtask creates an open subtask of parentID in the fixture's context.
+func newRelSubtask(t *testing.T, f *taskFixture, parentID int64, title string) *model.Task {
+	t.Helper()
+	task, err := f.tasks.Create(context.Background(), CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ParentID: &parentID},
+		Title:     title,
+	})
+	if err != nil {
+		t.Fatalf("create subtask %q: %v", title, err)
+	}
+	return task
+}
+
+// A blocked parent blocks its whole subtree: finishing a subtask of a task that
+// cannot be finished yet would let the work start out of order.
+func TestTaskRelationsRepo_OpenBlockerIDs_InheritedFromAncestors(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	blocker := newRelTask(t, f, "blocker")
+	parent := newRelTask(t, f, "parent")
+	child := newRelSubtask(t, f, parent.ID, "child")
+	grandchild := newRelSubtask(t, f, child.ID, "grandchild")
+
+	if _, err := f.trelations.Create(ctx, blocker.ID, parent.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create blocks: %v", err)
+	}
+
+	for _, task := range []*model.Task{parent, child, grandchild} {
+		got, err := f.trelations.OpenBlockerIDs(ctx, task.ID)
+		if err != nil {
+			t.Fatalf("open blockers for %q: %v", task.Title, err)
+		}
+		if len(got) != 1 || got[0] != blocker.ID {
+			t.Errorf("open blockers for %q: got %v, want [%d]", task.Title, got, blocker.ID)
+		}
+	}
+
+	// Completing the blocker releases the whole subtree, not just the parent.
+	completed := model.TaskStatusCompleted
+	if _, err := f.tasks.Update(ctx, blocker.ID, TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete blocker: %v", err)
+	}
+	got, err := f.trelations.OpenBlockerIDs(ctx, grandchild.ID)
+	if err != nil {
+		t.Fatalf("open blockers after release: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("open blockers after release: got %v, want none", got)
+	}
+}
+
+// Inheritance must not make a task wait for itself or for one of its own
+// subtasks: such a pair is unfinishable from either end.
+func TestTaskRelationsRepo_OpenBlockerIDs_IgnoresBlockersInOwnSubtree(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	parent := newRelTask(t, f, "parent")
+	child := newRelSubtask(t, f, parent.ID, "child")
+
+	// child blocks parent → parent waits for child, but child must not inherit
+	// itself as a blocker through parent.
+	if _, err := f.trelations.Create(ctx, child.ID, parent.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create blocks: %v", err)
+	}
+
+	got, err := f.trelations.OpenBlockerIDs(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("open blockers for child: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("open blockers for child: got %v, want none", got)
+	}
+	parentBlockers, err := f.trelations.OpenBlockerIDs(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("open blockers for parent: %v", err)
+	}
+	if len(parentBlockers) != 1 || parentBlockers[0] != child.ID {
+		t.Errorf("open blockers for parent: got %v, want [%d]", parentBlockers, child.ID)
+	}
+}
+
+// The badge must agree with the completion guard: a subtask of a blocked parent
+// reads as blocked, while its own relation count stays its own.
+func TestTaskRelationsRepo_SummaryByTaskIDs_InheritsBlocked(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	blocker := newRelTask(t, f, "blocker")
+	parent := newRelTask(t, f, "parent")
+	child := newRelSubtask(t, f, parent.ID, "child")
+
+	if _, err := f.trelations.Create(ctx, blocker.ID, parent.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create blocks: %v", err)
+	}
+
+	got, err := f.trelations.SummaryByTaskIDs(ctx, []int64{blocker.ID, parent.ID, child.ID})
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if got[parent.ID].BlockedByOpen != 1 || got[parent.ID].Total != 1 {
+		t.Errorf("parent: got %+v, want {1 1}", got[parent.ID])
+	}
+	if got[child.ID].BlockedByOpen != 1 {
+		t.Errorf("child: got %+v, want BlockedByOpen 1", got[child.ID])
+	}
+	if got[child.ID].Total != 0 {
+		t.Errorf("child total: got %d, want 0 — inherited blockers are not the child's own relations", got[child.ID].Total)
+	}
+	if got[blocker.ID].BlockedByOpen != 0 {
+		t.Errorf("blocker: got %+v, want BlockedByOpen 0", got[blocker.ID])
+	}
+}
+
+func TestTaskRelationsRepo_SummaryByTaskIDs_IgnoresBlockersInOwnSubtree(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	parent := newRelTask(t, f, "parent")
+	child := newRelSubtask(t, f, parent.ID, "child")
+
+	if _, err := f.trelations.Create(ctx, child.ID, parent.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create blocks: %v", err)
+	}
+
+	got, err := f.trelations.SummaryByTaskIDs(ctx, []int64{parent.ID, child.ID})
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if got[child.ID].BlockedByOpen != 0 {
+		t.Errorf("child: got %+v, want BlockedByOpen 0", got[child.ID])
+	}
+	if got[parent.ID].BlockedByOpen != 1 {
+		t.Errorf("parent: got %+v, want BlockedByOpen 1", got[parent.ID])
+	}
+}
+
 // The summary must reach every read path, so a blocked task renders as blocked in
 // lists too — not only on the detail page.
 func TestTaskRepo_HydratesRelationSummary(t *testing.T) {

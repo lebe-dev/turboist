@@ -85,3 +85,37 @@ func TestTaskPatch_SetDueWithExplicitPlanState_RespectsRequest(t *testing.T) {
 		t.Errorf("planState: got %q, want %q", updated.PlanState, "backlog")
 	}
 }
+
+// Subtasks follow their parent into the backlog whichever endpoint parks it — the
+// plan endpoint and a PATCH that sets planState directly must behave alike.
+func TestTaskPatch_SetBacklog_CascadesToSubtasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	child := createTestSubtask(t, e, parent.ID, "Child")
+
+	patchTask(t, e, parent.ID, map[string]any{"planState": "backlog"})
+
+	got := fetchTask(t, e, child.ID)
+	if got.PlanState != "backlog" {
+		t.Errorf("child planState: got %q, want %q", got.PlanState, "backlog")
+	}
+}
+
+// The plan endpoint is the path the SPA uses; it cascades through PlanService.
+func TestTaskPlan_SetBacklog_CascadesToSubtasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	child := createTestSubtask(t, e, parent.ID, "Child")
+	grandchild := createTestSubtask(t, e, child.ID, "Grandchild")
+
+	planTask(t, e, parent.ID, "backlog")
+
+	for _, id := range []int64{child.ID, grandchild.ID} {
+		got := fetchTask(t, e, id)
+		if got.PlanState != "backlog" {
+			t.Errorf("task %d planState: got %q, want %q", id, got.PlanState, "backlog")
+		}
+	}
+}

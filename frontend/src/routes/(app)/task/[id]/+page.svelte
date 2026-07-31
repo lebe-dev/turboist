@@ -13,6 +13,7 @@
 	import TextAlignStartIcon from 'phosphor-svelte/lib/TextAlignLeft';
 	import PlusIcon from 'phosphor-svelte/lib/Plus';
 	import ArrowElbowUpLeftIcon from 'phosphor-svelte/lib/ArrowElbowUpLeft';
+	import ArchiveIcon from 'phosphor-svelte/lib/Archive';
 	import { Popover as PopoverPrimitive } from 'bits-ui';
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
@@ -484,6 +485,17 @@ async function save(): Promise<void> {
 				<ArrowElbowUpLeftIcon class="size-3 shrink-0" />
 				<span class="truncate">{task.parentTitle ?? task.parentId}</span>
 			</a>
+		{/if}
+		<!-- Same violet archive mark the lists use (see TaskItem), so a parked task is
+		     recognisable on its own page too — where no list badge is around to say so. -->
+		{#if task?.planState === 'backlog'}
+			<span
+				class="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-violet-500"
+				title={$t('task.backlogLabel')}
+				aria-label={$t('task.backlogLabel')}
+			>
+				<ArchiveIcon class="size-3.5 shrink-0" />
+			</span>
 		{/if}
 	</div>
 	{#if task}

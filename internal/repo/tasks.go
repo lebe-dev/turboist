@@ -511,6 +511,33 @@ func (r *TaskRepo) CascadeDayPartToDescendants(ctx context.Context, parentID int
 	return nil
 }
 
+// CascadeBacklogToDescendants parks every open descendant of parentID in the
+// backlog, at any depth, clearing the due date the same way PlanService does for
+// the parent — a subtask left scheduled would keep surfacing in the day views for
+// work that was explicitly postponed.
+//
+// Completed and cancelled descendants are left alone: they are history, not
+// pending work. Inbox descendants are skipped too — the backlog lives in contexts,
+// and moving them out is the parent's own placement decision (see
+// PlanService.SetPlanState).
+func (r *TaskRepo) CascadeBacklogToDescendants(ctx context.Context, parentID int64) error {
+	const op = "repo.tasks.CascadeBacklogToDescendants"
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id FROM tasks t JOIN descendants d ON t.parent_id = d.id
+		 )
+		 UPDATE tasks SET plan_state = 'backlog', due_at = NULL, due_has_time = 0, updated_at = ?
+		 WHERE id IN (SELECT id FROM descendants) AND status = 'open' AND inbox_id IS NULL`,
+		parentID, now)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("cascade backlog: %w", err))
+	}
+	return nil
+}
+
 // ResetTroikiGrantedByProject clears the troiki_capacity_granted flag on every
 // task of the given project. Used when the project's Troiki category changes
 // (or is cleared) so a future complete in a new category grants capacity again.

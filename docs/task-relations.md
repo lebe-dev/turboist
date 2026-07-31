@@ -25,6 +25,7 @@ A task is **blocked** when at least one task blocking it is still `open`.
 - Completing or cancelling a blocker releases everything it was holding back. Cancelling counts on purpose: a cancelled task would otherwise deadlock its dependents forever.
 - `Related` links never block anything.
 - Blocking is checked one level deep. If A blocks B and B blocks C, completing C requires B to be closed — and B in turn requires A. The chain resolves itself as you work down it; C is not reported as blocked by A directly.
+- **Subtasks inherit their parent's blockers.** A subtask of a blocked task cannot be completed either, at any depth — finishing it would start work the parent is still waiting on. Releasing the parent's blocker releases the whole subtree at once. The subtask shows the padlock like any blocked task, but its own *Relations* section stays empty: the relation belongs to the parent, and the subtask's relation count keeps counting only its own links. One exception keeps the rule from turning on itself — a blocker that sits *inside* the subtask's own subtree is not inherited downwards, otherwise "child blocks parent" would leave the child waiting for itself.
 - `Uncomplete` and `Cancel` are never blocked. Only completion is.
 - Re-completing a task that is already complete stays allowed even if a blocker was added afterwards, so a task never gets stuck in a half-completed state.
 

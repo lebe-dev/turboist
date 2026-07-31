@@ -212,19 +212,46 @@ func (r *TaskRelationsRepo) SummaryByTaskIDs(ctx context.Context, taskIDs []int6
 		placeholders[i] = "?"
 	}
 	in := strings.Join(placeholders, ",")
-	// One row per (task, kind) pair: each relation contributes to `total` for both
-	// of its endpoints, and to `blocked` only for the target of an open `blocks`.
-	q := `SELECT task_id, SUM(total) AS total, SUM(blocked) AS blocked FROM (
+	// `total` counts the task's own relations — both endpoints of every row — because
+	// that is what the detail page lists. `blocked` walks the ancestor chain instead,
+	// so a subtask of a blocked parent reads as blocked too: the badge has to agree
+	// with the completion guard in OpenBlockerIDs, which inherits the same way (and
+	// drops inherited blockers sitting inside the task's own subtree for the same
+	// reason). Counted per distinct blocker, so a blocker attached to both a parent
+	// and its child is not counted twice for the child.
+	q := `WITH RECURSIVE ancestors(task_id, anc_id) AS (
+	          SELECT id, id FROM tasks WHERE id IN (` + in + `)
+	          UNION
+	          SELECT a.task_id, t.parent_id FROM ancestors a JOIN tasks t ON t.id = a.anc_id
+	          WHERE t.parent_id IS NOT NULL
+	      ),
+	      subtree(task_id, desc_id) AS (
+	          SELECT id, id FROM tasks WHERE id IN (` + in + `)
+	          UNION
+	          SELECT s.task_id, t.id FROM subtree s JOIN tasks t ON t.parent_id = s.desc_id
+	      ),
+	      blockers(task_id, blocker_id) AS (
+	          SELECT DISTINCT a.task_id, tr.source_task_id
+	          FROM ancestors a
+	          JOIN task_relations tr ON tr.target_task_id = a.anc_id AND tr.type = 'blocks'
+	          JOIN tasks src ON src.id = tr.source_task_id AND src.status = 'open'
+	          WHERE a.anc_id = a.task_id
+	             OR NOT EXISTS (
+	                 SELECT 1 FROM subtree s
+	                 WHERE s.task_id = a.task_id AND s.desc_id = tr.source_task_id
+	             )
+	      )
+	      SELECT task_id, SUM(total) AS total, SUM(blocked) AS blocked FROM (
 	          SELECT tr.source_task_id AS task_id, 1 AS total, 0 AS blocked
 	          FROM task_relations tr WHERE tr.source_task_id IN (` + in + `)
 	          UNION ALL
-	          SELECT tr.target_task_id AS task_id, 1 AS total,
-	                 CASE WHEN tr.type = 'blocks' AND src.status = 'open' THEN 1 ELSE 0 END AS blocked
-	          FROM task_relations tr JOIN tasks src ON src.id = tr.source_task_id
-	          WHERE tr.target_task_id IN (` + in + `)
+	          SELECT tr.target_task_id AS task_id, 1 AS total, 0 AS blocked
+	          FROM task_relations tr WHERE tr.target_task_id IN (` + in + `)
+	          UNION ALL
+	          SELECT task_id, 0 AS total, COUNT(*) AS blocked FROM blockers GROUP BY task_id
 	      ) GROUP BY task_id`
-	args := make([]any, 0, len(taskIDs)*2)
-	for range 2 {
+	args := make([]any, 0, len(taskIDs)*4)
+	for range 4 {
 		for _, id := range taskIDs {
 			args = append(args, id)
 		}
@@ -247,17 +274,40 @@ func (r *TaskRelationsRepo) SummaryByTaskIDs(ctx context.Context, taskIDs []int6
 	return out, rows.Err()
 }
 
-// OpenBlockerIDs returns the still-open tasks blocking taskID. Completed and
-// cancelled blockers are excluded: a cancelled task would otherwise deadlock its
-// dependents permanently.
+// OpenBlockerIDs returns the still-open tasks blocking taskID, including the ones
+// blocking any of its ancestors: a subtask of a task that cannot be finished yet
+// cannot be finished either, otherwise the work would start out of order.
+// Completed and cancelled blockers are excluded — a cancelled task would otherwise
+// deadlock its dependents permanently.
+//
+// Inherited blockers inside taskID's own subtree are dropped: "child blocks
+// parent" is a legal pair, and inheriting it downwards would leave the child
+// waiting for itself, unfinishable from either end. A blocker attached to taskID
+// directly always counts, wherever it sits in the tree.
 func (r *TaskRelationsRepo) OpenBlockerIDs(ctx context.Context, taskID int64) ([]int64, error) {
 	const op = "repo.task_relations.OpenBlockerIDs"
 	logQuery(ctx, op, taskID)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT tr.source_task_id FROM task_relations tr
+		`WITH RECURSIVE ancestors(id) AS (
+		     SELECT parent_id FROM tasks WHERE id = ? AND parent_id IS NOT NULL
+		     UNION
+		     SELECT t.parent_id FROM tasks t JOIN ancestors a ON t.id = a.id
+		     WHERE t.parent_id IS NOT NULL
+		 ),
+		 subtree(id) AS (
+		     SELECT ?
+		     UNION
+		     SELECT t.id FROM tasks t JOIN subtree s ON t.parent_id = s.id
+		 )
+		 SELECT DISTINCT tr.source_task_id FROM task_relations tr
 		 JOIN tasks src ON src.id = tr.source_task_id
-		 WHERE tr.target_task_id = ? AND tr.type = 'blocks' AND src.status = 'open'
-		 ORDER BY tr.source_task_id ASC`, taskID)
+		 WHERE tr.type = 'blocks' AND src.status = 'open'
+		   AND (
+		     tr.target_task_id = ?
+		     OR (tr.target_task_id IN (SELECT id FROM ancestors)
+		         AND tr.source_task_id NOT IN (SELECT id FROM subtree))
+		   )
+		 ORDER BY tr.source_task_id ASC`, taskID, taskID, taskID)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("list open blockers: %w", err))
 	}
