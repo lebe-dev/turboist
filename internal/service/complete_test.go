@@ -675,6 +675,245 @@ func TestCompleteService_Recurring_DoubleComplete_NoDuplicateSnapshot(t *testing
 	}
 }
 
+// Completing a parent task must cascade completion onto its open subtasks —
+// otherwise a task tree shows the parent done while its subtasks linger open.
+func TestCompleteService_CompletingParentCascadesToOpenSubtasks(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	parent, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Parent",
+	})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child1, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Child 1",
+	})
+	if err != nil {
+		t.Fatalf("create child1: %v", err)
+	}
+	child2, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Child 2",
+	})
+	if err != nil {
+		t.Fatalf("create child2: %v", err)
+	}
+
+	if _, err := f.svc.Complete(ctx, parent.ID); err != nil {
+		t.Fatalf("complete parent: %v", err)
+	}
+
+	for _, want := range []*model.Task{child1, child2} {
+		got, err := f.tasks.Get(ctx, want.ID)
+		if err != nil {
+			t.Fatalf("get child %d: %v", want.ID, err)
+		}
+		if got.Status != model.TaskStatusCompleted {
+			t.Errorf("child %d status: got %q, want completed", want.ID, got.Status)
+		}
+	}
+}
+
+// The cascade must recurse through the whole subtree, not just one level.
+func TestCompleteService_CompletingParentCascadesToGrandchildren(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	parent, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Parent",
+	})
+	child, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Child",
+	})
+	grandchild, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &child.ID}, Title: "Grandchild",
+	})
+	if err != nil {
+		t.Fatalf("create grandchild: %v", err)
+	}
+
+	if _, err := f.svc.Complete(ctx, parent.ID); err != nil {
+		t.Fatalf("complete parent: %v", err)
+	}
+
+	got, err := f.tasks.Get(ctx, grandchild.ID)
+	if err != nil {
+		t.Fatalf("get grandchild: %v", err)
+	}
+	if got.Status != model.TaskStatusCompleted {
+		t.Errorf("grandchild status: got %q, want completed", got.Status)
+	}
+}
+
+// A subtask blocked by a task outside the parent's own subtree must stay open
+// — completing the parent must not silently bypass an unrelated blocker.
+func TestCompleteService_CascadeSkipsBlockedSubtask(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	blocker, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Blocker",
+	})
+	parent, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Parent",
+	})
+	child, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Child",
+	})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	if _, err := f.relations.Create(ctx, blocker.ID, child.ID, model.RelationTypeBlocks); err != nil {
+		t.Fatalf("create relation: %v", err)
+	}
+
+	result, err := f.svc.Complete(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("complete parent: got %v, want nil (parent itself has no blocker)", err)
+	}
+	if result.Status != model.TaskStatusCompleted {
+		t.Errorf("parent status: got %q, want completed", result.Status)
+	}
+	got, err := f.tasks.Get(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("get child: %v", err)
+	}
+	if got.Status != model.TaskStatusOpen {
+		t.Errorf("blocked child status: got %q, want open (blocker outside subtree)", got.Status)
+	}
+}
+
+// Already-completed or cancelled subtasks are left untouched by the cascade —
+// they're history, not pending work the parent's completion should touch.
+func TestCompleteService_CascadeLeavesCompletedAndCancelledSubtasksAlone(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	parent, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid}, Title: "Parent",
+	})
+	doneChild, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Done child",
+	})
+	cancelledChild, _ := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Cancelled child",
+	})
+	earlier := time.Now().Add(-time.Hour).Truncate(time.Millisecond)
+	if _, err := f.svc.CompleteAt(ctx, doneChild.ID, earlier); err != nil {
+		t.Fatalf("pre-complete child: %v", err)
+	}
+	if _, err := f.svc.Cancel(ctx, cancelledChild.ID); err != nil {
+		t.Fatalf("pre-cancel child: %v", err)
+	}
+
+	if _, err := f.svc.Complete(ctx, parent.ID); err != nil {
+		t.Fatalf("complete parent: %v", err)
+	}
+
+	got, err := f.tasks.Get(ctx, doneChild.ID)
+	if err != nil {
+		t.Fatalf("get done child: %v", err)
+	}
+	if got.CompletedAt == nil || !got.CompletedAt.Equal(earlier) {
+		t.Errorf("done child completedAt: got %v, want unchanged %v", got.CompletedAt, earlier)
+	}
+	gotCancelled, err := f.tasks.Get(ctx, cancelledChild.ID)
+	if err != nil {
+		t.Fatalf("get cancelled child: %v", err)
+	}
+	if gotCancelled.Status != model.TaskStatusCancelled {
+		t.Errorf("cancelled child status: got %q, want cancelled (unchanged)", gotCancelled.Status)
+	}
+}
+
+// A recurring parent that advances to its next occurrence (non-terminal) stays
+// open — its subtasks must not be force-completed for a run that hasn't
+// actually finished the series.
+func TestCompleteService_RecurringNonTerminalDoesNotCascade(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	rruleStr := "FREQ=DAILY;INTERVAL=1"
+	parent, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Daily parent",
+		DueAt:          &due,
+		RecurrenceRule: &rruleStr,
+	})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Child",
+	})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+
+	result, err := f.svc.Complete(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("complete parent: %v", err)
+	}
+	if result.Status != model.TaskStatusOpen {
+		t.Fatalf("parent status: got %q, want open (recurring, non-terminal)", result.Status)
+	}
+	got, err := f.tasks.Get(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("get child: %v", err)
+	}
+	if got.Status != model.TaskStatusOpen {
+		t.Errorf("child status: got %q, want open (parent advanced, not finished)", got.Status)
+	}
+}
+
+// A recurring parent whose series is exhausted (terminal completion) does
+// cascade to its subtasks, same as a plain completion.
+func TestCompleteService_RecurringTerminalCascadesToSubtasks(t *testing.T) {
+	f := setupCompleteService(t)
+	ctx := context.Background()
+	c, _ := f.ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	due := time.Now().Add(24 * time.Hour)
+	rruleStr := "FREQ=DAILY;COUNT=1"
+	parent, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid},
+		Title:          "Once parent",
+		DueAt:          &due,
+		RecurrenceRule: &rruleStr,
+	})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := f.tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID}, Title: "Child",
+	})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+
+	result, err := f.svc.Complete(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("complete parent: %v", err)
+	}
+	if result.Status != model.TaskStatusCompleted {
+		t.Fatalf("parent status: got %q, want completed (COUNT=1 exhausted)", result.Status)
+	}
+	got, err := f.tasks.Get(ctx, child.ID)
+	if err != nil {
+		t.Fatalf("get child: %v", err)
+	}
+	if got.Status != model.TaskStatusCompleted {
+		t.Errorf("child status: got %q, want completed", got.Status)
+	}
+}
+
 func TestCompleteService_Cancel(t *testing.T) {
 	f := setupCompleteService(t)
 	ctx := context.Background()

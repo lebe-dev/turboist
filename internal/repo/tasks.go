@@ -538,6 +538,32 @@ func (r *TaskRepo) CascadeBacklogToDescendants(ctx context.Context, parentID int
 	return nil
 }
 
+// OpenChildIDs returns the IDs of parentID's open direct subtasks. Used by
+// CompleteService to cascade completion onto subtasks — one level at a time,
+// since each subtask's own completion (via CompleteService.completeAt) recurses
+// into its own children.
+func (r *TaskRepo) OpenChildIDs(ctx context.Context, parentID int64) ([]int64, error) {
+	const op = "repo.tasks.OpenChildIDs"
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id FROM tasks WHERE parent_id = ? AND status = 'open'`, parentID)
+	if err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("open child ids: %w", err))
+	}
+	defer logging.LogClose(ctx, op+".rows", rows)
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, logErr(ctx, op, fmt.Errorf("scan: %w", err))
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("rows: %w", err))
+	}
+	return ids, nil
+}
+
 // ResetTroikiGrantedByProject clears the troiki_capacity_granted flag on every
 // task of the given project. Used when the project's Troiki category changes
 // (or is cleared) so a future complete in a new category grants capacity again.

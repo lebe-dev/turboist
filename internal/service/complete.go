@@ -104,6 +104,9 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 			return nil, err
 		}
 		t = updated
+		if err := s.cascadeCompleteChildren(ctx, taskID, completedAt); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.bumpTroikiCapacity(ctx, t); err != nil {
 		log.ErrorContext(ctx, op+": bump troiki capacity", slog.Int64("task_id", taskID), slog.String("err", err.Error()))
@@ -111,6 +114,33 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 	}
 	log.InfoContext(ctx, "task completed", slog.String("op", op), slog.Int64("task_id", taskID))
 	return t, nil
+}
+
+// cascadeCompleteChildren completes every open direct subtask of parentID,
+// recursing into completeAt so each subtask's own recurrence advance, Troiki
+// bump and (grand-)children cascade all apply exactly as if it had been
+// completed on its own. A subtask blocked by a relation outside the parent's
+// own subtree is left open rather than forced through — completing the parent
+// must not silently bypass an unrelated blocker.
+func (s *CompleteService) cascadeCompleteChildren(ctx context.Context, parentID int64, completedAt *time.Time) error {
+	const op = "service.CompleteService.cascadeCompleteChildren"
+	childIDs, err := s.tasks.OpenChildIDs(ctx, parentID)
+	if err != nil {
+		logRepoErr(ctx, op+": open child ids", err, slog.Int64("task_id", parentID))
+		return err
+	}
+	for _, childID := range childIDs {
+		if _, err := s.completeAt(ctx, childID, completedAt); err != nil {
+			var blocked *TaskBlockedError
+			if errors.As(err, &blocked) {
+				logging.FromContext(ctx).DebugContext(ctx, op+": child blocked, left open",
+					slog.Int64("task_id", childID), slog.Any("blocker_ids", blocked.BlockerIDs))
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 // assertNotBlocked returns a *TaskBlockedError when any still-open task blocks
@@ -198,6 +228,9 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 		}
 	}
 	if terminal {
+		if err := s.cascadeCompleteChildren(ctx, t.ID, completedAt); err != nil {
+			return nil, err
+		}
 		if err := s.bumpTroikiCapacity(ctx, t); err != nil {
 			log.ErrorContext(ctx, op+": bump troiki capacity", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
 			return nil, err
