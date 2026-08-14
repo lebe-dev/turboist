@@ -729,7 +729,8 @@
 		"statusOpen": "Открыт",
 		"statusCompleted": "Завершён",
 		"statusArchived": "В архиве",
-		"statusCancelled": "Отменён"
+		"statusCancelled": "Отменён",
+		"recent": "Недавние"
 	},
 	"section": {
 		"noTasks": "Задач нет",

@@ -6,6 +6,7 @@
 	import { Calendar } from '$lib/components/ui/calendar';
 	import type { DayPart, Priority, TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
@@ -122,10 +123,17 @@
 		if (!q) return visibleProjects;
 		return visibleProjects.filter((p) => p.title.toLowerCase().includes(q));
 	});
-	const firstUnpinnedId = $derived(filteredProjects.find((p) => !p.isPinned)?.id ?? null);
-	const hasPinDivider = $derived(
-		filteredProjects.some((p) => p.isPinned) && firstUnpinnedId !== null
-	);
+	// Recently opened projects lead the list; they are lifted out of the main
+	// list below (and out of the pin divider's reckoning) so nothing is offered
+	// twice.
+	const recentProjects = $derived(recentProjectsStore.pick(filteredProjects));
+	const restProjects = $derived.by(() => {
+		if (recentProjects.length === 0) return filteredProjects;
+		const lifted = new Set(recentProjects.map((p) => p.id));
+		return filteredProjects.filter((p) => !lifted.has(p.id));
+	});
+	const firstUnpinnedId = $derived(restProjects.find((p) => !p.isPinned)?.id ?? null);
+	const hasPinDivider = $derived(restProjects.some((p) => p.isPinned) && firstUnpinnedId !== null);
 	const inboxMatchesQuery = $derived.by(() => {
 		const q = projectQuery.trim().toLowerCase();
 		if (!q) return true;
@@ -600,16 +608,9 @@
 												</div>
 											{/if}
 										{/if}
-										{#each filteredProjects as project (project.id)}
+										{#snippet projectRow(project: (typeof filteredProjects)[number])}
 											{@const id = String(project.id)}
 											{@const active = projectId === id}
-											{#if hasPinDivider && project.id === firstUnpinnedId}
-												<div
-													class="my-1 border-t border-border/60"
-													role="separator"
-													aria-hidden="true"
-												></div>
-											{/if}
 											<button
 												type="button"
 												onclick={() => selectProject(id)}
@@ -630,6 +631,31 @@
 													<CheckIcon class="size-3.5 opacity-70" />
 												{/if}
 											</button>
+										{/snippet}
+										{#if recentProjects.length > 0}
+											<div
+												class="px-2 pb-0.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+											>
+												{$t('project.recent')}
+											</div>
+											{#each recentProjects as project (project.id)}
+												{@render projectRow(project)}
+											{/each}
+											<div
+												class="my-1 border-t border-border/60"
+												role="separator"
+												aria-hidden="true"
+											></div>
+										{/if}
+										{#each restProjects as project (project.id)}
+											{#if hasPinDivider && project.id === firstUnpinnedId}
+												<div
+													class="my-1 border-t border-border/60"
+													role="separator"
+													aria-hidden="true"
+												></div>
+											{/if}
+											{@render projectRow(project)}
 										{/each}
 										{#if !inboxMatchesQuery && filteredProjects.length === 0}
 											<div class="px-2 py-3 text-center text-xs text-muted-foreground">

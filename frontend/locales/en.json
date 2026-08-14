@@ -729,7 +729,8 @@
 		"statusOpen": "Open",
 		"statusCompleted": "Completed",
 		"statusArchived": "Archived",
-		"statusCancelled": "Cancelled"
+		"statusCancelled": "Cancelled",
+		"recent": "Recent"
 	},
 	"section": {
 		"noTasks": "No tasks",

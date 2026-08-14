@@ -14,6 +14,7 @@
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
 	import type { TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
 	import type { Project, ProjectSection, Task, TroikiCategory } from '$lib/api/types';
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
 	import SectionList from '$lib/components/project/SectionList.svelte';
@@ -128,6 +129,8 @@
 		const data = await projectsApi.bundle(getApiClient(), projectId);
 		if (!isValid()) return;
 		notFound = false;
+		// Opening a project is the only "recently used" signal the pickers get.
+		recentProjectsStore.visit(data.project.id);
 		// Reconcile by version so background revalidations (SSE catch-up,
 		// reconnect) reuse unchanged object references and don't re-render the
 		// whole tree. Refetch on navigation shows a spinner (loading=true), so we

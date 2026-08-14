@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { isProjectVisible } from '$lib/utils/visibility';
@@ -87,6 +88,17 @@
 				const done = all.filter((p) => p.status !== 'open').sort(byTitle);
 				return { ctx, projects: [...open, ...done] };
 			})
+			.filter((g) => g.projects.length > 0);
+	});
+
+	// Recently opened projects lead the picker; they are lifted out of their
+	// context groups below so nothing is offered twice.
+	const recent = $derived(recentProjectsStore.pick(grouped.flatMap((g) => g.projects)));
+	const groupedRest = $derived.by(() => {
+		if (recent.length === 0) return grouped;
+		const lifted = new Set(recent.map((p) => p.id));
+		return grouped
+			.map((g) => ({ ...g, projects: g.projects.filter((p) => !lifted.has(p.id)) }))
 			.filter((g) => g.projects.length > 0);
 	});
 
@@ -224,43 +236,57 @@
 
 				<div class="border-t border-border/40"></div>
 
+				{#snippet projectRow(project: Project)}
+					{@const active = task?.projectId === project.id}
+					{@const done = project.status !== 'open'}
+					<button
+						type="button"
+						disabled={submitting}
+						onclick={() => pickProject(project)}
+						class="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+						class:bg-accent={active}
+					>
+						<span class="flex items-center gap-2">
+							{#if done}
+								<CheckIcon class="size-3 text-muted-foreground" weight="bold" />
+							{:else if project.isPinned}
+								<PushPinIcon
+									class="size-3.5 shrink-0"
+									style="color: {project.color};"
+									weight="fill"
+								/>
+							{:else}
+								<span
+									class="inline-block size-2.5 rounded-full"
+									style="background-color: {project.color};"
+								></span>
+							{/if}
+							<span class:text-muted-foreground={done}>{project.title}</span>
+						</span>
+						{#if active}
+							<CheckIcon class="size-4 text-muted-foreground" weight="bold" />
+						{/if}
+					</button>
+				{/snippet}
+
 				<div class="flex flex-col gap-3">
-					{#each grouped as group (group.ctx.id)}
+					{#if recent.length > 0}
+						<div class="flex flex-col gap-1">
+							<div class="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								{$t('project.recent')}
+							</div>
+							{#each recent as project (project.id)}
+								{@render projectRow(project)}
+							{/each}
+						</div>
+					{/if}
+					{#each groupedRest as group (group.ctx.id)}
 						<div class="flex flex-col gap-1">
 							<div class="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 								{group.ctx.name}
 							</div>
 							{#each group.projects as project (project.id)}
-								{@const active = task?.projectId === project.id}
-								{@const done = project.status !== 'open'}
-								<button
-									type="button"
-									disabled={submitting}
-									onclick={() => pickProject(project)}
-									class="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
-									class:bg-accent={active}
-								>
-									<span class="flex items-center gap-2">
-										{#if done}
-											<CheckIcon class="size-3 text-muted-foreground" weight="bold" />
-										{:else if project.isPinned}
-											<PushPinIcon
-												class="size-3.5 shrink-0"
-												style="color: {project.color};"
-												weight="fill"
-											/>
-										{:else}
-											<span
-												class="inline-block size-2.5 rounded-full"
-												style="background-color: {project.color};"
-											></span>
-										{/if}
-										<span class:text-muted-foreground={done}>{project.title}</span>
-									</span>
-									{#if active}
-										<CheckIcon class="size-4 text-muted-foreground" weight="bold" />
-									{/if}
-								</button>
+								{@render projectRow(project)}
 							{/each}
 						</div>
 					{:else}

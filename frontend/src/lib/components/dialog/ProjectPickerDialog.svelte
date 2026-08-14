@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Dialog as DialogPrimitive } from 'bits-ui';
 	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
@@ -35,6 +36,14 @@
 		const q = query.trim().toLowerCase();
 		if (!q) return visibleProjects;
 		return visibleProjects.filter((p) => p.title.toLowerCase().includes(q));
+	});
+	// Recently opened projects lead the list; they are lifted out of the main
+	// list below so nothing is offered twice.
+	const recent = $derived(recentProjectsStore.pick(filtered));
+	const rest = $derived.by(() => {
+		if (recent.length === 0) return filtered;
+		const lifted = new Set(recent.map((p) => p.id));
+		return filtered.filter((p) => !lifted.has(p.id));
 	});
 
 	function pick(id: number): void {
@@ -73,7 +82,7 @@
 				/>
 			</div>
 			<div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-				{#each filtered as project (project.id)}
+				{#snippet row(project: (typeof filtered)[number])}
 					<button
 						type="button"
 						onclick={() => pick(project.id)}
@@ -84,6 +93,18 @@
 						{/if}
 						<span class="flex-1 truncate">{project.title}</span>
 					</button>
+				{/snippet}
+				{#if recent.length > 0}
+					<div class="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+						{$t('project.recent')}
+					</div>
+					{#each recent as project (project.id)}
+						{@render row(project)}
+					{/each}
+					<div class="my-1 border-t border-border/60" role="separator" aria-hidden="true"></div>
+				{/if}
+				{#each rest as project (project.id)}
+					{@render row(project)}
 				{/each}
 				{#if filtered.length === 0}
 					<div class="px-2 py-6 text-center text-xs text-muted-foreground">
