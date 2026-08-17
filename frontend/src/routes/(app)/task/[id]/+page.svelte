@@ -53,7 +53,7 @@
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
-	import { tick, untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
 
@@ -279,6 +279,23 @@
 		saveTimer = setTimeout(() => void save(), 1500);
 	}
 
+	// Sends a pending debounced save immediately instead of waiting out the
+	// timer, so a subsequent navigation sees the mutation as already applied.
+	async function flushPendingSave(): Promise<void> {
+		if (saveTimer === null) return;
+		clearTimeout(saveTimer);
+		saveTimer = null;
+		await save();
+	}
+
+	onDestroy(() => {
+		if (saveTimer !== null) {
+			clearTimeout(saveTimer);
+			saveTimer = null;
+			void save();
+		}
+	});
+
 	// Watch picker bindings for auto-save
 	$effect(() => {
 		void priority;
@@ -447,7 +464,8 @@ async function save(): Promise<void> {
 		}
 	}
 
-	function back(): void {
+	async function back(): Promise<void> {
+		await flushPendingSave();
 		if (history.length > 1) history.back();
 		else void goto(resolve('/inbox'));
 	}
@@ -461,7 +479,7 @@ async function save(): Promise<void> {
 
 <header class="flex items-center justify-between gap-3 border-b border-border px-2 py-1 sm:px-5">
 	<div class="flex min-w-0 items-center gap-2">
-		<Button variant="ghost" size="sm" onclick={back} class="h-7 shrink-0 gap-1 px-2 text-[10px] uppercase tracking-wider">
+		<Button variant="ghost" size="sm" onclick={() => void back()} class="h-7 shrink-0 gap-1 px-2 text-[10px] uppercase tracking-wider">
 			<ArrowLeftIcon class="size-3" />
 			{$t('common.back')}
 		</Button>
