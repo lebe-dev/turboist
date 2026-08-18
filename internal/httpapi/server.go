@@ -38,6 +38,11 @@ type Deps struct {
 	// stale views without polling.
 	EventsHub *events.Hub
 
+	// PasskeyRepo is optional. When set, GET /api/config reports whether any
+	// passkey is registered so the login page can hide a button that would open
+	// an empty platform picker.
+	PasskeyRepo *repo.WebAuthnRepo
+
 	// IdempotencyRepo is optional. When set, the API group installs
 	// IdempotencyMiddleware so mutating requests carrying an Idempotency-Key
 	// can be safely retried (replayed) without re-executing the handler.
@@ -100,10 +105,22 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 	// browser can initialise Sentry before login. A blank dsn means the
 	// frontend leaves Sentry disabled.
 	app.Get("/api/config", func(c fiber.Ctx) error {
+		passkeysAvailable := false
+		if deps.PasskeyRepo != nil {
+			n, err := deps.PasskeyRepo.CountAll(c.Context())
+			if err != nil {
+				return ErrInternal("count passkeys").WithCause(err)
+			}
+			passkeysAvailable = n > 0
+		}
 		return c.JSON(fiber.Map{
 			"sentry": fiber.Map{
 				"dsn":         deps.SentryFrontendDSN,
 				"environment": deps.SentryEnvironment,
+			},
+			"passkeys": fiber.Map{
+				"enabled":   deps.PasskeyRepo != nil,
+				"available": passkeysAvailable,
 			},
 		})
 	})

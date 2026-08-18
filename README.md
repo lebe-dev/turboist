@@ -17,6 +17,7 @@ Turboist is a task management app for the rest of us.
 - Task relations — `related` cross-references plus `blocks` dependencies that prevent completing a blocked task — [docs/task-relations.md](docs/task-relations.md)
 - Single-user JWT auth with refresh-token rotation
 - Optional TOTP 2FA (RFC 6238) with single-use recovery codes
+- Passkey (WebAuthn) sign-in — Face ID / Touch ID / Windows Hello / security keys, alongside the password — [docs/passkey.md](docs/passkey.md)
 - [Troiki System](docs/troiki-system.md)
 - Localized UI (English / Russian) — [docs/locales.md](docs/locales.md)
 - Public View — [docs/public-mode.md](docs/public-mode.md)
@@ -42,6 +43,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [Configuration](docs/configuration.md) — env vars, log levels, config.yml
 - [Backend architecture](docs/architecture/backend.md) — endpoints, auth, storage, dev commands
 - [API reference](API.md)
+- [Passkeys](docs/passkey.md) — WebAuthn sign-in, and the native app setup it needs
 - [Task relations](docs/task-relations.md) — `related` / `blocks`, and how blocking works
 - [Troiki System](docs/troiki-system.md)
 - [Localization](docs/locales.md)

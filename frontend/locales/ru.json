@@ -450,6 +450,30 @@
 			"reauthBanner": "Нужно переподключить Google Календарь — доступ истёк.",
 			"reauthTitle": "Требуется переподключение",
 			"reauthDescription": "Google отозвал доступ или срок его действия истёк. События не будут загружаться, пока вы заново не разрешите доступ."
+		},
+		"passkeys": {
+			"heading": "Passkey",
+			"description": "Вход по Face ID, Touch ID, Windows Hello или аппаратному ключу вместо пароля.",
+			"empty": "Passkey ещё не добавлены.",
+			"add": "Добавить passkey",
+			"adding": "Ждём подтверждения на устройстве…",
+			"namePlaceholder": "Название устройства",
+			"added": "Passkey добавлен.",
+			"addFailed": "Не удалось добавить passkey.",
+			"created": "Добавлен",
+			"lastUsed": "Последний вход",
+			"neverUsed": "Ещё не использовался",
+			"rename": "Переименовать",
+			"renameFailed": "Не удалось переименовать passkey.",
+			"remove": "Удалить",
+			"removing": "Удаляем…",
+			"removeFailed": "Не удалось удалить passkey.",
+			"confirmRemoveTitle": "Удалить этот passkey?",
+			"confirmRemoveDescription": "Устройство больше не сможет входить по нему. Пароль продолжит работать.",
+			"loadFailed": "Не удалось загрузить список passkey.",
+			"unsupported": "Этот браузер не поддерживает passkey.",
+			"limitReached": "Достигнут лимит passkey.",
+			"duplicate": "У этого устройства уже есть passkey для этого аккаунта."
 		}
 	},
 	"connect": {
@@ -482,7 +506,11 @@
 		"otpUseApp": "Использовать приложение-аутентификатор",
 		"otpVerify": "Подтвердить",
 		"otpCancel": "Войти под другим аккаунтом",
-		"otpFailed": "Неверный или просроченный код"
+		"otpFailed": "Неверный или просроченный код",
+		"passkeySignIn": "Войти по passkey",
+		"passkeySigningIn": "Ждём подтверждения на устройстве…",
+		"passkeyFailed": "Не удалось войти по passkey.",
+		"passkeyOr": "или"
 	},
 	"task": {
 		"addTask": "Добавить задачу",

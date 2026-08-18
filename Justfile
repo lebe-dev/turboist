@@ -136,11 +136,17 @@ cap-sync:
 # substitution (see Dockerfile) but adds the commit hash, since local debug
 # builds share a VERSION between commits. package.json is restored afterwards
 # so the stamp never leaks into a git diff.
+#
+# The restore copies the file back rather than running `git checkout --`: the
+# checkout would also discard UNCOMMITTED edits to package.json, which silently
+# uninstalled a freshly added Capacitor plugin (it then vanished from `cap sync`
+# and the native build shipped without it).
 cap-sync-versioned:
     #!/usr/bin/env bash
     set -euo pipefail
     cd frontend
-    trap 'git checkout -- package.json' EXIT
+    cp package.json package.json.stamp-backup
+    trap 'mv -f package.json.stamp-backup package.json' EXIT
     perl -pi -e 's/"version": "[^"]*"/"version": "{{ mobileVersion }}"/' package.json
     yarn build
     yarn cap sync

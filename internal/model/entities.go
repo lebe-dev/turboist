@@ -148,6 +148,22 @@ type User struct {
 	UpdatedAt            time.Time
 }
 
+// PasskeyCredential is one registered WebAuthn credential.
+//
+// Credential holds the JSON-serialised go-webauthn Credential Record; the model
+// layer deliberately keeps it opaque so entities stay free of the WebAuthn
+// library types. SignCount is mirrored out of that blob for cheap inspection.
+type PasskeyCredential struct {
+	ID           int64
+	UserID       int64
+	CredentialID string
+	Name         string
+	Credential   []byte
+	SignCount    uint32
+	CreatedAt    time.Time
+	LastUsedAt   *time.Time
+}
+
 type Session struct {
 	ID         int64
 	UserID     int64

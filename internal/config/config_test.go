@@ -246,3 +246,60 @@ func TestLoadEnv_CalendarCacheTTLNonPositive(t *testing.T) {
 		t.Fatalf("expected CALENDAR_CACHE_TTL positive error, got %v", err)
 	}
 }
+
+// setupEnvBase sets the required variables so a test can focus on one knob.
+func setupEnvBase(t *testing.T) {
+	t.Helper()
+	t.Setenv("BIND", "0.0.0.0:8080")
+	t.Setenv("BASE_URL", "https://todo.example.com")
+	t.Setenv("JWT_SECRET", "supersecret-supersecret-supersecret")
+	t.Setenv("API_TOKEN_SALT", "supersalt-supersalt-supersalt-supersalt")
+	t.Setenv("WEBAUTHN_RP_ID", "")
+	t.Setenv("WEBAUTHN_ORIGINS", "")
+}
+
+func TestLoadEnv_WebAuthnDefaultsFromBaseURL(t *testing.T) {
+	setupEnvBase(t)
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("load env: %v", err)
+	}
+	if e.WebAuthnRPID != "todo.example.com" {
+		t.Errorf("rp id: got %q, want todo.example.com", e.WebAuthnRPID)
+	}
+	if len(e.WebAuthnOrigins) != 1 || e.WebAuthnOrigins[0] != "https://todo.example.com" {
+		t.Errorf("origins: got %v, want [https://todo.example.com]", e.WebAuthnOrigins)
+	}
+}
+
+func TestLoadEnv_WebAuthnOverrides(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("WEBAUTHN_RP_ID", "example.com")
+	// Duplicates and blanks are tolerated; the native app's origin is appended.
+	t.Setenv("WEBAUTHN_ORIGINS", "https://todo.example.com, android:apk-key-hash:abc , ")
+
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("load env: %v", err)
+	}
+	if e.WebAuthnRPID != "example.com" {
+		t.Errorf("rp id: got %q, want example.com", e.WebAuthnRPID)
+	}
+	want := []string{"https://todo.example.com", "android:apk-key-hash:abc"}
+	if len(e.WebAuthnOrigins) != len(want) {
+		t.Fatalf("origins: got %v, want %v", e.WebAuthnOrigins, want)
+	}
+	for i := range want {
+		if e.WebAuthnOrigins[i] != want[i] {
+			t.Errorf("origins[%d]: got %q, want %q", i, e.WebAuthnOrigins[i], want[i])
+		}
+	}
+}
+
+func TestLoadEnv_WebAuthnRejectsHostlessBaseURL(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("BASE_URL", "not-a-url")
+	if _, err := LoadEnv(); err == nil {
+		t.Fatal("load env: got nil error, want a rejection of a BASE_URL with no host")
+	}
+}

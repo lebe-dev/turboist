@@ -18,6 +18,9 @@ Load from `.env` if present (copy `.env.example` to get started):
 | `CALENDAR_TOKEN_KEY` | — | Encryption key for stored calendar OAuth tokens. Defaults to `JWT_SECRET`; keep stable. |
 | `CALENDAR_CACHE_TTL` | — | Server-side TTL for the in-memory calendar event cache, as a Go duration (e.g. `30s`, `2m`). Default `10m`. Lower it to see edits made in Google Calendar sooner, at the cost of more API calls (and, on mobile, more radio wake-ups: the day/week views refetch events on every catch-up refresh). Must be positive. |
 | `TOTP_SECRET_KEY` | — | Encryption key (≥ 32 bytes) for TOTP secrets at rest. Required to enable 2FA; if empty, `/auth/totp/*` returns an error. Keep stable — rotating invalidates all enrolled secrets. |
+| `WEBAUTHN_RP_ID` | — | Relying Party ID for passkeys. Defaults to the host of `BASE_URL`. Set it only to bind credentials to a parent domain (`example.com` while the app runs on `todo.example.com`). **Changing it invalidates every registered passkey.** |
+| `WEBAUTHN_ORIGINS` | — | Extra allowed origins for passkey ceremonies, comma-separated. The origin derived from `BASE_URL` is always allowed. Needed for the Android app, whose native origin is `android:apk-key-hash:<sha256>` rather than an HTTPS URL. |
+| `WELL_KNOWN_PATH` | — | Directory served under `/.well-known/`. Used to publish `apple-app-site-association` and `assetlinks.json`, which iOS/Android require before the native apps may use this domain's passkeys. Leave empty when a reverse proxy already serves those paths. |
 | `SENTRY_DSN` | — | Backend Sentry DSN. When set, the server reports recovered panics, every 5xx response, and 400 Bad Request (with the underlying cause) to Sentry. Expected client errors (401/403/404/409/429/…) are not reported. Empty disables backend reporting. |
 | `SENTRY_FRONTEND_DSN` | — | Browser Sentry DSN. Served to the SPA at runtime via `GET /api/config` (never baked into the static bundle), so toggling it needs no frontend rebuild. Use a separate Sentry project from the backend. |
 | `SENTRY_ENVIRONMENT` | — | Environment label applied to both backend and frontend events (e.g. `production`, `staging`). |
@@ -25,6 +28,22 @@ Load from `.env` if present (copy `.env.example` to get started):
 ### Sentry error reporting
 
 Both planes are errors-only (no performance tracing) and fully optional — leave a DSN blank to disable that side. The backend captures recovered panics and any request resolving to HTTP ≥ 400, plus background-goroutine and startup failures. The frontend captures uncaught browser errors, unhandled promise rejections, and errors surfaced through SvelteKit's client pipeline; it fetches its DSN from the public `GET /api/config` endpoint on startup.
+
+### Passkeys (WebAuthn)
+
+Passkeys are on by default: the Relying Party is derived from `BASE_URL`, so a
+standard single-domain install needs no configuration. A `BASE_URL` the parser
+cannot read a host from fails start-up; a Relying Party the WebAuthn library
+rejects disables the feature (logged at WARN) and leaves password login working.
+
+WebAuthn requires a secure context — HTTPS, or `localhost` for development. A
+passkey is an additional login method, never a replacement: the password stays
+as the recovery path, and a passkey login skips the TOTP step because the
+authenticator already verified the user.
+
+For the native apps, also set `plugins.CapacitorPasskey.origin`/`domains` in
+`frontend/capacitor.config.ts` and serve the two association files. Full setup
+and troubleshooting: [passkey.md](passkey.md).
 
 ### Log levels
 

@@ -15,6 +15,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
+	"github.com/lebe-dev/turboist/internal/service/passkey"
 	"github.com/lebe-dev/turboist/internal/service/totp"
 )
 
@@ -45,6 +46,9 @@ type AuthHandler struct {
 	// totp is nil when the TOTP feature is disabled (no TOTP_SECRET_KEY). When
 	// non-nil, the login flow becomes two-step for accounts that have enrolled.
 	totp *totp.Service
+	// passkeys is nil when WebAuthn could not be configured. When non-nil the
+	// /auth/passkey/login/* endpoints are registered alongside the password flow.
+	passkeys *passkey.Service
 }
 
 // NewAuthHandler constructs an AuthHandler.
@@ -84,6 +88,10 @@ func (h *AuthHandler) RegisterAuth(r fiber.Router, jwtIssuer *auth.JWTIssuer) {
 	r.Post("/setup", h.setup)
 	r.Post("/login", h.login)
 	r.Post("/login/otp", h.loginOTP)
+	if h.passkeys != nil {
+		r.Post("/passkey/login/begin", h.passkeyLoginBegin)
+		r.Post("/passkey/login/finish", h.passkeyLoginFinish)
+	}
 	r.Post("/refresh", h.refresh)
 	r.Post("/logout", httpapi.AuthMiddleware(jwtIssuer), h.logout)
 	r.Post("/logout-all", httpapi.AuthMiddleware(jwtIssuer), h.logoutAll)

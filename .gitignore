@@ -21,3 +21,4 @@
 /docs/plans
 /*.json
 frontend/coverage
+!deploy/well-known/README.md

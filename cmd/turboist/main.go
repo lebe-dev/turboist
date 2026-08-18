@@ -23,6 +23,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
 	"github.com/lebe-dev/turboist/internal/service/events"
+	passkeysvc "github.com/lebe-dev/turboist/internal/service/passkey"
 	totpsvc "github.com/lebe-dev/turboist/internal/service/totp"
 	"golang.org/x/time/rate"
 )
@@ -105,6 +106,7 @@ func main() {
 	templateRepo := repo.NewTemplateRepo(sqlDB)
 	searchRepo := repo.NewSearchRepo(taskRepo, projectRepo)
 	idempotencyRepo := repo.NewIdempotencyRepo(sqlDB)
+	webauthnRepo := repo.NewWebAuthnRepo(sqlDB)
 
 	// auth
 	jwtIssuer := auth.NewJWTIssuer([]byte(env.JWTSecret))
@@ -136,6 +138,21 @@ func main() {
 		log.Info("totp 2FA enabled")
 	} else {
 		log.Info("totp 2FA disabled (TOTP_SECRET_KEY not set)")
+	}
+
+	// Passkeys (WebAuthn). The Relying Party is derived from BASE_URL, so a
+	// standard install needs no extra config; a rejected config disables the
+	// feature rather than the server, since the password login still works.
+	passkeySvc, err := passkeysvc.NewService(passkeysvc.Config{
+		RPID:          env.WebAuthnRPID,
+		RPDisplayName: "Turboist",
+		Origins:       env.WebAuthnOrigins,
+	}, webauthnRepo, userRepo)
+	if err != nil {
+		log.Warn("passkeys disabled", "err", err)
+		passkeySvc = nil
+	} else {
+		log.Info("passkeys enabled", "rp_id", env.WebAuthnRPID, "origins", env.WebAuthnOrigins)
 	}
 
 	// session + idempotency-key cleanup (share the shutdown-scoped context)
@@ -175,6 +192,12 @@ func main() {
 		SentryFrontendDSN: env.SentryFrontendDSN,
 		SentryEnvironment: env.SentryEnvironment,
 	}
+	if passkeySvc != nil {
+		// Only advertise passkeys on GET /api/config once the ceremony service
+		// actually came up — otherwise the login page would offer a button no
+		// endpoint answers.
+		deps.PasskeyRepo = webauthnRepo
+	}
 	app := httpapi.NewApp(deps)
 	calendarSvc := calendarsvc.NewService(
 		calendarRepo,
@@ -202,6 +225,9 @@ func main() {
 	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
 	if totpSvc != nil {
 		authHandler.WithTOTP(totpSvc)
+	}
+	if passkeySvc != nil {
+		authHandler.WithPasskeys(passkeySvc)
 	}
 	authGroup := app.Group("/auth")
 	authHandler.RegisterAuth(authGroup, jwtIssuer)
@@ -231,8 +257,18 @@ func main() {
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewSessionsHandler(sessionRepo).
 		Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
+	if passkeySvc != nil {
+		// Registering a passkey mints a password-equivalent credential, so the
+		// group is JWT-only: an API token must never be able to add one.
+		handlers.NewPasskeysHandler(passkeySvc).
+			Register(api.Group("/passkeys", httpapi.RequireJWTAuth()))
+	}
 	handlers.NewBackupHandler(backupSvc).Register(api.Group("", httpapi.RequireJWTAuth()))
 	calendarHandler.Register(api.Group("/calendars"))
+
+	// Deployment-specific association files for the native passkey flow; a
+	// no-op unless WELL_KNOWN_PATH is set. Must precede the SPA catch-all.
+	httpapi.RegisterWellKnown(app, env.WellKnownPath, log)
 
 	// embedded SvelteKit SPA (must be registered after API/auth routes)
 	if err := httpapi.RegisterSPA(app, turboist.StaticFS, "frontend/build"); err != nil {

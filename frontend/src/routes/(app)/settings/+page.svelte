@@ -17,6 +17,7 @@
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
 	import TemplatesSection from '$lib/components/settings/TemplatesSection.svelte';
 	import TwoFactorSection from '$lib/components/settings/TwoFactorSection.svelte';
+	import PasskeysSection from '$lib/components/settings/PasskeysSection.svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import { toast } from 'svelte-sonner';
 	import { labelsStore } from '$lib/stores/labels.svelte';
@@ -648,6 +649,7 @@
 
 		<Tabs.Content value="security" class="flex flex-col gap-4">
 			<TwoFactorSection available={totpAvailable} />
+			<PasskeysSection />
 			<SessionsSection />
 		</Tabs.Content>
 

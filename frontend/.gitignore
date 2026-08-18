@@ -22,3 +22,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Backup written by `just cap-sync-versioned` while the version stamp is applied;
+# only present if a build was interrupted mid-flight.
+package.json.stamp-backup

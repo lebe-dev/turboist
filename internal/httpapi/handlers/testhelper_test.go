@@ -22,6 +22,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
 	"github.com/lebe-dev/turboist/internal/service/events"
+	passkeysvc "github.com/lebe-dev/turboist/internal/service/passkey"
 )
 
 const testBaseURL = "http://test"
@@ -42,6 +43,7 @@ type apiEnv struct {
 	sessions     *repo.SessionRepo
 	calendarRepo *repo.CalendarRepo
 	idempotency  *repo.IdempotencyRepo
+	passkeys     *repo.WebAuthnRepo
 	eventsHub    *events.Hub
 	eventsTix    *events.TicketStore
 }
@@ -83,6 +85,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	salt := []byte("test-api-token-salt-32-bytes-pad!")
 	sessions := repo.NewSessionRepo(d)
 	idempotency := repo.NewIdempotencyRepo(d)
+	webauthnRepo := repo.NewWebAuthnRepo(d)
 
 	hub := events.NewHub(slog.Default())
 	t.Cleanup(hub.Close)
@@ -95,6 +98,7 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		APITokenSalt:    salt,
 		EventsHub:       hub,
 		IdempotencyRepo: idempotency,
+		PasskeyRepo:     webauthnRepo,
 	}
 	app := httpapi.NewApp(deps)
 
@@ -137,6 +141,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewSessionsHandler(sessions).
 		Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
+	handlers.NewPasskeysHandler(newTestPasskeyService(t, webauthnRepo, users)).
+		Register(api.Group("/passkeys", httpapi.RequireJWTAuth()))
 	handlers.NewBackupHandler(service.NewBackupService(d)).
 		Register(api.Group("", httpapi.RequireJWTAuth()))
 
@@ -161,9 +167,26 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		sessions:     sessions,
 		calendarRepo: calendarRepo,
 		idempotency:  idempotency,
+		passkeys:     webauthnRepo,
 		eventsHub:    hub,
 		eventsTix:    tix,
 	}
+}
+
+// newTestPasskeyService builds the WebAuthn service the wired app uses. The RP
+// ID must be a real domain (testBaseURL's "test" host is not), so tests pin it
+// to localhost — the ceremony shapes under test do not depend on the value.
+func newTestPasskeyService(t *testing.T, creds *repo.WebAuthnRepo, users *repo.UserRepo) *passkeysvc.Service {
+	t.Helper()
+	svc, err := passkeysvc.NewService(passkeysvc.Config{
+		RPID:          "localhost",
+		RPDisplayName: "Turboist",
+		Origins:       []string{"http://localhost", testBaseURL},
+	}, creds, users)
+	if err != nil {
+		t.Fatalf("passkey service: %v", err)
+	}
+	return svc
 }
 
 func (e *apiEnv) token(t *testing.T) string {

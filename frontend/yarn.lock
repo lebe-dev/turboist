@@ -287,6 +287,11 @@
   resolved "https://registry.yarnpkg.com/@capacitor/status-bar/-/status-bar-8.0.2.tgz#bf2900c1a79b4481f71cd841d46050895d28d9fe"
   integrity sha512-WXs8YB8B9eEaPZz+bcdY6t2nForF1FLoj/JU0Dl9RRgQnddnS98FEEyDooQhaY7wivr000j4+SC1FyeJkrFO7A==
 
+"@capgo/capacitor-passkey@^8.4.0":
+  version "8.4.0"
+  resolved "https://registry.yarnpkg.com/@capgo/capacitor-passkey/-/capacitor-passkey-8.4.0.tgz#b4e38af21dfca04e2af29d64c20ac7be842a5b60"
+  integrity sha512-XFLn3tMse2pqFQAEzFSXHDhBPqo+DFIbMPWbj1tlrVM34K4Dro78y+Q9IYnb6OuY/8TQi46CaXz8Dsq5f9+N3A==
+
 "@csstools/color-helpers@^5.1.0":
   version "5.1.0"
   resolved "https://registry.yarnpkg.com/@csstools/color-helpers/-/color-helpers-5.1.0.tgz#106c54c808cabfd1ab4c602d8505ee584c2996ef"

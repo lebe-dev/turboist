@@ -23,6 +23,8 @@ The server runs migrations from `internal/db/migrations` on every start. The sch
 | `POST /auth/logout` | — | Invalidate current session |
 | `POST /auth/logout-all` | — | Invalidate all sessions |
 | `GET /auth/me` | JWT | Current user info |
+| `POST /auth/passkey/login/{begin,finish}` | none | Discoverable passkey login (WebAuthn) |
+| `/api/v1/passkeys/*` | JWT | Register, list, rename and remove passkeys |
 | `/api/v1/{contexts,labels,sections,projects,inbox,tasks,search,config}` | Bearer | Authenticated REST resources |
 | `POST\|DELETE /api/v1/tasks/:id/relations[/:relationId]` | Bearer | Task relation graph (write-only — reads ride on `GET /api/v1/tasks/:id?relations=true`) |
 
@@ -35,6 +37,39 @@ See [API.md](../../API.md) for the full reference.
 Single-user app. First request must be `POST /auth/setup` with `{username, password, clientKind}`. Login issues a 15-minute access token and 30-day refresh token. Up to 5 concurrent sessions per client kind (`web|ios|cli`) — older sessions are pruned automatically.
 
 Optional TOTP 2FA (RFC 6238) with single-use recovery codes. Requires `TOTP_SECRET_KEY` env var.
+
+### Passkeys (WebAuthn)
+
+A second, additional way in — the password stays as the recovery path. Built on
+`github.com/go-webauthn/webauthn`; the service lives in `internal/service/passkey`,
+the credentials in `webauthn_credentials` (migration `049`).
+
+- **Discoverable credentials.** Registration demands a resident key, so login is
+  usernameless: the authenticator returns the user handle (`webauthn_users.handle`,
+  a random 32-byte value generated on first enrollment) and the server resolves
+  the account from it.
+- **One factor covers both.** A passkey assertion never leads to a TOTP step: the
+  authenticator holds the key *and* verifies the user, so an extra code would add
+  friction without adding a factor.
+- **Ceremony state is server-side and single-use.** `begin` stores the challenge
+  in an in-memory store keyed by an opaque `ceremonyId` (5-minute TTL) and
+  `finish` consumes it — a replay gets `passkey_ceremony_invalid`. In-memory is
+  deliberate: single process, worthless data after five minutes, and a restart
+  mid-ceremony just means tapping the button again.
+- **Counter write-back.** Every successful assertion rewrites the stored
+  credential record (signature counter, backup-state flags), which is what makes
+  clone detection work.
+- **Relying Party from `BASE_URL`.** `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGINS` override
+  it. Credentials are bound to the RP ID — changing it invalidates all of them. A
+  Relying Party the library rejects disables the routes entirely (they 404)
+  rather than taking the server down.
+- **JWT only.** `/api/v1/passkeys/*` sits behind `RequireJWTAuth`: enrolling a
+  passkey mints a password-equivalent credential, so an API token must not reach
+  it. Up to 20 passkeys per account.
+- **Native apps** run the ceremony through platform APIs (`@capgo/capacitor-passkey`),
+  since the WebView's origin is not the server's; that path needs the association
+  files served under `/.well-known/` (`WELL_KNOWN_PATH`) and the Android app's
+  `android:apk-key-hash:` origin in `WEBAUTHN_ORIGINS`. See `docs/mobile.md`.
 
 ## Real-time invalidation (SSE)
 

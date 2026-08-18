@@ -30,6 +30,22 @@ export interface TOTPConfirmResponse {
 	recoveryCodes: string[];
 }
 
+// A registered passkey (WebAuthn credential) as listed in settings. The
+// credential material itself never leaves the server.
+export interface Passkey {
+	id: number;
+	name: string;
+	createdAt: string;
+	lastUsedAt: string | null;
+}
+
+// One half of a WebAuthn ceremony: the server-side challenge is addressed by
+// `ceremonyId`, and `options` is passed to the authenticator verbatim.
+export interface PasskeyCeremony {
+	ceremonyId: string;
+	options: { publicKey: Record<string, unknown> };
+}
+
 export interface AuthLoginSuccessResponse {
 	access: string;
 	refresh: string;

@@ -20,7 +20,7 @@ API tokens carry **granular permissions** (scopes). Each scope grants access to 
 - `write` is **not** implied by `read` and vice versa — both must be granted independently if both are needed
 - Special wildcard `*` grants full access (all current and future scopes)
 - A request whose scopes do not cover the called endpoint returns `403 Forbidden` with `code = "forbidden"` and message `"insufficient scope"` (the missing scope name is logged server-side but not exposed in the response)
-- Some endpoints are reserved for JWT sessions and are **never** reachable with an API token (token management, session management, TOTP, backup/restore, SSE `/events`) — calling them with a Bearer API token returns `401`
+- Some endpoints are reserved for JWT sessions and are **never** reachable with an API token (token management, session management, TOTP, passkeys, backup/restore, SSE `/events`) — calling them with a Bearer API token returns `401`
 
 JWT sessions are unaffected by scopes — a logged-in session always has full access. Only API tokens are checked against scopes.
 
@@ -105,6 +105,8 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `totp_invalid_code` | 401 |
 | `totp_already_enabled` | 409 |
 | `totp_not_enabled` | 409 |
+| `passkey_ceremony_invalid` | 400 |
+| `passkey_exists` | 409 |
 | `calendar_reauth_required` | 409 |
 | `task_blocked` | 409 |
 | `CodeInternalError` | 500 |
@@ -192,8 +194,15 @@ curl "$BASE/version"
 
 Public runtime configuration for the SPA (kept unauthenticated so the browser can initialise error reporting before login). A blank `dsn` means the frontend leaves Sentry disabled.
 
+`passkeys.enabled` reports whether WebAuthn came up on this instance;
+`passkeys.available` whether at least one passkey is registered, which is what
+lets the login page decide between showing a passkey button and showing nothing.
+
 ```json
-{ "sentry": { "dsn": "https://<key>@<host>/<project>", "environment": "production" } }
+{
+  "sentry": { "dsn": "https://<key>@<host>/<project>", "environment": "production" },
+  "passkeys": { "enabled": true, "available": false }
+}
 ```
 
 ```sh
@@ -424,6 +433,108 @@ recovery code.
 
 Errors: `totp_invalid_code` (401), `totp_not_enabled` (409),
 `auth_rate_limited` (429).
+
+---
+
+## Passkeys (WebAuthn)
+
+A passkey is an **additional** login method — the password stays in place as the
+recovery path. A successful passkey assertion satisfies both factors at once
+(the authenticator holds the key and verifies the user), so it never leads to a
+TOTP step, even on an account with 2FA enabled.
+
+Credentials are **discoverable**: registration requires a resident key, so login
+needs no username. The Relying Party is derived from `BASE_URL` (`WEBAUTHN_RP_ID`
+/ `WEBAUTHN_ORIGINS` override it — see `docs/configuration.md`); changing the RP
+ID invalidates every registered passkey.
+
+Every ceremony is two calls. `begin` returns `{ceremonyId, options}` where
+`options` is passed to `navigator.credentials.create()`/`.get()` verbatim (binary
+fields base64url-encoded); `finish` returns the authenticator's answer in the
+same JSON form together with the `ceremonyId`. The challenge is held server-side
+for **5 minutes** and is single-use — a replayed `finish` gets
+`passkey_ceremony_invalid` (400). When WebAuthn could not be configured, none of
+these routes exist and requests to them return `404`.
+
+### `POST /auth/passkey/login/begin`
+
+Start a discoverable login. Unauthenticated.
+
+```json
+{ "clientKind": "web" }
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "ceremonyId": "0Yc…",
+  "options": { "publicKey": { "challenge": "…", "rpId": "todo.example.com", "userVerification": "preferred" } }
+}
+```
+
+Errors: `validation_failed` (400) for an unknown `clientKind`;
+`auth_rate_limited` (429).
+
+### `POST /auth/passkey/login/finish`
+
+Complete the login. Unauthenticated. Answers exactly like `POST /auth/login`
+does on success (access + refresh + user; web clients also get the refresh
+cookie).
+
+```json
+{
+  "ceremonyId": "0Yc…",
+  "clientKind": "web",
+  "credential": { "id": "…", "rawId": "…", "type": "public-key", "response": { "clientDataJSON": "…", "authenticatorData": "…", "signature": "…", "userHandle": "…" } }
+}
+```
+
+Errors: `passkey_ceremony_invalid` (400) for an expired/unknown/replayed
+ceremony; `auth_invalid` (401) for an assertion that does not verify;
+`auth_rate_limited` (429).
+
+### `GET /api/v1/passkeys` *(requires JWT)*
+
+List the account's registered passkeys.
+
+```json
+[
+  { "id": 3, "name": "iPhone", "createdAt": "2026-08-18T10:00:00.000Z", "lastUsedAt": "2026-08-18T12:30:00.000Z" }
+]
+```
+
+### `POST /api/v1/passkeys/register/begin` *(requires JWT)*
+
+Creation options for a new passkey. Already-registered credentials appear in
+`excludeCredentials` so the platform offers to replace rather than duplicate
+them.
+
+Errors: `limit_exceeded` (422) once the account holds 20 passkeys
+(`details.max`).
+
+### `POST /api/v1/passkeys/register/finish` *(requires JWT)*
+
+Verify the attestation and store the credential. `name` is optional and
+defaults to `Passkey`.
+
+```json
+{ "ceremonyId": "0Yc…", "name": "iPhone", "credential": { "id": "…", "response": { "clientDataJSON": "…", "attestationObject": "…" } } }
+```
+
+**Response:** `201 Created` with the stored passkey.
+
+Errors: `passkey_ceremony_invalid` (400); `validation_failed` (400) for an
+attestation that does not verify; `passkey_exists` (409); `limit_exceeded` (422).
+
+### `PATCH /api/v1/passkeys/:id` *(requires JWT)*
+
+Rename a passkey. `{ "name": "Work laptop" }` → the updated passkey.
+
+### `DELETE /api/v1/passkeys/:id` *(requires JWT)*
+
+Remove a passkey. **Response:** `204 No Content`. Removing the last one is
+allowed — the password still signs you in.
 
 ---
 

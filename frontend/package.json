@@ -65,6 +65,7 @@
 		"@capacitor/preferences": "^8",
 		"@capacitor/splash-screen": "^8",
 		"@capacitor/status-bar": "^8",
+		"@capgo/capacitor-passkey": "^8.4.0",
 		"@fontsource-variable/outfit": "^5.2.8",
 		"@sentry/sveltekit": "^10.56.0",
 		"idb": "^8.0.3",

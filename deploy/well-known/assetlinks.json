@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ru.tinyops.turboist",
+      "sha256_cert_fingerprints": [
+        "91:99:F3:E7:0A:04:48:EF:24:03:B8:85:94:88:D4:09:75:6F:7C:0F:CD:C3:52:DB:28:E7:D4:7D:7D:30:D0:F0"
+      ]
+    }
+  }
+]

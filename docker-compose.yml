@@ -10,6 +10,9 @@ services:
     volumes:
       - ./config.yml:/app/config.yml:ro
       - ./data:/app/data
+      # Association files for native passkeys; served under /.well-known/ when
+      # WELL_KNOWN_PATH=/app/well-known is set (see deploy/well-known/README.md).
+      - ./deploy/well-known:/app/well-known:ro
     restart: unless-stopped
     deploy:
       resources:

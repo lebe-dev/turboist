@@ -2,8 +2,11 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -145,6 +148,21 @@ type Env struct {
 	DataPath      string
 	Argon2Params  auth.Argon2Params
 
+	// Passkeys (WebAuthn). Both are derived from BASE_URL when unset:
+	// WebAuthnRPID becomes its host and WebAuthnOrigins its scheme+host+port.
+	// Override WEBAUTHN_RP_ID only to bind credentials to a parent domain, and
+	// WEBAUTHN_ORIGINS (comma-separated) to allow extra origins — notably the
+	// Android app's "android:apk-key-hash:<sha256>" origin. Credentials are
+	// bound to the RP ID: changing it invalidates every registered passkey.
+	WebAuthnRPID    string
+	WebAuthnOrigins []string
+
+	// WellKnownPath optionally points at a directory served under
+	// /.well-known/. Used to publish `apple-app-site-association` and
+	// `assetlinks.json`, which the native apps need before the OS will let them
+	// use this domain's passkeys. Empty leaves the route unmounted.
+	WellKnownPath string
+
 	// CalendarCacheTTL is the server-side TTL for cached Google Calendar events,
 	// parsed from CALENDAR_CACHE_TTL (Go duration, e.g. "30s", "2m"). A shorter
 	// value reduces staleness after editing events at the cost of more API calls.
@@ -168,6 +186,8 @@ func LoadEnv() (*Env, error) {
 		APITokenSalt:  os.Getenv("API_TOKEN_SALT"),
 		TOTPSecretKey: os.Getenv("TOTP_SECRET_KEY"),
 		DataPath:      os.Getenv("DATA_PATH"),
+		WebAuthnRPID:  os.Getenv("WEBAUTHN_RP_ID"),
+		WellKnownPath: os.Getenv("WELL_KNOWN_PATH"),
 
 		SentryDSN:         os.Getenv("SENTRY_DSN"),
 		SentryFrontendDSN: os.Getenv("SENTRY_FRONTEND_DSN"),
@@ -212,7 +232,34 @@ func LoadEnv() (*Env, error) {
 	}
 	e.CalendarCacheTTL = ttl
 
+	if err := e.applyWebAuthnDefaults(); err != nil {
+		return nil, err
+	}
+
 	return e, nil
+}
+
+// applyWebAuthnDefaults derives the Relying Party ID and the allowed origin
+// list from BASE_URL, keeping passkeys working with no extra configuration on a
+// standard single-domain install.
+func (e *Env) applyWebAuthnDefaults() error {
+	u, err := url.Parse(e.BaseURL)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("env: BASE_URL must be an absolute URL to derive passkey settings")
+	}
+	if e.WebAuthnRPID == "" {
+		e.WebAuthnRPID = u.Hostname()
+	}
+	origins := []string{u.Scheme + "://" + u.Host}
+	for _, raw := range strings.Split(os.Getenv("WEBAUTHN_ORIGINS"), ",") {
+		origin := strings.TrimSpace(raw)
+		if origin == "" || slices.Contains(origins, origin) {
+			continue
+		}
+		origins = append(origins, origin)
+	}
+	e.WebAuthnOrigins = origins
+	return nil
 }
 
 func loadCalendarCacheTTL() (time.Duration, error) {

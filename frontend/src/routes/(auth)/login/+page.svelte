@@ -4,6 +4,10 @@
 	import { Label } from '$lib/components/ui/label';
 	import { getAuthStore } from '$lib/auth/store.svelte';
 	import { ApiError } from '$lib/api/errors';
+	import { loadPublicConfig } from '$lib/api';
+	import { isPasskeySupported, isPasskeyCancellation } from '$lib/webauthn';
+	import { onMount } from 'svelte';
+	import KeyIcon from 'phosphor-svelte/lib/Key';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { t } from '$lib/i18n';
@@ -16,6 +20,17 @@
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 	let useRecovery = $state(false);
+	// The passkey button appears only when this runtime can run a ceremony AND
+	// the instance actually has a credential to match — otherwise it would open
+	// an empty platform picker.
+	let passkeyOffered = $state(false);
+	let passkeySubmitting = $state(false);
+
+	onMount(async () => {
+		if (!isPasskeySupported()) return;
+		const config = await loadPublicConfig();
+		passkeyOffered = !!config?.passkeys?.available;
+	});
 
 	$effect(() => {
 		if (auth.setupRequired) void goto(resolve('/setup'));
@@ -61,6 +76,27 @@
 			}
 		} finally {
 			submitting = false;
+		}
+	}
+
+	async function onPasskeySignIn(): Promise<void> {
+		if (passkeySubmitting) return;
+		passkeySubmitting = true;
+		error = null;
+		try {
+			await auth.loginWithPasskey();
+			await goto(resolve('/'));
+		} catch (err) {
+			// Closing the platform sheet is not a failure worth shouting about.
+			if (isPasskeyCancellation(err)) return;
+			error =
+				err instanceof ApiError
+					? err.message
+					: err instanceof Error
+						? err.message
+						: $t('auth.passkeyFailed');
+		} finally {
+			passkeySubmitting = false;
 		}
 	}
 
@@ -147,6 +183,22 @@
 		<Button type="submit" disabled={submitting}>
 			{submitting ? $t('auth.signingIn') : $t('auth.signIn')}
 		</Button>
+		{#if passkeyOffered}
+			<div class="flex items-center gap-3 text-xs text-muted-foreground">
+				<span class="h-px flex-1 bg-border"></span>
+				{$t('auth.passkeyOr')}
+				<span class="h-px flex-1 bg-border"></span>
+			</div>
+			<Button
+				type="button"
+				variant="outline"
+				onclick={onPasskeySignIn}
+				disabled={passkeySubmitting || submitting}
+			>
+				<KeyIcon class="size-4" />
+				{passkeySubmitting ? $t('auth.passkeySigningIn') : $t('auth.passkeySignIn')}
+			</Button>
+		{/if}
 	</form>
 {/if}
 

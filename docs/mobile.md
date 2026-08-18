@@ -27,6 +27,66 @@ Networking specifics:
 - The rotating **refresh token** is stored in the iOS Keychain / Android Keystore (`@aparajita/capacitor-secure-storage`) and sent in the `POST /auth/refresh` **body** (the backend reads body-first). There is no HttpOnly cookie on native — the backend sets that only for `web`.
 - Logout clears the stored refresh token; the server URL is kept (it is configuration, not a credential).
 
+### Passkeys on native
+
+The WebView cannot run a browser WebAuthn ceremony for your server: its origin is
+`capacitor://localhost` (iOS) / `https://localhost` (Android), not your domain. So
+`frontend/src/lib/webauthn/` routes native ceremonies through the platform passkey
+APIs via `@capgo/capacitor-passkey`, while the web build keeps using
+`navigator.credentials` (the plugin is imported lazily, so it never enters the web
+bundle).
+
+The setup below is summarised here for the native build; the full feature guide,
+including the web side and a troubleshooting table, is
+[passkey.md](passkey.md).
+
+Unlike everything else on native, this cannot be configured at runtime — iOS bakes
+the associated-domains entitlement in at sign time. A native build therefore
+targets one instance domain:
+
+1. **Point the app at your domain.** In `frontend/capacitor.config.ts`, set
+   `plugins.CapacitorPasskey.origin` (e.g. `https://todo.example.com`) and
+   `domains` (`['todo.example.com']`), then run `just mobile`.
+2. **Serve the association files** from that same domain — set `WELL_KNOWN_PATH`
+   (see [configuration.md](configuration.md); `docker-compose.yml` already mounts
+   `deploy/well-known/` at `/app/well-known`) or let your reverse proxy answer:
+   - `/.well-known/apple-app-site-association` →
+     `{"webcredentials":{"apps":["<TEAM_ID>.ru.tinyops.turboist"]}}`, served as
+     JSON with no file extension;
+   - `/.well-known/assetlinks.json` → a Digital Asset Links entry for
+     `ru.tinyops.turboist` listing every signing certificate fingerprint you use,
+     debug builds included.
+3. **Allow the Android origin.** Android Credential Manager reports
+   `android:apk-key-hash:<sha256>` in `clientDataJSON`, not your HTTPS origin, so
+   add it to the server's `WEBAUTHN_ORIGINS`. iOS 17.4+ reports the configured
+   HTTPS origin and needs nothing extra.
+
+Skip all of this and the native apps simply sign in with a password as before;
+web passkeys are unaffected.
+
+**Symptom → cause.** The platform sheet opening and then failing with *"RP ID not
+found"* means Credential Manager could not verify the domain against the app:
+either the served `assetlinks.json` is missing/wrong (a SPA install answers `200`
+with `index.html`, which looks fine to `curl -o /dev/null` — check the body), the
+signing fingerprint in it is not the one that signed the installed APK, or the
+native plugin is missing from the build so the call fell back to the WebView,
+whose origin is `https://localhost` and never matches the RP ID. Verify the last
+one with `npx cap sync android` — `@capgo/capacitor-passkey` must appear in the
+plugin list and `android/app/src/main/res/values/capacitor-passkey.xml` must
+point at your domain.
+
+**`Cannot read properties of undefined (reading 'id')` on login** was this same
+seam: `@capgo/capacitor-passkey` distinguishes an assertion from a registration
+by whether the call carries a `mediation` key, and without it runs the create
+path, which reads `publicKey.rp.id` — a field only registration options have.
+`lib/webauthn/index.ts` therefore always passes `mediation` to `getCredential`
+and never to `createCredential`; `native.test.ts` pins both directions.
+
+**A passkey is per-device unless it syncs.** One created with Touch ID on a Mac
+lives in iCloud Keychain and will not show up on a Pixel. On the phone either
+sign in with the password once and add a passkey from Settings → Security, or use
+the platform's cross-device (QR) flow from the desktop credential.
+
 ## Prerequisites
 
 Common: **Node 22+**, **yarn 1**.

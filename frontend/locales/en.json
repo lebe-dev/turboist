@@ -450,6 +450,30 @@
 			"reauthBanner": "Google Calendar needs to be reconnected — its access has expired.",
 			"reauthTitle": "Reconnect required",
 			"reauthDescription": "Google revoked or expired the access grant. Events will not load until you re-authorize access."
+		},
+		"passkeys": {
+			"heading": "Passkeys",
+			"description": "Sign in with Face ID, Touch ID, Windows Hello or a security key instead of your password.",
+			"empty": "No passkeys yet.",
+			"add": "Add passkey",
+			"adding": "Waiting for your device…",
+			"namePlaceholder": "Name this device",
+			"added": "Passkey added.",
+			"addFailed": "Could not add the passkey.",
+			"created": "Added",
+			"lastUsed": "Last used",
+			"neverUsed": "Never used",
+			"rename": "Rename",
+			"renameFailed": "Could not rename the passkey.",
+			"remove": "Remove",
+			"removing": "Removing…",
+			"removeFailed": "Could not remove the passkey.",
+			"confirmRemoveTitle": "Remove this passkey?",
+			"confirmRemoveDescription": "The device will no longer be able to sign in with it. Your password still works.",
+			"loadFailed": "Could not load your passkeys.",
+			"unsupported": "This browser cannot use passkeys.",
+			"limitReached": "You have reached the passkey limit.",
+			"duplicate": "That device already has a passkey for this account."
 		}
 	},
 	"connect": {
@@ -482,7 +506,11 @@
 		"otpUseApp": "Use authenticator app instead",
 		"otpVerify": "Verify",
 		"otpCancel": "Use a different account",
-		"otpFailed": "Invalid or expired code"
+		"otpFailed": "Invalid or expired code",
+		"passkeySignIn": "Sign in with a passkey",
+		"passkeySigningIn": "Waiting for your device…",
+		"passkeyFailed": "Passkey sign-in failed.",
+		"passkeyOr": "or"
 	},
 	"task": {
 		"addTask": "Add task",

@@ -24,6 +24,8 @@ const (
 	CodeSetupRequired          = "setup_required"
 	CodeCalendarReauthRequired = "calendar_reauth_required"
 	CodeIdempotencyInFlight    = "idempotency_in_flight"
+	CodePasskeyCeremony        = "passkey_ceremony_invalid"
+	CodePasskeyExists          = "passkey_exists"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -162,6 +164,19 @@ func ErrTOTPAlreadyEnabled() *AppError {
 
 func ErrTOTPNotEnabled() *AppError {
 	return newErr(409, CodeTOTPNotEnabled, "TOTP not enabled")
+}
+
+// ErrPasskeyCeremonyInvalid marks a begin→finish pair the server can no longer
+// match: the challenge expired, was already consumed, or the process restarted.
+// The client's remedy is to start the ceremony again.
+func ErrPasskeyCeremonyInvalid() *AppError {
+	return newErr(400, CodePasskeyCeremony, "passkey ceremony expired or unknown")
+}
+
+// ErrPasskeyExists is returned when the authenticator offered a credential this
+// account already has registered.
+func ErrPasskeyExists() *AppError {
+	return newErr(409, CodePasskeyExists, "passkey already registered")
 }
 
 func ErrTOTPTicketInvalid() *AppError {

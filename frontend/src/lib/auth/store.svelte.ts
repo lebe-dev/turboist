@@ -2,6 +2,8 @@ import { ApiClient, setApiClient, type OfflineBridge } from '../api/client';
 import { ApiError } from '../api/errors';
 import { createOfflineBridge } from '../offline';
 import { auth, type AuthCredentials } from '../api/endpoints/auth';
+import { passkeys } from '../api/endpoints/passkeys';
+import { createPasskeyCredential, getPasskeyAssertion } from '../webauthn';
 import type { User, ClientKind, AuthLoginSuccessResponse } from '../api/types';
 import { addApiLogEntry } from '../stores/apiLog.svelte';
 import { clientOrigin } from '../realtime/origin';
@@ -208,9 +210,7 @@ export class AuthStore {
 		if (this.tokenStore && res.refresh) await this.tokenStore.set(res.refresh);
 	}
 
-	async login(
-		credentials: Omit<AuthCredentials, 'clientKind'>
-	): Promise<{ otpRequired: boolean }> {
+	async login(credentials: Omit<AuthCredentials, 'clientKind'>): Promise<{ otpRequired: boolean }> {
 		const res = await auth.login(this.client, { ...credentials, clientKind: this.clientKind });
 		if ('otpRequired' in res) {
 			this.otpTicket = res.ticket;
@@ -219,6 +219,39 @@ export class AuthStore {
 		}
 		await this.finaliseAuth(res);
 		return { otpRequired: false };
+	}
+
+	/**
+	 * Sign in with a passkey. Discoverable ("usernameless"): the platform picker
+	 * chooses the credential and the authenticator tells the server which account
+	 * it belongs to, so nothing is typed.
+	 *
+	 * No OTP step can follow — a passkey assertion is already multi-factor, so
+	 * the server issues the session outright.
+	 */
+	async loginWithPasskey(): Promise<void> {
+		const ceremony = await passkeys.loginBegin(this.client, this.clientKind);
+		const credential = await getPasskeyAssertion(ceremony.options);
+		const res = await passkeys.loginFinish(this.client, {
+			ceremonyId: ceremony.ceremonyId,
+			clientKind: this.clientKind,
+			credential
+		});
+		await this.finaliseAuth(res);
+	}
+
+	/**
+	 * Enrol a new passkey for the signed-in account. Returns the stored
+	 * credential so the settings list can show it without a refetch.
+	 */
+	async registerPasskey(name: string) {
+		const ceremony = await passkeys.registerBegin(this.client);
+		const credential = await createPasskeyCredential(ceremony.options);
+		return passkeys.registerFinish(this.client, {
+			ceremonyId: ceremony.ceremonyId,
+			name,
+			credential
+		});
 	}
 
 	async verifyOtp(code: string): Promise<void> {
