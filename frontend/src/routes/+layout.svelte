@@ -36,6 +36,20 @@
 	// §5.3: gate the forced reload on `statusStore.online` — reloading while
 	// offline (before the service worker is active) would white-screen, and with
 	// the SW active it is pointless. The 60s version poll itself is untouched.
+	// Guard key: the forced reload happens at most once per tab. If the reload
+	// lands back on the same stale bundle (an entry document still fresh in the
+	// HTTP cache, a caching proxy), forcing it again on every click would turn
+	// the app into a permanent flicker; the toast and the `vite:preloadError`
+	// recovery below still cover that case.
+	const DEPLOY_RELOAD_KEY = 'turboist:deploy-reload';
+	const alreadyForced = () => {
+		try {
+			return sessionStorage.getItem(DEPLOY_RELOAD_KEY) === '1';
+		} catch {
+			return false;
+		}
+	};
+
 	beforeNavigate((nav) => {
 		const target = nav.to?.url;
 		const force = shouldForceReload({
@@ -43,10 +57,17 @@
 			updated: updated.current,
 			willUnload: nav.willUnload,
 			hasTarget: Boolean(target),
-			online: statusStore.online
+			online: statusStore.online,
+			alreadyForced: alreadyForced()
 		});
 		if (force && target) {
 			nav.cancel();
+			try {
+				sessionStorage.setItem(DEPLOY_RELOAD_KEY, '1');
+			} catch {
+				// Private mode / storage disabled — the reload still happens, it just
+				// is not deduplicated.
+			}
 			window.location.href = target.href;
 		}
 	});
@@ -57,7 +78,10 @@
 	// beforeNavigate to see updated.current = false and then crash mid-flight.
 	$effect(() => {
 		if (native || !updated.current) return;
+		// A stable id keeps re-runs of this effect (locale load, …) from stacking
+		// duplicate toasts on top of each other.
 		toast.info($t('app.newVersionAvailable'), {
+			id: 'app-update',
 			duration: Infinity,
 			action: {
 				label: $t('app.reload'),

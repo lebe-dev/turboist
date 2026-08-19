@@ -20,6 +20,14 @@ export interface ForceReloadInput {
 	 * being online (§5.3).
 	 */
 	online: boolean;
+	/**
+	 * A forced reload for this deploy already happened in this tab. If the tab
+	 * came back on the *same* stale bundle (a caching proxy, or an entry document
+	 * still fresh in the HTTP cache), reloading again would just flicker on every
+	 * click forever — so we reload at most once and let the toast, plus the
+	 * `vite:preloadError` recovery, handle the rest.
+	 */
+	alreadyForced: boolean;
 }
 
 /**
@@ -29,6 +37,11 @@ export interface ForceReloadInput {
  */
 export function shouldForceReload(input: ForceReloadInput): boolean {
 	return (
-		!input.native && input.updated && !input.willUnload && input.hasTarget && input.online
+		!input.native &&
+		input.updated &&
+		!input.willUnload &&
+		input.hasTarget &&
+		input.online &&
+		!input.alreadyForced
 	);
 }

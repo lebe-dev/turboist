@@ -8,7 +8,8 @@ const base = {
 	updated: true,
 	willUnload: false,
 	hasTarget: true,
-	online: true
+	online: true,
+	alreadyForced: false
 };
 
 describe('shouldForceReload', () => {
@@ -30,6 +31,10 @@ describe('shouldForceReload', () => {
 
 	it('skips a navigation with no resolvable target URL', () => {
 		expect(shouldForceReload({ ...base, hasTarget: false })).toBe(false);
+	});
+
+	it('reloads at most once per tab, so a stale bundle cannot loop the app', () => {
+		expect(shouldForceReload({ ...base, alreadyForced: true })).toBe(false);
 	});
 
 	it('does NOT reload while offline — a pre-SW reload would white-screen (§5.3)', () => {
