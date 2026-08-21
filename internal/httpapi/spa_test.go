@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -102,5 +103,64 @@ func TestRegisterSPA_PassesThroughReservedPrefixes(t *testing.T) {
 	}
 	if got := res.Header.Get(fiber.HeaderCacheControl); got != "" {
 		t.Errorf("Cache-Control got %q, want empty", got)
+	}
+}
+
+// The zero-ModTime trap: embed.FS (and fstest.MapFS) report a zero ModTime for
+// every file, so a browser that cached the entry document during a previous
+// deploy revalidates with `If-Modified-Since: Mon, 01 Jan 0001 00:00:00 GMT` —
+// which matches forever. The static handler must not answer that with a 304, or
+// the tab keeps booting the previous deploy's index.html.
+const staleIfModifiedSince = "Mon, 01 Jan 0001 00:00:00 GMT"
+
+func spaGetIfModifiedSince(t *testing.T, app *fiber.App, path string) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set(fiber.HeaderIfModifiedSince, staleIfModifiedSince)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = res.Body.Close() })
+	return res
+}
+
+func TestRegisterSPA_StaleValidatorStillServesFreshFile(t *testing.T) {
+	app := spaTestApp(t)
+
+	for _, path := range []string{"/", "/index.html", "/service-worker.js", "/_app/version.json", "/robots.txt"} {
+		res := spaGetIfModifiedSince(t, app, path)
+		if res.StatusCode != http.StatusOK {
+			t.Errorf("%s: status got %d, want 200", path, res.StatusCode)
+			continue
+		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(body) == 0 {
+			t.Errorf("%s: empty body", path)
+		}
+	}
+}
+
+func TestRegisterSPA_NoLastModifiedOnMutableFiles(t *testing.T) {
+	app := spaTestApp(t)
+
+	for _, path := range []string{"/", "/index.html", "/service-worker.js", "/_app/version.json", "/robots.txt", "/today"} {
+		res := spaGet(t, app, path)
+		if got := res.Header.Get(fiber.HeaderLastModified); got != "" {
+			t.Errorf("%s: Last-Modified got %q, want empty", path, got)
+		}
+	}
+}
+
+func TestRegisterSPA_ImmutableBundleKeepsConditionalRevalidation(t *testing.T) {
+	// Content-hashed URLs change with their content, so a 304 there is always
+	// correct — and saves the round-trip's body.
+	app := spaTestApp(t)
+	res := spaGetIfModifiedSince(t, app, "/_app/immutable/entry/app.abc123.js")
+	if res.StatusCode != http.StatusNotModified {
+		t.Errorf("status got %d, want 304", res.StatusCode)
 	}
 }

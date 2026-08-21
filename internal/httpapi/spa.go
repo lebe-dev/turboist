@@ -27,10 +27,16 @@ const (
 	cacheShort = "public, max-age=3600"
 )
 
+// isImmutable reports whether a request path addresses a content-hashed bundle
+// file, i.e. one whose URL changes whenever its bytes change.
+func isImmutable(path string) bool {
+	return strings.HasPrefix(path, immutablePrefix)
+}
+
 // cacheControlFor picks the Cache-Control value for a static file served out of
 // the embedded SvelteKit build, keyed on the request path.
 func cacheControlFor(path string) string {
-	if strings.HasPrefix(path, immutablePrefix) {
+	if isImmutable(path) {
 		return cacheImmutable
 	}
 	switch path {
@@ -38,6 +44,16 @@ func cacheControlFor(path string) string {
 		return cacheRevalidate
 	}
 	return cacheShort
+}
+
+// isReservedPath reports whether a path belongs to the API surface rather than
+// to the embedded SPA, so the router answers with its JSON 404 envelope instead
+// of index.html.
+func isReservedPath(path string) bool {
+	return strings.HasPrefix(path, "/api/") ||
+		strings.HasPrefix(path, "/auth/") ||
+		path == "/healthz" ||
+		path == "/version"
 }
 
 // RegisterSPA mounts the embedded SvelteKit build at "/" with index.html
@@ -63,6 +79,30 @@ func RegisterSPA(app *fiber.App, embeddedFS fs.FS, buildDir string) error {
 		return c.Status(fiber.StatusOK).Send(indexBytes)
 	}
 
+	// Every file in the embedded build carries the same zero ModTime
+	// (embed.FS has no timestamps), which the static handler still advertises as
+	// `Last-Modified: Mon, 01 Jan 0001 00:00:00 GMT`. A browser that stored the
+	// entry document during an earlier deploy therefore revalidates with an
+	// `If-Modified-Since` that matches the *new* deploy just as well, gets a
+	// `304 Not Modified` and keeps booting the previous bundle — while
+	// `/_app/version.json`, which SvelteKit polls with `cache-control: no-cache`,
+	// already reports the new version. That is what made the "new version
+	// available" toast come back on every launch with "Reload" unable to clear it
+	// (a plain reload revalidates, so it hit the same 304).
+	//
+	// Mutable files therefore carry no validator at all: the request header is
+	// dropped before the static handler can act on it — which is also what lets
+	// already-poisoned browsers recover without a hard reload — and
+	// `Last-Modified` is stripped from the response so nothing new is stored.
+	// Content-hashed files under /_app/immutable/ keep theirs: their URL changes
+	// with their content, so a 304 there is always correct.
+	app.Use(func(c fiber.Ctx) error {
+		if !isReservedPath(c.Path()) && !isImmutable(c.Path()) {
+			c.Request().Header.Del(fiber.HeaderIfModifiedSince)
+		}
+		return c.Next()
+	})
+
 	app.Use(static.New("", static.Config{
 		FS:         sub,
 		IndexNames: []string{"index.html"},
@@ -71,14 +111,13 @@ func RegisterSPA(app *fiber.App, embeddedFS fs.FS, buildDir string) error {
 		MaxAge: 0,
 		ModifyResponse: func(c fiber.Ctx) error {
 			c.Set(fiber.HeaderCacheControl, cacheControlFor(c.Path()))
+			if !isImmutable(c.Path()) {
+				c.Response().Header.Del(fiber.HeaderLastModified)
+			}
 			return nil
 		},
 		Next: func(c fiber.Ctx) bool {
-			p := c.Path()
-			return strings.HasPrefix(p, "/api/") ||
-				strings.HasPrefix(p, "/auth/") ||
-				p == "/healthz" ||
-				p == "/version"
+			return isReservedPath(c.Path())
 		},
 		NotFoundHandler: serveIndex,
 	}))
