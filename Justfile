@@ -278,8 +278,9 @@ android-run:
 # installs and launches it over adb.
 #
 # The SDK is found via ANDROID_SDK_ROOT/ANDROID_HOME, else common install paths
-# (Homebrew android-commandlinetools, ~/Library/Android/sdk). Override the target
-# with ANDROID_DEVICE_ID=<serial> (from `adb devices`) when several are attached.
+# (Homebrew android-commandlinetools, ~/Library/Android/sdk). The target device is
+# picked with fzf (showing manufacturer/model/Android version, not just the serial);
+# override with ANDROID_DEVICE_ID=<serial> (from `adb devices`) to skip the picker.
 androidDeviceId := env_var_or_default("ANDROID_DEVICE_ID", "")
 deploy-android: cap-sync-versioned
     #!/usr/bin/env bash
@@ -309,12 +310,27 @@ deploy-android: cap-sync-versioned
             echo "  Enable USB debugging and accept the 'Allow USB debugging?' prompt, then: adb devices" >&2
             exit 1
         fi
-        if [ "$count" -gt 1 ]; then
-            echo "error: multiple devices attached — set ANDROID_DEVICE_ID to one of:" >&2
+        if ! command -v fzf >/dev/null 2>&1; then
+            echo "error: fzf is required to pick a device (brew install fzf), or set ANDROID_DEVICE_ID to one of:" >&2
             printf '%s\n' "$devs" | sed 's/^/  /' >&2
             exit 1
         fi
-        DEVICE=$(printf '%s\n' "$devs" | head -1)
+        # Build "serial<TAB>manufacturer model (Android version, device|emulator)" rows,
+        # then show only the label column in fzf while keeping the serial to extract.
+        rows=""
+        while IFS= read -r s; do
+            [ -z "$s" ] && continue
+            model=$("$ADB" -s "$s" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+            manuf=$("$ADB" -s "$s" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
+            ver=$("$ADB" -s "$s" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
+            kind="device"
+            case "$s" in emulator-*) kind="emulator" ;; esac
+            rows="${rows}${s}\t${manuf} ${model} (Android ${ver}, ${kind}) [${s}]\n"
+        done <<< "$devs"
+        sel=$(printf '%b' "$rows" | fzf --with-nth=2 --delimiter='\t' --select-1 \
+            --prompt="Android device> " --height=~40% --reverse)
+        [ -z "$sel" ] && { echo "error: no device selected" >&2; exit 1; }
+        DEVICE=$(printf '%s' "$sel" | cut -f1)
     fi
     echo "==> deploying to device $DEVICE (sdk $SDK)"
     cd frontend/android
