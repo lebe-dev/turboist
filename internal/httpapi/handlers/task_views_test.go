@@ -408,3 +408,62 @@ func TestTaskViews_FilterByContext(t *testing.T) {
 		t.Errorf("total filtered by ctx2: got %d, want 0", result.Total)
 	}
 }
+
+// Planning a parent for the week pulls its backlog subtasks along, so the backlog
+// view must stop listing them as standalone rows. It also covers the PATCH path,
+// which cascades the same way the plan endpoint does.
+func TestTaskViews_Backlog_ExcludesSubtasksPlannedWithParent(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+
+	respS, bodyS := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID), map[string]any{"title": "Child"}))
+	if respS.StatusCode != 201 {
+		t.Fatalf("create subtask: got %d; body: %s", respS.StatusCode, bodyS)
+	}
+	var child dto.TaskDTO
+	if err := json.Unmarshal(bodyS, &child); err != nil {
+		t.Fatalf("parse subtask: %v", err)
+	}
+	for _, id := range []int64{parent.ID, child.ID} {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/plan", id), map[string]any{"state": "backlog"}))
+		if resp.StatusCode != 200 {
+			t.Fatalf("plan backlog %d: got %d; body: %s", id, resp.StatusCode, body)
+		}
+	}
+
+	respP, bodyP := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/tasks/%d", parent.ID), map[string]any{"planState": "week"}))
+	if respP.StatusCode != 200 {
+		t.Fatalf("patch planState: got %d; body: %s", respP.StatusCode, bodyP)
+	}
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/backlog", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("backlog: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result viewResp
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Total != 0 {
+		t.Errorf("backlog total: got %d, want 0; items: %+v", result.Total, result.Items)
+	}
+
+	respW, bodyW := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/week", nil))
+	if respW.StatusCode != 200 {
+		t.Fatalf("week: got %d, want 200; body: %s", respW.StatusCode, bodyW)
+	}
+	var week viewResp
+	if err := json.Unmarshal(bodyW, &week); err != nil {
+		t.Fatalf("parse week: %v", err)
+	}
+	if len(week.Items) != 2 {
+		t.Errorf("week items: got %d, want parent + subtask; items: %+v", len(week.Items), week.Items)
+	}
+	if week.Total != 1 {
+		t.Errorf("week total: got %d, want 1 (the cascaded subtask must not consume the weekly limit)", week.Total)
+	}
+}

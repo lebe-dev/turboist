@@ -971,6 +971,8 @@ curl -X PATCH "$BASE/api/v1/tasks/42" \
 
 ### `DELETE /api/v1/tasks/:id`
 
+Hard-deletes the task **and its whole subtask tree**, at any depth — subtasks have no meaning without their parent, so none are left orphaned. Relations and label links of every deleted task go with them.
+
 Returns `204 No Content`.
 
 ```sh
@@ -1018,7 +1020,7 @@ curl -X POST "$BASE/api/v1/tasks/42/subtasks" \
 
 ### `POST /api/v1/tasks/:id/duplicate`
 
-Creates a copy of the task with title suffixed `(2)`. Subtasks are cloned recursively under the new task (keeping their original titles). Returns `201` with the new task.
+Creates a copy of the task with title suffixed `(2)`. Subtasks are cloned recursively under the new task (keeping their original titles). Placement, description, priority, day part, plan state, deadline, recurrence, labels and the `isComplex` flag are copied — the flag describes the work, not one instance of it. Returns `201` with the new task.
 
 ```sh
 curl -X POST "$BASE/api/v1/tasks/42/duplicate" \
@@ -1159,7 +1161,11 @@ curl -X POST "$BASE/api/v1/tasks/42/move" \
 
 Set the plan state. `state` is one of `none`, `week`, `backlog`. Fails with `CodeLimitExceeded` if the plan limit is exceeded.
 
-Parking a task in the `backlog` parks its **open subtasks** with it, at any depth — their `planState` becomes `backlog` and their due date is cleared, exactly as for the parent. Completed and cancelled subtasks are left untouched, and the cascade is not counted against the backlog limit (it follows the parent rather than being a plan of its own). The same cascade runs when `PATCH /api/v1/tasks/:id` sets `planState` to `backlog`. Moving a task *out* of the backlog does not cascade — a subtask parked deliberately stays parked.
+Parking a task in the `backlog` parks its **open subtasks** with it, at any depth — their `planState` becomes `backlog` and their due date is cleared, exactly as for the parent. Completed and cancelled subtasks are left untouched, and the cascade is not counted against the backlog limit (it follows the parent rather than being a plan of its own). The same cascade runs when `PATCH /api/v1/tasks/:id` sets `planState` to `backlog`.
+
+Planning a task for the `week` cascades the same way: its **open subtasks** at any depth get `planState: "week"` too, so a subtask does not stay behind in the backlog as a separate, context-less row. Due dates are **kept** here (a day inside the week is still valid planning), completed and cancelled subtasks are untouched, and the cascade runs on `PATCH /api/v1/tasks/:id` with `planState: "week"` as well.
+
+A subtask that is in the week only because this cascade put it there does **not** consume the weekly limit: both the limit check and the `total` of `GET /api/v1/tasks/week` skip a week task whose parent is an open week task. Moving a task *out* of the backlog or the week does not cascade — a subtask parked deliberately stays parked.
 
 ```json
 { "state": "week" }

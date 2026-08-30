@@ -8,7 +8,7 @@
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { getApiClient } from '$lib/api/client';
 	import type { Task } from '$lib/api/types';
-	import { buildTree } from '$lib/utils/taskTree';
+	import { buildTree, collectSubtree } from '$lib/utils/taskTree';
 	import TaskItem from '$lib/components/task/TaskItem.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
@@ -88,6 +88,29 @@
 
 	useInvalidation(['tasks', 'plan'], () => void loader.revalidate());
 
+	// Both directions cascade server-side: planning a parent for the week pulls its
+	// subtasks in, parking it takes them along. Moving the parent alone between the two
+	// columns would leave its subtasks stranded in the one it just left.
+	function moveSubtree(
+		updated: Task,
+		from: ReturnType<typeof useListMutator<Task>>,
+		to: ReturnType<typeof useListMutator<Task>>,
+		planState: 'week' | 'backlog'
+	): void {
+		// The root comes back from the server; the descendants are patched locally to
+		// match what the cascade did to them — parking clears the due date, planning
+		// for the week keeps it.
+		const moved = collectSubtree(from.items, updated.id).map((t) =>
+			t.id === updated.id
+				? updated
+				: planState === 'backlog'
+					? { ...t, planState, dueAt: null, dueHasTime: false }
+					: { ...t, planState }
+		);
+		from.mutator.removeSubtree(updated.id);
+		to.items = [...moved, ...to.items];
+	}
+
 	async function planForWeek(task: Task): Promise<void> {
 		if (weekFull) {
 			toast.error($t('page.nextWeek.weeklyLimitReached', { values: { weekCount, weeklyLimit: weeklyLimit ?? 0 } }));
@@ -95,8 +118,7 @@
 		}
 		try {
 			const updated = await tasksApi.plan(getApiClient(), task.id, { state: 'week' });
-			backlog.mutator.remove(task.id);
-			week.items = [updated, ...week.items];
+			moveSubtree(updated, backlog, week, 'week');
 			void refreshSidebarBundle().catch(() => {});
 		} catch (err) {
 			toast.error(describeError(err, $t('page.nextWeek.failedPlan')));
@@ -110,8 +132,7 @@
 		}
 		try {
 			const updated = await tasksApi.plan(getApiClient(), task.id, { state: 'backlog' });
-			week.mutator.remove(task.id);
-			backlog.items = [updated, ...backlog.items];
+			moveSubtree(updated, week, backlog, 'backlog');
 			void refreshSidebarBundle().catch(() => {});
 		} catch (err) {
 			toast.error(describeError(err, $t('page.nextWeek.failedMove')));

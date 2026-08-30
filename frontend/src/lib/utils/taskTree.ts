@@ -86,3 +86,31 @@ export function flattenTree(nodes: TaskNode[]): Task[] {
 	walk(nodes);
 	return out;
 }
+
+/**
+ * Collect `rootId` together with every descendant present in `items`, parents
+ * before their children. Used by views that mirror a server-side cascade (delete,
+ * park in backlog, plan for the week) and have to move or drop a whole subtree at
+ * once. Returns an empty array when the root itself is not in the list.
+ */
+export function collectSubtree(items: Task[], rootId: number): Task[] {
+	const root = items.find((t) => t.id === rootId);
+	if (!root) return [];
+	const childrenOf = new Map<number, Task[]>();
+	for (const task of items) {
+		if (task.parentId === null) continue;
+		const siblings = childrenOf.get(task.parentId);
+		if (siblings) siblings.push(task);
+		else childrenOf.set(task.parentId, [task]);
+	}
+	const out: Task[] = [];
+	const seen = new Set<number>();
+	const walk = (task: Task) => {
+		if (seen.has(task.id)) return;
+		seen.add(task.id);
+		out.push(task);
+		for (const child of childrenOf.get(task.id) ?? []) walk(child);
+	};
+	walk(root);
+	return out;
+}

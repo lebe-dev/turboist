@@ -196,13 +196,39 @@ class TroikiStore {
 	}
 
 	removeTask(id: number): void {
+		this.dropTasks((t) => t.id === id);
+	}
+
+	/**
+	 * Drop a task together with its descendants, for the operations the server
+	 * cascades down the tree (delete above all). Slots hold a flat task list per
+	 * project, so the subtree is resolved by walking `parentId`.
+	 */
+	removeTaskSubtree(id: number): void {
+		const doomed: Record<number, true> = { [id]: true };
+		const all: Task[] = [];
+		for (const cat of CATEGORIES) {
+			for (const p of slotOf(this.value, cat).projects) all.push(...p.tasks);
+		}
+		for (let grew = true; grew; ) {
+			grew = false;
+			for (const t of all) {
+				if (t.parentId === null || doomed[t.id] || !doomed[t.parentId]) continue;
+				doomed[t.id] = true;
+				grew = true;
+			}
+		}
+		this.dropTasks((t) => doomed[t.id] === true);
+	}
+
+	private dropTasks(pred: (task: Task) => boolean): void {
 		++this.epoch;
 		const next = clone(this.value);
 		for (const cat of CATEGORIES) {
 			const slot = slotOf(next, cat);
 			slot.projects = slot.projects.map((p) => ({
 				...p,
-				tasks: p.tasks.filter((t) => t.id !== id)
+				tasks: p.tasks.filter((t) => !pred(t))
 			}));
 		}
 		this.value = next;

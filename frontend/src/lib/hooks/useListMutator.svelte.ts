@@ -1,4 +1,6 @@
-export function useListMutator<T extends { id: number }>(opts?: { onRemove?: () => void }) {
+export function useListMutator<T extends { id: number; parentId?: number | null }>(opts?: {
+	onRemove?: () => void;
+}) {
 	let items = $state<T[]>([]);
 	// Monotonic count of LOCAL writes to this list — `mutator.*` plus any direct
 	// `items =` assignment (optimistic insert, rollback, reorder). Deliberately a
@@ -21,6 +23,33 @@ export function useListMutator<T extends { id: number }>(opts?: { onRemove?: () 
 			epoch += 1;
 			items = items.filter((x) => x.id !== id);
 			opts?.onRemove?.();
+		},
+		/**
+		 * Drop `id` together with every descendant present in the list. Used where the
+		 * server applies the same cascade — deleting a task deletes its whole subtree,
+		 * parking or planning a parent takes its subtasks along — so that the view does
+		 * not keep rendering orphaned subtask rows until the next full reload.
+		 */
+		removeSubtree(id: number) {
+			epoch += 1;
+			// A plain record rather than a Set: this lives inside a `.svelte.ts` module,
+			// where a mutable Set is flagged as a missed reactive collection, and the
+			// lookup is purely local bookkeeping.
+			const doomed: Record<number, true> = { [id]: true };
+			// A child can precede its parent in the list, so sweep until nothing new is
+			// picked up rather than filtering in a single pass.
+			for (let grew = true; grew; ) {
+				grew = false;
+				for (const x of items) {
+					const pid = x.parentId;
+					if (pid == null || doomed[x.id] || !doomed[pid]) continue;
+					doomed[x.id] = true;
+					grew = true;
+				}
+			}
+			const before = items.length;
+			items = items.filter((x) => !doomed[x.id]);
+			for (let i = items.length; i < before; i += 1) opts?.onRemove?.();
 		},
 		insertAfter(id: number, t: T) {
 			epoch += 1;

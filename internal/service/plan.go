@@ -100,6 +100,17 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 			return nil, err
 		}
 	}
+	// Subtasks follow their parent into the week for the mirror reason: a subtask
+	// left in the backlog while its parent is planned would show up in the backlog
+	// as a separate row, detached from the work it belongs to. Like the backlog
+	// cascade it ignores weeklyLimit — the limit gates what the user plans by hand,
+	// and the week counters skip cascaded subtasks (see repo.notCascadedIntoWeek).
+	if state == model.PlanStateWeek {
+		if err := s.tasks.CascadeWeekToDescendants(ctx, taskID); err != nil {
+			logRepoErr(ctx, op+": cascade week to subtasks", err, slog.Int64("task_id", taskID))
+			return nil, err
+		}
+	}
 	log.InfoContext(ctx, "plan state changed", slog.String("op", op), slog.Int64("task_id", taskID), slog.String("state", string(state)))
 	return updated, nil
 }

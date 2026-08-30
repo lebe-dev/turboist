@@ -195,6 +195,7 @@ type CreateTask struct {
 	DayPart         model.DayPart
 	PlanState       model.PlanState
 	RecurrenceRule  *string
+	IsComplex       bool
 }
 
 func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, error) {
@@ -216,13 +217,14 @@ func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, erro
 	res, err := r.db.ExecContext(ctx,
 		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
 			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-			day_part, plan_state, is_pinned, pinned_at, recurrence_rule, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`,
+			day_part, plan_state, is_pinned, pinned_at, is_complex, recurrence_rule, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?)`,
 		in.Title, in.Description,
 		nullInt(in.InboxID), nullInt(in.ContextID), nullInt(in.ProjectID), nullInt(in.SectionID), nullInt(in.ParentID),
 		string(in.Priority),
 		nullTime(in.DueAt), boolInt(in.DueHasTime), nullTime(in.DeadlineAt), boolInt(in.DeadlineHasTime),
 		string(in.DayPart), string(in.PlanState),
+		boolInt(in.IsComplex),
 		nullStr(in.RecurrenceRule),
 		now, now,
 	)
@@ -534,6 +536,35 @@ func (r *TaskRepo) CascadeBacklogToDescendants(ctx context.Context, parentID int
 		parentID, now)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("cascade backlog: %w", err))
+	}
+	return nil
+}
+
+// CascadeWeekToDescendants pulls every open descendant of parentID, at any depth,
+// into the current week alongside its parent. Planning a parent for the week is a
+// statement about the whole piece of work, so its subtasks must not stay behind in
+// the backlog and show up there as separate, context-less rows.
+//
+// Unlike the backlog cascade this keeps due dates: a subtask scheduled for a
+// concrete day inside the week is still valid planning, whereas a parked task has
+// no day at all. Completed/cancelled descendants are left alone (history), and so
+// are inbox ones — the week lives in contexts, and moving them out is the parent's
+// own placement decision (see PlanService.SetPlanState).
+func (r *TaskRepo) CascadeWeekToDescendants(ctx context.Context, parentID int64) error {
+	const op = "repo.tasks.CascadeWeekToDescendants"
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id FROM tasks t JOIN descendants d ON t.parent_id = d.id
+		 )
+		 UPDATE tasks SET plan_state = 'week', updated_at = ?
+		 WHERE id IN (SELECT id FROM descendants) AND status = 'open' AND inbox_id IS NULL
+		   AND plan_state <> 'week'`,
+		parentID, now)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("cascade week: %w", err))
 	}
 	return nil
 }
@@ -931,7 +962,7 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 // --- counters (limit checks) ---
 
 func (r *TaskRepo) CountWeek(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'week' AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks t WHERE t.plan_state = 'week' AND t.status = 'open'`+notCascadedIntoWeek)
 }
 
 func (r *TaskRepo) CountBacklog(ctx context.Context) (int, error) {

@@ -1102,3 +1102,59 @@ func TestTaskDuplicate_CompletedWithFutureDueAt_KeepsDueAt(t *testing.T) {
 		t.Error("dueAt: got nil, want the future due date to be preserved")
 	}
 }
+
+// The complexity flag describes the work itself, so a clone must carry it —
+// including on cloned subtasks, which are copied verbatim.
+func TestTaskDuplicate_CopiesIsComplex(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+
+	url := fmt.Sprintf("/api/v1/contexts/%d/tasks", ctx.ID)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, url, map[string]any{"title": "Hard task"}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create: got %d; body: %s", resp.StatusCode, body)
+	}
+	var task dto.TaskDTO
+	if err := json.Unmarshal(body, &task); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	respP, bodyP := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/tasks/%d", task.ID), map[string]any{"isComplex": true}))
+	if respP.StatusCode != 200 {
+		t.Fatalf("patch: got %d, want 200; body: %s", respP.StatusCode, bodyP)
+	}
+
+	respS, bodyS := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", task.ID), map[string]any{"title": "Hard child"}))
+	if respS.StatusCode != 201 {
+		t.Fatalf("create subtask: got %d; body: %s", respS.StatusCode, bodyS)
+	}
+	var child dto.TaskDTO
+	if err := json.Unmarshal(bodyS, &child); err != nil {
+		t.Fatalf("parse subtask: %v", err)
+	}
+	respSP, bodySP := doReq(t, e.app, e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/tasks/%d", child.ID), map[string]any{"isComplex": true}))
+	if respSP.StatusCode != 200 {
+		t.Fatalf("patch subtask: got %d, want 200; body: %s", respSP.StatusCode, bodySP)
+	}
+
+	resp2, body2 := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", task.ID), nil))
+	if resp2.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d, want 201; body: %s", resp2.StatusCode, body2)
+	}
+	var dup dto.TaskDTO
+	if err := json.Unmarshal(body2, &dup); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !dup.IsComplex {
+		t.Error("isComplex: got false, want the flag carried onto the clone")
+	}
+	if dup.Subtasks == nil || len(dup.Subtasks.Items) != 1 {
+		t.Fatalf("subtasks: want exactly 1; body: %s", body2)
+	}
+	if !dup.Subtasks.Items[0].IsComplex {
+		t.Error("subtask isComplex: got false, want the flag carried onto the cloned subtask")
+	}
+}

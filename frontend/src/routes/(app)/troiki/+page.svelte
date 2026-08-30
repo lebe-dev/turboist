@@ -83,6 +83,9 @@
 				troikiStore.removeTask(id);
 				void project;
 			},
+			removeSubtree(id: number) {
+				troikiStore.removeTaskSubtree(id);
+			},
 			insertAfter(id: number, task: Task) {
 				troikiStore.insertTaskAfter(id, task);
 			}

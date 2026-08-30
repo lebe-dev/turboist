@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildTree, flattenTree, matchesSelfOrAncestor, splitByRootCompletion } from './taskTree';
+import {
+	buildTree,
+	collectSubtree,
+	flattenTree,
+	matchesSelfOrAncestor,
+	splitByRootCompletion
+} from './taskTree';
 import type { Task, TaskStatus } from '../api/types';
 
 function task(
@@ -142,5 +148,24 @@ describe('matchesSelfOrAncestor', () => {
 		const a = task(1, 2);
 		const b = task(2, 1);
 		expect(matchesSelfOrAncestor(a, [a, b], planned)).toBe(false);
+	});
+});
+
+describe('collectSubtree', () => {
+	const t = (id: number, parentId: number | null): Task =>
+		({ id, parentId, title: `t${id}` }) as Task;
+
+	it('returns the root followed by its descendants at any depth', () => {
+		const items = [t(1, null), t(2, 1), t(3, 2), t(4, null)];
+		expect(collectSubtree(items, 1).map((x) => x.id)).toEqual([1, 2, 3]);
+	});
+
+	it('finds descendants listed before their parent', () => {
+		const items = [t(3, 2), t(2, 1), t(1, null)];
+		expect(collectSubtree(items, 1).map((x) => x.id)).toEqual([1, 2, 3]);
+	});
+
+	it('returns an empty list when the root is absent', () => {
+		expect(collectSubtree([t(2, 1)], 1)).toEqual([]);
 	});
 });

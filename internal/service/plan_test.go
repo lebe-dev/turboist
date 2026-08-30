@@ -365,3 +365,116 @@ func TestPlanService_NoChangeIfSameState(t *testing.T) {
 		t.Errorf("re-setting same state: got error %v, want nil", err)
 	}
 }
+
+// A parent planned for the week takes its whole subtree with it: a subtask left in
+// the backlog would keep showing there as a separate row, detached from the work it
+// belongs to. Due dates are kept — a day inside the week is still valid planning.
+func TestPlanService_SetWeekCascadesToSubtasks(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 5, 10)
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	parent, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid},
+		Title:     "Parent",
+	})
+	due := time.Now().Add(24 * time.Hour)
+	child, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement:  repo.Placement{ContextID: &cid, ParentID: &parent.ID},
+		Title:      "Child",
+		PlanState:  model.PlanStateBacklog,
+		DueAt:      &due,
+		DueHasTime: true,
+	})
+	grandchild, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &child.ID},
+		Title:     "Grandchild",
+		PlanState: model.PlanStateBacklog,
+	})
+	completedChild, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID},
+		Title:     "Done child",
+		PlanState: model.PlanStateBacklog,
+	})
+	completed := model.TaskStatusCompleted
+	if _, err := tasks.Update(ctx, completedChild.ID, repo.TaskUpdate{Status: &completed}); err != nil {
+		t.Fatalf("complete child: %v", err)
+	}
+
+	if _, err := svc.SetPlanState(ctx, parent.ID, model.PlanStateWeek); err != nil {
+		t.Fatalf("set week: %v", err)
+	}
+
+	for _, id := range []int64{child.ID, grandchild.ID} {
+		got, err := tasks.Get(ctx, id)
+		if err != nil {
+			t.Fatalf("get %d: %v", id, err)
+		}
+		if got.PlanState != model.PlanStateWeek {
+			t.Errorf("task %q planState: got %q, want %q", got.Title, got.PlanState, model.PlanStateWeek)
+		}
+	}
+	childAfter, _ := tasks.Get(ctx, child.ID)
+	if childAfter.DueAt == nil {
+		t.Error("child dueAt: got nil, want the scheduled day kept")
+	}
+
+	// A finished subtask is history — planning the parent must not rewrite it.
+	doneAfter, err := tasks.Get(ctx, completedChild.ID)
+	if err != nil {
+		t.Fatalf("get completed child: %v", err)
+	}
+	if doneAfter.PlanState != model.PlanStateBacklog {
+		t.Errorf("completed child planState: got %q, want %q", doneAfter.PlanState, model.PlanStateBacklog)
+	}
+}
+
+// Cascaded subtasks ride along with their parent, so they must not eat slots of the
+// weekly limit — otherwise one decomposed task would fill the whole week.
+func TestPlanService_WeekCascadeDoesNotConsumeWeeklyLimit(t *testing.T) {
+	d := setupTestDB(t)
+	tlabels := repo.NewTaskLabelsRepo(d)
+	tasks := repo.NewTaskRepo(d, tlabels, repo.NewTaskRelationsRepo(d))
+	ctxs := repo.NewContextRepo(d)
+	svc := service.NewPlanService(tasks, ctxs, 2, 10) // weekly limit = 2
+	ctx := context.Background()
+
+	c, _ := ctxs.Create(ctx, "Work", "blue", false)
+	cid := c.ID
+	parent, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid},
+		Title:     "Parent",
+	})
+	for _, title := range []string{"Child A", "Child B", "Child C"} {
+		if _, err := tasks.Create(ctx, repo.CreateTask{
+			Placement: repo.Placement{ContextID: &cid, ParentID: &parent.ID},
+			Title:     title,
+		}); err != nil {
+			t.Fatalf("create %s: %v", title, err)
+		}
+	}
+	other, _ := tasks.Create(ctx, repo.CreateTask{
+		Placement: repo.Placement{ContextID: &cid},
+		Title:     "Other",
+	})
+
+	if _, err := svc.SetPlanState(ctx, parent.ID, model.PlanStateWeek); err != nil {
+		t.Fatalf("set week on parent: %v", err)
+	}
+	n, err := tasks.CountWeek(ctx)
+	if err != nil {
+		t.Fatalf("count week: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("week count after cascade: got %d, want 1 (only the hand-planned parent)", n)
+	}
+	// The second hand-planned task must still fit under the limit of 2.
+	if _, err := svc.SetPlanState(ctx, other.ID, model.PlanStateWeek); err != nil {
+		t.Fatalf("set week on second root task: %v", err)
+	}
+}
