@@ -11,6 +11,8 @@ import ru.tinyops.turboist.core.model.Context
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.Task
+import ru.tinyops.turboist.core.sync.write.HarpoonTarget
+import ru.tinyops.turboist.nativeapp.harpoon.HarpoonEntry
 import ru.tinyops.turboist.nativeapp.search.SearchNavigation
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsDestinations
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
@@ -37,6 +39,15 @@ fun AppNavHost(
     // from outside has nowhere behind it, so it falls through to the day view
     // rather than closing the app.
     val leave: () -> Unit = { if (!navController.popBackStack()) navController.navigate(TodayRoute) }
+
+    // Jumping is a navigation like any other: the pair holds the ids this device
+    // holds its rows under, so an end of it made offline leads somewhere too.
+    val jump: (HarpoonEntry) -> Unit = { entry ->
+        when (entry.target) {
+            HarpoonTarget.TASK -> navController.navigate(TaskRoute(entry.localId))
+            HarpoonTarget.PROJECT -> navController.navigate(ProjectRoute(entry.localId))
+        }
+    }
 
     // A project, a context and a label are opened by the id this device holds them
     // under, so one written down while offline leads somewhere like any other.
@@ -101,7 +112,10 @@ fun AppNavHost(
         }
 
         composable<TaskRoute> { entry ->
-            screens.task(TaskAddress.Local(entry.toRoute<TaskRoute>().taskLocalId), openTaskById, leave)
+            val taskLocalId = entry.toRoute<TaskRoute>().taskLocalId
+            screens.task(TaskAddress.Local(taskLocalId), openTaskById, leave) {
+                screens.harpoon(HarpoonEntry(HarpoonTarget.TASK, taskLocalId), jump)
+            }
         }
 
         // The one destination a link from outside can land on: opening
@@ -111,7 +125,13 @@ fun AppNavHost(
         composable<TaskLinkRoute>(
             deepLinks = listOf(navDeepLink<TaskLinkRoute>(basePath = DeepLinks.TASK_BASE_PATH)),
         ) { entry ->
-            screens.task(TaskAddress.Server(entry.toRoute<TaskLinkRoute>().serverId), openTaskById, leave)
+            // A link from outside carries the server's id, and the pair is
+            // remembered by the ids this device holds its rows under. There is
+            // nothing to hook on until the task has been opened normally, so the
+            // control is handed no current entry rather than a wrong one.
+            screens.task(TaskAddress.Server(entry.toRoute<TaskLinkRoute>().serverId), openTaskById, leave) {
+                screens.harpoon(null, jump)
+            }
         }
     }
 }

@@ -72,35 +72,26 @@ fun TaskDetailRelations(
 ) {
     var picking by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.page_task_relations),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    SectionHeading(text = stringResource(R.string.page_task_relations), modifier = modifier) {
+        TextButton(onClick = { picking = true }) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
             )
-            TextButton(onClick = { picking = true }) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = stringResource(R.string.page_task_addRelation),
-                    modifier = Modifier.padding(start = 4.dp),
-                )
-            }
+            Text(
+                text = stringResource(R.string.page_task_addRelation),
+                modifier = Modifier.padding(start = 4.dp),
+            )
         }
+    }
+    DetailCard {
         if (relations.isEmpty()) {
             Text(
                 text = stringResource(R.string.page_task_relationEmpty),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
         }
         for (group in TaskRelationGroup.entries) {
@@ -110,7 +101,7 @@ fun TaskDetailRelations(
                 text = stringResource(groupLabel(group)),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
             )
             for (link in links) RelationRow(link, onRemove, onOpen)
         }

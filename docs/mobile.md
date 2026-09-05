@@ -1006,6 +1006,19 @@ Counters come from a `DrawerCountsSource` and are nullable: unknown means "draw
 no badge" rather than zero. Below 840 dp the drawer is a modal overlay; above it
 the drawer becomes part of the layout and the menu button disappears.
 
+**A screen may own its own chrome.** The shell draws a top bar with a menu
+button and the name of a destination, which is right for a list and wrong for one
+task: a detail screen needs a back arrow, a pin and an overflow, and a back arrow
+drawn *underneath* the shell's bar — which is what the task screen used to do —
+reads as two navigations stacked on each other. So the shell asks whether the
+destination on screen brings its own bar and draws none of its own when it does.
+The capture button is hidden the same way and for the same reason, since it sits
+in the corner such a screen draws in; the capture *sheet* stays composed either
+way, because a share from another app opens it without anyone having touched the
+button. The task screen is the only destination that takes the offer, and it is
+handed the jump-pair control by the graph, since that control navigates and where
+a destination leads is the graph's business.
+
 One entry is conditional. The daily plan is a preference the user keeps
 (`troikiEnabled` in the replicated preference document), and a workspace that does
 not use it is not offered it — the drawer entry is absent, a project cannot be put
@@ -1106,10 +1119,19 @@ to the English resource, so a partial translation is not a build error. A key
 only a translation has is dropped: English decides which strings exist.
 
 Strings the native client alone shows are hand-written in
-`app/src/main/res/values/strings_native.xml` — the one hand-written resource file
-— and prefixed `native_`, which keeps them clear of the shared wording. The
-generator fails the build if a generated name lands on a name that file already
-declares.
+`app/src/main/res/values/strings_native.xml` and prefixed `native_`, which keeps
+them clear of the shared wording. The generator fails the build if a generated
+name lands on a name that file already declares.
+
+Those strings need translating by hand as well, and for a long time none of them
+were: a Russian phone showed English words in the middle of an otherwise
+translated screen, because the generated wording had always been translated and
+the hand-written wording never had. `values-ru/strings_native.xml` now carries
+the task screen and the repeat editor — every string those two surfaces reach.
+The rest of the file still falls back to English and is worth a pass of its own.
+A name absent from a translation falls back to `values/`, which is why the
+priority codes and the em dash that stands in for an empty field are not
+repeated: they read the same in both languages.
 
 ### Session and sign-in (`app/.../auth`)
 
@@ -1311,6 +1333,33 @@ asked for — one call carrying the whole selection, never one call per task.
 The screen that shows one whole task, with every field on it editable while the
 device is on a plane.
 
+**What the task is stays on the page; what can be changed about it waits behind a
+control.** A task carries a dozen fields, and laying every one of them out open
+made a page nobody could read: five wrapping rows of chips, every label in the
+workspace whether or not the task had it, seven outlined buttons in a block that
+wrapped differently for every task, and four timestamps drawn with the same
+weight as the fields above them. So the page now shows what the task *is* — where
+it lives, what it is called, when it is due, how it is planned, what is under it,
+what it links to — grouped into cards, one card per question, with the heading
+outside the card saying where one question stops. What can be *changed* opens
+from the row it belongs to: a choice out of several is a list, and a list is
+legible in a sheet and a wall in a column. The sheets are hosted by the screen
+rather than by the rows that raise them, so exactly one can be open at a time —
+two sheets over one another is not a state a single back press gets out of.
+
+The two exceptions are deliberate. The priority stays open as a connected group
+of four, because it is the field most often changed here and the level reads at a
+glance only when the others are beside it; the chosen one is filled with its own
+signalling colour, since that colour is what a user reads first on every list in
+both clients. And the record of the task — how often it was put off, when it was
+written down, last changed and finished — is folded into a block whose summary
+line carries the two facts anyone actually wants from it, because it is the part
+of the screen a person reads once a month.
+
+Pinning moved to the top bar. It is not a field: a pin is a place on a shelf with
+a cap on it, and the write is what refuses a pin over that cap, so a switch would
+promise something the product does not always keep.
+
 **It reads the replica, like every list.** `TaskDetailRepository` combines the
 task row, its whole subtree, the label taggings, the relation edges and the
 named workspace rows into one value, so the screen has no fetch, no error state
@@ -1343,7 +1392,10 @@ write rather than through a patch of one column.
 **How the task repeats is chosen from five names or written out.** The stored
 form is calendar notation, which is exact and unreadable, so five named choices —
 every day, every weekday, weekly, monthly, yearly — write it for the user and
-apply on the tap like every other choice on this screen. The sixth is the
+apply on the tap. They are a list in a sheet rather than a run of chips on the
+page: exactly one of them is true at a time, which is what a list of radio
+buttons says and a wrapping row of chips does not, and the row was three lines
+tall on a phone for a field most tasks leave at "never". The sixth is the
 notation itself, because a product that offers only five is one a user with a
 sixth need has to leave, and because a rule written on another client has to
 survive being opened here: one that has no sentence in this app is shown as it
@@ -1402,7 +1454,12 @@ finished with no network, the padlock a list would draw and the answer the
 completion guard gives are asserted to have changed together. The screen itself is composed for real
 off-device in each state it has to survive — blocked, finished, described in
 markup, described in plain text, undescribed, with subtasks, in the inbox, and
-absent from the replica altogether.
+absent from the replica altogether. The arrangement is checked as well, because
+it is a property a refactor can quietly undo while every unit test still passes:
+a label the workspace has and the task does not is asserted to be off the page
+until the sheet is opened, the record of the task to be absent until the block is
+tapped, and everything that can be done to the task to be behind the one control
+in the bar.
 
 ### Projects, boards and contexts (`app/.../projects`)
 

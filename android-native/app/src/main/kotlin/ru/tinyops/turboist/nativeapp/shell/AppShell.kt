@@ -119,16 +119,13 @@ fun AppShell(
     val scope = rememberCoroutineScope()
 
     // What is on screen right now, when it is something that can be hooked onto
-    // the jump pair. Only the two destinations named the way this device names a
-    // row qualify: the pair is remembered by those ids, so a link opened from
-    // outside — which carries the server's id — is hooked on after it has been
-    // navigated to normally rather than from the link itself.
+    // the jump pair. A project is named the way this device names a row, which is
+    // what the pair remembers; a task is too, but it is not here — the task screen
+    // draws its own top bar and is handed the control by the graph, because a
+    // screen with a bar of its own cannot also be described by this one.
     val harpoonable: HarpoonEntry? =
         backStackEntry?.let { entry ->
             when {
-                entry.destination.hasRoute(TaskRoute::class) ->
-                    HarpoonEntry(HarpoonTarget.TASK, entry.toRoute<TaskRoute>().taskLocalId)
-
                 entry.destination.hasRoute(ProjectRoute::class) ->
                     HarpoonEntry(HarpoonTarget.PROJECT, entry.toRoute<ProjectRoute>().projectLocalId)
 
@@ -144,6 +141,15 @@ fun AppShell(
             HarpoonTarget.PROJECT -> navController.navigate(ProjectRoute(entry.localId))
         }
     }
+
+    // A screen that owns its chrome gets the shell out of the way: no bar of the
+    // shell's above its own, and no capture button in the corner it draws in.
+    // Only the task screen does — it is the one destination that is about a
+    // single thing rather than a list of them, and it needs a back arrow, a pin
+    // and an overflow where the shell would put a menu button and a title.
+    val screenOwnsChrome =
+        currentDestination?.hasRoute(TaskRoute::class) == true ||
+            currentDestination?.hasRoute(TaskLinkRoute::class) == true
 
     // One entry per top-level destination: re-selecting the current one must not
     // stack a second copy, and returning to a destination should find it as it
@@ -173,6 +179,7 @@ fun AppShell(
             ) {
                 ShellScaffold(
                     currentDestination = currentDestination,
+                    screenOwnsChrome = screenOwnsChrome,
                     harpoonable = harpoonable,
                     onJump = jump,
                     onOpenDrawer = null,
@@ -203,6 +210,7 @@ fun AppShell(
             ) {
                 ShellScaffold(
                     currentDestination = currentDestination,
+                    screenOwnsChrome = screenOwnsChrome,
                     harpoonable = harpoonable,
                     onJump = jump,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -221,6 +229,7 @@ fun AppShell(
 @Composable
 private fun ShellScaffold(
     currentDestination: NavDestination?,
+    screenOwnsChrome: Boolean,
     harpoonable: HarpoonEntry?,
     onJump: (HarpoonEntry) -> Unit,
     onOpenDrawer: (() -> Unit)?,
@@ -233,20 +242,22 @@ private fun ShellScaffold(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(titleResFor(currentDestination))) },
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = stringResource(R.string.native_drawer_open),
-                            )
+            if (!screenOwnsChrome) {
+                TopAppBar(
+                    title = { Text(stringResource(titleResFor(currentDestination))) },
+                    navigationIcon = {
+                        if (onOpenDrawer != null) {
+                            IconButton(onClick = onOpenDrawer) {
+                                Icon(
+                                    imageVector = Icons.Filled.Menu,
+                                    contentDescription = stringResource(R.string.native_drawer_open),
+                                )
+                            }
                         }
-                    }
-                },
-                actions = { screens.harpoon(harpoonable, onJump) },
-            )
+                    },
+                    actions = { screens.harpoon(harpoonable, onJump) },
+                )
+            }
         },
     ) { innerPadding ->
         // The capture surface sits over the screens rather than inside any one
@@ -261,7 +272,7 @@ private fun ShellScaffold(
                 )
                 AppNavHost(navController = navController, screens = screens)
             }
-            screens.quickAdd()
+            screens.quickAdd(!screenOwnsChrome)
         }
     }
 }

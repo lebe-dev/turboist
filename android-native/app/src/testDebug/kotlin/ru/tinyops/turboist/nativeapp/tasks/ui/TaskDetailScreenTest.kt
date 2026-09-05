@@ -18,6 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
@@ -113,6 +114,7 @@ class TaskDetailScreenTest {
         doneSubtasks: List<Task> = emptyList(),
         placement: TaskPlacement = TaskPlacement(),
         priorityLocked: Boolean = false,
+        knownLabels: List<Label> = emptyList(),
     ) = TaskDetailUiState(
         loading = false,
         task = task,
@@ -122,7 +124,13 @@ class TaskDetailScreenTest {
         openSubtasks = taskListRows(openSubtasks, emptyMap()),
         doneSubtasks = taskListRows(doneSubtasks, emptyMap()),
         priorityLocked = priorityLocked,
+        knownLabels = knownLabels,
     )
+
+    private fun label(
+        localId: Long,
+        name: String,
+    ) = Label(localId = localId, serverId = localId, name = name, createdAt = 0, updatedAt = 0)
 
     private fun link(
         peerLocalId: Long,
@@ -153,9 +161,13 @@ class TaskDetailScreenTest {
         show(stateOf(task(1, status = TaskStatus.COMPLETED, completedAt = 1_000L)))
 
         compose.onNodeWithContentDescription(text(R.string.task_markIncomplete)).assertIsDisplayed()
-        // The word also names the moment the task was finished, so both readings
-        // of it are on the screen; either one proves the status was drawn.
-        compose.onAllNodesWithText(text(R.string.native_task_statusCompleted)).onFirst().performScrollTo()
+        // Where the task stands is the first half of the folded record's summary
+        // line, so it reads without opening anything.
+        compose
+            .onAllNodesWithText(text(R.string.native_task_statusCompleted), substring = true)
+            .onFirst()
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
@@ -215,10 +227,12 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `a task with no description says so rather than showing nothing`() {
+    fun `a task with no description offers to be given one`() {
         show(stateOf(task(1)))
 
-        compose.onNodeWithText(text(R.string.native_task_noDescription)).performScrollTo().assertIsDisplayed()
+        // An empty description is a gap the user can fill rather than a fact
+        // about the task, so the row says what tapping it does.
+        compose.onNodeWithText(text(R.string.native_task_addDescription)).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -346,6 +360,65 @@ class TaskDetailScreenTest {
         compose.waitForIdle()
 
         compose.onNodeWithText(text(R.string.native_task_relationExists)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `only the labels the task carries are on the page`() {
+        val bug = label(1, "bug")
+        val magic = label(2, "magic")
+
+        show(stateOf(task(1, labels = listOf(bug)), knownLabels = listOf(bug, magic)))
+
+        compose.onNodeWithText("bug").performScrollTo().assertIsDisplayed()
+        // Every other label in the workspace is a choice about the task rather
+        // than a fact about it, and choices live in the sheet.
+        compose.onAllNodesWithText("magic").assertCountEquals(0)
+    }
+
+    @Test
+    fun `the workspace's labels are offered once the sheet is asked for`() {
+        val bug = label(1, "bug")
+        val magic = label(2, "magic")
+
+        show(stateOf(task(1, labels = listOf(bug)), knownLabels = listOf(bug, magic)))
+        compose.onNodeWithText(text(R.string.native_task_change)).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("magic").assertIsDisplayed()
+    }
+
+    @Test
+    fun `what the task has been through is folded away until it is asked for`() {
+        show(stateOf(task(1)))
+
+        compose.onAllNodesWithText(text(R.string.native_task_created)).assertCountEquals(0)
+
+        compose.onNodeWithText(text(R.string.native_task_details)).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.native_task_created)).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `everything that can be done to the task waits behind one control`() {
+        show(stateOf(task(1)))
+
+        compose.onAllNodesWithText(text(R.string.task_actions_duplicate)).assertCountEquals(0)
+
+        compose.onNodeWithContentDescription(text(R.string.native_task_more)).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.task_actions_duplicate)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a task that already has work under it cannot be split, and the reason is on the row`() {
+        show(stateOf(task(1), openSubtasks = listOf(task(2, title = "Wash up", parentLocalId = 1))))
+
+        compose.onNodeWithContentDescription(text(R.string.native_task_more)).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.task_actions_decomposeDisabled)).assertIsDisplayed()
     }
 
     @Test

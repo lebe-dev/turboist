@@ -109,6 +109,7 @@ data class QuickAddCallbacks(
 @Composable
 fun QuickAddHost(
     modifier: Modifier = Modifier,
+    showButton: Boolean = true,
     viewModel: QuickAddViewModel = hiltViewModel(),
 ) {
     val presenter = viewModel.presenter
@@ -122,6 +123,7 @@ fun QuickAddHost(
         callbacks = quickAddCallbacks(presenter),
         onOpen = { presenter.open() },
         modifier = modifier,
+        showButton = showButton,
     )
 }
 
@@ -139,6 +141,7 @@ fun QuickAddHost(
     callbacks: QuickAddCallbacks,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    showButton: Boolean = true,
 ) {
     val snackbars = remember { SnackbarHostState() }
     val addedToInbox = stringResource(R.string.task_toast_addedToInbox)
@@ -158,14 +161,20 @@ fun QuickAddHost(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        FloatingActionButton(
-            onClick = onOpen,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = stringResource(R.string.task_addTask),
-            )
+        // The button is drawn over whatever screen is on top, so a screen with a
+        // control of its own in that corner asks for it to be left out. The sheet
+        // is not conditional on it: a share from another app opens the sheet
+        // without anyone having touched the button.
+        if (showButton) {
+            FloatingActionButton(
+                onClick = onOpen,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.task_addTask),
+                )
+            }
         }
         SnackbarHost(hostState = snackbars, modifier = Modifier.align(Alignment.BottomCenter))
     }

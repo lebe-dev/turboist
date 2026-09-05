@@ -7,7 +7,6 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Rule
@@ -37,7 +36,7 @@ import kotlin.test.assertEquals
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp", application = Application::class)
-class RecurrenceFieldTest {
+class RecurrenceSheetTest {
     @get:Rule
     val compose = createComposeRule()
 
@@ -53,12 +52,13 @@ class RecurrenceFieldTest {
     ) {
         compose.setContent {
             TurboistTheme {
-                RecurrenceField(
+                RecurrenceSheet(
                     rule = rule,
                     dueAt = dueAt,
                     from = today.atStartOfDay(zone).toInstant().toEpochMilli(),
                     zone = zone,
                     onChange = { saved += it },
+                    onDismiss = {},
                 )
             }
         }
@@ -69,7 +69,7 @@ class RecurrenceFieldTest {
     fun `choosing a named repeat writes the rule behind it`() {
         show(null)
 
-        compose.onNodeWithContentDescription(text(R.string.task_recurrence_daily)).performClick()
+        compose.onNodeWithText(text(R.string.task_recurrence_daily)).performClick()
 
         assertEquals(listOf<String?>("FREQ=DAILY"), saved)
     }
@@ -78,7 +78,7 @@ class RecurrenceFieldTest {
     fun `the weekday choice writes the five working days`() {
         show(null)
 
-        compose.onNodeWithContentDescription(text(R.string.native_recurrence_weekdays)).performClick()
+        compose.onNodeWithText(text(R.string.native_recurrence_weekdays)).performClick()
 
         assertEquals(listOf<String?>("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"), saved)
     }
@@ -87,7 +87,7 @@ class RecurrenceFieldTest {
     fun `stopping a task repeating saves no rule at all`() {
         show("FREQ=DAILY")
 
-        compose.onNodeWithContentDescription(text(R.string.task_recurrence_noRepeat)).performClick()
+        compose.onNodeWithText(text(R.string.task_recurrence_noRepeat)).performClick()
 
         assertEquals(listOf<String?>(null), saved)
     }

@@ -67,9 +67,6 @@ data class SelectionActions(
     val onDelete: () -> Unit,
 )
 
-/** The levels a selection can be set to, most urgent first. The unreadable one is not offered. */
-private val PRIORITY_CHOICES = listOf(Priority.HIGH, Priority.MEDIUM, Priority.LOW, Priority.NONE)
-
 /**
  * The bar shown while tasks are being picked.
  *

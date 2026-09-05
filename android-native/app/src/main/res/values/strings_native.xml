@@ -78,9 +78,34 @@
     <string name="native_task_updated">Updated</string>
     <string name="native_task_completedAt">Completed</string>
     <string name="native_task_editTitle">Edit title</string>
-    <string name="native_task_editDescription">Edit description</string>
-    <string name="native_task_noDescription">No description</string>
     <string name="native_task_completedSubtasks">Completed subtasks</string>
+
+    <!-- The detail screen's own furniture: the three headings its fields are
+         grouped under, the controls that open a sheet, and the block that keeps
+         the record of the task out of the way until it is asked for. The web
+         client needs none of it — a page with room for everything at once has
+         nothing to fold away and nothing to open a sheet for. -->
+    <string name="native_task_sectionWhen">When</string>
+    <string name="native_task_sectionPlanning">Planning</string>
+    <string name="native_task_sectionProperties">Properties</string>
+    <string name="native_task_details">Details</string>
+    <!-- The one line the folded record shows: where the task stands, and when it
+         was last touched, for example "Open · updated 5 Sep 2026, 10:39". -->
+    <string name="native_task_detailsSummary">%1$s · updated %2$s</string>
+    <string name="native_task_addDescription">Add description</string>
+    <string name="native_task_more">More</string>
+    <string name="native_task_change">Change</string>
+    <string name="native_task_dateAndTime">Date and time</string>
+    <string name="native_task_pickDate">Pick a date…</string>
+    <string name="native_task_inAWeek">In a week</string>
+    <string name="native_task_done">Done</string>
+    <string name="native_task_findLabel">Find a label</string>
+    <string name="native_task_labelsSelected">Selected: %1$d</string>
+    <!-- How much of the work under a task is finished, for example "1 of 3". -->
+    <string name="native_task_subtaskProgress">%1$d of %2$d</string>
+    <!-- A date with what it is to the user today in front of it, for example
+         "Today, 5 Sep 2026". -->
+    <string name="native_task_dayNamed">%1$s, %2$s</string>
     <!-- Stands in for a field the task has no value for. -->
     <string name="native_task_unset">\u2014</string>
     <!-- Why a link between two tasks was turned down. Both refusals are the

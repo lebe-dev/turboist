@@ -83,12 +83,15 @@ class AppScreens(
     /**
      * One whole task, opened at whichever address brought the user here. Takes
      * how to open another task — a subtask, or the work that is blocking this one
-     * — and how to leave, both of which belong to the graph rather than the
-     * screen.
+     * — how to leave, and the jump-pair control. All three belong to the graph
+     * rather than the screen: the first two are destinations, and the third is a
+     * control that navigates to one. The screen draws its own top bar, which is
+     * where that control has to sit.
      */
-    val task: @Composable (TaskAddress, (Long) -> Unit, () -> Unit) -> Unit = { address, open, back ->
-        TaskDetailScreen(address = address, onOpenTask = open, onBack = back)
-    },
+    val task: @Composable (TaskAddress, (Long) -> Unit, () -> Unit, @Composable () -> Unit) -> Unit =
+        { address, open, back, harpoon ->
+            TaskDetailScreen(address = address, onOpenTask = open, onBack = back, harpoon = harpoon)
+        },
     /**
      * The workspace, browsed. Takes how to open a project and how to open the
      * context a heading names — both destinations, and so both the graph's.
@@ -167,6 +170,11 @@ class AppScreens(
      * drawn over whichever screen is on top. It is an entry here rather than a
      * fixture of the shell so a check about navigation can compose the shell
      * without a database and a sync engine behind it.
+     *
+     * It is told whether to draw its button, and stays composed either way: a
+     * share from another app opens the sheet without anyone touching the button,
+     * so a screen that does not want the button — one that has a control of its
+     * own in the same corner — must not take the sheet down with it.
      */
-    val quickAdd: @Composable () -> Unit = { QuickAddHost() },
+    val quickAdd: @Composable (Boolean) -> Unit = { showButton -> QuickAddHost(showButton = showButton) },
 )

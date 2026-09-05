@@ -100,7 +100,7 @@ class AppNavigationTest {
             harpoon = { _, _ -> },
             // The capture surface reads the replica for the places a task can go,
             // so it stands in for itself here. Nothing in this walk opens it.
-            quickAdd = {},
+            quickAdd = { _ -> },
             // Settings is drawn as its real navigation rows and nothing else.
             // Those rows are the only way to three destinations, so substituting
             // them would remove the very wiring the walk is here to check; the
@@ -126,7 +126,7 @@ class AppNavigationTest {
             // The task screen reads the replica, so it stands in for itself and
             // shows the address the destination handed it — which is the half of
             // a link the walk is actually about.
-            task = { address, _, _ ->
+            task = { address, _, _, _ ->
                 StubScreen(
                     R.string.native_dest_task,
                     argument =
