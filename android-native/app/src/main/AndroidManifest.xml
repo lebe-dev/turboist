@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      The server address is typed in by the user, so the app talks to a host that
+      is not known at build time. Cleartext stays off in anything that ships: the
+      platform refuses to send it, and the connect screen refuses such an address
+      up front because it follows the platform's own answer. The debug manifest
+      overrides this one attribute so a developer can point the app at a local
+      server; there is deliberately no second flag to keep in step with it.
+    -->
+    <application
+        android:name=".TurboistApplication"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/native_app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.TurboistNative">
+
+        <!--
+          Background sync is built from the app's own dependency graph, which
+          means the job scheduler cannot start itself before that graph exists.
+          Removing its automatic start-up entry is what defers it: it is then
+          created on first use, by which time the application object has supplied
+          the factory that knows how to build the sync worker.
+        -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/native_app_name"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.TurboistNative"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              What a long press on the launcher icon offers. One entry: writing
+              something down without opening the app first.
+            -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
+            <!--
+              Text shared from another app. It lands in the same capture sheet
+              the button inside the app opens, prefilled with whatever arrived,
+              so a share is a draft the user still edits rather than a task
+              created behind their back.
+
+              Only text is claimed. A shared image or file has nothing this app
+              could store: there are no attachments, and offering to "capture" one
+              would silently drop it.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <!--
+              Links into a single task, mirroring the web client's /task/<id>
+              path. Only the app's own scheme is claimed: the server's host is
+              whatever the user connected to, so it is not known at build time,
+              and claiming every https host with a /task/ path would put the app
+              in the chooser for unrelated sites.
+            -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="task"
+                    android:scheme="turboist" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

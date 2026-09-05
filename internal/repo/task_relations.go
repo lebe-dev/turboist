@@ -202,6 +202,14 @@ func scanRelationWithPeer(rows *sql.Rows) (*model.TaskRelation, error) {
 // SummaryByTaskIDs batch-loads the per-task rollup for a whole page of tasks —
 // the anti-N+1 loader that TaskRepo.Get and every list view call once.
 func (r *TaskRelationsRepo) SummaryByTaskIDs(ctx context.Context, taskIDs []int64) (map[int64]model.TaskRelationSummary, error) {
+	return summaryByTaskIDs(ctx, r.db, taskIDs)
+}
+
+// summaryByTaskIDs is the body of SummaryByTaskIDs, parameterised over the
+// statement source. The padlock a client renders and the guard that refuses a
+// completion must agree, so every reader — including one hydrating inside an
+// open transaction — has to go through this one query rather than a copy of it.
+func summaryByTaskIDs(ctx context.Context, src queryer, taskIDs []int64) (map[int64]model.TaskRelationSummary, error) {
 	const op = "repo.task_relations.SummaryByTaskIDs"
 	logQuery(ctx, op, taskIDs)
 	if len(taskIDs) == 0 {
@@ -256,7 +264,7 @@ func (r *TaskRelationsRepo) SummaryByTaskIDs(ctx context.Context, taskIDs []int6
 			args = append(args, id)
 		}
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := src.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("summarise task relations: %w", err))
 	}

@@ -45,6 +45,7 @@ frontend-lint:
 lint: format
     just lint-backend
     just lint-frontend
+    just android-native-lint
 
 # --- Tests ---
 test name="":
@@ -56,7 +57,7 @@ test-frontend name="":
 frontend-test-watch:
     cd frontend && yarn vitest
 
-test-all: test && test-frontend
+test-all: test && test-frontend android-native-test
 
 # --- Coverage ---
 coverage:
@@ -340,6 +341,464 @@ deploy-android: cap-sync-versioned
     "$ADB" -s "$DEVICE" install -r "$APK"
     echo "==> launching"
     "$ADB" -s "$DEVICE" shell am start -n ru.tinyops.turboist/.MainActivity
+
+# --- Native Android client ---
+# `android-native/` is a Gradle build of its own, entirely separate from the
+# Capacitor shell in `frontend/android/`. It shares the repo-root VERSION file.
+#
+# `android-native-test` and `android-native-lint` are part of `test-all` and
+# `lint`, so an Android SDK (found via ANDROID_SDK_ROOT/ANDROID_HOME, or a
+# standard install path) and a JDK are needed to run either of those aggregates
+# — and therefore to run `build-image`, which is gated on them.
+
+# Build the native Android client's debug APK.
+android-native-build:
+    cd android-native && ./gradlew --console=plain :app:assembleDebug
+
+# The build-logic tests run first: they pin the rules that turn the repo-root
+# VERSION into the app's versionName and versionCode.
+# Run the native Android client's JVM unit tests.
+android-native-test:
+    cd android-native && ./gradlew --console=plain -p buildSrc test
+    cd android-native && ./gradlew --console=plain test
+
+# Check the native Android client: ktlint (Kotlin style) + Android Lint.
+android-native-lint:
+    cd android-native && ./gradlew --console=plain ktlintCheck lint
+
+# Rewrite the native Android client's Kotlin sources to the ktlint style.
+android-native-format:
+    cd android-native && ./gradlew --console=plain ktlintFormat
+
+# The bundle carries the repository VERSION as its version name plus the commit
+# it was built from, so a report from a tester names the exact code that produced
+# what they are running. It is minified, which is what makes the shrinker rules
+# matter: a class the runtime looks up by name and no rule protects is gone from
+# this artifact and from no other.
+#
+# Signing credentials are read from the environment, never from the repository —
+# put them in .env (gitignored) or export them:
+#
+#   TURBOIST_ANDROID_KEYSTORE           path to the upload keystore
+#   TURBOIST_ANDROID_KEYSTORE_PASSWORD  its password
+#   TURBOIST_ANDROID_KEY_ALIAS          the key inside it
+#   TURBOIST_ANDROID_KEY_PASSWORD       that key's password
+#
+# Gradle would happily produce an unsigned bundle without them and the store
+# would reject it at the upload form, so the recipe stops here instead and says
+# which value is missing.
+#
+# Build a signed release bundle of the native Android client for the store.
+android-native-release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ROOT="{{ justfile_directory() }}"
+
+    missing=""
+    for name in TURBOIST_ANDROID_KEYSTORE TURBOIST_ANDROID_KEYSTORE_PASSWORD \
+                TURBOIST_ANDROID_KEY_ALIAS TURBOIST_ANDROID_KEY_PASSWORD; do
+        eval "value=\${$name:-}"
+        [ -n "$value" ] || missing="$missing $name"
+    done
+    if [ -n "$missing" ]; then
+        echo "error: the release signing credentials are not set:$missing" >&2
+        echo "  Put them in .env (gitignored) or export them, then re-run." >&2
+        exit 1
+    fi
+    [ -f "$TURBOIST_ANDROID_KEYSTORE" ] || {
+        echo "error: keystore not found: $TURBOIST_ANDROID_KEYSTORE" >&2
+        exit 1
+    }
+
+    # What the artifact is called is what the bundle declares inside it: the
+    # release version with any working suffix dropped, plus the commit. Naming
+    # the file anything else means the answer to "which build is this" depends on
+    # where you read it.
+    STAMPED="{{ version }}"
+    STAMPED="${STAMPED%%-*}"
+    STAMPED="${STAMPED%%+*}+{{ gitShortHash }}"
+
+    echo "==> building the signed bundle ($STAMPED)"
+    cd "$ROOT/android-native"
+    ./gradlew --console=plain :app:bundleRelease -Pturboist.buildStamp={{ gitShortHash }}
+
+    OUT="$ROOT/android-native/build/release"
+    mkdir -p "$OUT"
+    cp app/build/outputs/bundle/release/app-release.aab "$OUT/turboist-$STAMPED.aab"
+    # The names in a release build are single letters, so a stack trace from the
+    # store is unreadable without this file. Keep the one that goes with this
+    # exact bundle — a later build produces different names.
+    cp app/build/outputs/mapping/release/mapping.txt "$OUT/turboist-$STAMPED-mapping.txt"
+
+    echo "==> done"
+    echo "    bundle:  $OUT/turboist-$STAMPED.aab"
+    echo "    mapping: $OUT/turboist-$STAMPED-mapping.txt"
+    echo "    upload both to the internal testing track (see docs/mobile.md)"
+
+# It starts an instance configured as a relying party, serves the association
+# file from deploy/well-known, and compares both ceremonies with the recordings
+# the client's tests are pinned to. Pass a port to use one other than 18099.
+# Check what a server must get right before a phone can sign in with a passkey.
+android-native-passkey-preflight port="18099":
+    ./scripts/passkey-preflight.sh {{ port }}
+
+# The SDK is located exactly like deploy-android does; the target device is
+# picked with fzf, or set ANDROID_DEVICE_ID=<serial> to skip the picker.
+# Build, install and launch the native Android client on a device or emulator.
+android-native-run:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Locate the Android SDK.
+    SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+    if [ -z "$SDK" ]; then
+        for c in /opt/homebrew/share/android-commandlinetools "$HOME/Library/Android/sdk"; do
+            [ -d "$c/platform-tools" ] && { SDK="$c"; break; }
+        done
+    fi
+    if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+        echo "error: Android SDK not found. Set ANDROID_SDK_ROOT, or install the SDK." >&2
+        echo "  brew install --cask android-commandlinetools android-platform-tools" >&2
+        exit 1
+    fi
+    export ANDROID_SDK_ROOT="$SDK" ANDROID_HOME="$SDK"
+    ADB="$(command -v adb || echo "$SDK/platform-tools/adb")"
+    # Pick the target device.
+    DEVICE="{{ androidDeviceId }}"
+    if [ -z "$DEVICE" ]; then
+        devs=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}')
+        count=$(printf '%s\n' "$devs" | grep -c . || true)
+        if [ "$count" -eq 0 ]; then
+            echo "error: no authorized Android device found." >&2
+            echo "  Enable USB debugging and accept the 'Allow USB debugging?' prompt, then: adb devices" >&2
+            exit 1
+        fi
+        if [ "$count" -eq 1 ]; then
+            DEVICE="$devs"
+        elif ! command -v fzf >/dev/null 2>&1; then
+            echo "error: fzf is required to pick a device (brew install fzf), or set ANDROID_DEVICE_ID to one of:" >&2
+            printf '%s\n' "$devs" | sed 's/^/  /' >&2
+            exit 1
+        else
+            rows=""
+            while IFS= read -r s; do
+                [ -z "$s" ] && continue
+                model=$("$ADB" -s "$s" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+                manuf=$("$ADB" -s "$s" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
+                ver=$("$ADB" -s "$s" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
+                kind="device"
+                case "$s" in emulator-*) kind="emulator" ;; esac
+                rows="${rows}${s}\t${manuf} ${model} (Android ${ver}, ${kind}) [${s}]\n"
+            done <<< "$devs"
+            sel=$(printf '%b' "$rows" | fzf --with-nth=2 --delimiter='\t' --select-1 \
+                --prompt="Android device> " --height=~40% --reverse)
+            [ -z "$sel" ] && { echo "error: no device selected" >&2; exit 1; }
+            DEVICE=$(printf '%s' "$sel" | cut -f1)
+        fi
+    fi
+    echo "==> building the native client (sdk $SDK)"
+    cd android-native
+    ./gradlew --console=plain :app:assembleDebug
+    APK="app/build/outputs/apk/debug/app-debug.apk"
+    echo "==> installing $APK on $DEVICE"
+    "$ADB" -s "$DEVICE" install -r "$APK"
+    echo "==> launching"
+    "$ADB" -s "$DEVICE" shell am start -n ru.tinyops.turboist.native/ru.tinyops.turboist.nativeapp.MainActivity
+
+# `android-native-run` builds, installs and starts the app in one go, which is
+# what you want while writing code. This one only puts a build on a phone: it
+# does not launch it, and it can install the **minified release** build, which
+# is the shape a tester should be given and the one `android-native-release`
+# cannot hand to a device — a store bundle is not installable.
+#
+# Pass `release` to install that build. It needs the same TURBOIST_ANDROID_KEYSTORE*
+# values as `android-native-release`, and the recipe insists on them: without
+# them Gradle produces an *unsigned* APK, which the phone refuses at install time
+# rather than at build time.
+#
+# The SDK is located exactly like `android-native-run` does; the target device is
+# picked with fzf, or set ANDROID_DEVICE_ID=<serial> to skip the picker.
+#
+# Install the native Android client's APK on a connected device.
+android-native-deploy variant="debug":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT="{{ variant }}"
+    case "$VARIANT" in
+        debug|release) ;;
+        *) echo "error: variant must be 'debug' or 'release', not '$VARIANT'" >&2; exit 1 ;;
+    esac
+
+    # A release APK that nothing signed cannot be installed, so ask for the
+    # credentials here rather than letting the phone deliver the verdict.
+    if [ "$VARIANT" = "release" ]; then
+        missing=""
+        for name in TURBOIST_ANDROID_KEYSTORE TURBOIST_ANDROID_KEYSTORE_PASSWORD \
+                    TURBOIST_ANDROID_KEY_ALIAS TURBOIST_ANDROID_KEY_PASSWORD; do
+            eval "value=\${$name:-}"
+            [ -n "$value" ] || missing="$missing $name"
+        done
+        if [ -n "$missing" ]; then
+            echo "error: a release build needs the signing credentials:$missing" >&2
+            echo "  Put them in .env (gitignored) or export them, then re-run." >&2
+            echo "  Or install the debug build instead: just android-native-deploy" >&2
+            exit 1
+        fi
+        [ -f "$TURBOIST_ANDROID_KEYSTORE" ] || {
+            echo "error: keystore not found: $TURBOIST_ANDROID_KEYSTORE" >&2
+            exit 1
+        }
+    fi
+
+    # Locate the Android SDK.
+    SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+    if [ -z "$SDK" ]; then
+        for c in /opt/homebrew/share/android-commandlinetools "$HOME/Library/Android/sdk"; do
+            [ -d "$c/platform-tools" ] && { SDK="$c"; break; }
+        done
+    fi
+    if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+        echo "error: Android SDK not found. Set ANDROID_SDK_ROOT, or install the SDK." >&2
+        echo "  brew install --cask android-commandlinetools android-platform-tools" >&2
+        exit 1
+    fi
+    export ANDROID_SDK_ROOT="$SDK" ANDROID_HOME="$SDK"
+    ADB="$(command -v adb || echo "$SDK/platform-tools/adb")"
+
+    # A phone that is plugged in but whose "Allow USB debugging?" prompt was never
+    # accepted is invisible to every serial listing below. Say so, or installing
+    # onto the one other attached device looks like installing onto this one.
+    pending=$("$ADB" devices | awk 'NR>1 && $2!="device" && $1!="" {print $1" ("$2")"}')
+    if [ -n "$pending" ]; then
+        echo "note: these attached devices cannot be used yet:" >&2
+        printf '%s\n' "$pending" | sed 's/^/  /' >&2
+        echo "  Accept the 'Allow USB debugging?' prompt on the phone to include it." >&2
+    fi
+
+    # Pick the target device.
+    DEVICE="{{ androidDeviceId }}"
+    if [ -z "$DEVICE" ]; then
+        devs=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}')
+        count=$(printf '%s\n' "$devs" | grep -c . || true)
+        if [ "$count" -eq 0 ]; then
+            echo "error: no authorized Android device found." >&2
+            echo "  Enable USB debugging and accept the 'Allow USB debugging?' prompt, then: adb devices" >&2
+            exit 1
+        fi
+        if [ "$count" -eq 1 ]; then
+            DEVICE="$devs"
+        elif ! command -v fzf >/dev/null 2>&1; then
+            echo "error: fzf is required to pick a device (brew install fzf), or set ANDROID_DEVICE_ID to one of:" >&2
+            printf '%s\n' "$devs" | sed 's/^/  /' >&2
+            exit 1
+        else
+            rows=""
+            while IFS= read -r s; do
+                [ -z "$s" ] && continue
+                model=$("$ADB" -s "$s" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+                manuf=$("$ADB" -s "$s" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
+                ver=$("$ADB" -s "$s" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
+                kind="device"
+                case "$s" in emulator-*) kind="emulator" ;; esac
+                rows="${rows}${s}\t${manuf} ${model} (Android ${ver}, ${kind}) [${s}]\n"
+            done <<< "$devs"
+            sel=$(printf '%b' "$rows" | fzf --with-nth=2 --delimiter='\t' --select-1 \
+                --prompt="Android device> " --height=~40% --reverse)
+            [ -z "$sel" ] && { echo "error: no device selected" >&2; exit 1; }
+            DEVICE=$(printf '%s' "$sel" | cut -f1)
+        fi
+    fi
+
+    echo "==> building the $VARIANT APK (sdk $SDK)"
+    cd android-native
+    if [ "$VARIANT" = "release" ]; then
+        # Stamped the same way the store bundle is, so a report from a phone names
+        # the exact code that produced what is running on it.
+        ./gradlew --console=plain :app:assembleRelease -Pturboist.buildStamp={{ gitShortHash }}
+        APK="app/build/outputs/apk/release/app-release.apk"
+    else
+        ./gradlew --console=plain :app:assembleDebug
+        APK="app/build/outputs/apk/debug/app-debug.apk"
+    fi
+    [ -f "$APK" ] || { echo "error: the build produced no APK at $APK" >&2; exit 1; }
+
+    echo "==> installing $APK on $DEVICE"
+    # A debug build and a release build carry the same application id under
+    # different signatures, so swapping one for the other is a reinstall the
+    # platform refuses. Removing the old one takes the device's copy of the
+    # workspace, its queued changes and its sign-in with it, so say that and stop
+    # rather than deciding it here.
+    if ! out=$("$ADB" -s "$DEVICE" install -r "$APK" 2>&1); then
+        printf '%s\n' "$out" >&2
+        case "$out" in
+            *INSTALL_FAILED_UPDATE_INCOMPATIBLE*|*signatures*do*not*match*|*INSTALL_FAILED_VERSION_DOWNGRADE*)
+                echo "" >&2
+                echo "The app already on this device was signed with a different key, so it cannot" >&2
+                echo "be replaced in place. Uninstalling first WIPES its local copy of the workspace," >&2
+                echo "anything queued but not yet sent, and the sign-in:" >&2
+                echo "  adb -s $DEVICE uninstall ru.tinyops.turboist.native" >&2
+                ;;
+        esac
+        exit 1
+    fi
+    printf '%s\n' "$out"
+
+    echo "==> done"
+    echo "    installed the $VARIANT build on $DEVICE"
+    echo "    start it from the launcher, or: just android-native-run"
+
+e2eUser := env_var_or_default("TURBOIST_E2E_USER", "harness")
+e2ePassword := env_var_or_default("TURBOIST_E2E_PASSWORD", "harness-password")
+e2eAppHost := env_var_or_default("TURBOIST_E2E_APP_HOST", "")
+# Builds the Go binary, starts it on a free port with a database of its own,
+# reinstalls the app from scratch and runs the on-device suite against it.
+#
+# Two addresses reach the same server, and the difference is what makes an
+# offline test possible. The app dials it over the emulator's own radios
+# (10.0.2.2 is the host as the emulator sees it), so switching those off really
+# does cut the app off. The suite's own calls — seeding the dataset, deleting a
+# row underneath a device that is offline, asking the server what it ended up
+# holding — go through a port forwarded over the debug bridge, which does not
+# depend on the radios at all.
+#
+# Set TURBOIST_E2E_APP_HOST to run against a physical device on the same
+# network; the server is then bound on every interface instead of loopback.
+#
+# Everything started here is stopped again on the way out, including after a
+# failure, and a failure leaves the server log and a logcat capture behind.
+#
+# Drive the native Android client on an emulator against a freshly built server.
+android-native-e2e:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ROOT="{{ justfile_directory() }}"
+    OUT="$ROOT/android-native/build/e2e"
+    rm -rf "$OUT"
+    mkdir -p "$OUT"
+
+    # Locate the Android SDK.
+    SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+    if [ -z "$SDK" ]; then
+        for c in /opt/homebrew/share/android-commandlinetools "$HOME/Library/Android/sdk"; do
+            [ -d "$c/platform-tools" ] && { SDK="$c"; break; }
+        done
+    fi
+    if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+        echo "error: Android SDK not found. Set ANDROID_SDK_ROOT, or install the SDK." >&2
+        exit 1
+    fi
+    export ANDROID_SDK_ROOT="$SDK" ANDROID_HOME="$SDK"
+    ADB="$(command -v adb || echo "$SDK/platform-tools/adb")"
+
+    # Pick the target device.
+    DEVICE="{{ androidDeviceId }}"
+    if [ -z "$DEVICE" ]; then
+        devs=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}')
+        count=$(printf '%s\n' "$devs" | grep -c . || true)
+        if [ "$count" -eq 0 ]; then
+            echo "error: no running emulator or authorized device found. Start an emulator first." >&2
+            exit 1
+        fi
+        if [ "$count" -ne 1 ]; then
+            echo "error: more than one device is attached; set ANDROID_DEVICE_ID to one of:" >&2
+            printf '%s\n' "$devs" | sed 's/^/  /' >&2
+            exit 1
+        fi
+        DEVICE="$devs"
+    fi
+
+    # Which address the app dials. An emulator reaches the host it runs on at a
+    # fixed alias, so the server can stay on loopback; anything else has to be
+    # named explicitly and needs the server reachable from the network.
+    APP_HOST="{{ e2eAppHost }}"
+    if [ -z "$APP_HOST" ]; then
+        case "$DEVICE" in
+            emulator-*) APP_HOST="10.0.2.2" ;;
+            *)
+                echo "error: $DEVICE is not an emulator, so it cannot reach this machine at the emulator alias." >&2
+                echo "  Set TURBOIST_E2E_APP_HOST=<this machine's address on the device's network> and retry." >&2
+                exit 1
+                ;;
+        esac
+        BIND_HOST="127.0.0.1"
+    else
+        BIND_HOST="0.0.0.0"
+    fi
+
+    # A port nobody else is on. The harness never assumes it owns the port a
+    # development server is usually started on.
+    command -v python3 >/dev/null 2>&1 || { echo "error: python3 is needed to pick a free port" >&2; exit 1; }
+    PORT=$(python3 -c "import socket; s = socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1]); s.close()")
+
+    SERVER_PID=""
+    cleanup() {
+        set +e
+        if [ -n "$SERVER_PID" ]; then
+            kill "$SERVER_PID" >/dev/null 2>&1
+            wait "$SERVER_PID" >/dev/null 2>&1
+        fi
+        "$ADB" -s "$DEVICE" reverse --remove "tcp:$PORT" >/dev/null 2>&1
+        # A run stopped part-way through could leave the emulator with no
+        # network, which would break every later run for an unrelated reason.
+        "$ADB" -s "$DEVICE" shell svc wifi enable >/dev/null 2>&1
+        "$ADB" -s "$DEVICE" shell svc data enable >/dev/null 2>&1
+        rm -f "$OUT/turboist.db" "$OUT/turboist.db-shm" "$OUT/turboist.db-wal"
+    }
+    trap cleanup EXIT
+
+    echo "==> building the server"
+    go build -o "$OUT/turboist" ./cmd/turboist
+
+    echo "==> starting it on port $PORT with a database of its own"
+    # Started from its own directory so it cannot pick up the repository's .env
+    # and talk to a real database; the config file is named absolutely.
+    (
+        cd "$OUT"
+        BIND="$BIND_HOST:$PORT" \
+        BASE_URL="http://$APP_HOST:$PORT" \
+        JWT_SECRET="on-device-harness-jwt-secret-000000" \
+        API_TOKEN_SALT="on-device-harness-api-token-salt-0000" \
+        DATA_PATH="$OUT/turboist.db" \
+        LOG_LEVEL="info" \
+        "$OUT/turboist" -config "$ROOT/config.yml" >"$OUT/server.log" 2>&1 &
+        echo $! >"$OUT/server.pid"
+    )
+    SERVER_PID=$(cat "$OUT/server.pid")
+
+    for _ in $(seq 1 60); do
+        if curl -fsS "http://127.0.0.1:$PORT/api/config" >/dev/null 2>&1; then break; fi
+        kill -0 "$SERVER_PID" 2>/dev/null || { echo "error: the server exited on start-up:" >&2; cat "$OUT/server.log" >&2; exit 1; }
+        sleep 0.5
+    done
+    curl -fsS "http://127.0.0.1:$PORT/api/config" >/dev/null || { echo "error: the server never became reachable" >&2; cat "$OUT/server.log" >&2; exit 1; }
+
+    echo "==> forwarding the checking channel onto $DEVICE"
+    "$ADB" -s "$DEVICE" reverse "tcp:$PORT" "tcp:$PORT" >/dev/null
+
+    echo "==> reinstalling the app so the run starts from a fresh install"
+    "$ADB" -s "$DEVICE" uninstall ru.tinyops.turboist.native >/dev/null 2>&1 || true
+    "$ADB" -s "$DEVICE" uninstall ru.tinyops.turboist.native.test >/dev/null 2>&1 || true
+    "$ADB" -s "$DEVICE" logcat -c >/dev/null 2>&1 || true
+
+    echo "==> running the on-device suite"
+    cd "$ROOT/android-native"
+    set +e
+    ANDROID_SERIAL="$DEVICE" ./gradlew --console=plain :app:connectedDebugAndroidTest \
+        "-Pandroid.testInstrumentationRunnerArguments.turboistAppBaseUrl=http://$APP_HOST:$PORT" \
+        "-Pandroid.testInstrumentationRunnerArguments.turboistControlBaseUrl=http://127.0.0.1:$PORT" \
+        "-Pandroid.testInstrumentationRunnerArguments.turboistUsername={{ e2eUser }}" \
+        "-Pandroid.testInstrumentationRunnerArguments.turboistPassword={{ e2ePassword }}"
+    STATUS=$?
+    set -e
+    if [ "$STATUS" -ne 0 ]; then
+        "$ADB" -s "$DEVICE" logcat -d -v time >"$OUT/logcat.txt" 2>&1 || true
+        echo "" >&2
+        echo "==> the on-device run failed" >&2
+        echo "    server log:  $OUT/server.log" >&2
+        echo "    device log:  $OUT/logcat.txt" >&2
+        echo "    report:      $ROOT/android-native/app/build/reports/androidTests/connected/debug/index.html" >&2
+        exit "$STATUS"
+    fi
+    echo "==> done"
 
 # --- Development Environment ---
 start-env: stop-env

@@ -467,3 +467,60 @@ func TestTaskViews_Backlog_ExcludesSubtasksPlannedWithParent(t *testing.T) {
 		t.Errorf("week total: got %d, want 1 (the cascaded subtask must not consume the weekly limit)", week.Total)
 	}
 }
+
+// completedTitles fetches GET /tasks/completed with the given query and returns
+// the titles it answered with, in order.
+func completedTitles(t *testing.T, e *apiEnv, query string) []string {
+	t.Helper()
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/completed"+query, nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("completed%s: got %d, want 200; body: %s", query, resp.StatusCode, body)
+	}
+	var result dto.PagedResponse[dto.TaskDTO]
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	titles := make([]string, 0, len(result.Items))
+	for _, item := range result.Items {
+		titles = append(titles, item.Title)
+	}
+	return titles
+}
+
+// A client whose local copy of the history is bounded reads everything past that
+// bound from this endpoint, so `days` has to be able to name a window wider than
+// the one such a copy covers. Anything smaller than that and the endpoint can
+// only ever hand back what the caller already has.
+func TestTaskViews_Completed_ReachesPastTheReplicatedHistory(t *testing.T) {
+	e := setupAPIEnv(t)
+	c := createTestContext(t, e, "Work")
+	recent := createTestTask(t, e, c.ID, "Finished last week")
+	ancient := createTestTask(t, e, c.ID, "Finished two years ago")
+	now := time.Now()
+	completeTaskAt(t, e, recent.ID, now.Add(-7*24*time.Hour))
+	completeTaskAt(t, e, ancient.ID, now.Add(-730*24*time.Hour))
+
+	got := completedTitles(t, e, "?days=3650&limit=50")
+	if len(got) != 2 {
+		t.Fatalf("days=3650: got %v, want both completions", got)
+	}
+
+	inWindow := completedTitles(t, e, "?days=90&limit=50")
+	if len(inWindow) != 1 || inWindow[0] != recent.Title {
+		t.Errorf("days=90: got %v, want only %q — a narrower window must still be honored", inWindow, recent.Title)
+	}
+}
+
+// The window is measured by subtracting days from today, so an absurd number
+// must be capped rather than run off the end of the clock.
+func TestTaskViews_Completed_AbsurdWindowIsCapped(t *testing.T) {
+	e := setupAPIEnv(t)
+	c := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, c.ID, "Finished long ago")
+	completeTaskAt(t, e, task.ID, time.Now().Add(-3650*24*time.Hour))
+
+	got := completedTitles(t, e, "?days=999999999&limit=50")
+	if len(got) != 1 || got[0] != task.Title {
+		t.Errorf("days=999999999: got %v, want %q", got, task.Title)
+	}
+}

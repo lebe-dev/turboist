@@ -107,6 +107,7 @@ func main() {
 	searchRepo := repo.NewSearchRepo(taskRepo, projectRepo)
 	idempotencyRepo := repo.NewIdempotencyRepo(sqlDB)
 	webauthnRepo := repo.NewWebAuthnRepo(sqlDB)
+	changeLogRepo := repo.NewChangeLogRepo(sqlDB)
 
 	// auth
 	jwtIssuer := auth.NewJWTIssuer([]byte(env.JWTSecret))
@@ -155,11 +156,12 @@ func main() {
 		log.Info("passkeys enabled", "rp_id", env.WebAuthnRPID, "origins", env.WebAuthnOrigins)
 	}
 
-	// session + idempotency-key cleanup (share the shutdown-scoped context)
+	// session, idempotency-key and change-log cleanup (share the shutdown-scoped context)
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	defer cleanupCancel()
 	auth.StartSessionCleanup(cleanupCtx, sessionRepo, log)
 	startIdempotencyCleanup(cleanupCtx, idempotencyRepo, log)
+	startChangeLogPrune(cleanupCtx, changeLogRepo, log)
 
 	// events hub (SSE pub/sub) — owned by main so that Deps and the events
 	// handler share the same instance.
@@ -253,6 +255,7 @@ func main() {
 	handlers.NewSettingsHandler(userRepo).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo, projectRepo).Register(api)
+	handlers.NewSyncHandler(changeLogRepo, env.BaseURL).Register(api.Group("/sync"))
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewSessionsHandler(sessionRepo).

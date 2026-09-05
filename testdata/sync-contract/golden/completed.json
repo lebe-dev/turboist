@@ -1,0 +1,13 @@
+{
+  "view": "completed",
+  "total": 7,
+  "taskKeys": [
+    "t-completed-today",
+    "t-inbox-completed",
+    "t-troiki-medium-completed",
+    "t-backlog-completed",
+    "t-overdue-completed",
+    "t-recurring-snapshot",
+    "t-completed-in-window"
+  ]
+}

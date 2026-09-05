@@ -137,6 +137,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettings, lbls, projs).Register(api)
+	handlers.NewStateHandler(users).Register(api)
+	handlers.NewSyncHandler(repo.NewChangeLogRepo(d), testBaseURL).Register(api.Group("/sync"))
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewSessionsHandler(sessions).

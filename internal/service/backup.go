@@ -9,6 +9,7 @@ import (
 
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
+	"github.com/lebe-dev/turboist/internal/repo"
 )
 
 // BackupService produces and consumes BackupPayload snapshots of the database.
@@ -205,6 +206,14 @@ func (s *BackupService) Restore(ctx context.Context, p *BackupPayload) error {
 			return fmt.Errorf("settings: %w", err)
 		}
 	}
+	// The restored rows are a different dataset wearing the same ids, so the
+	// change history stops describing them. Replicas are cut loose here rather
+	// than left to resume onto data that quietly disagrees with their own.
+	epoch, err := repo.ResetSyncHistory(ctx, tx)
+	if err != nil {
+		log.ErrorContext(ctx, op+": reset sync history", slog.String("err", err.Error()))
+		return fmt.Errorf("reset sync history: %w", err)
+	}
 	if violation, err := firstFKViolation(ctx, tx); err != nil {
 		log.ErrorContext(ctx, op+": fk check", slog.String("err", err.Error()))
 		return fmt.Errorf("fk check: %w", err)
@@ -216,6 +225,8 @@ func (s *BackupService) Restore(ctx context.Context, p *BackupPayload) error {
 		log.ErrorContext(ctx, op+": commit", slog.String("err", err.Error()))
 		return err
 	}
-	log.InfoContext(ctx, "backup restore finished", slog.String("op", op))
+	log.InfoContext(ctx, "backup restore finished",
+		slog.String("op", op),
+		slog.Int64("sync_epoch", epoch))
 	return nil
 }

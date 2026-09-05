@@ -40,6 +40,29 @@ func taskRelationsFromModel(rels []model.TaskRelation, baseURL string) []TaskRel
 	return out
 }
 
+// TaskRelationEdgeDTO is the stored relation row itself, with both endpoints
+// named. TaskRelationDTO renders the same row from one task's point of view and
+// embeds the peer task, which only makes sense when there is a task in the path;
+// a consumer holding the whole graph wants the edge instead and derives
+// direction locally for whichever end it is drawing.
+type TaskRelationEdgeDTO struct {
+	ID           int64  `json:"id"`
+	SourceTaskID int64  `json:"sourceTaskId"`
+	TargetTaskID int64  `json:"targetTaskId"`
+	Type         string `json:"type"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+func TaskRelationEdgeFromModel(r model.TaskRelation) TaskRelationEdgeDTO {
+	return TaskRelationEdgeDTO{
+		ID:           r.ID,
+		SourceTaskID: r.SourceTaskID,
+		TargetTaskID: r.TargetTaskID,
+		Type:         string(r.Type),
+		CreatedAt:    FormatTime(r.CreatedAt),
+	}
+}
+
 // CreateTaskRelationRequest is the body for POST /tasks/:id/relations.
 // Direction is interpreted relative to the task in the path and is ignored for
 // type "related".

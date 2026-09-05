@@ -1,0 +1,54 @@
+{
+  "description": "Moving one column of a project board renumbers the whole board to 0..n-1. The server owns the rule; the native mobile client applies it to its own replica the moment the user drags, before the request is sent. Two implementations of one ordering drift silently, so both run these cases and must produce the same board. `board` is the columns in their current drawing order, `move` names the column the user dragged, `position` is where it was dropped, and `expected` is the board afterwards - a column's position is its index in that list.",
+  "cases": [
+    {
+      "name": "the last column dragged to the front",
+      "board": ["backlog", "doing", "done"],
+      "move": "done",
+      "position": 0,
+      "expected": ["done", "backlog", "doing"]
+    },
+    {
+      "name": "the first column dragged to the end",
+      "board": ["backlog", "doing", "done"],
+      "move": "backlog",
+      "position": 2,
+      "expected": ["doing", "done", "backlog"]
+    },
+    {
+      "name": "a column dropped where it already was",
+      "board": ["backlog", "doing", "done"],
+      "move": "doing",
+      "position": 1,
+      "expected": ["backlog", "doing", "done"]
+    },
+    {
+      "name": "a drop past the end of the board means the end",
+      "board": ["backlog", "doing", "done"],
+      "move": "backlog",
+      "position": 9,
+      "expected": ["doing", "done", "backlog"]
+    },
+    {
+      "name": "the only column of a board cannot go anywhere else",
+      "board": ["backlog"],
+      "move": "backlog",
+      "position": 0,
+      "expected": ["backlog"]
+    },
+    {
+      "name": "a column moved to the right lands after the ones it passed",
+      "board": ["backlog", "doing", "review", "done"],
+      "move": "doing",
+      "position": 2,
+      "expected": ["backlog", "review", "doing", "done"]
+    },
+    {
+      "name": "a column moved to the left lands before the ones it passed",
+      "board": ["backlog", "doing", "review", "done"],
+      "move": "done",
+      "position": 1,
+      "expected": ["backlog", "done", "doing", "review"]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the launcher offers on a long press of the app icon.
+
+  One entry, because there is one thing worth reaching without opening the app
+  first: writing something down. It lands in the same capture sheet the button
+  inside the app opens, so a thought captured this way is captured exactly the
+  same way — including with no network.
+
+  The wording is the shared product wording, so the shortcut is named in the
+  device's language wherever the app is translated.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="quick-add"
+        android:shortcutLongLabel="@string/dialog_quickAdd_title"
+        android:shortcutShortLabel="@string/task_addTask">
+        <intent
+            android:action="ru.tinyops.turboist.native.action.QUICK_ADD"
+            android:targetClass="ru.tinyops.turboist.nativeapp.MainActivity"
+            android:targetPackage="ru.tinyops.turboist.native" />
+    </shortcut>
+</shortcuts>

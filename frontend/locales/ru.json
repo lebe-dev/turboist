@@ -598,6 +598,11 @@
 			"bulkMoved": "Перемещено задач: {count}",
 			"bulkMovedPartial": "Перемещено {ok}; не удалось — {failed}",
 			"failedBulkMove": "Не удалось переместить задачи",
+			"bulkCompleted": "Завершено задач: {count}",
+			"bulkCompletedBlocked": "Завершено задач: {ok}; ожидают незавершённой работы: {blocked}",
+			"bulkPlanned": "Запланировано задач на неделю: {count}",
+			"bulkParked": "Перенесено в бэклог задач: {count}",
+			"bulkDeleted": "Удалено задач: {count}",
 			"bulkPrioritySet": "Приоритет обновлён для {count} задач",
 			"bulkPrioritySetPartial": "Обновлено {ok}; не удалось — {failed}",
 			"failedBulkPriority": "Не удалось обновить приоритет",
@@ -1101,10 +1106,21 @@
 		"bar": {
 			"aria": "Действия с выбранными задачами",
 			"count": "Выбрано: {count}",
+			"complete": "Завершить",
 			"move": "Переместить",
 			"priority": "Приоритет",
 			"group": "Сгруппировать в задачу",
+			"more": "Ещё действия",
+			"selectAll": "Выбрать все",
 			"cancel": "Снять выбор"
+		},
+		"group": {
+			"destinationTitle": "Куда поместить новую задачу?",
+			"effect": "Выбранные задачи перейдут в новую задачу и получат её метки и приоритет."
+		},
+		"confirmDelete": {
+			"title": "Удалить выбранные задачи?",
+			"description": "{count} задач и всё, что внутри них, будет удалено. Это нельзя отменить."
 		}
 	},
 	"calendar": {

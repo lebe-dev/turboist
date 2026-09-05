@@ -1,0 +1,26 @@
+{
+  "view": "week",
+  "total": 2,
+  "taskKeys": [
+    "t-pinned-high",
+    "t-pinned-low-newer",
+    "t-week-planned-high",
+    "t-overdue-yesterday",
+    "t-tomorrow-timed",
+    "t-inbox-high",
+    "t-archived-project",
+    "t-private",
+    "t-recurring-source",
+    "t-week-child-cascaded",
+    "t-today-morning",
+    "t-week-due-inside",
+    "t-today-evening",
+    "t-blocked",
+    "t-label-urgent-due-today",
+    "t-week-grandchild",
+    "t-week-child-unplanned",
+    "t-week-planned-plain",
+    "t-tomorrow-first-instant",
+    "t-today-last-instant"
+  ]
+}

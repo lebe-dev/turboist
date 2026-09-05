@@ -22,3 +22,17 @@
 /*.json
 frontend/coverage
 !deploy/well-known/README.md
+
+# Native Android client build artifacts
+/android-native/.gradle/
+/android-native/**/.kotlin/
+/android-native/local.properties
+/android-native/build/
+/android-native/*/build/
+/android-native/*/*/build/
+/android-native/buildSrc/.gradle/
+
+# Signing keys. A key that reaches the repository is a key that has to be
+# replaced, and an app signed with a replaced key cannot be updated in place.
+*.jks
+*.keystore

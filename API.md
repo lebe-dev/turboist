@@ -109,6 +109,8 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `passkey_exists` | 409 |
 | `calendar_reauth_required` | 409 |
 | `task_blocked` | 409 |
+| `sync_epoch_mismatch` | 409 |
+| `sync_cursor_expired` | 410 |
 | `CodeInternalError` | 500 |
 
 #### `403 Forbidden`
@@ -627,7 +629,7 @@ curl -X DELETE "$BASE/api/v1/api-tokens/1" \
 
 ### Scopes Reference
 
-The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tokens`:
+The 18 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tokens`:
 
 | Scope | Description |
 |-------|-------------|
@@ -641,6 +643,8 @@ The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tok
 | `labels:write` | Create, update, delete labels |
 | `sections:read` | Read sections: get by id, list sections of a project |
 | `sections:write` | Create, update, delete sections; reorder |
+| `templates:read` | Read task templates: list, get by id |
+| `templates:write` | Create, update, delete task templates |
 | `troiki:read` | Read current Troiki view |
 | `troiki:write` | Start a Troiki day; reset Troiki |
 | `settings:read` | Read user settings, server config, persisted UI state |
@@ -806,6 +810,16 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/calendars/events` | `calendars:read` |
 | `GET /api/v1/calendars/google/start` | `calendars:read` |
 | other `/api/v1/calendars` subroutes | `calendars:read` |
+
+#### Sync
+
+Both endpoints can carry every kind of row in the workspace in one response, so
+they require every read scope at once (see [Sync](#sync)).
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/sync/changes` | `tasks:read` **and** `projects:read`, `sections:read`, `contexts:read`, `labels:read`, `templates:read`, `settings:read` |
+| `GET /api/v1/sync/snapshot` | `tasks:read` **and** `projects:read`, `sections:read`, `contexts:read`, `labels:read`, `templates:read`, `settings:read` |
 
 #### JWT-only endpoints (no API-token access)
 
@@ -1361,7 +1375,11 @@ curl "$BASE/api/v1/tasks/pinned" \
 ### `GET /api/v1/tasks/completed`
 
 Tasks completed within a date window. Query params:
-- `days` — number of days back (1–90, default 1). Today is always included.
+- `days` — number of days back (default 1, capped at 36500). Today is always
+  included. The cap is only a guard against a nonsensical value: this endpoint
+  is how a client whose local copy of the history is bounded reads what has
+  aged out of it, so the window it may ask for is deliberately far wider than
+  that copy.
 
 Returns paged response.
 
@@ -2461,6 +2479,302 @@ curl -i "$BASE/api/v1/config" \
 
 The ETag is derived from the serialized payload, so it changes whenever any
 embedded section does.
+
+---
+
+## Sync
+
+Two endpoints for clients that keep a **full local copy** of the workspace and
+reconcile it in the background instead of fetching a screen at a time. They are
+additive: every other endpoint keeps its shape, the payloads are the objects the
+REST API already serves, and a client that does not want a local copy never has
+to call them.
+
+- `GET /api/v1/sync/snapshot` — seeds a replica.
+- `GET /api/v1/sync/changes` — carries what changed since a given cursor.
+
+There is no push endpoint. Writes go through the ordinary mutation endpoints.
+
+### The loop
+
+1. `GET /api/v1/sync/snapshot` — store every collection together with the
+   returned `epoch` and `cursor`.
+2. `GET /api/v1/sync/changes?since=<cursor>&epoch=<epoch>` — apply the page and
+   persist the new `cursor` with it in one local transaction, then repeat while
+   `hasMore` is `true`.
+3. Pull again whenever something moves. The SSE stream (`GET /api/v1/events`) is
+   the trigger; which scope it names does not matter here — any event, or a
+   reconnect, means "ask for changes". The stream is reachable with a JWT session
+   only, so an API-token integration polls the change feed instead.
+4. Write through the normal endpoints (`PATCH /api/v1/tasks/:id`,
+   `POST /api/v1/tasks/:id/complete`, …), each carrying an
+   [`Idempotency-Key`](#idempotency) so a retry after a lost response is safe.
+   Your own writes come back through the feed as upserts of state you already
+   hold.
+5. On `409 sync_epoch_mismatch` or `410 sync_cursor_expired`, go back to step 1.
+
+Applying is idempotent by construction: a change carries the entity's **current**
+row rather than a diff, and a delete is a tombstone for a row that is simply
+gone. Replaying a page after a crash therefore costs nothing but the work of
+writing it twice.
+
+### Entities
+
+Both endpoints speak the same entity vocabulary. Each one is a resource the API
+already serves, and its payload is that resource's object, byte for byte.
+
+| `entity` | Payload | Snapshot field | Also served by |
+|----------|---------|----------------|----------------|
+| `task` | [Task Object](#task-object) | `tasks` | `GET /api/v1/tasks/:id` |
+| `project` | [Project Object](#project-object) | `projects` | `GET /api/v1/projects/:id` |
+| `section` | [Section Object](#section-object) | `sections` | `GET /api/v1/sections/:id` |
+| `context` | [Context Object](#context-object) | `contexts` | `GET /api/v1/contexts/:id` |
+| `label` | [Label Object](#label-object) | `labels` | `GET /api/v1/labels/:id` |
+| `task_relation` | [Relation Edge](#relation-edge) | `taskRelations` | — (see below) |
+| `task_template` | [Template Object](#template-object) | `taskTemplates` | `GET /api/v1/task-templates/:id` |
+| `user_settings` | Settings object | `userSettings` | `GET /api/v1/settings` |
+| `user_state` | The stored UI-state object | `userState` | `GET /api/v1/state` |
+| `app_settings` | App settings object | `appSettings` | `GET /api/v1/app-settings` |
+
+Join and child rows have no entity of their own — the API serves their contents
+inside the owner's payload, and so does sync:
+
+| What changed | Reported as |
+|--------------|-------------|
+| A task's labels | `upsert` of the `task` |
+| A project's labels | `upsert` of the `project` |
+| A template's subtasks, its labels, or a subtask's labels | `upsert` of the `task_template` |
+
+**Never replicated**: sessions, API tokens, TOTP recovery codes, passkeys,
+idempotency keys and calendar data. Read those through their own endpoints.
+
+The `entity` strings are part of the wire contract: the set only ever grows, and
+an existing name is never repurposed.
+
+#### Relation Edge
+
+`task_relation` carries the stored edge itself rather than the direction-relative
+[Relation Object](#relation-object) that `GET /api/v1/tasks/:id?relations=true`
+returns — a client holding the whole graph derives direction locally for
+whichever end it is drawing, and has both tasks already.
+
+```json
+{
+  "id": 7,
+  "sourceTaskId": 42,
+  "targetTaskId": 9,
+  "type": "blocks",
+  "createdAt": "2026-03-09T12:34:56.789Z"
+}
+```
+
+The stored direction is *source → target*: for `type: "blocks"`, the source task
+blocks the target task. See [Task Relations](#task-relations) for the rules the
+graph enforces.
+
+### `GET /api/v1/sync/changes`
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `since` | `0` | The cursor the client already holds. Everything logged after it is returned. `0` is just the lowest possible cursor, not a bootstrap: it is served only while the log still reaches back to its first entry, and once anything older than the retained window has been trimmed (or a restore has rewritten the history) it is refused with `410 sync_cursor_expired` like any other expired cursor. Seed a replica from the snapshot |
+| `epoch` | — | The epoch the client believes its cursor belongs to. Omit it on a first call to learn the current one; send it on every call afterwards |
+| `limit` | `500` | Maximum changes in one page. `500` is also the maximum accepted value |
+
+`since` and `limit` must be non-negative integers and `limit` must not exceed
+`500`; anything else answers `400 validation_failed`.
+
+```sh
+curl "$BASE/api/v1/sync/changes?since=18200&epoch=1&limit=500" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "epoch": 1,
+  "cursor": 18234,
+  "hasMore": false,
+  "changes": [
+    {
+      "entity": "task",
+      "op": "upsert",
+      "seq": 18201,
+      "id": 42,
+      "data": {
+        "id": 42,
+        "title": "Write the quarterly report",
+        "description": "",
+        "inboxId": null,
+        "contextId": 1,
+        "projectId": 3,
+        "sectionId": null,
+        "parentId": null,
+        "priority": "high",
+        "status": "open",
+        "dueAt": "2026-03-10T00:00:00.000Z",
+        "dueHasTime": false,
+        "deadlineAt": null,
+        "deadlineHasTime": false,
+        "dayPart": "morning",
+        "planState": "week",
+        "isPinned": false,
+        "pinnedAt": null,
+        "isPrivate": false,
+        "isComplex": false,
+        "completedAt": null,
+        "recurrenceRule": null,
+        "sourceTaskId": null,
+        "postponeCount": 0,
+        "labels": [],
+        "url": "https://turboist.example.com/task/42",
+        "createdAt": "2026-03-09T12:34:56.789Z",
+        "updatedAt": "2026-03-09T13:02:11.004Z",
+        "blockedByCount": 0,
+        "relationCount": 1
+      }
+    },
+    {
+      "entity": "label",
+      "op": "delete",
+      "seq": 18209,
+      "id": 14
+    },
+    {
+      "entity": "user_state",
+      "op": "upsert",
+      "seq": 18234,
+      "id": 1,
+      "data": { "sidebarCollapsed": true }
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `epoch` | The epoch this page belongs to. Store it with the cursor |
+| `cursor` | The `seq` of the last change in the page, or `since` when the page is empty. Persist it only once the page is applied |
+| `hasMore` | `true` when more changes were waiting behind this page. `false` means the replica is level with the server as of `cursor` |
+| `changes[].entity` | One of the entity names above |
+| `changes[].op` | `upsert` or `delete` |
+| `changes[].seq` | Position in the change history — the ordering key, ascending across the page |
+| `changes[].id` | The entity id. Present on both operations; for `user_settings` and `user_state` it is the user id, for `app_settings` it is always `1` |
+| `changes[].data` | The entity's current object. Present on `upsert` only |
+
+Semantics worth knowing before writing a client:
+
+- **One change per entity per page.** Everything that happened to an entity since
+  `since` collapses into its latest state: a task edited twelve times is one
+  `upsert`, and a task created and then deleted is just the `delete`.
+- **`data` is the row as it is now**, not as it was when the change happened.
+  Two entities in the same page are therefore mutually consistent.
+- **An upsert whose row no longer exists is served as a `delete`.** A row can be
+  removed by a cascade attributed to its owner, or after the end of the page;
+  either way the client is never told to keep a row the server does not have.
+- **Deletes are the only tombstones.** The resource is gone from its table; there
+  is no soft-delete state to read instead.
+- **`epoch` is checked, not guessed.** Omitting it skips the check and is how a
+  client learns the current value; sending a stale one is refused rather than
+  silently served against a history that was replaced.
+
+**Errors**
+
+| Code | HTTP | When | `details` | Recovery |
+|------|------|------|-----------|----------|
+| `sync_epoch_mismatch` | 409 | The `epoch` sent does not match the server's — the data was replaced wholesale since the cursor was issued | `epoch` — the current epoch | Take a fresh snapshot |
+| `sync_cursor_expired` | 410 | The changes after `since` have already been trimmed, so no sequence of pages can close the gap | `epoch`, `oldestRetained` — the lowest `seq` still held | Take a fresh snapshot |
+
+```json
+{
+  "error": {
+    "code": "sync_cursor_expired",
+    "message": "sync cursor expired",
+    "details": { "epoch": 1, "oldestRetained": 18000 }
+  }
+}
+```
+
+### `GET /api/v1/sync/snapshot`
+
+Takes no parameters and is not paged: it returns every replicated entity in one
+payload, plus the position to continue the change feed from.
+
+```sh
+curl "$BASE/api/v1/sync/snapshot" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "epoch": 1,
+  "cursor": 18234,
+  "completedSince": "2025-12-10T09:15:00.000Z",
+  "tasks": [ /* Task Objects */ ],
+  "projects": [ /* Project Objects */ ],
+  "sections": [ /* Section Objects */ ],
+  "contexts": [ /* Context Objects */ ],
+  "labels": [ /* Label Objects */ ],
+  "taskRelations": [ /* Relation Edges */ ],
+  "taskTemplates": [ /* Template Objects */ ],
+  "userSettings": { "locale": "en", "maxPinnedTasks": 10, "…": "…" },
+  "appSettings": { "autoLabels": [], "projectSuggestions": [] },
+  "userState": {}
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `epoch` | The epoch the `cursor` belongs to |
+| `cursor` | The history position this payload was read at. Continue with `GET /api/v1/sync/changes?since=<cursor>` |
+| `completedSince` | Start of the completed-task window this payload was cut at |
+| collections | One field per entity, each carrying that entity's object. Empty collections are `[]`, never `null` |
+
+- **The cursor never runs ahead of the rows.** It is read in the same
+  transaction, so a write that lands mid-read either is already reflected in the
+  payload or arrives with the next page; the worst case is applying one row twice.
+- **Completed tasks are windowed to the last 90 days**, measured back from the
+  request and reported as `completedSince`. Open tasks are always included
+  whatever their age.
+- **Ancestors are always included**, however old and however long completed, so
+  an open subtask never arrives pointing at a parent the client has never seen.
+- **`taskRelations` carries only edges whose both endpoints are in the payload**,
+  so no relation ever names a task the client does not have.
+- **Older completed history is never delivered by sync.** No change page will
+  ever carry it either. Read it online with
+  [`GET /api/v1/tasks/completed`](#get-apiv1taskscompleted).
+
+### Retention
+
+The change history is kept for **90 days** — the same window the snapshot seeds
+completed tasks over, so a client is handed exactly the stretch of history it is
+allowed to catch up across — and trimmed daily.
+
+A cursor that has fallen behind the oldest retained change cannot be caught up by
+any number of pages, so the feed answers `410 sync_cursor_expired` instead of
+serving a page that would leave the copy quietly incomplete. A cursor sitting
+exactly on the trim boundary lost nothing and keeps working: routine trimming
+never forces a re-sync on a client that is merely up to date.
+
+### Epoch
+
+`epoch` names the history a cursor belongs to. It advances when the data is
+replaced wholesale — restoring a backup (`POST /api/v1/restore`) is the only
+thing that does that — after which every cursor issued earlier points into a
+history that no longer exists.
+
+A client presenting the older `epoch` is answered `409 sync_epoch_mismatch`. A
+client that omits `epoch` is not quietly resumed onto the new data either: a
+restore pushes the history past every cursor handed out before it, so a stale
+cursor is refused as `410 sync_cursor_expired`. Either way the remedy is a fresh
+snapshot.
+
+### Scopes
+
+Both endpoints require **every read scope**: `tasks:read`, `projects:read`,
+`sections:read`, `contexts:read`, `labels:read`, `templates:read` and
+`settings:read`. A single response can carry all of it, so reading the workspace
+through sync must not be cheaper than reading it endpoint by endpoint. A token
+missing any one of them gets `403 forbidden`. JWT sessions are unaffected, as
+everywhere else.
 
 ---
 

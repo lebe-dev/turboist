@@ -1,0 +1,336 @@
+{
+  "_readme": [
+    "Shared list-view contract fixture.",
+    "",
+    "This dataset is the single source of truth for what every task list view must",
+    "contain and in which order. It is rendered twice: once by the Go list queries in",
+    "internal/repo/views.go, and once by the local list queries of the native mobile",
+    "replica. Both renderings must produce the golden orderings stored next to this",
+    "file under golden/. That is what keeps the two implementations from drifting.",
+    "",
+    "Identity: entities are addressed by the stable string `key` in this file, never by",
+    "a database id. Each side assigns its own numeric ids; the goldens list keys so the",
+    "comparison is implementation independent.",
+    "",
+    "Clock: every view that depends on 'now' takes its boundaries from the `clock`",
+    "block below, never from the system clock. All fixture instants are absolute, so",
+    "the goldens are reproducible on any machine on any day.",
+    "",
+    "Ordering: the shared task sort is is_pinned DESC, priority DESC (high > medium >",
+    "low > no-priority), pinned_at DESC, created_at DESC. Every task therefore carries",
+    "a distinct createdAt, and every completed task a distinct completedAt, so the sort",
+    "is a total order and the goldens can never be ambiguous. The completed history is",
+    "the one view that sorts by completed_at DESC instead.",
+    "",
+    "Defaults: omitted task fields mean description \"\", priority \"no-priority\",",
+    "status \"open\", dayPart \"none\", planState \"none\", no due/deadline, not pinned,",
+    "not private, not complex, no recurrence, no troiki category, no labels. updatedAt",
+    "equals createdAt for every row — no view orders by it.",
+    "",
+    "Each task carries a `notes` field naming the invariant it exercises. When a view",
+    "predicate or an ordering rule changes, this fixture and the goldens change with it",
+    "— that is the intended friction."
+  ],
+
+  "clock": {
+    "now": "2026-04-15T09:30:00.000Z",
+    "todayStart": "2026-04-15T00:00:00.000Z",
+    "weekStart": "2026-04-13T00:00:00.000Z",
+    "weekEnd": "2026-04-20T00:00:00.000Z",
+    "completedWindowStart": "2026-01-15T00:00:00.000Z",
+    "completedWindowEnd": "2026-04-16T00:00:00.000Z",
+    "_notes": [
+      "now is a Wednesday; weekStart is the Monday of that week and weekEnd the",
+      "following Monday (half-open range). todayStart is midnight UTC of that",
+      "Wednesday; the today window is [todayStart, todayStart+24h) and the tomorrow",
+      "window the 24 hours after it. The completed window is the trailing 90 days",
+      "ending at the end of today."
+    ]
+  },
+
+  "contexts": [
+    { "key": "ctx-work", "name": "Work", "color": "blue", "isFavourite": true },
+    { "key": "ctx-home", "name": "Home", "color": "green", "isFavourite": false }
+  ],
+
+  "projects": [
+    { "key": "prj-alpha", "contextKey": "ctx-work", "title": "Alpha", "color": "blue", "type": "software", "troikiCategory": "important" },
+    { "key": "prj-beta", "contextKey": "ctx-work", "title": "Beta", "color": "purple", "type": "generic", "troikiCategory": "medium" },
+    { "key": "prj-home", "contextKey": "ctx-home", "title": "House", "color": "green", "type": "generic", "troikiCategory": "rest" },
+    { "key": "prj-archived", "contextKey": "ctx-work", "title": "Old stuff", "color": "grey", "type": "generic", "status": "archived",
+      "notes": "Task views never join projects, so an open task in an archived project still shows up. Pinned here so a future 'hide archived' change cannot slip in unnoticed." }
+  ],
+
+  "sections": [
+    { "key": "sec-alpha-doing", "projectKey": "prj-alpha", "title": "Doing" },
+    { "key": "sec-alpha-later", "projectKey": "prj-alpha", "title": "Later" }
+  ],
+
+  "labels": [
+    { "key": "lbl-urgent", "name": "urgent", "color": "red" },
+    { "key": "lbl-focus", "name": "focus", "color": "purple" }
+  ],
+
+  "tasks": [
+    { "key": "t-inbox-plain", "title": "Buy milk", "placement": { "inbox": true },
+      "createdAt": "2026-03-01T08:00:00.000Z",
+      "notes": "Plain inbox root: no plan state, no due, lowest priority. Anchors the tail of the inbox ordering." },
+
+    { "key": "t-inbox-high", "title": "Call the bank", "placement": { "inbox": true },
+      "priority": "high", "dueAt": "2026-04-15T12:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-01T08:05:00.000Z",
+      "notes": "An inbox task with a due date is in both the inbox and the today list — the dated views do not care where a task lives." },
+
+    { "key": "t-inbox-completed", "title": "Renew the parking permit", "placement": { "inbox": true },
+      "priority": "medium", "status": "completed", "completedAt": "2026-04-14T18:00:00.000Z",
+      "createdAt": "2026-03-01T08:10:00.000Z",
+      "notes": "The inbox lists open tasks only; a completed inbox task drops out of the inbox and appears in the completed history instead." },
+
+    { "key": "t-today-morning", "title": "Stand-up notes", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "priority": "medium", "dayPart": "morning", "dueAt": "2026-04-15T00:00:00.000Z",
+      "createdAt": "2026-03-02T09:00:00.000Z",
+      "notes": "All-day due (dueHasTime false) stored at midnight: the lower bound of the today window is inclusive." },
+
+    { "key": "t-today-evening", "title": "Review the migration", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha", "sectionKey": "sec-alpha-doing" },
+      "priority": "low", "dayPart": "evening", "dueAt": "2026-04-15T20:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-02T09:05:00.000Z",
+      "notes": "Timed due plus a section: day parts group the today screen but never filter or reorder the query itself." },
+
+    { "key": "t-today-last-instant", "title": "Water the plants", "placement": { "contextKey": "ctx-work" },
+      "dayPart": "afternoon", "dueAt": "2026-04-15T23:59:59.999Z", "dueHasTime": true,
+      "createdAt": "2026-03-02T09:10:00.000Z",
+      "notes": "Last millisecond of the day: the upper bound of the today window is exclusive, so this is the last task still inside it." },
+
+    { "key": "t-tomorrow-first-instant", "title": "Book the dentist", "placement": { "contextKey": "ctx-work" },
+      "dueAt": "2026-04-16T00:00:00.000Z",
+      "createdAt": "2026-03-02T09:15:00.000Z",
+      "notes": "Midnight of the next day: excluded from today by the exclusive upper bound, included in tomorrow by its inclusive lower bound." },
+
+    { "key": "t-tomorrow-timed", "title": "Ship the release notes", "placement": { "contextKey": "ctx-work", "projectKey": "prj-beta" },
+      "priority": "high", "dueAt": "2026-04-16T14:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-02T09:20:00.000Z",
+      "notes": "Ordinary tomorrow task, also inside the current week window." },
+
+    { "key": "t-overdue-yesterday", "title": "Send the invoice", "placement": { "contextKey": "ctx-work" },
+      "priority": "high", "dueAt": "2026-04-14T09:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-03T07:00:00.000Z",
+      "notes": "Overdue by one day. Still inside the current week window, so it is both overdue and part of the week list." },
+
+    { "key": "t-overdue-backlog", "title": "Clear the garage", "placement": { "contextKey": "ctx-work" },
+      "planState": "backlog", "dueAt": "2026-02-01T00:00:00.000Z",
+      "createdAt": "2026-03-03T07:05:00.000Z",
+      "notes": "Overdue and parked in the backlog at the same time: plan state and due date are independent axes, and the overdue view ignores plan state." },
+
+    { "key": "t-overdue-completed", "title": "Pay the electricity bill", "placement": { "contextKey": "ctx-work" },
+      "dueAt": "2026-04-10T09:00:00.000Z", "dueHasTime": true,
+      "status": "completed", "completedAt": "2026-04-11T10:00:00.000Z",
+      "createdAt": "2026-03-03T07:10:00.000Z",
+      "notes": "A past due date does not keep a completed task in the overdue list — every dated view filters on open status first." },
+
+    { "key": "t-week-planned-high", "title": "Draft the architecture note", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "priority": "high", "planState": "week",
+      "createdAt": "2026-03-04T10:00:00.000Z",
+      "notes": "Planned for the week by the user, no due date. Counts against the weekly limit." },
+
+    { "key": "t-week-planned-plain", "title": "Tidy the notes folder", "placement": { "contextKey": "ctx-work" },
+      "planState": "week",
+      "createdAt": "2026-03-04T10:05:00.000Z",
+      "notes": "Second user-planned week task. Counts against the weekly limit." },
+
+    { "key": "t-week-child-cascaded", "title": "Collect the diagrams", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha", "parentKey": "t-week-planned-high" },
+      "priority": "medium", "planState": "week",
+      "createdAt": "2026-03-04T10:10:00.000Z",
+      "notes": "Subtask carrying plan state week only because planning its open parent cascaded down. It is listed in the week view but must NOT be counted against the weekly limit, otherwise one parent eats several slots." },
+
+    { "key": "t-week-child-unplanned", "title": "Rename the stray files", "placement": { "contextKey": "ctx-work", "parentKey": "t-week-planned-plain" },
+      "createdAt": "2026-03-04T10:15:00.000Z",
+      "notes": "Subtask with no plan state and no due date: pulled into the week view purely because its parent belongs to the week, so a parent is never shown without its open subtasks." },
+
+    { "key": "t-week-due-inside", "title": "Prepare the demo", "placement": { "contextKey": "ctx-work", "projectKey": "prj-beta" },
+      "priority": "low", "dueAt": "2026-04-17T12:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-04T10:20:00.000Z",
+      "notes": "In the week view by due date alone. Due-in-week tasks are listed but do not consume the weekly limit." },
+
+    { "key": "t-week-due-outside", "title": "Quarterly review", "placement": { "contextKey": "ctx-work" },
+      "dueAt": "2026-04-25T12:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-04T10:25:00.000Z",
+      "notes": "Due after the week window and not planned: outside the week view entirely." },
+
+    { "key": "t-week-cancelled", "title": "Abandoned spike", "placement": { "contextKey": "ctx-work" },
+      "planState": "week", "status": "cancelled",
+      "createdAt": "2026-03-04T10:30:00.000Z",
+      "notes": "Cancelled tasks are excluded from every open-task view even when their plan state still says week, and they never count against the weekly limit." },
+
+    { "key": "t-week-grandchild", "title": "Export the old diagram", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha", "parentKey": "t-week-child-cascaded" },
+      "planState": "week",
+      "createdAt": "2026-03-04T10:35:00.000Z",
+      "notes": "Third level of the subtask tree: the week view walks descendants recursively, not one level deep, and the cascade exclusion from the weekly count applies at any depth." },
+
+    { "key": "t-backlog-parent", "title": "Repaint the hallway", "placement": { "contextKey": "ctx-home", "projectKey": "prj-home" },
+      "priority": "medium", "planState": "backlog",
+      "createdAt": "2026-03-05T11:00:00.000Z",
+      "notes": "Backlog root." },
+
+    { "key": "t-backlog-child", "title": "Buy the paint", "placement": { "contextKey": "ctx-home", "projectKey": "prj-home", "parentKey": "t-backlog-parent" },
+      "planState": "backlog",
+      "createdAt": "2026-03-05T11:05:00.000Z",
+      "notes": "Parking a task in the backlog cascades to its open subtasks, and unlike the week view the backlog list counts every backlog row it shows." },
+
+    { "key": "t-backlog-completed", "title": "Fix the fence", "placement": { "contextKey": "ctx-home" },
+      "planState": "backlog", "status": "completed", "completedAt": "2026-04-13T09:00:00.000Z",
+      "createdAt": "2026-03-05T11:10:00.000Z",
+      "notes": "Completed backlog task: gone from the backlog list, present in the completed history." },
+
+    { "key": "t-pinned-high", "title": "Sign the contract", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "priority": "high", "isPinned": true, "pinnedAt": "2026-04-10T10:00:00.000Z",
+      "dueAt": "2026-04-15T08:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-06T12:00:00.000Z",
+      "notes": "Pinned beats everything else in the sort, and priority is compared before pin time — this one was pinned EARLIER than the two low-priority pins below yet still leads." },
+
+    { "key": "t-pinned-low-newer", "title": "Read the spec", "placement": { "contextKey": "ctx-work" },
+      "priority": "low", "isPinned": true, "pinnedAt": "2026-04-12T10:00:00.000Z",
+      "dueAt": "2026-04-15T10:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-06T12:05:00.000Z",
+      "notes": "Pinned later than the high-priority pin but ranked after it: pin time is only the third sort key." },
+
+    { "key": "t-pinned-low-same-instant", "title": "Sort the receipts", "placement": { "contextKey": "ctx-work" },
+      "priority": "low", "isPinned": true, "pinnedAt": "2026-04-12T10:00:00.000Z",
+      "createdAt": "2026-03-06T12:10:00.000Z",
+      "notes": "Same priority and the exact same pin instant as the previous task: the tie must be broken by created_at DESC, which puts this newer task first." },
+
+    { "key": "t-completed-today", "title": "Close the sprint", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "priority": "medium", "status": "completed", "completedAt": "2026-04-15T08:00:00.000Z",
+      "createdAt": "2026-03-07T13:00:00.000Z",
+      "notes": "Most recent completion. The completed history sorts by completion recency, not by priority, so this leads regardless of its medium priority." },
+
+    { "key": "t-completed-in-window", "title": "Cancel the old subscription", "placement": { "contextKey": "ctx-work" },
+      "status": "completed", "completedAt": "2026-01-20T09:00:00.000Z",
+      "createdAt": "2026-03-07T13:05:00.000Z",
+      "notes": "Oldest completion still inside the trailing window — the tail of the completed history." },
+
+    { "key": "t-completed-before-window", "title": "Archive last year's files", "placement": { "contextKey": "ctx-work" },
+      "status": "completed", "completedAt": "2025-12-31T09:00:00.000Z",
+      "createdAt": "2026-03-07T13:10:00.000Z",
+      "notes": "Completed before the window opens: excluded, which is what keeps the replica's completed history bounded." },
+
+    { "key": "t-recurring-source", "title": "Weekly review", "placement": { "contextKey": "ctx-home", "projectKey": "prj-home" },
+      "priority": "medium", "dayPart": "morning",
+      "recurrenceRule": "FREQ=WEEKLY;BYDAY=WE",
+      "dueAt": "2026-04-15T07:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-08T14:00:00.000Z",
+      "notes": "A recurring task is one open row that keeps moving its due date forward; it appears in the dated views like any other open task." },
+
+    { "key": "t-recurring-snapshot", "title": "Weekly review", "placement": { "contextKey": "ctx-home", "projectKey": "prj-home" },
+      "priority": "medium", "dayPart": "morning",
+      "status": "completed", "completedAt": "2026-04-08T07:30:00.000Z",
+      "recurrenceCompletionOf": "t-recurring-source",
+      "createdAt": "2026-03-08T14:05:00.000Z",
+      "notes": "History snapshot of one occurrence of the recurring task above. It copies title, placement, priority and day part, points at its source, and drops recurrence, plan state, pin and due date so it can never recur or resurface in a dated view — it exists only for the completed history." },
+
+    { "key": "t-troiki-important", "title": "Rewrite the sync layer", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "priority": "high", "troikiCategory": "important",
+      "createdAt": "2026-03-09T15:00:00.000Z",
+      "notes": "Task bound to the important troiki slot." },
+
+    { "key": "t-troiki-medium", "title": "Update the changelog", "placement": { "contextKey": "ctx-work", "projectKey": "prj-beta" },
+      "priority": "medium", "troikiCategory": "medium",
+      "createdAt": "2026-03-09T15:05:00.000Z",
+      "notes": "Task bound to the medium troiki slot." },
+
+    { "key": "t-troiki-rest", "title": "Sort the toolbox", "placement": { "contextKey": "ctx-home", "projectKey": "prj-home" },
+      "priority": "low", "troikiCategory": "rest",
+      "createdAt": "2026-03-09T15:10:00.000Z",
+      "notes": "Task bound to the rest troiki slot." },
+
+    { "key": "t-troiki-medium-completed", "title": "Tag the release", "placement": { "contextKey": "ctx-work", "projectKey": "prj-beta" },
+      "priority": "medium", "troikiCategory": "medium",
+      "status": "completed", "completedAt": "2026-04-14T12:00:00.000Z",
+      "createdAt": "2026-03-09T15:15:00.000Z",
+      "notes": "Completed but still category-bound: the per-category listing is open-only, while the troiki board keeps completed tasks visible so they do not vanish from the slot the moment they are ticked off." },
+
+    { "key": "t-board-cancelled-parent", "title": "Dropped experiment", "placement": { "contextKey": "ctx-work", "projectKey": "prj-beta" },
+      "status": "cancelled",
+      "createdAt": "2026-03-10T16:00:00.000Z",
+      "notes": "Cancelled parent: the troiki board excludes it, because rendering a cancelled row with an unchecked box would turn the checkbox into a complete action against the user's intent." },
+
+    { "key": "t-board-cancelled-child", "title": "Dropped experiment follow-up", "placement": { "contextKey": "ctx-work", "projectKey": "prj-beta", "parentKey": "t-board-cancelled-parent" },
+      "createdAt": "2026-03-10T16:05:00.000Z",
+      "notes": "Open child of a cancelled parent: the troiki board excludes the whole cancelled subtree, otherwise this child would be rendered as a detached top-level item once its parent row is filtered out. Ordinary project listings still show it." },
+
+    { "key": "t-private", "title": "Salary review prep", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "priority": "medium", "isPrivate": true,
+      "dueAt": "2026-04-15T16:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-11T17:00:00.000Z",
+      "notes": "The private flag hides a task from the shared read-only view only; the owner's own list views never filter on it." },
+
+    { "key": "t-complex-deadline-date", "title": "Migrate the datastore", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "isComplex": true, "deadlineAt": "2026-04-20T00:00:00.000Z",
+      "createdAt": "2026-03-11T17:05:00.000Z",
+      "notes": "All-day deadline and the complex flag. A deadline is a badge, not a schedule: it never places a task in a dated view." },
+
+    { "key": "t-deadline-timed", "title": "Submit the tax form", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "deadlineAt": "2026-04-18T15:00:00.000Z", "deadlineHasTime": true,
+      "createdAt": "2026-03-11T17:10:00.000Z",
+      "notes": "Timed deadline inside the current week window, with no due date: still absent from the today, tomorrow, overdue and week lists." },
+
+    { "key": "t-label-both", "title": "Plan the holiday", "placement": { "contextKey": "ctx-home", "projectKey": "prj-home" },
+      "priority": "high", "labelKeys": ["lbl-urgent", "lbl-focus"],
+      "createdAt": "2026-03-12T18:00:00.000Z",
+      "notes": "Two labels on one task: a label listing must not duplicate a task that carries several labels." },
+
+    { "key": "t-label-urgent-due-today", "title": "Reply to the landlord", "placement": { "contextKey": "ctx-home" },
+      "labelKeys": ["lbl-urgent"], "dueAt": "2026-04-15T11:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-12T18:05:00.000Z",
+      "notes": "Labelled task with a due date, attached to a context with no project — covers the context listing that excludes project tasks." },
+
+    { "key": "t-archived-project", "title": "Export the old report", "placement": { "contextKey": "ctx-work", "projectKey": "prj-archived" },
+      "priority": "medium", "dueAt": "2026-04-15T13:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-13T19:00:00.000Z",
+      "notes": "Open task inside an archived project: the dated views do not look at project status, so it is still due today." },
+
+    { "key": "t-section-later", "title": "Write the postmortem", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha", "sectionKey": "sec-alpha-later" },
+      "priority": "low",
+      "createdAt": "2026-03-13T19:05:00.000Z",
+      "notes": "Second section of the same project: a section listing is a strict subset of its project listing." },
+
+    { "key": "t-blocker", "title": "Get the API key", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "priority": "medium",
+      "createdAt": "2026-03-14T20:00:00.000Z",
+      "notes": "Open blocker of the task below." },
+
+    { "key": "t-blocked", "title": "Wire up the integration", "placement": { "contextKey": "ctx-work", "projectKey": "prj-alpha" },
+      "dueAt": "2026-04-15T14:00:00.000Z", "dueHasTime": true,
+      "createdAt": "2026-03-14T20:05:00.000Z",
+      "notes": "Blocked by an open task, so it cannot be completed — but it is still listed everywhere its dates put it. Being blocked changes the checkbox, never the membership or the order of a list." }
+  ],
+
+  "relations": [
+    { "sourceKey": "t-blocker", "targetKey": "t-blocked", "type": "blocks",
+      "notes": "Directed: the source blocks the target." },
+    { "sourceKey": "t-today-morning", "targetKey": "t-today-evening", "type": "related",
+      "notes": "Symmetric and purely informational; it never affects a list." }
+  ],
+
+  "views": [
+    { "name": "inbox", "description": "Open inbox tasks.", "params": { "limit": "200" } },
+    { "name": "today", "description": "Open tasks due inside [todayStart, todayStart+24h).", "params": { "todayStart": "2026-04-15T00:00:00.000Z", "limit": "200" } },
+    { "name": "today-high-priority", "description": "The today window narrowed by a priority filter, to pin how a filter composes with a dated view.", "params": { "todayStart": "2026-04-15T00:00:00.000Z", "priority": "high", "limit": "200" } },
+    { "name": "tomorrow", "description": "Open tasks due inside the 24 hours after the today window.", "params": { "todayStart": "2026-04-15T00:00:00.000Z", "limit": "200" } },
+    { "name": "overdue", "description": "Open tasks with a due date strictly before todayStart.", "params": { "todayStart": "2026-04-15T00:00:00.000Z", "limit": "200" } },
+    { "name": "week", "description": "Open tasks planned for the week or due inside it, plus their whole open subtask subtree. The total counts only user-planned week tasks.", "params": { "weekStart": "2026-04-13T00:00:00.000Z", "weekEnd": "2026-04-20T00:00:00.000Z" } },
+    { "name": "backlog", "description": "Open tasks parked in the backlog.", "params": { "limit": "200" } },
+    { "name": "pinned", "description": "Open pinned tasks.", "params": { "limit": "200" } },
+    { "name": "completed", "description": "Tasks completed inside the trailing window, newest completion first.", "params": { "from": "2026-01-15T00:00:00.000Z", "toExclusive": "2026-04-16T00:00:00.000Z", "limit": "200" } },
+    { "name": "troiki-important", "description": "Open tasks in the important troiki category.", "params": {} },
+    { "name": "troiki-medium", "description": "Open tasks in the medium troiki category.", "params": {} },
+    { "name": "troiki-rest", "description": "Open tasks in the rest troiki category.", "params": {} },
+    { "name": "troiki-board", "description": "Every task of the category-bound projects, grouped by project: completed rows stay, cancelled rows and their whole subtree are dropped.", "params": { "projectKeys": "prj-alpha,prj-beta,prj-home" } },
+    { "name": "project-alpha", "description": "Every task of one project, regardless of status.", "params": { "projectKey": "prj-alpha", "limit": "200" } },
+    { "name": "section-alpha-doing", "description": "Every task of one project section.", "params": { "sectionKey": "sec-alpha-doing", "limit": "200" } },
+    { "name": "label-urgent", "description": "Every task carrying one label, regardless of status.", "params": { "labelKey": "lbl-urgent", "limit": "200" } },
+    { "name": "context-work-direct", "description": "Tasks attached to a context but to no project.", "params": { "contextKey": "ctx-work", "withinProject": "false", "limit": "200" } },
+    { "name": "context-work-all", "description": "Every task under a context, project tasks included.", "params": { "contextKey": "ctx-work", "withinProject": "true", "limit": "200" } },
+    { "name": "subtasks-direct", "description": "Direct children of one task, one level deep.", "params": { "parentKey": "t-week-planned-high" } },
+    { "name": "subtasks-recursive", "description": "Every descendant of one task at any depth, flat.", "params": { "parentKey": "t-week-planned-high" } }
+  ]
+}

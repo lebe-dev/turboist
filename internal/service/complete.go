@@ -9,7 +9,6 @@ import (
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
-	rrule "github.com/teambition/rrule-go"
 )
 
 // dayBounds returns midnight in `loc` for the calendar day containing `t`,
@@ -186,21 +185,17 @@ func (s *CompleteService) advanceRecurring(ctx context.Context, t *model.Task, c
 		return t, nil
 	}
 
-	r, err := rrule.StrToRRule(*t.RecurrenceRule)
+	// Anchor: current due_at if in the future, otherwise now, read in the
+	// configured location so RRULE BYHOUR/BYDAY semantics follow the user's clock.
+	// The two steps live in recurrence.go so that the native mobile client, which
+	// advances a recurring task on the device before the completion reaches the
+	// server, can be held to exactly this arithmetic by a shared fixture.
+	anchor := RecurrenceAnchor(time.Now(), t.DueAt, s.loc)
+	next, err := NextOccurrence(*t.RecurrenceRule, anchor)
 	if err != nil {
 		log.WarnContext(ctx, op+": invalid RRULE", slog.Int64("task_id", t.ID), slog.String("err", err.Error()))
 		return nil, &RecurrenceError{Err: err}
 	}
-
-	// Base: current due_at if in the future, otherwise now. Anchor to the
-	// configured location so RRULE BYHOUR/BYDAY semantics follow the user's clock.
-	base := time.Now().In(s.loc)
-	if t.DueAt != nil && t.DueAt.After(base) {
-		base = t.DueAt.In(s.loc)
-	}
-	r.DTStart(base)
-
-	next := r.After(base, false)
 
 	planNone := model.PlanStateNone
 	upd := repo.TaskUpdate{PlanState: &planNone}

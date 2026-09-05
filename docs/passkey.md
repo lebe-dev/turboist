@@ -114,7 +114,11 @@ just as well.
 
 **`/.well-known/assetlinks.json`** (Android) — needs the
 `delegate_permission/common.get_login_creds` relation and the SHA-256 fingerprint
-of the certificate that signed the **installed** APK:
+of the certificate that signed the **installed** APK. There are two Android
+packages and each needs its own entry: `ru.tinyops.turboist` is the WebView app,
+`ru.tinyops.turboist.native` the native client, which carries a package id of its
+own so both can be installed side by side. An app that is not named here gets the
+passkey sheet and then a failure, however correct its fingerprint is.
 
 ```json
 [
@@ -126,6 +130,17 @@ of the certificate that signed the **installed** APK:
     "target": {
       "namespace": "android_app",
       "package_name": "ru.tinyops.turboist",
+      "sha256_cert_fingerprints": ["91:99:F3:…"]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ru.tinyops.turboist.native",
       "sha256_cert_fingerprints": ["91:99:F3:…"]
     }
   }
@@ -184,9 +199,74 @@ python3 -c 'import base64,sys; print("android:apk-key-hash:"+base64.urlsafe_b64e
 WEBAUTHN_ORIGINS=android:apk-key-hash:kZnz5woESO8kA7iFlIjUCXVvfA_Nw1LbKOfUfX0w0PA
 ```
 
+The value comes from the signing certificate, not from the package name, so two
+apps signed by the same key report the same origin and need one entry between
+them — which is what a machine's debug keystore gives both Android builds. A
+build signed by a different key (Play App Signing, another developer's machine)
+reports a different origin and needs its own entry.
+
 Without it the ceremony runs to completion on the device and then fails at
 `/auth/passkey/login/finish` with `401`. iOS 17.4+ reports the HTTPS origin
 configured in step 1 and needs nothing extra.
+
+### The native Android client
+
+`android-native/` is a second Android app — Compose rather than a WebView — and
+it signs in with passkeys through Credential Manager. It needs steps 2 and 3, not
+step 1: there is no domain to bake in, because the server is typed in by the user
+at first launch and the relying party follows whatever instance the app is
+connected to. So the association file has to be served **by that instance**, and
+its `WEBAUTHN_ORIGINS` has to allow the origin of the certificate that signed the
+installed APK.
+
+Its package id is `ru.tinyops.turboist.native`, which is why `assetlinks.json`
+lists two targets. Everything else is the same file and the same origin value.
+
+Everything on the server side of that can be checked without a phone:
+
+```sh
+just android-native-passkey-preflight
+```
+
+It builds the server, starts an instance configured as a relying party with its
+own database and `deploy/well-known/` published under `/.well-known/`, and then
+asserts what the app depends on: `GET /api/config` reports passkeys as enabled,
+the association file is served **as `application/json`** and names both packages
+with a fingerprint each, enrolment asks for a discoverable credential bound to
+the configured RP ID, login names no account and no credential, and both
+ceremonies still have the shape of the recordings the client's tests are pinned
+to. Run it after changing `deploy/well-known/`, the WebAuthn configuration, or
+anything about the ceremony payloads.
+
+It starts an instance of its own because an ordinary development instance is
+plain HTTP on `localhost`: no relying party comes up there at all, and
+`/.well-known/assetlinks.json` is answered by the SPA fallback with `200` and
+`index.html` — the exact trap above, and the reason a status-code check proves
+nothing.
+
+What it cannot cover is the platform prompt: Credential Manager fetches the
+association file itself, over HTTPS, from the relying party's real domain, so
+registering and signing in with an actual credential needs an HTTPS instance on
+a real domain and a device signed into a passkey provider. That step is a device
+check, and everything on either side of it is covered here.
+
+In the app itself the two halves sit where the web client puts them: the sign-in
+screen offers a passkey button — only when the instance reports both
+`passkeys.enabled` and `passkeys.available`, since a button that can only end in
+an explanation is worse than no button — and **Settings → Passkeys** lists the
+account's credentials and enrols a new one. The list is never cached: a stale
+answer to "which devices can sign in to this account" is worse than no answer,
+so an unreachable server is stated as such.
+
+What the user sees when a prerequisite is missing is deliberately specific, and
+worth reading as a diagnosis:
+
+| On screen | What it means |
+|---|---|
+| No passkey button on the sign-in screen | `GET /api/config` said `passkeys.enabled` or `passkeys.available` is false: WebAuthn is not configured on that instance, or nobody has enrolled a credential yet. |
+| *"This device could not verify the server for passkeys"* | The device fetched `assetlinks.json` and it did not vouch for this app: the file is missing, answered by the SPA fallback, names only the other package, or lists a fingerprint that is not the installed APK's. |
+| *"This device has no passkey for this account"* | The account has passkeys, but none of them lives on (or syncs to) this phone. Sign in with the password once and add one from settings. |
+| *"The server did not accept that passkey"* | The ceremony finished on the device and the server refused it — most often the `android:apk-key-hash:` origin missing from `WEBAUTHN_ORIGINS`. |
 
 ## Troubleshooting
 

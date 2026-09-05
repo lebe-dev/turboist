@@ -44,6 +44,126 @@ build:
   after_script:
     - docker logout
 
+
+# --- Native Android client ---
+#
+# A Gradle build of its own under android-native/, so it needs a JDK and an
+# Android SDK that nothing else in this pipeline does. It gets them from a
+# container image pinned to an exact tag: a floating tag would let a new SDK or
+# build-tools release change what the build produces without a commit.
+#
+# Gradle keeps everything it downloads and everything it has already built under
+# GRADLE_USER_HOME. Caching that per branch is what makes these jobs a couple of
+# minutes rather than a cold dependency download every time, and keying it per
+# branch keeps one branch's cache from being rewritten by another's.
+.android-native:
+  image: mobiledevops/android-sdk-image:36.1.0
+  stage: test
+  variables:
+    GRADLE_USER_HOME: $CI_PROJECT_DIR/.gradle-home
+    # The daemon is started once and then thrown away with the container, so it
+    # only costs memory. Without a console setting the log is a wall of escape
+    # codes.
+    GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.console=plain"
+  cache:
+    key: "android-native-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .gradle-home/caches/
+      - .gradle-home/wrapper/
+  before_script:
+    - cd android-native
+  needs: []
+
+# The build logic is tested first and separately: it decides the version the app
+# claims and generates the string resources, so when it is wrong every other
+# failure is a symptom.
+android_native_tests:
+  extends: .android-native
+  script:
+    - ./gradlew -p buildSrc test
+    - ./gradlew test
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - android-native/*/build/reports/tests/
+      - android-native/*/*/build/reports/tests/
+      - android-native/buildSrc/build/reports/tests/
+
+android_native_lints:
+  extends: .android-native
+  script:
+    - ./gradlew ktlintCheck lint
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - android-native/*/build/reports/
+      - android-native/*/*/build/reports/
+
+# The on-device suite needs more than the other two: an emulator with nested
+# virtualisation, the debug bridge, and a Go toolchain, because it builds the
+# real server and drives the app against it. That is a runner with the whole
+# toolchain on it rather than a container image, which is why this job does not
+# share the setup above.
+#
+# It is deliberately not attached to every change: it takes minutes, it is the
+# only check here that can fail for reasons that have nothing to do with the
+# commit, and everything it covers is covered faster elsewhere except the round
+# trip itself. So it runs on a schedule, and on demand when a change to the sync
+# engine deserves it.
+android_native_e2e:
+  stage: test
+  tags:
+    - android-emulator
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - when: manual
+      allow_failure: true
+  script:
+    - export PATH=$PATH:/usr/local/go/bin
+    - just android-native-e2e
+  artifacts:
+    when: on_failure
+    expire_in: 1 week
+    paths:
+      - android-native/build/e2e/
+
+# A signed bundle for the store's internal testing track.
+#
+# The key never reaches the repository: the keystore is a file-type CI variable
+# and the three passwords are masked variables, so this job is the only place
+# they exist and only on a protected ref. Without them Gradle would produce an
+# unsigned bundle that the store rejects, which is why the job is manual rather
+# than something that could quietly run and hand somebody a useless artifact.
+android_native_bundle:
+  extends: .android-native
+  stage: build
+  # Those variables are protected, so they exist only on a protected ref; on any
+  # other branch the job would build something unsigned and call it a release.
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+      allow_failure: true
+  # A bundle is only worth building out of a state whose checks passed.
+  needs:
+    - android_native_tests
+    - android_native_lints
+  variables:
+    TURBOIST_ANDROID_KEYSTORE: $ANDROID_UPLOAD_KEYSTORE
+    TURBOIST_ANDROID_KEYSTORE_PASSWORD: $ANDROID_UPLOAD_KEYSTORE_PASSWORD
+    TURBOIST_ANDROID_KEY_ALIAS: $ANDROID_UPLOAD_KEY_ALIAS
+    TURBOIST_ANDROID_KEY_PASSWORD: $ANDROID_UPLOAD_KEY_PASSWORD
+  script:
+    - ./gradlew :app:bundleRelease -Pturboist.buildStamp=$CI_COMMIT_SHORT_SHA
+  artifacts:
+    expire_in: 1 month
+    paths:
+      - android-native/app/build/outputs/bundle/release/
+      # A release build's names are single letters. Without this file a crash
+      # report from a tester is unreadable, and it is only valid for this bundle.
+      - android-native/app/build/outputs/mapping/release/mapping.txt
+
 deploy:
   stage: deploy
   script:

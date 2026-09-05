@@ -51,9 +51,11 @@ Only `blocks` relations are considered when checking for loops, so a `related` l
 
 ## Offline
 
-Relations are visible offline on any task page you have opened online (they are cached with the task), but **adding and removing them requires a connection** — they are not part of the small set of writes the offline outbox queues.
+**In the web app** relations are visible offline on any task page you have opened online (they are cached with the task), but **adding and removing them requires a connection** — they are not part of the small set of writes the offline outbox queues.
 
 Completing a blocked task is refused offline too: the check runs against the cached task before the operation is queued, so you get an immediate "unavailable offline" rather than a task that looks done and then bounces back. One consequence to be aware of: completing a *blocker* while offline does not release its dependents until you reconnect, because the offline cache has no way to know which tasks that blocker was holding back. See [docs/offline.md](offline.md).
+
+**In the native Android client** the whole relation graph is on the device, so relations behave the same with or without a connection: links are added and removed offline and queued like any other write, and completing or cancelling a blocker releases its dependents immediately — the padlocks clear on the spot rather than on reconnect. The three refusals above are made on the device as well, before anything is queued, so a link the app turns down never becomes a request that fails later. See [docs/mobile.md](mobile.md).
 
 ## Interaction with other features
 

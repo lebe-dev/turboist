@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings owned by the native client, and the only string resources written by
+  hand. Product wording the web client also shows is not repeated here: it is
+  generated from the shared locale files into strings.xml on every build, and a
+  name declared in both files fails the build. Every name below is therefore
+  prefixed `native_`, which no generated name can take.
+-->
+<resources>
+    <string name="native_app_name">Turboist (Beta)</string>
+
+    <!-- Shell chrome -->
+    <string name="native_connecting">Connecting…</string>
+    <string name="native_drawer_open">Open navigation</string>
+    <string name="native_nav_group_more">More</string>
+    <!-- Planned against a cap, for example 5 of 12 tasks planned for the week. -->
+    <string name="native_count_ratio">%1$d/%2$d</string>
+
+    <!-- Destination names the shared locale files have no wording for -->
+    <string name="native_dest_project">Project</string>
+    <string name="native_dest_label">Label</string>
+    <string name="native_dest_context">Context</string>
+    <string name="native_dest_task">Task</string>
+    <string name="native_dest_connect">Connect to a server</string>
+    <string name="native_dest_setup">Create an account</string>
+    <string name="native_dest_login">Sign in</string>
+
+    <!-- Sign-in wording the web client has no screen for -->
+    <string name="native_connect_address">Server address</string>
+    <string name="native_connect_requires_https">Enter an https:// address. This app does not send credentials over plain HTTP.</string>
+    <string name="native_connect_change_server">Use a different server</string>
+    <string name="native_auth_too_many_attempts">Too many attempts. Wait a moment, then try again.</string>
+    <string name="native_auth_already_set_up">This server already has an account. Sign in instead.</string>
+    <string name="native_auth_invalid_details">The server did not accept those details.</string>
+    <string name="native_auth_server_error">The server could not answer. Try again.</string>
+
+    <!-- Passkey wording the web client has no equivalent for: the ways a device,
+         rather than a browser, can refuse a ceremony. Each one names the password,
+         because a passkey is an additional way in and the password always works. -->
+    <string name="native_passkey_cancelled">Passkey sign-in was cancelled. You can sign in with your password instead.</string>
+    <string name="native_passkey_not_enrolled">This device has no passkey for this account. Sign in with your password, then add one from settings.</string>
+    <string name="native_passkey_untrusted">This device could not verify the server for passkeys. Sign in with your password.</string>
+    <string name="native_passkey_unsupported">This device cannot use passkeys. Sign in with your password.</string>
+    <string name="native_passkey_refused">The server did not accept that passkey. Sign in with your password.</string>
+    <string name="native_passkeys_retry">Try again</string>
+
+    <!-- The external calendar, which this client can only read. The first line is
+         shown when the appointments on a day view could not be refreshed and the
+         copy already on the device is what is on screen; %1$s is when that copy
+         was read. -->
+    <string name="native_calendar_as_of">Calendar as of %1$s</string>
+    <string name="native_calendar_managed_on_web">Events are shown here read-only. Connect a Google account and choose which calendars appear in the Turboist web app.</string>
+
+    <!-- Placeholder screens -->
+    <string name="native_stub_body">This screen is not built yet.</string>
+    <string name="native_stub_argument">Id %1$d</string>
+
+    <!-- Task detail wording the shared locale files have no entry for. The
+         priority names are the same short codes the web client shows and are not
+         translated: they are a scale, not a sentence. -->
+    <string name="native_priority_p1">P1</string>
+    <string name="native_priority_p2">P2</string>
+    <string name="native_priority_p3">P3</string>
+    <string name="native_priority_p4">P4</string>
+    <string name="native_task_deadline">Deadline</string>
+    <string name="native_task_time">Time</string>
+    <string name="native_task_clearTime">Clear time</string>
+    <string name="native_task_location">Location</string>
+    <string name="native_task_plan">Plan</string>
+    <string name="native_task_planNone">Not planned</string>
+    <string name="native_task_cancelTask">Cancel task</string>
+    <string name="native_task_status">Status</string>
+    <string name="native_task_statusOpen">Open</string>
+    <string name="native_task_statusCompleted">Completed</string>
+    <string name="native_task_statusCancelled">Cancelled</string>
+    <string name="native_task_postponed">Postponed</string>
+    <string name="native_task_created">Created</string>
+    <string name="native_task_updated">Updated</string>
+    <string name="native_task_completedAt">Completed</string>
+    <string name="native_task_editTitle">Edit title</string>
+    <string name="native_task_editDescription">Edit description</string>
+    <string name="native_task_noDescription">No description</string>
+    <string name="native_task_completedSubtasks">Completed subtasks</string>
+    <!-- Stands in for a field the task has no value for. -->
+    <string name="native_task_unset">\u2014</string>
+    <!-- Why a link between two tasks was turned down. Both refusals are the
+         server's rules, answered on the device so the user hears them while the
+         picker is still open rather than a day later. -->
+    <string name="native_task_relationExists">Those two tasks are already linked that way.</string>
+    <string name="native_task_relationCycle">That would leave the two tasks waiting on each other, so neither could ever be finished.</string>
+
+    <!-- The repeat editor. The presets and the plain wording for a rule are the
+         web client's, and come from the shared locale files; what is here is the
+         wording the web client's picker has no equivalent for, because it offers
+         no way to write a rule out by hand. -->
+    <string name="native_recurrence_weekdays">Every weekday</string>
+    <string name="native_recurrence_monthly">Monthly</string>
+    <string name="native_recurrence_yearly">Yearly</string>
+    <string name="native_recurrence_custom">Write the rule</string>
+    <string name="native_recurrence_ruleLabel">Repeat rule</string>
+    <string name="native_recurrence_ruleHelp">Calendar notation, for example FREQ=WEEKLY;BYDAY=TU,TH</string>
+    <string name="native_recurrence_ruleUnreadable">That is not a repeat rule.</string>
+    <!-- The date the task would move to next, shown while the rule is being
+         chosen, for example "Next: 13 Mar 2024". -->
+    <string name="native_recurrence_next">Next: %1$s</string>
+    <string name="native_recurrence_noNext">This rule has no occurrence after the current one.</string>
+
+    <!-- Search wording the shared locale files have no entry for: the device
+         searches two kinds the web client's search does not reach, and it can
+         offer a narrowing and a history that only a local index makes cheap. -->
+    <string name="native_search_contextsTab">Contexts</string>
+    <string name="native_search_openOnly">Open only</string>
+    <string name="native_search_emptyDescription">Type at least 2 characters to search the tasks, projects, labels and contexts stored on this device.</string>
+    <string name="native_search_noMatches">Nothing matches</string>
+    <string name="native_search_clearQuery">Clear the search</string>
+    <string name="native_search_recent">Recent searches</string>
+    <string name="native_search_clearRecent">Clear recent searches</string>
+    <string name="native_search_taskFinished">Finished</string>
+
+    <!-- Capture. The recent row leads every project picker; the wording is the
+         native client's own because the web client leads its pickers with an
+         unlabelled group. -->
+    <string name="native_quickAdd_recentProjects">Recent projects</string>
+
+    <!-- Projects and their boards. The web client rearranges a board by dragging,
+         which a touch screen cannot offer unambiguously, so the wording here is
+         about the two gestures this client offers instead. -->
+    <string name="native_project_finished">Finished</string>
+    <string name="native_project_statusUnknown">Unknown status</string>
+    <string name="native_project_pinLimit">You can pin only %1$d projects. Unpin one first.</string>
+    <string name="native_project_troikiFull">That part of the daily plan already holds %1$d projects.</string>
+    <string name="native_section_moveEarlier">Move section up</string>
+    <string name="native_section_moveLater">Move section down</string>
+    <string name="native_section_currentColumn">Where it is now</string>
+    <string name="native_context_tasks">Tasks</string>
+    <!-- A narrowing and how much it would show, for example "Archived 3". -->
+    <string name="native_count_suffix">%1$s %2$d</string>
+
+    <!-- The completion history. The device keeps a recent stretch of finished
+         work and the server keeps the rest, so this screen has an edge to it that
+         the web client, which is always online, never has to name. -->
+    <string name="native_completed_showOlder">Show older</string>
+    <string name="native_completed_olderNeedsConnection">Older history is kept on the server. Connect to see it.</string>
+    <string name="native_completed_olderUnavailable">Older history could not be loaded.</string>
+    <string name="native_completed_allShown">That is the whole history.</string>
+    <string name="native_completed_loadingOlder">Loading older history</string>
+    <!-- The sync status strip and the unsent-changes screen. The web client's
+         offline wording covers a queue of three kinds of change; this client
+         queues every write the API offers, so each one needs a name a person can
+         read. The names are phrases rather than sentences: they head a row that
+         carries the title of the thing the change was for. -->
+    <string name="native_sync_inProgress">Syncing</string>
+    <string name="native_sync_failed">Could not sync with the server</string>
+    <string name="native_unsent_openSetAside">Unsent changes</string>
+    <string name="native_unsent_settingsDescription">Changes this device made that the server would not take.</string>
+    <string name="native_unsent_setAsideHeading">Refused by the server</string>
+    <string name="native_unsent_setAsideDescription">These changes were made on this device and the server would not take them. They will never be sent. The work itself is already back to what the server holds, so discarding one closes the note and undoes nothing.</string>
+    <string name="native_unsent_waitingHeading">Waiting to send</string>
+    <string name="native_unsent_waitingDescription">These changes go out as soon as the server can be reached.</string>
+    <string name="native_unsent_discard">Discard</string>
+    <string name="native_unsent_discardAll">Discard all</string>
+    <string name="native_unsent_discardAllConfirm">Discard them</string>
+    <string name="native_unsent_discardAllTitle">Discard every refused change?</string>
+    <string name="native_unsent_discardAllBody">%1$d refused changes will be removed from this list. None of them ever reached the server, so nothing is undone.</string>
+    <string name="native_unsent_blockedBy">Still open: %1$s</string>
+
+    <!-- Why the server refused a change. -->
+    <string name="native_unsent_reason_blocked">Work that blocks this task was still open.</string>
+    <string name="native_unsent_reason_targetGone">The item this change was for is no longer on the server.</string>
+    <string name="native_unsent_reason_limitReached">A limit was already full.</string>
+    <string name="native_unsent_reason_placementRefused">The server would not put it there.</string>
+    <string name="native_unsent_reason_troikiSlotFull">That part of the daily plan was already full.</string>
+    <string name="native_unsent_reason_invalid">The server did not accept the details of this change.</string>
+    <string name="native_unsent_reason_conflict">Something else had already changed it.</string>
+    <string name="native_unsent_reason_notAllowed">This session was not allowed to make this change.</string>
+    <string name="native_unsent_reason_unsendable">This change could not be turned into a request, so it was never sent.</string>
+    <string name="native_unsent_reason_serverError">The server failed on it repeatedly.</string>
+    <string name="native_unsent_reason_unknown">The server refused it.</string>
+
+    <!-- What each queued change is. -->
+    <string name="native_unsent_op_unknown">A change this version of the app does not recognise</string>
+    <string name="native_unsent_op_taskCreate">New task</string>
+    <string name="native_unsent_op_taskPatch">Task edit</string>
+    <string name="native_unsent_op_taskDelete">Delete task</string>
+    <string name="native_unsent_op_taskCancel">Cancel task</string>
+    <string name="native_unsent_op_taskMove">Move task</string>
+    <string name="native_unsent_op_taskPlan">Plan task</string>
+    <string name="native_unsent_op_taskPin">Pin task</string>
+    <string name="native_unsent_op_taskUnpin">Unpin task</string>
+    <string name="native_unsent_op_taskDuplicate">Duplicate task</string>
+    <string name="native_unsent_op_taskDecompose">Split task into subtasks</string>
+    <string name="native_unsent_op_taskRelationAdd">Link tasks</string>
+    <string name="native_unsent_op_taskRelationRemove">Unlink tasks</string>
+    <string name="native_unsent_op_taskBulkComplete">Complete several tasks</string>
+    <string name="native_unsent_op_taskBulkMove">Move several tasks</string>
+    <string name="native_unsent_op_taskBulkPriority">Change the priority of several tasks</string>
+    <string name="native_unsent_op_taskGroup">Group tasks under a new task</string>
+    <string name="native_unsent_op_projectCreate">New project</string>
+    <string name="native_unsent_op_projectPatch">Project edit</string>
+    <string name="native_unsent_op_projectDelete">Delete project</string>
+    <string name="native_unsent_op_projectStatus">Change project status</string>
+    <string name="native_unsent_op_projectPin">Pin project</string>
+    <string name="native_unsent_op_projectUnpin">Unpin project</string>
+    <string name="native_unsent_op_projectTroiki">Move project in the daily plan</string>
+    <string name="native_unsent_op_sectionCreate">New board column</string>
+    <string name="native_unsent_op_sectionPatch">Board column edit</string>
+    <string name="native_unsent_op_sectionDelete">Delete board column</string>
+    <string name="native_unsent_op_sectionReorder">Reorder board columns</string>
+    <string name="native_unsent_op_contextCreate">New context</string>
+    <string name="native_unsent_op_contextPatch">Context edit</string>
+    <string name="native_unsent_op_contextDelete">Delete context</string>
+    <string name="native_unsent_op_labelCreate">New label</string>
+    <string name="native_unsent_op_labelPatch">Label edit</string>
+    <string name="native_unsent_op_labelDelete">Delete label</string>
+    <string name="native_unsent_op_templateCreate">New template</string>
+    <string name="native_unsent_op_templateReplace">Template edit</string>
+    <string name="native_unsent_op_templateDelete">Delete template</string>
+    <string name="native_unsent_op_templateInstantiate">Use template</string>
+    <string name="native_unsent_op_settingsPatch">Settings change</string>
+    <string name="native_unsent_op_autoLabelRules">Automatic label rules</string>
+    <string name="native_unsent_op_projectSuggestionRules">Project suggestion rules</string>
+    <string name="native_unsent_op_statePatch">Interface state change</string>
+    <string name="native_unsent_op_troikiStart">Start the daily plan</string>
+    <string name="native_unsent_op_troikiReset">Reset the daily plan</string>
+    <string name="native_unsent_op_harpoonAttach">Add to the jump pair</string>
+    <string name="native_unsent_op_harpoonDetach">Remove from the jump pair</string>
+
+    <!-- The settings screen. Wording the shared locale files have no entry for
+         because it is about this phone rather than about the workspace: the
+         choices kept on the device, and the two ways of letting go of a server. -->
+    <string name="native_settings_deviceHeading">This device</string>
+    <string name="native_settings_deviceDescription">Kept on this phone only. These choices are never sent to the server and never follow you to another device.</string>
+    <string name="native_settings_languageDeviceNote">This app follows your phone\'s language. The choice above is what the web app uses.</string>
+    <string name="native_settings_syncOnMetered">Sync on mobile data</string>
+    <string name="native_settings_syncOnMeteredDescription">When this is off, background catch-ups wait for Wi-Fi. A refresh you ask for still runs on any connection.</string>
+    <string name="native_settings_serverHeading">Server</string>
+    <string name="native_settings_serverUnset">No server yet</string>
+    <string name="native_settings_changeServer">Use a different server</string>
+    <string name="native_settings_changeServerDescription">Sign out and go back to the address screen.</string>
+    <string name="native_settings_confirmChangeServerTitle">Use a different server?</string>
+    <string name="native_settings_confirmChangeServerBody">This device will be signed out and its copy of the workspace deleted. The other server holds different data, so nothing can be carried across.</string>
+    <string name="native_settings_confirmChangeServerAction">Disconnect</string>
+    <string name="native_settings_clearLocalData">Clear the copy on this device</string>
+    <string name="native_settings_clearLocalDataDescription">Delete the on-device copy and download it again. Use this when what is on screen looks wrong.</string>
+    <string name="native_settings_confirmClearLocalDataTitle">Clear the copy on this device?</string>
+    <string name="native_settings_confirmClearLocalDataBody">Everything the server already has comes back on the next sync. You stay signed in.</string>
+    <string name="native_settings_confirmClearLocalDataAction">Clear</string>
+    <!-- Shown inside both confirmations when the device is still holding changes
+         the server has not taken; %1$d is how many. -->
+    <plurals name="native_settings_confirmUnsent">
+        <item quantity="one">%1$d change has not reached the server yet and will be lost.</item>
+        <item quantity="other">%1$d changes have not reached the server yet and will be lost.</item>
+    </plurals>
+    <string name="native_settings_localDataCleared">The copy on this device was cleared and is being downloaded again.</string>
+    <string name="native_settings_aboutHeading">About</string>
+    <string name="native_settings_versionUnknown">Unknown</string>
+    <!-- The two rule lists are edited in one dialog, so the dialog says which one
+         it is about and what that list does. -->
+    <string name="native_settings_ruleMaskEmpty">Enter a mask and pick at least one item.</string>
+    <string name="native_settings_ruleAppliedAutomatically">Applied automatically when a task is created.</string>
+    <string name="native_settings_ruleOnlySuggested">Only offered as a suggestion. Nothing is applied for you.</string>
+    <string name="native_settings_noLabelsYet">No labels have reached this device yet.</string>
+    <string name="native_settings_noProjectsYet">No projects have reached this device yet.</string>
+    <string name="native_settings_saved">Saved</string>
+    <string name="native_settings_saveFailed">That change could not be saved.</string>
+
+    <!-- The account's administrative screens: sessions, API tokens and the
+         second factor. They are read from the server as the user looks at them
+         and nothing about them is kept on the device, so they need a sentence
+         for the state the web client never has to describe — no connection, and
+         therefore nothing to show. -->
+    <string name="native_account_needsConnection">This is read from the server as you look at it and is not kept on this device, so it needs a connection.</string>
+    <string name="native_account_clientUnknown">Other</string>
+</resources>

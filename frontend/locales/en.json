@@ -598,6 +598,11 @@
 			"bulkMoved": "Moved {count} tasks",
 			"bulkMovedPartial": "Moved {ok} tasks; {failed} failed",
 			"failedBulkMove": "Failed to move tasks",
+			"bulkCompleted": "Completed {count} tasks",
+			"bulkCompletedBlocked": "Completed {ok} tasks; {blocked} are waiting on unfinished work",
+			"bulkPlanned": "Planned {count} tasks for the week",
+			"bulkParked": "Moved {count} tasks to the backlog",
+			"bulkDeleted": "Deleted {count} tasks",
 			"bulkPrioritySet": "Updated priority for {count} tasks",
 			"bulkPrioritySetPartial": "Updated {ok} tasks; {failed} failed",
 			"failedBulkPriority": "Failed to update priority",
@@ -1101,10 +1106,21 @@
 		"bar": {
 			"aria": "Selected tasks actions",
 			"count": "{count} selected",
+			"complete": "Complete",
 			"move": "Move",
 			"priority": "Priority",
 			"group": "Group into task",
+			"more": "More actions",
+			"selectAll": "Select all",
 			"cancel": "Clear selection"
+		},
+		"group": {
+			"destinationTitle": "Where does the new task go?",
+			"effect": "The selected tasks move into the new task and take its labels and priority."
+		},
+		"confirmDelete": {
+			"title": "Delete the selected tasks?",
+			"description": "{count} tasks and everything under them will be removed. This cannot be undone."
 		}
 	},
 	"calendar": {

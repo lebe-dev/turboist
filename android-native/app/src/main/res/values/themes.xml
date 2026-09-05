@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The window theme only has to paint the right background before the first
+      frame; everything the user sees afterwards is themed inside Compose.
+    -->
+    <style name="Theme.TurboistNative" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

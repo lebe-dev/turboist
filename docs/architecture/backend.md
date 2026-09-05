@@ -27,6 +27,7 @@ The server runs migrations from `internal/db/migrations` on every start. The sch
 | `/api/v1/passkeys/*` | JWT | Register, list, rename and remove passkeys |
 | `/api/v1/{contexts,labels,sections,projects,inbox,tasks,search,config}` | Bearer | Authenticated REST resources |
 | `POST\|DELETE /api/v1/tasks/:id/relations[/:relationId]` | Bearer | Task relation graph (write-only — reads ride on `GET /api/v1/tasks/:id?relations=true`) |
+| `GET /api/v1/sync/{changes,snapshot}` | Bearer | Delta feed and full seed for clients holding a local copy of the workspace |
 
 All `/api/v1/*` endpoints require `Authorization: Bearer <token>`. The token can be a 15-minute JWT access token or a long-lived API token (generated in Settings → API). Web clients also receive a 30-day refresh token in an HttpOnly cookie scoped to `/auth/refresh`. API tokens are accepted on every `/api/v1/*` route except `/api/v1/api-tokens/*`, which requires a JWT session.
 
@@ -130,6 +131,154 @@ The tagging timestamp it buckets by is `task_labels.created_at`
 task's creation time). `TaskLabelsRepo.SetForTask` is therefore a diff, not a
 delete-and-reinsert: surviving rows keep their timestamp, so editing an unrelated
 field on a task does not move all of its tagging events into the current week.
+
+## Change log
+
+`change_log` (migration `050_change_log.sql`) is an append-only record of every
+committed mutation of a replicable entity: `seq` (an `AUTOINCREMENT` cursor),
+`entity`, `entity_id`, `op` (`upsert` | `delete`) and `changed_at`. A client
+holding a full local copy of the data reads it forward from the last `seq` it
+saw and learns what changed — deletions included, since the entity tables keep
+their hard deletes and a `delete` row is the only tombstone there is.
+
+The rows are written by SQLite `AFTER INSERT/UPDATE/DELETE` triggers, not by Go
+code. Rows change through paths no single caller names: service cascades
+(`CascadeBacklogToDescendants` rewrites a whole subtask subtree in one bulk
+statement), group and bulk endpoints, and foreign-key cascades that fire with no
+Go code involved at all. As triggers, logging is a property of the schema — a row
+cannot change without being logged, today or through a write path added later.
+**Adding a table therefore means deciding whether it is replicable, and if so
+creating its three triggers in the same migration.**
+
+The log stores pointers, never payloads: readers join back to the live tables for
+the current state. That makes a redundant row (an `updated_at` bump that changed
+nothing user-visible) cost one refetch and nothing else, and multiple rows per
+entity are expected — readers dedupe by `(entity, entity_id)` keeping the highest
+`seq`. `AUTOINCREMENT` rather than a bare rowid primary key so that pruning old
+rows can never hand a stale cursor a `seq` pointing at a newer change.
+
+Entities are the resources the API already serves, not the tables: `task`,
+`project`, `section`, `context`, `label`, `task_relation`, `task_template`,
+`user_settings`, `user_state`, `app_settings`. Join and child tables whose
+contents the API serves inside their owner's payload have no entity of their own
+— `task_labels` and `project_labels` log an upsert of the task or project, the
+template subtask and label tables log an upsert of the template. Their delete
+triggers are guarded by the owner still existing, so a child removed by a cascade
+never logs an upsert of the row that is itself on its way out. `users` backs two
+resources: any write logs a `user_settings` upsert, and a write touching the
+`state` column logs `user_state` as well. Sessions, API tokens, TOTP recovery
+codes, the WebAuthn tables, the idempotency replay cache and the calendar tables
+are deliberately not logged — none of it belongs on a client replica.
+
+`app_settings.sync_epoch` (default `1`, read and advanced through
+`AppSettingsRepo.SyncEpoch` / `BumpSyncEpoch`) invalidates every cursor at once.
+It is bumped whenever the history stops describing the data — a restore replaces
+the rows wholesale — so a client presenting a cursor stamped with an older epoch
+is told to start over instead of silently diverging. The bump touches only its
+own column, never the settings blob, and is not itself logged as a settings
+change.
+
+### Reading it: the delta feed and the snapshot
+
+Two endpoints serve the log to clients that keep a full local copy of the
+workspace (`internal/httpapi/handlers/sync.go`, `sync_snapshot.go` over
+`internal/repo/changelog.go`, `sync_snapshot.go`). The wire contract — parameters,
+payloads, error bodies, the loop a client runs — is in
+[API.md](../../API.md#sync); what follows is why the server side looks the way it
+does.
+
+`GET /api/v1/sync/changes` reads one page inside a single read transaction: the
+epoch, the log window and every hydrated row come from one snapshot of the
+database, so a page can never claim a cursor newer than the rows it carries. The
+window is collapsed to one row per `(entity, entity_id)` — the highest `seq`,
+the only one whose `op` still describes reality — and the surviving rows are then
+hydrated from the live tables through the very loaders the REST endpoints use, so
+a task served in a delta is indistinguishable from the same task served by
+`GET /api/v1/tasks/:id`. An upsert whose row has since disappeared is rewritten
+into a delete rather than dropped: the page must never tell a client to keep a row
+the server no longer has. Paging asks for one row more than the limit to decide
+`hasMore` without a second count.
+
+`GET /api/v1/sync/snapshot` is the bootstrap the delta loop starts from and the
+recovery a client falls back to when the feed refuses to resume. It is
+deliberately unpaged: the dataset belongs to one person, and the completed-task
+window keeps the only unbounded collection in check. Its cursor is read in the
+same transaction as the rows, so a write that lands mid-read either is already
+reflected or arrives with the next delta page — the worst case is one row applied
+twice, which is free.
+
+The completed-task window is `repo.SyncHistoryWindow` measured back from the
+request. Two closures keep the seed referentially whole: the recursive task query
+pulls in the ancestors of every kept task however old they are, so an open subtask
+never arrives pointing at a parent the client has never seen, and the relation
+query serves only edges whose both endpoints are inside the window.
+
+Both endpoints require every read scope (`tasks`, `projects`, `sections`,
+`contexts`, `labels`, `templates`, `settings`) rather than one of them: a single
+response can carry the whole workspace, and reading it here must not be cheaper
+than reading it endpoint by endpoint. JWT sessions bypass scope checks as usual,
+so the apps are unaffected.
+
+Nothing is pushed through these endpoints. Client writes go through the existing
+mutation endpoints with an `Idempotency-Key`, which keeps every invariant enforced
+exactly once, in `internal/service`.
+
+### Retention
+
+The log is trimmed to `repo.SyncHistoryWindow` (90 days) — the same window the
+snapshot seeds completed tasks over, so a client is handed exactly the stretch of
+history it is allowed to catch up across. `ChangeLogRepo.Prune` runs once at
+startup and then daily on the shared cleanup context, alongside the session and
+idempotency-key jobs (`cmd/turboist/cleanup.go`).
+
+It deletes a contiguous prefix — every row up to the highest `seq` older than the
+cutoff — rather than every row whose `changed_at` is old. The two are the same
+log until a clock steps backwards, and only the prefix form keeps the expiry
+answer honest: a resuming client is refused purely on `MIN(seq)`, so a hole
+punched in the middle of the log would let a cursor below it resume and never
+learn about the rows that were removed above. Nothing resets `sqlite_sequence`,
+so a pruned-away `seq` is never handed out again, and a cursor sitting on the
+last surviving row keeps resuming — routine trimming costs an up-to-date client
+nothing.
+
+### Restore
+
+A restore replaces the dataset wholesale, so `repo.ResetSyncHistory` runs inside
+the restore's own transaction (`BackupService.Restore`): it bumps the epoch and
+then empties the log, in that order, so the rows the restore itself logged — the
+wipe and every re-insert — go with the history they belong to instead of reaching
+clients as a change-by-change replay. A restore that rolls back leaves both the
+data and the log exactly as they were.
+
+The two refusals a client meets are the same two states from the other side: a
+cursor carrying a pre-restore epoch, and a cursor older than everything the log
+still holds. Either way the remedy is a fresh snapshot.
+
+## List view contract
+
+The list views in `internal/repo/views.go` are re-implemented as local queries by
+the native mobile client, which renders its lists offline instead of asking the
+server. Two implementations of the same predicates drift silently, so both sides
+are pinned to one shared dataset:
+
+- `testdata/sync-contract/fixture.json` — contexts, projects, sections, labels
+  and tasks covering every plan state, due/deadline shape, priority, pin, status,
+  troiki category and subtask depth, plus the frozen clock every dated view takes
+  its boundaries from. Entities are addressed by stable string keys, never by
+  database ids, because each implementation assigns its own. Each task carries a
+  `notes` field naming the invariant it exercises, and a distinct `createdAt`
+  (completed tasks a distinct `completedAt`) so the shared sort is a total order.
+- `testdata/sync-contract/golden/*.json` — the expected ordered task keys and
+  count per view.
+- `internal/repo/view_contract_test.go` — replays the fixture through the
+  repositories, renders every view and diffs against the goldens. The mobile
+  client renders the same fixture through its own queries and diffs the same
+  files.
+
+Changing a view predicate or the shared task sort turns this test red on purpose.
+Rewrite the goldens with `go test ./internal/repo -run TestViewContract -update`
+and read the diff: every changed line is a behaviour change the mobile client has
+to follow. Never edit the fixture just to make a golden agree with new code.
 
 ## Storage
 

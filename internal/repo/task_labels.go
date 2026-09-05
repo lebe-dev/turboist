@@ -59,6 +59,14 @@ func (r *TaskLabelsRepo) SetForTask(ctx context.Context, taskID int64, labelIDs 
 }
 
 func (r *TaskLabelsRepo) LabelsByTaskIDs(ctx context.Context, taskIDs []int64) (map[int64][]model.Label, error) {
+	return labelsByTaskIDs(ctx, r.db, taskIDs)
+}
+
+// labelsByTaskIDs is the body of LabelsByTaskIDs, parameterised over the
+// statement source. A caller that already holds an open transaction passes the
+// transaction so the labels it hydrates come from the same snapshot as the task
+// rows they belong to; everyone else passes the pool and sees no difference.
+func labelsByTaskIDs(ctx context.Context, src queryer, taskIDs []int64) (map[int64][]model.Label, error) {
 	const op = "repo.task_labels.LabelsByTaskIDs"
 	logQuery(ctx, op, taskIDs)
 	if len(taskIDs) == 0 {
@@ -75,7 +83,7 @@ func (r *TaskLabelsRepo) LabelsByTaskIDs(ctx context.Context, taskIDs []int64) (
 	      JOIN labels l ON l.id = tl.label_id
 	      WHERE tl.task_id IN (` + strings.Join(placeholders, ",") + `)
 	      ORDER BY l.name ASC`
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := src.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("hydrate task labels: %w", err))
 	}

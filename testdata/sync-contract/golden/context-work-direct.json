@@ -1,0 +1,19 @@
+{
+  "view": "context-work-direct",
+  "total": 13,
+  "taskKeys": [
+    "t-pinned-low-same-instant",
+    "t-pinned-low-newer",
+    "t-overdue-yesterday",
+    "t-completed-before-window",
+    "t-completed-in-window",
+    "t-week-cancelled",
+    "t-week-due-outside",
+    "t-week-child-unplanned",
+    "t-week-planned-plain",
+    "t-overdue-completed",
+    "t-overdue-backlog",
+    "t-tomorrow-first-instant",
+    "t-today-last-instant"
+  ]
+}
