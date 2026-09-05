@@ -420,7 +420,7 @@ private const val SWITCH_COLUMN_WEIGHT = 0.3f
 @Preview(showBackground = true)
 @Composable
 private fun ApiTokensScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         ApiTokensContent(
             state =
                 ApiTokensUiState(

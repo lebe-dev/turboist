@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      What the window is painted with before Compose draws its first frame. Same
+      value as the theme's own background, so a cold start does not flash the
+      platform's white and then repaint in the product's warmer one.
+    -->
+    <color name="window_background">#FBFAF7</color>
+</resources>

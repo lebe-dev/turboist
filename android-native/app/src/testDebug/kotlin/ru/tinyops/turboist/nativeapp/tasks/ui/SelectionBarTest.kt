@@ -64,7 +64,7 @@ class SelectionBarTest {
                 selected = selected,
             )
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 TaskList(
                     state = state,
                     zone = zone,

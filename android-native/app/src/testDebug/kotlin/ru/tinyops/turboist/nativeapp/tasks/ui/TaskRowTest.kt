@@ -83,7 +83,7 @@ class TaskRowTest {
     }
 
     private fun setRow(content: @Composable () -> Unit) {
-        compose.setContent { TurboistTheme(dynamicColor = false) { content() } }
+        compose.setContent { TurboistTheme { content() } }
         compose.waitForIdle()
     }
 

@@ -1016,16 +1016,33 @@ moment the preference arrives. A project that already stands in a slot still fix
 the priority of its work, because that is what the server does regardless of the
 preference — so the priority picker on such a task stays locked and says why.
 
-**Theme.** Material 3 with the wallpaper's dynamic colours on Android 12 and
-newer, falling back to an explicit light/dark pair anchored on the product's
-orange (`#e2580e`) — the same colour as the web client's theme colour and the
-launcher icon. Previews and tests pin the brand palette so their output does not
-depend on the host device's wallpaper. Unit tests check that both schemes take
-their accent from the brand hue and that every foreground/background pair the
-app puts text on clears the 4.5:1 contrast bar. Light or dark follows the phone
-unless the device has been told otherwise in settings; the override is read at
-the root of the content tree, so it covers the sign-in screens too and does not
-wait for a session, a server or a sync.
+**Theme.** The palette is the web client's, transcribed rather than invented:
+the custom properties in `frontend/src/routes/layout.css` converted from OKLCH to
+sRGB and filled into Material's roles (`ui/theme/Color.kt`), which is a warm
+off-white page carrying a single red accent, with every grey pulled towards that
+hue so nothing beside it reads as blue. Android's wallpaper-derived scheme is
+deliberately **not** taken: a system-themed app feels native, but a phone whose
+wallpaper is a grey photograph turns the same lists that are warm and red on a
+laptop into a grey-on-grey page, and Turboist is one product with two front ends.
+The product's orange (`#e2580e` — the launcher icon and the web client's
+`theme-color`) stays in the scheme as Material's third accent, and the window
+background is painted with the same page colour in `res/values*/colors.xml` so a
+cold start does not flash the platform's white first.
+
+The colours that stand for something rather than fill a role — the three priority
+levels, the mark on a repeating task, the badge on a write still queued on the
+device — travel beside the scheme in `ui/theme/Accents.kt`
+(`TurboistTheme.accents`), and are the web client's own Tailwind steps: red means
+urgent on both clients or the colour is not carrying anything. The two that are
+read as words move a step lighter at night, exactly as the web's `dark:` variants
+do. Unit tests pin both schemes to the transcribed tokens, check the five
+container surfaces stay in Material's order, hold every foreground/background
+pair the app puts text on to 4.5:1, and hold a filled accent's own label to the
+3:1 bar WCAG sets for controls — which is where white on the web client's red
+lands, and matching it is the point. Light or dark follows the phone unless the
+device has been told otherwise in settings; the override is read at the root of
+the content tree, so it covers the sign-in screens too and does not wait for a
+session, a server or a sync.
 
 **Two ways to name one task.** Inside the app a task is addressed by the id this
 device holds it under, so a task written down while offline opens like any other.

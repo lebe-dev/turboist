@@ -1,42 +1,36 @@
 package ru.tinyops.turboist.nativeapp.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
 
 /**
- * Wraps the whole content tree in the app's Material 3 theme.
+ * Wraps the whole content tree in the app's theme.
  *
- * On Android 12 and newer the user's wallpaper colours win by default, because
- * a system-themed app feels native; every other device falls back to the brand
- * palette. Passing [dynamicColor] = false forces the brand palette everywhere,
- * which is what previews and screenshot tests want so their output does not
- * depend on the host device's wallpaper.
+ * The palette is the product's own in every case — the wallpaper-derived scheme
+ * Android offers is deliberately not taken. A system-themed app feels native,
+ * but Turboist is a client for a workspace the user also opens in a browser, and
+ * a phone whose wallpaper is a grey photograph turns the same lists that are
+ * warm and red on a laptop into a grey-on-grey page. The colours here are the
+ * web client's, so the two front ends are recognisably one product on any
+ * device; the only thing the phone still decides is [darkTheme].
+ *
+ * The signalling colours travel alongside the scheme rather than inside it: see
+ * [TurboistAccents].
  */
 @Composable
 fun TurboistTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
-    val colors: ColorScheme =
-        when {
-            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-
-            darkTheme -> TurboistDarkColors
-            else -> TurboistLightColors
-        }
-
-    MaterialTheme(
-        colorScheme = colors,
-        typography = TurboistTypography,
-        content = content,
-    )
+    CompositionLocalProvider(
+        LocalTurboistAccents provides if (darkTheme) TurboistDarkAccents else TurboistLightAccents,
+    ) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) TurboistDarkColors else TurboistLightColors,
+            typography = TurboistTypography,
+            content = content,
+        )
+    }
 }

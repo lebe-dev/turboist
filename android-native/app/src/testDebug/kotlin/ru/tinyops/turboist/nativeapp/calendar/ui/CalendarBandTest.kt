@@ -64,7 +64,7 @@ class CalendarBandTest {
 
     private fun show(state: TaskListUiState) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 TaskList(state = state, zone = zone, today = today, empty = null, callbacks = callbacks)
             }
         }
@@ -115,7 +115,7 @@ class CalendarBandTest {
         val state = TaskListUiState(loading = false, sections = listOf(morning(emptyList(), listOf(standup))))
 
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 TaskList(
                     state = state,
                     zone = zone,

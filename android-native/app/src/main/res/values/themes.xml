@@ -4,5 +4,7 @@
       The window theme only has to paint the right background before the first
       frame; everything the user sees afterwards is themed inside Compose.
     -->
-    <style name="Theme.TurboistNative" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.TurboistNative" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>

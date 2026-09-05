@@ -194,7 +194,7 @@ private fun OtpStep(
 @Preview(showBackground = true)
 @Composable
 private fun SignInScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         SignInScreen(
             state = AuthUiState(),
             passkeyOffered = true,
@@ -212,7 +212,7 @@ private fun SignInScreenPreview() {
 @Preview(showBackground = true)
 @Composable
 private fun OtpStepPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         SignInScreen(
             state = AuthUiState(awaitingOtp = true),
             passkeyOffered = false,

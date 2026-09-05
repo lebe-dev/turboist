@@ -285,7 +285,7 @@ private fun dateLabel(wireTime: String): String {
 @Preview(showBackground = true)
 @Composable
 private fun PasskeysScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         PasskeysContent(
             state =
                 PasskeysUiState(

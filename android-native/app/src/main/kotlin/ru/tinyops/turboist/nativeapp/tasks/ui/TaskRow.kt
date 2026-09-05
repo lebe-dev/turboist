@@ -1,7 +1,6 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -42,6 +42,7 @@ import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
+import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -118,7 +119,13 @@ fun TaskRow(
 
         Column(modifier = Modifier.padding(start = 4.dp, top = 8.dp)) {
             TitleLine(task = task, completed = completed)
-            MetaLine(task = task, projectTitle = row.projectTitle, zone = zone, today = today)
+            MetaLine(
+                task = task,
+                projectTitle = row.projectTitle,
+                zone = zone,
+                today = today,
+                completed = completed,
+            )
         }
     }
 }
@@ -184,7 +191,7 @@ private fun TitleLine(
             modifier = Modifier.weight(1f, fill = false),
         )
         if (task.isComplex) {
-            MarkerIcon(Icons.Outlined.Psychology, R.string.task_complexMarker, MaterialTheme.colorScheme.error)
+            MarkerIcon(Icons.Outlined.Psychology, R.string.task_complexMarker, TurboistTheme.accents.demanding)
         }
         // A pinned task is one the user asked to keep in front of them, and it
         // sorts to the top of every list it is in. The marker says why it is
@@ -212,7 +219,7 @@ private fun AwaitingSendBadge() {
     Row(
         modifier =
             Modifier
-                .background(MaterialTheme.colorScheme.tertiaryContainer, RoundedCornerShape(8.dp))
+                .background(TurboistTheme.accents.pendingContainer, RoundedCornerShape(8.dp))
                 .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -220,13 +227,13 @@ private fun AwaitingSendBadge() {
         Icon(
             imageVector = Icons.Outlined.HourglassEmpty,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            tint = TurboistTheme.accents.pending,
             modifier = Modifier.size(12.dp),
         )
         Text(
             text = stringResource(R.string.offline_awaitingSend),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            color = TurboistTheme.accents.pending,
         )
     }
 }
@@ -238,6 +245,7 @@ private fun MetaLine(
     projectTitle: String?,
     zone: ZoneId,
     today: LocalDate,
+    completed: Boolean,
 ) {
     val due = dueLabel(task, zone, today)
     val recurring = task.recurrenceRule != null || task.sourceTaskLocalId != null
@@ -254,8 +262,16 @@ private fun MetaLine(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        if (recurring) MarkerIcon(Icons.Outlined.Repeat, R.string.task_recurringLabel)
-        if (due != null) MetaText(due)
+        if (recurring) {
+            MarkerIcon(
+                Icons.Outlined.Repeat,
+                R.string.task_recurringLabel,
+                // A finished task's marks stop competing with the open work
+                // around them; the fact that it repeats is history by then.
+                if (completed) MaterialTheme.colorScheme.onSurfaceVariant else TurboistTheme.accents.recurring,
+            )
+        }
+        if (due != null) DueText(due, if (completed) DueUrgency.ORDINARY else dueUrgency(task.dueAt, zone, today))
         if (postponed) MetaText(stringResource(R.string.task_postponedTimes, task.postponeCount))
         if (relations > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -295,6 +311,31 @@ private fun MarkerIcon(
     )
 }
 
+/**
+ * The due date, emphasised by how close it is.
+ *
+ * Late work is called out in the scheme's alarm colour and today's is given the
+ * page's own text colour, which on a line of otherwise muted facts is what makes
+ * it the one the eye lands on. Everything further out stays muted: a date three
+ * weeks away is context, not a demand.
+ */
+@Composable
+private fun DueText(
+    text: String,
+    urgency: DueUrgency,
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color =
+            when (urgency) {
+                DueUrgency.OVERDUE -> MaterialTheme.colorScheme.error
+                DueUrgency.TODAY -> MaterialTheme.colorScheme.onSurface
+                DueUrgency.ORDINARY -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+    )
+}
+
 @Composable
 private fun MetaText(text: String) {
     Text(
@@ -304,6 +345,11 @@ private fun MetaText(text: String) {
     )
 }
 
+/**
+ * One tag, drawn as the web client draws it: a filled pill rather than an
+ * outlined one. A row can carry several, and several outlines in a line read as
+ * a row of empty boxes.
+ */
 @Composable
 private fun LabelChip(name: String) {
     Text(
@@ -312,8 +358,8 @@ private fun LabelChip(name: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier =
             Modifier
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                .padding(horizontal = 6.dp, vertical = 1.dp),
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                .padding(horizontal = 8.dp, vertical = 1.dp),
     )
 }
 

@@ -86,7 +86,7 @@ fun SplashScreen(modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 private fun StubScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         StubScreen(titleRes = R.string.nav_today, argument = 42L)
     }
 }
@@ -94,7 +94,7 @@ private fun StubScreenPreview() {
 @Preview(showBackground = true)
 @Composable
 private fun SplashScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         SplashScreen()
     }
 }

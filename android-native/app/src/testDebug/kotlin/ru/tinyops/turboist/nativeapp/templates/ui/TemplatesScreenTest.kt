@@ -100,7 +100,7 @@ class TemplatesScreenTest {
         onInstantiate: (Long) -> Unit = {},
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 TemplatesScreen(
                     state = state,
                     messages = emptyFlow(),

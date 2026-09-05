@@ -52,7 +52,7 @@ class RecurrenceFieldTest {
         dueAt: Long? = null,
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 RecurrenceField(
                     rule = rule,
                     dueAt = dueAt,

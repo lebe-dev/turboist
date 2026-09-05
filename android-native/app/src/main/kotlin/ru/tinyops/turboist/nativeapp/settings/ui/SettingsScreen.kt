@@ -325,7 +325,7 @@ private fun settingsMessageText(message: SettingsMessage): String =
 @Preview(showBackground = true)
 @Composable
 private fun SettingsScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         SettingsScreen(
             state = SettingsUiState(loading = false, serverAddress = "https://turboist.example/", version = "1.2.3"),
             callbacks = SettingsCallbacks(),

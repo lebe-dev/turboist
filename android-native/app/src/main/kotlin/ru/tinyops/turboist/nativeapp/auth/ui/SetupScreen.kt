@@ -85,7 +85,7 @@ fun SetupScreen(
 @Preview(showBackground = true)
 @Composable
 private fun SetupScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         SetupScreen(
             state = AuthUiState(),
             onCreateAccount = { _, _, _ -> },

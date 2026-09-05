@@ -105,7 +105,7 @@ class TaskListScreenTest {
                     TaskListPresenter(scope, sections, FakeReplica(), sync).also { presenter = it }
                 }
             val state by screen.state.collectAsState()
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 TaskListScreen(
                     state = state,
                     zone = zone,

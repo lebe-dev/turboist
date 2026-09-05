@@ -92,7 +92,7 @@ class QuickAddSheetTest {
                 }
             presenter = live
             val state by live.state.collectAsState()
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 QuickAddSheetContent(state = state, today = today, callbacks = quickAddCallbacks(live))
             }
         }

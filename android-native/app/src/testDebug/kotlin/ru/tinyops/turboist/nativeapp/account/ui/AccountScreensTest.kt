@@ -55,7 +55,7 @@ class AccountScreensTest {
     private fun text(resId: Int): String = RuntimeEnvironment.getApplication().getString(resId)
 
     private fun show(content: @Composable () -> Unit) {
-        compose.setContent { TurboistTheme(dynamicColor = false) { content() } }
+        compose.setContent { TurboistTheme { content() } }
         compose.waitForIdle()
     }
 

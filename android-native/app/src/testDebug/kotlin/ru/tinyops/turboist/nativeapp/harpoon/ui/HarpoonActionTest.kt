@@ -50,7 +50,7 @@ class HarpoonActionTest {
         onOpen: (HarpoonEntry) -> Unit = {},
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 HarpoonAction(current = current, jumps = jumps, onToggle = onToggle, onOpen = onOpen)
             }
         }

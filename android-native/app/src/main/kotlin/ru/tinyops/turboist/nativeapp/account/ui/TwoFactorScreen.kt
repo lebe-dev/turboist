@@ -352,7 +352,7 @@ private val QR_SIZE = 200.dp
 @Preview(showBackground = true)
 @Composable
 private fun TwoFactorScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         TwoFactorContent(
             state = TwoFactorUiState(loading = false, enabled = true),
             callbacks = TwoFactorCallbacks(),

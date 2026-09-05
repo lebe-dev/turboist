@@ -58,3 +58,35 @@ fun dayHeadingLabel(
         relative == RelativeDay.YESTERDAY -> stringResource(R.string.common_yesterday)
         else -> day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
     }
+
+/** How a due date reads against today — the two states worth emphasising, and everything else. */
+enum class DueUrgency {
+    /** The day has passed. */
+    OVERDUE,
+
+    /** The day is today. */
+    TODAY,
+
+    /** Any other day, and a task with no due date at all. */
+    ORDINARY,
+}
+
+/**
+ * Which of the three a task's due date falls into.
+ *
+ * Compared by calendar day rather than by instant, exactly as the server and the
+ * web client compare it: a task due at nine this morning is still due today at
+ * lunchtime, and reading it as overdue would nag about work that is not late.
+ */
+fun dueUrgency(
+    dueAt: Long?,
+    zone: ZoneId,
+    today: LocalDate,
+): DueUrgency {
+    val day = dayOf(dueAt ?: return DueUrgency.ORDINARY, zone)
+    return when {
+        day.isBefore(today) -> DueUrgency.OVERDUE
+        day == today -> DueUrgency.TODAY
+        else -> DueUrgency.ORDINARY
+    }
+}

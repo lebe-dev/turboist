@@ -254,7 +254,7 @@ private fun DiscardAllDialog(
 @Preview(showBackground = true)
 @Composable
 private fun UnsentChangesScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         UnsentChangesScreen(
             state =
                 UnsentChangesUiState(

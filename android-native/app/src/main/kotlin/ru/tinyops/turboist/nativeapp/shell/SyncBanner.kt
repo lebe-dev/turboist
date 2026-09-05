@@ -24,6 +24,7 @@ import ru.tinyops.turboist.nativeapp.sync.SyncNotice
 import ru.tinyops.turboist.nativeapp.sync.SyncOutcome
 import ru.tinyops.turboist.nativeapp.sync.SyncStatus
 import ru.tinyops.turboist.nativeapp.sync.notice
+import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -101,7 +102,11 @@ private fun NoticeStrip(
     detail: String? = null,
     onRetry: (() -> Unit)? = null,
 ) {
-    Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+    // Amber, and the same amber a queued write is badged with on the row it
+    // belongs to: both say "this is on its way out", and the web client marks
+    // them with one colour for exactly that reason. A neutral strip here would
+    // read as a piece of furniture rather than as something to notice.
+    Surface(color = TurboistTheme.accents.pendingContainer, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -111,13 +116,13 @@ private fun NoticeStrip(
                 Text(
                     text = message,
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = TurboistTheme.accents.pending,
                 )
                 detail?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = TurboistTheme.accents.pending,
                     )
                 }
             }

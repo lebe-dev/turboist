@@ -99,7 +99,7 @@ class TroikiScreenTest {
         record: (String) -> Unit = {},
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 TroikiScreen(
                     state = state,
                     zone = zone,

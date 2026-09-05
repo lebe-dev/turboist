@@ -147,7 +147,7 @@ class AppNavigationTest {
     ) {
         compose.setContent {
             navController = rememberNavController()
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 AppShell(
                     counts = DrawerCounts(),
                     newIntents = newIntents,

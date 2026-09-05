@@ -59,7 +59,7 @@ fun ConnectScreen(
 @Preview(showBackground = true)
 @Composable
 private fun ConnectScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         ConnectScreen(state = AuthUiState(), onConnect = {}, onEdit = {})
     }
 }

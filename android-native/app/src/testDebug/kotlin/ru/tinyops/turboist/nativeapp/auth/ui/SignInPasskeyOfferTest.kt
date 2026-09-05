@@ -46,7 +46,7 @@ class SignInPasskeyOfferTest {
         passkeyOffered: Boolean,
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 SignInScreen(
                     state = state,
                     passkeyOffered = passkeyOffered,

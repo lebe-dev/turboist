@@ -107,7 +107,7 @@ class LabelScreensTest {
     @Test
     fun `a workspace with no labels says so instead of drawing an empty report`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelsScreen(
                     state = LabelStatsUiState(loading = false),
                     messages = emptyFlow(),
@@ -122,7 +122,7 @@ class LabelScreensTest {
     @Test
     fun `a label in use shows what its work is doing`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelsScreen(
                     state =
                         LabelStatsUiState(
@@ -166,7 +166,7 @@ class LabelScreensTest {
     @Test
     fun `an unused label is offered for cleanup with how long ago it was used`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelsScreen(
                     state =
                         LabelStatsUiState(
@@ -189,7 +189,7 @@ class LabelScreensTest {
     fun `choosing a window asks for that window`() {
         val asked = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelsScreen(
                     state = LabelStatsUiState(loading = false, labelCount = 1),
                     messages = emptyFlow(),
@@ -207,7 +207,7 @@ class LabelScreensTest {
     fun `tapping a label opens the work carrying it`() {
         val asked = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelsScreen(
                     state =
                         LabelStatsUiState(
@@ -230,7 +230,7 @@ class LabelScreensTest {
     @Test
     fun `the report offers a way to name a new label`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelsScreen(
                     state = LabelStatsUiState(loading = false, labelCount = 1),
                     messages = emptyFlow(),
@@ -248,7 +248,7 @@ class LabelScreensTest {
     fun `naming a label and picking a colour writes both down`() {
         val saved = mutableListOf<LabelDraft>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelEditorContent(initial = null, onConfirm = { saved += it }, onDismiss = {})
             }
         }
@@ -264,7 +264,7 @@ class LabelScreensTest {
     fun `an editor opened on a label starts from what the label already says`() {
         val saved = mutableListOf<LabelDraft>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelEditorContent(
                     initial = LabelDraft("urgent", "red"),
                     onConfirm = { saved += it },
@@ -284,7 +284,7 @@ class LabelScreensTest {
     fun `a label with no name cannot be saved`() {
         val saved = mutableListOf<LabelDraft>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelEditorContent(initial = null, onConfirm = { saved += it }, onDismiss = {})
             }
         }
@@ -299,7 +299,7 @@ class LabelScreensTest {
     @Test
     fun `a label that is gone says so rather than showing the last thing it held`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelTasksScreen(
                     state = LabelDetailUiState(loading = false, label = null),
                     messages = emptyFlow(),
@@ -314,7 +314,7 @@ class LabelScreensTest {
     @Test
     fun `the header names the label and keeps the work under it`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelTasksScreen(
                     state = LabelDetailUiState(loading = false, label = label(7, "urgent")),
                     messages = emptyFlow(),
@@ -331,7 +331,7 @@ class LabelScreensTest {
     fun `the star asks for the opposite of what the label says now`() {
         val asked = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelTasksScreen(
                     state = LabelDetailUiState(loading = false, label = label(7, "urgent", isFavourite = true)),
                     messages = emptyFlow(),
@@ -349,7 +349,7 @@ class LabelScreensTest {
     fun `the overflow menu offers the label's own actions`() {
         val asked = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelTasksScreen(
                     state = LabelDetailUiState(loading = false, label = label(7, "urgent")),
                     messages = emptyFlow(),
@@ -369,7 +369,7 @@ class LabelScreensTest {
     fun `deleting a label warns how many tasks are about to lose it`() {
         val asked = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 LabelTasksScreen(
                     state = LabelDetailUiState(loading = false, label = label(7, "urgent"), taggedTasks = 40),
                     messages = emptyFlow(),

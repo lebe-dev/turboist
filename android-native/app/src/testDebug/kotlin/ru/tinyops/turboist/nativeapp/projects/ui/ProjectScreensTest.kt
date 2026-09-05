@@ -112,7 +112,7 @@ class ProjectScreensTest {
     fun `the projects screen groups projects under their context and opens one`() {
         val done = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectsScreen(
                     state =
                         ProjectsUiState(
@@ -136,7 +136,7 @@ class ProjectScreensTest {
     fun `a context heading leads to the context itself`() {
         val done = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectsScreen(
                     state =
                         ProjectsUiState(
@@ -157,7 +157,7 @@ class ProjectScreensTest {
     @Test
     fun `a workspace known to hold nothing says what the screen is for`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectsScreen(
                     state = ProjectsUiState(loading = false),
                     messages = emptyFlow(),
@@ -172,7 +172,7 @@ class ProjectScreensTest {
     @Test
     fun `a context with no projects still offers somewhere to file the next one`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectsScreen(
                     state =
                         ProjectsUiState(
@@ -198,7 +198,7 @@ class ProjectScreensTest {
     @Test
     fun `the board draws the project's own column first and then its columns`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectScreen(
                     state =
                         ProjectBoardUiState(
@@ -235,7 +235,7 @@ class ProjectScreensTest {
     @Test
     fun `a project that is gone says so instead of drawing an empty board`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectScreen(
                     state = ProjectBoardUiState(loading = false, project = null),
                     zone = zone,
@@ -253,7 +253,7 @@ class ProjectScreensTest {
     fun `finishing the project is asked for from its actions`() {
         val done = mutableListOf<String>()
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectScreen(
                     state = ProjectBoardUiState(loading = false, project = project(1, "Website")),
                     zone = zone,
@@ -273,7 +273,7 @@ class ProjectScreensTest {
     @Test
     fun `a finished project is offered no place in the daily plan`() {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 ProjectScreen(
                     state =
                         ProjectBoardUiState(

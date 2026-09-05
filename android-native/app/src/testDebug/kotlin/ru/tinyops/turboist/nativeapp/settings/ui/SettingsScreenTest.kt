@@ -147,7 +147,7 @@ class SettingsScreenTest {
         device: DeviceOptions = DeviceOptions(),
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 SettingsScreen(
                     state = state.copy(device = device),
                     callbacks = callbacks,

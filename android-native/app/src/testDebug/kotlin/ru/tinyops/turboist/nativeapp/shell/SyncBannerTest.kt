@@ -118,7 +118,7 @@ class SyncBannerTest {
         onRetry: () -> Unit = {},
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 SyncBanner(status = status, sessionUnverified = sessionUnverified, onRetry = onRetry)
             }
         }

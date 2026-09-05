@@ -1,5 +1,6 @@
 package ru.tinyops.turboist.nativeapp.quickadd.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Inbox
@@ -31,6 +33,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -348,11 +351,29 @@ private fun AutoLabelChips(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (name in names) {
                 val reject = stringResource(R.string.dialog_quickAdd_rejectAutoLabel, name)
+                // Drawn in the accent rather than in the neutral a picked chip
+                // would take, as the web client draws them: these are the one
+                // thing on the sheet the user did not type, and they read as
+                // something to check rather than as something already agreed.
                 InputChip(
                     selected = true,
                     onClick = { onReject(name) },
                     label = { Text(name) },
+                    leadingIcon = { Icon(Icons.Outlined.AutoAwesome, contentDescription = null) },
                     trailingIcon = { Icon(Icons.Outlined.Close, contentDescription = null) },
+                    colors =
+                        InputChipDefaults.inputChipColors(
+                            selectedContainerColor =
+                                MaterialTheme.colorScheme.primary.copy(alpha = AUTO_LABEL_TINT_ALPHA),
+                            selectedLabelColor = MaterialTheme.colorScheme.primary,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTrailingIconColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    border =
+                        BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = AUTO_LABEL_BORDER_ALPHA),
+                        ),
                     modifier = Modifier.semantics { contentDescription = reject },
                 )
             }
@@ -556,3 +577,9 @@ private fun PickerRow(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).semantics { contentDescription = title },
     )
 }
+
+/** How much of the accent the auto-label chips are filled with. The web's `bg-primary/5`. */
+private const val AUTO_LABEL_TINT_ALPHA = 0.08f
+
+/** And how much their outline keeps. The web's `border-primary/40`. */
+private const val AUTO_LABEL_BORDER_ALPHA = 0.4f

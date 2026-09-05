@@ -327,7 +327,7 @@ private fun momentLabel(wireTime: String): String {
 @Preview(showBackground = true)
 @Composable
 private fun SessionsScreenPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         SessionsContent(
             state =
                 SessionsUiState(

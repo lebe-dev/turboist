@@ -71,7 +71,7 @@ class SearchScreenTest {
             val scope = rememberCoroutineScope()
             val presenter = remember(scope) { SearchPresenter(scope, repository, recent, debounceMillis = 0) }
             val state by presenter.state.collectAsStateWithLifecycle()
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 SearchScreen(
                     state = state,
                     callbacks =

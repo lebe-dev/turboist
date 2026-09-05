@@ -112,7 +112,7 @@ private fun BadgeText(text: String) {
 @Preview(showBackground = true)
 @Composable
 private fun AppDrawerContentPreview() {
-    TurboistTheme(dynamicColor = false) {
+    TurboistTheme {
         AppDrawerContent(
             counts = DrawerCounts(inbox = 3, weekPlanned = 5, weekLimit = 12),
             selected = { it == DrawerDestination.Today },

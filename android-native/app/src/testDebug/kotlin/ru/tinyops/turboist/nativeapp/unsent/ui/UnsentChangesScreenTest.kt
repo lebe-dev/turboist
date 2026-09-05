@@ -204,7 +204,7 @@ class UnsentChangesScreenTest {
         onDiscardAll: () -> Unit = {},
     ) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 UnsentChangesScreen(
                     state = state,
                     callbacks =

@@ -91,7 +91,7 @@ class TaskDetailScreenTest {
 
     private fun show(state: TaskDetailUiState) {
         compose.setContent {
-            TurboistTheme(dynamicColor = false) {
+            TurboistTheme {
                 TaskDetailScreen(
                     state = state,
                     zone = zone,
