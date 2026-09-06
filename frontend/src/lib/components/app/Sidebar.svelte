@@ -41,11 +41,11 @@
 	import { goto } from '$app/navigation';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import SidebarSection from './SidebarSection.svelte';
+	import SidebarProjectRow from './SidebarProjectRow.svelte';
 	import LabelDialog from '$lib/components/dialog/LabelDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
-	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
-	import type { TroikiCategory } from '$lib/api/types';
+	import type { Project, TroikiCategory } from '$lib/api/types';
 	import { t } from '$lib/i18n';
 
 	let labelDialogOpen = $state(false);
@@ -222,6 +222,23 @@
 		}
 	}
 
+	async function pinProject(id: number): Promise<void> {
+		try {
+			const updated = await projectsApi.pin(getApiClient(), id);
+			projectsStore.upsert(updated);
+		} catch (err) {
+			toast.error(describeError(err, $t('sidebar.failedPin')));
+		}
+	}
+
+	function togglePinProject(project: Project): void {
+		if (project.isPinned) {
+			void unpinProject(project.id);
+			return;
+		}
+		void pinProject(project.id);
+	}
+
 	async function unpinTask(id: number): Promise<void> {
 		try {
 			await tasksApi.unpin(getApiClient(), id);
@@ -392,28 +409,12 @@
 		>
 			{#each filteredProjects as project (project.id)}
 				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
-				{@const active = isActive(href)}
-				<a
+				<SidebarProjectRow
+					{project}
 					{href}
-					class="flex items-center gap-2.5 rounded-md px-2.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground md:py-1 md:text-[13px]"
-					class:bg-sidebar-accent={active}
-					class:text-foreground={active}
-				>
-					<FolderIcon
-						class="size-4 shrink-0 opacity-90 md:size-3.5"
-						style={`color: ${project.color}`}
-						weight="fill"
-					/>
-					<span class="min-w-0 break-words">
-						{project.title}{#if settingsStore.troikiEnabled && project.troikiCategory}<TroikiTriggerIcon
-								class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 md:size-2.5"
-							/>{/if}{#if project.isPrivate && !settingsStore.publicView}<span
-								class="inline-flex align-middle"
-								title={$t('common.privateTooltip')}
-								aria-label={$t('common.privateMarker')}
-							><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
-					</span>
-				</a>
+					active={isActive(href)}
+					onTogglePin={togglePinProject}
+				/>
 			{/each}
 		</SidebarSection>
 

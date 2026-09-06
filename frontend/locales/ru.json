@@ -64,8 +64,10 @@
 		"logOut": "Выйти",
 		"logOutEverywhere": "Выйти со всех устройств",
 		"unpinAria": "Открепить {name}",
+		"pinAria": "Закрепить {name}",
 		"createContextFirst": "Сначала создайте контекст",
 		"failedUnpin": "Не удалось открепить",
+		"failedPin": "Не удалось закрепить",
 		"addToAriaLabel": "Добавить в раздел {section}"
 	},
 	"topbar": {

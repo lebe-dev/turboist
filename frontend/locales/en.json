@@ -64,8 +64,10 @@
 		"logOut": "Log out",
 		"logOutEverywhere": "Log out everywhere",
 		"unpinAria": "Unpin {name}",
+		"pinAria": "Pin {name}",
 		"createContextFirst": "Create a context first",
 		"failedUnpin": "Failed to unpin",
+		"failedPin": "Failed to pin",
 		"addToAriaLabel": "Add to {section}"
 	},
 	"topbar": {
