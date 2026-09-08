@@ -689,6 +689,7 @@ async function save(): Promise<void> {
 									mutator={subtasks.mutator}
 									onToggle={(t) =>
 										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+									forceCompleted={task?.status === 'completed'}
 								/>
 							{/if}
 							{#if completedSubtasks.length > 0}

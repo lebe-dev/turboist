@@ -37,7 +37,8 @@
 		belongs,
 		onToggle,
 		onReparent,
-		visibleIds
+		visibleIds,
+		forceCompleted = false
 	}: {
 		tasks?: Task[];
 		nodes?: TaskNode[];
@@ -56,6 +57,8 @@
 		onToggle?: (task: Task) => void | Promise<void>;
 		onReparent?: (draggedId: number, targetId: number) => void;
 		visibleIds?: number[];
+		/** Ancestor task is completed: render every node in this tree as completed too. */
+		forceCompleted?: boolean;
 	} = $props();
 
 	const collapseCtx = getContext<SubtaskCollapseCtx | undefined>(SUBTASK_COLLAPSE_KEY);
@@ -127,6 +130,7 @@
 				onToggleCollapse={collapsibleSubtasks ? () => toggleCollapse(node.task.id) : undefined}
 				{onReparent}
 				visibleIds={effectiveVisibleIds}
+				forceCompleted={forceCompleted || node.task.status === 'completed'}
 			/>
 			{#if openChildren.length > 0 && !subtasksCollapsed}
 				<Self
@@ -146,6 +150,7 @@
 					{onToggle}
 					{onReparent}
 					visibleIds={effectiveVisibleIds}
+					forceCompleted={forceCompleted || node.task.status === 'completed'}
 				/>
 			{/if}
 			{#if doneChildren.length > 0 && !subtasksCollapsed}
@@ -181,6 +186,7 @@
 						{onToggle}
 						{onReparent}
 						visibleIds={effectiveVisibleIds}
+						forceCompleted={forceCompleted || node.task.status === 'completed'}
 					/>
 				{/if}
 			{/if}

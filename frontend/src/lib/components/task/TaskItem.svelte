@@ -58,7 +58,8 @@
 		subtasksCollapsed = false,
 		onToggleCollapse,
 		onReparent,
-		visibleIds
+		visibleIds,
+		forceCompleted = false
 	}: {
 		task: Task;
 		depth?: number;
@@ -76,6 +77,10 @@
 		onToggleCollapse?: () => void;
 		onReparent?: (draggedId: number, targetId: number) => void;
 		visibleIds?: number[];
+		/** Ancestor task is completed: render this row as completed too, without
+		 * touching the row's own status (used on the task detail page so subtasks
+		 * visually follow the parent's completion). */
+		forceCompleted?: boolean;
 	} = $props();
 
 	// When `onReparent` is provided, the row doubles as a drop target: dropping
@@ -184,7 +189,7 @@
 		}
 	}
 
-	const checked = $derived(task.status === 'completed');
+	const checked = $derived(task.status === 'completed' || forceCompleted);
 	// A negative id marks a task created offline and still queued in the outbox
 	// (§4.5): show an unobtrusive "awaiting send" badge until replay assigns it a
 	// real server id and the list refetches (§4.7.2). Visual only.
@@ -192,7 +197,7 @@
 	// An open task with unfinished blockers cannot be completed. Reflected here as a
 	// disabled checkbox so the refusal is visible before the click; the guard itself
 	// lives in toggleComplete (and the server enforces it independently).
-	const blocked = $derived(isBlocked(task) && task.status !== 'completed');
+	const blocked = $derived(isBlocked(task) && task.status !== 'completed' && !forceCompleted);
 	const relationCount = $derived(task.relationCount ?? 0);
 	const project = $derived(
 		task.projectId ? projectsStore.items.find((p) => p.id === task.projectId) : null
