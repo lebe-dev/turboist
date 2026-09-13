@@ -211,17 +211,17 @@ func (p *Processor) runOnce(ctx context.Context, manual bool) (RunSummary, bool)
 	}
 
 	summary, err := p.process(ctx, now)
-	if err != nil && ctx.Err() != nil {
-		// Shutdown in the middle of a run is not a provider problem.
-		return summary, true
-	}
-	p.finish(ctx, now, summary, err)
 	if summary.Sorted > 0 && p.d.Hub != nil {
 		// No origin: this change has no originating tab, every client refetches.
 		for _, scope := range []events.Scope{events.ScopeTasks, events.ScopeInbox, events.ScopePlan} {
 			p.d.Hub.Publish(ctx, userID, scope)
 		}
 	}
+	if err != nil && ctx.Err() != nil {
+		// Shutdown in the middle of a run is not a provider problem.
+		return summary, true
+	}
+	p.finish(ctx, now, summary, err)
 	return summary, true
 }
 
