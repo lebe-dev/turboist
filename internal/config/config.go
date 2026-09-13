@@ -175,7 +175,33 @@ type Env struct {
 	SentryDSN         string
 	SentryFrontendDSN string
 	SentryEnvironment string
+
+	// InboxProcessing configures the background job that files Inbox tasks into
+	// projects through an OpenAI-compatible LLM. Off unless explicitly enabled.
+	InboxProcessing InboxProcessing
 }
+
+// InboxProcessing is the env-sourced configuration of the LLM Inbox triage job.
+// The API key never leaves the server: it is neither logged nor returned by any
+// endpoint.
+type InboxProcessing struct {
+	Enabled    bool
+	Interval   time.Duration
+	APIURL     string
+	APIKey     string
+	Model      string
+	BatchLimit int
+	Timeout    time.Duration
+}
+
+const (
+	defaultInboxProcessingInterval   = 3 * time.Minute
+	minInboxProcessingInterval       = 30 * time.Second
+	defaultInboxProcessingAPIURL     = "https://openrouter.ai/api/v1"
+	defaultInboxProcessingBatchLimit = 10
+	maxInboxProcessingBatchLimit     = 100
+	defaultInboxProcessingTimeout    = 60 * time.Second
+)
 
 func LoadEnv() (*Env, error) {
 	e := &Env{
@@ -236,7 +262,78 @@ func LoadEnv() (*Env, error) {
 		return nil, err
 	}
 
+	inboxProcessing, err := loadInboxProcessing()
+	if err != nil {
+		return nil, err
+	}
+	e.InboxProcessing = inboxProcessing
+
 	return e, nil
+}
+
+// loadInboxProcessing reads the INBOX_PROCESSING_* variables. Enabling the job
+// without a key or a model is a startup error rather than a silent no-op: the
+// operator explicitly asked for the feature.
+func loadInboxProcessing() (InboxProcessing, error) {
+	ip := InboxProcessing{
+		Interval:   defaultInboxProcessingInterval,
+		APIURL:     defaultInboxProcessingAPIURL,
+		APIKey:     strings.TrimSpace(os.Getenv("INBOX_PROCESSING_API_KEY")),
+		Model:      strings.TrimSpace(os.Getenv("INBOX_PROCESSING_MODEL")),
+		BatchLimit: defaultInboxProcessingBatchLimit,
+		Timeout:    defaultInboxProcessingTimeout,
+	}
+	if v := os.Getenv("INBOX_PROCESSING_ENABLED"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return ip, fmt.Errorf("env: INBOX_PROCESSING_ENABLED must be a boolean")
+		}
+		ip.Enabled = enabled
+	}
+	if v := os.Getenv("INBOX_PROCESSING_INTERVAL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return ip, fmt.Errorf("env: INBOX_PROCESSING_INTERVAL must be a valid duration (e.g. \"3m\"): %w", err)
+		}
+		if d < minInboxProcessingInterval {
+			return ip, fmt.Errorf("env: INBOX_PROCESSING_INTERVAL must be at least %s", minInboxProcessingInterval)
+		}
+		ip.Interval = d
+	}
+	if v := strings.TrimSpace(os.Getenv("INBOX_PROCESSING_API_URL")); v != "" {
+		u, err := url.Parse(v)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return ip, fmt.Errorf("env: INBOX_PROCESSING_API_URL must be an absolute http(s) URL")
+		}
+		ip.APIURL = strings.TrimRight(v, "/")
+	}
+	if v := os.Getenv("INBOX_PROCESSING_BATCH_LIMIT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxInboxProcessingBatchLimit {
+			return ip, fmt.Errorf("env: INBOX_PROCESSING_BATCH_LIMIT must be an integer between 1 and %d", maxInboxProcessingBatchLimit)
+		}
+		ip.BatchLimit = n
+	}
+	if v := os.Getenv("INBOX_PROCESSING_TIMEOUT"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return ip, fmt.Errorf("env: INBOX_PROCESSING_TIMEOUT must be a valid duration (e.g. \"60s\"): %w", err)
+		}
+		if d <= 0 {
+			return ip, fmt.Errorf("env: INBOX_PROCESSING_TIMEOUT must be a positive duration")
+		}
+		ip.Timeout = d
+	}
+	if !ip.Enabled {
+		return ip, nil
+	}
+	if ip.APIKey == "" {
+		return ip, fmt.Errorf("env: INBOX_PROCESSING_API_KEY is required when INBOX_PROCESSING_ENABLED=true")
+	}
+	if ip.Model == "" {
+		return ip, fmt.Errorf("env: INBOX_PROCESSING_MODEL is required when INBOX_PROCESSING_ENABLED=true")
+	}
+	return ip, nil
 }
 
 // applyWebAuthnDefaults derives the Relying Party ID and the allowed origin

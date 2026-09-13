@@ -303,3 +303,108 @@ func TestLoadEnv_WebAuthnRejectsHostlessBaseURL(t *testing.T) {
 		t.Fatal("load env: got nil error, want a rejection of a BASE_URL with no host")
 	}
 }
+
+func TestLoadEnv_InboxProcessing_Defaults(t *testing.T) {
+	setupEnvBase(t)
+	for _, k := range []string{"INBOX_PROCESSING_ENABLED", "INBOX_PROCESSING_INTERVAL", "INBOX_PROCESSING_API_URL",
+		"INBOX_PROCESSING_API_KEY", "INBOX_PROCESSING_MODEL", "INBOX_PROCESSING_BATCH_LIMIT", "INBOX_PROCESSING_TIMEOUT"} {
+		t.Setenv(k, "")
+	}
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("load env: %v", err)
+	}
+	ip := e.InboxProcessing
+	if ip.Enabled {
+		t.Errorf("enabled: got true, want false")
+	}
+	if ip.Interval != 3*time.Minute {
+		t.Errorf("interval: got %v, want 3m", ip.Interval)
+	}
+	if ip.APIURL != "https://openrouter.ai/api/v1" {
+		t.Errorf("api url: got %q, want the OpenRouter default", ip.APIURL)
+	}
+	if ip.BatchLimit != 10 {
+		t.Errorf("batch limit: got %d, want 10", ip.BatchLimit)
+	}
+	if ip.Timeout != 60*time.Second {
+		t.Errorf("timeout: got %v, want 60s", ip.Timeout)
+	}
+}
+
+func TestLoadEnv_InboxProcessing_EnabledWithoutKeyFails(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("INBOX_PROCESSING_ENABLED", "true")
+	t.Setenv("INBOX_PROCESSING_API_KEY", "")
+	t.Setenv("INBOX_PROCESSING_MODEL", "openai/gpt-4.1-mini")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "INBOX_PROCESSING_API_KEY") {
+		t.Fatalf("got %v, want an INBOX_PROCESSING_API_KEY error", err)
+	}
+}
+
+func TestLoadEnv_InboxProcessing_EnabledWithoutModelFails(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("INBOX_PROCESSING_ENABLED", "true")
+	t.Setenv("INBOX_PROCESSING_API_KEY", "sk-test")
+	t.Setenv("INBOX_PROCESSING_MODEL", "")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "INBOX_PROCESSING_MODEL") {
+		t.Fatalf("got %v, want an INBOX_PROCESSING_MODEL error", err)
+	}
+}
+
+func TestLoadEnv_InboxProcessing_Enabled(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("INBOX_PROCESSING_ENABLED", "true")
+	t.Setenv("INBOX_PROCESSING_API_KEY", "sk-test")
+	t.Setenv("INBOX_PROCESSING_MODEL", "openai/gpt-4.1-mini")
+	t.Setenv("INBOX_PROCESSING_INTERVAL", "45s")
+	t.Setenv("INBOX_PROCESSING_API_URL", "https://api.example.com/v1/")
+	t.Setenv("INBOX_PROCESSING_BATCH_LIMIT", "25")
+	t.Setenv("INBOX_PROCESSING_TIMEOUT", "20s")
+	e, err := LoadEnv()
+	if err != nil {
+		t.Fatalf("load env: %v", err)
+	}
+	ip := e.InboxProcessing
+	if !ip.Enabled || ip.APIKey != "sk-test" || ip.Model != "openai/gpt-4.1-mini" {
+		t.Errorf("got %+v, want enabled with key and model", ip)
+	}
+	if ip.Interval != 45*time.Second || ip.BatchLimit != 25 || ip.Timeout != 20*time.Second {
+		t.Errorf("got %+v, want interval 45s, batch 25, timeout 20s", ip)
+	}
+	if ip.APIURL != "https://api.example.com/v1" {
+		t.Errorf("api url: got %q, want the trailing slash trimmed", ip.APIURL)
+	}
+}
+
+func TestLoadEnv_InboxProcessing_IntervalTooShort(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("INBOX_PROCESSING_INTERVAL", "10s")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "INBOX_PROCESSING_INTERVAL") {
+		t.Fatalf("got %v, want an INBOX_PROCESSING_INTERVAL error", err)
+	}
+}
+
+func TestLoadEnv_InboxProcessing_BadURL(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("INBOX_PROCESSING_API_URL", "openrouter.ai/api")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "INBOX_PROCESSING_API_URL") {
+		t.Fatalf("got %v, want an INBOX_PROCESSING_API_URL error", err)
+	}
+}
+
+func TestLoadEnv_InboxProcessing_BadBatchLimit(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("INBOX_PROCESSING_BATCH_LIMIT", "101")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "INBOX_PROCESSING_BATCH_LIMIT") {
+		t.Fatalf("got %v, want an INBOX_PROCESSING_BATCH_LIMIT error", err)
+	}
+}
+
+func TestLoadEnv_InboxProcessing_BadTimeout(t *testing.T) {
+	setupEnvBase(t)
+	t.Setenv("INBOX_PROCESSING_TIMEOUT", "-1s")
+	if _, err := LoadEnv(); err == nil || !strings.Contains(err.Error(), "INBOX_PROCESSING_TIMEOUT") {
+		t.Fatalf("got %v, want an INBOX_PROCESSING_TIMEOUT error", err)
+	}
+}
