@@ -44,6 +44,7 @@ function baseTask(id: number, now: string): Task {
 		sourceTaskId: null,
 		postponeCount: 0,
 		autoSortedAt: null,
+		autoSortUndecidedAt: null,
 		labels: [],
 		// A task we know nothing about is treated as unblocked: this stand-in is only
 		// reached when the real task is not in cache, and the enqueue guard has already

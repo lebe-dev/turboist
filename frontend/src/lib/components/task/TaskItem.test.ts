@@ -30,6 +30,7 @@ function task(overrides: Partial<Task> = {}): Task {
 		sourceTaskId: null,
 		postponeCount: 0,
 		autoSortedAt: null,
+		autoSortUndecidedAt: null,
 		blockedByCount: 0,
 		relationCount: 0,
 		labels: [],
@@ -49,6 +50,16 @@ describe('TaskItem auto-sorted marker', () => {
 
 	it('shows no marker for a task placed by a person', () => {
 		render(TaskItem, { props: { task: task() } });
+		expect(screen.queryByTestId('task-auto-sorted')).toBeNull();
+	});
+
+	it('shows the undecided marker for a task the model could not place', () => {
+		render(TaskItem, {
+			props: {
+				task: task({ inboxId: 1, contextId: null, autoSortUndecidedAt: '2026-09-13T10:00:00.000Z' })
+			}
+		});
+		expect(screen.getByTestId('task-auto-sort-undecided')).toBeTruthy();
 		expect(screen.queryByTestId('task-auto-sorted')).toBeNull();
 	});
 });

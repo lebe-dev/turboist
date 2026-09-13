@@ -118,21 +118,15 @@ func (p *Processor) apply(ctx context.Context, now time.Time, catalogue *Catalog
 	return model.InboxOutcomeSorted, nil
 }
 
-// keep leaves the task in the Inbox and remembers the wording it was kept for.
+// keep leaves the task in the Inbox and marks it undecided, so later runs do not
+// ask the model about it again until it is reworded or moved.
 func (p *Processor) keep(ctx context.Context, now time.Time, item PendingItem, modelName string,
 	completion Completion, v Verdict) (model.InboxOutcome, error) {
 	const op = "inboxproc.Processor.keep"
 	task := item.Task
-	if err := p.d.State.UpsertState(ctx, model.InboxProcessingState{
-		TaskID:      task.ID,
-		Fingerprint: model.InboxFingerprint(task.Title, task.Description),
-		Status:      model.InboxStateKept,
-		UpdatedAt:   now,
-	}); err != nil {
-		if isGone(err) {
-			return "", nil
-		}
-		return "", fmt.Errorf("store kept state: %w", err)
+	marked, err := p.markUndecided(ctx, now, item, modelName)
+	if err != nil || !marked {
+		return "", err
 	}
 	confidence := v.Confidence
 	entry := p.logEntry(now, &task, model.InboxOutcomeKept, modelName, completion)
@@ -148,10 +142,79 @@ func (p *Processor) keep(ctx context.Context, now time.Time, item PendingItem, m
 		slog.Int64("journal_id", journalID),
 		slog.Int64("task_id", task.ID),
 		slog.String("task_title", task.Title),
+		slog.Bool("marked_undecided", true),
 		slog.Float64("confidence", v.Confidence),
 		slog.String("reason", v.Reason),
 		slog.String("model", modelName))
 	return model.InboxOutcomeKept, nil
+}
+
+// undecided records an answer that named no usable project (an unknown id, or a
+// sort without one). Retrying the same wording is not expected to help, so the
+// task is marked undecided instead of being scheduled for another attempt.
+func (p *Processor) undecided(ctx context.Context, now time.Time, item PendingItem, modelName string,
+	completion Completion, decision Decision, cause error) (model.InboxOutcome, error) {
+	const op = "inboxproc.Processor.undecided"
+	task := item.Task
+	marked, err := p.markUndecided(ctx, now, item, modelName)
+	if err != nil || !marked {
+		return "", err
+	}
+	msg := truncate(cause.Error(), maxStoredError)
+	confidence := decision.Confidence
+	entry := p.logEntry(now, &task, model.InboxOutcomeFailed, modelName, completion)
+	entry.Before = beforeOf(&task)
+	entry.Reason = decision.Reason
+	entry.Confidence = &confidence
+	entry.Error = &msg
+	journalID, err := p.d.State.AppendLog(ctx, entry)
+	if err != nil {
+		p.log.ErrorContext(ctx, "inbox processing could not journal an undecided task", slog.String("op", op),
+			slog.Int64("task_id", task.ID), slog.String("err", err.Error()))
+	}
+	p.log.WarnContext(ctx, "inbox processing could not pick a project for a task", slog.String("op", op),
+		slog.Int64("journal_id", journalID),
+		slog.Int64("task_id", task.ID),
+		slog.String("task_title", task.Title),
+		slog.Bool("marked_undecided", true),
+		slog.Float64("confidence", decision.Confidence),
+		slog.String("reason", decision.Reason),
+		slog.String("model", modelName),
+		slog.String("err", msg))
+	return model.InboxOutcomeFailed, nil
+}
+
+// markUndecided stamps auto_sort_undecided_at on the task the model looked at.
+// A task that left the Inbox or was reworded during the request is not marked:
+// the answer was about wording the task no longer has.
+func (p *Processor) markUndecided(ctx context.Context, now time.Time, item PendingItem, modelName string) (bool, error) {
+	const op = "inboxproc.Processor.markUndecided"
+	current, err := p.d.Tasks.Get(ctx, item.Task.ID)
+	if errors.Is(err, repo.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("reload task: %w", err)
+	}
+	if current.InboxID == nil || current.Status != model.TaskStatusOpen ||
+		model.InboxFingerprint(current.Title, current.Description) != model.InboxFingerprint(item.Task.Title, item.Task.Description) {
+		p.log.InfoContext(ctx, "inbox processing skipped a task changed during the request", slog.String("op", op),
+			slog.Int64("task_id", current.ID), slog.String("task_title", current.Title), slog.String("model", modelName))
+		return false, nil
+	}
+	if _, err := p.d.Tasks.Update(ctx, current.ID, repo.TaskUpdate{AutoSortUndecidedAt: &now}); err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("mark task undecided: %w", err)
+	}
+	// The mark on the task is now the processor's memory; an older kept or
+	// failed row would only confuse the next look at a reworded task.
+	if err := p.d.State.DeleteState(ctx, current.ID); err != nil {
+		p.log.ErrorContext(ctx, "inbox processing could not clear task state", slog.String("op", op),
+			slog.Int64("task_id", current.ID), slog.String("err", err.Error()))
+	}
+	return true, nil
 }
 
 // fail records a decision that could not be made or applied and schedules the

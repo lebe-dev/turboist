@@ -67,7 +67,9 @@ resumes the schedule from the next tick.
    processing is paused.
 2. It picks up to `INBOX_PROCESSING_BATCH_LIMIT` open Inbox tasks, oldest first, that still need a
    decision: tasks never looked at, tasks edited since the last decision, and failed tasks whose
-   retry time has come. When there are none, the run ends without touching the provider.
+   retry time has come. Tasks marked **could not be filed** are skipped. When nothing qualifies —
+   including an empty Inbox — there is no run at all: the provider is not called, **Last run** does
+   not change, and a manual **Process now** is refused.
 3. Each task is sent as its own request (one malformed answer never affects other tasks). The system
    message is your prompt followed by the fixed answer format; the user message is the task as JSON:
 
@@ -99,10 +101,14 @@ without it. Markdown fences or a sentence around the JSON are tolerated.
 
 ### Validation and applying
 
-- `keep`, or a `confidence` below `0.5`, leaves the task in the Inbox. It is not sent again until you
-  edit its title or description.
-- A `projectId` that is not an open project is a model error: the task is marked failed and retried
-  later.
+- `keep`, or a `confidence` below `0.5`, leaves the task in the Inbox and marks it **could not be
+  filed** (`autoSortUndecidedAt`).
+- A `projectId` that is not an open project, or `sort` without a project, is journaled as failed and
+  marks the task the same way — the model could not name a place for it.
+- A task marked **could not be filed** is never sent to the model again. Editing its title or
+  description, or moving it anywhere (including back into the Inbox), removes the mark and gives it a
+  fresh look. In the task lists it shows a question-seal icon; **Settings → Inbox** shows how many
+  such tasks are waiting.
 - Unknown label ids are dropped. Labels are only ever **added** — labels already on the task (for
   example from auto-label rules) stay.
 - A priority outside the allowed values is ignored. A project that sits in a daily-plan (Troiki)
@@ -119,8 +125,8 @@ the task yourself removes the marker: from then on the placement is your decisio
 
 ### Failures and retries
 
-- **One task fails** (unparseable answer, unknown project, a request the provider refused because of
-  this task): the task is retried after `interval`, `2×interval`, `4×interval`, `8×interval`. After
+- **One task fails** for a technical reason (unparseable answer, a request the provider refused because
+  of this task): the task is retried after `interval`, `2×interval`, `4×interval`, `8×interval`. After
   five failed attempts it waits until you edit it.
 - **The provider fails** (rate limit, 5xx, network error, timeout, rejected key or unknown model): the
   run stops, no task is charged an attempt, and the scheduled runs pause for
@@ -184,8 +190,8 @@ be reverted only once.
 
 | Endpoint | Scope | Description |
 |---|---|---|
-| `GET /api/v1/inbox/processing` | `settings:read` | Status: `enabled`, `model`, `apiHost`, `interval`, `batchLimit`, `running`, `pendingCount`, `lastRunAt`, `lastRunSummary`, `lastError`, `backoffUntil`, `paused`, `defaultPrompt` |
-| `POST /api/v1/inbox/processing/run` | `tasks:write` | Queue an immediate run: `202 {"running": true}`, or `409 inbox_processing_disabled` |
+| `GET /api/v1/inbox/processing` | `settings:read` | Status: `enabled`, `model`, `apiHost`, `interval`, `batchLimit`, `running`, `pendingCount`, `undecidedCount`, `lastRunAt`, `lastRunSummary`, `lastError`, `backoffUntil`, `paused`, `defaultPrompt` |
+| `POST /api/v1/inbox/processing/run` | `tasks:write` | Queue an immediate run: `202 {"running": true}`; `409 inbox_processing_disabled`, or `409 inbox_processing_nothing_pending` when no task needs a decision |
 | `POST /api/v1/inbox/processing/preview` | `settings:read` | `{"prompt": "…"}` renders that text (empty string = the default); no body renders the saved prompt. `422` with `details.error` for a broken template |
 | `GET /api/v1/inbox/processing/log?limit&offset` | `tasks:read` | Journal, newest first, standard paged envelope |
 | `POST /api/v1/inbox/processing/log/:id/revert` | `tasks:write` | Return the task to the Inbox; answers with the task. `404`, `409 conflict`, `422 forbidden_placement` |
@@ -208,7 +214,8 @@ The saved prompt and the pause are part of the app settings payload as `inboxPro
   |---|---|---|
   | `inbox processing run started` | INFO | `pending`, `batch_limit`, `model` |
   | `inbox processing filed a task` | INFO | `journal_id`, `task_id`, `task_title`, `from`, `context_id`, `context`, `project_id`, `project`, `labels_added`, `labels` (all labels after filing), `priority`, `due_date` (date, RFC 3339 when it has a time, `""` when none), `confidence`, `reason`, `model` |
-  | `inbox processing kept a task in the inbox` | INFO | `journal_id`, `task_id`, `task_title`, `confidence`, `reason`, `model` |
+  | `inbox processing kept a task in the inbox` | INFO | `journal_id`, `task_id`, `task_title`, `marked_undecided`, `confidence`, `reason`, `model` |
+  | `inbox processing could not pick a project for a task` | WARN | `journal_id`, `task_id`, `task_title`, `marked_undecided`, `confidence`, `reason`, `model`, `err` |
   | `inbox processing could not decide on a task` | WARN | `journal_id`, `task_id`, `task_title`, `attempts`, `next_attempt_at` (`""` = waits for an edit), `model`, `err` |
   | `inbox processing skipped a task changed during the request` | INFO | `task_id`, `task_title`, `model` |
   | `inbox processing ignored part of the answer` | WARN | `task_id`, `warning` (unknown label, invalid priority, past due date) |
@@ -217,16 +224,17 @@ The saved prompt and the pause are part of the app settings payload as `inboxPro
   | `inbox processing paused after a provider failure` | WARN | `err`, `pause` |
 
   Task titles, project and label names appear in the log in clear text. Set `LOG_LEVEL=debug` to also
-  see skipped runs (paused, provider backoff, a run already in flight) and the `response_format` retry.
+  see skipped runs (nothing to process, paused, provider backoff, a run already in flight) and the `response_format` retry.
 - A journal row with outcome **failed** carries the exact error; a model that keeps answering in
   prose shows up there as `no JSON object in the answer`.
 
 ## Storage
 
-- `tasks.auto_sorted_at` — the marker. It travels to native replicas through the ordinary task change.
+- `tasks.auto_sorted_at` — the **Filed by AI** marker, and `tasks.auto_sort_undecided_at` — the
+  **could not be filed** mark. Both travel to native replicas through the ordinary task change.
 - `inbox_processing_state` — the processor's memory about tasks still in the Inbox (kept, failed with
   retry schedule, reverted). Rows of tasks that left the Inbox are pruned daily.
 - `inbox_processing_log` — the journal, pruned after 90 days.
 
 Neither table is replicated to native clients or included in backups; a backup does carry each task's
-`autoSortedAt`.
+`autoSortedAt` and `autoSortUndecidedAt`.

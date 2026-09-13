@@ -157,6 +157,9 @@ export interface Task {
 	// Set when the LLM Inbox processor filed the task out of the Inbox; null when
 	// a person placed it. Any manual move clears it.
 	autoSortedAt: string | null;
+	// Set when the Inbox processor looked at the task but could not pick a project;
+	// such a task is not sent again until it is reworded or moved.
+	autoSortUndecidedAt: string | null;
 
 	labels: Label[];
 
@@ -554,6 +557,7 @@ export interface InboxProcessingStatus {
 	batchLimit: number;
 	running: boolean;
 	pendingCount: number;
+	undecidedCount: number;
 	lastRunAt: string | null;
 	lastRunSummary: InboxProcessingRunSummary | null;
 	lastError: string | null;

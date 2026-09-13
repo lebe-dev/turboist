@@ -131,18 +131,18 @@ func TestInboxProcessing_RunSortsAndRevert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
-	// Let the loop's start-up pass (empty Inbox) finish first.
-	waitUntil(t, func() bool { return e.processor.Status().LastRunAt != nil })
-
 	task := seedProcessingInboxTask(t, e, "Plant tulips")
 	llm.set(`{"action":"sort","projectId":` + strconv.FormatInt(p.ID, 10) + `,"confidence":0.9,"reason":"garden"}`)
 	ch, cancel := e.eventsHub.Subscribe(1)
 	defer cancel()
 
+	// Queued before the loop exists, so the answer is deterministic: the start-up
+	// pass files the task and the queued manual run then finds nothing to do.
 	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/inbox/processing/run", nil))
 	if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"running":true`) {
 		t.Fatalf("run: got %d %s, want 202 running", resp.StatusCode, body)
 	}
+	startInboxLoop(t, e)
 	waitUntil(t, func() bool {
 		got, err := e.tasks.Get(ctx, task.ID)
 		return err == nil && got.AutoSortedAt != nil
@@ -390,5 +390,34 @@ func TestInboxProcessing_PutPaused(t *testing.T) {
 	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPut, "/api/v1/app-settings/inbox-processing", map[string]any{}))
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("empty body: got %d %s, want 400", resp.StatusCode, body)
+	}
+}
+
+func TestInboxProcessing_RunWithNothingPending(t *testing.T) {
+	e := buildAPIEnvWithInboxProcessing(t, &scriptedClassifier{content: `{"action":"keep","confidence":1}`})
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/inbox/processing/run", nil))
+	if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), "inbox_processing_nothing_pending") {
+		t.Fatalf("run on an empty Inbox: got %d %s, want 409 inbox_processing_nothing_pending", resp.StatusCode, body)
+	}
+
+	task := seedProcessingInboxTask(t, e, "hmm")
+	at := time.Now()
+	if _, err := e.tasks.Update(context.Background(), task.ID, repo.TaskUpdate{AutoSortUndecidedAt: &at}); err != nil {
+		t.Fatalf("mark: %v", err)
+	}
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/inbox/processing/run", nil))
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("run with only undecided tasks: got %d %s, want 409", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/inbox/processing", nil))
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"pendingCount":0`) ||
+		!strings.Contains(string(body), `"undecidedCount":1`) {
+		t.Errorf("status: got %d %s, want pending 0 and undecided 1", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/tasks/"+strconv.FormatInt(task.ID, 10), nil))
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"autoSortUndecidedAt":"`) {
+		t.Errorf("task: got %d %s, want autoSortUndecidedAt set", resp.StatusCode, body)
 	}
 }

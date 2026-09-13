@@ -112,6 +112,7 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `sync_epoch_mismatch` | 409 |
 | `sync_cursor_expired` | 410 |
 | `inbox_processing_disabled` | 409 |
+| `inbox_processing_nothing_pending` | 409 |
 | `CodeInternalError` | 500 |
 
 #### `403 Forbidden`
@@ -918,6 +919,7 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
   "recurrenceRule": null,
   "postponeCount": 0,
   "autoSortedAt": null,
+  "autoSortUndecidedAt": null,
   "labels": [{ "id": 3, "name": "bug", "color": "red", "isFavourite": false, "isPrivate": false, "createdAt": "...", "updatedAt": "..." }],
   "blockedByCount": 0,
   "relationCount": 0,
@@ -931,7 +933,9 @@ A task belongs to exactly one placement: `inboxId`, `contextId`, `projectId`, or
 
 `blockedByCount` is how many still-open tasks block this one (see [Task Relations](#task-relations)); a non-zero value means completion is refused with `task_blocked`. It includes blockers **inherited from ancestor tasks** — a subtask of a blocked task is blocked too — so a subtask can report `blockedByCount: 1` with `relationCount: 0`. `relationCount` is every relation touching the task itself, both directions and both types. Both are present on **every** task-returning endpoint — the single get, all list and view endpoints, and `GET /api/v1/config`'s `pinnedTasks` — so a client never has to ask separately whether a task is blocked.
 
-`autoSortedAt` is set when the LLM Inbox processor filed the task out of the Inbox (see [Inbox processing](#inbox-processing-1)) and `null` when a person placed it. Any manual move clears it.
+`autoSortedAt` is set when the LLM Inbox processor filed the task out of the Inbox (see [Inbox processing](#inbox-processing-1)) and `null` when a person placed it. Any manual move clears it. `autoSortUndecidedAt` is set when the
+processor looked at an Inbox task but could not pick a project; such a task is not sent to the model
+again until its title or description changes or it is moved, which clears the field.
 
 `relations` is present only where noted below (`GET /api/v1/tasks/:id?relations=true` and the two relation mutations).
 
@@ -2306,6 +2310,7 @@ listed under [Endpoint → Scope Mapping](#endpoint--scope-mapping).
   "batchLimit": 10,
   "running": false,
   "pendingCount": 3,
+  "undecidedCount": 1,
   "lastRunAt": "2026-09-13T10:00:00.000Z",
   "lastRunSummary": { "sorted": 2, "kept": 1, "failed": 0 },
   "lastError": null,
@@ -2315,7 +2320,8 @@ listed under [Endpoint → Scope Mapping](#endpoint--scope-mapping).
 }
 ```
 
-`pendingCount` is how many open Inbox tasks are waiting for a decision. `lastRunAt`,
+`pendingCount` is how many open Inbox tasks are waiting for a decision; `undecidedCount` is how many
+the processor could not place (`autoSortUndecidedAt` set) and will not retry. `lastRunAt`,
 `lastRunSummary`, `lastError` and `backoffUntil` live in memory and reset on restart; `backoffUntil`
 is set while scheduled runs pause after a provider failure. `paused` is the persistent pause set from
 the settings page (see `PUT /api/v1/app-settings/inbox-processing`). The API key is never part of the
@@ -2325,7 +2331,7 @@ response.
 
 Queues an immediate run and returns at once — `202 {"running": true}`. Poll the status until
 `running` is `false`. A manual run ignores both a provider pause and the settings pause. `409 inbox_processing_disabled` when the
-feature is off. Does not emit an SSE invalidation itself; the processor publishes `tasks`, `inbox` and
+feature is off, `409 inbox_processing_nothing_pending` when `pendingCount` is `0`. Does not emit an SSE invalidation itself; the processor publishes `tasks`, `inbox` and
 `plan` once it has filed a task.
 
 ### `POST /api/v1/inbox/processing/preview`

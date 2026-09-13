@@ -13,6 +13,7 @@ export type ApiErrorCode =
 	| 'recurrence_invalid'
 	| 'calendar_reauth_required'
 	| 'inbox_processing_disabled'
+	| 'inbox_processing_nothing_pending'
 	| 'internal_error'
 	| 'network_error'
 	| 'unknown_error';

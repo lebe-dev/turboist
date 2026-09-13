@@ -29,6 +29,7 @@ const (
 	CodeSyncEpochMismatch      = "sync_epoch_mismatch"
 	CodeSyncCursorExpired      = "sync_cursor_expired"
 	CodeInboxProcessingOff     = "inbox_processing_disabled"
+	CodeInboxNothingPending    = "inbox_processing_nothing_pending"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -141,6 +142,13 @@ func ErrIdempotencyInFlight() *AppError {
 // installation where INBOX_PROCESSING_ENABLED is not set.
 func ErrInboxProcessingDisabled() *AppError {
 	return newErr(409, CodeInboxProcessingOff, "inbox processing is disabled")
+}
+
+// ErrInboxNothingPending refuses a manual Inbox processing run when no open Inbox
+// task needs a decision — an empty Inbox, or only tasks the processor already
+// kept or could not place.
+func ErrInboxNothingPending() *AppError {
+	return newErr(409, CodeInboxNothingPending, "nothing in the inbox to process")
 }
 
 func ErrInternal(msg string) *AppError {

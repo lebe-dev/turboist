@@ -6,6 +6,7 @@
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
+	import SealQuestionIcon from 'phosphor-svelte/lib/SealQuestion';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
@@ -574,7 +575,7 @@ async function save(): Promise<void> {
 							}}
 							class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
 						>
-							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task?.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-2 inline-block size-5 text-red-500" weight="fill" /></span>{/if}{#if task?.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortedTooltip')} aria-label={$t('task.autoSortedMarker')}><SparkleIcon class="ml-2 inline-block size-4 text-violet-500/70" weight="fill" /></span>{/if}
+							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task?.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-2 inline-block size-5 text-red-500" weight="fill" /></span>{/if}{#if task?.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortedTooltip')} aria-label={$t('task.autoSortedMarker')}><SparkleIcon class="ml-2 inline-block size-4 text-violet-500/70" weight="fill" /></span>{/if}{#if task?.autoSortUndecidedAt && !task?.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortUndecidedTooltip')} aria-label={$t('task.autoSortUndecidedMarker')}><SealQuestionIcon class="ml-2 inline-block size-4 text-muted-foreground/60" /></span>{/if}
 						</div>
 					{:else}
 						<textarea

@@ -63,7 +63,8 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 }
 
 // buildAPIEnvWithInboxProcessing wires an enabled Inbox processor answering from
-// llm, with its background loop running for the lifetime of the test.
+// llm. Its background loop is not running until startInboxLoop, so a test can
+// seed the Inbox before the start-up pass sees it.
 func buildAPIEnvWithInboxProcessing(t *testing.T, llm inboxproc.Classifier) *apiEnv {
 	t.Helper()
 	return buildAPIEnv(t, makeTestConfig(), llm)
@@ -183,21 +184,6 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 	calendarHandler.RegisterPublic(app)
 	calendarHandler.Register(api.Group("/calendars"))
 
-	if inboxLLM != nil {
-		runCtx, stop := context.WithCancel(context.Background())
-		stopped := make(chan struct{})
-		go func() {
-			processor.Run(runCtx)
-			close(stopped)
-		}()
-		// Registered after the DB close, so it runs first: the loop is gone
-		// before its database is.
-		t.Cleanup(func() {
-			stop()
-			<-stopped
-		})
-	}
-
 	return &apiEnv{
 		app:          app,
 		db:           d,
@@ -236,6 +222,23 @@ func newTestPasskeyService(t *testing.T, creds *repo.WebAuthnRepo, users *repo.U
 		t.Fatalf("passkey service: %v", err)
 	}
 	return svc
+}
+
+// startInboxLoop runs the processor's background loop until the test ends.
+func startInboxLoop(t *testing.T, e *apiEnv) {
+	t.Helper()
+	runCtx, stop := context.WithCancel(context.Background())
+	stopped := make(chan struct{})
+	go func() {
+		e.processor.Run(runCtx)
+		close(stopped)
+	}()
+	// Registered after the DB close, so it runs first: the loop is gone before
+	// its database is.
+	t.Cleanup(func() {
+		stop()
+		<-stopped
+	})
 }
 
 func (e *apiEnv) token(t *testing.T) string {

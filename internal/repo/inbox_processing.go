@@ -34,7 +34,7 @@ type PendingInboxTask struct {
 
 // ListPending returns up to limit open Inbox tasks that need a decision, oldest
 // first: tasks never looked at, tasks edited since the last decision, and failed
-// tasks whose retry time has come. The Inbox is small by design, so the filter
+// tasks whose retry time has come. Tasks marked undecided never qualify. The Inbox is small by design, so the filter
 // runs in Go over the whole of it.
 func (r *InboxProcessingRepo) ListPending(ctx context.Context, now time.Time, limit int) ([]PendingInboxTask, error) {
 	const op = "repo.inbox_processing.ListPending"
@@ -105,6 +105,9 @@ func (r *InboxProcessingRepo) pending(ctx context.Context, now time.Time) ([]Pen
 	}
 	out := make([]PendingInboxTask, 0, len(tasks))
 	for _, t := range tasks {
+		if t.AutoSortUndecidedAt != nil {
+			continue
+		}
 		st, ok := states[t.ID]
 		if !ok {
 			out = append(out, PendingInboxTask{Task: t})
@@ -119,6 +122,20 @@ func (r *InboxProcessingRepo) pending(ctx context.Context, now time.Time) ([]Pen
 		}
 	}
 	return out, nil
+}
+
+// UndecidedCount is how many open Inbox tasks the processor gave up on because it
+// could not pick a project.
+func (r *InboxProcessingRepo) UndecidedCount(ctx context.Context) (int, error) {
+	const op = "repo.inbox_processing.UndecidedCount"
+	logQuery(ctx, op)
+	var n int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks
+		 WHERE inbox_id IS NOT NULL AND status = 'open' AND auto_sort_undecided_at IS NOT NULL`).Scan(&n); err != nil {
+		return 0, logErr(ctx, op, fmt.Errorf("count undecided inbox tasks: %w", err))
+	}
+	return n, nil
 }
 
 // OldestInboxTask returns the open Inbox task captured first, with labels. It is

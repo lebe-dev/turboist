@@ -54,6 +54,7 @@ function task(id: number, over: Partial<Task> = {}): Task {
 		sourceTaskId: null,
 		postponeCount: 0,
 		autoSortedAt: null,
+		autoSortUndecidedAt: null,
 		blockedByCount: 0,
 		relationCount: 0,
 		labels: [],

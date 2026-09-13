@@ -69,6 +69,7 @@ type inboxProcessingStatusDTO struct {
 	BatchLimit     int                 `json:"batchLimit"`
 	Running        bool                `json:"running"`
 	PendingCount   int                 `json:"pendingCount"`
+	UndecidedCount int                 `json:"undecidedCount"`
 	LastRunAt      *string             `json:"lastRunAt"`
 	LastRunSummary *inboxRunSummaryDTO `json:"lastRunSummary"`
 	LastError      *string             `json:"lastError"`
@@ -84,24 +85,29 @@ func (h *InboxProcessingHandler) status(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("count pending inbox tasks").WithCause(err)
 	}
+	undecided, err := h.journal.UndecidedCount(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("count undecided inbox tasks").WithCause(err)
+	}
 	settings, err := h.settings.Get(c.Context())
 	if err != nil {
 		return httpapi.ErrInternal("load app settings").WithCause(err)
 	}
 	st := h.proc.Status()
 	resp := inboxProcessingStatusDTO{
-		Paused:        settings.InboxProcessing.Paused,
-		Enabled:       h.proc.Enabled(),
-		Model:         cfg.Model,
-		APIHost:       apiHost(cfg.APIURL),
-		Interval:      formatDuration(cfg.Interval),
-		BatchLimit:    cfg.BatchLimit,
-		Running:       st.Running,
-		PendingCount:  pending,
-		LastRunAt:     dto.FormatTimePtr(st.LastRunAt),
-		LastError:     st.LastError,
-		BackoffUntil:  dto.FormatTimePtr(st.BackoffUntil),
-		DefaultPrompt: inboxproc.DefaultPrompt,
+		Paused:         settings.InboxProcessing.Paused,
+		Enabled:        h.proc.Enabled(),
+		Model:          cfg.Model,
+		APIHost:        apiHost(cfg.APIURL),
+		Interval:       formatDuration(cfg.Interval),
+		BatchLimit:     cfg.BatchLimit,
+		Running:        st.Running,
+		PendingCount:   pending,
+		UndecidedCount: undecided,
+		LastRunAt:      dto.FormatTimePtr(st.LastRunAt),
+		LastError:      st.LastError,
+		BackoffUntil:   dto.FormatTimePtr(st.BackoffUntil),
+		DefaultPrompt:  inboxproc.DefaultPrompt,
 	}
 	if st.LastRunSummary != nil {
 		resp.LastRunSummary = &inboxRunSummaryDTO{
@@ -115,6 +121,18 @@ func (h *InboxProcessingHandler) status(c fiber.Ctx) error {
 
 func (h *InboxProcessingHandler) run(c fiber.Ctx) error {
 	logEntry(c, opInboxProcessingRun)
+	if !h.proc.Enabled() {
+		logValidation(c, opInboxProcessingRun, "inbox processing disabled")
+		return httpapi.ErrInboxProcessingDisabled()
+	}
+	pending, err := h.proc.PendingCount(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("count pending inbox tasks").WithCause(err)
+	}
+	if pending == 0 {
+		logValidation(c, opInboxProcessingRun, "nothing to process")
+		return httpapi.ErrInboxNothingPending()
+	}
 	if !h.proc.TriggerNow() {
 		logValidation(c, opInboxProcessingRun, "inbox processing disabled")
 		return httpapi.ErrInboxProcessingDisabled()

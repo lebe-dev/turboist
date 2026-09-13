@@ -111,7 +111,12 @@
 		try {
 			await inboxProcessingApi.run(getApiClient());
 		} catch (err) {
-			toast.error(describeError(err, $t('settings.inboxProcessing.toasts.runFailed')));
+			if (err instanceof ApiError && err.code === 'inbox_processing_nothing_pending') {
+				toast.info($t('settings.inboxProcessing.runDisabledHint'));
+				void loadStatus();
+			} else {
+				toast.error(describeError(err, $t('settings.inboxProcessing.toasts.runFailed')));
+			}
 			starting = false;
 			return;
 		}
@@ -299,6 +304,12 @@
 				<dd>{status.batchLimit}</dd>
 				<dt class="text-muted-foreground">{$t('settings.inboxProcessing.status.pending')}</dt>
 				<dd data-testid="inbox-processing-pending">{status.pendingCount}</dd>
+				{#if status.undecidedCount > 0}
+					<dt class="text-muted-foreground">{$t('settings.inboxProcessing.status.undecided')}</dt>
+					<dd data-testid="inbox-processing-undecided" title={$t('settings.inboxProcessing.status.undecidedHint')}>
+						{status.undecidedCount}
+					</dd>
+				{/if}
 				<dt class="text-muted-foreground">{$t('settings.inboxProcessing.status.lastRun')}</dt>
 				<dd>
 					{#if status.lastRunAt}

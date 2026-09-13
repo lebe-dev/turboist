@@ -23,6 +23,7 @@ function status(overrides: Partial<InboxProcessingStatus> = {}): InboxProcessing
 		batchLimit: 10,
 		running: false,
 		pendingCount: 2,
+		undecidedCount: 0,
 		lastRunAt: null,
 		lastRunSummary: null,
 		lastError: null,
@@ -361,5 +362,32 @@ describe('InboxProcessingSection pause', () => {
 
 		await waitFor(() => expect(screen.getByText(/INBOX_PROCESSING_ENABLED=true/)).toBeTruthy());
 		expect(screen.queryByRole('switch')).toBeNull();
+	});
+});
+
+describe('InboxProcessingSection undecided tasks', () => {
+	it('shows how many Inbox tasks the model could not place', async () => {
+		const captured: CapturedRequest[] = [];
+		setupAuth(
+			makeFetchMock(captured, { statuses: [status({ pendingCount: 0, undecidedCount: 3 })] })
+		);
+		render(InboxProcessingSection, { props: { pollIntervalMs: 5 } });
+
+		await waitFor(() =>
+			expect(screen.getByTestId('inbox-processing-undecided').textContent?.trim()).toBe('3')
+		);
+		const run = screen.getByRole('button', {
+			name: /process now|разобрать сейчас/i
+		}) as HTMLButtonElement;
+		expect(run.disabled).toBe(true);
+	});
+
+	it('hides the counter when nothing is undecided', async () => {
+		const captured: CapturedRequest[] = [];
+		setupAuth(makeFetchMock(captured, { statuses: [status()] }));
+		render(InboxProcessingSection, { props: { pollIntervalMs: 5 } });
+
+		await waitFor(() => expect(screen.getByTestId('inbox-processing-pending')).toBeTruthy());
+		expect(screen.queryByTestId('inbox-processing-undecided')).toBeNull();
 	});
 });

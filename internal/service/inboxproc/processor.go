@@ -41,6 +41,10 @@ const (
 	defaultLocale = "en"
 )
 
+// errNothingToProcess ends a run before it starts: no open Inbox task needs a
+// decision.
+var errNothingToProcess = errors.New("inboxproc: nothing to process")
+
 // ErrTemplate is a prompt that does not parse or does not render against the
 // live catalogue.
 var ErrTemplate = errors.New("inboxproc: invalid prompt template")
@@ -220,8 +224,16 @@ func (p *Processor) runOnce(ctx context.Context, manual bool) (RunSummary, bool)
 	}
 
 	summary, err := p.process(ctx, now)
-	if summary.Sorted > 0 && p.d.Hub != nil {
-		// No origin: this change has no originating tab, every client refetches.
+	if errors.Is(err, errNothingToProcess) {
+		// An Inbox with nothing to decide on is not a run: no status update, and
+		// nothing is loaded beyond the pending check.
+		p.log.DebugContext(ctx, "inbox processing run skipped: nothing to process", slog.String("op", op),
+			slog.Bool("manual", manual))
+		return summary, true
+	}
+	if summary != (RunSummary{}) && p.d.Hub != nil {
+		// Filed tasks move and decided ones gain a mark; either way the lists
+		// change. No origin: this change has no originating tab, every client refetches.
 		for _, scope := range []events.Scope{events.ScopeTasks, events.ScopeInbox, events.ScopePlan} {
 			p.d.Hub.Publish(ctx, userID, scope)
 		}
@@ -244,7 +256,7 @@ func (p *Processor) process(ctx context.Context, now time.Time) (RunSummary, err
 		return summary, fmt.Errorf("list pending inbox tasks: %w", err)
 	}
 	if len(pending) == 0 {
-		return summary, nil
+		return summary, errNothingToProcess
 	}
 	p.log.InfoContext(ctx, "inbox processing run started", slog.String("op", op), slog.Int("pending", len(pending)),
 		slog.Int("batch_limit", p.cfg.BatchLimit), slog.String("model", p.cfg.Model))
@@ -316,6 +328,9 @@ func (p *Processor) decide(ctx context.Context, now time.Time, catalogue *Catalo
 		return p.fail(ctx, now, item, modelName, completion, nil, err)
 	}
 	verdict, err := decision.Validate(catalogue, now, p.d.Location)
+	if errors.Is(err, ErrInvalidDecision) {
+		return p.undecided(ctx, now, item, modelName, completion, decision, err)
+	}
 	if err != nil {
 		return p.fail(ctx, now, item, modelName, completion, &decision, err)
 	}

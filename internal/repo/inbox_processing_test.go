@@ -318,3 +318,30 @@ func TestInboxProcessingRepo_OldestInboxTask(t *testing.T) {
 		t.Errorf("oldest: got %d, want %d", got.ID, older.ID)
 	}
 }
+
+func TestInboxProcessingRepo_UndecidedTasksAreNotPending(t *testing.T) {
+	f := newInboxProcFixture(t)
+	ctx := context.Background()
+	now := time.Now()
+	fresh := f.inboxTask(t, "fresh", now.Add(-2*time.Minute))
+	undecided := f.inboxTask(t, "undecided", now.Add(-time.Minute))
+	at := now
+	if _, err := f.tasks.Update(ctx, undecided.ID, TaskUpdate{AutoSortUndecidedAt: &at}); err != nil {
+		t.Fatalf("mark: %v", err)
+	}
+
+	got, err := f.proc.ListPending(ctx, now, 10)
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	if want := []int64{fresh.ID}; !equalIDs(pendingIDs(got), want) {
+		t.Errorf("pending: got %v, want %v", pendingIDs(got), want)
+	}
+	n, err := f.proc.UndecidedCount(ctx)
+	if err != nil {
+		t.Fatalf("undecided count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("undecided count: got %d, want 1", n)
+	}
+}

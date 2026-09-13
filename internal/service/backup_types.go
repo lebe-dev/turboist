@@ -112,8 +112,10 @@ type BackupTask struct {
 	// AutoSortedAt is the LLM Inbox processor's marker (migration 051). Additive:
 	// an older payload decodes to nil, i.e. "placed by a person".
 	AutoSortedAt *string `json:"autoSortedAt,omitempty"`
-	CreatedAt    string  `json:"createdAt"`
-	UpdatedAt    string  `json:"updatedAt"`
+	// AutoSortUndecidedAt (migration 052) is additive in the same way.
+	AutoSortUndecidedAt *string `json:"autoSortUndecidedAt,omitempty"`
+	CreatedAt           string  `json:"createdAt"`
+	UpdatedAt           string  `json:"updatedAt"`
 }
 
 type BackupTaskLabel struct {

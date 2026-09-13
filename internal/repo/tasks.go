@@ -46,7 +46,7 @@ func (r *TaskRepo) hydrateRelationSummaries(ctx context.Context, tasks []model.T
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, is_private, is_complex, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, auto_sorted_at, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, is_complex, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, auto_sorted_at, auto_sort_undecided_at, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -62,7 +62,7 @@ const taskOrderBy = `is_pinned DESC,
 func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var t model.Task
 	var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
-	var dueAt, deadlineAt, pinnedAt, completedAt, autoSortedAt sql.NullString
+	var dueAt, deadlineAt, pinnedAt, completedAt, autoSortedAt, autoSortUndecidedAt sql.NullString
 	var recurrenceRule, troikiCategory sql.NullString
 	var dueHasTime, deadlineHasTime, isPinned, isPrivate, isComplex int
 	var createdAt, updatedAt string
@@ -77,6 +77,7 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&troikiCategory,
 		&sourceTaskID,
 		&autoSortedAt,
+		&autoSortUndecidedAt,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
@@ -87,6 +88,13 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 			return nil, fmt.Errorf("parse auto_sorted_at: %w", err)
 		}
 		t.AutoSortedAt = &ts
+	}
+	if autoSortUndecidedAt.Valid {
+		ts, err := model.ParseUTC(autoSortUndecidedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse auto_sort_undecided_at: %w", err)
+		}
+		t.AutoSortUndecidedAt = &ts
 	}
 	if sourceTaskID.Valid {
 		v := sourceTaskID.Int64
@@ -386,6 +394,10 @@ type TaskUpdate struct {
 
 	AutoSortedAt      *time.Time
 	AutoSortedAtClear bool
+
+	// AutoSortUndecidedAt marks the task as one the Inbox processor could not
+	// file. A changed title or description clears the mark on its own.
+	AutoSortUndecidedAt *time.Time
 }
 
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
@@ -393,6 +405,23 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	logQuery(ctx, op, id)
 	sets := make([]string, 0, 8)
 	args := make([]any, 0, 12)
+	if u.AutoSortUndecidedAt != nil {
+		sets = append(sets, "auto_sort_undecided_at = ?")
+		args = append(args, model.FormatUTC(*u.AutoSortUndecidedAt))
+	} else if u.Title != nil || u.Description != nil {
+		// A reworded task deserves another look from the Inbox processor. SET
+		// expressions read the row as it was, so this compares against the old text.
+		cond := make([]string, 0, 2)
+		if u.Title != nil {
+			cond = append(cond, "title IS NOT ?")
+			args = append(args, *u.Title)
+		}
+		if u.Description != nil {
+			cond = append(cond, "description IS NOT ?")
+			args = append(args, *u.Description)
+		}
+		sets = append(sets, "auto_sort_undecided_at = CASE WHEN "+strings.Join(cond, " OR ")+" THEN NULL ELSE auto_sort_undecided_at END")
+	}
 	if u.Title != nil {
 		sets = append(sets, "title = ?")
 		args = append(args, *u.Title)
@@ -882,7 +911,9 @@ func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 //
 // Every move clears auto_sorted_at: once a task has been relocated by hand, its
 // placement is the user's decision rather than the Inbox processor's. The
-// processor itself sets the marker again right after its own move.
+// processor itself sets the marker again right after its own move. A move also
+// clears auto_sort_undecided_at, so a task that comes back to the Inbox is
+// looked at afresh.
 func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) error {
 	const op = "repo.tasks.Move"
 	logQuery(ctx, op, taskID, target)
@@ -910,6 +941,7 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 			troiki_category = CASE WHEN ? IS NULL THEN troiki_category ELSE NULL END,
 			troiki_capacity_granted = CASE WHEN ? IS NULL THEN troiki_capacity_granted ELSE 0 END,
 			auto_sorted_at = NULL,
+			auto_sort_undecided_at = NULL,
 			updated_at = ?
 		 WHERE id = ?`,
 		nullInt(target.InboxID), nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID),

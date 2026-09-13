@@ -162,7 +162,13 @@ task is re-read first: if it left the Inbox or its wording changed during the re
 dropped. `TaskRepo.Move` clears `auto_sorted_at` on every move, so a manual relocation removes the
 marker. Provider-level failures (429, 5xx, network, timeout, rejected key) abort the run without
 charging attempts and pause scheduled runs with an exponential backoff capped at 30 minutes;
-task-level failures back off per task and sleep after five attempts until the task is edited.
+technical task-level failures back off per task and sleep after five attempts until the task is
+edited. An answer that places the task nowhere — `keep`, low confidence, or a project id outside the
+catalogue — stamps `tasks.auto_sort_undecided_at` (migration `052`) instead; `ListPending` never
+returns such a task, and `TaskRepo.Update` clears the stamp when the title or description actually
+changes (a `CASE` over the old row), as does every `TaskRepo.Move`. When `ListPending` is empty the
+run returns before `finish`, so it neither loads the catalogue nor counts as a run, and a manual run
+is refused with `409 inbox_processing_nothing_pending`.
 
 Because the job has no originating request, `PublishMiddleware` cannot announce its changes: the
 processor publishes `tasks`, `inbox` and `plan` on the hub itself (no origin, so every client

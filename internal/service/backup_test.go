@@ -1158,3 +1158,41 @@ func TestBackupService_RoundTripPreservesAutoSortedAt(t *testing.T) {
 		t.Errorf("restored marker: got %v, want %v", got.AutoSortedAt, at)
 	}
 }
+
+func TestBackupService_RoundTripPreservesAutoSortUndecidedAt(t *testing.T) {
+	src := setupBackupFixtures(t)
+	seedSample(t, src)
+	ctx := context.Background()
+	payload, err := src.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	var inboxTask *service.BackupTask
+	for i := range payload.Data.Tasks {
+		if payload.Data.Tasks[i].InboxID != nil {
+			inboxTask = &payload.Data.Tasks[i]
+			break
+		}
+	}
+	if inboxTask == nil {
+		t.Fatal("sample has no inbox task to mark")
+	}
+	at := time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)
+	if _, err := src.tasks.Update(ctx, inboxTask.ID, repo.TaskUpdate{AutoSortUndecidedAt: &at}); err != nil {
+		t.Fatalf("mark task: %v", err)
+	}
+	if payload, err = src.svc.Export(ctx, service.ExportOptions{}); err != nil {
+		t.Fatalf("re-export: %v", err)
+	}
+	dst := setupBackupFixtures(t)
+	if err := dst.svc.Restore(ctx, payload); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := dst.tasks.Get(ctx, inboxTask.ID)
+	if err != nil {
+		t.Fatalf("get restored task: %v", err)
+	}
+	if got.AutoSortUndecidedAt == nil || !got.AutoSortUndecidedAt.Equal(at) {
+		t.Errorf("restored mark: got %v, want %v", got.AutoSortUndecidedAt, at)
+	}
+}

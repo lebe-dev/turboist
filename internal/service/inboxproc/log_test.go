@@ -204,3 +204,33 @@ func TestProcessorLog_RevertDescribesTheWayBack(t *testing.T) {
 		t.Errorf("labels_removed: got %v, want [outdoor]", removed)
 	}
 }
+
+func TestProcessorLog_UnknownProjectMarksUndecided(t *testing.T) {
+	f := newProcFixture(t)
+	logs := withCapture(f)
+	f.inboxTask(t, "mystery")
+	f.llm.respond = answer(`{"action":"sort","projectId":9999,"confidence":0.8,"reason":"looks like work"}`)
+
+	f.proc.RunOnce(context.Background())
+
+	rec := logs.find("inbox processing could not pick a project for a task")
+	if rec == nil {
+		t.Fatal("no log line for the undecided task")
+	}
+	if rec["level"].String() != "WARN" || rec["task_title"].String() != "mystery" || !rec["marked_undecided"].Bool() ||
+		rec["reason"].String() != "looks like work" || rec["err"].String() == "" {
+		t.Errorf("undecided line: got %v", rec)
+	}
+}
+
+func TestProcessorLog_NothingToProcessIsNotARun(t *testing.T) {
+	f := newProcFixture(t)
+	logs := withCapture(f)
+	f.proc.RunOnce(context.Background())
+	if logs.find("inbox processing run started") != nil || logs.find("inbox processing run finished") != nil {
+		t.Error("an empty Inbox must not log a run")
+	}
+	if logs.find("inbox processing run skipped: nothing to process") == nil {
+		t.Error("an empty Inbox must leave a debug line saying why nothing ran")
+	}
+}

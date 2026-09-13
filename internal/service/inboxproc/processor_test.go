@@ -240,13 +240,15 @@ func TestProcessor_KeepIsNotAskedAgainUntilEdited(t *testing.T) {
 	if summary, _ := f.proc.RunOnce(ctx); summary.Kept != 1 {
 		t.Fatalf("first run: got %+v, want one kept", summary)
 	}
-	st, err := f.state.GetState(ctx, task.ID)
-	if err != nil || st.Status != model.InboxStateKept {
-		t.Fatalf("state: got %+v err=%v, want kept", st, err)
-	}
 	got, _ := f.tasks.Get(ctx, task.ID)
 	if got.InboxID == nil {
 		t.Fatal("a kept task must stay in the Inbox")
+	}
+	if got.AutoSortUndecidedAt == nil || !got.AutoSortUndecidedAt.Equal(f.now) {
+		t.Fatalf("undecided mark: got %v, want %v", got.AutoSortUndecidedAt, f.now)
+	}
+	if _, err := f.state.GetState(ctx, task.ID); !errors.Is(err, repo.ErrNotFound) {
+		t.Errorf("state: got %v, want no row — the mark on the task is the memory", err)
 	}
 
 	f.proc.RunOnce(ctx)
@@ -261,6 +263,24 @@ func TestProcessor_KeepIsNotAskedAgainUntilEdited(t *testing.T) {
 	f.proc.RunOnce(ctx)
 	if n := f.llm.callCount(); n != 2 {
 		t.Errorf("calls after edit: got %d, want 2", n)
+	}
+}
+
+func TestProcessor_KeptTaskEditedDuringRequestIsNotMarked(t *testing.T) {
+	f := newProcFixture(t)
+	ctx := context.Background()
+	task := f.inboxTask(t, "hmm")
+	f.llm.respond = func(context.Context, string) (Completion, error) {
+		title := "hmm, plant tulips"
+		if _, err := f.tasks.Update(ctx, task.ID, repo.TaskUpdate{Title: &title}); err != nil {
+			t.Errorf("edit during request: %v", err)
+		}
+		return Completion{Content: `{"action":"keep","confidence":1}`, Model: "fake/model"}, nil
+	}
+	f.proc.RunOnce(ctx)
+	got, _ := f.tasks.Get(ctx, task.ID)
+	if got.AutoSortUndecidedAt != nil {
+		t.Errorf("mark: got %v, want nil for wording the model never saw", got.AutoSortUndecidedAt)
 	}
 }
 
@@ -327,9 +347,21 @@ func TestProcessor_UnknownProjectFails(t *testing.T) {
 	if got.InboxID == nil {
 		t.Error("a failed task must stay in the Inbox")
 	}
+	if got.AutoSortUndecidedAt == nil {
+		t.Error("a task the model could not place must be marked undecided")
+	}
 	entries, _, _ := f.state.ListLog(ctx, repo.Page{})
 	if len(entries) != 1 || entries[0].Outcome != model.InboxOutcomeFailed || entries[0].Error == nil {
 		t.Errorf("journal: got %+v, want one failed row with an error", entries)
+	}
+	if _, err := f.state.GetState(ctx, task.ID); !errors.Is(err, repo.ErrNotFound) {
+		t.Errorf("state: got %v, want no retry schedule", err)
+	}
+
+	f.now = f.now.Add(24 * time.Hour)
+	f.proc.RunOnce(ctx)
+	if n := f.llm.callCount(); n != 1 {
+		t.Errorf("calls on later runs: got %d, want the undecided task left alone", n)
 	}
 }
 
@@ -428,8 +460,25 @@ func TestProcessor_EmptyInboxMakesNoCalls(t *testing.T) {
 	if n := f.llm.callCount(); n != 0 {
 		t.Errorf("calls: got %d, want 0", n)
 	}
-	if status := f.proc.Status(); status.LastRunAt == nil {
-		t.Error("status: an empty run still records when it ran")
+	if status := f.proc.Status(); status.LastRunAt != nil || status.LastRunSummary != nil {
+		t.Errorf("status: nothing to process is not a run, got %+v", status)
+	}
+}
+
+func TestProcessor_OnlyUndecidedTasksMakesNoRun(t *testing.T) {
+	f := newProcFixture(t)
+	ctx := context.Background()
+	f.inboxTask(t, "hmm")
+	f.proc.RunOnce(ctx)
+	first := f.proc.Status().LastRunAt
+
+	f.now = f.now.Add(time.Hour)
+	f.proc.runOnce(ctx, true)
+	if n := f.llm.callCount(); n != 1 {
+		t.Errorf("calls: got %d, want 1", n)
+	}
+	if got := f.proc.Status().LastRunAt; got == nil || !got.Equal(*first) {
+		t.Errorf("last run: got %v, want it unchanged at %v", got, first)
 	}
 }
 

@@ -31,11 +31,14 @@ type TaskDTO struct {
 	PostponeCount   int     `json:"postponeCount"`
 	// AutoSortedAt is set when the LLM Inbox processor filed the task; null when
 	// a person placed it. Cleared by any manual move.
-	AutoSortedAt *string    `json:"autoSortedAt"`
-	Labels       []LabelDTO `json:"labels"`
-	URL          string     `json:"url"`
-	CreatedAt    string     `json:"createdAt"`
-	UpdatedAt    string     `json:"updatedAt"`
+	AutoSortedAt *string `json:"autoSortedAt"`
+	// AutoSortUndecidedAt is set when the processor could not pick a project;
+	// such a task is not sent again until it is edited or moved.
+	AutoSortUndecidedAt *string    `json:"autoSortUndecidedAt"`
+	Labels              []LabelDTO `json:"labels"`
+	URL                 string     `json:"url"`
+	CreatedAt           string     `json:"createdAt"`
+	UpdatedAt           string     `json:"updatedAt"`
 	// Subtasks is populated only by GET /tasks/:id?subtasks=true so the
 	// task detail page can fetch the parent task and its children in one
 	// round-trip. Other endpoints leave it nil and the `omitempty` tag
@@ -65,38 +68,39 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		labels[i] = LabelFromModel(l)
 	}
 	return TaskDTO{
-		ID:              t.ID,
-		Title:           t.Title,
-		Description:     t.Description,
-		InboxID:         t.InboxID,
-		ContextID:       t.ContextID,
-		ProjectID:       t.ProjectID,
-		SectionID:       t.SectionID,
-		ParentID:        t.ParentID,
-		Priority:        string(t.Priority),
-		Status:          string(t.Status),
-		DueAt:           FormatTimePtr(t.DueAt),
-		DueHasTime:      t.DueHasTime,
-		DeadlineAt:      FormatTimePtr(t.DeadlineAt),
-		DeadlineHasTime: t.DeadlineHasTime,
-		DayPart:         string(t.DayPart),
-		PlanState:       string(t.PlanState),
-		IsPinned:        t.IsPinned,
-		PinnedAt:        FormatTimePtr(t.PinnedAt),
-		IsPrivate:       t.IsPrivate,
-		IsComplex:       t.IsComplex,
-		CompletedAt:     FormatTimePtr(t.CompletedAt),
-		RecurrenceRule:  t.RecurrenceRule,
-		SourceTaskID:    t.SourceTaskID,
-		PostponeCount:   t.PostponeCount,
-		AutoSortedAt:    FormatTimePtr(t.AutoSortedAt),
-		Labels:          labels,
-		URL:             t.URL(baseURL),
-		CreatedAt:       FormatTime(t.CreatedAt),
-		UpdatedAt:       FormatTime(t.UpdatedAt),
-		BlockedByCount:  t.RelationSummary.BlockedByOpen,
-		RelationCount:   t.RelationSummary.Total,
-		Relations:       taskRelationsFromModel(t.Relations, baseURL),
+		ID:                  t.ID,
+		Title:               t.Title,
+		Description:         t.Description,
+		InboxID:             t.InboxID,
+		ContextID:           t.ContextID,
+		ProjectID:           t.ProjectID,
+		SectionID:           t.SectionID,
+		ParentID:            t.ParentID,
+		Priority:            string(t.Priority),
+		Status:              string(t.Status),
+		DueAt:               FormatTimePtr(t.DueAt),
+		DueHasTime:          t.DueHasTime,
+		DeadlineAt:          FormatTimePtr(t.DeadlineAt),
+		DeadlineHasTime:     t.DeadlineHasTime,
+		DayPart:             string(t.DayPart),
+		PlanState:           string(t.PlanState),
+		IsPinned:            t.IsPinned,
+		PinnedAt:            FormatTimePtr(t.PinnedAt),
+		IsPrivate:           t.IsPrivate,
+		IsComplex:           t.IsComplex,
+		CompletedAt:         FormatTimePtr(t.CompletedAt),
+		RecurrenceRule:      t.RecurrenceRule,
+		SourceTaskID:        t.SourceTaskID,
+		PostponeCount:       t.PostponeCount,
+		AutoSortedAt:        FormatTimePtr(t.AutoSortedAt),
+		AutoSortUndecidedAt: FormatTimePtr(t.AutoSortUndecidedAt),
+		Labels:              labels,
+		URL:                 t.URL(baseURL),
+		CreatedAt:           FormatTime(t.CreatedAt),
+		UpdatedAt:           FormatTime(t.UpdatedAt),
+		BlockedByCount:      t.RelationSummary.BlockedByOpen,
+		RelationCount:       t.RelationSummary.Total,
+		Relations:           taskRelationsFromModel(t.Relations, baseURL),
 	}
 }
 

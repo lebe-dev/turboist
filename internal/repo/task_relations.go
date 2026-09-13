@@ -125,7 +125,7 @@ func touchTasks(ctx context.Context, tx *sql.Tx, nowStr string, ids ...int64) er
 const relationPeerColumns = `p.id, p.title, p.description, p.inbox_id, p.context_id, p.project_id, p.section_id, p.parent_id,
 		p.priority, p.status, p.due_at, p.due_has_time, p.deadline_at, p.deadline_has_time,
 		p.day_part, p.plan_state, p.is_pinned, p.pinned_at, p.is_private, p.is_complex, p.recurrence_rule,
-		p.completed_at, p.postpone_count, p.troiki_category, p.source_task_id, p.auto_sorted_at, p.created_at, p.updated_at`
+		p.completed_at, p.postpone_count, p.troiki_category, p.source_task_id, p.auto_sorted_at, p.auto_sort_undecided_at, p.created_at, p.updated_at`
 
 // ListForTask returns every relation touching taskID, in both directions, with the
 // peer task hydrated into Other and Direction resolved relative to taskID.

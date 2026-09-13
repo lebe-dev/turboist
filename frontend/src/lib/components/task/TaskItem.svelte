@@ -16,6 +16,7 @@
 	import LinkIcon from 'phosphor-svelte/lib/Link';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
+	import SealQuestionIcon from 'phosphor-svelte/lib/SealQuestion';
 	import HourglassMediumIcon from 'phosphor-svelte/lib/HourglassMedium';
 	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
@@ -382,7 +383,7 @@
 				class:text-muted-foreground={checked || depth > 0}
 				class:text-foreground={!checked && depth === 0}
 			>
-				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-1.5 inline-block size-3.5 text-red-500" weight="fill" /></span>{/if}{#if task.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortedTooltip')} aria-label={$t('task.autoSortedMarker')} data-testid="task-auto-sorted"><SparkleIcon class="ml-1.5 inline-block size-3 text-violet-500/70" weight="fill" /></span>{/if}{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
+				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-1.5 inline-block size-3.5 text-red-500" weight="fill" /></span>{/if}{#if task.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortedTooltip')} aria-label={$t('task.autoSortedMarker')} data-testid="task-auto-sorted"><SparkleIcon class="ml-1.5 inline-block size-3 text-violet-500/70" weight="fill" /></span>{/if}{#if task.autoSortUndecidedAt && !task.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortUndecidedTooltip')} aria-label={$t('task.autoSortUndecidedMarker')} data-testid="task-auto-sort-undecided"><SealQuestionIcon class="ml-1.5 inline-block size-3 text-muted-foreground/60" /></span>{/if}{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
 			{#if awaitingSend}
 				<span
