@@ -16,11 +16,10 @@ import (
 const testAPIKey = "sk-secret-do-not-leak"
 
 type capturedCall struct {
-	path   string
-	auth   string
-	title  string
-	body   map[string]any
-	status int
+	path  string
+	auth  string
+	title string
+	body  map[string]any
 }
 
 func newTestClient(t *testing.T, handler func(w http.ResponseWriter, r *http.Request, body map[string]any)) (*OpenAIClient, *[]capturedCall) {

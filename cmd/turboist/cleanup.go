@@ -97,3 +97,50 @@ func pruneChangeLogOnce(ctx context.Context, changes *repo.ChangeLogRepo, log *s
 	}
 	log.Info("change log prune done", slog.String("op", op), slog.Int64("removed", n))
 }
+
+// inboxProcessingJournalRetention is how long LLM Inbox decisions stay in the
+// journal. It matches the sync history window: a decision older than that is
+// no longer something anyone reverts.
+const inboxProcessingJournalRetention = repo.SyncHistoryWindow
+
+// startInboxProcessingPrune trims the Inbox processing journal and forgets the
+// state of tasks that left the Inbox, immediately and then once a day. It runs
+// whether or not the feature is enabled, so a switched-off install does not keep
+// old rows forever.
+func startInboxProcessingPrune(ctx context.Context, journal *repo.InboxProcessingRepo, log *slog.Logger) {
+	go func() {
+		ticker := time.NewTicker(changeLogPruneInterval)
+		defer ticker.Stop()
+		pruneInboxProcessingOnce(ctx, journal, log)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				pruneInboxProcessingOnce(ctx, journal, log)
+			}
+		}
+	}()
+}
+
+func pruneInboxProcessingOnce(ctx context.Context, journal *repo.InboxProcessingRepo, log *slog.Logger) {
+	const op = "main.InboxProcessingPrune"
+	logs, err := journal.PruneLog(ctx, time.Now().Add(-inboxProcessingJournalRetention))
+	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": op})
+		log.Error("inbox processing journal prune failed", slog.String("op", op), slog.String("err", err.Error()))
+		return
+	}
+	states, err := journal.PruneStaleStates(ctx)
+	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": op})
+		log.Error("inbox processing state prune failed", slog.String("op", op), slog.String("err", err.Error()))
+		return
+	}
+	if logs == 0 && states == 0 {
+		log.Debug("inbox processing prune done", slog.String("op", op))
+		return
+	}
+	log.Info("inbox processing prune done", slog.String("op", op),
+		slog.Int64("journal_removed", logs), slog.Int64("states_removed", states))
+}

@@ -23,6 +23,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
 	"github.com/lebe-dev/turboist/internal/service/events"
+	"github.com/lebe-dev/turboist/internal/service/inboxproc"
 	passkeysvc "github.com/lebe-dev/turboist/internal/service/passkey"
 	totpsvc "github.com/lebe-dev/turboist/internal/service/totp"
 	"golang.org/x/time/rate"
@@ -108,6 +109,7 @@ func main() {
 	idempotencyRepo := repo.NewIdempotencyRepo(sqlDB)
 	webauthnRepo := repo.NewWebAuthnRepo(sqlDB)
 	changeLogRepo := repo.NewChangeLogRepo(sqlDB)
+	inboxProcRepo := repo.NewInboxProcessingRepo(sqlDB, tlabels)
 
 	// auth
 	jwtIssuer := auth.NewJWTIssuer([]byte(env.JWTSecret))
@@ -162,11 +164,55 @@ func main() {
 	auth.StartSessionCleanup(cleanupCtx, sessionRepo, log)
 	startIdempotencyCleanup(cleanupCtx, idempotencyRepo, log)
 	startChangeLogPrune(cleanupCtx, changeLogRepo, log)
+	startInboxProcessingPrune(cleanupCtx, inboxProcRepo, log)
 
 	// events hub (SSE pub/sub) — owned by main so that Deps and the events
 	// handler share the same instance.
 	eventsHub := events.NewHub(log)
 	eventsTickets := events.NewTicketStore()
+
+	// LLM Inbox processing. The processor exists even when disabled so the
+	// journal, revert and prompt editor keep working; only the loop needs a key.
+	ipEnv := env.InboxProcessing
+	var inboxClassifier inboxproc.Classifier
+	if ipEnv.Enabled {
+		inboxClassifier = inboxproc.NewOpenAIClient(inboxproc.OpenAIClientConfig{
+			APIURL:  ipEnv.APIURL,
+			APIKey:  ipEnv.APIKey,
+			Model:   ipEnv.Model,
+			Referer: env.BaseURL,
+			Timeout: ipEnv.Timeout,
+		})
+	}
+	inboxProcessor := inboxproc.NewProcessor(inboxproc.Config{
+		Enabled:    ipEnv.Enabled,
+		Interval:   ipEnv.Interval,
+		APIURL:     ipEnv.APIURL,
+		APIKey:     ipEnv.APIKey,
+		Model:      ipEnv.Model,
+		BatchLimit: ipEnv.BatchLimit,
+		Timeout:    ipEnv.Timeout,
+	}, inboxClassifier, inboxproc.Deps{
+		Tasks:       taskRepo,
+		TaskLabels:  tlabels,
+		State:       inboxProcRepo,
+		Contexts:    ctxRepo,
+		Projects:    projectRepo,
+		Labels:      labelRepo,
+		AppSettings: appSettingsRepo,
+		Users:       userRepo,
+		Move:        moveSvc,
+		Hub:         eventsHub,
+		Location:    cfg.Location,
+		Log:         log,
+	})
+	if ipEnv.Enabled {
+		go inboxProcessor.Run(cleanupCtx)
+		log.Info("inbox processing enabled", "model", ipEnv.Model, "interval", ipEnv.Interval.String(),
+			"batch_limit", ipEnv.BatchLimit)
+	} else {
+		log.Info("inbox processing disabled (INBOX_PROCESSING_ENABLED not set)")
+	}
 
 	// HTTP app
 	deps := httpapi.Deps{
@@ -255,6 +301,7 @@ func main() {
 	handlers.NewSettingsHandler(userRepo).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo, projectRepo).Register(api)
+	handlers.NewInboxProcessingHandler(inboxProcessor, inboxProcRepo, appSettingsRepo, env.BaseURL).Register(api)
 	handlers.NewSyncHandler(changeLogRepo, env.BaseURL).Register(api.Group("/sync"))
 	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))

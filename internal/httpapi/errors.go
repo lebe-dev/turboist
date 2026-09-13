@@ -28,6 +28,7 @@ const (
 	CodePasskeyExists          = "passkey_exists"
 	CodeSyncEpochMismatch      = "sync_epoch_mismatch"
 	CodeSyncCursorExpired      = "sync_cursor_expired"
+	CodeInboxProcessingOff     = "inbox_processing_disabled"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -134,6 +135,12 @@ func ErrTaskBlocked(msg string, blockerIDs []int64) *AppError {
 // than treat this as a permanent failure.
 func ErrIdempotencyInFlight() *AppError {
 	return newErr(409, CodeIdempotencyInFlight, "duplicate request in flight")
+}
+
+// ErrInboxProcessingDisabled refuses a manual Inbox processing run on an
+// installation where INBOX_PROCESSING_ENABLED is not set.
+func ErrInboxProcessingDisabled() *AppError {
+	return newErr(409, CodeInboxProcessingOff, "inbox processing is disabled")
 }
 
 func ErrInternal(msg string) *AppError {

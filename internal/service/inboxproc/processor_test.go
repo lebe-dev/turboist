@@ -588,7 +588,7 @@ func TestProcessor_PreviewAndValidate(t *testing.T) {
 	f := newProcFixture(t)
 	ctx := context.Background()
 
-	rendered, err := f.proc.Preview(ctx, "Projects: {{len .Projects}}; task: {{.Task.Title}}")
+	rendered, err := f.proc.Preview(ctx, ptr("Projects: {{len .Projects}}; task: {{.Task.Title}}"))
 	if err != nil {
 		t.Fatalf("preview on empty inbox: %v", err)
 	}
@@ -598,7 +598,7 @@ func TestProcessor_PreviewAndValidate(t *testing.T) {
 
 	f.inboxTask(t, "Oldest")
 	f.inboxTask(t, "Newest")
-	rendered, err = f.proc.Preview(ctx, "{{.Task.Title}}")
+	rendered, err = f.proc.Preview(ctx, ptr("{{.Task.Title}}"))
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}
@@ -609,7 +609,7 @@ func TestProcessor_PreviewAndValidate(t *testing.T) {
 	if err := f.settings.Set(ctx, &model.AppSettings{InboxProcessing: model.InboxProcessingSettings{Prompt: "saved {{.Locale}}"}}); err != nil {
 		t.Fatalf("save prompt: %v", err)
 	}
-	rendered, err = f.proc.Preview(ctx, "")
+	rendered, err = f.proc.Preview(ctx, nil)
 	if err != nil {
 		t.Fatalf("preview saved: %v", err)
 	}
@@ -617,7 +617,14 @@ func TestProcessor_PreviewAndValidate(t *testing.T) {
 		t.Errorf("preview of the saved prompt: got %q, want %q", rendered, want)
 	}
 
-	if _, err := f.proc.Preview(ctx, "{{.Nope}}"); !errors.Is(err, ErrTemplate) {
+	rendered, err = f.proc.Preview(ctx, ptr(""))
+	if err != nil {
+		t.Fatalf("preview default: %v", err)
+	}
+	if rendered == "saved en\n\n"+outputContract {
+		t.Error("an empty prompt must preview the built-in default, not the saved one")
+	}
+	if _, err := f.proc.Preview(ctx, ptr("{{.Nope}}")); !errors.Is(err, ErrTemplate) {
 		t.Errorf("broken template: got %v, want ErrTemplate", err)
 	}
 	if err := f.proc.ValidatePrompt(ctx, "{{range .Projects}}"); !errors.Is(err, ErrTemplate) {

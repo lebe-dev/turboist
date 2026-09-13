@@ -447,21 +447,24 @@ func (p *Processor) locale(ctx context.Context) string {
 }
 
 // Preview renders a prompt against the live catalogue and the oldest open Inbox
-// task, or a built-in example when the Inbox is empty. An empty prompt previews
-// the saved one.
-func (p *Processor) Preview(ctx context.Context, prompt string) (string, error) {
-	if prompt == "" {
+// task, or a built-in example when the Inbox is empty. A nil prompt previews the
+// saved one; an empty one the built-in default.
+func (p *Processor) Preview(ctx context.Context, prompt *string) (string, error) {
+	var text string
+	if prompt != nil {
+		text = *prompt
+	} else {
 		saved, err := p.savedPrompt(ctx)
 		if err != nil {
 			return "", err
 		}
-		prompt = saved
+		text = saved
 	}
 	data, err := p.previewData(ctx)
 	if err != nil {
 		return "", err
 	}
-	tpl, err := ParsePrompt(prompt)
+	tpl, err := ParsePrompt(text)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrTemplate, err)
 	}

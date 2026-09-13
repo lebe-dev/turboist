@@ -232,14 +232,7 @@ func UserMessage(t model.Task, loc *time.Location) (string, error) {
 	if loc == nil {
 		loc = time.UTC
 	}
-	v := taskView(t, loc)
-	raw, err := json.Marshal(userMessage{
-		ID:          v.ID,
-		Title:       v.Title,
-		Description: v.Description,
-		CreatedAt:   v.CreatedAt,
-		Labels:      v.Labels,
-	})
+	raw, err := json.Marshal(userMessage(taskView(t, loc)))
 	if err != nil {
 		return "", fmt.Errorf("encode task: %w", err)
 	}

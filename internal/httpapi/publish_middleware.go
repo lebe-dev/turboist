@@ -76,6 +76,12 @@ func scopesForPath(p string) []events.Scope {
 	case "tasks":
 		return []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}
 	case "inbox":
+		switch rest {
+		case "inbox/processing/run", "inbox/processing/preview":
+			// preview changes nothing; run only queues work, and the processor
+			// publishes itself once a task has actually been filed.
+			return nil
+		}
 		return []events.Scope{events.ScopeTasks, events.ScopeInbox, events.ScopePlan}
 	case "projects":
 		return []events.Scope{events.ScopeProjects, events.ScopeTasks}
@@ -90,6 +96,10 @@ func scopesForPath(p string) []events.Scope {
 	case "troiki":
 		return []events.Scope{events.ScopeTasks, events.ScopePlan}
 	case "app-settings":
+		if rest == "app-settings/inbox-processing" {
+			// The Inbox processing prompt changes no data any view shows.
+			return nil
+		}
 		// Auto-label rules etc. affect how tasks are presented.
 		return []events.Scope{events.ScopeLabels, events.ScopeTasks}
 	case "task-templates":
