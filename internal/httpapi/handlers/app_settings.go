@@ -51,6 +51,7 @@ type projectSuggestionDTO struct {
 
 type inboxProcessingSettingsDTO struct {
 	Prompt string `json:"prompt"`
+	Paused bool   `json:"paused"`
 }
 
 type appSettingsResp struct {
@@ -87,7 +88,7 @@ func toAppSettingsResp(s *model.AppSettings) appSettingsResp {
 	return appSettingsResp{
 		AutoLabels:         rules,
 		ProjectSuggestions: suggestions,
-		InboxProcessing:    inboxProcessingSettingsDTO{Prompt: s.InboxProcessing.Prompt},
+		InboxProcessing:    inboxProcessingSettingsDTO{Prompt: s.InboxProcessing.Prompt, Paused: s.InboxProcessing.Paused},
 	}
 }
 

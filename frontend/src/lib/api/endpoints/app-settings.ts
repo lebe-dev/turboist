@@ -21,5 +21,12 @@ export const appSettings = {
 			method: 'PUT',
 			body: { prompt }
 		});
+	},
+
+	setInboxProcessingPaused(client: ApiClient, paused: boolean): Promise<AppSettings> {
+		return client.fetch('/api/v1/app-settings/inbox-processing', {
+			method: 'PUT',
+			body: { paused }
+		});
 	}
 };

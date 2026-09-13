@@ -16,6 +16,7 @@
 	import { describeError } from '$lib/utils/taskActions';
 	import { Button } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';
+	import { Switch } from '$lib/components/ui/switch';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import InboxProcessingLog from './InboxProcessingLog.svelte';
 
@@ -36,6 +37,26 @@
 	let destroyed = false;
 
 	const savedPrompt = $derived(appSettingsStore.inboxProcessing.prompt);
+	const paused = $derived(appSettingsStore.inboxProcessing.paused);
+	let pauseBusy = $state(false);
+
+	async function setPaused(next: boolean): Promise<void> {
+		if (pauseBusy) return;
+		pauseBusy = true;
+		try {
+			await appSettingsStore.setInboxProcessingPaused(next);
+			toast.success(
+				next
+					? $t('settings.inboxProcessing.toasts.paused')
+					: $t('settings.inboxProcessing.toasts.resumed')
+			);
+		} catch (err) {
+			toast.error(describeError(err, $t('settings.inboxProcessing.toasts.pauseFailed')));
+		} finally {
+			pauseBusy = false;
+		}
+	}
+
 	const defaultPrompt = $derived(status?.defaultPrompt ?? '');
 	// What the editor should show for the stored value: an empty stored prompt
 	// means the built-in default, so the default text is what the user edits.
@@ -226,14 +247,18 @@
 			</div>
 			{#if status}
 				<span
-					class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium {status.enabled
-						? 'bg-green-500/15 text-green-700 dark:text-green-300'
-						: 'bg-muted text-muted-foreground'}"
+					class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium {!status.enabled
+						? 'bg-muted text-muted-foreground'
+						: paused
+							? 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300'
+							: 'bg-green-500/15 text-green-700 dark:text-green-300'}"
 					data-testid="inbox-processing-state"
 				>
-					{status.enabled
-						? $t('settings.inboxProcessing.status.enabled')
-						: $t('settings.inboxProcessing.status.disabled')}
+					{!status.enabled
+						? $t('settings.inboxProcessing.status.disabled')
+						: paused
+							? $t('settings.inboxProcessing.status.paused')
+							: $t('settings.inboxProcessing.status.enabled')}
 				</span>
 			{/if}
 		</div>
@@ -245,6 +270,19 @@
 				<p class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
 					{$t('settings.inboxProcessing.status.disabledHint')}
 				</p>
+			{:else}
+				<div class="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2">
+					<div class="flex flex-col gap-0.5">
+						<span class="text-xs font-medium">{$t('settings.inboxProcessing.pause.label')}</span>
+						<span class="text-xs text-muted-foreground">{$t('settings.inboxProcessing.pause.hint')}</span>
+					</div>
+					<Switch
+						checked={paused}
+						disabled={pauseBusy}
+						onCheckedChange={setPaused}
+						aria-label={$t('settings.inboxProcessing.pause.label')}
+					/>
+				</div>
 			{/if}
 			<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
 				{#if status.model}

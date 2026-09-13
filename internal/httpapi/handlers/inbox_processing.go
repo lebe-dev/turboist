@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	opInboxProcessingStatus    = "handler.InboxProcessing.Status"
-	opInboxProcessingRun       = "handler.InboxProcessing.Run"
-	opInboxProcessingPreview   = "handler.InboxProcessing.Preview"
-	opInboxProcessingLog       = "handler.InboxProcessing.Log"
-	opInboxProcessingRevert    = "handler.InboxProcessing.Revert"
-	opInboxProcessingPutPrompt = "handler.InboxProcessing.PutPrompt"
+	opInboxProcessingStatus  = "handler.InboxProcessing.Status"
+	opInboxProcessingRun     = "handler.InboxProcessing.Run"
+	opInboxProcessingPreview = "handler.InboxProcessing.Preview"
+	opInboxProcessingLog     = "handler.InboxProcessing.Log"
+	opInboxProcessingRevert  = "handler.InboxProcessing.Revert"
+	opInboxProcessingPut     = "handler.InboxProcessing.PutSettings"
 )
 
 // InboxProcessingHandler exposes the LLM Inbox processor. It is mounted even when
@@ -34,7 +34,7 @@ const (
 //	POST /api/v1/inbox/processing/preview          -> {rendered}
 //	GET  /api/v1/inbox/processing/log              -> paged journal
 //	POST /api/v1/inbox/processing/log/:id/revert   -> TaskDTO
-//	PUT  /api/v1/app-settings/inbox-processing     -> AppSettings
+//	PUT  /api/v1/app-settings/inbox-processing     -> AppSettings (prompt and/or paused)
 type InboxProcessingHandler struct {
 	proc     *inboxproc.Processor
 	journal  *repo.InboxProcessingRepo
@@ -52,7 +52,7 @@ func (h *InboxProcessingHandler) Register(r fiber.Router) {
 	r.Post("/inbox/processing/preview", httpapi.RequireScope(auth.ScopeSettingsRead), h.preview)
 	r.Get("/inbox/processing/log", httpapi.RequireScope(auth.ScopeTasksRead), h.log)
 	r.Post("/inbox/processing/log/:id/revert", httpapi.RequireScope(auth.ScopeTasksWrite), h.revert)
-	r.Put("/app-settings/inbox-processing", httpapi.RequireScope(auth.ScopeSettingsWrite), h.putPrompt)
+	r.Put("/app-settings/inbox-processing", httpapi.RequireScope(auth.ScopeSettingsWrite), h.putSettings)
 }
 
 type inboxRunSummaryDTO struct {
@@ -73,6 +73,7 @@ type inboxProcessingStatusDTO struct {
 	LastRunSummary *inboxRunSummaryDTO `json:"lastRunSummary"`
 	LastError      *string             `json:"lastError"`
 	BackoffUntil   *string             `json:"backoffUntil"`
+	Paused         bool                `json:"paused"`
 	DefaultPrompt  string              `json:"defaultPrompt"`
 }
 
@@ -83,8 +84,13 @@ func (h *InboxProcessingHandler) status(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("count pending inbox tasks").WithCause(err)
 	}
+	settings, err := h.settings.Get(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("load app settings").WithCause(err)
+	}
 	st := h.proc.Status()
 	resp := inboxProcessingStatusDTO{
+		Paused:        settings.InboxProcessing.Paused,
 		Enabled:       h.proc.Enabled(),
 		Model:         cfg.Model,
 		APIHost:       apiHost(cfg.APIURL),
@@ -137,26 +143,45 @@ func (h *InboxProcessingHandler) preview(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"rendered": rendered})
 }
 
-func (h *InboxProcessingHandler) putPrompt(c fiber.Ctx) error {
-	logEntry(c, opInboxProcessingPutPrompt)
-	var req inboxPromptReq
-	if err := c.Bind().JSON(&req); err != nil || req.Prompt == nil {
-		logValidation(c, opInboxProcessingPutPrompt, msgInvalidBody)
+type inboxSettingsPutReq struct {
+	Prompt *string `json:"prompt"`
+	Paused *bool   `json:"paused"`
+}
+
+// putSettings updates the prompt, the pause flag, or both; a field left out is
+// kept as stored.
+func (h *InboxProcessingHandler) putSettings(c fiber.Ctx) error {
+	logEntry(c, opInboxProcessingPut)
+	var req inboxSettingsPutReq
+	if err := c.Bind().JSON(&req); err != nil || (req.Prompt == nil && req.Paused == nil) {
+		logValidation(c, opInboxProcessingPut, msgInvalidBody)
 		return httpapi.ErrValidation(msgInvalidRequestBody)
 	}
-	prompt := normalizePrompt(*req.Prompt)
-	if err := h.proc.ValidatePrompt(c.Context(), prompt); err != nil {
-		return templateErr(c, opInboxProcessingPutPrompt, err, "validate prompt")
+	var prompt string
+	if req.Prompt != nil {
+		prompt = normalizePrompt(*req.Prompt)
+		if err := h.proc.ValidatePrompt(c.Context(), prompt); err != nil {
+			return templateErr(c, opInboxProcessingPut, err, "validate prompt")
+		}
 	}
 	current, err := h.settings.Get(c.Context())
 	if err != nil {
 		return httpapi.ErrInternal("load app settings").WithCause(err)
 	}
-	current.InboxProcessing.Prompt = prompt
+	if req.Prompt != nil {
+		current.InboxProcessing.Prompt = prompt
+	}
+	if req.Paused != nil {
+		current.InboxProcessing.Paused = *req.Paused
+	}
 	if err := h.settings.Set(c.Context(), current); err != nil {
 		return httpapi.ErrInternal("save app settings").WithCause(err)
 	}
-	logMutation(c, opInboxProcessingPutPrompt, slog.Bool("default", prompt == ""), slog.Int("length", len(prompt)))
+	attrs := []any{slog.Bool("paused", current.InboxProcessing.Paused)}
+	if req.Prompt != nil {
+		attrs = append(attrs, slog.Bool("default_prompt", prompt == ""), slog.Int("prompt_length", len(prompt)))
+	}
+	logMutation(c, opInboxProcessingPut, attrs...)
 	return c.JSON(toAppSettingsResp(current))
 }
 

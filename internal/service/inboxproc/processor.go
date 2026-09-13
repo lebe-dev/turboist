@@ -203,6 +203,15 @@ func (p *Processor) runOnce(ctx context.Context, manual bool) (RunSummary, bool)
 
 	now := p.now()
 	if !manual {
+		paused, err := p.paused(ctx)
+		if err != nil {
+			p.finish(ctx, now, RunSummary{}, err)
+			return RunSummary{}, true
+		}
+		if paused {
+			p.log.DebugContext(ctx, "inbox processing run skipped: paused in settings", slog.String("op", op))
+			return RunSummary{}, true
+		}
 		if until := p.backoffUntil(); until != nil && now.Before(*until) {
 			p.log.DebugContext(ctx, "inbox processing run skipped: provider backoff", slog.String("op", op),
 				slog.Time("until", *until))
@@ -424,6 +433,15 @@ func (p *Processor) savedPrompt(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("load app settings: %w", err)
 	}
 	return settings.InboxProcessing.Prompt, nil
+}
+
+// paused reports whether scheduled runs are paused from the settings page.
+func (p *Processor) paused(ctx context.Context) (bool, error) {
+	settings, err := p.d.AppSettings.Get(ctx)
+	if err != nil {
+		return false, fmt.Errorf("load app settings: %w", err)
+	}
+	return settings.InboxProcessing.Paused, nil
 }
 
 func (p *Processor) savedTemplate(ctx context.Context) (*template.Template, error) {

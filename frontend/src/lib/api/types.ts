@@ -530,6 +530,8 @@ export interface ProjectSuggestionRule {
 export interface InboxProcessingSettings {
 	// Empty string = the built-in default prompt.
 	prompt: string;
+	// Scheduled runs are skipped while paused; a manual run still works.
+	paused: boolean;
 }
 
 export interface AppSettings {
@@ -556,6 +558,7 @@ export interface InboxProcessingStatus {
 	lastRunSummary: InboxProcessingRunSummary | null;
 	lastError: string | null;
 	backoffUntil: string | null;
+	paused: boolean;
 	defaultPrompt: string;
 }
 

@@ -2310,18 +2310,21 @@ listed under [Endpoint → Scope Mapping](#endpoint--scope-mapping).
   "lastRunSummary": { "sorted": 2, "kept": 1, "failed": 0 },
   "lastError": null,
   "backoffUntil": null,
+  "paused": false,
   "defaultPrompt": "You are the triage assistant…"
 }
 ```
 
 `pendingCount` is how many open Inbox tasks are waiting for a decision. `lastRunAt`,
 `lastRunSummary`, `lastError` and `backoffUntil` live in memory and reset on restart; `backoffUntil`
-is set while scheduled runs pause after a provider failure. The API key is never part of the response.
+is set while scheduled runs pause after a provider failure. `paused` is the persistent pause set from
+the settings page (see `PUT /api/v1/app-settings/inbox-processing`). The API key is never part of the
+response.
 
 ### `POST /api/v1/inbox/processing/run`
 
 Queues an immediate run and returns at once — `202 {"running": true}`. Poll the status until
-`running` is `false`. A manual run ignores a provider pause. `409 inbox_processing_disabled` when the
+`running` is `false`. A manual run ignores both a provider pause and the settings pause. `409 inbox_processing_disabled` when the
 feature is off. Does not emit an SSE invalidation itself; the processor publishes `tasks`, `inbox` and
 `plan` once it has filed a task.
 
@@ -3024,12 +3027,12 @@ Global, server-wide rules (single-row `app_settings` table). Reads require the
   "projectSuggestions": [
     { "mask": "deploy", "projectIds": [4, 7], "ignoreCase": true }
   ],
-  "inboxProcessing": { "prompt": "" }
+  "inboxProcessing": { "prompt": "", "paused": false }
 }
 ```
 
 `inboxProcessing.prompt` is the Inbox processing prompt template; an empty string means the built-in
-default.
+default. `inboxProcessing.paused` stops the scheduled Inbox processing runs.
 
 ```sh
 curl "$BASE/api/v1/app-settings" \
@@ -3064,17 +3067,31 @@ curl -X PUT "$BASE/api/v1/app-settings/project-suggestions" \
 
 ### `PUT /api/v1/app-settings/inbox-processing`
 
-**Request:** `{"prompt": "…"}` — the Inbox processing prompt, a Go `text/template` of at most 20000
-characters. It is validated by rendering it against the live catalogue; a broken template is
-`422 validation_failed` with `details.error`. An empty prompt, or the unchanged built-in default, is
-stored as `""` so later default improvements still apply. Works whether or not the feature is enabled.
-Returns the full app settings and emits no SSE invalidation.
+**Request:** `{"prompt": "…", "paused": false}` — either field or both; a field left out keeps its
+stored value, and a body with neither is `400`.
+
+- `prompt` — the Inbox processing prompt, a Go `text/template` of at most 20000 characters. It is
+  validated by rendering it against the live catalogue; a broken template is `422 validation_failed`
+  with `details.error`. An empty prompt, or the unchanged built-in default, is stored as `""` so later
+  default improvements still apply.
+- `paused` — `true` skips the scheduled runs until set back to `false`. Persists across restarts; a
+  manual `POST /api/v1/inbox/processing/run` still runs.
+
+Works whether or not the feature is enabled. Returns the full app settings and emits no SSE
+invalidation.
 
 ```sh
 curl -X PUT "$BASE/api/v1/app-settings/inbox-processing" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"prompt":"File {{.Task.Title}} into one of {{len .Projects}} projects."}'
+```
+
+```sh
+curl -X PUT "$BASE/api/v1/app-settings/inbox-processing" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"paused":true}'
 ```
 
 ---

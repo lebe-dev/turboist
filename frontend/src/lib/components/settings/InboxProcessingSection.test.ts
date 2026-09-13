@@ -27,6 +27,7 @@ function status(overrides: Partial<InboxProcessingStatus> = {}): InboxProcessing
 		lastRunSummary: null,
 		lastError: null,
 		backoffUntil: null,
+		paused: false,
 		defaultPrompt: DEFAULT_PROMPT,
 		...overrides
 	};
@@ -133,11 +134,14 @@ function makeFetchMock(captured: CapturedRequest[], opts: MockOptions): typeof f
 					422
 				);
 			}
-			const requested = body as { prompt: string };
+			const requested = body as { prompt?: string; paused?: boolean };
 			return json({
 				autoLabels: [],
 				projectSuggestions: [],
-				inboxProcessing: { prompt: requested.prompt }
+				inboxProcessing: {
+					prompt: requested.prompt ?? appSettingsStore.inboxProcessing.prompt,
+					paused: requested.paused ?? appSettingsStore.inboxProcessing.paused
+				}
 			});
 		}
 		return new Response(null, { status: 404 });
@@ -214,7 +218,7 @@ describe('InboxProcessingSection', () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
 			projectSuggestions: [],
-			inboxProcessing: { prompt: 'custom prompt' }
+			inboxProcessing: { prompt: 'custom prompt', paused: false }
 		});
 		setupAuth(makeFetchMock(captured, { statuses: [status()] }));
 		render(InboxProcessingSection, { props: { pollIntervalMs: 5 } });
@@ -324,5 +328,38 @@ describe('InboxProcessingSection', () => {
 				)
 			).toBe(true)
 		);
+	});
+});
+
+describe('InboxProcessingSection pause', () => {
+	let captured: CapturedRequest[];
+
+	beforeEach(() => {
+		captured = [];
+	});
+
+	it('pauses automatic processing through the settings endpoint', async () => {
+		setupAuth(makeFetchMock(captured, { statuses: [status()] }));
+		render(InboxProcessingSection, { props: { pollIntervalMs: 5 } });
+
+		const toggle = await waitFor(() =>
+			screen.getByRole('switch', {
+				name: /pause automatic processing|приостановить автоматический разбор/i
+			})
+		);
+		await fireEvent.click(toggle);
+
+		await waitFor(() => expect(captured.some((r) => r.method === 'PUT')).toBe(true));
+		expect(captured.find((r) => r.method === 'PUT')!.body).toEqual({ paused: true });
+		await waitFor(() => expect(appSettingsStore.inboxProcessing.paused).toBe(true));
+		expect(screen.getByTestId('inbox-processing-state').textContent).toMatch(/paused|на паузе/i);
+	});
+
+	it('offers no pause switch while the feature is disabled', async () => {
+		setupAuth(makeFetchMock(captured, { statuses: [status({ enabled: false })] }));
+		render(InboxProcessingSection, { props: { pollIntervalMs: 5 } });
+
+		await waitFor(() => expect(screen.getByText(/INBOX_PROCESSING_ENABLED=true/)).toBeTruthy());
+		expect(screen.queryByRole('switch')).toBeNull();
 	});
 });

@@ -701,3 +701,35 @@ func containsID(ids []int64, id int64) bool {
 	}
 	return false
 }
+
+func TestProcessor_PausedSkipsScheduledRunsButNotManualOnes(t *testing.T) {
+	f := newProcFixture(t)
+	ctx := context.Background()
+	f.inboxTask(t, "waiting")
+	if err := f.settings.Set(ctx, &model.AppSettings{InboxProcessing: model.InboxProcessingSettings{Paused: true}}); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	summary, ran := f.proc.RunOnce(ctx)
+	if !ran || summary != (RunSummary{}) {
+		t.Errorf("paused scheduled run: got %+v ran=%v, want nothing done", summary, ran)
+	}
+	if n := f.llm.callCount(); n != 0 {
+		t.Fatalf("calls while paused: got %d, want 0", n)
+	}
+	if status := f.proc.Status(); status.LastRunAt != nil {
+		t.Errorf("status: a paused tick must not count as a run, got %v", status.LastRunAt)
+	}
+
+	if summary, _ := f.proc.runOnce(ctx, true); summary.Kept != 1 {
+		t.Errorf("manual run while paused: got %+v, want the task decided", summary)
+	}
+
+	if err := f.settings.Set(ctx, &model.AppSettings{}); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	f.inboxTask(t, "after resume")
+	if summary, _ := f.proc.RunOnce(ctx); summary.Kept != 1 {
+		t.Errorf("scheduled run after resume: got %+v, want one kept", summary)
+	}
+}

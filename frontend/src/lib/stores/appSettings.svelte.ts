@@ -8,7 +8,13 @@ import type {
 } from '../api/types';
 
 function emptyAppSettings(): AppSettings {
-	return { autoLabels: [], projectSuggestions: [], inboxProcessing: { prompt: '' } };
+	return { autoLabels: [], projectSuggestions: [], inboxProcessing: { prompt: '', paused: false } };
+}
+
+// Settings payloads from before a field existed decode without it.
+function inboxOf(v: AppSettings): InboxProcessingSettings {
+	const stored: Partial<InboxProcessingSettings> = v.inboxProcessing ?? {};
+	return { prompt: stored.prompt ?? '', paused: stored.paused ?? false };
 }
 
 function createAppSettingsStore() {
@@ -25,7 +31,7 @@ function createAppSettingsStore() {
 			return value.projectSuggestions ?? [];
 		},
 		get inboxProcessing(): InboxProcessingSettings {
-			return value.inboxProcessing ?? { prompt: '' };
+			return inboxOf(value);
 		},
 		setValue(v: AppSettings): void {
 			value = v;
@@ -54,9 +60,20 @@ function createAppSettingsStore() {
 		},
 		async setInboxProcessingPrompt(prompt: string): Promise<void> {
 			const prev = value;
-			value = { ...value, inboxProcessing: { prompt } };
+			value = { ...value, inboxProcessing: { ...inboxOf(value), prompt } };
 			try {
 				const updated = await appSettingsApi.setInboxProcessingPrompt(getApiClient(), prompt);
+				value = updated;
+			} catch (err) {
+				value = prev;
+				throw err;
+			}
+		},
+		async setInboxProcessingPaused(paused: boolean): Promise<void> {
+			const prev = value;
+			value = { ...value, inboxProcessing: { ...inboxOf(value), paused } };
+			try {
+				const updated = await appSettingsApi.setInboxProcessingPaused(getApiClient(), paused);
 				value = updated;
 			} catch (err) {
 				value = prev;

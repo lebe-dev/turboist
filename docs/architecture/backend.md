@@ -142,7 +142,9 @@ with an OpenAI-compatible chat model (`OpenAIClient`, plain `net/http`). It is c
 but `Run` is started on the shared cleanup context only when the feature is enabled.
 
 A run (`Processor.runOnce`) is guarded by `sync.Mutex.TryLock`, so a scheduled tick and a manual
-`POST /api/v1/inbox/processing/run` never overlap. It asks `InboxProcessingRepo.ListPending` for open
+`POST /api/v1/inbox/processing/run` never overlap. A scheduled tick first reads
+`app_settings.inboxProcessing.paused` and returns when the settings page paused processing; a manual
+run skips that check. It asks `InboxProcessingRepo.ListPending` for open
 Inbox tasks that need a decision — never looked at, edited since (the fingerprint is sha256 of title
 and description), or failed with a due retry — and returns without touching the catalogue or the
 provider when there are none, which is what nearly every tick does. Otherwise it loads the catalogue

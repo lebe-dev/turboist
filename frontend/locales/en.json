@@ -155,6 +155,7 @@
 				"heading": "Status",
 				"enabled": "Enabled",
 				"disabled": "Disabled",
+				"paused": "Paused",
 				"disabledHint": "The background job is off. Set INBOX_PROCESSING_ENABLED=true together with INBOX_PROCESSING_API_KEY and INBOX_PROCESSING_MODEL in the server environment and restart it. The prompt can be edited either way.",
 				"model": "Model",
 				"provider": "Provider",
@@ -171,6 +172,10 @@
 			},
 			"run": "Process now",
 			"runDisabledHint": "Nothing is waiting in the Inbox",
+			"pause": {
+				"label": "Pause automatic processing",
+				"hint": "While paused, the background job leaves the Inbox alone. “Process now” still works."
+			},
 			"toasts": {
 				"runFinished": "Inbox processed: {sorted} filed, {kept} kept, {failed} failed",
 				"runFailed": "Failed to start Inbox processing",
@@ -179,7 +184,10 @@
 				"promptFailed": "Failed to save the prompt",
 				"previewFailed": "Failed to render the preview",
 				"reverted": "Task returned to the Inbox",
-				"revertFailed": "Failed to return the task to the Inbox"
+				"revertFailed": "Failed to return the task to the Inbox",
+				"paused": "Inbox processing paused",
+				"resumed": "Inbox processing resumed",
+				"pauseFailed": "Failed to change the pause"
 			},
 			"prompt": {
 				"heading": "Prompt",

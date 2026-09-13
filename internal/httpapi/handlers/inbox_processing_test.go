@@ -276,7 +276,7 @@ func TestInboxProcessing_PutPrompt(t *testing.T) {
 	for name, prompt := range map[string]string{"empty": "", "unchanged default": inboxproc.DefaultPrompt} {
 		resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPut, "/api/v1/app-settings/inbox-processing",
 			map[string]string{"prompt": prompt}))
-		if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"inboxProcessing":{"prompt":""}`) {
+		if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"inboxProcessing":{"prompt":"","paused":false}`) {
 			t.Errorf("put %s: got %d %s, want the default stored as an empty prompt", name, resp.StatusCode, body)
 		}
 	}
@@ -353,4 +353,42 @@ func waitUntil(t *testing.T, cond func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("condition not met in time")
+}
+
+func TestInboxProcessing_PutPaused(t *testing.T) {
+	e := setupAPIEnv(t)
+	ch, cancel := e.eventsHub.Subscribe(1)
+	defer cancel()
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPut, "/api/v1/app-settings/inbox-processing",
+		map[string]string{"prompt": "Sort {{.Task.Title}}"}))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("put prompt: got %d %s", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPut, "/api/v1/app-settings/inbox-processing",
+		map[string]bool{"paused": true}))
+	if resp.StatusCode != http.StatusOK ||
+		!strings.Contains(string(body), `"inboxProcessing":{"prompt":"Sort {{.Task.Title}}","paused":true}`) {
+		t.Fatalf("put paused: got %d %s, want paused with the prompt kept", resp.StatusCode, body)
+	}
+	if got := drain(ch, 150*time.Millisecond); len(got) != 0 {
+		t.Errorf("pausing must not publish, got %v", got)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/inbox/processing", nil))
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"paused":true`) {
+		t.Errorf("status: got %d %s, want paused", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPut, "/api/v1/app-settings/inbox-processing",
+		map[string]any{"paused": false, "prompt": ""}))
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"inboxProcessing":{"prompt":"","paused":false}`) {
+		t.Errorf("resume with prompt reset: got %d %s", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPut, "/api/v1/app-settings/inbox-processing", map[string]any{}))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("empty body: got %d %s, want 400", resp.StatusCode, body)
+	}
 }

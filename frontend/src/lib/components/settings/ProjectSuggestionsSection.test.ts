@@ -82,7 +82,7 @@ describe('ProjectSuggestionsSection', () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
 			projectSuggestions: [],
-			inboxProcessing: { prompt: '' }
+			inboxProcessing: { prompt: '', paused: false }
 		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);
@@ -94,7 +94,7 @@ describe('ProjectSuggestionsSection', () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
 			projectSuggestions: [{ mask: 'deploy', projectIds: [4, 7], ignoreCase: true }],
-			inboxProcessing: { prompt: '' }
+			inboxProcessing: { prompt: '', paused: false }
 		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);
@@ -107,7 +107,7 @@ describe('ProjectSuggestionsSection', () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
 			projectSuggestions: [{ mask: 'deploy', projectIds: [4], ignoreCase: true }],
-			inboxProcessing: { prompt: '' }
+			inboxProcessing: { prompt: '', paused: false }
 		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);
@@ -127,7 +127,7 @@ describe('ProjectSuggestionsSection', () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
 			projectSuggestions: [{ mask: 'deploy', projectIds: [] }] as never,
-			inboxProcessing: { prompt: '' }
+			inboxProcessing: { prompt: '', paused: false }
 		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);

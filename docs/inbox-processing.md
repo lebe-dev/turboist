@@ -52,10 +52,19 @@ Any other OpenAI-compatible endpoint works the same way — set `INBOX_PROCESSIN
 With the feature disabled, **Settings → Inbox** still shows the status card, the prompt editor and
 the journal.
 
+## Pausing
+
+**Settings → Inbox → Pause automatic processing** stops the scheduled runs without touching the
+environment or restarting the server. The pause is stored with the app settings, so it survives a
+restart. While paused the background job does not read the Inbox or call the provider; **Process
+now** still works, which lets you review decisions one batch at a time. Turning the switch off
+resumes the schedule from the next tick.
+
 ## How a run works
 
 1. A run starts right after the server boots, then every `INBOX_PROCESSING_INTERVAL`, or immediately
-   from **Settings → Inbox → Process now**. Runs never overlap.
+   from **Settings → Inbox → Process now**. Runs never overlap. Scheduled runs are skipped while
+   processing is paused.
 2. It picks up to `INBOX_PROCESSING_BATCH_LIMIT` open Inbox tasks, oldest first, that still need a
    decision: tasks never looked at, tasks edited since the last decision, and failed tasks whose
    retry time has come. When there are none, the run ends without touching the provider.
@@ -175,15 +184,15 @@ be reverted only once.
 
 | Endpoint | Scope | Description |
 |---|---|---|
-| `GET /api/v1/inbox/processing` | `settings:read` | Status: `enabled`, `model`, `apiHost`, `interval`, `batchLimit`, `running`, `pendingCount`, `lastRunAt`, `lastRunSummary`, `lastError`, `backoffUntil`, `defaultPrompt` |
+| `GET /api/v1/inbox/processing` | `settings:read` | Status: `enabled`, `model`, `apiHost`, `interval`, `batchLimit`, `running`, `pendingCount`, `lastRunAt`, `lastRunSummary`, `lastError`, `backoffUntil`, `paused`, `defaultPrompt` |
 | `POST /api/v1/inbox/processing/run` | `tasks:write` | Queue an immediate run: `202 {"running": true}`, or `409 inbox_processing_disabled` |
 | `POST /api/v1/inbox/processing/preview` | `settings:read` | `{"prompt": "…"}` renders that text (empty string = the default); no body renders the saved prompt. `422` with `details.error` for a broken template |
 | `GET /api/v1/inbox/processing/log?limit&offset` | `tasks:read` | Journal, newest first, standard paged envelope |
 | `POST /api/v1/inbox/processing/log/:id/revert` | `tasks:write` | Return the task to the Inbox; answers with the task. `404`, `409 conflict`, `422 forbidden_placement` |
-| `PUT /api/v1/app-settings/inbox-processing` | `settings:write` | `{"prompt": "…"}`; validated by rendering it against the live catalogue (`422` on error). Saving an empty prompt or the unchanged default stores the default |
+| `PUT /api/v1/app-settings/inbox-processing` | `settings:write` | `{"prompt": "…", "paused": true}` — either field or both; a field left out is kept. The prompt is validated by rendering it against the live catalogue (`422` on error); an empty prompt or the unchanged default stores the default |
 
-The saved prompt is part of the app settings payload as `inboxProcessing.prompt`, and every task
-carries `autoSortedAt`.
+The saved prompt and the pause are part of the app settings payload as `inboxProcessing.prompt` and
+`inboxProcessing.paused`, and every task carries `autoSortedAt`.
 
 ## Diagnostics
 

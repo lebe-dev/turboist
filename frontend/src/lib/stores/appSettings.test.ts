@@ -52,7 +52,7 @@ describe('appSettingsStore.setInboxProcessingPrompt', () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
 			projectSuggestions: [],
-			inboxProcessing: { prompt: 'previous' }
+			inboxProcessing: { prompt: 'previous', paused: false }
 		});
 		setupAuth(
 			vi.fn(async () =>
@@ -76,5 +76,25 @@ describe('appSettingsStore.setInboxProcessingPrompt', () => {
 	it('falls back to an empty prompt for settings payloads that predate the field', () => {
 		appSettingsStore.setValue({ autoLabels: [], projectSuggestions: [] } as never);
 		expect(appSettingsStore.inboxProcessing.prompt).toBe('');
+	});
+});
+
+describe('appSettingsStore.setInboxProcessingPaused', () => {
+	it('keeps the prompt when pausing and rolls back on failure', async () => {
+		appSettingsStore.setValue({
+			autoLabels: [],
+			projectSuggestions: [],
+			inboxProcessing: { prompt: 'mine', paused: false }
+		});
+		setupAuth(
+			vi.fn(async () =>
+				json({ error: { code: 'internal_error', message: 'boom' } }, 500)
+			) as unknown as typeof fetch
+		);
+
+		const pending = appSettingsStore.setInboxProcessingPaused(true);
+		expect(appSettingsStore.inboxProcessing).toEqual({ prompt: 'mine', paused: true });
+		await expect(pending).rejects.toBeTruthy();
+		expect(appSettingsStore.inboxProcessing).toEqual({ prompt: 'mine', paused: false });
 	});
 });

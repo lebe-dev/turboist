@@ -13,6 +13,9 @@ type InboxProcessingSettings struct {
 	// string means "use the built-in default", so improvements to the default
 	// reach everyone who never customised it.
 	Prompt string `json:"prompt"`
+	// Paused stops the scheduled runs without touching the environment
+	// configuration. A manual "process now" still runs.
+	Paused bool `json:"paused"`
 }
 
 // InboxStateStatus is why a task that is still in the Inbox is not pending.
