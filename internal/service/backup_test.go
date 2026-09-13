@@ -9,6 +9,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
@@ -1114,5 +1115,46 @@ func TestBackupService_RestoreBackfillsMissingTaskLabelCreatedAt(t *testing.T) {
 	}
 	if got.String != taskCreatedAt {
 		t.Errorf("restored created_at: got %s, want %s", got.String, taskCreatedAt)
+	}
+}
+
+func TestBackupService_RoundTripPreservesAutoSortedAt(t *testing.T) {
+	src := setupBackupFixtures(t)
+	seedSample(t, src)
+	ctx := context.Background()
+
+	payload, err := src.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	var filed *service.BackupTask
+	for i := range payload.Data.Tasks {
+		if payload.Data.Tasks[i].ContextID != nil {
+			filed = &payload.Data.Tasks[i]
+			break
+		}
+	}
+	if filed == nil {
+		t.Fatal("sample has no context task to mark")
+	}
+	at := time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)
+	if _, err := src.tasks.Update(ctx, filed.ID, repo.TaskUpdate{AutoSortedAt: &at}); err != nil {
+		t.Fatalf("mark task: %v", err)
+	}
+	payload, err = src.svc.Export(ctx, service.ExportOptions{})
+	if err != nil {
+		t.Fatalf("re-export: %v", err)
+	}
+
+	dst := setupBackupFixtures(t)
+	if err := dst.svc.Restore(ctx, payload); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	got, err := dst.tasks.Get(ctx, filed.ID)
+	if err != nil {
+		t.Fatalf("get restored task: %v", err)
+	}
+	if got.AutoSortedAt == nil || !got.AutoSortedAt.Equal(at) {
+		t.Errorf("restored marker: got %v, want %v", got.AutoSortedAt, at)
 	}
 }

@@ -5,34 +5,37 @@ import (
 )
 
 type TaskDTO struct {
-	ID              int64      `json:"id"`
-	Title           string     `json:"title"`
-	Description     string     `json:"description"`
-	InboxID         *int64     `json:"inboxId"`
-	ContextID       *int64     `json:"contextId"`
-	ProjectID       *int64     `json:"projectId"`
-	SectionID       *int64     `json:"sectionId"`
-	ParentID        *int64     `json:"parentId"`
-	Priority        string     `json:"priority"`
-	Status          string     `json:"status"`
-	DueAt           *string    `json:"dueAt"`
-	DueHasTime      bool       `json:"dueHasTime"`
-	DeadlineAt      *string    `json:"deadlineAt"`
-	DeadlineHasTime bool       `json:"deadlineHasTime"`
-	DayPart         string     `json:"dayPart"`
-	PlanState       string     `json:"planState"`
-	IsPinned        bool       `json:"isPinned"`
-	PinnedAt        *string    `json:"pinnedAt"`
-	IsPrivate       bool       `json:"isPrivate"`
-	IsComplex       bool       `json:"isComplex"`
-	CompletedAt     *string    `json:"completedAt"`
-	RecurrenceRule  *string    `json:"recurrenceRule"`
-	SourceTaskID    *int64     `json:"sourceTaskId"`
-	PostponeCount   int        `json:"postponeCount"`
-	Labels          []LabelDTO `json:"labels"`
-	URL             string     `json:"url"`
-	CreatedAt       string     `json:"createdAt"`
-	UpdatedAt       string     `json:"updatedAt"`
+	ID              int64   `json:"id"`
+	Title           string  `json:"title"`
+	Description     string  `json:"description"`
+	InboxID         *int64  `json:"inboxId"`
+	ContextID       *int64  `json:"contextId"`
+	ProjectID       *int64  `json:"projectId"`
+	SectionID       *int64  `json:"sectionId"`
+	ParentID        *int64  `json:"parentId"`
+	Priority        string  `json:"priority"`
+	Status          string  `json:"status"`
+	DueAt           *string `json:"dueAt"`
+	DueHasTime      bool    `json:"dueHasTime"`
+	DeadlineAt      *string `json:"deadlineAt"`
+	DeadlineHasTime bool    `json:"deadlineHasTime"`
+	DayPart         string  `json:"dayPart"`
+	PlanState       string  `json:"planState"`
+	IsPinned        bool    `json:"isPinned"`
+	PinnedAt        *string `json:"pinnedAt"`
+	IsPrivate       bool    `json:"isPrivate"`
+	IsComplex       bool    `json:"isComplex"`
+	CompletedAt     *string `json:"completedAt"`
+	RecurrenceRule  *string `json:"recurrenceRule"`
+	SourceTaskID    *int64  `json:"sourceTaskId"`
+	PostponeCount   int     `json:"postponeCount"`
+	// AutoSortedAt is set when the LLM Inbox processor filed the task; null when
+	// a person placed it. Cleared by any manual move.
+	AutoSortedAt *string    `json:"autoSortedAt"`
+	Labels       []LabelDTO `json:"labels"`
+	URL          string     `json:"url"`
+	CreatedAt    string     `json:"createdAt"`
+	UpdatedAt    string     `json:"updatedAt"`
 	// Subtasks is populated only by GET /tasks/:id?subtasks=true so the
 	// task detail page can fetch the parent task and its children in one
 	// round-trip. Other endpoints leave it nil and the `omitempty` tag
@@ -86,6 +89,7 @@ func TaskFromModel(t model.Task, baseURL string) TaskDTO {
 		RecurrenceRule:  t.RecurrenceRule,
 		SourceTaskID:    t.SourceTaskID,
 		PostponeCount:   t.PostponeCount,
+		AutoSortedAt:    FormatTimePtr(t.AutoSortedAt),
 		Labels:          labels,
 		URL:             t.URL(baseURL),
 		CreatedAt:       FormatTime(t.CreatedAt),

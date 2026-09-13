@@ -46,7 +46,7 @@ func (r *TaskRepo) hydrateRelationSummaries(ctx context.Context, tasks []model.T
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, is_private, is_complex, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, is_complex, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, auto_sorted_at, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -62,7 +62,7 @@ const taskOrderBy = `is_pinned DESC,
 func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var t model.Task
 	var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
-	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
+	var dueAt, deadlineAt, pinnedAt, completedAt, autoSortedAt sql.NullString
 	var recurrenceRule, troikiCategory sql.NullString
 	var dueHasTime, deadlineHasTime, isPinned, isPrivate, isComplex int
 	var createdAt, updatedAt string
@@ -76,9 +76,17 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&t.PostponeCount,
 		&troikiCategory,
 		&sourceTaskID,
+		&autoSortedAt,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
+	}
+	if autoSortedAt.Valid {
+		ts, err := model.ParseUTC(autoSortedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse auto_sorted_at: %w", err)
+		}
+		t.AutoSortedAt = &ts
 	}
 	if sourceTaskID.Valid {
 		v := sourceTaskID.Int64
@@ -375,6 +383,9 @@ type TaskUpdate struct {
 
 	IncPostponeCount   bool
 	ResetPostponeCount bool
+
+	AutoSortedAt      *time.Time
+	AutoSortedAtClear bool
 }
 
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
@@ -469,6 +480,12 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	} else if u.TroikiCategory != nil {
 		sets = append(sets, "troiki_category = ?", "troiki_capacity_granted = 0")
 		args = append(args, string(*u.TroikiCategory))
+	}
+	if u.AutoSortedAtClear {
+		sets = append(sets, "auto_sorted_at = NULL")
+	} else if u.AutoSortedAt != nil {
+		sets = append(sets, "auto_sorted_at = ?")
+		args = append(args, model.FormatUTC(*u.AutoSortedAt))
 	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
@@ -862,6 +879,10 @@ func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 // moved task's subtree may end up spanning two projects. Cycles (target ∈
 // subtree of taskID) are rejected with ErrCycle. Subtasks in inbox are
 // rejected by Placement.Validate (parent_id forbidden alongside inbox_id).
+//
+// Every move clears auto_sorted_at: once a task has been relocated by hand, its
+// placement is the user's decision rather than the Inbox processor's. The
+// processor itself sets the marker again right after its own move.
 func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) error {
 	const op = "repo.tasks.Move"
 	logQuery(ctx, op, taskID, target)
@@ -888,6 +909,7 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 		`UPDATE tasks SET inbox_id = ?, context_id = ?, project_id = ?, section_id = ?, parent_id = ?,
 			troiki_category = CASE WHEN ? IS NULL THEN troiki_category ELSE NULL END,
 			troiki_capacity_granted = CASE WHEN ? IS NULL THEN troiki_capacity_granted ELSE 0 END,
+			auto_sorted_at = NULL,
 			updated_at = ?
 		 WHERE id = ?`,
 		nullInt(target.InboxID), nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID),

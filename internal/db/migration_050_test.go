@@ -36,7 +36,7 @@ var notLoggedTables = []string{
 	"sessions", "api_tokens", "idempotency_keys",
 	"webauthn_credentials", "webauthn_users", "totp_recovery_codes",
 	"calendar_accounts", "calendar_sources", "calendar_oauth_configs", "calendar_oauth_states",
-	"inbox",
+	"inbox", "inbox_processing_state", "inbox_processing_log",
 }
 
 type changeRow struct {

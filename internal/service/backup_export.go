@@ -110,7 +110,7 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 				priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
 				day_part, plan_state, is_pinned, pinned_at, is_private, is_complex,
 				recurrence_rule, completed_at, postpone_count, troiki_category, troiki_capacity_granted,
-				source_task_id, created_at, updated_at
+				source_task_id, auto_sorted_at, created_at, updated_at
 		 FROM tasks ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 	for rows.Next() {
 		var t BackupTask
 		var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
-		var dueAt, deadlineAt, pinnedAt, recurrence, completedAt, troiki sql.NullString
+		var dueAt, deadlineAt, pinnedAt, recurrence, completedAt, troiki, autoSortedAt sql.NullString
 		var dueHasTime, deadlineHasTime, isPinned, isPrivate, isComplex, capGranted int
 		if err := rows.Scan(&t.ID, &t.Title, &t.Description,
 			&inboxID, &contextID, &projectID, &sectionID, &parentID,
@@ -129,8 +129,12 @@ func (s *BackupService) readTasks(ctx context.Context) ([]BackupTask, error) {
 			&t.DayPart, &t.PlanState,
 			&isPinned, &pinnedAt, &isPrivate, &isComplex,
 			&recurrence, &completedAt, &t.PostponeCount, &troiki, &capGranted,
-			&sourceTaskID, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			&sourceTaskID, &autoSortedAt, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
+		}
+		if autoSortedAt.Valid {
+			v := autoSortedAt.String
+			t.AutoSortedAt = &v
 		}
 		if sourceTaskID.Valid {
 			v := sourceTaskID.Int64

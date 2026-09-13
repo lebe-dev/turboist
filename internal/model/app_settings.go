@@ -26,4 +26,5 @@ type ProjectSuggestionRule struct {
 type AppSettings struct {
 	AutoLabels         []AutoLabelRule         `json:"autoLabels"`
 	ProjectSuggestions []ProjectSuggestionRule `json:"projectSuggestions"`
+	InboxProcessing    InboxProcessingSettings `json:"inboxProcessing"`
 }

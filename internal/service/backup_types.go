@@ -109,8 +109,11 @@ type BackupTask struct {
 	TroikiCategory        *string `json:"troikiCategory,omitempty"`
 	TroikiCapacityGranted bool    `json:"troikiCapacityGranted"`
 	SourceTaskID          *int64  `json:"sourceTaskId,omitempty"`
-	CreatedAt             string  `json:"createdAt"`
-	UpdatedAt             string  `json:"updatedAt"`
+	// AutoSortedAt is the LLM Inbox processor's marker (migration 051). Additive:
+	// an older payload decodes to nil, i.e. "placed by a person".
+	AutoSortedAt *string `json:"autoSortedAt,omitempty"`
+	CreatedAt    string  `json:"createdAt"`
+	UpdatedAt    string  `json:"updatedAt"`
 }
 
 type BackupTaskLabel struct {
