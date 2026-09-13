@@ -111,6 +111,7 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `task_blocked` | 409 |
 | `sync_epoch_mismatch` | 409 |
 | `sync_cursor_expired` | 410 |
+| `inbox_processing_disabled` | 409 |
 | `CodeInternalError` | 500 |
 
 #### `403 Forbidden`
@@ -704,6 +705,17 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/inbox` | `tasks:read` |
 | `POST /api/v1/inbox/tasks` | `tasks:write` |
 
+#### Inbox processing
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/inbox/processing` | `settings:read` |
+| `POST /api/v1/inbox/processing/run` | `tasks:write` |
+| `POST /api/v1/inbox/processing/preview` | `settings:read` |
+| `GET /api/v1/inbox/processing/log` | `tasks:read` |
+| `POST /api/v1/inbox/processing/log/:id/revert` | `tasks:write` |
+| `PUT /api/v1/app-settings/inbox-processing` | `settings:write` |
+
 #### Projects
 
 | Endpoint | Scope |
@@ -905,6 +917,7 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
   "completedAt": null,
   "recurrenceRule": null,
   "postponeCount": 0,
+  "autoSortedAt": null,
   "labels": [{ "id": 3, "name": "bug", "color": "red", "isFavourite": false, "isPrivate": false, "createdAt": "...", "updatedAt": "..." }],
   "blockedByCount": 0,
   "relationCount": 0,
@@ -917,6 +930,8 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
 A task belongs to exactly one placement: `inboxId`, `contextId`, `projectId`, or `sectionId`. `parentId` identifies a subtask relationship.
 
 `blockedByCount` is how many still-open tasks block this one (see [Task Relations](#task-relations)); a non-zero value means completion is refused with `task_blocked`. It includes blockers **inherited from ancestor tasks** — a subtask of a blocked task is blocked too — so a subtask can report `blockedByCount: 1` with `relationCount: 0`. `relationCount` is every relation touching the task itself, both directions and both types. Both are present on **every** task-returning endpoint — the single get, all list and view endpoints, and `GET /api/v1/config`'s `pinnedTasks` — so a client never has to ask separately whether a task is blocked.
+
+`autoSortedAt` is set when the LLM Inbox processor filed the task out of the Inbox (see [Inbox processing](#inbox-processing-1)) and `null` when a person placed it. Any manual move clears it.
 
 `relations` is present only where noted below (`GET /api/v1/tasks/:id?relations=true` and the two relation mutations).
 
@@ -2273,6 +2288,102 @@ curl -X POST "$BASE/api/v1/inbox/tasks" \
 
 ---
 
+## Inbox processing
+
+An optional background job files open Inbox tasks into projects with an OpenAI-compatible language
+model (configured with the `INBOX_PROCESSING_*` environment variables; off by default). The endpoints
+below are mounted either way, so a client can tell a disabled feature from an old server. Scopes are
+listed under [Endpoint → Scope Mapping](#endpoint--scope-mapping).
+
+### `GET /api/v1/inbox/processing`
+
+```json
+{
+  "enabled": true,
+  "model": "openai/gpt-4.1-mini",
+  "apiHost": "openrouter.ai",
+  "interval": "3m",
+  "batchLimit": 10,
+  "running": false,
+  "pendingCount": 3,
+  "lastRunAt": "2026-09-13T10:00:00.000Z",
+  "lastRunSummary": { "sorted": 2, "kept": 1, "failed": 0 },
+  "lastError": null,
+  "backoffUntil": null,
+  "defaultPrompt": "You are the triage assistant…"
+}
+```
+
+`pendingCount` is how many open Inbox tasks are waiting for a decision. `lastRunAt`,
+`lastRunSummary`, `lastError` and `backoffUntil` live in memory and reset on restart; `backoffUntil`
+is set while scheduled runs pause after a provider failure. The API key is never part of the response.
+
+### `POST /api/v1/inbox/processing/run`
+
+Queues an immediate run and returns at once — `202 {"running": true}`. Poll the status until
+`running` is `false`. A manual run ignores a provider pause. `409 inbox_processing_disabled` when the
+feature is off. Does not emit an SSE invalidation itself; the processor publishes `tasks`, `inbox` and
+`plan` once it has filed a task.
+
+### `POST /api/v1/inbox/processing/preview`
+
+**Request:** `{"prompt": "…"}` renders that template (an empty string renders the built-in default);
+an empty body renders the saved prompt. The template is rendered against the live catalogue and the
+oldest open Inbox task, or a sample task when the Inbox is empty.
+
+```json
+{ "rendered": "You are the triage assistant…\n\n## Output\n…" }
+```
+
+A template that does not parse or render is `422 validation_failed` with `details.error`.
+
+### `GET /api/v1/inbox/processing/log`
+
+The decision journal, newest first, in the standard paged envelope (`limit` default 50, max 200).
+Rows are kept for 90 days.
+
+```json
+{
+  "items": [
+    {
+      "id": 17,
+      "taskId": 42,
+      "taskTitle": "Fix login redirect on Safari",
+      "outcome": "sorted",
+      "model": "openai/gpt-4.1-mini",
+      "reason": "Bug in the Turboist web app",
+      "confidence": 0.86,
+      "before": { "labelIds": [], "priority": "no-priority", "dueAt": null, "dueHasTime": false },
+      "after": { "contextId": 2, "projectId": 10, "labelIds": [3], "priority": "no-priority", "dueAt": null },
+      "error": null,
+      "promptTokens": 1830,
+      "completionTokens": 64,
+      "revertedAt": null,
+      "createdAt": "2026-09-13T10:00:02.000Z"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+`outcome` is `sorted`, `kept` or `failed`. `after` is present only for `sorted`; `error` only for
+`failed`. `taskId` becomes `null` when the task is deleted. Project and label ids are resolved by the
+client.
+
+### `POST /api/v1/inbox/processing/log/:id/revert`
+
+Returns a filed task to the Inbox: clears the marker, removes the labels the decision added and
+restores priority and due date where they still hold the values the decision set. The task is not
+filed again until it is edited. Answers with the [Task Object](#task-object).
+
+- `404 not_found` — no such journal row, or its task was deleted
+- `409 conflict` — the row is not a `sorted` decision, or it was already reverted
+- `422 forbidden_placement` — the task has since become a subtask
+
+---
+
 ## Calendars
 
 Read-only Google Calendar integration. Events are fetched live from Google and
@@ -2912,9 +3023,13 @@ Global, server-wide rules (single-row `app_settings` table). Reads require the
   ],
   "projectSuggestions": [
     { "mask": "deploy", "projectIds": [4, 7], "ignoreCase": true }
-  ]
+  ],
+  "inboxProcessing": { "prompt": "" }
 }
 ```
+
+`inboxProcessing.prompt` is the Inbox processing prompt template; an empty string means the built-in
+default.
 
 ```sh
 curl "$BASE/api/v1/app-settings" \
@@ -2945,6 +3060,21 @@ curl -X PUT "$BASE/api/v1/app-settings/project-suggestions" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"projectSuggestions":[{"mask":"deploy","projectIds":[4,7],"ignoreCase":true}]}'
+```
+
+### `PUT /api/v1/app-settings/inbox-processing`
+
+**Request:** `{"prompt": "…"}` — the Inbox processing prompt, a Go `text/template` of at most 20000
+characters. It is validated by rendering it against the live catalogue; a broken template is
+`422 validation_failed` with `details.error`. An empty prompt, or the unchanged built-in default, is
+stored as `""` so later default improvements still apply. Works whether or not the feature is enabled.
+Returns the full app settings and emits no SSE invalidation.
+
+```sh
+curl -X PUT "$BASE/api/v1/app-settings/inbox-processing" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"File {{.Task.Title}} into one of {{len .Projects}} projects."}'
 ```
 
 ---

@@ -28,6 +28,7 @@ The server runs migrations from `internal/db/migrations` on every start. The sch
 | `/api/v1/{contexts,labels,sections,projects,inbox,tasks,search,config}` | Bearer | Authenticated REST resources |
 | `POST\|DELETE /api/v1/tasks/:id/relations[/:relationId]` | Bearer | Task relation graph (write-only — reads ride on `GET /api/v1/tasks/:id?relations=true`) |
 | `GET /api/v1/sync/{changes,snapshot}` | Bearer | Delta feed and full seed for clients holding a local copy of the workspace |
+| `/api/v1/inbox/processing/*`, `PUT /api/v1/app-settings/inbox-processing` | Bearer | LLM Inbox processing: status, manual run, prompt preview and save, decision journal and revert |
 
 All `/api/v1/*` endpoints require `Authorization: Bearer <token>`. The token can be a 15-minute JWT access token or a long-lived API token (generated in Settings → API). Web clients also receive a 30-day refresh token in an HttpOnly cookie scoped to `/auth/refresh`. API tokens are accepted on every `/api/v1/*` route except `/api/v1/api-tokens/*`, which requires a JWT session.
 
@@ -131,6 +132,49 @@ The tagging timestamp it buckets by is `task_labels.created_at`
 task's creation time). `TaskLabelsRepo.SetForTask` is therefore a diff, not a
 delete-and-reinsert: surviving rows keep their timestamp, so editing an unrelated
 field on a task does not move all of its tagging events into the current week.
+
+## Inbox processing
+
+`internal/service/inboxproc` is an optional background job that files open Inbox tasks into projects
+with an OpenAI-compatible chat model (`OpenAIClient`, plain `net/http`). It is configured from the
+`INBOX_PROCESSING_*` environment variables (`config.InboxProcessing`) and is off by default. The
+`Processor` is constructed either way — the journal, revert and prompt preview work without a key —
+but `Run` is started on the shared cleanup context only when the feature is enabled.
+
+A run (`Processor.runOnce`) is guarded by `sync.Mutex.TryLock`, so a scheduled tick and a manual
+`POST /api/v1/inbox/processing/run` never overlap. It asks `InboxProcessingRepo.ListPending` for open
+Inbox tasks that need a decision — never looked at, edited since (the fingerprint is sha256 of title
+and description), or failed with a due retry — and returns without touching the catalogue or the
+provider when there are none, which is what nearly every tick does. Otherwise it loads the catalogue
+once (contexts, open projects, labels), renders the saved prompt (`app_settings.inboxProcessing.prompt`,
+empty = `DefaultPrompt`) with `text/template` and the fixed output contract appended, and sends one
+request per task. The answer is parsed (`ParseDecision` tolerates fences and prose) and validated
+against the same catalogue (`Decision.Validate`), so an id the model was never shown can never be
+applied.
+
+Applying goes through the services, not SQL: `MoveService.Move` (so the Troiki priority invariant
+holds), `TaskLabelsRepo.SetForTask` with the union of current and decided labels, and one
+`TaskRepo.Update` that fills priority and due date only where the task has none and sets
+`auto_sorted_at`. There is no transaction across those calls — as with the HTTP handlers — and the
+task is re-read first: if it left the Inbox or its wording changed during the request, the answer is
+dropped. `TaskRepo.Move` clears `auto_sorted_at` on every move, so a manual relocation removes the
+marker. Provider-level failures (429, 5xx, network, timeout, rejected key) abort the run without
+charging attempts and pause scheduled runs with an exponential backoff capped at 30 minutes;
+task-level failures back off per task and sleep after five attempts until the task is edited.
+
+Because the job has no originating request, `PublishMiddleware` cannot announce its changes: the
+processor publishes `tasks`, `inbox` and `plan` on the hub itself (no origin, so every client
+refetches) after a run that filed something. `scopesForPath` maps `inbox/processing/run`,
+`inbox/processing/preview` and `app-settings/inbox-processing` to no scopes; revert stays under the
+`inbox` domain and publishes as any task mutation.
+
+Storage (migration `051_inbox_processing.sql`): `tasks.auto_sorted_at` is covered by the existing
+task change-log trigger, so replicas see the marker through the ordinary task upsert.
+`inbox_processing_state` (per-task memory for tasks still in the Inbox, `ON DELETE CASCADE`) and
+`inbox_processing_log` (the decision journal, `ON DELETE SET NULL` with a copy of the title) are
+server-side bookkeeping with **no** change-log triggers and are not part of backups.
+`startInboxProcessingPrune` in `cmd/turboist` deletes journal rows older than 90 days and state rows
+of tasks that left the Inbox, at startup and daily.
 
 ## Change log
 

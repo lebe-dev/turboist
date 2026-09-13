@@ -10,6 +10,7 @@ Turboist is a task management app for the rest of us.
 - Label usage stats — frequency per rolling week / month / quarter, trend against the previous window, and unused-label cleanup hints
 - Mask-based project suggestions on task creation (up to 3, A-Z)
 - Inbox with overflow handling
+- Optional AI Inbox processing — an OpenAI-compatible model (OpenRouter by default) files Inbox tasks into projects and labels them, with an editable prompt, a decision journal and one-click revert
 - Day phases (morning / day / evening / anytime)
 - Weekly / backlog planning with per-bucket caps
 - Pinned tasks and pinned projects (separate caps, configurable in Settings → Menu)
