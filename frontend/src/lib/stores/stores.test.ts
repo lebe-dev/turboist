@@ -68,6 +68,7 @@ function makeTask(
 		recurrenceRule: null,
 		sourceTaskId: null,
 		postponeCount: 0,
+		autoSortedAt: null,
 		blockedByCount: 0,
 		relationCount: 0,
 		labels: [],

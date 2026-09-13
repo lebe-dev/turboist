@@ -17,5 +17,6 @@ export { sessions } from './endpoints/sessions';
 export { passkeys } from './endpoints/passkeys';
 export { backup } from './endpoints/backup';
 export { totp } from './endpoints/totp';
+export { inboxProcessing } from './endpoints/inbox-processing';
 export { events } from './endpoints/events';
 export type { EventsTicket } from './endpoints/events';

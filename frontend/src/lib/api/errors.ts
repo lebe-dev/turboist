@@ -12,6 +12,7 @@ export type ApiErrorCode =
 	| 'forbidden_placement'
 	| 'recurrence_invalid'
 	| 'calendar_reauth_required'
+	| 'inbox_processing_disabled'
 	| 'internal_error'
 	| 'network_error'
 	| 'unknown_error';

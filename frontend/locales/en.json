@@ -102,6 +102,7 @@
 			"general": "General",
 			"menu": "Menu",
 			"labels": "Labels",
+			"inbox": "Inbox",
 			"templates": "Templates",
 			"project": "Project",
 			"troiki": "Troiki",
@@ -146,6 +147,86 @@
 			"toastSaved": "Project suggestion rules saved",
 			"toastFailed": "Failed to save project suggestion rules",
 			"toastEmptyFields": "Mask must not be empty and at least one project must be selected"
+		},
+		"inboxProcessing": {
+			"heading": "Inbox processing",
+			"description": "An AI model files open Inbox tasks into projects, adds labels and, when the wording makes it explicit, a priority and a due date.",
+			"status": {
+				"heading": "Status",
+				"enabled": "Enabled",
+				"disabled": "Disabled",
+				"disabledHint": "The background job is off. Set INBOX_PROCESSING_ENABLED=true together with INBOX_PROCESSING_API_KEY and INBOX_PROCESSING_MODEL in the server environment and restart it. The prompt can be edited either way.",
+				"model": "Model",
+				"provider": "Provider",
+				"interval": "Checks every",
+				"batchLimit": "Tasks per run",
+				"pending": "Waiting in the Inbox",
+				"lastRun": "Last run",
+				"never": "Not yet",
+				"summary": "{sorted} filed, {kept} kept, {failed} failed",
+				"lastError": "Last error",
+				"backoffUntil": "Paused after a provider error until {time}",
+				"running": "Processing…",
+				"loadFailed": "Failed to load the Inbox processing status"
+			},
+			"run": "Process now",
+			"runDisabledHint": "Nothing is waiting in the Inbox",
+			"toasts": {
+				"runFinished": "Inbox processed: {sorted} filed, {kept} kept, {failed} failed",
+				"runFailed": "Failed to start Inbox processing",
+				"promptSaved": "Prompt saved",
+				"promptReset": "Prompt reset to the default",
+				"promptFailed": "Failed to save the prompt",
+				"previewFailed": "Failed to render the preview",
+				"reverted": "Task returned to the Inbox",
+				"revertFailed": "Failed to return the task to the Inbox"
+			},
+			"prompt": {
+				"heading": "Prompt",
+				"description": "The instruction sent with every task, written as a Go text/template. The answer format is appended by the server and cannot be changed here.",
+				"usingDefault": "Default prompt",
+				"usingCustom": "Custom prompt",
+				"unsaved": "Unsaved changes",
+				"save": "Save",
+				"reset": "Reset to default",
+				"preview": "Preview",
+				"invalid": "Template error: {error}"
+			},
+			"preview": {
+				"title": "Prompt preview",
+				"description": "Rendered against your open projects, labels and the oldest Inbox task (or a sample task when the Inbox is empty).",
+				"close": "Close"
+			},
+			"variables": {
+				"heading": "Template variables",
+				"now": "Current date and time in the server timezone",
+				"timezone": "Server timezone name",
+				"locale": "Your interface language",
+				"contexts": "Contexts, each with ID and Name",
+				"projects": "Open projects, each with ID, Title, Description, Type, Context, Labels and TroikiCategory",
+				"labels": "Labels, each with ID and Name",
+				"priorities": "The allowed priority values",
+				"task": "The task being sorted: ID, Title, Description, CreatedAt and Labels",
+				"join": "Joins a list of strings with a separator",
+				"example": "Example"
+			},
+			"log": {
+				"heading": "Journal",
+				"description": "Recent decisions. A filed task can be returned to the Inbox, and it will not be filed again until you edit it.",
+				"empty": "No decisions yet.",
+				"loadFailed": "Failed to load the journal",
+				"outcome": {
+					"sorted": "Filed",
+					"kept": "Kept",
+					"failed": "Failed"
+				},
+				"reverted": "Returned",
+				"revert": "Return to Inbox",
+				"deletedTask": "The task was deleted",
+				"deleted": "(deleted)",
+				"confidence": "Confidence",
+				"due": "Due {date}"
+			}
 		},
 		"troiki": {
 			"heading": "Troiki System",
@@ -529,6 +610,8 @@
 		"inTroikiTitle": "In Troiki system",
 		"complexMarker": "Complex",
 		"complexTooltip": "Marked as a complex task",
+		"autoSortedMarker": "Filed by AI",
+		"autoSortedTooltip": "Filed from the Inbox by AI",
 		"recurringLabel": "Recurring task",
 		"unplannedLabel": "Added outside of planning",
 		"weekPlannedLabel": "Planned for this week",

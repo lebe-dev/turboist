@@ -14,6 +14,7 @@
 	import LogsSection from '$lib/components/settings/LogsSection.svelte';
 	import PinnedLimitsSection from '$lib/components/settings/PinnedLimitsSection.svelte';
 	import ProjectSuggestionsSection from '$lib/components/settings/ProjectSuggestionsSection.svelte';
+	import InboxProcessingSection from '$lib/components/settings/InboxProcessingSection.svelte';
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
 	import TemplatesSection from '$lib/components/settings/TemplatesSection.svelte';
 	import TwoFactorSection from '$lib/components/settings/TwoFactorSection.svelte';
@@ -40,7 +41,7 @@
 	const appVersion = __APP_VERSION__;
 	const totpAvailable = $derived(configStore.value?.totpAvailable ?? false);
 
-	const settingsTabs = ['general', 'menu', 'labels', 'templates', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
+	const settingsTabs = ['general', 'menu', 'labels', 'inbox', 'templates', 'calendars', 'project', 'troiki', 'privacy', 'security', 'api', 'backup', 'logs'] as const;
 	type SettingsTab = (typeof settingsTabs)[number];
 
 	let activeTab = $state<SettingsTab>('general');
@@ -142,6 +143,7 @@
 		{ value: 'general', labelKey: 'settings.tabs.general' },
 		{ value: 'menu', labelKey: 'settings.tabs.menu' },
 		{ value: 'labels', labelKey: 'settings.tabs.labels' },
+		{ value: 'inbox', labelKey: 'settings.tabs.inbox' },
 		{ value: 'templates', labelKey: 'settings.tabs.templates' },
 		{ value: 'calendars', labelKey: 'settings.tabs.calendars' },
 		{ value: 'project', labelKey: 'settings.tabs.project' },
@@ -580,6 +582,10 @@
 					</button>
 				</div>
 			</section>
+		</Tabs.Content>
+
+		<Tabs.Content value="inbox" class="flex flex-col gap-4">
+			<InboxProcessingSection />
 		</Tabs.Content>
 
 		<Tabs.Content value="templates" class="flex flex-col gap-4">

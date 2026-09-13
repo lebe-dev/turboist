@@ -154,6 +154,10 @@ export interface Task {
 
 	postponeCount: number;
 
+	// Set when the LLM Inbox processor filed the task out of the Inbox; null when
+	// a person placed it. Any manual move clears it.
+	autoSortedAt: string | null;
+
 	labels: Label[];
 
 	url: string;
@@ -523,9 +527,66 @@ export interface ProjectSuggestionRule {
 	ignoreCase: boolean;
 }
 
+export interface InboxProcessingSettings {
+	// Empty string = the built-in default prompt.
+	prompt: string;
+}
+
 export interface AppSettings {
 	autoLabels: AutoLabelRule[];
 	projectSuggestions: ProjectSuggestionRule[];
+	inboxProcessing: InboxProcessingSettings;
+}
+
+export interface InboxProcessingRunSummary {
+	sorted: number;
+	kept: number;
+	failed: number;
+}
+
+export interface InboxProcessingStatus {
+	enabled: boolean;
+	model: string;
+	apiHost: string;
+	interval: string;
+	batchLimit: number;
+	running: boolean;
+	pendingCount: number;
+	lastRunAt: string | null;
+	lastRunSummary: InboxProcessingRunSummary | null;
+	lastError: string | null;
+	backoffUntil: string | null;
+	defaultPrompt: string;
+}
+
+export type InboxProcessingOutcome = 'sorted' | 'kept' | 'failed';
+
+export interface InboxProcessingLogEntry {
+	id: number;
+	taskId: number | null;
+	taskTitle: string;
+	outcome: InboxProcessingOutcome;
+	model: string;
+	reason: string;
+	confidence: number | null;
+	before: {
+		labelIds: number[];
+		priority: Priority;
+		dueAt: string | null;
+		dueHasTime: boolean;
+	};
+	after: {
+		contextId: number;
+		projectId: number;
+		labelIds: number[];
+		priority: Priority;
+		dueAt: string | null;
+	} | null;
+	error: string | null;
+	promptTokens: number | null;
+	completionTokens: number | null;
+	revertedAt: string | null;
+	createdAt: string;
 }
 
 // Request payloads

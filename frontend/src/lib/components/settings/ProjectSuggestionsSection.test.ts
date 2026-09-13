@@ -79,7 +79,11 @@ describe('ProjectSuggestionsSection', () => {
 	});
 
 	it('renders the empty state when no rules are configured', () => {
-		appSettingsStore.setValue({ autoLabels: [], projectSuggestions: [] });
+		appSettingsStore.setValue({
+			autoLabels: [],
+			projectSuggestions: [],
+			inboxProcessing: { prompt: '' }
+		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);
 
@@ -89,7 +93,8 @@ describe('ProjectSuggestionsSection', () => {
 	it('renders existing rules with their project titles', () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
-			projectSuggestions: [{ mask: 'deploy', projectIds: [4, 7], ignoreCase: true }]
+			projectSuggestions: [{ mask: 'deploy', projectIds: [4, 7], ignoreCase: true }],
+			inboxProcessing: { prompt: '' }
 		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);
@@ -101,7 +106,8 @@ describe('ProjectSuggestionsSection', () => {
 	it('saves an edited mask trimmed via PUT', async () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
-			projectSuggestions: [{ mask: 'deploy', projectIds: [4], ignoreCase: true }]
+			projectSuggestions: [{ mask: 'deploy', projectIds: [4], ignoreCase: true }],
+			inboxProcessing: { prompt: '' }
 		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);
@@ -120,7 +126,8 @@ describe('ProjectSuggestionsSection', () => {
 	it('refuses to save a rule without projects', async () => {
 		appSettingsStore.setValue({
 			autoLabels: [],
-			projectSuggestions: [{ mask: 'deploy', projectIds: [] }] as never
+			projectSuggestions: [{ mask: 'deploy', projectIds: [] }] as never,
+			inboxProcessing: { prompt: '' }
 		});
 		setupAuth(makeFetchMock(captured));
 		render(ProjectSuggestionsSection);
