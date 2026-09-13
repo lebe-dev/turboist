@@ -300,3 +300,21 @@ func TestInboxProcessingRepo_PruneStaleStates(t *testing.T) {
 		t.Errorf("inbox task state: got %v, want kept", err)
 	}
 }
+
+func TestInboxProcessingRepo_OldestInboxTask(t *testing.T) {
+	f := newInboxProcFixture(t)
+	ctx := context.Background()
+	if _, err := f.proc.OldestInboxTask(ctx); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("empty inbox: got %v, want ErrNotFound", err)
+	}
+	now := time.Now()
+	f.inboxTask(t, "newer", now.Add(-time.Minute))
+	older := f.inboxTask(t, "older", now.Add(-time.Hour))
+	got, err := f.proc.OldestInboxTask(ctx)
+	if err != nil {
+		t.Fatalf("oldest: %v", err)
+	}
+	if got.ID != older.ID {
+		t.Errorf("oldest: got %d, want %d", got.ID, older.ID)
+	}
+}

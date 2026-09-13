@@ -121,6 +121,31 @@ func (r *InboxProcessingRepo) pending(ctx context.Context, now time.Time) ([]Pen
 	return out, nil
 }
 
+// OldestInboxTask returns the open Inbox task captured first, with labels. It is
+// the sample a prompt preview renders against.
+func (r *InboxProcessingRepo) OldestInboxTask(ctx context.Context) (*model.Task, error) {
+	const op = "repo.inbox_processing.OldestInboxTask"
+	logQuery(ctx, op)
+	t, err := scanTask(r.db.QueryRowContext(ctx,
+		`SELECT `+taskColumns+` FROM tasks
+		 WHERE inbox_id IS NOT NULL AND status = 'open'
+		 ORDER BY created_at ASC, id ASC LIMIT 1`))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	if r.labels != nil {
+		hydrated, err := r.labels.LabelsByTaskIDs(ctx, []int64{t.ID})
+		if err != nil {
+			return nil, logErr(ctx, op, err)
+		}
+		t.Labels = hydrated[t.ID]
+	}
+	return t, nil
+}
+
 const inboxStateColumns = `task_id, fingerprint, status, attempts, next_attempt_at, last_error, updated_at`
 
 func (r *InboxProcessingRepo) inboxStates(ctx context.Context) (map[int64]*model.InboxProcessingState, error) {
