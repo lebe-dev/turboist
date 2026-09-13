@@ -112,6 +112,11 @@ func (c *Catalogue) Project(id int64) (*model.Project, bool) {
 	return p, ok
 }
 
+// ContextName names a context of the catalogue, or "" when it is unknown.
+func (c *Catalogue) ContextName(id int64) string {
+	return c.contextNames[id]
+}
+
 // Label looks up a label of the catalogue.
 func (c *Catalogue) Label(id int64) (*model.Label, bool) {
 	l, ok := c.labels[id]

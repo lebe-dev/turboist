@@ -17,7 +17,7 @@ const maxStoredError = 1000
 // apply files a task according to a "sort" verdict. There is no transaction
 // across the repositories (as with the HTTP handlers): a failure after the move
 // leaves the task in its project without the marker and is recorded as failed.
-func (p *Processor) apply(ctx context.Context, now time.Time, item PendingItem, modelName string,
+func (p *Processor) apply(ctx context.Context, now time.Time, catalogue *Catalogue, item PendingItem, modelName string,
 	completion Completion, v Verdict) (model.InboxOutcome, error) {
 	const op = "inboxproc.Processor.apply"
 	fingerprint := model.InboxFingerprint(item.Task.Title, item.Task.Description)
@@ -34,7 +34,7 @@ func (p *Processor) apply(ctx context.Context, now time.Time, item PendingItem, 
 	if current.InboxID == nil || current.Status != model.TaskStatusOpen ||
 		model.InboxFingerprint(current.Title, current.Description) != fingerprint {
 		p.log.InfoContext(ctx, "inbox processing skipped a task changed during the request", slog.String("op", op),
-			slog.Int64("task_id", current.ID))
+			slog.Int64("task_id", current.ID), slog.String("task_title", current.Title), slog.String("model", modelName))
 		return "", nil
 	}
 
@@ -88,7 +88,8 @@ func (p *Processor) apply(ctx context.Context, now time.Time, item PendingItem, 
 		Priority:  filed.Priority,
 		DueAt:     filed.DueAt,
 	}
-	if _, err := p.d.State.AppendLog(ctx, entry); err != nil {
+	journalID, err := p.d.State.AppendLog(ctx, entry)
+	if err != nil {
 		p.log.ErrorContext(ctx, "inbox processing could not journal a sorted task", slog.String("op", op),
 			slog.Int64("task_id", current.ID), slog.String("err", err.Error()))
 	}
@@ -96,8 +97,24 @@ func (p *Processor) apply(ctx context.Context, now time.Time, item PendingItem, 
 		p.log.ErrorContext(ctx, "inbox processing could not clear task state", slog.String("op", op),
 			slog.Int64("task_id", current.ID), slog.String("err", err.Error()))
 	}
+	// One line holds the whole move, so the log alone tells where a task went and
+	// why; journal_id ties it to the row the settings page reverts.
 	p.log.InfoContext(ctx, "inbox processing filed a task", slog.String("op", op),
-		slog.Int64("task_id", current.ID), slog.Int64("project_id", projectID))
+		slog.Int64("journal_id", journalID),
+		slog.Int64("task_id", current.ID),
+		slog.String("task_title", current.Title),
+		slog.String("from", "inbox"),
+		slog.Int64("context_id", contextID),
+		slog.String("context", catalogue.ContextName(contextID)),
+		slog.Int64("project_id", projectID),
+		slog.String("project", v.Project.Title),
+		slog.Any("labels_added", labelNamesOf(filed.Labels, missingIDs(before.LabelIDs, labelIDs(filed.Labels)))),
+		slog.Any("labels", labelNames(filed.Labels)),
+		slog.String("priority", string(filed.Priority)),
+		slog.String("due_date", formatDue(filed.DueAt, filed.DueHasTime, p.d.Location)),
+		slog.Float64("confidence", v.Confidence),
+		slog.String("reason", v.Reason),
+		slog.String("model", modelName))
 	return model.InboxOutcomeSorted, nil
 }
 
@@ -122,11 +139,18 @@ func (p *Processor) keep(ctx context.Context, now time.Time, item PendingItem, m
 	entry.Reason = v.Reason
 	entry.Confidence = &confidence
 	entry.Before = beforeOf(&task)
-	if _, err := p.d.State.AppendLog(ctx, entry); err != nil {
+	journalID, err := p.d.State.AppendLog(ctx, entry)
+	if err != nil {
 		p.log.ErrorContext(ctx, "inbox processing could not journal a kept task", slog.String("op", op),
 			slog.Int64("task_id", task.ID), slog.String("err", err.Error()))
 	}
-	p.log.InfoContext(ctx, "inbox processing kept a task in the inbox", slog.String("op", op), slog.Int64("task_id", task.ID))
+	p.log.InfoContext(ctx, "inbox processing kept a task in the inbox", slog.String("op", op),
+		slog.Int64("journal_id", journalID),
+		slog.Int64("task_id", task.ID),
+		slog.String("task_title", task.Title),
+		slog.Float64("confidence", v.Confidence),
+		slog.String("reason", v.Reason),
+		slog.String("model", modelName))
 	return model.InboxOutcomeKept, nil
 }
 
@@ -170,12 +194,23 @@ func (p *Processor) fail(ctx context.Context, now time.Time, item PendingItem, m
 		confidence := decision.Confidence
 		entry.Confidence = &confidence
 	}
-	if _, err := p.d.State.AppendLog(ctx, entry); err != nil {
+	journalID, err := p.d.State.AppendLog(ctx, entry)
+	if err != nil {
 		p.log.ErrorContext(ctx, "inbox processing could not journal a failed task", slog.String("op", op),
 			slog.Int64("task_id", task.ID), slog.String("err", err.Error()))
 	}
+	nextAttempt := ""
+	if next != nil {
+		nextAttempt = next.In(p.d.Location).Format(time.RFC3339)
+	}
 	p.log.WarnContext(ctx, "inbox processing could not decide on a task", slog.String("op", op),
-		slog.Int64("task_id", task.ID), slog.Int("attempts", attempts), slog.String("err", msg))
+		slog.Int64("journal_id", journalID),
+		slog.Int64("task_id", task.ID),
+		slog.String("task_title", task.Title),
+		slog.Int("attempts", attempts),
+		slog.String("next_attempt_at", nextAttempt),
+		slog.String("model", modelName),
+		slog.String("err", msg))
 	return model.InboxOutcomeFailed, nil
 }
 
@@ -235,6 +270,36 @@ func missingIDs(have, want []int64) []int64 {
 		out = append(out, id)
 	}
 	return out
+}
+
+// labelNamesOf names the ids among labels, in the order of ids.
+func labelNamesOf(labels []model.Label, ids []int64) []string {
+	byID := make(map[int64]string, len(labels))
+	for _, l := range labels {
+		byID[l.ID] = l.Name
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if name, ok := byID[id]; ok {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// formatDue renders a due date for a log line: a bare date for a whole-day
+// due, RFC 3339 in the server timezone when it has a time, "" when there is none.
+func formatDue(due *time.Time, hasTime bool, loc *time.Location) string {
+	if due == nil {
+		return ""
+	}
+	if loc == nil {
+		loc = time.UTC
+	}
+	if hasTime {
+		return due.In(loc).Format(time.RFC3339)
+	}
+	return due.In(loc).Format("2006-01-02")
 }
 
 func truncate(s string, n int) string {

@@ -197,10 +197,27 @@ The saved prompt and the pause are part of the app settings payload as `inboxPro
 ## Diagnostics
 
 - **Settings → Inbox** shows the last run, its summary, the last error and a provider pause.
-- Log lines use plain messages such as `inbox processing run started`, `inbox processing filed a
-  task`, `inbox processing kept a task in the inbox`, `inbox processing could not decide on a task`
-  (WARN) and `inbox processing paused after a provider failure` (WARN). Set `LOG_LEVEL=debug` to see
-  skipped runs and the `response_format` retry.
+- The application log (JSON on stdout) tells how every task was redistributed — each decision is
+  one line, and `journal_id` ties it to the row in the journal:
+
+  ```json
+  {"level":"INFO","msg":"inbox processing filed a task","journal_id":17,"task_id":42,"task_title":"Fix login redirect on Safari","from":"inbox","context_id":2,"context":"work","project_id":10,"project":"Turboist","labels_added":["bug"],"labels":["bug"],"priority":"high","due_date":"2026-09-20","confidence":0.86,"reason":"Bug in the Turboist web app","model":"openai/gpt-4.1-mini"}
+  ```
+
+  | Message | Level | Fields |
+  |---|---|---|
+  | `inbox processing run started` | INFO | `pending`, `batch_limit`, `model` |
+  | `inbox processing filed a task` | INFO | `journal_id`, `task_id`, `task_title`, `from`, `context_id`, `context`, `project_id`, `project`, `labels_added`, `labels` (all labels after filing), `priority`, `due_date` (date, RFC 3339 when it has a time, `""` when none), `confidence`, `reason`, `model` |
+  | `inbox processing kept a task in the inbox` | INFO | `journal_id`, `task_id`, `task_title`, `confidence`, `reason`, `model` |
+  | `inbox processing could not decide on a task` | WARN | `journal_id`, `task_id`, `task_title`, `attempts`, `next_attempt_at` (`""` = waits for an edit), `model`, `err` |
+  | `inbox processing skipped a task changed during the request` | INFO | `task_id`, `task_title`, `model` |
+  | `inbox processing ignored part of the answer` | WARN | `task_id`, `warning` (unknown label, invalid priority, past due date) |
+  | `inbox processing decision reverted` | INFO | `journal_id`, `task_id`, `task_title`, `from_context_id`, `from_context`, `from_project_id`, `from_project`, `to`, `labels_removed`, and `priority_restored` / `due_restored` when those were put back (`due_restored: ""` = the due date was cleared) |
+  | `inbox processing run finished` | INFO | `manual`, `duration`, `sorted`, `kept`, `failed` |
+  | `inbox processing paused after a provider failure` | WARN | `err`, `pause` |
+
+  Task titles, project and label names appear in the log in clear text. Set `LOG_LEVEL=debug` to also
+  see skipped runs (paused, provider backoff, a run already in flight) and the `response_format` retry.
 - A journal row with outcome **failed** carries the exact error; a model that keeps answering in
   prose shows up there as `no JSON object in the answer`.
 

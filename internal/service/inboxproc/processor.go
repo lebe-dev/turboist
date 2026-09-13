@@ -205,7 +205,7 @@ func (p *Processor) runOnce(ctx context.Context, manual bool) (RunSummary, bool)
 	if !manual {
 		paused, err := p.paused(ctx)
 		if err != nil {
-			p.finish(ctx, now, RunSummary{}, err)
+			p.finish(ctx, now, manual, RunSummary{}, err)
 			return RunSummary{}, true
 		}
 		if paused {
@@ -230,7 +230,7 @@ func (p *Processor) runOnce(ctx context.Context, manual bool) (RunSummary, bool)
 		// Shutdown in the middle of a run is not a provider problem.
 		return summary, true
 	}
-	p.finish(ctx, now, summary, err)
+	p.finish(ctx, now, manual, summary, err)
 	return summary, true
 }
 
@@ -246,7 +246,8 @@ func (p *Processor) process(ctx context.Context, now time.Time) (RunSummary, err
 	if len(pending) == 0 {
 		return summary, nil
 	}
-	p.log.InfoContext(ctx, "inbox processing run started", slog.String("op", op), slog.Int("pending", len(pending)))
+	p.log.InfoContext(ctx, "inbox processing run started", slog.String("op", op), slog.Int("pending", len(pending)),
+		slog.Int("batch_limit", p.cfg.BatchLimit), slog.String("model", p.cfg.Model))
 
 	catalogue, err := p.loadCatalogue(ctx)
 	if err != nil {
@@ -325,13 +326,13 @@ func (p *Processor) decide(ctx context.Context, now time.Time, catalogue *Catalo
 	if verdict.Keep {
 		return p.keep(ctx, now, item, modelName, completion, verdict)
 	}
-	return p.apply(ctx, now, item, modelName, completion, verdict)
+	return p.apply(ctx, now, catalogue, item, modelName, completion, verdict)
 }
 
 // PendingItem is one task handed to a run, with its earlier state if any.
 type PendingItem = repo.PendingInboxTask
 
-func (p *Processor) finish(ctx context.Context, now time.Time, summary RunSummary, err error) {
+func (p *Processor) finish(ctx context.Context, now time.Time, manual bool, summary RunSummary, err error) {
 	const op = "inboxproc.Processor.finish"
 	p.statusMu.Lock()
 	defer p.statusMu.Unlock()
@@ -345,6 +346,7 @@ func (p *Processor) finish(ctx context.Context, now time.Time, summary RunSummar
 		p.providerStrikes = 0
 		if summary != (RunSummary{}) {
 			p.log.InfoContext(ctx, "inbox processing run finished", slog.String("op", op),
+				slog.Bool("manual", manual), slog.String("duration", p.now().Sub(now).Round(time.Millisecond).String()),
 				slog.Int("sorted", summary.Sorted), slog.Int("kept", summary.Kept), slog.Int("failed", summary.Failed))
 		}
 		return
@@ -358,7 +360,7 @@ func (p *Processor) finish(ctx context.Context, now time.Time, summary RunSummar
 		until := now.Add(pause)
 		p.status.BackoffUntil = &until
 		p.log.WarnContext(ctx, "inbox processing paused after a provider failure", slog.String("op", op),
-			slog.String("err", msg), slog.Duration("pause", pause))
+			slog.String("err", msg), slog.String("pause", pause.String()))
 		return
 	}
 	if errors.Is(err, ErrTemplate) {

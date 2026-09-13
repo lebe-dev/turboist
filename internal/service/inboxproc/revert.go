@@ -42,6 +42,7 @@ func (p *Processor) Revert(ctx context.Context, logID int64) (*model.Task, error
 		return nil, err
 	}
 
+	var removedLabels []string
 	if added := missingIDs(entry.Before.LabelIDs, entry.After.LabelIDs); len(added) > 0 {
 		drop := make(map[int64]struct{}, len(added))
 		for _, id := range added {
@@ -51,7 +52,9 @@ func (p *Processor) Revert(ctx context.Context, logID int64) (*model.Task, error
 		for _, l := range task.Labels {
 			if _, ok := drop[l.ID]; !ok {
 				kept = append(kept, l.ID)
+				continue
 			}
+			removedLabels = append(removedLabels, l.Name)
 		}
 		if len(kept) != len(task.Labels) {
 			if err := p.d.TaskLabels.SetForTask(ctx, task.ID, kept); err != nil {
@@ -92,9 +95,66 @@ func (p *Processor) Revert(ctx context.Context, logID int64) (*model.Task, error
 	}); err != nil {
 		return nil, err
 	}
-	p.log.InfoContext(ctx, "inbox processing decision reverted", slog.String("op", op),
-		slog.Int64("log_id", logID), slog.Int64("task_id", restored.ID))
+	attrs := []any{
+		slog.String("op", op),
+		slog.Int64("journal_id", logID),
+		slog.Int64("task_id", restored.ID),
+		slog.String("task_title", restored.Title),
+		slog.Int64("from_context_id", derefID(task.ContextID)),
+		slog.String("from_context", p.contextName(ctx, task.ContextID)),
+		slog.Int64("from_project_id", derefID(task.ProjectID)),
+		slog.String("from_project", p.projectTitle(ctx, task.ProjectID)),
+		slog.String("to", "inbox"),
+		slog.Any("labels_removed", nonNilStrings(removedLabels)),
+	}
+	// Only what was actually put back is named; "" for due_restored means the
+	// model-set due date was cleared.
+	if update.Priority != nil {
+		attrs = append(attrs, slog.String("priority_restored", string(*update.Priority)))
+	}
+	if update.DueAtClear || update.DueAt != nil {
+		attrs = append(attrs, slog.String("due_restored", formatDue(restored.DueAt, restored.DueHasTime, p.d.Location)))
+	}
+	p.log.InfoContext(ctx, "inbox processing decision reverted", attrs...)
 	return restored, nil
+}
+
+// projectTitle names the project a task was in, or "" once it is gone.
+func (p *Processor) projectTitle(ctx context.Context, id *int64) string {
+	if id == nil {
+		return ""
+	}
+	project, err := p.d.Projects.Get(ctx, *id)
+	if err != nil {
+		return ""
+	}
+	return project.Title
+}
+
+// contextName names the context a task was in, or "" once it is gone.
+func (p *Processor) contextName(ctx context.Context, id *int64) string {
+	if id == nil {
+		return ""
+	}
+	c, err := p.d.Contexts.Get(ctx, *id)
+	if err != nil {
+		return ""
+	}
+	return c.Name
+}
+
+func derefID(id *int64) int64 {
+	if id == nil {
+		return 0
+	}
+	return *id
+}
+
+func nonNilStrings(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
 }
 
 func sameInstant(a, b *time.Time) bool {
