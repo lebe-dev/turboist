@@ -35,6 +35,7 @@ const configListLimit = 500
 type MetaHandler struct {
 	cfg             *config.Config
 	totpAvailable   bool
+	inboxProcessing bool
 	contexts        *repo.ContextRepo
 	projects        *repo.ProjectRepo
 	labels          *repo.LabelRepo
@@ -50,9 +51,12 @@ type MetaHandler struct {
 // NewMetaHandler constructs a MetaHandler. totpAvailable reports whether
 // the TOTP feature is wired up on this deploy (TOTP_SECRET_KEY non-empty);
 // the frontend uses it to hide the 2FA UI when the routes are not mounted.
+// inboxProcessing reports whether the LLM Inbox processor can call a model;
+// the Inbox page shows its "sort now" button only then.
 func NewMetaHandler(
 	cfg *config.Config,
 	totpAvailable bool,
+	inboxProcessing bool,
 	contexts *repo.ContextRepo,
 	projects *repo.ProjectRepo,
 	labels *repo.LabelRepo,
@@ -67,6 +71,7 @@ func NewMetaHandler(
 	return &MetaHandler{
 		cfg:             cfg,
 		totpAvailable:   totpAvailable,
+		inboxProcessing: inboxProcessing,
 		contexts:        contexts,
 		projects:        projects,
 		labels:          labels,
@@ -111,8 +116,9 @@ type overflowTaskResp struct {
 }
 
 type inboxResp struct {
-	WarnThreshold int              `json:"warnThreshold"`
-	OverflowTask  overflowTaskResp `json:"overflowTask"`
+	WarnThreshold     int              `json:"warnThreshold"`
+	OverflowTask      overflowTaskResp `json:"overflowTask"`
+	ProcessingEnabled bool             `json:"processingEnabled"`
 }
 
 type limitResp struct {
@@ -358,6 +364,7 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 				Title:    cfg.Inbox.OverflowTask.Title,
 				Priority: cfg.Inbox.OverflowTask.Priority,
 			},
+			ProcessingEnabled: h.inboxProcessing,
 		},
 		DayParts:      dayParts,
 		TOTPAvailable: h.totpAvailable,

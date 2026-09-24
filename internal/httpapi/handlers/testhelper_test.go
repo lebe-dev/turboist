@@ -150,7 +150,7 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	harpoonSvc := service.NewHarpoonService(users, tasks, projs)
-	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings, templates, troikiSvc, harpoonSvc, testBaseURL).Register(api)
+	handlers.NewMetaHandler(cfg, false, inboxLLM != nil, ctxs, projs, lbls, tasks, users, appSettings, templates, troikiSvc, harpoonSvc, testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettings, lbls, projs).Register(api)

@@ -60,10 +60,14 @@ restart. While paused the background job does not read the Inbox or call the pro
 now** still works, which lets you review decisions one batch at a time. Turning the switch off
 resumes the schedule from the next tick.
 
+The Inbox page carries the same manual run as a **Sort with AI** button next to its title. It is
+shown whenever the processor is enabled and the Inbox is not empty — paused or not — and reports
+the run's summary (or its error) once the run finishes; the list refreshes on its own.
+
 ## How a run works
 
 1. A run starts right after the server boots, then every `INBOX_PROCESSING_INTERVAL`, or immediately
-   from **Settings → Inbox → Process now**. Runs never overlap. Scheduled runs are skipped while
+   from **Settings → Inbox → Process now** or the **Sort with AI** button on the Inbox page. Runs never overlap. Scheduled runs are skipped while
    processing is paused.
 2. It picks up to `INBOX_PROCESSING_BATCH_LIMIT` open Inbox tasks, oldest first, that still need a
    decision: tasks never looked at, tasks edited since the last decision, and failed tasks whose
@@ -198,7 +202,8 @@ be reverted only once.
 | `PUT /api/v1/app-settings/inbox-processing` | `settings:write` | `{"prompt": "…", "paused": true}` — either field or both; a field left out is kept. The prompt is validated by rendering it against the live catalogue (`422` on error); an empty prompt or the unchanged default stores the default |
 
 The saved prompt and the pause are part of the app settings payload as `inboxProcessing.prompt` and
-`inboxProcessing.paused`, and every task carries `autoSortedAt`.
+`inboxProcessing.paused`, and every task carries `autoSortedAt`. `GET /api/v1/config` reports
+`inbox.processingEnabled`, so the Inbox page knows whether to offer its button without an extra request.
 
 ## Diagnostics
 

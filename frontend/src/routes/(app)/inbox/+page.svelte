@@ -9,6 +9,7 @@
 	import type { Task, TaskInput } from '$lib/api/types';
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
+	import InboxProcessingButton from '$lib/components/inbox/InboxProcessingButton.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
@@ -21,6 +22,7 @@
 
 	const warnThreshold = $derived(configStore.value?.inbox.warnThreshold ?? 0);
 	const overflowTask = $derived(configStore.value?.inbox.overflowTask ?? null);
+	const processingEnabled = $derived(configStore.value?.inbox.processingEnabled ?? false);
 
 	function applyCount(count: number): void {
 		inboxStatsStore.set(count, warnThreshold > 0 && count > warnThreshold);
@@ -83,7 +85,12 @@
 
 <div class="px-2 py-2">
 	<div class="px-3 pt-2 pb-4">
-		<h1 class="text-2xl font-bold tracking-tight">{$t('nav.inbox')}</h1>
+		<div class="flex items-center justify-between gap-3">
+			<h1 class="text-2xl font-bold tracking-tight">{$t('nav.inbox')}</h1>
+			{#if processingEnabled && list.items.length > 0}
+				<InboxProcessingButton />
+			{/if}
+		</div>
 		<p class="mt-1 text-sm text-muted-foreground">{$t('page.inbox.subtitle')}</p>
 	</div>
 	{#if inboxStatsStore.warnThresholdExceeded && configStore.value}

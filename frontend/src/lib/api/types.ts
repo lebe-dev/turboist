@@ -492,6 +492,8 @@ export interface ConfigResponse {
 	inbox: {
 		warnThreshold: number;
 		overflowTask: { title: string; priority: Priority };
+		// Whether the LLM Inbox processor can call a model (env-configured).
+		processingEnabled: boolean;
 	};
 	dayParts: {
 		morning: { start: number; end: number };

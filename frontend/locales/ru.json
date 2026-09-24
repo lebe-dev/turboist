@@ -975,7 +975,10 @@
 			"cleanupTaskCreated": "Создана задача на сегодня для разбора",
 			"failedCreateCleanup": "Не удалось создать задачу для разбора",
 			"overCapacity": "Входящие переполнены ({count}/{limit})",
-			"createCleanupButton": "Создать задачу «{title}» на сегодня"
+			"createCleanupButton": "Создать задачу «{title}» на сегодня",
+			"sortWithAi": "Разобрать с ИИ",
+			"sorting": "Разбираю…",
+			"sortNothingPending": "Разбирать нечего: все задачи во Входящих уже рассмотрены"
 		},
 		"week": {
 			"emptyTitle": "На неделю ничего не запланировано",

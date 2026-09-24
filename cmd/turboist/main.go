@@ -296,7 +296,7 @@ func main() {
 	handlers.NewTaskRelationHandler(relationSvc, env.BaseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
-	handlers.NewMetaHandler(cfg, totpSvc != nil, ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo, templateRepo, troikiSvc, harpoonSvc, env.BaseURL).Register(api)
+	handlers.NewMetaHandler(cfg, totpSvc != nil, inboxProcessor.Enabled(), ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo, templateRepo, troikiSvc, harpoonSvc, env.BaseURL).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 	handlers.NewSettingsHandler(userRepo).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)

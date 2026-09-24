@@ -2553,7 +2553,8 @@ sessions bypass scope checks entirely.
   "backlog": { "limit": 50 },
   "inbox": {
     "warnThreshold": 10,
-    "overflowTask": { "title": "Clear inbox", "priority": "high" }
+    "overflowTask": { "title": "Clear inbox", "priority": "high" },
+    "processingEnabled": true
   },
   "dayParts": {
     "morning": { "start": 6, "end": 12 },

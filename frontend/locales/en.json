@@ -975,7 +975,10 @@
 			"cleanupTaskCreated": "Cleanup task created for today",
 			"failedCreateCleanup": "Failed to create cleanup task",
 			"overCapacity": "Inbox is over capacity ({count}/{limit})",
-			"createCleanupButton": "Create «{title}» task for today"
+			"createCleanupButton": "Create «{title}» task for today",
+			"sortWithAi": "Sort with AI",
+			"sorting": "Sorting…",
+			"sortNothingPending": "Nothing to sort: every Inbox task has already been considered"
 		},
 		"week": {
 			"emptyTitle": "Week is empty",

@@ -421,3 +421,66 @@ func TestInboxProcessing_RunWithNothingPending(t *testing.T) {
 		t.Errorf("task: got %d %s, want autoSortUndecidedAt set", resp.StatusCode, body)
 	}
 }
+
+func TestInboxProcessing_ManualRunIgnoresPause(t *testing.T) {
+	llm := &scriptedClassifier{content: `{"action":"keep","confidence":1}`}
+	e := buildAPIEnvWithInboxProcessing(t, llm)
+	ctx := context.Background()
+	c, err := e.ctxs.Create(ctx, "home", "green", false)
+	if err != nil {
+		t.Fatalf("create context: %v", err)
+	}
+	p, err := e.projects.Create(ctx, repo.CreateProject{ContextID: c.ID, Title: "Garden", Color: "green"})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	task := seedProcessingInboxTask(t, e, "Plant tulips")
+	llm.set(`{"action":"sort","projectId":` + strconv.FormatInt(p.ID, 10) + `,"confidence":0.9,"reason":"garden"}`)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPut, "/api/v1/app-settings/inbox-processing",
+		map[string]bool{"paused": true}))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("pause: got %d %s", resp.StatusCode, body)
+	}
+
+	// Queued before the loop exists: the start-up pass is skipped because of the
+	// pause, and the queued manual run files the task anyway.
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/inbox/processing/run", nil))
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("run while paused: got %d %s, want 202", resp.StatusCode, body)
+	}
+	startInboxLoop(t, e)
+	waitUntil(t, func() bool {
+		got, err := e.tasks.Get(ctx, task.ID)
+		return err == nil && got.AutoSortedAt != nil
+	})
+}
+
+func TestInboxProcessing_ConfigCarriesAvailability(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		llm  inboxproc.Classifier
+		want bool
+	}{
+		{"disabled", nil, false},
+		{"enabled", &scriptedClassifier{content: `{"action":"keep","confidence":1}`}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := buildAPIEnvWithInboxProcessing(t, tc.llm)
+			resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/config", nil))
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("config: got %d %s", resp.StatusCode, body)
+			}
+			var got struct {
+				Inbox struct {
+					ProcessingEnabled bool `json:"processingEnabled"`
+				} `json:"inbox"`
+			}
+			if err := json.Unmarshal(body, &got); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if got.Inbox.ProcessingEnabled != tc.want {
+				t.Errorf("inbox.processingEnabled: got %v, want %v", got.Inbox.ProcessingEnabled, tc.want)
+			}
+		})
+	}
+}
