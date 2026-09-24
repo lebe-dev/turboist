@@ -1,3 +1,5 @@
+import { dropModeForOffset, type DropMode } from './dependencyDrop';
+
 export const SECTION_MIME = 'application/x-turboist-section';
 export const TASK_MIME = 'application/x-turboist-task';
 
@@ -77,8 +79,8 @@ let activeTouchDrag: TouchDragState | null = null;
  */
 export interface TouchTaskDragListener {
 	begin(taskId: number): void;
-	over(targetId: number | null, x: number, y: number): void;
-	drop(targetId: number | null): void;
+	over(targetId: number | null, mode: DropMode | null, x: number, y: number): void;
+	drop(targetId: number | null, mode: DropMode | null): void;
 }
 
 let touchTaskListener: TouchTaskDragListener | null = null;
@@ -94,6 +96,18 @@ function taskIdAt(el: Element | null): number | null {
 	const raw = el?.closest('[data-task-id]')?.getAttribute('data-task-id');
 	const id = Number(raw);
 	return raw && Number.isFinite(id) ? id : null;
+}
+
+// Finds the task row under the finger and where inside its height the finger
+// sits, so the touch path can offer the same dependency/nest split the mouse
+// path computes from `getBoundingClientRect` on the row's own dragover.
+function taskRowHitAt(el: Element | null, clientY: number): { targetId: number; mode: DropMode } | null {
+	const rowEl = el?.closest('[data-task-id]') ?? null;
+	const targetId = taskIdAt(rowEl);
+	if (!rowEl || targetId === null) return null;
+	const rect = rowEl.getBoundingClientRect();
+	const relativeY = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5;
+	return { targetId, mode: dropModeForOffset(relativeY) };
 }
 
 // Svelte registers touchmove handlers as passive, so the preventDefault in
@@ -205,7 +219,8 @@ export function updateTouchDrag(e: TouchEvent): boolean {
 		sectionEl.classList.add('touch-drag-over');
 		highlightedSectionEl = sectionEl;
 	}
-	touchTaskListener?.over(taskIdAt(el), touch.clientX, touch.clientY);
+	const hit = taskRowHitAt(el, touch.clientY);
+	touchTaskListener?.over(hit?.targetId ?? null, hit?.mode ?? null, touch.clientX, touch.clientY);
 
 	return true;
 }
@@ -231,7 +246,8 @@ export function endTouchDrag(e: TouchEvent): { taskId: number; sectionId: number
 	const el = document.elementFromPoint(touch.clientX, touch.clientY);
 
 	clearHighlight();
-	touchTaskListener?.drop(taskIdAt(el));
+	const hit = taskRowHitAt(el, touch.clientY);
+	touchTaskListener?.drop(hit?.targetId ?? null, hit?.mode ?? null);
 
 	const sectionEl = el?.closest('[data-section-id]');
 	if (sectionEl) {

@@ -144,9 +144,6 @@ private fun SubtaskRow(
 ) {
     val localId = row.task.localId
     DisposableEffect(localId) { onDispose { drag.forget(localId) } }
-    val dragged = drag.draggedLocalId
-    val refusal =
-        if (dragged != null && drag.hoverLocalId == localId) dependencies.refusal(dragged, localId) else null
     Box(modifier = Modifier.subtaskDragSource(row, drag, dependencies).subtaskDragFade(row, drag)) {
         TaskRow(
             row = row,
@@ -161,7 +158,7 @@ private fun SubtaskRow(
             // (see subtaskDragSource); there is no selection on this screen.
             onStartSelection = {},
         )
-        SubtaskDragMarks(row, drag, refusal)
+        SubtaskDragMarks(row, drag, dependencies)
     }
 }
 

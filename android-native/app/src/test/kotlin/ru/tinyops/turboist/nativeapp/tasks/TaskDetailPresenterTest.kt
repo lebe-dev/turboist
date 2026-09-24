@@ -13,6 +13,7 @@ import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.view.BlockEdge
 import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
+import ru.tinyops.turboist.core.model.view.NestDropRefusal
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -778,6 +779,80 @@ class TaskDetailPresenterTest {
             runCurrent()
 
             assertEquals(listOf(TaskListMessage.RELATION_CYCLE), said)
+        }
+
+    // --- nesting one subtask under another ----------------------------------
+
+    @Test
+    fun `dropping a subtask on a sibling's middle nests it there and offers an undo`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+            val added = mutableListOf<NestAdded>()
+            backgroundScope.launch { presenter.nestAdded.collect { added += it } }
+
+            presenter.nestUnder(draggedLocalId = 3, targetLocalId = 2)
+            runCurrent()
+
+            assertEquals(listOf("move 3 SubtaskOf(parentTaskLocalId=2)"), actions.calls)
+            assertEquals(
+                listOf(NestAdded(taskLocalId = 3, previousParentLocalId = 1, newParentTitle = "Order the parts")),
+                added,
+            )
+
+            presenter.undoNest(added.single())
+            runCurrent()
+
+            assertEquals("move 3 SubtaskOf(parentTaskLocalId=1)", actions.calls.last())
+        }
+
+    @Test
+    fun `nesting refusal and no-op are known while the finger is still over the target`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+            val state = presenter.state.value
+
+            // 4 is already nested under 3: dropping it back onto 3 is a no-op, and
+            // dropping 3 onto its own descendant 4 would close a cycle.
+            assertEquals(NestDropRefusal.DESCENDANT, state.nestRefusal(draggedLocalId = 3, targetLocalId = 4))
+            assertEquals(null, state.nestRefusal(draggedLocalId = 4, targetLocalId = 2))
+            assertTrue(state.nestNoop(draggedLocalId = 4, targetLocalId = 3))
+            assertFalse(state.nestNoop(draggedLocalId = 4, targetLocalId = 2))
+        }
+
+    @Test
+    fun `a refused nest drop queues nothing`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+
+            presenter.nestUnder(draggedLocalId = 3, targetLocalId = 4)
+            runCurrent()
+
+            assertEquals(emptyList(), actions.calls)
+        }
+
+    @Test
+    fun `dropping a subtask back onto its own parent is a no-op`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+
+            presenter.nestUnder(draggedLocalId = 2, targetLocalId = 1)
+            runCurrent()
+
+            assertEquals(emptyList(), actions.calls)
+        }
+
+    @Test
+    fun `a nest the device turns down on write is reported like any other write`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+            val said = mutableListOf<TaskListMessage>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            actions.refuseWith = WriteRefused.Invalid("a task in the inbox cannot have subtasks")
+
+            presenter.nestUnder(draggedLocalId = 3, targetLocalId = 2)
+            runCurrent()
+
+            assertEquals(listOf(TaskListMessage.FAILED), said)
         }
 
     /** Cutting a template out of a task, remembered rather than performed. */

@@ -96,6 +96,7 @@ import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.BlockerRef
 import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
+import ru.tinyops.turboist.nativeapp.tasks.NestAdded
 import ru.tinyops.turboist.nativeapp.tasks.RecurrenceWording
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
 import ru.tinyops.turboist.nativeapp.tasks.TaskDetailPresenter
@@ -148,10 +149,14 @@ data class TaskDetailCallbacks(
     val onDecompose: (List<String>) -> Unit = {},
     /** Saves the task and its subtree as a reusable template. */
     val onCreateTemplate: () -> Unit = {},
-    /** A subtask was dropped onto another: the first now waits for the second. */
+    /** A subtask was dropped onto another's edge: the first now waits for the second. */
     val onMakeDependent: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
     /** Takes back a wait a drop just added. */
     val onUndoDependency: (DependencyAdded) -> Unit = {},
+    /** A subtask was dropped onto another's middle: the first is now the second's subtask. */
+    val onNestUnder: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
+    /** Takes back a nesting a drop just added. */
+    val onUndoNest: (NestAdded) -> Unit = {},
 )
 
 /** The field a sheet is currently open for, or nothing when none is. */
@@ -191,6 +196,7 @@ fun TaskDetailScreen(
     modifier: Modifier = Modifier,
     harpoon: @Composable () -> Unit = {},
     dependencyAdded: Flow<DependencyAdded> = emptyFlow(),
+    nestAdded: Flow<NestAdded> = emptyFlow(),
 ) {
     val snackbars = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -231,6 +237,18 @@ fun TaskDetailScreen(
                     duration = SnackbarDuration.Short,
                 )
             if (result == SnackbarResult.ActionPerformed) callbacks.onUndoDependency(added)
+        }
+    }
+
+    LaunchedEffect(nestAdded, undo) {
+        nestAdded.collect { added ->
+            val result =
+                snackbars.showSnackbar(
+                    message = context.getString(R.string.page_task_nestDrag_added, added.newParentTitle),
+                    actionLabel = undo,
+                    duration = SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) callbacks.onUndoNest(added)
         }
     }
 
@@ -349,8 +367,11 @@ private fun TaskDetailBody(
                     dependencies =
                         SubtaskDependencies(
                             enabled = task.status == TaskStatus.OPEN,
-                            refusal = state::dependencyRefusal,
-                            onDrop = callbacks.onMakeDependent,
+                            dependencyRefusal = state::dependencyRefusal,
+                            nestRefusal = state::nestRefusal,
+                            nestNoop = state::nestNoop,
+                            onDependencyDrop = callbacks.onMakeDependent,
+                            onNestDrop = callbacks.onNestUnder,
                         ),
                 )
 
@@ -1106,6 +1127,7 @@ fun TaskDetailScreen(
         modifier = modifier,
         harpoon = harpoon,
         dependencyAdded = presenter.dependencyAdded,
+        nestAdded = presenter.nestAdded,
     )
 }
 
@@ -1150,6 +1172,8 @@ private fun detailCallbacks(
             onCreateTemplate = presenter::createTemplate,
             onMakeDependent = presenter::makeDependent,
             onUndoDependency = presenter::undoDependency,
+            onNestUnder = presenter::nestUnder,
+            onUndoNest = presenter::undoNest,
         )
     }
 

@@ -15,6 +15,7 @@
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LinkIcon from 'phosphor-svelte/lib/Link';
 	import ProhibitIcon from 'phosphor-svelte/lib/Prohibit';
+	import ArrowBendDownRightIcon from 'phosphor-svelte/lib/ArrowBendDownRight';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 	import SealQuestionIcon from 'phosphor-svelte/lib/SealQuestion';
@@ -36,6 +37,7 @@
 	import { SUBTASK_COLLAPSE_KEY, type SubtaskCollapseCtx } from '$lib/context/subtaskCollapse';
 	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
 	import type { DependencyDrag } from '$lib/hooks/useDependencyDrag.svelte';
+	import { dropModeForOffset } from '$lib/utils/dependencyDrop';
 	import {
 		setTaskDrag,
 		clearTaskDrag,
@@ -93,20 +95,26 @@
 	const reparentEnabled = $derived(!!onReparent && draggable && !taskSelectionStore.mode);
 	let dropAsChildActive = $state(false);
 
-	// On the task page the rows instead take part in the dependency gesture: dropping
-	// one subtask onto another makes the dropped one wait for the other. Only an
-	// open row can be picked up — a finished task has nothing left to wait for.
+	// On the task page the rows instead take part in the subtask drag gesture:
+	// dropping one subtask onto the edge of another makes the dropped one wait
+	// for it, dropping it onto the middle nests it as that row's own subtask (see
+	// dropModeForOffset). Only an open row can be picked up — a finished task has
+	// nothing left to wait for and nothing useful to nest under either.
 	const dependencyDrag = getContext<DependencyDrag | undefined>(DEPENDENCY_DRAG_KEY);
 	const dragSource = $derived(
 		draggable &&
 			!taskSelectionStore.mode &&
 			(!dependencyDrag || (task.status === 'open' && !forceCompleted))
 	);
-	const dependencyTarget = $derived(!!dependencyDrag && draggable && !taskSelectionStore.mode);
-	const dependencyHovered = $derived(dependencyDrag?.hover?.targetId === task.id);
-	const dependencyRefused = $derived(
-		dependencyHovered && dependencyDrag!.refusalFor(task.id) !== null
+	const subtaskDropTarget = $derived(!!dependencyDrag && draggable && !taskSelectionStore.mode);
+	const subtaskDropHovered = $derived(dependencyDrag?.hover?.targetId === task.id);
+	const subtaskDropMode = $derived(dependencyDrag?.hover?.mode ?? null);
+	const subtaskDropRefused = $derived(
+		subtaskDropHovered &&
+			subtaskDropMode !== null &&
+			dependencyDrag!.refusalFor(task.id, subtaskDropMode) !== null
 	);
+	const subtaskDropNests = $derived(subtaskDropHovered && subtaskDropMode === 'nest');
 	const dependencySource = $derived(dependencyDrag?.draggedId === task.id);
 
 	const selected = $derived(taskSelectionStore.has(task.id));
@@ -133,17 +141,26 @@
 		dependencyDrag?.cancel();
 	}
 
+	// Which of the two gestures the pointer is currently over this row for, from
+	// where inside its own height it sits — recomputed on every move so crossing
+	// from the middle band into an edge switches modes mid-drag.
+	function zoneAt(e: DragEvent): 'dependency' | 'nest' {
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		return dropModeForOffset((e.clientY - rect.top) / rect.height);
+	}
+
 	function onDependencyDragOver(e: DragEvent) {
 		if (!dependencyDrag || dependencyDrag.draggedId === null) return;
 		if (dependencyDrag.draggedId === task.id) {
-			dependencyDrag.over(null, e.clientX, e.clientY);
+			dependencyDrag.over(null, null, e.clientX, e.clientY);
 			return;
 		}
 		e.stopPropagation();
-		dependencyDrag.over(task.id, e.clientX, e.clientY);
+		const mode = zoneAt(e);
+		dependencyDrag.over(task.id, mode, e.clientX, e.clientY);
 		// Not calling preventDefault leaves the browser's own "no drop" cursor on a
 		// refused row, on top of the tooltip saying why.
-		if (dependencyDrag.refusalFor(task.id) !== null) return;
+		if (dependencyDrag.refusalFor(task.id, mode) !== null) return;
 		e.preventDefault();
 		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
 	}
@@ -153,14 +170,14 @@
 		const related = e.relatedTarget as Node | null;
 		if (related && target.contains(related)) return;
 		// Only clear our own hover: the next row's dragover may already have taken it.
-		if (dependencyDrag?.hover?.targetId === task.id) dependencyDrag.over(null, e.clientX, e.clientY);
+		if (dependencyDrag?.hover?.targetId === task.id) dependencyDrag.over(null, null, e.clientX, e.clientY);
 	}
 
 	function onDependencyDrop(e: DragEvent) {
 		if (!dependencyDrag) return;
 		e.preventDefault();
 		e.stopPropagation();
-		dependencyDrag.drop(task.id);
+		dependencyDrag.drop(task.id, zoneAt(e));
 	}
 
 	function onChildDragOver(e: DragEvent) {
@@ -344,19 +361,20 @@
 	class:py-2.5={hasMeta}
 	class:py-1.5={!hasMeta}
 	class:bg-accent={taskSelectionStore.mode && selected}
-	class:ring-2={dropAsChildActive || dependencyHovered}
-	class:ring-inset={dropAsChildActive || dependencyHovered}
-	class:ring-primary={dropAsChildActive || (dependencyHovered && !dependencyRefused)}
-	class:ring-destructive={dependencyRefused}
+	class:ring-2={dropAsChildActive || subtaskDropHovered}
+	class:ring-inset={dropAsChildActive || subtaskDropHovered}
+	class:ring-primary={dropAsChildActive || (subtaskDropHovered && !subtaskDropRefused && !subtaskDropNests)}
+	class:ring-violet-500={subtaskDropHovered && !subtaskDropRefused && subtaskDropNests}
+	class:ring-destructive={subtaskDropRefused}
 	class:opacity-40={dependencySource}
 	style:padding-left={onToggleCollapse ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
 	draggable={dragSource}
 	ondragstart={dragSource ? onTaskDragStart : undefined}
 	ondragend={dragSource ? onTaskDragEnd : undefined}
-	ondragover={dependencyTarget ? onDependencyDragOver : reparentEnabled ? onChildDragOver : undefined}
-	ondragleave={dependencyTarget ? onDependencyDragLeave : reparentEnabled ? onChildDragLeave : undefined}
-	ondrop={dependencyTarget ? onDependencyDrop : reparentEnabled ? onChildDrop : undefined}
+	ondragover={subtaskDropTarget ? onDependencyDragOver : reparentEnabled ? onChildDragOver : undefined}
+	ondragleave={subtaskDropTarget ? onDependencyDragLeave : reparentEnabled ? onChildDragLeave : undefined}
+	ondrop={subtaskDropTarget ? onDependencyDrop : reparentEnabled ? onChildDrop : undefined}
 	ontouchstart={dragSource ? onTaskTouchStart : undefined}
 	ontouchmove={draggable && !taskSelectionStore.mode ? onTaskTouchMove : undefined}
 	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
@@ -542,17 +560,22 @@
 		{/if}
 	</div>
 
-	{#if dependencyHovered}
-		<!-- The dependency mark the drop would add: the same padlock a blocked task
-		     carries, crossed out in red when the drop would be refused. -->
+	{#if subtaskDropHovered}
+		<!-- What the drop would do: a padlock for "will depend on this", an indent
+		     arrow for "will nest under this", crossed out in red either way when
+		     the drop would be refused. -->
 		<span
-			class="pointer-events-none absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full shadow-sm {dependencyRefused
+			class="pointer-events-none absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full shadow-sm {subtaskDropRefused
 				? 'bg-destructive text-white'
-				: 'bg-primary text-primary-foreground'}"
-			data-testid="dependency-drop-mark"
+				: subtaskDropNests
+					? 'bg-violet-500 text-white'
+					: 'bg-primary text-primary-foreground'}"
+			data-testid="subtask-drop-mark"
 		>
-			{#if dependencyRefused}
+			{#if subtaskDropRefused}
 				<ProhibitIcon class="size-3.5" weight="bold" />
+			{:else if subtaskDropNests}
+				<ArrowBendDownRightIcon class="size-3.5" weight="bold" />
 			{:else}
 				<LockSimpleIcon class="size-3.5" weight="fill" />
 			{/if}

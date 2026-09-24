@@ -28,7 +28,7 @@
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
-	import type { DayPart, Priority, Task, TaskInput } from '$lib/api/types';
+	import type { DayPart, Priority, Task, TaskInput, TaskMoveInput } from '$lib/api/types';
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
@@ -87,16 +87,19 @@
 	const openSubtasks = $derived(subtasksSplit.open);
 	const completedSubtasks = $derived(subtasksSplit.done);
 
-	// Dropping one open subtask onto another makes the dropped one wait for it
-	// (a `blocks` relation from the target). TaskItem reads the gesture from context,
-	// so TaskTree needs no extra props; touch reaches it through dnd.ts.
+	// Dropping one open subtask onto the edge of another makes the dropped one
+	// wait for it (a `blocks` relation from the target); dropping it onto the
+	// middle nests it as that row's own subtask instead (see dropModeForOffset).
+	// TaskItem reads the gesture from context, so TaskTree needs no extra props;
+	// touch reaches it through dnd.ts.
 	const dependencyDrag = useDependencyDrag({
 		tasks: () => subtasks.items,
 		check: async (draggedId, candidateIds) =>
 			refusalsFromCheck(
 				(await tasksApi.blockerCheck(getApiClient(), draggedId, candidateIds)).refused
 			),
-		onDrop: (draggedId, targetId) => void addDependency(draggedId, targetId)
+		onDependency: (draggedId, targetId) => void addDependency(draggedId, targetId),
+		onNest: (draggedId, targetId) => void nestSubtask(draggedId, targetId)
 	});
 	setContext(DEPENDENCY_DRAG_KEY, dependencyDrag);
 	$effect(() =>
@@ -104,8 +107,8 @@
 			begin: (id) => {
 				if (subtasks.items.some((t) => t.id === id && t.status === 'open')) dependencyDrag.begin(id);
 			},
-			over: (id, x, y) => dependencyDrag.over(id, x, y),
-			drop: (id) => dependencyDrag.drop(id)
+			over: (id, mode, x, y) => dependencyDrag.over(id, mode, x, y),
+			drop: (id, mode) => dependencyDrag.drop(id, mode)
 		})
 	);
 
@@ -147,6 +150,45 @@
 		} catch (err) {
 			toast.error(describeError(err, $t('page.task.relationRemoveFailed')));
 		}
+	}
+
+	// Re-parents draggedId to newParentId within this subtree — every subtask here
+	// already shares the root task's own context/project/section (subtasks inherit
+	// it at creation time), so only parentId actually changes. Returns the updated
+	// task on success, or null after rolling the optimistic change back and toasting.
+	async function moveSubtaskParent(draggedId: number, newParentId: number): Promise<Task | null> {
+		if (!task || task.contextId === null) return null;
+		const oldItems = subtasks.items;
+		subtasks.items = subtasks.items.map((t) => (t.id === draggedId ? { ...t, parentId: newParentId } : t));
+		try {
+			const placement: TaskMoveInput = {
+				contextId: task.contextId,
+				...(task.projectId !== null ? { projectId: task.projectId } : {}),
+				...(task.sectionId !== null ? { sectionId: task.sectionId } : {}),
+				parentId: newParentId
+			};
+			const updated = await tasksApi.move(getApiClient(), draggedId, placement);
+			subtasks.mutator.replace(updated);
+			void loader.revalidate();
+			return updated;
+		} catch (err) {
+			subtasks.items = oldItems;
+			toast.error(describeError(err, $t('page.task.nestDrag.failed')));
+			return null;
+		}
+	}
+
+	async function nestSubtask(draggedId: number, targetId: number): Promise<void> {
+		if (!task || draggedId === targetId) return;
+		const dragged = subtasks.items.find((t) => t.id === draggedId);
+		const target = subtasks.items.find((t) => t.id === targetId);
+		if (!dragged || !target || dragged.parentId === targetId) return;
+		const previousParentId = dragged.parentId ?? task.id;
+		const targetTitle = stripMarkdownSyntax(target.title);
+		if (!(await moveSubtaskParent(draggedId, targetId))) return;
+		toast.success($t('page.task.nestDrag.added', { values: { title: targetTitle } }), {
+			action: { label: $t('view.undo'), onClick: () => void moveSubtaskParent(draggedId, previousParentId) }
+		});
 	}
 
 	let title = $state('');

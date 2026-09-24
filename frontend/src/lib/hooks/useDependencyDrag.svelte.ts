@@ -1,16 +1,24 @@
 import type { Task } from '$lib/api/types';
 import {
 	dependencyCandidates,
+	isNestNoop,
+	nestRefusal,
 	refusalFromServer,
 	structuralRefusal,
-	type DependencyRefusal
+	type DependencyRefusal,
+	type DropMode,
+	type NestRefusal
 } from '$lib/utils/dependencyDrop';
 
 /** Server-side refusals by candidate task id; absent = acceptable. */
 export type DependencyRefusals = Readonly<Record<number, DependencyRefusal>>;
 
+/** Either mode's refusal — the two never overlap, so callers switch on `mode` to know which. */
+export type SubtaskDropRefusal = DependencyRefusal | NestRefusal;
+
 export interface DependencyHover {
 	targetId: number;
+	mode: DropMode;
 	/** Pointer position in viewport coordinates, for the floating tooltip. */
 	x: number;
 	y: number;
@@ -21,28 +29,34 @@ export interface DependencyDrag {
 	readonly draggedId: number | null;
 	readonly hover: DependencyHover | null;
 	begin(draggedId: number): void;
-	over(targetId: number | null, x: number, y: number): void;
-	refusalFor(targetId: number): DependencyRefusal | null;
-	/** Ends the gesture; commits it when `targetId` is an acceptable target. */
-	drop(targetId: number | null): void;
+	over(targetId: number | null, mode: DropMode | null, x: number, y: number): void;
+	refusalFor(targetId: number, mode: DropMode): SubtaskDropRefusal | null;
+	/** Ends the gesture; commits it when (targetId, mode) is an acceptable drop. */
+	drop(targetId: number | null, mode: DropMode | null): void;
 	cancel(): void;
 }
 
 /**
- * State of the "drop a subtask onto another to make it wait for it" gesture on the
- * task page. Both the mouse (HTML5 drag events in TaskItem) and touch (the dnd.ts
- * long-press drag) drive the same four calls, so the tooltip and the refusals look
- * identical whichever started the gesture.
+ * State of the two related gestures on the task page's subtask list: dropping
+ * one subtask onto another either makes the dropped one wait for it
+ * (`dependency`, edges of the row) or nests the dropped one under it
+ * (`nest`, the row's middle band) — see `dropModeForOffset`. Both the mouse
+ * (HTML5 drag events in TaskItem) and touch (the dnd.ts long-press drag) drive
+ * the same four calls, so the tooltip and the refusals look identical whichever
+ * started the gesture.
  *
- * The tree refusals (ancestor/descendant/completed) are answered at once from the
- * list. Duplicates and cycles need the whole blocking graph, so `begin` asks the
- * server once for every candidate row; until the answer lands a row reads as
- * acceptable, and the server re-checks on write anyway.
+ * The tree refusals (ancestor/descendant/completed for dependency; descendant/
+ * completed for nest) are answered at once from the list. A dependency's
+ * duplicate/cycle needs the whole blocking graph, so `begin` asks the server once
+ * for every candidate row; until the answer lands a row reads as acceptable for
+ * that check, and the server re-checks on write anyway. Nesting has no such
+ * server precheck — moving a task never conflicts the way a relation can.
  */
 export function useDependencyDrag(opts: {
 	tasks: () => readonly Task[];
 	check: (draggedId: number, candidateIds: number[]) => Promise<DependencyRefusals>;
-	onDrop: (draggedId: number, targetId: number) => void;
+	onDependency: (draggedId: number, targetId: number) => void;
+	onNest: (draggedId: number, targetId: number) => void;
 }): DependencyDrag {
 	let draggedId = $state<number | null>(null);
 	let hover = $state<DependencyHover | null>(null);
@@ -56,11 +70,10 @@ export function useDependencyDrag(opts: {
 		serverRefusals = {};
 	}
 
-	function refusalFor(targetId: number): DependencyRefusal | null {
+	function refusalFor(targetId: number, mode: DropMode): SubtaskDropRefusal | null {
 		if (draggedId === null) return null;
-		return (
-			structuralRefusal(opts.tasks(), draggedId, targetId) ?? serverRefusals[targetId] ?? null
-		);
+		if (mode === 'nest') return nestRefusal(opts.tasks(), draggedId, targetId);
+		return structuralRefusal(opts.tasks(), draggedId, targetId) ?? serverRefusals[targetId] ?? null;
 	}
 
 	return {
@@ -87,21 +100,34 @@ export function useDependencyDrag(opts: {
 				// still checked by the server and its refusal toasts.
 				.catch(() => undefined);
 		},
-		over(targetId: number | null, x: number, y: number) {
+		over(targetId: number | null, mode: DropMode | null, x: number, y: number) {
 			if (draggedId === null) return;
-			if (targetId === null || targetId === draggedId) {
+			if (targetId === null || mode === null || targetId === draggedId) {
 				hover = null;
 				return;
 			}
-			hover = { targetId, x, y };
+			// A nest that would change nothing is not offered as a target, the same
+			// way the dragged row itself is not.
+			if (mode === 'nest' && isNestNoop(opts.tasks(), draggedId, targetId)) {
+				hover = null;
+				return;
+			}
+			hover = { targetId, mode, x, y };
 		},
 		refusalFor,
-		drop(targetId: number | null) {
+		drop(targetId: number | null, mode: DropMode | null) {
 			const from = draggedId;
-			const accepted =
-				from !== null && targetId !== null && targetId !== from && refusalFor(targetId) === null;
+			if (from === null || targetId === null || mode === null || targetId === from) {
+				reset();
+				return;
+			}
+			const blocked =
+				(mode === 'nest' && isNestNoop(opts.tasks(), from, targetId)) ||
+				refusalFor(targetId, mode) !== null;
 			reset();
-			if (accepted) opts.onDrop(from, targetId);
+			if (blocked) return;
+			if (mode === 'dependency') opts.onDependency(from, targetId);
+			else opts.onNest(from, targetId);
 		},
 		cancel() {
 			reset();

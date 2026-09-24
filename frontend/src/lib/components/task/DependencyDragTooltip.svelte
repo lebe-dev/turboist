@@ -1,6 +1,7 @@
 <script lang="ts">
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import ProhibitIcon from 'phosphor-svelte/lib/Prohibit';
+	import ArrowBendDownRightIcon from 'phosphor-svelte/lib/ArrowBendDownRight';
 	import type { Task } from '$lib/api/types';
 	import type { DependencyDrag } from '$lib/hooks/useDependencyDrag.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
@@ -16,10 +17,21 @@
 
 	const hover = $derived(drag.hover);
 	const target = $derived(hover ? tasks.find((t) => t.id === hover.targetId) : undefined);
-	const refusal = $derived(hover ? drag.refusalFor(hover.targetId) : null);
+	const nests = $derived(hover?.mode === 'nest');
+	const refusal = $derived(hover ? drag.refusalFor(hover.targetId, hover.mode) : null);
 	const title = $derived(target ? stripMarkdownSyntax(target.title) : '');
 	const message = $derived.by(() => {
 		const values = { title };
+		if (nests) {
+			switch (refusal) {
+				case 'descendant':
+					return $t('page.task.nestDrag.refusedDescendant');
+				case 'completed':
+					return $t('page.task.nestDrag.refusedCompleted', { values });
+				default:
+					return $t('page.task.nestDrag.willNest', { values });
+			}
+		}
 		switch (refusal) {
 			case 'ancestor':
 				return $t('page.task.dependencyDrag.refusedAncestor');
@@ -57,6 +69,8 @@
 	>
 		{#if refusal}
 			<ProhibitIcon class="size-3.5 shrink-0" weight="bold" />
+		{:else if nests}
+			<ArrowBendDownRightIcon class="size-3.5 shrink-0 text-violet-500" weight="bold" />
 		{:else}
 			<LockSimpleIcon class="size-3.5 shrink-0 text-primary" weight="fill" />
 		{/if}

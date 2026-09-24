@@ -55,3 +55,56 @@ export function refusalFromServer(reason: BlockerRefusalReason): DependencyRefus
 	// one (never offered) or already gone (the next refetch removes it).
 	return null;
 }
+
+/**
+ * Which of the two things a drop over a row means, given where inside its
+ * height the pointer sits. The edges read as "relate to this row" (dependency,
+ * marked by a padlock); the middle band reads as "go inside this row" (nest,
+ * marked by an indent arrow) — the same split a file manager's tree uses to tell
+ * "drop next to" from "drop into".
+ */
+export type DropMode = 'dependency' | 'nest';
+
+// The top/bottom fraction of a row's height that means "dependency" rather than
+// "nest". A quarter on each edge leaves the wide middle band for the nest that
+// most drags are aiming for, while keeping edges easy to land on deliberately.
+const DEPENDENCY_EDGE_FRACTION = 0.25;
+
+export function dropModeForOffset(relativeY: number): DropMode {
+	return relativeY < DEPENDENCY_EDGE_FRACTION || relativeY > 1 - DEPENDENCY_EDGE_FRACTION
+		? 'dependency'
+		: 'nest';
+}
+
+/** Why a dragged subtask cannot be nested under the row under the pointer. */
+export type NestRefusal = 'descendant' | 'completed';
+
+/**
+ * Whether nesting draggedId under targetId — making it targetId's subtask —
+ * would change nothing: targetId is already its parent. Not a refusal, just
+ * nothing to offer, the same way the dragged row itself is not offered.
+ */
+export function isNestNoop(tasks: readonly Task[], draggedId: number, targetId: number): boolean {
+	return tasks.find((t) => t.id === draggedId)?.parentId === targetId;
+}
+
+/**
+ * The refusal that follows from the subtask tree for nesting draggedId under
+ * targetId, or null when it may go ahead (including the no-op case — see
+ * isNestNoop, checked separately since it is not really a refusal).
+ */
+export function nestRefusal(
+	tasks: readonly Task[],
+	draggedId: number,
+	targetId: number
+): NestRefusal | null {
+	const byId = new Map(tasks.map((t) => [t.id, t] as const));
+	const target = byId.get(targetId);
+	if (!target) return null;
+	if (target.status !== 'open') return 'completed';
+	// targetId sitting inside dragged's own subtree would nest dragged under its
+	// own descendant — the one cycle the tree can never resolve. Nesting dragged
+	// under one of its own ancestors is fine: that is just moving it up a level.
+	if (ancestorIds(byId, targetId).has(draggedId)) return 'descendant';
+	return null;
+}

@@ -1178,6 +1178,13 @@
 				"refusedCycle": "Would create a loop: “{title}” already waits for this task",
 				"added": "Now depends on “{title}”",
 				"failed": "Failed to add dependency"
+			},
+			"nestDrag": {
+				"willNest": "Will become a subtask of “{title}”",
+				"refusedDescendant": "Can't nest a task under its own subtask",
+				"refusedCompleted": "“{title}” is already done",
+				"added": "Now a subtask of “{title}”",
+				"failed": "Failed to move the subtask"
 			}
 		},
 		"context": {

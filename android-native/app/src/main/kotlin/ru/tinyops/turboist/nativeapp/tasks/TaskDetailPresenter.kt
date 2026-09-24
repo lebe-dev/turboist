@@ -20,8 +20,11 @@ import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.view.BlockEdge
 import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
+import ru.tinyops.turboist.core.model.view.NestDropRefusal
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.model.view.dependencyDropRefusal
+import ru.tinyops.turboist.core.model.view.isNestNoop
+import ru.tinyops.turboist.core.model.view.nestDropRefusal
 import ru.tinyops.turboist.core.model.view.splitByRootCompletion
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -76,6 +79,36 @@ data class TaskDetailUiState(
             blockEdges = blockEdges,
         )
     }
+
+    /**
+     * Why dropping one subtask onto another's middle band — "the dragged one
+     * becomes the target's subtask" — would be refused, or `null` when it may go
+     * ahead (see [nestNoop] for the no-op case, checked separately).
+     */
+    fun nestRefusal(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ): NestDropRefusal? {
+        val subtasks = (openSubtasks + doneSubtasks).map { it.task }
+        val target = subtasks.firstOrNull { it.localId == targetLocalId } ?: return null
+        val parentOf = subtasks.mapNotNull { t -> t.parentLocalId?.let { t.localId to it } }.toMap()
+        return nestDropRefusal(
+            draggedLocalId = draggedLocalId,
+            targetLocalId = targetLocalId,
+            parentOf = parentOf,
+            targetOpen = target.status == TaskStatus.OPEN,
+        )
+    }
+
+    /** Whether nesting draggedLocalId under targetLocalId would change nothing. */
+    fun nestNoop(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ): Boolean {
+        val subtasks = (openSubtasks + doneSubtasks).map { it.task }
+        val parentOf = subtasks.mapNotNull { t -> t.parentLocalId?.let { t.localId to it } }.toMap()
+        return isNestNoop(draggedLocalId, targetLocalId, parentOf)
+    }
 }
 
 /**
@@ -86,6 +119,16 @@ data class DependencyAdded(
     val taskLocalId: Long,
     val relationLocalId: Long,
     val blockerTitle: String,
+)
+
+/**
+ * A subtask was just nested under another by dropping it there. Carries what
+ * the confirmation names and what its undo moves back to.
+ */
+data class NestAdded(
+    val taskLocalId: Long,
+    val previousParentLocalId: Long,
+    val newParentTitle: String,
 )
 
 /**
@@ -209,6 +252,7 @@ class TaskDetailPresenter(
     private val outgoing = MutableSharedFlow<TaskListMessage>(extraBufferCapacity = 4)
     private val removals = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val dependencies = MutableSharedFlow<DependencyAdded>(extraBufferCapacity = 1)
+    private val nests = MutableSharedFlow<NestAdded>(extraBufferCapacity = 1)
 
     /** What the screen renders. */
     val state: StateFlow<TaskDetailUiState> =
@@ -224,6 +268,9 @@ class TaskDetailPresenter(
 
     /** Fires when a dropped subtask was made to wait for another, so the screen can offer an undo. */
     val dependencyAdded: SharedFlow<DependencyAdded> = dependencies.asSharedFlow()
+
+    /** Fires when a dropped subtask was nested under another, so the screen can offer an undo. */
+    val nestAdded: SharedFlow<NestAdded> = nests.asSharedFlow()
 
     /** Asks the sync engine to catch up. The screen itself is a query and needs no reload. */
     fun refresh() {
@@ -502,6 +549,39 @@ class TaskDetailPresenter(
     /** Takes back a wait added by a drop. */
     fun undoDependency(added: DependencyAdded) {
         scope.launch { report { actions.removeRelation(added.taskLocalId, added.relationLocalId) } }
+    }
+
+    /**
+     * Nests the dropped subtask under the one it was dropped on.
+     *
+     * Refused exactly as [makeDependent]: a drop already shown as refused queues
+     * nothing, and dropping onto the row that is already its parent does nothing
+     * either, since there would be nothing to undo.
+     */
+    fun nestUnder(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ) {
+        val current = state.value
+        if (draggedLocalId == targetLocalId) return
+        if (current.nestNoop(draggedLocalId, targetLocalId)) return
+        if (current.nestRefusal(draggedLocalId, targetLocalId) != null) return
+        val subtasks = current.openSubtasks + current.doneSubtasks
+        val dragged = subtasks.firstOrNull { it.task.localId == draggedLocalId }?.task ?: return
+        val target = subtasks.firstOrNull { it.task.localId == targetLocalId }?.task ?: return
+        val previousParentLocalId = dragged.parentLocalId ?: current.task?.localId ?: return
+        scope.launch {
+            if (report { actions.move(draggedLocalId, TaskDestination.SubtaskOf(targetLocalId)) }) {
+                nests.emit(NestAdded(draggedLocalId, previousParentLocalId, target.title))
+            }
+        }
+    }
+
+    /** Takes back a nesting added by a drop, moving the subtask back to its previous parent. */
+    fun undoNest(added: NestAdded) {
+        scope.launch {
+            report { actions.move(added.taskLocalId, TaskDestination.SubtaskOf(added.previousParentLocalId)) }
+        }
     }
 
     // --- internals -----------------------------------------------------
