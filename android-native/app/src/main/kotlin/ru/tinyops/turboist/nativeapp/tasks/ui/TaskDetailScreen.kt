@@ -49,8 +49,10 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,6 +72,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -81,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
@@ -90,6 +94,7 @@ import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.BlockerRef
+import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
 import ru.tinyops.turboist.nativeapp.tasks.RecurrenceWording
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
@@ -143,6 +148,10 @@ data class TaskDetailCallbacks(
     val onDecompose: (List<String>) -> Unit = {},
     /** Saves the task and its subtree as a reusable template. */
     val onCreateTemplate: () -> Unit = {},
+    /** A subtask was dropped onto another: the first now waits for the second. */
+    val onMakeDependent: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
+    /** Takes back a wait a drop just added. */
+    val onUndoDependency: (DependencyAdded) -> Unit = {},
 )
 
 /** The field a sheet is currently open for, or nothing when none is. */
@@ -181,8 +190,11 @@ fun TaskDetailScreen(
     callbacks: TaskDetailCallbacks,
     modifier: Modifier = Modifier,
     harpoon: @Composable () -> Unit = {},
+    dependencyAdded: Flow<DependencyAdded> = emptyFlow(),
 ) {
     val snackbars = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val undo = stringResource(R.string.view_undo)
     val blocked = stringResource(R.string.task_toast_blockedCannotComplete)
     val linkExists = stringResource(R.string.native_task_relationExists)
     val linkCycle = stringResource(R.string.native_task_relationCycle)
@@ -204,6 +216,21 @@ fun TaskDetailScreen(
                     TaskListMessage.FAILED -> failed
                 },
             )
+        }
+    }
+
+    // A drop is a gesture with no other trace on screen than a padlock appearing,
+    // so it is confirmed in words, and it is the one confirmation that can be taken
+    // back: a drop onto the wrong row is an easy slip.
+    LaunchedEffect(dependencyAdded, undo) {
+        dependencyAdded.collect { added ->
+            val result =
+                snackbars.showSnackbar(
+                    message = context.getString(R.string.page_task_dependencyDrag_added, added.blockerTitle),
+                    actionLabel = undo,
+                    duration = SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) callbacks.onUndoDependency(added)
         }
     }
 
@@ -319,6 +346,12 @@ private fun TaskDetailBody(
                     onToggleComplete = callbacks.onToggleSubtask,
                     onOpen = { callbacks.onOpenTask(it.localId) },
                     onAdd = callbacks.onAddSubtask,
+                    dependencies =
+                        SubtaskDependencies(
+                            enabled = task.status == TaskStatus.OPEN,
+                            refusal = state::dependencyRefusal,
+                            onDrop = callbacks.onMakeDependent,
+                        ),
                 )
 
                 TaskDetailRelations(
@@ -1072,6 +1105,7 @@ fun TaskDetailScreen(
         callbacks = detailCallbacks(presenter, zone, onOpenTask, onBack),
         modifier = modifier,
         harpoon = harpoon,
+        dependencyAdded = presenter.dependencyAdded,
     )
 }
 
@@ -1114,6 +1148,8 @@ private fun detailCallbacks(
             onOpenTask = onOpenTask,
             onDecompose = presenter::decompose,
             onCreateTemplate = presenter::createTemplate,
+            onMakeDependent = presenter::makeDependent,
+            onUndoDependency = presenter::undoDependency,
         )
     }
 

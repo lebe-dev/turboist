@@ -55,7 +55,12 @@
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
-	import { onDestroy, tick, untrack } from 'svelte';
+	import DependencyDragTooltip from '$lib/components/task/DependencyDragTooltip.svelte';
+	import { useDependencyDrag, refusalsFromCheck } from '$lib/hooks/useDependencyDrag.svelte';
+	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
+	import { setTouchTaskDragListener } from '$lib/utils/dnd';
+	import { stripMarkdownSyntax } from '$lib/utils/markdown';
+	import { onDestroy, setContext, tick, untrack } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
 
@@ -81,6 +86,68 @@
 	const subtasksSplit = $derived(splitByRootCompletion(sortedSubtasks));
 	const openSubtasks = $derived(subtasksSplit.open);
 	const completedSubtasks = $derived(subtasksSplit.done);
+
+	// Dropping one open subtask onto another makes the dropped one wait for it
+	// (a `blocks` relation from the target). TaskItem reads the gesture from context,
+	// so TaskTree needs no extra props; touch reaches it through dnd.ts.
+	const dependencyDrag = useDependencyDrag({
+		tasks: () => subtasks.items,
+		check: async (draggedId, candidateIds) =>
+			refusalsFromCheck(
+				(await tasksApi.blockerCheck(getApiClient(), draggedId, candidateIds)).refused
+			),
+		onDrop: (draggedId, targetId) => void addDependency(draggedId, targetId)
+	});
+	setContext(DEPENDENCY_DRAG_KEY, dependencyDrag);
+	$effect(() =>
+		setTouchTaskDragListener({
+			begin: (id) => {
+				if (subtasks.items.some((t) => t.id === id && t.status === 'open')) dependencyDrag.begin(id);
+			},
+			over: (id, x, y) => dependencyDrag.over(id, x, y),
+			drop: (id) => dependencyDrag.drop(id)
+		})
+	);
+
+	async function addDependency(draggedId: number, targetId: number): Promise<void> {
+		const client = getApiClient();
+		const blockerTitle = stripMarkdownSyntax(
+			subtasks.items.find((t) => t.id === targetId)?.title ?? ''
+		);
+		let updated: Task;
+		try {
+			updated = await tasksApi.addRelation(client, draggedId, {
+				targetTaskId: targetId,
+				type: 'blocks',
+				direction: 'incoming'
+			});
+		} catch (err) {
+			toast.error(describeError(err, $t('page.task.dependencyDrag.failed')));
+			return;
+		}
+		subtasks.mutator.replace(updated);
+		// The blocker's own relation counter changed too; the answer only carries the
+		// dropped task, and this client's own SSE echo is suppressed.
+		void loader.revalidate();
+		const relationId = updated.relations?.find(
+			(r) => r.type === 'blocks' && r.direction === 'incoming' && r.task.id === targetId
+		)?.id;
+		toast.success($t('page.task.dependencyDrag.added', { values: { title: blockerTitle } }), {
+			action:
+				relationId === undefined
+					? undefined
+					: { label: $t('view.undo'), onClick: () => void undoDependency(draggedId, relationId) }
+		});
+	}
+
+	async function undoDependency(taskId: number, relationId: number): Promise<void> {
+		try {
+			subtasks.mutator.replace(await tasksApi.removeRelation(getApiClient(), taskId, relationId));
+			void loader.revalidate();
+		} catch (err) {
+			toast.error(describeError(err, $t('page.task.relationRemoveFailed')));
+		}
+	}
 
 	let title = $state('');
 	let description = $state('');
@@ -688,6 +755,7 @@ async function save(): Promise<void> {
 								<TaskTree
 									tasks={openSubtasks}
 									showProject={false}
+									draggable={task?.status !== 'completed'}
 									mutator={subtasks.mutator}
 									onToggle={(t) =>
 										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
@@ -879,3 +947,4 @@ async function save(): Promise<void> {
 {/if}
 
 <MoveTaskDialog bind:open={moveDialogOpen} task={task} mutator={pageMutator} />
+<DependencyDragTooltip drag={dependencyDrag} tasks={subtasks.items} />

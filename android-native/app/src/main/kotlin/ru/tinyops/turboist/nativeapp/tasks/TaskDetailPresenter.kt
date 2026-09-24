@@ -18,7 +18,10 @@ import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.model.view.BlockEdge
+import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
+import ru.tinyops.turboist.core.model.view.dependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.splitByRootCompletion
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -42,6 +45,7 @@ data class TaskDetailUiState(
     val knownLabels: List<Label> = emptyList(),
     val priorityLocked: Boolean = false,
     val refreshing: Boolean = false,
+    val blockEdges: List<BlockEdge> = emptyList(),
 ) {
     /** True once the task is known not to be here, as opposed to not being known yet. */
     val missing: Boolean get() = !loading && task == null
@@ -51,7 +55,38 @@ data class TaskDetailUiState(
 
     /** The links under each of the three headings, in the order they were made. */
     fun relationsIn(group: TaskRelationGroup): List<TaskRelationRef> = relations.filter { it.group == group }
+
+    /**
+     * Why dropping one subtask onto another — "the dragged one waits for the
+     * target" — would be refused, or `null` when it may go ahead. Answered from
+     * the replica alone, so the screen can say it while the finger is still down.
+     */
+    fun dependencyRefusal(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ): DependencyDropRefusal? {
+        val subtasks = (openSubtasks + doneSubtasks).map { it.task }
+        val target = subtasks.firstOrNull { it.localId == targetLocalId } ?: return null
+        val parentOf = subtasks.mapNotNull { t -> t.parentLocalId?.let { t.localId to it } }.toMap()
+        return dependencyDropRefusal(
+            draggedLocalId = draggedLocalId,
+            targetLocalId = targetLocalId,
+            parentOf = parentOf,
+            targetOpen = target.status == TaskStatus.OPEN,
+            blockEdges = blockEdges,
+        )
+    }
 }
+
+/**
+ * A subtask was just made to wait for another by dropping it there. Carries what
+ * the confirmation names and what its undo removes.
+ */
+data class DependencyAdded(
+    val taskLocalId: Long,
+    val relationLocalId: Long,
+    val blockerTitle: String,
+)
 
 /**
  * The writes the task detail screen can make.
@@ -124,6 +159,15 @@ interface TaskDetailActions : TaskListActions {
         group: TaskRelationGroup,
     )
 
+    /**
+     * Makes [taskLocalId] wait for [blockerLocalId], and answers the id of the
+     * new link so it can be taken back.
+     */
+    suspend fun addBlocker(
+        taskLocalId: Long,
+        blockerLocalId: Long,
+    ): Long
+
     /** Takes a link off, from the side the user is looking at. */
     suspend fun removeRelation(
         taskLocalId: Long,
@@ -164,6 +208,7 @@ class TaskDetailPresenter(
     private var searching: Job? = null
     private val outgoing = MutableSharedFlow<TaskListMessage>(extraBufferCapacity = 4)
     private val removals = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val dependencies = MutableSharedFlow<DependencyAdded>(extraBufferCapacity = 1)
 
     /** What the screen renders. */
     val state: StateFlow<TaskDetailUiState> =
@@ -176,6 +221,9 @@ class TaskDetailPresenter(
 
     /** Fires once the task this screen was showing has been deleted, so the screen can leave. */
     val deleted: SharedFlow<Unit> = removals.asSharedFlow()
+
+    /** Fires when a dropped subtask was made to wait for another, so the screen can offer an undo. */
+    val dependencyAdded: SharedFlow<DependencyAdded> = dependencies.asSharedFlow()
 
     /** Asks the sync engine to catch up. The screen itself is a query and needs no reload. */
     fun refresh() {
@@ -424,6 +472,38 @@ class TaskDetailPresenter(
         scope.launch { report { actions.removeRelation(task.localId, relationLocalId) } }
     }
 
+    /**
+     * Makes the dropped subtask wait for the one it was dropped on.
+     *
+     * A drop the screen already showed as refused queues nothing: the finger was
+     * lifted over a "no", and taking it as a "yes" would be the one outcome the
+     * user was told would not happen.
+     */
+    fun makeDependent(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ) {
+        val current = state.value
+        if (draggedLocalId == targetLocalId) return
+        if (current.dependencyRefusal(draggedLocalId, targetLocalId) != null) return
+        val blockerTitle =
+            (current.openSubtasks + current.doneSubtasks)
+                .firstOrNull { it.task.localId == targetLocalId }
+                ?.task
+                ?.title ?: return
+        scope.launch {
+            report {
+                val relationLocalId = actions.addBlocker(draggedLocalId, targetLocalId)
+                dependencies.emit(DependencyAdded(draggedLocalId, relationLocalId, blockerTitle))
+            }
+        }
+    }
+
+    /** Takes back a wait added by a drop. */
+    fun undoDependency(added: DependencyAdded) {
+        scope.launch { report { actions.removeRelation(added.taskLocalId, added.relationLocalId) } }
+    }
+
     // --- internals -----------------------------------------------------
 
     private fun render(
@@ -455,6 +535,7 @@ class TaskDetailPresenter(
             knownLabels = detail.knownLabels,
             priorityLocked = detail.priorityLockedByTroiki,
             refreshing = isRefreshing,
+            blockEdges = detail.blockEdges,
         )
     }
 

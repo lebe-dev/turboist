@@ -358,3 +358,65 @@ func (r *TaskRelationsRepo) WouldCycle(ctx context.Context, sourceID, targetID i
 	}
 	return exists == 1, nil
 }
+
+// BlockingReachableFrom returns every task reachable from taskID by following
+// `blocks` edges forward — everything taskID holds back, directly or through a
+// chain. taskID itself is not included. Asking "may X block taskID?" is asking
+// whether X is in this set, so one walk answers it for any number of candidates.
+func (r *TaskRelationsRepo) BlockingReachableFrom(ctx context.Context, taskID int64) (map[int64]struct{}, error) {
+	const op = "repo.task_relations.BlockingReachableFrom"
+	logQuery(ctx, op, taskID)
+	rows, err := r.db.QueryContext(ctx,
+		`WITH RECURSIVE reachable(id) AS (
+		     SELECT ?
+		     UNION
+		     SELECT tr.target_task_id FROM task_relations tr
+		     JOIN reachable rr ON rr.id = tr.source_task_id
+		     WHERE tr.type = 'blocks'
+		 )
+		 SELECT id FROM reachable WHERE id <> ?`,
+		taskID, taskID)
+	if err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("walk blocking graph: %w", err))
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[int64]struct{})
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, logErr(ctx, op, fmt.Errorf("scan: %w", err))
+		}
+		out[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("iterate: %w", err))
+	}
+	return out, nil
+}
+
+// DirectBlockerIDs returns the tasks that block taskID through a relation of its
+// own — whatever their status, since a duplicate row is refused regardless of it.
+// Unlike OpenBlockerIDs it does not walk the ancestor chain.
+func (r *TaskRelationsRepo) DirectBlockerIDs(ctx context.Context, taskID int64) (map[int64]struct{}, error) {
+	const op = "repo.task_relations.DirectBlockerIDs"
+	logQuery(ctx, op, taskID)
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT source_task_id FROM task_relations WHERE target_task_id = ? AND type = 'blocks'`,
+		taskID)
+	if err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("select blockers: %w", err))
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[int64]struct{})
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, logErr(ctx, op, fmt.Errorf("scan: %w", err))
+		}
+		out[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("iterate: %w", err))
+	}
+	return out, nil
+}

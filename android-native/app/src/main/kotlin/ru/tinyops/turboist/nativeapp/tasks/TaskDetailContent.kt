@@ -3,6 +3,7 @@ package ru.tinyops.turboist.nativeapp.tasks
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.model.view.BlockEdge
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 
 /**
@@ -98,6 +99,10 @@ data class TaskRelationCandidate(
  * no loading state past the first frame and no error state at all: what the
  * device knows is what is shown, connected or not.
  *
+ * [blockEdges] is every `blocks` edge the device holds, settled or not: dropping
+ * one subtask onto another asks whether the new wait would duplicate one or close
+ * a loop, and the server answers both over the whole graph.
+ *
  * [priorityLockedByTroiki] is true while the task sits in a project that stands
  * in the daily plan. Such a project fixes the priority of its work, so the field
  * is not the user's to set here and the screen says so rather than accepting an
@@ -112,6 +117,7 @@ data class TaskDetailContent(
     val projectTitles: Map<Long, String>,
     val knownLabels: List<Label>,
     val priorityLockedByTroiki: Boolean = false,
+    val blockEdges: List<BlockEdge> = emptyList(),
 )
 
 /** A project a task can be moved into, with the columns it offers. */

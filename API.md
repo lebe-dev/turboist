@@ -685,6 +685,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `POST /api/v1/tasks/:id/move` | `tasks:write` |
 | `POST /api/v1/tasks/:id/plan` | `tasks:write` |
 | `POST /api/v1/tasks/:id/relations` | `tasks:write` |
+| `GET /api/v1/tasks/:id/relations/blocker-check` | `tasks:read` |
 | `DELETE /api/v1/tasks/:id/relations/:relationId` | `tasks:write` |
 | `GET /api/v1/tasks/today` | `tasks:read` |
 | `GET /api/v1/tasks/tomorrow` | `tasks:read` |
@@ -1234,7 +1235,7 @@ Directed links between two tasks. Two types:
 - `incoming` — the other task blocks this one ("blocked by"),
 - `outgoing` — this task blocks the other one ("blocks").
 
-Both endpoints below answer with the **updated task**, with `relations` hydrated. There is deliberately no `GET` for relations: they ride inside `GET /api/v1/tasks/:id?relations=true`, and the mutations return the task, so a client never needs a follow-up read.
+Both mutations below answer with the **updated task**, with `relations` hydrated. There is deliberately no `GET` listing relations: they ride inside `GET /api/v1/tasks/:id?relations=true`, and the mutations return the task, so a client never needs a follow-up read. The one read is `blocker-check`, a dry run of adding blockers.
 
 ### Relation Object
 
@@ -1288,6 +1289,28 @@ curl -X POST "$BASE/api/v1/tasks/42/relations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"targetTaskId":11,"type":"related"}'
+```
+
+### `GET /api/v1/tasks/:id/relations/blocker-check`
+
+Dry run of "each candidate blocks task `:id`" — nothing is written. Answers which of the comma-separated `candidates` (at most 500, duplicates ignored) the `POST` above would refuse, so a drag-and-drop gesture can show the refusal before the drop. Candidates that are not listed may be added. `POST` still re-checks everything on write.
+
+```json
+{ "refused": [ { "taskId": 7, "reason": "relation_exists" }, { "taskId": 9, "reason": "relation_cycle" } ] }
+```
+
+| `reason` | Meaning |
+|----------|---------|
+| `relation_self` | The candidate is `:id` itself |
+| `not_found` | No such task |
+| `relation_exists` | The candidate already blocks `:id` |
+| `relation_cycle` | `:id` already blocks the candidate, directly or through a chain |
+
+Errors: `404 not_found` when `:id` does not exist; `400 validation_failed` when `candidates` is missing, holds a non-positive or non-numeric id, or names more than 500 tasks.
+
+```sh
+curl "$BASE/api/v1/tasks/42/relations/blocker-check?candidates=7,9,11" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### `DELETE /api/v1/tasks/:id/relations/:relationId`

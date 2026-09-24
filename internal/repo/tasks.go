@@ -320,6 +320,38 @@ func (r *TaskRepo) HasRecurrenceCompletionOnDay(ctx context.Context, sourceID in
 	return true, nil
 }
 
+// ExistingIDs returns which of ids name a task that exists. Callers keep the
+// batch small (a screenful of candidates), so it is one IN list.
+func (r *TaskRepo) ExistingIDs(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
+	const op = "repo.tasks.ExistingIDs"
+	logQuery(ctx, op, ids)
+	out := make(map[int64]struct{}, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id FROM tasks WHERE id IN (?`+strings.Repeat(",?", len(ids)-1)+`)`, args...)
+	if err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, logErr(ctx, op, err)
+		}
+		out[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	return out, nil
+}
+
 func (r *TaskRepo) Get(ctx context.Context, id int64) (*model.Task, error) {
 	const op = "repo.tasks.Get"
 	logQuery(ctx, op, id)

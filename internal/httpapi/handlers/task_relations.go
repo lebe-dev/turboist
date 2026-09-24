@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/auth"
@@ -16,16 +19,18 @@ import (
 const (
 	opTaskRelationAdd    = "handler.TaskRelation.Add"
 	opTaskRelationRemove = "handler.TaskRelation.Remove"
+	opTaskRelationCheck  = "handler.TaskRelation.BlockerCheck"
 	msgRelationNotFound  = "relation not found"
 )
 
 // TaskRelationHandler serves the task relation graph.
 //
-// Write-only by design: there is no GET /tasks/:id/relations. Relations ride
-// inside GET /tasks/:id?relations=true, and both mutations answer with the updated
-// task, so the SPA never needs a follow-up read (see the "one aggregate for reads"
+// There is no GET /tasks/:id/relations listing. Relations ride inside
+// GET /tasks/:id?relations=true, and both mutations answer with the updated task,
+// so the SPA never needs a follow-up read (see the "one aggregate for reads"
 // invariant in CLAUDE.md, and selfRefresh.ts which deliberately does not
-// re-dispatch the `tasks` scope for this client's own mutation).
+// re-dispatch the `tasks` scope for this client's own mutation). The one read is
+// blocker-check, a dry run of `add` asked once per drag gesture.
 type TaskRelationHandler struct {
 	relationSvc *service.RelationService
 	baseURL     string
@@ -37,7 +42,61 @@ func NewTaskRelationHandler(relationSvc *service.RelationService, baseURL string
 
 func (h *TaskRelationHandler) Register(r fiber.Router) {
 	r.Post("/tasks/:id/relations", httpapi.RequireScope(auth.ScopeTasksWrite), h.add)
+	r.Get("/tasks/:id/relations/blocker-check", httpapi.RequireScope(auth.ScopeTasksRead), h.blockerCheck)
 	r.Delete("/tasks/:id/relations/:relationId", httpapi.RequireScope(auth.ScopeTasksWrite), h.remove)
+}
+
+// blockerCheck answers which of `candidates` (comma-separated ids) could NOT be
+// made a blocker of :id, so a drag gesture can say so before the drop.
+func (h *TaskRelationHandler) blockerCheck(c fiber.Ctx) error {
+	id, err := parseID(c)
+	if err != nil {
+		return err
+	}
+	logEntry(c, opTaskRelationCheck, slog.Int64("task_id", id))
+
+	candidates, err := parseCandidateIDs(c.Query("candidates"))
+	if err != nil {
+		logValidation(c, opTaskRelationCheck, err.Error(), slog.String("raw", c.Query("candidates")))
+		return httpapi.ErrValidation(err.Error())
+	}
+
+	refused, err := h.relationSvc.CheckBlockers(c.Context(), id, candidates)
+	if err != nil {
+		return h.mapErr(err, opTaskRelationCheck)
+	}
+	out := dto.BlockerCheckResponse{Refused: make([]dto.BlockerRefusalDTO, 0, len(refused))}
+	// Candidate order, not map order, so the answer is stable for a given request.
+	for _, cid := range candidates {
+		if reason, ok := refused[cid]; ok {
+			out.Refused = append(out.Refused, dto.BlockerRefusalDTO{TaskID: cid, Reason: string(reason)})
+		}
+	}
+	return c.JSON(out)
+}
+
+func parseCandidateIDs(raw string) ([]int64, error) {
+	if raw == "" {
+		return nil, errors.New("candidates is required")
+	}
+	parts := strings.Split(raw, ",")
+	if len(parts) > service.MaxBlockerCandidates {
+		return nil, fmt.Errorf("at most %d candidates", service.MaxBlockerCandidates)
+	}
+	seen := make(map[int64]struct{}, len(parts))
+	out := make([]int64, 0, len(parts))
+	for _, p := range parts {
+		cid, err := strconv.ParseInt(strings.TrimSpace(p), 10, 64)
+		if err != nil || cid <= 0 {
+			return nil, errors.New("candidates must be positive task ids")
+		}
+		if _, dup := seen[cid]; dup {
+			continue
+		}
+		seen[cid] = struct{}{}
+		out = append(out, cid)
+	}
+	return out, nil
 }
 
 func (h *TaskRelationHandler) add(c fiber.Ctx) error {

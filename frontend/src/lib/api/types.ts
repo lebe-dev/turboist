@@ -205,6 +205,13 @@ export interface TaskRelation {
 	createdAt: string;
 }
 
+/** Why a task cannot be made a blocker of another (GET …/relations/blocker-check). */
+export type BlockerRefusalReason = 'relation_self' | 'not_found' | 'relation_exists' | 'relation_cycle';
+
+export interface BlockerCheckResult {
+	refused: { taskId: number; reason: BlockerRefusalReason }[];
+}
+
 export interface Page<T> {
 	items: T[];
 	total: number;

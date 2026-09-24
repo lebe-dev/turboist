@@ -103,6 +103,18 @@ class WriteRepoTaskDetailActions
             tasks.addRelation(taskLocalId, peerTaskLocalId, group.type, group.direction)
         }
 
+        override suspend fun addBlocker(
+            taskLocalId: Long,
+            blockerLocalId: Long,
+        ): Long =
+            tasks
+                .addRelation(
+                    taskLocalId,
+                    blockerLocalId,
+                    TaskRelationGroup.BLOCKED_BY.type,
+                    TaskRelationGroup.BLOCKED_BY.direction,
+                ).entityLocalId
+
         override suspend fun removeRelation(
             taskLocalId: Long,
             relationLocalId: Long,

@@ -68,6 +68,40 @@ interface TouchDragState {
 }
 
 let activeTouchDrag: TouchDragState | null = null;
+
+/**
+ * Optional observer of which task row is under the finger during a touch drag.
+ * The project page does not set one (it only cares about sections, reported by
+ * endTouchDrag); the task page does, to turn a drop onto a sibling into a
+ * dependency. One at a time — the page that mounts last owns it.
+ */
+export interface TouchTaskDragListener {
+	begin(taskId: number): void;
+	over(targetId: number | null, x: number, y: number): void;
+	drop(targetId: number | null): void;
+}
+
+let touchTaskListener: TouchTaskDragListener | null = null;
+
+export function setTouchTaskDragListener(listener: TouchTaskDragListener): () => void {
+	touchTaskListener = listener;
+	return () => {
+		if (touchTaskListener === listener) touchTaskListener = null;
+	};
+}
+
+function taskIdAt(el: Element | null): number | null {
+	const raw = el?.closest('[data-task-id]')?.getAttribute('data-task-id');
+	const id = Number(raw);
+	return raw && Number.isFinite(id) ? id : null;
+}
+
+// Svelte registers touchmove handlers as passive, so the preventDefault in
+// updateTouchDrag cannot stop the page from scrolling under an armed drag. A
+// non-passive window listener, held only while a drag is armed, can.
+function blockScroll(e: TouchEvent): void {
+	if (e.cancelable) e.preventDefault();
+}
 let highlightedSectionEl: Element | null = null;
 const SCROLL_CANCEL_THRESHOLD = 10; // px finger movement before long-press fires → cancel drag, allow scroll
 const HOLD_DURATION_MS = 350; // long-press duration before drag is armed
@@ -110,6 +144,8 @@ function armDrag(): void {
 	activeTouchDrag.ghostEl = ghost;
 	activeTouchDrag.started = true;
 	sourceEl.style.opacity = '0.3';
+	window.addEventListener('touchmove', blockScroll, { passive: false });
+	touchTaskListener?.begin(activeTouchDrag.taskId);
 }
 
 function cancelTouchDrag(): void {
@@ -169,6 +205,7 @@ export function updateTouchDrag(e: TouchEvent): boolean {
 		sectionEl.classList.add('touch-drag-over');
 		highlightedSectionEl = sectionEl;
 	}
+	touchTaskListener?.over(taskIdAt(el), touch.clientX, touch.clientY);
 
 	return true;
 }
@@ -184,6 +221,7 @@ export function endTouchDrag(e: TouchEvent): { taskId: number; sectionId: number
 	if (sourceEl) sourceEl.style.opacity = '';
 
 	if (!started) return null;
+	window.removeEventListener('touchmove', blockScroll);
 
 	// Remove ghost
 	if (ghostEl?.parentNode) ghostEl.parentNode.removeChild(ghostEl);
@@ -193,6 +231,7 @@ export function endTouchDrag(e: TouchEvent): { taskId: number; sectionId: number
 	const el = document.elementFromPoint(touch.clientX, touch.clientY);
 
 	clearHighlight();
+	touchTaskListener?.drop(taskIdAt(el));
 
 	const sectionEl = el?.closest('[data-section-id]');
 	if (sectionEl) {

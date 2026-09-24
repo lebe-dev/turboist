@@ -71,3 +71,16 @@ type CreateTaskRelationRequest struct {
 	Type         string `json:"type"`
 	Direction    string `json:"direction"`
 }
+
+// BlockerRefusalDTO names one candidate that cannot be made a blocker, and why:
+// relation_self, not_found, relation_exists or relation_cycle.
+type BlockerRefusalDTO struct {
+	TaskID int64  `json:"taskId"`
+	Reason string `json:"reason"`
+}
+
+// BlockerCheckResponse answers GET /tasks/:id/relations/blocker-check. Only the
+// refused candidates are listed; every other candidate may be added.
+type BlockerCheckResponse struct {
+	Refused []BlockerRefusalDTO `json:"refused"`
+}

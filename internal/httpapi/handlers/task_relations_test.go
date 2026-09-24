@@ -383,3 +383,62 @@ func TestTaskViews_CarryRelationCounters(t *testing.T) {
 		t.Fatalf("blocked task missing from the context listing")
 	}
 }
+
+func TestTaskRelationBlockerCheck(t *testing.T) {
+	e := setupAPIEnv(t)
+	c := createTestContext(t, e, "Work")
+	dragged := createTestTask(t, e, c.ID, "Dragged")
+	blocker := createTestTask(t, e, c.ID, "Blocker")
+	downstream := createTestTask(t, e, c.ID, "Downstream")
+	free := createTestTask(t, e, c.ID, "Free")
+
+	addRelation(t, e, dragged.ID, map[string]any{"targetTaskId": blocker.ID, "type": "blocks", "direction": "incoming"})
+	addRelation(t, e, dragged.ID, map[string]any{"targetTaskId": downstream.ID, "type": "blocks", "direction": "outgoing"})
+
+	url := fmt.Sprintf("%s/blocker-check?candidates=%d,%d,%d", relationsURL(dragged.ID), blocker.ID, downstream.ID, free.ID)
+	resp, raw := doReq(t, e.app, e.authedReq(t, http.MethodGet, url, nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("blocker check: got %d, want 200; body: %s", resp.StatusCode, raw)
+	}
+	var out dto.BlockerCheckResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	got := map[int64]string{}
+	for _, r := range out.Refused {
+		got[r.TaskID] = r.Reason
+	}
+	want := map[int64]string{blocker.ID: "relation_exists", downstream.ID: "relation_cycle"}
+	if len(got) != len(want) {
+		t.Errorf("refused: got %v, want %v", got, want)
+	}
+	for id, reason := range want {
+		if got[id] != reason {
+			t.Errorf("task %d: got %q, want %q", id, got[id], reason)
+		}
+	}
+}
+
+func TestTaskRelationBlockerCheck_Validation(t *testing.T) {
+	e := setupAPIEnv(t)
+	c := createTestContext(t, e, "Work")
+	a := createTestTask(t, e, c.ID, "A")
+
+	cases := []struct {
+		name string
+		url  string
+		want int
+	}{
+		{"missing candidates", relationsURL(a.ID) + "/blocker-check", 400},
+		{"garbage candidate", relationsURL(a.ID) + "/blocker-check?candidates=1,x", 400},
+		{"unknown task", relationsURL(999999) + "/blocker-check?candidates=1", 404},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, raw := doReq(t, e.app, e.authedReq(t, http.MethodGet, tc.url, nil))
+			if resp.StatusCode != tc.want {
+				t.Errorf("got %d, want %d; body: %s", resp.StatusCode, tc.want, raw)
+			}
+		})
+	}
+}

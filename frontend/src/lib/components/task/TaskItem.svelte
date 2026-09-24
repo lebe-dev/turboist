@@ -14,6 +14,7 @@
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LinkIcon from 'phosphor-svelte/lib/Link';
+	import ProhibitIcon from 'phosphor-svelte/lib/Prohibit';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 	import SealQuestionIcon from 'phosphor-svelte/lib/SealQuestion';
@@ -33,6 +34,8 @@
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
 	import { SUBTASK_COLLAPSE_KEY, type SubtaskCollapseCtx } from '$lib/context/subtaskCollapse';
+	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
+	import type { DependencyDrag } from '$lib/hooks/useDependencyDrag.svelte';
 	import {
 		setTaskDrag,
 		clearTaskDrag,
@@ -90,6 +93,22 @@
 	const reparentEnabled = $derived(!!onReparent && draggable && !taskSelectionStore.mode);
 	let dropAsChildActive = $state(false);
 
+	// On the task page the rows instead take part in the dependency gesture: dropping
+	// one subtask onto another makes the dropped one wait for the other. Only an
+	// open row can be picked up — a finished task has nothing left to wait for.
+	const dependencyDrag = getContext<DependencyDrag | undefined>(DEPENDENCY_DRAG_KEY);
+	const dragSource = $derived(
+		draggable &&
+			!taskSelectionStore.mode &&
+			(!dependencyDrag || (task.status === 'open' && !forceCompleted))
+	);
+	const dependencyTarget = $derived(!!dependencyDrag && draggable && !taskSelectionStore.mode);
+	const dependencyHovered = $derived(dependencyDrag?.hover?.targetId === task.id);
+	const dependencyRefused = $derived(
+		dependencyHovered && dependencyDrag!.refusalFor(task.id) !== null
+	);
+	const dependencySource = $derived(dependencyDrag?.draggedId === task.id);
+
 	const selected = $derived(taskSelectionStore.has(task.id));
 
 	function onSelectionClick(e: MouseEvent): void {
@@ -104,11 +123,44 @@
 
 	function onTaskDragStart(e: DragEvent) {
 		setTaskDrag(e, task.id);
+		dependencyDrag?.begin(task.id);
 	}
 
 	function onTaskDragEnd() {
 		clearTaskDrag();
 		dropAsChildActive = false;
+		// A drop has already ended the gesture; this covers a release anywhere else.
+		dependencyDrag?.cancel();
+	}
+
+	function onDependencyDragOver(e: DragEvent) {
+		if (!dependencyDrag || dependencyDrag.draggedId === null) return;
+		if (dependencyDrag.draggedId === task.id) {
+			dependencyDrag.over(null, e.clientX, e.clientY);
+			return;
+		}
+		e.stopPropagation();
+		dependencyDrag.over(task.id, e.clientX, e.clientY);
+		// Not calling preventDefault leaves the browser's own "no drop" cursor on a
+		// refused row, on top of the tooltip saying why.
+		if (dependencyDrag.refusalFor(task.id) !== null) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+	}
+
+	function onDependencyDragLeave(e: DragEvent) {
+		const target = e.currentTarget as HTMLElement;
+		const related = e.relatedTarget as Node | null;
+		if (related && target.contains(related)) return;
+		// Only clear our own hover: the next row's dragover may already have taken it.
+		if (dependencyDrag?.hover?.targetId === task.id) dependencyDrag.over(null, e.clientX, e.clientY);
+	}
+
+	function onDependencyDrop(e: DragEvent) {
+		if (!dependencyDrag) return;
+		e.preventDefault();
+		e.stopPropagation();
+		dependencyDrag.drop(task.id);
 	}
 
 	function onChildDragOver(e: DragEvent) {
@@ -142,7 +194,7 @@
 	}
 
 	function onTaskTouchStart(e: TouchEvent) {
-		if (!draggable || taskSelectionStore.mode) return;
+		if (!dragSource) return;
 		initTouchDrag(e, task.id, e.currentTarget as HTMLElement);
 	}
 
@@ -292,18 +344,20 @@
 	class:py-2.5={hasMeta}
 	class:py-1.5={!hasMeta}
 	class:bg-accent={taskSelectionStore.mode && selected}
-	class:ring-2={dropAsChildActive}
-	class:ring-inset={dropAsChildActive}
-	class:ring-primary={dropAsChildActive}
+	class:ring-2={dropAsChildActive || dependencyHovered}
+	class:ring-inset={dropAsChildActive || dependencyHovered}
+	class:ring-primary={dropAsChildActive || (dependencyHovered && !dependencyRefused)}
+	class:ring-destructive={dependencyRefused}
+	class:opacity-40={dependencySource}
 	style:padding-left={onToggleCollapse ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
-	draggable={draggable && !taskSelectionStore.mode}
-	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
-	ondragend={draggable && !taskSelectionStore.mode ? onTaskDragEnd : undefined}
-	ondragover={reparentEnabled ? onChildDragOver : undefined}
-	ondragleave={reparentEnabled ? onChildDragLeave : undefined}
-	ondrop={reparentEnabled ? onChildDrop : undefined}
-	ontouchstart={draggable && !taskSelectionStore.mode ? onTaskTouchStart : undefined}
+	draggable={dragSource}
+	ondragstart={dragSource ? onTaskDragStart : undefined}
+	ondragend={dragSource ? onTaskDragEnd : undefined}
+	ondragover={dependencyTarget ? onDependencyDragOver : reparentEnabled ? onChildDragOver : undefined}
+	ondragleave={dependencyTarget ? onDependencyDragLeave : reparentEnabled ? onChildDragLeave : undefined}
+	ondrop={dependencyTarget ? onDependencyDrop : reparentEnabled ? onChildDrop : undefined}
+	ontouchstart={dragSource ? onTaskTouchStart : undefined}
 	ontouchmove={draggable && !taskSelectionStore.mode ? onTaskTouchMove : undefined}
 	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
 	role={draggable ? 'listitem' : undefined}
@@ -487,6 +541,23 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if dependencyHovered}
+		<!-- The dependency mark the drop would add: the same padlock a blocked task
+		     carries, crossed out in red when the drop would be refused. -->
+		<span
+			class="pointer-events-none absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full shadow-sm {dependencyRefused
+				? 'bg-destructive text-white'
+				: 'bg-primary text-primary-foreground'}"
+			data-testid="dependency-drop-mark"
+		>
+			{#if dependencyRefused}
+				<ProhibitIcon class="size-3.5" weight="bold" />
+			{:else}
+				<LockSimpleIcon class="size-3.5" weight="fill" />
+			{/if}
+		</span>
+	{/if}
 
 	{#if mutator}
 		<div class="flex items-center self-center">

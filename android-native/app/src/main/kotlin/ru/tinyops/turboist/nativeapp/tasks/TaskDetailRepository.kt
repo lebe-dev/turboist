@@ -26,6 +26,7 @@ import ru.tinyops.turboist.core.database.entity.ProjectSectionRow
 import ru.tinyops.turboist.core.database.entity.TaskRow
 import ru.tinyops.turboist.core.database.entity.toDomain
 import ru.tinyops.turboist.core.model.RelationDirection
+import ru.tinyops.turboist.core.model.RelationType
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskRelationSummary
 import ru.tinyops.turboist.core.model.view.BlockEdge
@@ -178,6 +179,15 @@ class TaskDetailRepository
                     row.projectLocalId?.let { id ->
                         workspace.projects.firstOrNull { it.localId == id }?.troikiCategory != null
                     } ?: false,
+                blockEdges =
+                    relations.edges
+                        .filter { it.type == RelationType.BLOCKS }
+                        .map {
+                            BlockEdge(
+                                blockerLocalId = it.sourceTaskLocalId,
+                                blockedLocalId = it.targetTaskLocalId,
+                            )
+                        },
             )
         }
 

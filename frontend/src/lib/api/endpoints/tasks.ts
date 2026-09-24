@@ -1,5 +1,6 @@
 import type { ApiClient } from '../client';
 import type {
+	BlockerCheckResult,
 	BulkResult,
 	GroupResult,
 	InboxResponse,
@@ -66,7 +67,7 @@ export const tasks = {
 		return client.fetch(`/api/v1/tasks/${parentId}/subtasks`);
 	},
 
-	// Relations are write-only here on purpose: there is no GET for them. They ride
+	// Relations have no listing GET on purpose. They ride
 	// inside `get(..., { includeRelations: true })`, and both mutations answer with
 	// the updated task (relations hydrated), so nothing needs a follow-up read —
 	// which also matters because selfRefresh deliberately does not re-dispatch the
@@ -81,6 +82,14 @@ export const tasks = {
 
 	removeRelation(client: ApiClient, id: number, relationId: number): Promise<Task> {
 		return client.fetch(`/api/v1/tasks/${id}/relations/${relationId}`, { method: 'DELETE' });
+	},
+
+	// Dry run of "each candidate blocks :id": lists only the candidates the server
+	// would refuse. Asked once per drag gesture so the refusal shows before the drop.
+	blockerCheck(client: ApiClient, id: number, candidateIds: number[]): Promise<BlockerCheckResult> {
+		return client.fetch(
+			`/api/v1/tasks/${id}/relations/blocker-check?candidates=${candidateIds.join(',')}`
+		);
 	},
 
 	// Build an unsaved template draft from a task and its (flattened) subtree.

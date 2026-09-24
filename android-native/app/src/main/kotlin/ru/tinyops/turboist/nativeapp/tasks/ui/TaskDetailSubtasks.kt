@@ -2,6 +2,7 @@ package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +49,9 @@ import java.time.ZoneId
  * cannot: how much of the work under this task is done. It is drawn only when
  * there is work to measure — a bar at zero of zero is a decoration.
  *
+ * A subtask can be picked up with a long press and dropped onto another one to
+ * make it wait for that one; the rules and the marks live in SubtaskDependencyDrag.
+ *
  * A task in the inbox has no subtasks and cannot be given any — the inbox holds
  * loose captures — so the notice explains that instead of offering a field that
  * would be refused.
@@ -62,16 +67,21 @@ fun TaskDetailSubtasks(
     onOpen: (Task) -> Unit,
     onAdd: (String) -> Unit,
     modifier: Modifier = Modifier,
+    dependencies: SubtaskDependencies = SubtaskDependencies.None,
 ) {
     val total = open.size + done.size
+    val drag = remember { SubtaskDragState() }
+    val row: @Composable (TaskListRow) -> Unit = { row ->
+        SubtaskRow(row, zone, today, onToggleComplete, onOpen, drag, dependencies)
+    }
 
     SectionHeading(text = stringResource(R.string.page_task_subtasks), modifier = modifier)
     DetailCard {
         if (total > 0) {
             SubtaskProgress(finished = done.size, total = total)
         }
-        for (row in open) {
-            SubtaskRow(row, zone, today, onToggleComplete, onOpen)
+        for (subtask in open) {
+            row(subtask)
         }
         if (done.isNotEmpty()) {
             Text(
@@ -80,8 +90,8 @@ fun TaskDetailSubtasks(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
             )
-            for (row in done) {
-                SubtaskRow(row, zone, today, onToggleComplete, onOpen)
+            for (subtask in done) {
+                row(subtask)
             }
         }
         if (inInbox) {
@@ -95,6 +105,7 @@ fun TaskDetailSubtasks(
         }
         AddSubtaskField(onAdd)
     }
+    SubtaskDragTooltip(drag, open + done, dependencies)
 }
 
 /** How much of the work under the task is finished. */
@@ -128,18 +139,30 @@ private fun SubtaskRow(
     today: LocalDate,
     onToggleComplete: (Task) -> Unit,
     onOpen: (Task) -> Unit,
+    drag: SubtaskDragState,
+    dependencies: SubtaskDependencies,
 ) {
-    TaskRow(
-        row = row,
-        zone = zone,
-        today = today,
-        selectionMode = false,
-        selected = false,
-        onToggleComplete = { onToggleComplete(row.task) },
-        onOpen = { onOpen(row.task) },
-        onSelectToggle = {},
-        onStartSelection = {},
-    )
+    val localId = row.task.localId
+    DisposableEffect(localId) { onDispose { drag.forget(localId) } }
+    val dragged = drag.draggedLocalId
+    val refusal =
+        if (dragged != null && drag.hoverLocalId == localId) dependencies.refusal(dragged, localId) else null
+    Box(modifier = Modifier.subtaskDragSource(row, drag, dependencies).subtaskDragFade(row, drag)) {
+        TaskRow(
+            row = row,
+            zone = zone,
+            today = today,
+            selectionMode = false,
+            selected = false,
+            onToggleComplete = { onToggleComplete(row.task) },
+            onOpen = { onOpen(row.task) },
+            onSelectToggle = {},
+            // A long press here picks the row up to drop it onto another one
+            // (see subtaskDragSource); there is no selection on this screen.
+            onStartSelection = {},
+        )
+        SubtaskDragMarks(row, drag, refusal)
+    }
 }
 
 /**

@@ -33,6 +33,8 @@ A task is **blocked** when at least one task blocking it is still `open`.
 
 **On a task page** a *Relations* section lists the relations in three groups — Blocked by, Blocks, Related — each row linking to the other task and showing whether it is already done. The **Add relation** button opens a picker where you choose the type and then find the task either by typing part of its title or by entering its numeric **ID**.
 
+**Drag and drop between subtasks.** On a task page you can drag one open subtask onto another to make the dragged one depend on the target (the target blocks it). On a desktop, drag with the mouse; on a phone — the web app and both mobile apps — press and hold a subtask, then move it. While the subtask is over another one, that row is outlined and shows a padlock, and a tooltip says "Will depend on …". When the drop is not allowed, the row turns red and the tooltip says why: the target is the subtask's own parent or its own subtask (blockers are inherited down the tree, so such a dependency makes no sense), the dependency already exists, or it would close a loop. Releasing over a refused row does nothing. After a successful drop a notification offers **Undo**, which removes the dependency again.
+
 The task's own ID is shown under the title with a copy button, and the task actions menu (`···`) has a **Copy ID** item — handy for grabbing an ID to paste into the picker.
 
 **In every task list** a blocked task shows a filled padlock in place of its checkbox, coloured by the task's priority, and the checkbox is not clickable. Any task with relations also shows a small link icon with the relation count next to its other badges.
@@ -67,13 +69,16 @@ Completing a blocked task is refused offline too: the check runs against the cac
 
 ## API
 
-Two write endpoints, both answering with the updated task:
+Two write endpoints, both answering with the updated task, plus one dry-run read:
 
 ```
 POST   /api/v1/tasks/:id/relations
 DELETE /api/v1/tasks/:id/relations/:relationId
+GET    /api/v1/tasks/:id/relations/blocker-check?candidates=1,2,3
 ```
 
-There is no separate endpoint for reading relations. Every task carries `blockedByCount` and `relationCount` on all endpoints that return tasks, and the full list arrives inline via `GET /api/v1/tasks/:id?relations=true`. Completing a blocked task answers `409` with the code `task_blocked` and the blocker ids in `details.blockerIds`.
+`blocker-check` writes nothing: it says which candidates could not be made blockers of the task (already blocking it, or it would close a loop). The web app asks it once when a subtask drag starts; the native Android client answers the same question from its own copy of the relation graph, with no network.
+
+There is no separate endpoint for listing relations. Every task carries `blockedByCount` and `relationCount` on all endpoints that return tasks, and the full list arrives inline via `GET /api/v1/tasks/:id?relations=true`. Completing a blocked task answers `409` with the code `task_blocked` and the blocker ids in `details.blockerIds`.
 
 See [API.md → Task Relations](../API.md#task-relations) for request bodies, error cases and examples.

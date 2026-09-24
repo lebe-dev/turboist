@@ -11,6 +11,8 @@ import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.model.view.BlockEdge
+import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -103,6 +105,14 @@ class TaskDetailPresenterTest {
             taskLocalId: Long,
             relationLocalId: Long,
         ) = record("removeRelation $taskLocalId $relationLocalId")
+
+        override suspend fun addBlocker(
+            taskLocalId: Long,
+            blockerLocalId: Long,
+        ): Long {
+            record("addBlocker $taskLocalId $blockerLocalId")
+            return ADDED_RELATION_LOCAL_ID
+        }
     }
 
     /** A device that answers the picker with whatever a test put in it. */
@@ -133,6 +143,7 @@ class TaskDetailPresenterTest {
         placement: TaskPlacement = TaskPlacement(),
         knownLabels: List<Label> = emptyList(),
         priorityLockedByTroiki: Boolean = false,
+        blockEdges: List<BlockEdge> = emptyList(),
     ) = TaskDetailContent(
         task = task,
         placement = placement,
@@ -142,6 +153,7 @@ class TaskDetailPresenterTest {
         projectTitles = emptyMap(),
         knownLabels = knownLabels,
         priorityLockedByTroiki = priorityLockedByTroiki,
+        blockEdges = blockEdges,
     )
 
     private fun link(
@@ -685,6 +697,89 @@ class TaskDetailPresenterTest {
             assertEquals(listOf(TaskListMessage.TEMPLATE_FAILED), said)
         }
 
+    // --- dropping one subtask onto another ---------------------------------
+
+    private val siblings =
+        listOf(
+            task(2, title = "Order the parts", parentLocalId = 1),
+            task(3, title = "Assemble", parentLocalId = 1),
+            task(4, title = "Unpack", parentLocalId = 3),
+        )
+
+    @Test
+    fun `dropping a subtask on a sibling makes it wait for the sibling and offers an undo`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+            val added = mutableListOf<DependencyAdded>()
+            backgroundScope.launch { presenter.dependencyAdded.collect { added += it } }
+
+            presenter.makeDependent(draggedLocalId = 3, targetLocalId = 2)
+            runCurrent()
+
+            assertEquals(listOf("addBlocker 3 2"), actions.calls)
+            assertEquals(
+                listOf(
+                    DependencyAdded(
+                        taskLocalId = 3,
+                        relationLocalId = ADDED_RELATION_LOCAL_ID,
+                        blockerTitle = "Order the parts",
+                    ),
+                ),
+                added,
+            )
+
+            presenter.undoDependency(added.single())
+            runCurrent()
+
+            assertEquals("removeRelation 3 $ADDED_RELATION_LOCAL_ID", actions.calls.last())
+        }
+
+    @Test
+    fun `the refusal is known while the finger is still over the target`() =
+        runTest {
+            val presenter =
+                open(
+                    task(1),
+                    subtasks = siblings,
+                    blockEdges = listOf(BlockEdge(blockerLocalId = 2, blockedLocalId = 3)),
+                )
+            val state = presenter.state.value
+
+            assertEquals(DependencyDropRefusal.CYCLE, state.dependencyRefusal(draggedLocalId = 2, targetLocalId = 3))
+            assertEquals(DependencyDropRefusal.EXISTS, state.dependencyRefusal(draggedLocalId = 3, targetLocalId = 2))
+            assertEquals(DependencyDropRefusal.ANCESTOR, state.dependencyRefusal(draggedLocalId = 4, targetLocalId = 3))
+            assertEquals(
+                DependencyDropRefusal.DESCENDANT,
+                state.dependencyRefusal(draggedLocalId = 3, targetLocalId = 4),
+            )
+            assertEquals(null, state.dependencyRefusal(draggedLocalId = 4, targetLocalId = 2))
+        }
+
+    @Test
+    fun `a refused drop queues nothing`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+
+            presenter.makeDependent(draggedLocalId = 4, targetLocalId = 3)
+            runCurrent()
+
+            assertEquals(emptyList(), actions.calls)
+        }
+
+    @Test
+    fun `a drop the device turns down on write is reported like any other link`() =
+        runTest {
+            val presenter = open(task(1), subtasks = siblings)
+            val said = mutableListOf<TaskListMessage>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            actions.refuseWith = WriteRefused.RelationCycle(blockerLocalId = 2, blockedLocalId = 3)
+
+            presenter.makeDependent(draggedLocalId = 3, targetLocalId = 2)
+            runCurrent()
+
+            assertEquals(listOf(TaskListMessage.RELATION_CYCLE), said)
+        }
+
     /** Cutting a template out of a task, remembered rather than performed. */
     private class RecordingCapture : TemplateCapture {
         val captured = mutableListOf<Long>()
@@ -703,6 +798,7 @@ class TaskDetailPresenterTest {
         blockers: List<BlockerRef> = emptyList(),
         relations: List<TaskRelationRef> = emptyList(),
         priorityLockedByTroiki: Boolean = false,
+        blockEdges: List<BlockEdge> = emptyList(),
     ): TaskDetailPresenter {
         val presenter = TaskDetailPresenter(backgroundScope, content, actions, sync, relationSearch)
         backgroundScope.launch { presenter.state.collect {} }
@@ -713,8 +809,12 @@ class TaskDetailPresenterTest {
                 blockers = blockers,
                 relations = relations,
                 priorityLockedByTroiki = priorityLockedByTroiki,
+                blockEdges = blockEdges,
             )
         runCurrent()
         return presenter
     }
 }
+
+/** The relation id the recording actions hand back for a new blocker. */
+private const val ADDED_RELATION_LOCAL_ID = 99L

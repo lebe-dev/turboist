@@ -1168,7 +1168,17 @@
 			"relationSearchFailed": "Не удалось выполнить поиск",
 			"relationAddFailed": "Не удалось добавить связь",
 			"relationRemoveFailed": "Не удалось удалить связь",
-			"copyId": "Скопировать ID задачи"
+			"copyId": "Скопировать ID задачи",
+			"dependencyDrag": {
+				"willDepend": "Будет зависеть от «{title}»",
+				"refusedAncestor": "Нельзя зависеть от своей родительской задачи",
+				"refusedDescendant": "Нельзя зависеть от своей подзадачи",
+				"refusedCompleted": "«{title}» уже выполнена — ждать нечего",
+				"refusedExists": "Уже зависит от «{title}»",
+				"refusedCycle": "Получится цикл: «{title}» уже ждёт эту задачу",
+				"added": "Теперь зависит от «{title}»",
+				"failed": "Не удалось добавить зависимость"
+			}
 		},
 		"context": {
 			"errorLoading": "Не удалось загрузить контекст",

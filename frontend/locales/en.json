@@ -1168,7 +1168,17 @@
 			"relationSearchFailed": "Search failed",
 			"relationAddFailed": "Failed to add relation",
 			"relationRemoveFailed": "Failed to remove relation",
-			"copyId": "Copy task ID"
+			"copyId": "Copy task ID",
+			"dependencyDrag": {
+				"willDepend": "Will depend on “{title}”",
+				"refusedAncestor": "Can't depend on its own parent task",
+				"refusedDescendant": "Can't depend on its own subtask",
+				"refusedCompleted": "“{title}” is already done — nothing to wait for",
+				"refusedExists": "Already depends on “{title}”",
+				"refusedCycle": "Would create a loop: “{title}” already waits for this task",
+				"added": "Now depends on “{title}”",
+				"failed": "Failed to add dependency"
+			}
 		},
 		"context": {
 			"errorLoading": "Failed to load context",
