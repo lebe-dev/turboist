@@ -94,6 +94,8 @@ class OfflineIdentityTest : WriteTest() {
                 db.tasks().labelsOf(child.entityLocalId).map { it.labelLocalId },
                 "a subtask created with no labels of its own inherits its parent's",
             )
+            val childOp = queuedOps().last() as CreateTaskOp
+            assertNull(childOp.body.labels, "the server must inherit the same labels when the write syncs")
         }
 
     @Test

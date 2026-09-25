@@ -91,6 +91,7 @@
 	// svelte-ignore state_referenced_locally
 	let projectId = $state<string>(defaultProjectId ? String(defaultProjectId) : '');
 	let labelIds = $state<number[]>(initialLabelIds());
+	let labelsChanged = $state(false);
 	// svelte-ignore state_referenced_locally
 	let parentId = $state<number | null>(defaultParentId);
 	// svelte-ignore state_referenced_locally
@@ -282,6 +283,7 @@
 		recurrenceRule = null;
 		projectId = defaultProjectId ? String(defaultProjectId) : '';
 		labelIds = initialLabelIds();
+		labelsChanged = false;
 		parentId = defaultParentId;
 		sectionId = defaultSectionId;
 		dismissedAutoLabels = [];
@@ -295,6 +297,7 @@
 			dueDate = defaultDueDate ?? '';
 			projectId = defaultProjectId ? String(defaultProjectId) : '';
 			labelIds = initialLabelIds();
+			labelsChanged = false;
 			priority = defaultPriority;
 			dayPart = defaultDayPart;
 			parentId = defaultParentId;
@@ -304,6 +307,7 @@
 	});
 
 	function toggleLabel(id: number) {
+		labelsChanged = true;
 		labelIds = labelIds.includes(id)
 			? labelIds.filter((x) => x !== id)
 			: [...labelIds, id];
@@ -317,6 +321,7 @@
 			const resolvedLabels = labelIds
 				.map((id) => allLabels.find((l) => l.id === id)?.name)
 				.filter((n): n is string => !!n);
+			// Omitted labels inherit from the parent; an edited empty selection clears them.
 			const commonPayload = {
 				description: description.trim() || undefined,
 				priority,
@@ -326,7 +331,9 @@
 					: null,
 				dueHasTime: false as const,
 				recurrenceRule,
-				labels: resolvedLabels,
+				labels: parentId !== null && resolvedLabels.length === 0 && !labelsChanged
+					? undefined
+					: resolvedLabels,
 				removedAutoLabels: dismissedAutoLabels.length > 0 ? [...dismissedAutoLabels] : undefined
 			};
 			const target = {
@@ -525,7 +532,7 @@
 					<div class="mt-2 flex flex-wrap items-center gap-2">
 						{@render projectPicker()}
 
-						<LabelPicker bind:value={labelIds} />
+						<LabelPicker bind:value={labelIds} onValueChange={() => (labelsChanged = true)} />
 					</div>
 
 					{#if suggestedProjects.length > 0}
