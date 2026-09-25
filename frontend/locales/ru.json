@@ -873,7 +873,8 @@
 		"picker": {
 			"searchPlaceholder": "Поиск меток...",
 			"noMatches": "Совпадений нет",
-			"noLabelsAvailable": "Нет доступных меток"
+			"noLabelsAvailable": "Нет доступных меток",
+			"recent": "Недавние"
 		}
 	},
 	"context": {

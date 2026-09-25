@@ -873,7 +873,8 @@
 		"picker": {
 			"searchPlaceholder": "Search labels...",
 			"noMatches": "No matches",
-			"noLabelsAvailable": "No labels available"
+			"noLabelsAvailable": "No labels available",
+			"recent": "Recent"
 		}
 	},
 	"context": {

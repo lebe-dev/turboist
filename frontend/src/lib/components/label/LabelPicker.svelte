@@ -4,6 +4,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { IsMobile } from '$lib/hooks';
 	import { labelsStore } from '$lib/stores/labels.svelte';
+	import { recentLabelsStore } from '$lib/stores/recentLabels.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { isLabelVisible } from '$lib/utils/visibility';
 	import TagIcon from 'phosphor-svelte/lib/Tag';
@@ -37,6 +38,14 @@
 		if (!q) return allLabels;
 		return allLabels.filter((l) => l.name.toLowerCase().includes(q));
 	});
+	// Recently applied labels lead the list; they are lifted out of the main
+	// list below so nothing is offered twice.
+	const recentLabels = $derived(recentLabelsStore.pick(filteredLabels));
+	const restLabels = $derived.by(() => {
+		if (recentLabels.length === 0) return filteredLabels;
+		const lifted = new Set(recentLabels.map((l) => l.id));
+		return filteredLabels.filter((l) => !lifted.has(l.id));
+	});
 
 	$effect(() => {
 		if (menuOpen) {
@@ -47,7 +56,9 @@
 	});
 
 	function toggle(id: number): void {
-		value = value.includes(id) ? value.filter((x) => x !== id) : [...value, id];
+		const adding = !value.includes(id);
+		value = adding ? [...value, id] : value.filter((x) => x !== id);
+		if (adding) recentLabelsStore.visit(id);
 		onValueChange?.(value);
 	}
 </script>
@@ -71,30 +82,42 @@
 			/>
 		</div>
 	{/snippet}
+	{#snippet labelRow(label: (typeof filteredLabels)[number])}
+		{@const active = value.includes(label.id)}
+		<button
+			type="button"
+			onclick={() => toggle(label.id)}
+			class="inline-flex items-center rounded-md text-left transition-colors {isMobile.current
+				? 'gap-3 px-3 py-3 text-sm'
+				: 'gap-2 px-2 py-1.5 text-xs'}"
+			class:bg-accent={active}
+			class:text-accent-foreground={active}
+			class:hover:bg-accent={!active}
+		>
+			{#if label.color}
+				<span
+					class="rounded-full {isMobile.current ? 'size-3' : 'size-2'}"
+					style={`background-color: ${label.color}`}
+				></span>
+			{/if}
+			<span class="flex-1 truncate">{label.name}</span>
+			{#if active}
+				<XIcon class="opacity-60 {isMobile.current ? 'size-4' : 'size-3'}" />
+			{/if}
+		</button>
+	{/snippet}
 	{#snippet options()}
-		{#each filteredLabels as label (label.id)}
-			{@const active = value.includes(label.id)}
-			<button
-				type="button"
-				onclick={() => toggle(label.id)}
-				class="inline-flex items-center rounded-md text-left transition-colors {isMobile.current
-					? 'gap-3 px-3 py-3 text-sm'
-					: 'gap-2 px-2 py-1.5 text-xs'}"
-				class:bg-accent={active}
-				class:text-accent-foreground={active}
-				class:hover:bg-accent={!active}
-			>
-				{#if label.color}
-					<span
-						class="rounded-full {isMobile.current ? 'size-3' : 'size-2'}"
-						style={`background-color: ${label.color}`}
-					></span>
-				{/if}
-				<span class="flex-1 truncate">{label.name}</span>
-				{#if active}
-					<XIcon class="opacity-60 {isMobile.current ? 'size-4' : 'size-3'}" />
-				{/if}
-			</button>
+		{#if recentLabels.length > 0}
+			<div class="px-2 pb-0.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+				{$t('label.picker.recent')}
+			</div>
+			{#each recentLabels as label (label.id)}
+				{@render labelRow(label)}
+			{/each}
+			<div class="my-1 border-t border-border/60" role="separator" aria-hidden="true"></div>
+		{/if}
+		{#each restLabels as label (label.id)}
+			{@render labelRow(label)}
 		{/each}
 		{#if filteredLabels.length === 0}
 			<div class="px-2 py-3 text-center text-xs text-muted-foreground">
