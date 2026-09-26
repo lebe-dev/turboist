@@ -72,6 +72,7 @@ import ru.tinyops.turboist.nativeapp.quickadd.QuickAddViewModel
 import ru.tinyops.turboist.nativeapp.tasks.ui.DayPartSelector
 import ru.tinyops.turboist.nativeapp.tasks.ui.LabelSelector
 import ru.tinyops.turboist.nativeapp.tasks.ui.PrioritySelector
+import ru.tinyops.turboist.nativeapp.tasks.ui.futureSelectableDates
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -478,11 +479,16 @@ private fun DueDateRow(
     val state =
         rememberDatePickerState(
             initialSelectedDateMillis = dueDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+            selectableDates = remember(today) { futureSelectableDates(today) },
         )
     DatePickerDialog(
         onDismissRequest = { picking = false },
         confirmButton = {
             TextButton(
+                enabled =
+                    state.selectedDateMillis?.let {
+                        !Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().isBefore(today)
+                    } == true,
                 onClick = {
                     picking = false
                     val picked = state.selectedDateMillis ?: return@TextButton

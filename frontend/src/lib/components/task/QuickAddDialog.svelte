@@ -241,6 +241,7 @@
 	}
 
 	function setCalendarValue(v: DateValue | undefined): void {
+		if (v && `${v.year}-${pad(v.month)}-${pad(v.day)}` < nowStore.todayKey) return;
 		if (!v) {
 			dueDate = '';
 		} else {
@@ -514,6 +515,7 @@
 										<Calendar
 											type="single"
 											value={calendarValue}
+											minValue={parseDate(todayKey)}
 											onValueChange={setCalendarValue}
 											captionLayout="dropdown"
 											locale={calendarLocale}

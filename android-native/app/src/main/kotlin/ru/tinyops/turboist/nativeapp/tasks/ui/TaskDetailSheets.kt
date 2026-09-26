@@ -262,11 +262,16 @@ internal fun TaskDateSheet(
         val state =
             rememberDatePickerState(
                 initialSelectedDateMillis = date?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+                selectableDates = remember(today) { futureSelectableDates(today) },
             )
         DatePickerDialog(
             onDismissRequest = { pickingDate = false },
             confirmButton = {
                 TextButton(
+                    enabled =
+                        state.selectedDateMillis?.let {
+                            !Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().isBefore(today)
+                        } == true,
                     onClick = {
                         pickingDate = false
                         val picked = state.selectedDateMillis ?: return@TextButton
