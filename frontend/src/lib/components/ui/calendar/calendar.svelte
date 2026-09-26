@@ -111,7 +111,7 @@ get along, so we shut typescript up by casting `value` to `never`.
 						<Calendar.GridBody>
 							{#each month.weeks as weekDates (weekDates)}
 							{@const highlighted = isInHighlightedWeek(weekDates)}
-								<Calendar.GridRow class={cn("mt-2 w-full", highlighted && "rounded-md bg-muted/60 ring-1 ring-inset ring-border dark:ring-foreground/60")}>
+								<Calendar.GridRow class={cn("mt-2 w-full", highlighted && "relative rounded-md bg-muted/60 after:pointer-events-none after:absolute after:inset-0 after:z-30 after:rounded-md after:border after:border-border after:content-[''] dark:after:border-foreground/60")}>
 									{#each weekDates as date (date)}
 										<Calendar.Cell {date} month={month.value}>
 											{#if day}
