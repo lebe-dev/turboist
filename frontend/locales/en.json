@@ -628,6 +628,9 @@
 		"unplannedLabel": "Added outside of planning",
 		"weekPlannedLabel": "Planned for this week",
 		"actions": {
+			"more": "More",
+			"close": "Close",
+			"clearLabel": "Clear",
 			"ariaLabel": "Task actions",
 			"copy": "Copy",
 			"copyJson": "Copy as JSON",

@@ -628,6 +628,9 @@
 		"unplannedLabel": "Добавлено вне планирования",
 		"weekPlannedLabel": "Запланировано на эту неделю",
 		"actions": {
+			"more": "Ещё",
+			"close": "Закрыть",
+			"clearLabel": "Сбросить",
 			"ariaLabel": "Действия с задачей",
 			"copy": "Копировать",
 			"copyJson": "Копировать как JSON",
