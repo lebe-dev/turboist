@@ -359,13 +359,13 @@
 	}
 
 	function hydrate(t: Task): void {
-		// Server returned the exact revision we already have (typical for the SSE
-		// echo that follows our own save). Skip everything — assigning identical
-		// values still flushes derived/effects and causes a visible flicker.
-		if (task && task.id === t.id && task.updatedAt === t.updatedAt) return;
+		// Blocker counts and relation peers can change without this task's revision
+		// changing. Always refresh the task, but leave the editors alone on that revision.
+		const sameRevision = task && task.id === t.id && task.updatedAt === t.updatedAt;
+		task = t;
+		if (sameRevision) return;
 
 		allowSave = false;
-		task = t;
 		if (!titleFocused && title !== t.title) title = t.title;
 		const nextDescription = t.description ?? '';
 		if (!descriptionFocused && description !== nextDescription) description = nextDescription;
@@ -411,15 +411,15 @@
 	// Watch picker bindings for auto-save
 	$effect(() => {
 		void priority;
-		scheduleSave();
+		untrack(scheduleSave);
 	});
 	$effect(() => {
 		void dayPart;
-		scheduleSave();
+		untrack(scheduleSave);
 	});
 	$effect(() => {
 		void recurrence;
-		scheduleSave();
+		untrack(scheduleSave);
 	});
 	$effect(() => {
 		if (task) viewFilterStore.setTitle(task.title);
@@ -468,6 +468,25 @@
 		},
 		remove(_id: number) {
 			void goto(resolve('/inbox'));
+		}
+	};
+
+	const subtaskMutator: ListMutator = {
+		...subtasks.mutator,
+		replace(updated) {
+			const previous = subtasks.items.find((t) => t.id === updated.id);
+			subtasks.mutator.replace(updated);
+			// A status change can release or restore blockers on the root and other
+			// subtasks. Our own SSE echo is suppressed, so fetch those derived fields.
+			if (previous && previous.status !== updated.status) void loader.revalidate();
+		},
+		remove(id) {
+			subtasks.mutator.remove(id);
+			void loader.revalidate();
+		},
+		removeSubtree(id) {
+			subtasks.mutator.removeSubtree(id);
+			void loader.revalidate();
 		}
 	};
 
@@ -799,9 +818,9 @@ async function save(): Promise<void> {
 									tasks={openSubtasks}
 									showProject={false}
 									draggable={task?.status !== 'completed'}
-									mutator={subtasks.mutator}
+									mutator={subtaskMutator}
 									onToggle={(t) =>
-										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+										toggleComplete(t, subtaskMutator, { removeWhenCompleted: false })}
 									forceCompleted={task?.status === 'completed'}
 								/>
 							{/if}
@@ -809,9 +828,9 @@ async function save(): Promise<void> {
 								<CompletedTasksGroup
 									tasks={completedSubtasks}
 									draggable={false}
-									mutator={subtasks.mutator}
+									mutator={subtaskMutator}
 									onToggle={(t) =>
-										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+										toggleComplete(t, subtaskMutator, { removeWhenCompleted: false })}
 								/>
 							{/if}
 						</div>
