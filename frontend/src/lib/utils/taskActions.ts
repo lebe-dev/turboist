@@ -12,6 +12,7 @@ import { nowStore } from '$lib/stores/now.svelte';
 import { toast } from 'svelte-sonner';
 import { get } from 'svelte/store';
 import { t } from '$lib/i18n';
+import { buildTree, type TaskNode } from '$lib/utils/taskTree';
 
 function tr(key: string, values?: Record<string, string | number | Date>): string {
 	return get(t)(key, values ? { values } : undefined);
@@ -422,6 +423,42 @@ export async function copyTaskTitle(task: Task): Promise<void> {
 	try {
 		await navigator.clipboard.writeText(task.title);
 		toast.success(tr('task.toast.copied'));
+	} catch (err) {
+		toast.error(describeError(err, tr('task.toast.failedCopy')));
+	}
+}
+
+export interface TaskJson {
+	title: string;
+	description: string;
+	subtasks?: TaskJson[];
+}
+
+export function taskToJson(task: Task, descendants: Task[]): TaskJson {
+	const root = buildTree([task, ...descendants]).find((node) => node.task.id === task.id)!;
+	const serialize = (node: TaskNode): TaskJson => ({
+		title: node.task.title,
+		description: node.task.description,
+		...(node.children.length > 0 ? { subtasks: node.children.map(serialize) } : {})
+	});
+	return serialize(root);
+}
+
+export async function copyTaskJson(task: Task): Promise<void> {
+	try {
+		const text = tasksApi.get(getApiClient(), task.id, { includeSubtasks: true }).then((current) =>
+			JSON.stringify(taskToJson(current, current.subtasks?.items ?? []), null, 2)
+		);
+		if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+			await navigator.clipboard.write([
+				new ClipboardItem({
+					'text/plain': text.then((value) => new Blob([value], { type: 'text/plain' }))
+				})
+			]);
+		} else {
+			await navigator.clipboard.writeText(await text);
+		}
+		toast.success(tr('task.toast.jsonCopied'));
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedCopy')));
 	}

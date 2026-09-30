@@ -630,6 +630,7 @@
 		"actions": {
 			"ariaLabel": "Task actions",
 			"copy": "Copy",
+			"copyJson": "Copy as JSON",
 			"copyId": "Copy ID",
 			"duplicate": "Duplicate",
 			"pin": "Pin",
@@ -724,6 +725,7 @@
 			"failedMove": "Failed to move task",
 			"failedMoveToSection": "Failed to move to section",
 			"copied": "Copied",
+			"jsonCopied": "Task JSON copied",
 			"failedCopy": "Failed to copy",
 			"failedUndo": "Failed to undo",
 			"confirmDelete": "Delete \"{title}\"? Subtasks will also be removed.",

@@ -26,6 +26,7 @@
 	import {
 		applyParentLabelsToSubtasks,
 		copyTaskId,
+		copyTaskJson,
 		copyTaskTitle,
 		deleteTask,
 		describeError,
@@ -263,6 +264,9 @@
 	<DropdownMenu.Content align="end" class="min-w-[15rem]">
 		<DropdownMenu.Item onclick={() => void copyTaskTitle(task)}>
 			<CopyIcon class="size-4" /> {$t('task.actions.copy')}
+		</DropdownMenu.Item>
+		<DropdownMenu.Item onclick={() => void copyTaskJson(task)}>
+			<CopyIcon class="size-4" /> {$t('task.actions.copyJson')}
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onclick={() => void copyTaskId(task)}>
 			<HashIcon class="size-4" /> {$t('task.actions.copyId')}
