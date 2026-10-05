@@ -95,7 +95,7 @@
 	const reparentEnabled = $derived(!!onReparent && draggable && !taskSelectionStore.mode);
 	let dropAsChildActive = $state(false);
 
-	// On the task page the rows instead take part in the subtask drag gesture:
+	// On task and project pages the rows take part in the same drag gesture:
 	// dropping one subtask onto the edge of another makes the dropped one wait
 	// for it, dropping it onto the middle nests it as that row's own subtask (see
 	// dropModeForOffset). Only an open row can be picked up — a finished task has
@@ -152,6 +152,7 @@
 	function onDependencyDragOver(e: DragEvent) {
 		if (!dependencyDrag || dependencyDrag.draggedId === null) return;
 		if (dependencyDrag.draggedId === task.id) {
+			e.stopPropagation();
 			dependencyDrag.over(null, null, e.clientX, e.clientY);
 			return;
 		}

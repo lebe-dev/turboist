@@ -71,16 +71,12 @@ interface TouchDragState {
 
 let activeTouchDrag: TouchDragState | null = null;
 
-/**
- * Optional observer of which task row is under the finger during a touch drag.
- * The project page does not set one (it only cares about sections, reported by
- * endTouchDrag); the task page does, to turn a drop onto a sibling into a
- * dependency. One at a time — the page that mounts last owns it.
- */
+/** The active page observes row drops for dependencies and nesting. */
 export interface TouchTaskDragListener {
 	begin(taskId: number): void;
 	over(targetId: number | null, mode: DropMode | null, x: number, y: number): void;
 	drop(targetId: number | null, mode: DropMode | null): void;
+	detach?(taskId: number): void;
 }
 
 let touchTaskListener: TouchTaskDragListener | null = null;
@@ -214,7 +210,10 @@ export function updateTouchDrag(e: TouchEvent): boolean {
 	ghostEl.style.display = '';
 
 	clearHighlight();
-	const sectionEl = el?.closest('[data-section-id]') ?? el?.closest('[data-section-root]');
+	const sectionEl = el?.closest('[data-task-detach]') ??
+		(!taskRowHitAt(el, touch.clientY) || !touchTaskListener
+			? el?.closest('[data-section-id]') ?? el?.closest('[data-section-root]')
+			: null);
 	if (sectionEl && sectionEl !== highlightedSectionEl) {
 		sectionEl.classList.add('touch-drag-over');
 		highlightedSectionEl = sectionEl;
@@ -248,6 +247,11 @@ export function endTouchDrag(e: TouchEvent): { taskId: number; sectionId: number
 	clearHighlight();
 	const hit = taskRowHitAt(el, touch.clientY);
 	touchTaskListener?.drop(hit?.targetId ?? null, hit?.mode ?? null);
+	if (hit && touchTaskListener) return null;
+	if (el?.closest('[data-task-detach]')) {
+		touchTaskListener?.detach?.(taskId);
+		return null;
+	}
 
 	const sectionEl = el?.closest('[data-section-id]');
 	if (sectionEl) {

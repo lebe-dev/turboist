@@ -1185,6 +1185,10 @@
 				"added": "Now depends on “{title}”",
 				"failed": "Failed to add dependency"
 			},
+			"detachDrag": {
+				"hint": "Drop here to make this a top-level task in the same project and section",
+				"added": "Task moved to the top level"
+			},
 			"nestDrag": {
 				"willNest": "Will become a subtask of “{title}”",
 				"refusedDescendant": "Can't nest a task under its own subtask",

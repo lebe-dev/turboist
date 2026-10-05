@@ -26,10 +26,10 @@
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import ProjectDialog from '$lib/components/dialog/ProjectDialog.svelte';
 	import SectionDialog from '$lib/components/dialog/SectionDialog.svelte';
-	import { toggleComplete, describeError } from '$lib/utils/taskActions';
+	import { toggleComplete, describeError, type ListMutator } from '$lib/utils/taskActions';
 	import { t } from '$lib/i18n';
 	import { settingsStore } from '$lib/stores/settings.svelte';
-	import { hasDragKind, readDraggedTask } from '$lib/utils/dnd';
+	import { hasDragKind, readDraggedTask, setTouchTaskDragListener } from '$lib/utils/dnd';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
@@ -40,6 +40,12 @@
 	import { SvelteSet } from 'svelte/reactivity';
 
 
+
+	import DependencyDragTooltip from '$lib/components/task/DependencyDragTooltip.svelte';
+	import TaskDetachDropZone from '$lib/components/task/TaskDetachDropZone.svelte';
+	import { useDependencyDrag, refusalsFromCheck } from '$lib/hooks/useDependencyDrag.svelte';
+	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
+	import { stripMarkdownSyntax } from '$lib/utils/markdown';
 
 	const projectId = $derived(Number(page.params.id));
 	const belongs = (t: Task) => t.projectId === projectId;
@@ -68,7 +74,84 @@
 	}
 
 	const taskList = useListMutator<Task>();
-	const mutator = taskList.mutator;
+	const mutator: ListMutator = {
+		...taskList.mutator,
+		replace(updated) {
+			const previous = taskList.items.find((t) => t.id === updated.id);
+			taskList.mutator.replace(updated);
+			// Completion or cancellation can release blockers on other project tasks.
+			if (previous && previous.status !== updated.status) void loader.revalidate();
+		},
+		remove(id) {
+			taskList.mutator.remove(id);
+			void loader.revalidate();
+		},
+		removeSubtree(id) {
+			taskList.mutator.removeSubtree(id);
+			void loader.revalidate();
+		}
+	};
+
+	const dependencyDrag = useDependencyDrag({
+		tasks: () => taskList.items,
+		check: async (draggedId, candidateIds) =>
+			refusalsFromCheck(
+				(await tasksApi.blockerCheck(getApiClient(), draggedId, candidateIds)).refused
+			),
+		onDependency: (draggedId, targetId) => void addDependency(draggedId, targetId),
+		onNest: (draggedId, targetId) => void reparentTask(draggedId, targetId)
+	});
+	setContext(DEPENDENCY_DRAG_KEY, dependencyDrag);
+	$effect(() =>
+		setTouchTaskDragListener({
+			begin: (id) => {
+				if (taskList.items.some((t) => t.id === id && t.status === 'open')) dependencyDrag.begin(id);
+			},
+			over: (id, mode, x, y) => dependencyDrag.over(id, mode, x, y),
+			drop: (id, mode) => dependencyDrag.drop(id, mode),
+			detach: (id) => void detachTask(id)
+		})
+	);
+
+	async function addDependency(draggedId: number, targetId: number): Promise<void> {
+		const client = getApiClient();
+		const blockerTitle = stripMarkdownSyntax(
+			taskList.items.find((t) => t.id === targetId)?.title ?? ''
+		);
+		let updated: Task;
+		try {
+			updated = await tasksApi.addRelation(client, draggedId, {
+				targetTaskId: targetId,
+				type: 'blocks',
+				direction: 'incoming'
+			});
+		} catch (err) {
+			toast.error(describeError(err, $t('page.task.dependencyDrag.failed')));
+			return;
+		}
+		taskList.mutator.replace(updated);
+		// The blocker's own relation counter changed too; the answer only carries the
+		// dropped task, and this client's own SSE echo is suppressed.
+		void loader.revalidate();
+		const relationId = updated.relations?.find(
+			(r) => r.type === 'blocks' && r.direction === 'incoming' && r.task.id === targetId
+		)?.id;
+		toast.success($t('page.task.dependencyDrag.added', { values: { title: blockerTitle } }), {
+			action:
+				relationId === undefined
+					? undefined
+					: { label: $t('view.undo'), onClick: () => void undoDependency(draggedId, relationId) }
+		});
+	}
+
+	async function undoDependency(taskId: number, relationId: number): Promise<void> {
+		try {
+			taskList.mutator.replace(await tasksApi.removeRelation(getApiClient(), taskId, relationId));
+			void loader.revalidate();
+		} catch (err) {
+			toast.error(describeError(err, $t('page.task.relationRemoveFailed')));
+		}
+	}
 
 	// Writable derived: reloads the persisted collapsed set whenever the project
 	// changes (the route component is reused across projects), while the toggles
@@ -139,7 +222,17 @@
 			project = data.project;
 		}
 		sectionList = reconcileByVersion(sectionList, data.sections.items);
-		taskList.setFromServer(reconcileByVersion(taskList.items, data.tasks.items));
+		// Blocker counts can change when a peer completes, without changing this
+		// task's timestamp. Keep row identity only when these derived fields agree.
+		const currentById = new Map(taskList.items.map((t) => [t.id, t]));
+		taskList.setFromServer(data.tasks.items.map((next) => {
+			const previous = currentById.get(next.id);
+			return previous && previous.updatedAt === next.updatedAt &&
+				previous.blockedByCount === next.blockedByCount &&
+				previous.relationCount === next.relationCount
+				? previous
+				: next;
+		}));
 	}, {
 		errorMessage: $t('page.project.errorLoading'),
 		autoLoad: false,
@@ -315,6 +408,7 @@
 		rootDropActive = false;
 		if (taskId === null) return;
 		e.preventDefault();
+		dependencyDrag.cancel();
 		void moveTask(taskId, null);
 	}
 
@@ -337,11 +431,13 @@
 		if (!project) return;
 		const task = taskList.items.find((t) => t.id === taskId);
 		if (!task) return;
-		if (task.sectionId === targetSectionId) return;
+		if (task.sectionId === targetSectionId && task.parentId === null) return;
 		const oldItems = taskList.items;
 		const descendantIds = collectDescendantIds(taskId, taskList.items);
 		taskList.items = taskList.items.map((t) =>
-			t.id === taskId || descendantIds.has(t.id) ? { ...t, sectionId: targetSectionId } : t
+			t.id === taskId
+				? { ...t, sectionId: targetSectionId, parentId: null }
+				: descendantIds.has(t.id) ? { ...t, sectionId: targetSectionId } : t
 		);
 		try {
 			const target =
@@ -349,11 +445,19 @@
 					? { contextId: project.contextId, projectId: project.id, sectionId: targetSectionId }
 					: { contextId: project.contextId, projectId: project.id };
 			const updated = await tasksApi.move(getApiClient(), taskId, target);
-			taskList.items = taskList.items.map((t) => (t.id === taskId ? updated : t));
+			taskList.mutator.replace(updated);
+			void loader.revalidate();
 		} catch (err) {
 			taskList.items = oldItems;
 			toast.error(describeError(err, $t('page.project.failedMove')));
 		}
+	}
+
+	function detachTask(id: number): void {
+		const task = taskList.items.find((t) => t.id === id);
+		if (!task || task.parentId === null) return;
+		dependencyDrag.cancel();
+		void moveTask(id, task.sectionId);
 	}
 
 	async function reparentTask(draggedId: number, targetId: number) {
@@ -382,7 +486,8 @@
 					? { contextId: project.contextId, projectId: project.id, sectionId: parent.sectionId, parentId: targetId }
 					: { contextId: project.contextId, projectId: project.id, parentId: targetId };
 			const updated = await tasksApi.move(getApiClient(), draggedId, target);
-			taskList.items = taskList.items.map((t) => (t.id === draggedId ? updated : t));
+			taskList.mutator.replace(updated);
+			void loader.revalidate();
 		} catch (err) {
 			taskList.items = oldItems;
 			toast.error(describeError(err, $t('page.project.failedMove')));
@@ -486,6 +591,9 @@
 	/>
 
 	<div class="px-2">
+		{#if dependencyDrag.draggedId !== null && taskList.items.some((t) => t.id === dependencyDrag.draggedId && t.parentId !== null)}
+			<TaskDetachDropZone onDetach={detachTask} />
+		{/if}
 		<ViewContent
 			loading={false}
 			isEmpty={sectionList.length === 0 && taskList.items.length === 0}
@@ -517,7 +625,6 @@
 								{mutator}
 								{belongs}
 								onToggle={(t) => toggleComplete(t, mutator, { removeWhenCompleted: false })}
-								onReparent={reparentTask}
 							/>
 						</div>
 					{/if}
@@ -552,7 +659,6 @@
 					onAddSection={openSectionQuickAdd}
 					onSectionDrop={reorderSection}
 					onTaskDrop={(taskId, targetSectionId) => moveTask(taskId, targetSectionId)}
-					onReparent={reparentTask}
 				/>
 			{/if}
 		</ViewContent>
@@ -616,3 +722,5 @@
 		onConfirm={deleteSection}
 	/>
 {/if}
+
+<DependencyDragTooltip drag={dependencyDrag} tasks={taskList.items} />

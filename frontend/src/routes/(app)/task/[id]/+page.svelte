@@ -55,6 +55,7 @@
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
+	import TaskDetachDropZone from '$lib/components/task/TaskDetachDropZone.svelte';
 	import DependencyDragTooltip from '$lib/components/task/DependencyDragTooltip.svelte';
 	import { useDependencyDrag, refusalsFromCheck } from '$lib/hooks/useDependencyDrag.svelte';
 	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
@@ -108,7 +109,8 @@
 				if (subtasks.items.some((t) => t.id === id && t.status === 'open')) dependencyDrag.begin(id);
 			},
 			over: (id, mode, x, y) => dependencyDrag.over(id, mode, x, y),
-			drop: (id, mode) => dependencyDrag.drop(id, mode)
+			drop: (id, mode) => dependencyDrag.drop(id, mode),
+			detach: (id) => void detachSubtask(id)
 		})
 	);
 
@@ -152,23 +154,26 @@
 		}
 	}
 
-	// Re-parents draggedId to newParentId within this subtree — every subtask here
-	// already shares the root task's own context/project/section (subtasks inherit
-	// it at creation time), so only parentId actually changes. Returns the updated
-	// task on success, or null after rolling the optimistic change back and toasting.
-	async function moveSubtaskParent(draggedId: number, newParentId: number): Promise<Task | null> {
-		if (!task || task.contextId === null) return null;
+	// Re-parent within the displayed subtree, or detach while keeping the task's
+	// own placement. Return null after rolling back a failed optimistic move.
+	async function moveSubtaskParent(draggedId: number, newParentId: number | null): Promise<Task | null> {
+		if (!task) return null;
+		const destination = newParentId === null
+			? subtasks.items.find((t) => t.id === draggedId)
+			: task;
+		if (!destination || destination.contextId === null) return null;
 		const oldItems = subtasks.items;
 		subtasks.items = subtasks.items.map((t) => (t.id === draggedId ? { ...t, parentId: newParentId } : t));
 		try {
 			const placement: TaskMoveInput = {
-				contextId: task.contextId,
-				...(task.projectId !== null ? { projectId: task.projectId } : {}),
-				...(task.sectionId !== null ? { sectionId: task.sectionId } : {}),
-				parentId: newParentId
+				contextId: destination.contextId,
+				...(destination.projectId !== null ? { projectId: destination.projectId } : {}),
+				...(destination.sectionId !== null ? { sectionId: destination.sectionId } : {}),
+				...(newParentId !== null ? { parentId: newParentId } : {})
 			};
 			const updated = await tasksApi.move(getApiClient(), draggedId, placement);
-			subtasks.mutator.replace(updated);
+			if (newParentId === null) subtasks.mutator.removeSubtree(draggedId);
+			else subtasks.mutator.replace(updated);
 			void loader.revalidate();
 			return updated;
 		} catch (err) {
@@ -176,6 +181,12 @@
 			toast.error(describeError(err, $t('page.task.nestDrag.failed')));
 			return null;
 		}
+	}
+
+	async function detachSubtask(id: number): Promise<void> {
+		if (!subtasks.items.some((t) => t.id === id)) return;
+		dependencyDrag.cancel();
+		if (await moveSubtaskParent(id, null)) toast.success($t('page.task.detachDrag.added'));
 	}
 
 	async function nestSubtask(draggedId: number, targetId: number): Promise<void> {
@@ -811,6 +822,9 @@ async function save(): Promise<void> {
 						>{$t('page.task.inboxSubtasksNoticeLink')}</button>.
 					</div>
 				{:else}
+					{#if dependencyDrag.draggedId !== null}
+						<TaskDetachDropZone onDetach={(id) => void detachSubtask(id)} />
+					{/if}
 					{#if subtasks.items.length > 0}
 						<div class="overflow-hidden rounded-md border border-border/60">
 							{#if openSubtasks.length > 0}
