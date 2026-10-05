@@ -1,0 +1,8 @@
+{
+  "view": "today-high-priority",
+  "total": 2,
+  "taskKeys": [
+    "t-pinned-high",
+    "t-inbox-high"
+  ]
+}

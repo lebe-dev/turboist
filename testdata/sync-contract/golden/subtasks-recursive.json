@@ -1,0 +1,8 @@
+{
+  "view": "subtasks-recursive",
+  "total": 2,
+  "taskKeys": [
+    "t-week-child-cascaded",
+    "t-week-grandchild"
+  ]
+}

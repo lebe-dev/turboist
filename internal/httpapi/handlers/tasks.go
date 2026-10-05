@@ -264,6 +264,13 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		}
 	}
 
+	// Same for the week, exactly as service.PlanService.SetPlanState does it.
+	if updated.PlanState == model.PlanStateWeek && t.PlanState != model.PlanStateWeek {
+		if err := h.taskSvc.CascadeWeek(c.Context(), id); err != nil {
+			return httpapi.ErrInternal("cascade week").WithCause(err)
+		}
+	}
+
 	needsLabelUpdate := req.Title != nil || req.Labels != nil || len(req.RemovedAutoLabels) > 0
 	if needsLabelUpdate {
 		if err := h.taskSvc.PatchLabels(c.Context(), t, updated.Title, req.Labels, req.RemovedAutoLabels); err != nil {
@@ -457,8 +464,9 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 
 // cloneTask deep-copies src as a new task placed under parentID (nil for a
 // top-level task) with the given title, then recursively clones src's subtasks
-// under the freshly created task. Only the top-level clone is renamed; subtasks
-// keep their original titles. Each subtask is re-fetched via Get so its labels
+// under the freshly created task. The complexity flag is copied along with the
+// rest of the descriptive fields — it describes the work, not this instance of it.
+// Only the top-level clone is renamed; subtasks keep their original titles. Each subtask is re-fetched via Get so its labels
 // are hydrated (ListSubtasks does not hydrate labels).
 func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *int64, title string) (*model.Task, error) {
 	// A completed task's due date is history, not a plan — carrying an already
@@ -486,6 +494,7 @@ func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *
 		DayPart:         src.DayPart,
 		PlanState:       src.PlanState,
 		RecurrenceRule:  src.RecurrenceRule,
+		IsComplex:       src.IsComplex,
 	}
 	labelNames := make([]string, len(src.Labels))
 	for i, l := range src.Labels {

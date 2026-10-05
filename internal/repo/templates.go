@@ -216,7 +216,14 @@ func writeTemplateChildren(ctx context.Context, tx *sql.Tx, templateID int64, in
 }
 
 func (r *TemplateRepo) hydrate(ctx context.Context, t *model.TaskTemplate) error {
-	labels, err := r.labelsFor(ctx,
+	return hydrateTemplate(ctx, r.db, t)
+}
+
+// hydrateTemplate fills in a template's labels, its subtasks and each subtask's
+// labels, parameterised over the statement source so a caller inside an open
+// transaction assembles the whole template from one snapshot.
+func hydrateTemplate(ctx context.Context, src queryer, t *model.TaskTemplate) error {
+	labels, err := templateLabelsFor(ctx, src,
 		`SELECT `+templateLabelCols+` FROM task_template_labels tl
 		   JOIN labels l ON l.id = tl.label_id WHERE tl.template_id = ? ORDER BY l.name ASC`, t.ID)
 	if err != nil {
@@ -224,7 +231,7 @@ func (r *TemplateRepo) hydrate(ctx context.Context, t *model.TaskTemplate) error
 	}
 	t.Labels = labels
 
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := src.QueryContext(ctx,
 		`SELECT id, position, title, description, priority, day_part, created_at, updated_at
 		   FROM task_template_subtasks WHERE template_id = ? ORDER BY position ASC, id ASC`, t.ID)
 	if err != nil {
@@ -245,7 +252,7 @@ func (r *TemplateRepo) hydrate(ctx context.Context, t *model.TaskTemplate) error
 		return err
 	}
 	for i := range subtasks {
-		labels, err := r.labelsFor(ctx,
+		labels, err := templateLabelsFor(ctx, src,
 			`SELECT `+templateLabelCols+` FROM task_template_subtask_labels sl
 			   JOIN labels l ON l.id = sl.label_id WHERE sl.subtask_id = ? ORDER BY l.name ASC`, subtasks[i].ID)
 		if err != nil {
@@ -257,8 +264,8 @@ func (r *TemplateRepo) hydrate(ctx context.Context, t *model.TaskTemplate) error
 	return nil
 }
 
-func (r *TemplateRepo) labelsFor(ctx context.Context, query string, id int64) ([]model.Label, error) {
-	rows, err := r.db.QueryContext(ctx, query, id)
+func templateLabelsFor(ctx context.Context, src queryer, query string, id int64) ([]model.Label, error) {
+	rows, err := src.QueryContext(ctx, query, id)
 	if err != nil {
 		return nil, fmt.Errorf("hydrate labels: %w", err)
 	}

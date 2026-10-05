@@ -89,7 +89,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 	handlers.NewTaskRelationHandler(service.NewRelationService(tasks, trelations), testBaseURL).Register(api)
 	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
-	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings,
+	handlers.NewMetaHandler(cfg, false, false, ctxs, projs, lbls, tasks, users, appSettings,
 		repo.NewTemplateRepo(d), troikiSvc, service.NewHarpoonService(users, tasks, projs), testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewStateHandler(users).Register(api)

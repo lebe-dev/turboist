@@ -1,0 +1,9 @@
+{
+  "view": "pinned",
+  "total": 3,
+  "taskKeys": [
+    "t-pinned-high",
+    "t-pinned-low-same-instant",
+    "t-pinned-low-newer"
+  ]
+}

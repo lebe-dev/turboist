@@ -108,6 +108,79 @@ func (s *RelationService) Add(
 	return s.tasks.GetWithRelations(ctx, taskID)
 }
 
+// BlockerRefusal names why a candidate cannot be made a blocker of a task. The
+// values are the wire spelling of the blocker-check endpoint.
+type BlockerRefusal string
+
+const (
+	BlockerRefusalSelf     BlockerRefusal = "relation_self"
+	BlockerRefusalNotFound BlockerRefusal = "not_found"
+	BlockerRefusalExists   BlockerRefusal = "relation_exists"
+	BlockerRefusalCycle    BlockerRefusal = "relation_cycle"
+)
+
+// MaxBlockerCandidates caps one blocker check. The check answers a drag gesture
+// over a task's subtasks, so a screenful is all it is ever asked about.
+const MaxBlockerCandidates = 500
+
+// CheckBlockers answers, for each candidate, whether Add(taskID, candidate,
+// blocks, incoming) would be refused — without writing anything. Only refused
+// candidates appear in the result. It exists so a drag-and-drop gesture can show
+// the refusal while the pointer is still over the target instead of after the
+// drop; Add stays the authority and re-checks everything on write.
+func (s *RelationService) CheckBlockers(
+	ctx context.Context,
+	taskID int64,
+	candidateIDs []int64,
+) (map[int64]BlockerRefusal, error) {
+	const op = "service.RelationService.CheckBlockers"
+	log := logging.FromContext(ctx)
+	log.DebugContext(ctx, op, slog.Int64("task_id", taskID), slog.Int("candidates", len(candidateIDs)))
+
+	if _, err := s.tasks.Get(ctx, taskID); err != nil {
+		logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
+		return nil, err
+	}
+	existing, err := s.tasks.ExistingIDs(ctx, candidateIDs)
+	if err != nil {
+		logRepoErr(ctx, op+": existing candidates", err, slog.Int64("task_id", taskID))
+		return nil, err
+	}
+	blockers, err := s.relations.DirectBlockerIDs(ctx, taskID)
+	if err != nil {
+		logRepoErr(ctx, op+": direct blockers", err, slog.Int64("task_id", taskID))
+		return nil, err
+	}
+	// "candidate blocks taskID" closes a loop exactly when taskID already holds the
+	// candidate back, directly or through a chain — the same test WouldCycle runs
+	// for one pair, done once for the whole batch.
+	downstream, err := s.relations.BlockingReachableFrom(ctx, taskID)
+	if err != nil {
+		logRepoErr(ctx, op+": walk blocking graph", err, slog.Int64("task_id", taskID))
+		return nil, err
+	}
+
+	refused := make(map[int64]BlockerRefusal)
+	for _, id := range candidateIDs {
+		switch {
+		case id == taskID:
+			refused[id] = BlockerRefusalSelf
+		case !containsID(existing, id):
+			refused[id] = BlockerRefusalNotFound
+		case containsID(blockers, id):
+			refused[id] = BlockerRefusalExists
+		case containsID(downstream, id):
+			refused[id] = BlockerRefusalCycle
+		}
+	}
+	return refused, nil
+}
+
+func containsID(set map[int64]struct{}, id int64) bool {
+	_, ok := set[id]
+	return ok
+}
+
 // orient maps a (task, peer, type, direction) request onto the directed row to
 // store. `related` ignores direction and sorts the pair; `blocks` honours it.
 func (s *RelationService) orient(

@@ -14,7 +14,11 @@
 	import CaretDownIcon from 'phosphor-svelte/lib/CaretDown';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import LinkIcon from 'phosphor-svelte/lib/Link';
+	import ProhibitIcon from 'phosphor-svelte/lib/Prohibit';
+	import ArrowBendDownRightIcon from 'phosphor-svelte/lib/ArrowBendDownRight';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
+	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
+	import SealQuestionIcon from 'phosphor-svelte/lib/SealQuestion';
 	import HourglassMediumIcon from 'phosphor-svelte/lib/HourglassMedium';
 	import { t } from '$lib/i18n';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
@@ -31,6 +35,9 @@
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
 	import { SUBTASK_COLLAPSE_KEY, type SubtaskCollapseCtx } from '$lib/context/subtaskCollapse';
+	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
+	import type { DependencyDrag } from '$lib/hooks/useDependencyDrag.svelte';
+	import { dropModeForOffset } from '$lib/utils/dependencyDrop';
 	import {
 		setTaskDrag,
 		clearTaskDrag,
@@ -58,7 +65,8 @@
 		subtasksCollapsed = false,
 		onToggleCollapse,
 		onReparent,
-		visibleIds
+		visibleIds,
+		forceCompleted = false
 	}: {
 		task: Task;
 		depth?: number;
@@ -76,12 +84,38 @@
 		onToggleCollapse?: () => void;
 		onReparent?: (draggedId: number, targetId: number) => void;
 		visibleIds?: number[];
+		/** Ancestor task is completed: render this row as completed too, without
+		 * touching the row's own status (used on the task detail page so subtasks
+		 * visually follow the parent's completion). */
+		forceCompleted?: boolean;
 	} = $props();
 
 	// When `onReparent` is provided, the row doubles as a drop target: dropping
 	// another dragged task onto it re-parents that task as a sub-task of this one.
 	const reparentEnabled = $derived(!!onReparent && draggable && !taskSelectionStore.mode);
 	let dropAsChildActive = $state(false);
+
+	// On task and project pages the rows take part in the same drag gesture:
+	// dropping one subtask onto the edge of another makes the dropped one wait
+	// for it, dropping it onto the middle nests it as that row's own subtask (see
+	// dropModeForOffset). Only an open row can be picked up — a finished task has
+	// nothing left to wait for and nothing useful to nest under either.
+	const dependencyDrag = getContext<DependencyDrag | undefined>(DEPENDENCY_DRAG_KEY);
+	const dragSource = $derived(
+		draggable &&
+			!taskSelectionStore.mode &&
+			(!dependencyDrag || (task.status === 'open' && !forceCompleted))
+	);
+	const subtaskDropTarget = $derived(!!dependencyDrag && draggable && !taskSelectionStore.mode);
+	const subtaskDropHovered = $derived(dependencyDrag?.hover?.targetId === task.id);
+	const subtaskDropMode = $derived(dependencyDrag?.hover?.mode ?? null);
+	const subtaskDropRefused = $derived(
+		subtaskDropHovered &&
+			subtaskDropMode !== null &&
+			dependencyDrag!.refusalFor(task.id, subtaskDropMode) !== null
+	);
+	const subtaskDropNests = $derived(subtaskDropHovered && subtaskDropMode === 'nest');
+	const dependencySource = $derived(dependencyDrag?.draggedId === task.id);
 
 	const selected = $derived(taskSelectionStore.has(task.id));
 
@@ -97,11 +131,54 @@
 
 	function onTaskDragStart(e: DragEvent) {
 		setTaskDrag(e, task.id);
+		dependencyDrag?.begin(task.id);
 	}
 
 	function onTaskDragEnd() {
 		clearTaskDrag();
 		dropAsChildActive = false;
+		// A drop has already ended the gesture; this covers a release anywhere else.
+		dependencyDrag?.cancel();
+	}
+
+	// Which of the two gestures the pointer is currently over this row for, from
+	// where inside its own height it sits — recomputed on every move so crossing
+	// from the middle band into an edge switches modes mid-drag.
+	function zoneAt(e: DragEvent): 'dependency' | 'nest' {
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		return dropModeForOffset((e.clientY - rect.top) / rect.height);
+	}
+
+	function onDependencyDragOver(e: DragEvent) {
+		if (!dependencyDrag || dependencyDrag.draggedId === null) return;
+		if (dependencyDrag.draggedId === task.id) {
+			e.stopPropagation();
+			dependencyDrag.over(null, null, e.clientX, e.clientY);
+			return;
+		}
+		e.stopPropagation();
+		const mode = zoneAt(e);
+		dependencyDrag.over(task.id, mode, e.clientX, e.clientY);
+		// Not calling preventDefault leaves the browser's own "no drop" cursor on a
+		// refused row, on top of the tooltip saying why.
+		if (dependencyDrag.refusalFor(task.id, mode) !== null) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+	}
+
+	function onDependencyDragLeave(e: DragEvent) {
+		const target = e.currentTarget as HTMLElement;
+		const related = e.relatedTarget as Node | null;
+		if (related && target.contains(related)) return;
+		// Only clear our own hover: the next row's dragover may already have taken it.
+		if (dependencyDrag?.hover?.targetId === task.id) dependencyDrag.over(null, null, e.clientX, e.clientY);
+	}
+
+	function onDependencyDrop(e: DragEvent) {
+		if (!dependencyDrag) return;
+		e.preventDefault();
+		e.stopPropagation();
+		dependencyDrag.drop(task.id, zoneAt(e));
 	}
 
 	function onChildDragOver(e: DragEvent) {
@@ -135,7 +212,7 @@
 	}
 
 	function onTaskTouchStart(e: TouchEvent) {
-		if (!draggable || taskSelectionStore.mode) return;
+		if (!dragSource) return;
 		initTouchDrag(e, task.id, e.currentTarget as HTMLElement);
 	}
 
@@ -184,7 +261,7 @@
 		}
 	}
 
-	const checked = $derived(task.status === 'completed');
+	const checked = $derived(task.status === 'completed' || forceCompleted);
 	// A negative id marks a task created offline and still queued in the outbox
 	// (§4.5): show an unobtrusive "awaiting send" badge until replay assigns it a
 	// real server id and the list refetches (§4.7.2). Visual only.
@@ -192,7 +269,7 @@
 	// An open task with unfinished blockers cannot be completed. Reflected here as a
 	// disabled checkbox so the refusal is visible before the click; the guard itself
 	// lives in toggleComplete (and the server enforces it independently).
-	const blocked = $derived(isBlocked(task) && task.status !== 'completed');
+	const blocked = $derived(isBlocked(task) && task.status !== 'completed' && !forceCompleted);
 	const relationCount = $derived(task.relationCount ?? 0);
 	const project = $derived(
 		task.projectId ? projectsStore.items.find((p) => p.id === task.projectId) : null
@@ -285,18 +362,21 @@
 	class:py-2.5={hasMeta}
 	class:py-1.5={!hasMeta}
 	class:bg-accent={taskSelectionStore.mode && selected}
-	class:ring-2={dropAsChildActive}
-	class:ring-inset={dropAsChildActive}
-	class:ring-primary={dropAsChildActive}
+	class:ring-2={dropAsChildActive || subtaskDropHovered}
+	class:ring-inset={dropAsChildActive || subtaskDropHovered}
+	class:ring-primary={dropAsChildActive || (subtaskDropHovered && !subtaskDropRefused && !subtaskDropNests)}
+	class:ring-violet-500={subtaskDropHovered && !subtaskDropRefused && subtaskDropNests}
+	class:ring-destructive={subtaskDropRefused}
+	class:opacity-40={dependencySource}
 	style:padding-left={onToggleCollapse ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
-	draggable={draggable && !taskSelectionStore.mode}
-	ondragstart={draggable && !taskSelectionStore.mode ? onTaskDragStart : undefined}
-	ondragend={draggable && !taskSelectionStore.mode ? onTaskDragEnd : undefined}
-	ondragover={reparentEnabled ? onChildDragOver : undefined}
-	ondragleave={reparentEnabled ? onChildDragLeave : undefined}
-	ondrop={reparentEnabled ? onChildDrop : undefined}
-	ontouchstart={draggable && !taskSelectionStore.mode ? onTaskTouchStart : undefined}
+	draggable={dragSource}
+	ondragstart={dragSource ? onTaskDragStart : undefined}
+	ondragend={dragSource ? onTaskDragEnd : undefined}
+	ondragover={subtaskDropTarget ? onDependencyDragOver : reparentEnabled ? onChildDragOver : undefined}
+	ondragleave={subtaskDropTarget ? onDependencyDragLeave : reparentEnabled ? onChildDragLeave : undefined}
+	ondrop={subtaskDropTarget ? onDependencyDrop : reparentEnabled ? onChildDrop : undefined}
+	ontouchstart={dragSource ? onTaskTouchStart : undefined}
 	ontouchmove={draggable && !taskSelectionStore.mode ? onTaskTouchMove : undefined}
 	ontouchend={draggable && !taskSelectionStore.mode ? onTaskTouchEnd : undefined}
 	role={draggable ? 'listitem' : undefined}
@@ -376,7 +456,7 @@
 				class:text-muted-foreground={checked || depth > 0}
 				class:text-foreground={!checked && depth === 0}
 			>
-				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-1.5 inline-block size-3.5 text-red-500" weight="fill" /></span>{/if}{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
+				<MarkdownText text={task.title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-1.5 inline-block size-3.5 text-red-500" weight="fill" /></span>{/if}{#if task.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortedTooltip')} aria-label={$t('task.autoSortedMarker')} data-testid="task-auto-sorted"><SparkleIcon class="ml-1.5 inline-block size-3 text-violet-500/70" weight="fill" /></span>{/if}{#if task.autoSortUndecidedAt && !task.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortUndecidedTooltip')} aria-label={$t('task.autoSortUndecidedMarker')} data-testid="task-auto-sort-undecided"><SealQuestionIcon class="ml-1.5 inline-block size-3 text-muted-foreground/60" /></span>{/if}{#if showTroikiBadge}<span title={$t('task.inTroikiTitle')} class="inline-block"><TroikiTriggerIcon class="ml-1.5 inline-block size-3 align-middle text-muted-foreground/50 transition-colors group-hover/task:text-primary" /></span>{/if}{#if task.isPrivate && !settingsStore.publicView}<span class="inline-flex align-middle" title={$t('common.privateTooltip')} aria-label={$t('common.privateMarker')}><LockSimpleIcon class="ml-1.5 inline-block size-2.5 text-muted-foreground/40" /></span>{/if}
 			</a>
 			{#if awaitingSend}
 				<span
@@ -480,6 +560,28 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if subtaskDropHovered}
+		<!-- What the drop would do: a padlock for "will depend on this", an indent
+		     arrow for "will nest under this", crossed out in red either way when
+		     the drop would be refused. -->
+		<span
+			class="pointer-events-none absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full shadow-sm {subtaskDropRefused
+				? 'bg-destructive text-white'
+				: subtaskDropNests
+					? 'bg-violet-500 text-white'
+					: 'bg-primary text-primary-foreground'}"
+			data-testid="subtask-drop-mark"
+		>
+			{#if subtaskDropRefused}
+				<ProhibitIcon class="size-3.5" weight="bold" />
+			{:else if subtaskDropNests}
+				<ArrowBendDownRightIcon class="size-3.5" weight="bold" />
+			{:else}
+				<LockSimpleIcon class="size-3.5" weight="fill" />
+			{/if}
+		</span>
+	{/if}
 
 	{#if mutator}
 		<div class="flex items-center self-center">

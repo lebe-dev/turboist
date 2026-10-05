@@ -24,6 +24,13 @@ Load from `.env` if present (copy `.env.example` to get started):
 | `SENTRY_DSN` | — | Backend Sentry DSN. When set, the server reports recovered panics, every 5xx response, and 400 Bad Request (with the underlying cause) to Sentry. Expected client errors (401/403/404/409/429/…) are not reported. Empty disables backend reporting. |
 | `SENTRY_FRONTEND_DSN` | — | Browser Sentry DSN. Served to the SPA at runtime via `GET /api/config` (never baked into the static bundle), so toggling it needs no frontend rebuild. Use a separate Sentry project from the backend. |
 | `SENTRY_ENVIRONMENT` | — | Environment label applied to both backend and frontend events (e.g. `production`, `staging`). |
+| `INBOX_PROCESSING_ENABLED` | — | `true` turns on the LLM job that files open Inbox tasks into projects. Default `false`. Requires `INBOX_PROCESSING_API_KEY` and `INBOX_PROCESSING_MODEL`; enabling it without them is a startup error. Task titles, descriptions and project/label names are sent to the provider. |
+| `INBOX_PROCESSING_INTERVAL` | — | How often the Inbox is checked, Go duration. Default `3m`, minimum `30s`. |
+| `INBOX_PROCESSING_API_URL` | — | Base URL of an OpenAI-compatible API; `/chat/completions` is appended. Default `https://openrouter.ai/api/v1`. |
+| `INBOX_PROCESSING_API_KEY` | with `INBOX_PROCESSING_ENABLED=true` | Bearer key for the provider. Never logged and never returned by the API. |
+| `INBOX_PROCESSING_MODEL` | with `INBOX_PROCESSING_ENABLED=true` | Model id at the provider, e.g. `openai/gpt-4.1-mini`. |
+| `INBOX_PROCESSING_BATCH_LIMIT` | — | Maximum tasks sent to the model per run, `1..100`. Default `10`. |
+| `INBOX_PROCESSING_TIMEOUT` | — | Timeout of a single model request, Go duration. Default `60s`. |
 
 ### Sentry error reporting
 

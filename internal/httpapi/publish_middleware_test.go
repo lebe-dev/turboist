@@ -23,6 +23,11 @@ func TestScopesForPath(t *testing.T) {
 		{"/api/v1/calendars/google/sync", []events.Scope{events.ScopeCalendar}},
 		{"/api/v1/troiki/start", []events.Scope{events.ScopeTasks, events.ScopePlan}},
 		{"/api/v1/app-settings", []events.Scope{events.ScopeLabels, events.ScopeTasks}},
+		// inbox processing: run publishes from the processor, preview and the prompt change no data
+		{"/api/v1/inbox/processing/run", nil},
+		{"/api/v1/inbox/processing/preview", nil},
+		{"/api/v1/app-settings/inbox-processing", nil},
+		{"/api/v1/inbox/processing/log/3/revert", []events.Scope{events.ScopeTasks, events.ScopeInbox, events.ScopePlan}},
 		// instantiate materialises a task tree; template CRUD shares the hint
 		{"/api/v1/task-templates/4/instantiate", []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}},
 		{"/api/v1/task-templates", []events.Scope{events.ScopeTasks, events.ScopePlan, events.ScopeInbox}},

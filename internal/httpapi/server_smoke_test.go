@@ -104,7 +104,7 @@ func smokeApp(t *testing.T) *smokeEnv {
 	handlers.NewTaskRelationHandler(service.NewRelationService(taskRepo, trelations), baseURL).Register(api)
 	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, baseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, baseURL).Register(api)
-	handlers.NewMetaHandler(cfg, false, ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo,
+	handlers.NewMetaHandler(cfg, false, false, ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo,
 		repo.NewTemplateRepo(sqlDB), troikiSvc, service.NewHarpoonService(userRepo, taskRepo, projectRepo), baseURL).Register(api)
 	handlers.NewStateHandler(userRepo).Register(api)
 

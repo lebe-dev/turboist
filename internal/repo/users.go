@@ -119,6 +119,13 @@ func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettin
 	if err != nil {
 		return nil, fmt.Errorf("get user settings: %w", err)
 	}
+	return decodeUserSettings(raw), nil
+}
+
+// decodeUserSettings turns the stored blob into settings, filling in the
+// defaults that older blobs predate. Every reader of the column goes through it
+// so a settings payload means the same thing wherever it is served from.
+func decodeUserSettings(raw string) *model.UserSettings {
 	var s model.UserSettings
 	if raw != "" && raw != "{}" {
 		if err := json.Unmarshal([]byte(raw), &s); err != nil {
@@ -144,7 +151,7 @@ func (r *UserRepo) GetSettings(ctx context.Context, id int64) (*model.UserSettin
 	if s.MaxPinnedProjects < model.MinMaxPinned || s.MaxPinnedProjects > model.MaxMaxPinned {
 		s.MaxPinnedProjects = model.DefaultMaxPinned
 	}
-	return &s, nil
+	return &s
 }
 
 func jsonObjectHasKey(raw string, key string) bool {

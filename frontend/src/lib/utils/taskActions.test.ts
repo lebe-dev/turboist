@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '$lib/api/errors';
 import type { Task } from '$lib/api/types';
-import { describeError, isBlocked } from './taskActions';
+import { describeError, isBlocked, taskToJson } from './taskActions';
 
 describe('describeError', () => {
 	it('returns the ApiError message when present', () => {
@@ -77,5 +77,37 @@ describe('isBlocked', () => {
 	// treating that as blocked would wedge the checkbox for every such task.
 	it('is false when the field is absent (older cached shape)', () => {
 		expect(isBlocked({ id: 1 } as Task)).toBe(false);
+	});
+});
+
+describe('taskToJson', () => {
+	const task = (id: number, parentId: number | null, title: string, description: string) =>
+		({ id, parentId, title, description, priority: 'high', status: 'open' }) as Task;
+
+	it('copies only title and description for a task without subtasks', () => {
+		expect(taskToJson(task(1, null, 'Root', ''), [])).toEqual({
+			title: 'Root',
+			description: ''
+		});
+	});
+
+	it('preserves the full nested subtree and sibling order without task metadata', () => {
+		const root = task(1, null, 'Root', 'Root description');
+		const first = task(2, 1, 'First', 'First description');
+		const second = task(3, 1, 'Second', '');
+		const grandchild = task(4, 2, 'Grandchild', 'Nested description');
+
+		expect(taskToJson(root, [first, second, grandchild])).toEqual({
+			title: 'Root',
+			description: 'Root description',
+			subtasks: [
+				{
+					title: 'First',
+					description: 'First description',
+					subtasks: [{ title: 'Grandchild', description: 'Nested description' }]
+				},
+				{ title: 'Second', description: '' }
+			]
+		});
 	});
 });

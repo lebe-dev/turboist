@@ -49,9 +49,15 @@ type projectSuggestionDTO struct {
 	IgnoreCase bool    `json:"ignoreCase"`
 }
 
+type inboxProcessingSettingsDTO struct {
+	Prompt string `json:"prompt"`
+	Paused bool   `json:"paused"`
+}
+
 type appSettingsResp struct {
-	AutoLabels         []autoLabelDTO         `json:"autoLabels"`
-	ProjectSuggestions []projectSuggestionDTO `json:"projectSuggestions"`
+	AutoLabels         []autoLabelDTO             `json:"autoLabels"`
+	ProjectSuggestions []projectSuggestionDTO     `json:"projectSuggestions"`
+	InboxProcessing    inboxProcessingSettingsDTO `json:"inboxProcessing"`
 }
 
 type autoLabelsPutReq struct {
@@ -79,7 +85,11 @@ func toAppSettingsResp(s *model.AppSettings) appSettingsResp {
 		}
 		suggestions[i] = projectSuggestionDTO{Mask: r.Mask, ProjectIDs: ids, IgnoreCase: r.IgnoreCase}
 	}
-	return appSettingsResp{AutoLabels: rules, ProjectSuggestions: suggestions}
+	return appSettingsResp{
+		AutoLabels:         rules,
+		ProjectSuggestions: suggestions,
+		InboxProcessing:    inboxProcessingSettingsDTO{Prompt: s.InboxProcessing.Prompt, Paused: s.InboxProcessing.Paused},
+	}
 }
 
 func (h *AppSettingsHandler) get(c fiber.Ctx) error {

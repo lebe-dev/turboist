@@ -156,9 +156,20 @@ func (h *TaskViewHandler) tomorrow(c fiber.Ctx) error {
 	return c.JSON(dto.NewPagedResponse(tasksToDTO(items, h.baseURL), total, pp.Limit, pp.Offset))
 }
 
+// maxCompletedDays is the widest completion window one request may ask for.
+//
+// It is a guard against a nonsensical number rather than a policy about how much
+// history is readable: the window is built by subtracting days from today, so an
+// unbounded value would run the start of the range off the end of the clock. A
+// century is past every completion any database here can hold. Deliberately far
+// wider than the stretch a replicating client is seeded with — reading what has
+// aged out of such a copy is exactly what this endpoint is for, so a ceiling at
+// that stretch would leave older history unreachable by anything.
+const maxCompletedDays = 36500
+
 // completed returns tasks completed within the last `days` days (clamped to
-// [1, 90]). The window ends at the start of tomorrow in the configured
-// timezone, so today is always included. `days=1` keeps the original
+// [1, maxCompletedDays]). The window ends at the start of tomorrow in the
+// configured timezone, so today is always included. `days=1` keeps the original
 // today-only behavior.
 func (h *TaskViewHandler) completed(c fiber.Ctx) error {
 	pp := dto.ParsePageParamsMax(c.Query("limit"), c.Query("offset"), dto.CompletedMaxLimit)
@@ -166,7 +177,7 @@ func (h *TaskViewHandler) completed(c fiber.Ctx) error {
 	days := 1
 	if v := c.Query("days"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 1 {
-			days = min(n, 90)
+			days = min(n, maxCompletedDays)
 		}
 	}
 	todayStart := h.todayStart()

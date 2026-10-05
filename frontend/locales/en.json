@@ -64,8 +64,10 @@
 		"logOut": "Log out",
 		"logOutEverywhere": "Log out everywhere",
 		"unpinAria": "Unpin {name}",
+		"pinAria": "Pin {name}",
 		"createContextFirst": "Create a context first",
 		"failedUnpin": "Failed to unpin",
+		"failedPin": "Failed to pin",
 		"addToAriaLabel": "Add to {section}"
 	},
 	"topbar": {
@@ -100,6 +102,7 @@
 			"general": "General",
 			"menu": "Menu",
 			"labels": "Labels",
+			"inbox": "Inbox",
 			"templates": "Templates",
 			"project": "Project",
 			"troiki": "Troiki",
@@ -144,6 +147,96 @@
 			"toastSaved": "Project suggestion rules saved",
 			"toastFailed": "Failed to save project suggestion rules",
 			"toastEmptyFields": "Mask must not be empty and at least one project must be selected"
+		},
+		"inboxProcessing": {
+			"heading": "Inbox processing",
+			"description": "An AI model files open Inbox tasks into projects, adds labels and, when the wording makes it explicit, a priority and a due date.",
+			"status": {
+				"heading": "Status",
+				"enabled": "Enabled",
+				"disabled": "Disabled",
+				"paused": "Paused",
+				"disabledHint": "The background job is off. Set INBOX_PROCESSING_ENABLED=true together with INBOX_PROCESSING_API_KEY and INBOX_PROCESSING_MODEL in the server environment and restart it. The prompt can be edited either way.",
+				"model": "Model",
+				"provider": "Provider",
+				"interval": "Checks every",
+				"batchLimit": "Tasks per run",
+				"pending": "Waiting in the Inbox",
+				"undecided": "Could not be filed",
+				"undecidedHint": "Tasks the model could not place. They are not sent again until you edit or move them.",
+				"lastRun": "Last run",
+				"never": "Not yet",
+				"summary": "{sorted} filed, {kept} kept, {failed} failed",
+				"lastError": "Last error",
+				"backoffUntil": "Paused after a provider error until {time}",
+				"running": "Processing…",
+				"loadFailed": "Failed to load the Inbox processing status"
+			},
+			"run": "Process now",
+			"runDisabledHint": "Nothing is waiting in the Inbox",
+			"pause": {
+				"label": "Pause automatic processing",
+				"hint": "While paused, the background job leaves the Inbox alone. “Process now” still works."
+			},
+			"toasts": {
+				"runFinished": "Inbox processed: {sorted} filed, {kept} kept, {failed} failed",
+				"runFailed": "Failed to start Inbox processing",
+				"promptSaved": "Prompt saved",
+				"promptReset": "Prompt reset to the default",
+				"promptFailed": "Failed to save the prompt",
+				"previewFailed": "Failed to render the preview",
+				"reverted": "Task returned to the Inbox",
+				"revertFailed": "Failed to return the task to the Inbox",
+				"paused": "Inbox processing paused",
+				"resumed": "Inbox processing resumed",
+				"pauseFailed": "Failed to change the pause"
+			},
+			"prompt": {
+				"heading": "Prompt",
+				"description": "The instruction sent with every task, written as a Go text/template. The answer format is appended by the server and cannot be changed here.",
+				"usingDefault": "Default prompt",
+				"usingCustom": "Custom prompt",
+				"unsaved": "Unsaved changes",
+				"save": "Save",
+				"reset": "Reset to default",
+				"preview": "Preview",
+				"invalid": "Template error: {error}"
+			},
+			"preview": {
+				"title": "Prompt preview",
+				"description": "Rendered against your open projects, labels and the oldest Inbox task (or a sample task when the Inbox is empty).",
+				"close": "Close"
+			},
+			"variables": {
+				"heading": "Template variables",
+				"now": "Current date and time in the server timezone",
+				"timezone": "Server timezone name",
+				"locale": "Your interface language",
+				"contexts": "Contexts, each with ID and Name",
+				"projects": "Open projects, each with ID, Title, Description, Type, Context, Labels and TroikiCategory",
+				"labels": "Labels, each with ID and Name",
+				"priorities": "The allowed priority values",
+				"task": "The task being sorted: ID, Title, Description, CreatedAt and Labels",
+				"join": "Joins a list of strings with a separator",
+				"example": "Example"
+			},
+			"log": {
+				"heading": "Journal",
+				"description": "Recent decisions. A filed task can be returned to the Inbox, and it will not be filed again until you edit it.",
+				"empty": "No decisions yet.",
+				"loadFailed": "Failed to load the journal",
+				"outcome": {
+					"sorted": "Filed",
+					"kept": "Kept",
+					"failed": "Failed"
+				},
+				"reverted": "Returned",
+				"revert": "Return to Inbox",
+				"deletedTask": "The task was deleted",
+				"deleted": "(deleted)",
+				"confidence": "Confidence",
+				"due": "Due {date}"
+			}
 		},
 		"troiki": {
 			"heading": "Troiki System",
@@ -527,12 +620,20 @@
 		"inTroikiTitle": "In Troiki system",
 		"complexMarker": "Complex",
 		"complexTooltip": "Marked as a complex task",
+		"autoSortedMarker": "Filed by AI",
+		"autoSortedTooltip": "Filed from the Inbox by AI",
+		"autoSortUndecidedMarker": "Not filed by AI",
+		"autoSortUndecidedTooltip": "AI could not pick a project for this task; edit it to try again",
 		"recurringLabel": "Recurring task",
 		"unplannedLabel": "Added outside of planning",
 		"weekPlannedLabel": "Planned for this week",
 		"actions": {
+			"more": "More",
+			"close": "Close",
+			"clearLabel": "Clear",
 			"ariaLabel": "Task actions",
 			"copy": "Copy",
+			"copyJson": "Copy as JSON",
 			"copyId": "Copy ID",
 			"duplicate": "Duplicate",
 			"pin": "Pin",
@@ -598,6 +699,11 @@
 			"bulkMoved": "Moved {count} tasks",
 			"bulkMovedPartial": "Moved {ok} tasks; {failed} failed",
 			"failedBulkMove": "Failed to move tasks",
+			"bulkCompleted": "Completed {count} tasks",
+			"bulkCompletedBlocked": "Completed {ok} tasks; {blocked} are waiting on unfinished work",
+			"bulkPlanned": "Planned {count} tasks for the week",
+			"bulkParked": "Moved {count} tasks to the backlog",
+			"bulkDeleted": "Deleted {count} tasks",
 			"bulkPrioritySet": "Updated priority for {count} tasks",
 			"bulkPrioritySetPartial": "Updated {ok} tasks; {failed} failed",
 			"failedBulkPriority": "Failed to update priority",
@@ -622,6 +728,7 @@
 			"failedMove": "Failed to move task",
 			"failedMoveToSection": "Failed to move to section",
 			"copied": "Copied",
+			"jsonCopied": "Task JSON copied",
 			"failedCopy": "Failed to copy",
 			"failedUndo": "Failed to undo",
 			"confirmDelete": "Delete \"{title}\"? Subtasks will also be removed.",
@@ -771,7 +878,8 @@
 		"picker": {
 			"searchPlaceholder": "Search labels...",
 			"noMatches": "No matches",
-			"noLabelsAvailable": "No labels available"
+			"noLabelsAvailable": "No labels available",
+			"recent": "Recent"
 		}
 	},
 	"context": {
@@ -873,7 +981,10 @@
 			"cleanupTaskCreated": "Cleanup task created for today",
 			"failedCreateCleanup": "Failed to create cleanup task",
 			"overCapacity": "Inbox is over capacity ({count}/{limit})",
-			"createCleanupButton": "Create «{title}» task for today"
+			"createCleanupButton": "Create «{title}» task for today",
+			"sortWithAi": "Sort with AI",
+			"sorting": "Sorting…",
+			"sortNothingPending": "Nothing to sort: every Inbox task has already been considered"
 		},
 		"week": {
 			"emptyTitle": "Week is empty",
@@ -1063,7 +1174,28 @@
 			"relationSearchFailed": "Search failed",
 			"relationAddFailed": "Failed to add relation",
 			"relationRemoveFailed": "Failed to remove relation",
-			"copyId": "Copy task ID"
+			"copyId": "Copy task ID",
+			"dependencyDrag": {
+				"willDepend": "Will depend on “{title}”",
+				"refusedAncestor": "Can't depend on its own parent task",
+				"refusedDescendant": "Can't depend on its own subtask",
+				"refusedCompleted": "“{title}” is already done — nothing to wait for",
+				"refusedExists": "Already depends on “{title}”",
+				"refusedCycle": "Would create a loop: “{title}” already waits for this task",
+				"added": "Now depends on “{title}”",
+				"failed": "Failed to add dependency"
+			},
+			"detachDrag": {
+				"hint": "Drop here to make this a top-level task in the same project and section",
+				"added": "Task moved to the top level"
+			},
+			"nestDrag": {
+				"willNest": "Will become a subtask of “{title}”",
+				"refusedDescendant": "Can't nest a task under its own subtask",
+				"refusedCompleted": "“{title}” is already done",
+				"added": "Now a subtask of “{title}”",
+				"failed": "Failed to move the subtask"
+			}
 		},
 		"context": {
 			"errorLoading": "Failed to load context",
@@ -1101,10 +1233,21 @@
 		"bar": {
 			"aria": "Selected tasks actions",
 			"count": "{count} selected",
+			"complete": "Complete",
 			"move": "Move",
 			"priority": "Priority",
 			"group": "Group into task",
+			"more": "More actions",
+			"selectAll": "Select all",
 			"cancel": "Clear selection"
+		},
+		"group": {
+			"destinationTitle": "Where does the new task go?",
+			"effect": "The selected tasks move into the new task and take its labels and priority."
+		},
+		"confirmDelete": {
+			"title": "Delete the selected tasks?",
+			"description": "{count} tasks and everything under them will be removed. This cannot be undone."
 		}
 	},
 	"calendar": {

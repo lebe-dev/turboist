@@ -93,6 +93,15 @@ type Task struct {
 
 	TroikiCategory *TroikiCategory
 
+	// AutoSortedAt is set when the LLM Inbox processor filed the task out of the
+	// Inbox; nil means a person placed it. Any manual move clears it.
+	AutoSortedAt *time.Time
+
+	// AutoSortUndecidedAt is set when the LLM Inbox processor looked at the task
+	// but could not pick a project for it; such a task is not sent again until
+	// its wording changes or it is moved.
+	AutoSortUndecidedAt *time.Time
+
 	Labels []Label
 
 	// RelationSummary is the cheap rollup hydrated on every read path (single get

@@ -208,3 +208,56 @@ func TestRelationService_Remove(t *testing.T) {
 		t.Errorf("second remove: got %v, want ErrNotFound", err)
 	}
 }
+
+func TestRelationService_CheckBlockers(t *testing.T) {
+	f := setupRelationService(t)
+	ctx := context.Background()
+	dragged := f.newTask(t, "dragged")
+	blocker := f.newTask(t, "already blocks")
+	downstream := f.newTask(t, "blocked by dragged")
+	transitive := f.newTask(t, "blocked through downstream")
+	related := f.newTask(t, "only related")
+	free := f.newTask(t, "free")
+
+	if _, err := f.svc.Add(ctx, dragged.ID, blocker.ID, model.RelationTypeBlocks, model.RelationDirectionIncoming); err != nil {
+		t.Fatalf("add blocker: %v", err)
+	}
+	if _, err := f.svc.Add(ctx, dragged.ID, downstream.ID, model.RelationTypeBlocks, model.RelationDirectionOutgoing); err != nil {
+		t.Fatalf("add downstream: %v", err)
+	}
+	if _, err := f.svc.Add(ctx, downstream.ID, transitive.ID, model.RelationTypeBlocks, model.RelationDirectionOutgoing); err != nil {
+		t.Fatalf("add transitive: %v", err)
+	}
+	if _, err := f.svc.Add(ctx, dragged.ID, related.ID, model.RelationTypeRelated, model.RelationDirectionOutgoing); err != nil {
+		t.Fatalf("add related: %v", err)
+	}
+
+	got, err := f.svc.CheckBlockers(ctx, dragged.ID,
+		[]int64{blocker.ID, downstream.ID, transitive.ID, related.ID, free.ID, dragged.ID, 999999})
+	if err != nil {
+		t.Fatalf("check blockers: %v", err)
+	}
+	want := map[int64]service.BlockerRefusal{
+		blocker.ID:    service.BlockerRefusalExists,
+		downstream.ID: service.BlockerRefusalCycle,
+		transitive.ID: service.BlockerRefusalCycle,
+		dragged.ID:    service.BlockerRefusalSelf,
+		999999:        service.BlockerRefusalNotFound,
+	}
+	if len(got) != len(want) {
+		t.Errorf("refusals: got %v, want %v", got, want)
+	}
+	for id, reason := range want {
+		if got[id] != reason {
+			t.Errorf("task %d: got %q, want %q", id, got[id], reason)
+		}
+	}
+}
+
+func TestRelationService_CheckBlockers_MissingTask(t *testing.T) {
+	f := setupRelationService(t)
+	_, err := f.svc.CheckBlockers(context.Background(), 999999, []int64{1})
+	if !errors.Is(err, repo.ErrNotFound) {
+		t.Errorf("got %v, want ErrNotFound", err)
+	}
+}

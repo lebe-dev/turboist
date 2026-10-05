@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Debug builds may talk to a server over plain HTTP. A self-hosted product is
+      developed against a server on a local port, which usually has no
+      certificate, and the sign-in and offline-session loop has to be exercised
+      against a real one rather than reasoned about. This override is the single
+      switch: the connect screen asks the platform whether cleartext is permitted
+      instead of keeping a flag of its own, so the shipping manifest — which
+      keeps it off — needs no matching change anywhere in the code.
+    -->
+    <application
+        android:usesCleartextTraffic="true"
+        tools:replace="android:usesCleartextTraffic" />
+
+</manifest>

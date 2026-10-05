@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Russian wording for the strings the native client owns.
+
+  Product wording the web client also shows is generated into strings.xml for
+  every locale from the shared locale files, so it has always been translated;
+  the hand-written names here had no Russian at all, which is why a Russian
+  phone showed English words in the middle of a translated screen.
+
+  This file covers the task screen and the repeat editor — every string those
+  two surfaces reach. The rest of strings_native.xml (sync, the unsent queue,
+  settings, search, the account screens) still falls back to English and is
+  worth a pass of its own.
+
+  A name absent here falls back to values/strings_native.xml, which is why the
+  priority codes P1..P4 and the em dash that stands in for an empty field are
+  not repeated: they read the same in both languages.
+-->
+<resources>
+    <string name="native_task_deadline">Дедлайн</string>
+    <string name="native_task_time">Время</string>
+    <string name="native_task_clearTime">Очистить время</string>
+    <string name="native_task_location">Расположение</string>
+    <string name="native_task_plan">План</string>
+    <string name="native_task_planNone">Не запланировано</string>
+    <string name="native_task_cancelTask">Отменить задачу</string>
+    <string name="native_task_status">Статус</string>
+    <string name="native_task_statusOpen">Открыта</string>
+    <string name="native_task_statusCompleted">Завершена</string>
+    <string name="native_task_statusCancelled">Отменена</string>
+    <string name="native_task_postponed">Отложена</string>
+    <string name="native_task_created">Создана</string>
+    <string name="native_task_updated">Обновлена</string>
+    <string name="native_task_completedAt">Завершена</string>
+    <string name="native_task_editTitle">Изменить название</string>
+    <string name="native_task_completedSubtasks">Завершённые подзадачи</string>
+
+    <string name="native_task_sectionWhen">Когда</string>
+    <string name="native_task_sectionPlanning">Планирование</string>
+    <string name="native_task_sectionProperties">Свойства</string>
+    <string name="native_task_details">Сведения</string>
+    <string name="native_task_detailsSummary">%1$s · обновлена %2$s</string>
+    <string name="native_task_addDescription">Добавить описание</string>
+    <string name="native_task_more">Ещё</string>
+    <string name="native_task_change">Изменить</string>
+    <string name="native_task_dateAndTime">Дата и время</string>
+    <string name="native_task_pickDate">Выбрать дату…</string>
+    <string name="native_task_inAWeek">Через неделю</string>
+    <string name="native_task_done">Готово</string>
+    <string name="native_task_findLabel">Найти метку</string>
+    <string name="native_task_labelsSelected">Выбрано: %1$d</string>
+    <string name="native_task_subtaskProgress">%1$d из %2$d</string>
+    <string name="native_task_dayNamed">%1$s, %2$s</string>
+
+    <string name="native_task_relationExists">Эти две задачи уже связаны так.</string>
+    <string name="native_task_relationCycle">Тогда задачи будут ждать друг друга и ни одну из них нельзя будет завершить.</string>
+
+    <string name="native_recurrence_weekdays">Каждый будний день</string>
+    <string name="native_recurrence_monthly">Ежемесячно</string>
+    <string name="native_recurrence_yearly">Ежегодно</string>
+    <string name="native_recurrence_custom">Своё правило</string>
+    <string name="native_recurrence_ruleLabel">Правило повтора</string>
+    <string name="native_recurrence_ruleHelp">Календарная запись, например FREQ=WEEKLY;BYDAY=TU,TH</string>
+    <string name="native_recurrence_ruleUnreadable">Это не правило повтора.</string>
+    <string name="native_recurrence_next">Следующая: %1$s</string>
+    <string name="native_recurrence_noNext">После текущей у этого правила нет повторов.</string>
+</resources>

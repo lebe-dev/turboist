@@ -1,0 +1,44 @@
+{
+  "view": "troiki-board",
+  "groups": [
+    {
+      "projectKey": "prj-alpha",
+      "taskKeys": [
+        "t-pinned-high",
+        "t-troiki-important",
+        "t-week-planned-high",
+        "t-blocker",
+        "t-private",
+        "t-completed-today",
+        "t-week-child-cascaded",
+        "t-today-morning",
+        "t-section-later",
+        "t-today-evening",
+        "t-blocked",
+        "t-deadline-timed",
+        "t-complex-deadline-date",
+        "t-week-grandchild"
+      ]
+    },
+    {
+      "projectKey": "prj-beta",
+      "taskKeys": [
+        "t-tomorrow-timed",
+        "t-troiki-medium-completed",
+        "t-troiki-medium",
+        "t-week-due-inside"
+      ]
+    },
+    {
+      "projectKey": "prj-home",
+      "taskKeys": [
+        "t-label-both",
+        "t-recurring-snapshot",
+        "t-recurring-source",
+        "t-backlog-parent",
+        "t-troiki-rest",
+        "t-backlog-child"
+      ]
+    }
+  ]
+}

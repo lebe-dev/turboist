@@ -1,9 +1,20 @@
 import { appSettings as appSettingsApi } from '../api/endpoints/app-settings';
 import { getApiClient } from '../api/client';
-import type { AppSettings, AutoLabelRule, ProjectSuggestionRule } from '../api/types';
+import type {
+	AppSettings,
+	AutoLabelRule,
+	InboxProcessingSettings,
+	ProjectSuggestionRule
+} from '../api/types';
 
 function emptyAppSettings(): AppSettings {
-	return { autoLabels: [], projectSuggestions: [] };
+	return { autoLabels: [], projectSuggestions: [], inboxProcessing: { prompt: '', paused: false } };
+}
+
+// Settings payloads from before a field existed decode without it.
+function inboxOf(v: AppSettings): InboxProcessingSettings {
+	const stored: Partial<InboxProcessingSettings> = v.inboxProcessing ?? {};
+	return { prompt: stored.prompt ?? '', paused: stored.paused ?? false };
 }
 
 function createAppSettingsStore() {
@@ -18,6 +29,9 @@ function createAppSettingsStore() {
 		},
 		get projectSuggestions(): ProjectSuggestionRule[] {
 			return value.projectSuggestions ?? [];
+		},
+		get inboxProcessing(): InboxProcessingSettings {
+			return inboxOf(value);
 		},
 		setValue(v: AppSettings): void {
 			value = v;
@@ -38,6 +52,28 @@ function createAppSettingsStore() {
 			value = { ...value, projectSuggestions: rules };
 			try {
 				const updated = await appSettingsApi.setProjectSuggestions(getApiClient(), rules);
+				value = updated;
+			} catch (err) {
+				value = prev;
+				throw err;
+			}
+		},
+		async setInboxProcessingPrompt(prompt: string): Promise<void> {
+			const prev = value;
+			value = { ...value, inboxProcessing: { ...inboxOf(value), prompt } };
+			try {
+				const updated = await appSettingsApi.setInboxProcessingPrompt(getApiClient(), prompt);
+				value = updated;
+			} catch (err) {
+				value = prev;
+				throw err;
+			}
+		},
+		async setInboxProcessingPaused(paused: boolean): Promise<void> {
+			const prev = value;
+			value = { ...value, inboxProcessing: { ...inboxOf(value), paused } };
+			try {
+				const updated = await appSettingsApi.setInboxProcessingPaused(getApiClient(), paused);
 				value = updated;
 			} catch (err) {
 				value = prev;

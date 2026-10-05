@@ -22,6 +22,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
 	"github.com/lebe-dev/turboist/internal/service/events"
+	"github.com/lebe-dev/turboist/internal/service/inboxproc"
 	passkeysvc "github.com/lebe-dev/turboist/internal/service/passkey"
 )
 
@@ -46,6 +47,9 @@ type apiEnv struct {
 	passkeys     *repo.WebAuthnRepo
 	eventsHub    *events.Hub
 	eventsTix    *events.TicketStore
+	appSettings  *repo.AppSettingsRepo
+	inboxProc    *repo.InboxProcessingRepo
+	processor    *inboxproc.Processor
 }
 
 func setupAPIEnv(t *testing.T) *apiEnv {
@@ -54,6 +58,19 @@ func setupAPIEnv(t *testing.T) *apiEnv {
 }
 
 func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
+	t.Helper()
+	return buildAPIEnv(t, cfg, nil)
+}
+
+// buildAPIEnvWithInboxProcessing wires an enabled Inbox processor answering from
+// llm. Its background loop is not running until startInboxLoop, so a test can
+// seed the Inbox before the start-up pass sees it.
+func buildAPIEnvWithInboxProcessing(t *testing.T, llm inboxproc.Classifier) *apiEnv {
+	t.Helper()
+	return buildAPIEnv(t, makeTestConfig(), llm)
+}
+
+func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier) *apiEnv {
 	t.Helper()
 	dir := t.TempDir()
 	d, err := db.Open(filepath.Join(dir, "test.db"))
@@ -133,10 +150,25 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 	handlers.NewTaskHandler(tasks, projs, taskSvc, testBaseURL).Register(api)
 	handlers.NewSearchHandler(searchRepo, testBaseURL).Register(api)
 	harpoonSvc := service.NewHarpoonService(users, tasks, projs)
-	handlers.NewMetaHandler(cfg, false, ctxs, projs, lbls, tasks, users, appSettings, templates, troikiSvc, harpoonSvc, testBaseURL).Register(api)
+	handlers.NewMetaHandler(cfg, false, inboxLLM != nil, ctxs, projs, lbls, tasks, users, appSettings, templates, troikiSvc, harpoonSvc, testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettings, lbls, projs).Register(api)
+	inboxProc := repo.NewInboxProcessingRepo(d, tlabels)
+	processor := inboxproc.NewProcessor(inboxproc.Config{
+		Enabled:    inboxLLM != nil,
+		Interval:   time.Hour,
+		APIURL:     "https://openrouter.ai/api/v1",
+		Model:      "test/model",
+		BatchLimit: 10,
+		Timeout:    time.Second,
+	}, inboxLLM, inboxproc.Deps{
+		Tasks: tasks, TaskLabels: tlabels, State: inboxProc, Contexts: ctxs, Projects: projs, Labels: lbls,
+		AppSettings: appSettings, Users: users, Move: moveSvc, Hub: hub, Location: cfg.Location, Log: slog.Default(),
+	})
+	handlers.NewInboxProcessingHandler(processor, inboxProc, appSettings, testBaseURL).Register(api)
+	handlers.NewStateHandler(users).Register(api)
+	handlers.NewSyncHandler(repo.NewChangeLogRepo(d), testBaseURL).Register(api.Group("/sync"))
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewSessionsHandler(sessions).
@@ -170,6 +202,9 @@ func buildAPIEnvWithConfig(t *testing.T, cfg *config.Config) *apiEnv {
 		passkeys:     webauthnRepo,
 		eventsHub:    hub,
 		eventsTix:    tix,
+		appSettings:  appSettings,
+		inboxProc:    inboxProc,
+		processor:    processor,
 	}
 }
 
@@ -187,6 +222,23 @@ func newTestPasskeyService(t *testing.T, creds *repo.WebAuthnRepo, users *repo.U
 		t.Fatalf("passkey service: %v", err)
 	}
 	return svc
+}
+
+// startInboxLoop runs the processor's background loop until the test ends.
+func startInboxLoop(t *testing.T, e *apiEnv) {
+	t.Helper()
+	runCtx, stop := context.WithCancel(context.Background())
+	stopped := make(chan struct{})
+	go func() {
+		e.processor.Run(runCtx)
+		close(stopped)
+	}()
+	// Registered after the DB close, so it runs first: the loop is gone before
+	// its database is.
+	t.Cleanup(func() {
+		stop()
+		<-stopped
+	})
 }
 
 func (e *apiEnv) token(t *testing.T) string {

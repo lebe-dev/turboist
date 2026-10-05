@@ -1,0 +1,8 @@
+{
+  "view": "inbox",
+  "total": 2,
+  "taskKeys": [
+    "t-inbox-high",
+    "t-inbox-plain"
+  ]
+}

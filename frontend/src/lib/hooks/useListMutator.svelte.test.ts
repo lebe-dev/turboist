@@ -109,6 +109,52 @@ describe('useListMutator', () => {
 		});
 	});
 
+	describe('removeSubtree', () => {
+		interface Node {
+			id: number;
+			parentId: number | null;
+		}
+		const tree: Node[] = [
+			{ id: 1, parentId: null },
+			{ id: 2, parentId: 1 },
+			{ id: 3, parentId: 2 },
+			{ id: 4, parentId: null },
+			{ id: 5, parentId: 4 }
+		];
+
+		it('removes the task with its descendants at any depth', () => {
+			const list = useListMutator<Node>();
+			list.setFromServer([...tree]);
+			list.mutator.removeSubtree(1);
+			expect(list.items.map((i) => i.id)).toEqual([4, 5]);
+		});
+
+		it('removes descendants listed before their parent', () => {
+			const list = useListMutator<Node>();
+			list.setFromServer([...tree].reverse());
+			list.mutator.removeSubtree(1);
+			expect(list.items.map((i) => i.id)).toEqual([5, 4]);
+		});
+
+		it('leaves other subtrees alone and reports every removal', () => {
+			const onRemove = vi.fn();
+			const list = useListMutator<Node>({ onRemove });
+			list.setFromServer([...tree]);
+			list.mutator.removeSubtree(2);
+			expect(list.items.map((i) => i.id)).toEqual([1, 4, 5]);
+			expect(onRemove).toHaveBeenCalledTimes(2);
+		});
+
+		it('advances the epoch even when the id is absent', () => {
+			const list = useListMutator<Node>();
+			list.setFromServer([...tree]);
+			const start = list.epoch;
+			list.mutator.removeSubtree(99);
+			expect(list.items).toHaveLength(tree.length);
+			expect(list.epoch).toBe(start + 1);
+		});
+	});
+
 	describe('epoch', () => {
 		it('starts at zero', () => {
 			expect(useListMutator<Item>().epoch).toBe(0);

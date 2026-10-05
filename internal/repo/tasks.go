@@ -46,7 +46,7 @@ func (r *TaskRepo) hydrateRelationSummaries(ctx context.Context, tasks []model.T
 
 const taskColumns = `id, title, description, inbox_id, context_id, project_id, section_id, parent_id,
 		priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-		day_part, plan_state, is_pinned, pinned_at, is_private, is_complex, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, created_at, updated_at`
+		day_part, plan_state, is_pinned, pinned_at, is_private, is_complex, recurrence_rule, completed_at, postpone_count, troiki_category, source_task_id, auto_sorted_at, auto_sort_undecided_at, created_at, updated_at`
 
 // taskOrderBy is the unified sort for all task listings (see business-rules.md).
 const taskOrderBy = `is_pinned DESC,
@@ -62,7 +62,7 @@ const taskOrderBy = `is_pinned DESC,
 func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 	var t model.Task
 	var inboxID, contextID, projectID, sectionID, parentID, sourceTaskID sql.NullInt64
-	var dueAt, deadlineAt, pinnedAt, completedAt sql.NullString
+	var dueAt, deadlineAt, pinnedAt, completedAt, autoSortedAt, autoSortUndecidedAt sql.NullString
 	var recurrenceRule, troikiCategory sql.NullString
 	var dueHasTime, deadlineHasTime, isPinned, isPrivate, isComplex int
 	var createdAt, updatedAt string
@@ -76,9 +76,25 @@ func scanTask(row interface{ Scan(...any) error }) (*model.Task, error) {
 		&t.PostponeCount,
 		&troikiCategory,
 		&sourceTaskID,
+		&autoSortedAt,
+		&autoSortUndecidedAt,
 		&createdAt, &updatedAt,
 	); err != nil {
 		return nil, err
+	}
+	if autoSortedAt.Valid {
+		ts, err := model.ParseUTC(autoSortedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse auto_sorted_at: %w", err)
+		}
+		t.AutoSortedAt = &ts
+	}
+	if autoSortUndecidedAt.Valid {
+		ts, err := model.ParseUTC(autoSortUndecidedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("parse auto_sort_undecided_at: %w", err)
+		}
+		t.AutoSortUndecidedAt = &ts
 	}
 	if sourceTaskID.Valid {
 		v := sourceTaskID.Int64
@@ -195,6 +211,7 @@ type CreateTask struct {
 	DayPart         model.DayPart
 	PlanState       model.PlanState
 	RecurrenceRule  *string
+	IsComplex       bool
 }
 
 func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, error) {
@@ -216,13 +233,14 @@ func (r *TaskRepo) Create(ctx context.Context, in CreateTask) (*model.Task, erro
 	res, err := r.db.ExecContext(ctx,
 		`INSERT INTO tasks (title, description, inbox_id, context_id, project_id, section_id, parent_id,
 			priority, status, due_at, due_has_time, deadline_at, deadline_has_time,
-			day_part, plan_state, is_pinned, pinned_at, recurrence_rule, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`,
+			day_part, plan_state, is_pinned, pinned_at, is_complex, recurrence_rule, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?)`,
 		in.Title, in.Description,
 		nullInt(in.InboxID), nullInt(in.ContextID), nullInt(in.ProjectID), nullInt(in.SectionID), nullInt(in.ParentID),
 		string(in.Priority),
 		nullTime(in.DueAt), boolInt(in.DueHasTime), nullTime(in.DeadlineAt), boolInt(in.DeadlineHasTime),
 		string(in.DayPart), string(in.PlanState),
+		boolInt(in.IsComplex),
 		nullStr(in.RecurrenceRule),
 		now, now,
 	)
@@ -302,6 +320,38 @@ func (r *TaskRepo) HasRecurrenceCompletionOnDay(ctx context.Context, sourceID in
 	return true, nil
 }
 
+// ExistingIDs returns which of ids name a task that exists. Callers keep the
+// batch small (a screenful of candidates), so it is one IN list.
+func (r *TaskRepo) ExistingIDs(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
+	const op = "repo.tasks.ExistingIDs"
+	logQuery(ctx, op, ids)
+	out := make(map[int64]struct{}, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id FROM tasks WHERE id IN (?`+strings.Repeat(",?", len(ids)-1)+`)`, args...)
+	if err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, logErr(ctx, op, err)
+		}
+		out[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, logErr(ctx, op, err)
+	}
+	return out, nil
+}
+
 func (r *TaskRepo) Get(ctx context.Context, id int64) (*model.Task, error) {
 	const op = "repo.tasks.Get"
 	logQuery(ctx, op, id)
@@ -373,6 +423,13 @@ type TaskUpdate struct {
 
 	IncPostponeCount   bool
 	ResetPostponeCount bool
+
+	AutoSortedAt      *time.Time
+	AutoSortedAtClear bool
+
+	// AutoSortUndecidedAt marks the task as one the Inbox processor could not
+	// file. A changed title or description clears the mark on its own.
+	AutoSortUndecidedAt *time.Time
 }
 
 func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.Task, error) {
@@ -380,6 +437,23 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 	logQuery(ctx, op, id)
 	sets := make([]string, 0, 8)
 	args := make([]any, 0, 12)
+	if u.AutoSortUndecidedAt != nil {
+		sets = append(sets, "auto_sort_undecided_at = ?")
+		args = append(args, model.FormatUTC(*u.AutoSortUndecidedAt))
+	} else if u.Title != nil || u.Description != nil {
+		// A reworded task deserves another look from the Inbox processor. SET
+		// expressions read the row as it was, so this compares against the old text.
+		cond := make([]string, 0, 2)
+		if u.Title != nil {
+			cond = append(cond, "title IS NOT ?")
+			args = append(args, *u.Title)
+		}
+		if u.Description != nil {
+			cond = append(cond, "description IS NOT ?")
+			args = append(args, *u.Description)
+		}
+		sets = append(sets, "auto_sort_undecided_at = CASE WHEN "+strings.Join(cond, " OR ")+" THEN NULL ELSE auto_sort_undecided_at END")
+	}
 	if u.Title != nil {
 		sets = append(sets, "title = ?")
 		args = append(args, *u.Title)
@@ -468,6 +542,12 @@ func (r *TaskRepo) Update(ctx context.Context, id int64, u TaskUpdate) (*model.T
 		sets = append(sets, "troiki_category = ?", "troiki_capacity_granted = 0")
 		args = append(args, string(*u.TroikiCategory))
 	}
+	if u.AutoSortedAtClear {
+		sets = append(sets, "auto_sorted_at = NULL")
+	} else if u.AutoSortedAt != nil {
+		sets = append(sets, "auto_sorted_at = ?")
+		args = append(args, model.FormatUTC(*u.AutoSortedAt))
+	}
 	if len(sets) == 0 {
 		return r.Get(ctx, id)
 	}
@@ -534,6 +614,35 @@ func (r *TaskRepo) CascadeBacklogToDescendants(ctx context.Context, parentID int
 		parentID, now)
 	if err != nil {
 		return logErr(ctx, op, fmt.Errorf("cascade backlog: %w", err))
+	}
+	return nil
+}
+
+// CascadeWeekToDescendants pulls every open descendant of parentID, at any depth,
+// into the current week alongside its parent. Planning a parent for the week is a
+// statement about the whole piece of work, so its subtasks must not stay behind in
+// the backlog and show up there as separate, context-less rows.
+//
+// Unlike the backlog cascade this keeps due dates: a subtask scheduled for a
+// concrete day inside the week is still valid planning, whereas a parked task has
+// no day at all. Completed/cancelled descendants are left alone (history), and so
+// are inbox ones — the week lives in contexts, and moving them out is the parent's
+// own placement decision (see PlanService.SetPlanState).
+func (r *TaskRepo) CascadeWeekToDescendants(ctx context.Context, parentID int64) error {
+	const op = "repo.tasks.CascadeWeekToDescendants"
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id FROM tasks t JOIN descendants d ON t.parent_id = d.id
+		 )
+		 UPDATE tasks SET plan_state = 'week', updated_at = ?
+		 WHERE id IN (SELECT id FROM descendants) AND status = 'open' AND inbox_id IS NULL
+		   AND plan_state <> 'week'`,
+		parentID, now)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("cascade week: %w", err))
 	}
 	return nil
 }
@@ -831,6 +940,12 @@ func (r *TaskRepo) Delete(ctx context.Context, id int64) error {
 // moved task's subtree may end up spanning two projects. Cycles (target ∈
 // subtree of taskID) are rejected with ErrCycle. Subtasks in inbox are
 // rejected by Placement.Validate (parent_id forbidden alongside inbox_id).
+//
+// Every move clears auto_sorted_at: once a task has been relocated by hand, its
+// placement is the user's decision rather than the Inbox processor's. The
+// processor itself sets the marker again right after its own move. A move also
+// clears auto_sort_undecided_at, so a task that comes back to the Inbox is
+// looked at afresh.
 func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) error {
 	const op = "repo.tasks.Move"
 	logQuery(ctx, op, taskID, target)
@@ -857,6 +972,8 @@ func (r *TaskRepo) Move(ctx context.Context, taskID int64, target Placement) err
 		`UPDATE tasks SET inbox_id = ?, context_id = ?, project_id = ?, section_id = ?, parent_id = ?,
 			troiki_category = CASE WHEN ? IS NULL THEN troiki_category ELSE NULL END,
 			troiki_capacity_granted = CASE WHEN ? IS NULL THEN troiki_capacity_granted ELSE 0 END,
+			auto_sorted_at = NULL,
+			auto_sort_undecided_at = NULL,
 			updated_at = ?
 		 WHERE id = ?`,
 		nullInt(target.InboxID), nullInt(target.ContextID), nullInt(target.ProjectID), nullInt(target.SectionID),
@@ -931,7 +1048,7 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 // --- counters (limit checks) ---
 
 func (r *TaskRepo) CountWeek(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'week' AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks t WHERE t.plan_state = 'week' AND t.status = 'open'`+notCascadedIntoWeek)
 }
 
 func (r *TaskRepo) CountBacklog(ctx context.Context) (int, error) {

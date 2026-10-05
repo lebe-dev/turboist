@@ -44,6 +44,13 @@ func (r *ProjectLabelsRepo) SetForProject(ctx context.Context, projectID int64, 
 // LabelsByProjectIDs returns labels grouped by project_id for the given
 // projectIDs. Used to hydrate listings without GROUP_CONCAT.
 func (r *ProjectLabelsRepo) LabelsByProjectIDs(ctx context.Context, projectIDs []int64) (map[int64][]model.Label, error) {
+	return labelsByProjectIDs(ctx, r.db, projectIDs)
+}
+
+// labelsByProjectIDs is the body of LabelsByProjectIDs, parameterised over the
+// statement source so a caller inside an open transaction hydrates from the
+// same snapshot as the project rows it is filling in.
+func labelsByProjectIDs(ctx context.Context, src queryer, projectIDs []int64) (map[int64][]model.Label, error) {
 	const op = "repo.project_labels.LabelsByProjectIDs"
 	logQuery(ctx, op, projectIDs)
 	if len(projectIDs) == 0 {
@@ -60,7 +67,7 @@ func (r *ProjectLabelsRepo) LabelsByProjectIDs(ctx context.Context, projectIDs [
 	      JOIN labels l ON l.id = pl.label_id
 	      WHERE pl.project_id IN (` + strings.Join(placeholders, ",") + `)
 	      ORDER BY l.name ASC`
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := src.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("hydrate project labels: %w", err))
 	}

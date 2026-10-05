@@ -9,13 +9,24 @@ export const appSettings = {
 		});
 	},
 
-	setProjectSuggestions(
-		client: ApiClient,
-		rules: ProjectSuggestionRule[]
-	): Promise<AppSettings> {
+	setProjectSuggestions(client: ApiClient, rules: ProjectSuggestionRule[]): Promise<AppSettings> {
 		return client.fetch('/api/v1/app-settings/project-suggestions', {
 			method: 'PUT',
 			body: { projectSuggestions: rules }
+		});
+	},
+
+	setInboxProcessingPrompt(client: ApiClient, prompt: string): Promise<AppSettings> {
+		return client.fetch('/api/v1/app-settings/inbox-processing', {
+			method: 'PUT',
+			body: { prompt }
+		});
+	},
+
+	setInboxProcessingPaused(client: ApiClient, paused: boolean): Promise<AppSettings> {
+		return client.fetch('/api/v1/app-settings/inbox-processing', {
+			method: 'PUT',
+			body: { paused }
 		});
 	}
 };

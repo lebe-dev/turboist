@@ -26,6 +26,10 @@ const (
 	CodeIdempotencyInFlight    = "idempotency_in_flight"
 	CodePasskeyCeremony        = "passkey_ceremony_invalid"
 	CodePasskeyExists          = "passkey_exists"
+	CodeSyncEpochMismatch      = "sync_epoch_mismatch"
+	CodeSyncCursorExpired      = "sync_cursor_expired"
+	CodeInboxProcessingOff     = "inbox_processing_disabled"
+	CodeInboxNothingPending    = "inbox_processing_nothing_pending"
 )
 
 // AppError is a structured API error carrying an HTTP status, code, message, and optional details.
@@ -134,6 +138,19 @@ func ErrIdempotencyInFlight() *AppError {
 	return newErr(409, CodeIdempotencyInFlight, "duplicate request in flight")
 }
 
+// ErrInboxProcessingDisabled refuses a manual Inbox processing run on an
+// installation where INBOX_PROCESSING_ENABLED is not set.
+func ErrInboxProcessingDisabled() *AppError {
+	return newErr(409, CodeInboxProcessingOff, "inbox processing is disabled")
+}
+
+// ErrInboxNothingPending refuses a manual Inbox processing run when no open Inbox
+// task needs a decision — an empty Inbox, or only tasks the processor already
+// kept or could not place.
+func ErrInboxNothingPending() *AppError {
+	return newErr(409, CodeInboxNothingPending, "nothing in the inbox to process")
+}
+
 func ErrInternal(msg string) *AppError {
 	return newErr(500, CodeInternalError, msg)
 }
@@ -181,4 +198,23 @@ func ErrPasskeyExists() *AppError {
 
 func ErrTOTPTicketInvalid() *AppError {
 	return newErr(401, CodeAuthInvalid, "invalid or expired OTP ticket")
+}
+
+// ErrSyncEpochMismatch tells a replica that the change history it was resuming
+// against has been replaced — a restore rewrote the data wholesale — so its
+// cursor means nothing any more. The current epoch travels in details so the
+// client can stamp the full re-sync that has to follow.
+func ErrSyncEpochMismatch(current int64) *AppError {
+	return newErr(409, CodeSyncEpochMismatch, "sync epoch mismatch", map[string]any{"epoch": current})
+}
+
+// ErrSyncCursorExpired tells a replica that the changes it still needs have
+// already been pruned from the log, so no sequence of delta pulls can catch it
+// up. Same remedy as an epoch mismatch: take a full snapshot. The epoch and the
+// oldest change still retained travel in details.
+func ErrSyncCursorExpired(epoch, oldestRetained int64) *AppError {
+	return newErr(410, CodeSyncCursorExpired, "sync cursor expired", map[string]any{
+		"epoch":          epoch,
+		"oldestRetained": oldestRetained,
+	})
 }

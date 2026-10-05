@@ -154,6 +154,13 @@ export interface Task {
 
 	postponeCount: number;
 
+	// Set when the LLM Inbox processor filed the task out of the Inbox; null when
+	// a person placed it. Any manual move clears it.
+	autoSortedAt: string | null;
+	// Set when the Inbox processor looked at the task but could not pick a project;
+	// such a task is not sent again until it is reworded or moved.
+	autoSortUndecidedAt: string | null;
+
 	labels: Label[];
 
 	url: string;
@@ -196,6 +203,13 @@ export interface TaskRelation {
 	/** The peer end — the task at the other side of the relation. */
 	task: Task;
 	createdAt: string;
+}
+
+/** Why a task cannot be made a blocker of another (GET …/relations/blocker-check). */
+export type BlockerRefusalReason = 'relation_self' | 'not_found' | 'relation_exists' | 'relation_cycle';
+
+export interface BlockerCheckResult {
+	refused: { taskId: number; reason: BlockerRefusalReason }[];
 }
 
 export interface Page<T> {
@@ -485,6 +499,8 @@ export interface ConfigResponse {
 	inbox: {
 		warnThreshold: number;
 		overflowTask: { title: string; priority: Priority };
+		// Whether the LLM Inbox processor can call a model (env-configured).
+		processingEnabled: boolean;
 	};
 	dayParts: {
 		morning: { start: number; end: number };
@@ -523,9 +539,70 @@ export interface ProjectSuggestionRule {
 	ignoreCase: boolean;
 }
 
+export interface InboxProcessingSettings {
+	// Empty string = the built-in default prompt.
+	prompt: string;
+	// Scheduled runs are skipped while paused; a manual run still works.
+	paused: boolean;
+}
+
 export interface AppSettings {
 	autoLabels: AutoLabelRule[];
 	projectSuggestions: ProjectSuggestionRule[];
+	inboxProcessing: InboxProcessingSettings;
+}
+
+export interface InboxProcessingRunSummary {
+	sorted: number;
+	kept: number;
+	failed: number;
+}
+
+export interface InboxProcessingStatus {
+	enabled: boolean;
+	model: string;
+	apiHost: string;
+	interval: string;
+	batchLimit: number;
+	running: boolean;
+	pendingCount: number;
+	undecidedCount: number;
+	lastRunAt: string | null;
+	lastRunSummary: InboxProcessingRunSummary | null;
+	lastError: string | null;
+	backoffUntil: string | null;
+	paused: boolean;
+	defaultPrompt: string;
+}
+
+export type InboxProcessingOutcome = 'sorted' | 'kept' | 'failed';
+
+export interface InboxProcessingLogEntry {
+	id: number;
+	taskId: number | null;
+	taskTitle: string;
+	outcome: InboxProcessingOutcome;
+	model: string;
+	reason: string;
+	confidence: number | null;
+	before: {
+		labelIds: number[];
+		priority: Priority;
+		dueAt: string | null;
+		dueHasTime: boolean;
+	};
+	after: {
+		contextId: number;
+		projectId: number;
+		labelIds: number[];
+		priority: Priority;
+		dueAt: string | null;
+	} | null;
+	error: string | null;
+	promptTokens: number | null;
+	completionTokens: number | null;
+	revertedAt: string | null;
+	createdAt: string;
 }
 
 // Request payloads

@@ -1,0 +1,245 @@
+# Inbox processing (LLM)
+
+A background job files open Inbox tasks into projects with the help of a language model. For every
+task it picks a project, adds labels and, when the wording makes it explicit, sets a priority and a
+due date. The model can also decline — the task then stays in the Inbox. Every decision is written to
+a journal, and a filed task can be returned to the Inbox with one click.
+
+The feature is **off by default**. It talks to any OpenAI-compatible chat completions API; OpenRouter
+is the default provider.
+
+## What leaves the server
+
+For each task the provider receives:
+
+- the task's title, description, creation time and current labels;
+- the names, descriptions, types, contexts and labels of all **open** projects;
+- the names of all labels and contexts;
+- the server's current time, timezone and your interface language.
+
+Private projects, labels and tasks (`isPrivate`) are included: that flag controls the Public View
+screen mode, not what is shared with a provider you configured yourself. The API key never leaves the
+server — it is not logged, not returned by any endpoint and not shown in the UI.
+
+## Enabling
+
+Set the variables in the server environment (or `.env`) and restart:
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `INBOX_PROCESSING_ENABLED` | — | `false` | Turns the background job and the manual run on |
+| `INBOX_PROCESSING_INTERVAL` | — | `3m` | How often the Inbox is checked, Go duration, minimum `30s` |
+| `INBOX_PROCESSING_API_URL` | — | `https://openrouter.ai/api/v1` | Base of the OpenAI-compatible API; `/chat/completions` is appended |
+| `INBOX_PROCESSING_API_KEY` | with `ENABLED=true` | — | Sent as `Authorization: Bearer …` |
+| `INBOX_PROCESSING_MODEL` | with `ENABLED=true` | — | Model id at the provider, e.g. `openai/gpt-4.1-mini` |
+| `INBOX_PROCESSING_BATCH_LIMIT` | — | `10` | Maximum tasks sent to the model per run (1..100) |
+| `INBOX_PROCESSING_TIMEOUT` | — | `60s` | Timeout of a single model request |
+
+`INBOX_PROCESSING_ENABLED=true` without a key or a model is a startup error rather than a silent
+no-op.
+
+OpenRouter example:
+
+```sh
+INBOX_PROCESSING_ENABLED=true
+INBOX_PROCESSING_API_KEY=sk-or-v1-...
+INBOX_PROCESSING_MODEL=openai/gpt-4.1-mini
+```
+
+Any other OpenAI-compatible endpoint works the same way — set `INBOX_PROCESSING_API_URL` to its base
+(for example `https://api.openai.com/v1`, or a local server such as `http://localhost:11434/v1`).
+
+With the feature disabled, **Settings → Inbox** still shows the status card, the prompt editor and
+the journal.
+
+## Pausing
+
+**Settings → Inbox → Pause automatic processing** stops the scheduled runs without touching the
+environment or restarting the server. The pause is stored with the app settings, so it survives a
+restart. While paused the background job does not read the Inbox or call the provider; **Process
+now** still works, which lets you review decisions one batch at a time. Turning the switch off
+resumes the schedule from the next tick.
+
+The Inbox page carries the same manual run as a **Sort with AI** button next to its title. It is
+shown whenever the processor is enabled and the Inbox is not empty — paused or not — and reports
+the run's summary (or its error) once the run finishes; the list refreshes on its own.
+
+## How a run works
+
+1. A run starts right after the server boots, then every `INBOX_PROCESSING_INTERVAL`, or immediately
+   from **Settings → Inbox → Process now** or the **Sort with AI** button on the Inbox page. Runs never overlap. Scheduled runs are skipped while
+   processing is paused.
+2. It picks up to `INBOX_PROCESSING_BATCH_LIMIT` open Inbox tasks, oldest first, that still need a
+   decision: tasks never looked at, tasks edited since the last decision, and failed tasks whose
+   retry time has come. Tasks marked **could not be filed** are skipped. When nothing qualifies —
+   including an empty Inbox — there is no run at all: the provider is not called, **Last run** does
+   not change, and a manual **Process now** is refused.
+3. Each task is sent as its own request (one malformed answer never affects other tasks). The system
+   message is your prompt followed by the fixed answer format; the user message is the task as JSON:
+
+   ```json
+   {"id": 42, "title": "Fix login redirect on Safari", "description": "", "createdAt": "2026-09-13T09:12:00+03:00", "labels": []}
+   ```
+
+4. The answer is validated and applied (see below), and the decision is journaled.
+5. When at least one task was filed, every client is told to refresh its task lists.
+
+### The answer
+
+The server always appends this format to the prompt; it cannot be changed from the UI:
+
+```json
+{
+  "action": "sort" | "keep",
+  "projectId": <project id> | null,
+  "labelIds": [<label ids>],
+  "priority": "high" | "medium" | "low" | "no-priority" | null,
+  "dueDate": "YYYY-MM-DD" | null,
+  "confidence": <0.0 to 1.0>,
+  "reason": "<one short sentence>"
+}
+```
+
+The request asks for `response_format: json_object`; a model that rejects that field is retried once
+without it. Markdown fences or a sentence around the JSON are tolerated.
+
+### Validation and applying
+
+- `keep`, or a `confidence` below `0.5`, leaves the task in the Inbox and marks it **could not be
+  filed** (`autoSortUndecidedAt`).
+- A `projectId` that is not an open project, or `sort` without a project, is journaled as failed and
+  marks the task the same way — the model could not name a place for it.
+- A task marked **could not be filed** is never sent to the model again. Editing its title or
+  description, or moving it anywhere (including back into the Inbox), removes the mark and gives it a
+  fresh look. In the task lists it shows a question-seal icon; **Settings → Inbox** shows how many
+  such tasks are waiting.
+- Unknown label ids are dropped. Labels are only ever **added** — labels already on the task (for
+  example from auto-label rules) stay.
+- A priority outside the allowed values is ignored. A project that sits in a daily-plan (Troiki)
+  bucket always gets that bucket's priority, whatever the model said.
+- A due date is taken as a whole day in the server's timezone; a date in the past is ignored.
+- A priority or due date you already set on the task is never overwritten — the model only fills
+  gaps.
+- If you edit or move the task while the model is thinking, your change wins and the answer is
+  discarded.
+
+The move goes through the same service as a manual move, so every placement rule holds. A filed task
+carries the **Filed by AI** marker (a sparkle next to its title, `autoSortedAt` in the API). Moving
+the task yourself removes the marker: from then on the placement is your decision.
+
+### Failures and retries
+
+- **One task fails** for a technical reason (unparseable answer, a request the provider refused because
+  of this task): the task is retried after `interval`, `2×interval`, `4×interval`, `8×interval`. After
+  five failed attempts it waits until you edit it.
+- **The provider fails** (rate limit, 5xx, network error, timeout, rejected key or unknown model): the
+  run stops, no task is charged an attempt, and the scheduled runs pause for
+  `interval × 2ⁿ` (at most 30 minutes). The error is shown as **Last error** in Settings. **Process now**
+  ignores the pause.
+- A prompt that no longer renders (for example after a manual database edit) stops the run and is
+  reported as **Last error**.
+
+## The prompt
+
+**Settings → Inbox → Prompt** edits the instruction part of the system message. It is a Go
+[text/template](https://pkg.go.dev/text/template); a typo in a field name is refused on save with the
+exact error. **Preview** renders the text in the editor against your live projects and labels and the
+oldest Inbox task (or a sample task when the Inbox is empty). **Reset to default** stores an empty
+prompt, which means "use the built-in default" — improvements to the default reach you with new
+releases for as long as you have not customised it.
+
+Available data:
+
+| Variable | Content |
+|---|---|
+| `.Now` | Current date and time in the server timezone (RFC 3339) |
+| `.Timezone` | Server timezone name |
+| `.Locale` | Your interface language (`en`, `ru`) |
+| `.Contexts` | Contexts: `.ID`, `.Name` |
+| `.Projects` | Open projects: `.ID`, `.Title`, `.Description`, `.Type` (`generic` / `software`), `.Context`, `.Labels` (names), `.TroikiCategory` (`important` / `medium` / `rest` or empty) |
+| `.Labels` | Labels: `.ID`, `.Name` |
+| `.Priorities` | `high`, `medium`, `low`, `no-priority` |
+| `.Task` | The task: `.ID`, `.Title`, `.Description`, `.CreatedAt`, `.Labels` (names) |
+
+Functions: `join` joins a list of strings — `{{join .Labels ", "}}`.
+
+Example — list projects with their labels:
+
+```text
+{{range .Projects}}
+- id={{.ID}} "{{.Title}}" ({{.Context}}){{if .Labels}}: {{join .Labels ", "}}{{end}}
+{{end}}
+```
+
+Only ids that appear in the catalogue can be applied, so a prompt that omits the project list leaves
+the model nothing it could file into.
+
+## Journal and revert
+
+**Settings → Inbox → Journal** lists the latest decisions: outcome (filed / kept / failed), the
+project and the labels that were added, the model's reason, confidence and any error. Rows are kept
+for 90 days; a deleted task keeps its rows with the title it had.
+
+**Return to Inbox** on a filed task:
+
+- moves it back to the Inbox and removes the marker;
+- removes only the labels the model added, and restores priority and due date only if they still
+  hold the values the model set — anything you changed afterwards stays;
+- remembers the task, so it is not filed again until you edit it.
+
+A task that has since become a subtask cannot be returned (`forbidden_placement`), and a decision can
+be reverted only once.
+
+## API
+
+| Endpoint | Scope | Description |
+|---|---|---|
+| `GET /api/v1/inbox/processing` | `settings:read` | Status: `enabled`, `model`, `apiHost`, `interval`, `batchLimit`, `running`, `pendingCount`, `undecidedCount`, `lastRunAt`, `lastRunSummary`, `lastError`, `backoffUntil`, `paused`, `defaultPrompt` |
+| `POST /api/v1/inbox/processing/run` | `tasks:write` | Queue an immediate run: `202 {"running": true}`; `409 inbox_processing_disabled`, or `409 inbox_processing_nothing_pending` when no task needs a decision |
+| `POST /api/v1/inbox/processing/preview` | `settings:read` | `{"prompt": "…"}` renders that text (empty string = the default); no body renders the saved prompt. `422` with `details.error` for a broken template |
+| `GET /api/v1/inbox/processing/log?limit&offset` | `tasks:read` | Journal, newest first, standard paged envelope |
+| `POST /api/v1/inbox/processing/log/:id/revert` | `tasks:write` | Return the task to the Inbox; answers with the task. `404`, `409 conflict`, `422 forbidden_placement` |
+| `PUT /api/v1/app-settings/inbox-processing` | `settings:write` | `{"prompt": "…", "paused": true}` — either field or both; a field left out is kept. The prompt is validated by rendering it against the live catalogue (`422` on error); an empty prompt or the unchanged default stores the default |
+
+The saved prompt and the pause are part of the app settings payload as `inboxProcessing.prompt` and
+`inboxProcessing.paused`, and every task carries `autoSortedAt`. `GET /api/v1/config` reports
+`inbox.processingEnabled`, so the Inbox page knows whether to offer its button without an extra request.
+
+## Diagnostics
+
+- **Settings → Inbox** shows the last run, its summary, the last error and a provider pause.
+- The application log (JSON on stdout) tells how every task was redistributed — each decision is
+  one line, and `journal_id` ties it to the row in the journal:
+
+  ```json
+  {"level":"INFO","msg":"inbox processing filed a task","journal_id":17,"task_id":42,"task_title":"Fix login redirect on Safari","from":"inbox","context_id":2,"context":"work","project_id":10,"project":"Turboist","labels_added":["bug"],"labels":["bug"],"priority":"high","due_date":"2026-09-20","confidence":0.86,"reason":"Bug in the Turboist web app","model":"openai/gpt-4.1-mini"}
+  ```
+
+  | Message | Level | Fields |
+  |---|---|---|
+  | `inbox processing run started` | INFO | `pending`, `batch_limit`, `model` |
+  | `inbox processing filed a task` | INFO | `journal_id`, `task_id`, `task_title`, `from`, `context_id`, `context`, `project_id`, `project`, `labels_added`, `labels` (all labels after filing), `priority`, `due_date` (date, RFC 3339 when it has a time, `""` when none), `confidence`, `reason`, `model` |
+  | `inbox processing kept a task in the inbox` | INFO | `journal_id`, `task_id`, `task_title`, `marked_undecided`, `confidence`, `reason`, `model` |
+  | `inbox processing could not pick a project for a task` | WARN | `journal_id`, `task_id`, `task_title`, `marked_undecided`, `confidence`, `reason`, `model`, `err` |
+  | `inbox processing could not decide on a task` | WARN | `journal_id`, `task_id`, `task_title`, `attempts`, `next_attempt_at` (`""` = waits for an edit), `model`, `err` |
+  | `inbox processing skipped a task changed during the request` | INFO | `task_id`, `task_title`, `model` |
+  | `inbox processing ignored part of the answer` | WARN | `task_id`, `warning` (unknown label, invalid priority, past due date) |
+  | `inbox processing decision reverted` | INFO | `journal_id`, `task_id`, `task_title`, `from_context_id`, `from_context`, `from_project_id`, `from_project`, `to`, `labels_removed`, and `priority_restored` / `due_restored` when those were put back (`due_restored: ""` = the due date was cleared) |
+  | `inbox processing run finished` | INFO | `manual`, `duration`, `sorted`, `kept`, `failed` |
+  | `inbox processing paused after a provider failure` | WARN | `err`, `pause` |
+
+  Task titles, project and label names appear in the log in clear text. Set `LOG_LEVEL=debug` to also
+  see skipped runs (nothing to process, paused, provider backoff, a run already in flight) and the `response_format` retry.
+- A journal row with outcome **failed** carries the exact error; a model that keeps answering in
+  prose shows up there as `no JSON object in the answer`.
+
+## Storage
+
+- `tasks.auto_sorted_at` — the **Filed by AI** marker, and `tasks.auto_sort_undecided_at` — the
+  **could not be filed** mark. Both travel to native replicas through the ordinary task change.
+- `inbox_processing_state` — the processor's memory about tasks still in the Inbox (kept, failed with
+  retry schedule, reverted). Rows of tasks that left the Inbox are pruned daily.
+- `inbox_processing_log` — the journal, pruned after 90 days.
+
+Neither table is replicated to native clients or included in backups; a backup does carry each task's
+`autoSortedAt` and `autoSortUndecidedAt`.

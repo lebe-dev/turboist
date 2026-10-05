@@ -1,0 +1,25 @@
+# ktlint reads its configuration from here. Scoped to this directory so the rest
+# of the repository keeps its own tooling.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+max_line_length = 120
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+# Composable functions are PascalCase by convention; the naming rule would
+# otherwise reject every screen and component in the app.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+[*.{xml,json,yml,yaml}]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

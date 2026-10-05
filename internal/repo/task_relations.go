@@ -125,7 +125,7 @@ func touchTasks(ctx context.Context, tx *sql.Tx, nowStr string, ids ...int64) er
 const relationPeerColumns = `p.id, p.title, p.description, p.inbox_id, p.context_id, p.project_id, p.section_id, p.parent_id,
 		p.priority, p.status, p.due_at, p.due_has_time, p.deadline_at, p.deadline_has_time,
 		p.day_part, p.plan_state, p.is_pinned, p.pinned_at, p.is_private, p.is_complex, p.recurrence_rule,
-		p.completed_at, p.postpone_count, p.troiki_category, p.source_task_id, p.created_at, p.updated_at`
+		p.completed_at, p.postpone_count, p.troiki_category, p.source_task_id, p.auto_sorted_at, p.auto_sort_undecided_at, p.created_at, p.updated_at`
 
 // ListForTask returns every relation touching taskID, in both directions, with the
 // peer task hydrated into Other and Direction resolved relative to taskID.
@@ -202,6 +202,14 @@ func scanRelationWithPeer(rows *sql.Rows) (*model.TaskRelation, error) {
 // SummaryByTaskIDs batch-loads the per-task rollup for a whole page of tasks —
 // the anti-N+1 loader that TaskRepo.Get and every list view call once.
 func (r *TaskRelationsRepo) SummaryByTaskIDs(ctx context.Context, taskIDs []int64) (map[int64]model.TaskRelationSummary, error) {
+	return summaryByTaskIDs(ctx, r.db, taskIDs)
+}
+
+// summaryByTaskIDs is the body of SummaryByTaskIDs, parameterised over the
+// statement source. The padlock a client renders and the guard that refuses a
+// completion must agree, so every reader — including one hydrating inside an
+// open transaction — has to go through this one query rather than a copy of it.
+func summaryByTaskIDs(ctx context.Context, src queryer, taskIDs []int64) (map[int64]model.TaskRelationSummary, error) {
 	const op = "repo.task_relations.SummaryByTaskIDs"
 	logQuery(ctx, op, taskIDs)
 	if len(taskIDs) == 0 {
@@ -256,7 +264,7 @@ func (r *TaskRelationsRepo) SummaryByTaskIDs(ctx context.Context, taskIDs []int6
 			args = append(args, id)
 		}
 	}
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := src.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, logErr(ctx, op, fmt.Errorf("summarise task relations: %w", err))
 	}
@@ -349,4 +357,66 @@ func (r *TaskRelationsRepo) WouldCycle(ctx context.Context, sourceID, targetID i
 		return false, logErr(ctx, op, fmt.Errorf("check blocking cycle: %w", err))
 	}
 	return exists == 1, nil
+}
+
+// BlockingReachableFrom returns every task reachable from taskID by following
+// `blocks` edges forward — everything taskID holds back, directly or through a
+// chain. taskID itself is not included. Asking "may X block taskID?" is asking
+// whether X is in this set, so one walk answers it for any number of candidates.
+func (r *TaskRelationsRepo) BlockingReachableFrom(ctx context.Context, taskID int64) (map[int64]struct{}, error) {
+	const op = "repo.task_relations.BlockingReachableFrom"
+	logQuery(ctx, op, taskID)
+	rows, err := r.db.QueryContext(ctx,
+		`WITH RECURSIVE reachable(id) AS (
+		     SELECT ?
+		     UNION
+		     SELECT tr.target_task_id FROM task_relations tr
+		     JOIN reachable rr ON rr.id = tr.source_task_id
+		     WHERE tr.type = 'blocks'
+		 )
+		 SELECT id FROM reachable WHERE id <> ?`,
+		taskID, taskID)
+	if err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("walk blocking graph: %w", err))
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[int64]struct{})
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, logErr(ctx, op, fmt.Errorf("scan: %w", err))
+		}
+		out[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("iterate: %w", err))
+	}
+	return out, nil
+}
+
+// DirectBlockerIDs returns the tasks that block taskID through a relation of its
+// own — whatever their status, since a duplicate row is refused regardless of it.
+// Unlike OpenBlockerIDs it does not walk the ancestor chain.
+func (r *TaskRelationsRepo) DirectBlockerIDs(ctx context.Context, taskID int64) (map[int64]struct{}, error) {
+	const op = "repo.task_relations.DirectBlockerIDs"
+	logQuery(ctx, op, taskID)
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT source_task_id FROM task_relations WHERE target_task_id = ? AND type = 'blocks'`,
+		taskID)
+	if err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("select blockers: %w", err))
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[int64]struct{})
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, logErr(ctx, op, fmt.Errorf("scan: %w", err))
+		}
+		out[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, logErr(ctx, op, fmt.Errorf("iterate: %w", err))
+	}
+	return out, nil
 }

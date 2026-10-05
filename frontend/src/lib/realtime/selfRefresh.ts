@@ -38,6 +38,9 @@ function scopesForPath(path: string): EventScope[] {
 		case 'tasks':
 			return ['tasks', 'plan', 'inbox'];
 		case 'inbox':
+			// run only queues work (the processor publishes once it filed a task)
+			// and preview changes nothing.
+			if (rest === 'inbox/processing/run' || rest === 'inbox/processing/preview') return [];
 			return ['tasks', 'inbox', 'plan'];
 		case 'projects':
 			return ['projects', 'tasks'];
@@ -52,6 +55,8 @@ function scopesForPath(path: string): EventScope[] {
 		case 'troiki':
 			return ['tasks', 'plan'];
 		case 'app-settings':
+			// The Inbox processing prompt changes no data any view shows.
+			if (rest === 'app-settings/inbox-processing') return [];
 			return ['labels', 'tasks'];
 		case 'task-templates':
 			// Instantiating a template creates a task tree, so the sidebar counters

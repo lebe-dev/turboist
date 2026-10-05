@@ -1,0 +1,8 @@
+{
+  "view": "label-urgent",
+  "total": 2,
+  "taskKeys": [
+    "t-label-both",
+    "t-label-urgent-due-today"
+  ]
+}

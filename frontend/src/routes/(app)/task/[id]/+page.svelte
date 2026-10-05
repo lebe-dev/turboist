@@ -5,6 +5,8 @@
 	import { toast } from 'svelte-sonner';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
 	import GaugeIcon from 'phosphor-svelte/lib/Gauge';
+	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
+	import SealQuestionIcon from 'phosphor-svelte/lib/SealQuestion';
 	import CheckIcon from 'phosphor-svelte/lib/Check';
 	import CopyIcon from 'phosphor-svelte/lib/Copy';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
@@ -26,7 +28,7 @@
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { viewFilterStore } from '$lib/stores/viewFilter.svelte';
-	import type { DayPart, Priority, Task, TaskInput } from '$lib/api/types';
+	import type { DayPart, Priority, Task, TaskInput, TaskMoveInput } from '$lib/api/types';
 	import type { ListMutator } from '$lib/utils/taskActions';
 	import PriorityPicker from '$lib/components/task/PriorityPicker.svelte';
 	import DayPartPicker from '$lib/components/task/DayPartPicker.svelte';
@@ -53,7 +55,13 @@
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
 	import TroikiTriggerIcon from '$lib/components/app/TroikiTriggerIcon.svelte';
 	import { hasMarkdownContent, hasMarkdownLink } from '$lib/utils/markdown';
-	import { onDestroy, tick, untrack } from 'svelte';
+	import TaskDetachDropZone from '$lib/components/task/TaskDetachDropZone.svelte';
+	import DependencyDragTooltip from '$lib/components/task/DependencyDragTooltip.svelte';
+	import { useDependencyDrag, refusalsFromCheck } from '$lib/hooks/useDependencyDrag.svelte';
+	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
+	import { setTouchTaskDragListener } from '$lib/utils/dnd';
+	import { stripMarkdownSyntax } from '$lib/utils/markdown';
+	import { onDestroy, setContext, tick, untrack } from 'svelte';
 
 	const taskId = $derived(Number(page.params.id));
 
@@ -79,6 +87,120 @@
 	const subtasksSplit = $derived(splitByRootCompletion(sortedSubtasks));
 	const openSubtasks = $derived(subtasksSplit.open);
 	const completedSubtasks = $derived(subtasksSplit.done);
+
+	// Dropping one open subtask onto the edge of another makes the dropped one
+	// wait for it (a `blocks` relation from the target); dropping it onto the
+	// middle nests it as that row's own subtask instead (see dropModeForOffset).
+	// TaskItem reads the gesture from context, so TaskTree needs no extra props;
+	// touch reaches it through dnd.ts.
+	const dependencyDrag = useDependencyDrag({
+		tasks: () => subtasks.items,
+		check: async (draggedId, candidateIds) =>
+			refusalsFromCheck(
+				(await tasksApi.blockerCheck(getApiClient(), draggedId, candidateIds)).refused
+			),
+		onDependency: (draggedId, targetId) => void addDependency(draggedId, targetId),
+		onNest: (draggedId, targetId) => void nestSubtask(draggedId, targetId)
+	});
+	setContext(DEPENDENCY_DRAG_KEY, dependencyDrag);
+	$effect(() =>
+		setTouchTaskDragListener({
+			begin: (id) => {
+				if (subtasks.items.some((t) => t.id === id && t.status === 'open')) dependencyDrag.begin(id);
+			},
+			over: (id, mode, x, y) => dependencyDrag.over(id, mode, x, y),
+			drop: (id, mode) => dependencyDrag.drop(id, mode),
+			detach: (id) => void detachSubtask(id)
+		})
+	);
+
+	async function addDependency(draggedId: number, targetId: number): Promise<void> {
+		const client = getApiClient();
+		const blockerTitle = stripMarkdownSyntax(
+			subtasks.items.find((t) => t.id === targetId)?.title ?? ''
+		);
+		let updated: Task;
+		try {
+			updated = await tasksApi.addRelation(client, draggedId, {
+				targetTaskId: targetId,
+				type: 'blocks',
+				direction: 'incoming'
+			});
+		} catch (err) {
+			toast.error(describeError(err, $t('page.task.dependencyDrag.failed')));
+			return;
+		}
+		subtasks.mutator.replace(updated);
+		// The blocker's own relation counter changed too; the answer only carries the
+		// dropped task, and this client's own SSE echo is suppressed.
+		void loader.revalidate();
+		const relationId = updated.relations?.find(
+			(r) => r.type === 'blocks' && r.direction === 'incoming' && r.task.id === targetId
+		)?.id;
+		toast.success($t('page.task.dependencyDrag.added', { values: { title: blockerTitle } }), {
+			action:
+				relationId === undefined
+					? undefined
+					: { label: $t('view.undo'), onClick: () => void undoDependency(draggedId, relationId) }
+		});
+	}
+
+	async function undoDependency(taskId: number, relationId: number): Promise<void> {
+		try {
+			subtasks.mutator.replace(await tasksApi.removeRelation(getApiClient(), taskId, relationId));
+			void loader.revalidate();
+		} catch (err) {
+			toast.error(describeError(err, $t('page.task.relationRemoveFailed')));
+		}
+	}
+
+	// Re-parent within the displayed subtree, or detach while keeping the task's
+	// own placement. Return null after rolling back a failed optimistic move.
+	async function moveSubtaskParent(draggedId: number, newParentId: number | null): Promise<Task | null> {
+		if (!task) return null;
+		const destination = newParentId === null
+			? subtasks.items.find((t) => t.id === draggedId)
+			: task;
+		if (!destination || destination.contextId === null) return null;
+		const oldItems = subtasks.items;
+		subtasks.items = subtasks.items.map((t) => (t.id === draggedId ? { ...t, parentId: newParentId } : t));
+		try {
+			const placement: TaskMoveInput = {
+				contextId: destination.contextId,
+				...(destination.projectId !== null ? { projectId: destination.projectId } : {}),
+				...(destination.sectionId !== null ? { sectionId: destination.sectionId } : {}),
+				...(newParentId !== null ? { parentId: newParentId } : {})
+			};
+			const updated = await tasksApi.move(getApiClient(), draggedId, placement);
+			if (newParentId === null) subtasks.mutator.removeSubtree(draggedId);
+			else subtasks.mutator.replace(updated);
+			void loader.revalidate();
+			return updated;
+		} catch (err) {
+			subtasks.items = oldItems;
+			toast.error(describeError(err, $t('page.task.nestDrag.failed')));
+			return null;
+		}
+	}
+
+	async function detachSubtask(id: number): Promise<void> {
+		if (!subtasks.items.some((t) => t.id === id)) return;
+		dependencyDrag.cancel();
+		if (await moveSubtaskParent(id, null)) toast.success($t('page.task.detachDrag.added'));
+	}
+
+	async function nestSubtask(draggedId: number, targetId: number): Promise<void> {
+		if (!task || draggedId === targetId) return;
+		const dragged = subtasks.items.find((t) => t.id === draggedId);
+		const target = subtasks.items.find((t) => t.id === targetId);
+		if (!dragged || !target || dragged.parentId === targetId) return;
+		const previousParentId = dragged.parentId ?? task.id;
+		const targetTitle = stripMarkdownSyntax(target.title);
+		if (!(await moveSubtaskParent(draggedId, targetId))) return;
+		toast.success($t('page.task.nestDrag.added', { values: { title: targetTitle } }), {
+			action: { label: $t('view.undo'), onClick: () => void moveSubtaskParent(draggedId, previousParentId) }
+		});
+	}
 
 	let title = $state('');
 	let description = $state('');
@@ -196,6 +318,7 @@
 	}
 
 	function setCalendarValue(v: DateValue | undefined): void {
+		if (v && `${v.year}-${pad(v.month)}-${pad(v.day)}` < nowStore.todayKey) return;
 		if (!v) {
 			dueDate = '';
 		} else {
@@ -247,13 +370,13 @@
 	}
 
 	function hydrate(t: Task): void {
-		// Server returned the exact revision we already have (typical for the SSE
-		// echo that follows our own save). Skip everything — assigning identical
-		// values still flushes derived/effects and causes a visible flicker.
-		if (task && task.id === t.id && task.updatedAt === t.updatedAt) return;
+		// Blocker counts and relation peers can change without this task's revision
+		// changing. Always refresh the task, but leave the editors alone on that revision.
+		const sameRevision = task && task.id === t.id && task.updatedAt === t.updatedAt;
+		task = t;
+		if (sameRevision) return;
 
 		allowSave = false;
-		task = t;
 		if (!titleFocused && title !== t.title) title = t.title;
 		const nextDescription = t.description ?? '';
 		if (!descriptionFocused && description !== nextDescription) description = nextDescription;
@@ -299,15 +422,15 @@
 	// Watch picker bindings for auto-save
 	$effect(() => {
 		void priority;
-		scheduleSave();
+		untrack(scheduleSave);
 	});
 	$effect(() => {
 		void dayPart;
-		scheduleSave();
+		untrack(scheduleSave);
 	});
 	$effect(() => {
 		void recurrence;
-		scheduleSave();
+		untrack(scheduleSave);
 	});
 	$effect(() => {
 		if (task) viewFilterStore.setTitle(task.title);
@@ -356,6 +479,25 @@
 		},
 		remove(_id: number) {
 			void goto(resolve('/inbox'));
+		}
+	};
+
+	const subtaskMutator: ListMutator = {
+		...subtasks.mutator,
+		replace(updated) {
+			const previous = subtasks.items.find((t) => t.id === updated.id);
+			subtasks.mutator.replace(updated);
+			// A status change can release or restore blockers on the root and other
+			// subtasks. Our own SSE echo is suppressed, so fetch those derived fields.
+			if (previous && previous.status !== updated.status) void loader.revalidate();
+		},
+		remove(id) {
+			subtasks.mutator.remove(id);
+			void loader.revalidate();
+		},
+		removeSubtree(id) {
+			subtasks.mutator.removeSubtree(id);
+			void loader.revalidate();
 		}
 	};
 
@@ -573,7 +715,7 @@ async function save(): Promise<void> {
 							}}
 							class="block w-full cursor-text break-words text-xl font-semibold leading-tight outline-none {task?.status === 'completed' ? 'text-muted-foreground line-through' : ''}"
 						>
-							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task?.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-2 inline-block size-5 text-red-500" weight="fill" /></span>{/if}
+							<MarkdownText text={title} linkClass="text-muted-foreground underline underline-offset-2 hover:text-foreground" />{#if task?.isComplex}<span class="inline-flex align-middle" title={$t('task.complexTooltip')} aria-label={$t('task.complexMarker')}><GaugeIcon class="ml-2 inline-block size-5 text-red-500" weight="fill" /></span>{/if}{#if task?.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortedTooltip')} aria-label={$t('task.autoSortedMarker')}><SparkleIcon class="ml-2 inline-block size-4 text-violet-500/70" weight="fill" /></span>{/if}{#if task?.autoSortUndecidedAt && !task?.autoSortedAt}<span class="inline-flex align-middle" title={$t('task.autoSortUndecidedTooltip')} aria-label={$t('task.autoSortUndecidedMarker')}><SealQuestionIcon class="ml-2 inline-block size-4 text-muted-foreground/60" /></span>{/if}
 						</div>
 					{:else}
 						<textarea
@@ -680,24 +822,29 @@ async function save(): Promise<void> {
 						>{$t('page.task.inboxSubtasksNoticeLink')}</button>.
 					</div>
 				{:else}
+					{#if dependencyDrag.draggedId !== null}
+						<TaskDetachDropZone onDetach={(id) => void detachSubtask(id)} />
+					{/if}
 					{#if subtasks.items.length > 0}
 						<div class="overflow-hidden rounded-md border border-border/60">
 							{#if openSubtasks.length > 0}
 								<TaskTree
 									tasks={openSubtasks}
 									showProject={false}
-									mutator={subtasks.mutator}
+									draggable={task?.status !== 'completed'}
+									mutator={subtaskMutator}
 									onToggle={(t) =>
-										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+										toggleComplete(t, subtaskMutator, { removeWhenCompleted: false })}
+									forceCompleted={task?.status === 'completed'}
 								/>
 							{/if}
 							{#if completedSubtasks.length > 0}
 								<CompletedTasksGroup
 									tasks={completedSubtasks}
 									draggable={false}
-									mutator={subtasks.mutator}
+									mutator={subtaskMutator}
 									onToggle={(t) =>
-										toggleComplete(t, subtasks.mutator, { removeWhenCompleted: false })}
+										toggleComplete(t, subtaskMutator, { removeWhenCompleted: false })}
 								/>
 							{/if}
 						</div>
@@ -791,6 +938,7 @@ async function save(): Promise<void> {
 								<Calendar
 									type="single"
 									value={calendarValue}
+									minValue={parseDate(todayKey)}
 									onValueChange={setCalendarValue}
 									captionLayout="dropdown"
 									locale={calendarLocale}
@@ -876,3 +1024,4 @@ async function save(): Promise<void> {
 {/if}
 
 <MoveTaskDialog bind:open={moveDialogOpen} task={task} mutator={pageMutator} />
+<DependencyDragTooltip drag={dependencyDrag} tasks={subtasks.items} />

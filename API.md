@@ -109,6 +109,10 @@ List endpoints accept `limit` (default 50, max 200) and `offset` query params. R
 | `passkey_exists` | 409 |
 | `calendar_reauth_required` | 409 |
 | `task_blocked` | 409 |
+| `sync_epoch_mismatch` | 409 |
+| `sync_cursor_expired` | 410 |
+| `inbox_processing_disabled` | 409 |
+| `inbox_processing_nothing_pending` | 409 |
 | `CodeInternalError` | 500 |
 
 #### `403 Forbidden`
@@ -627,7 +631,7 @@ curl -X DELETE "$BASE/api/v1/api-tokens/1" \
 
 ### Scopes Reference
 
-The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tokens`:
+The 18 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tokens`:
 
 | Scope | Description |
 |-------|-------------|
@@ -641,6 +645,8 @@ The 16 concrete scopes (plus the wildcard `*`) accepted by `POST /api/v1/api-tok
 | `labels:write` | Create, update, delete labels |
 | `sections:read` | Read sections: get by id, list sections of a project |
 | `sections:write` | Create, update, delete sections; reorder |
+| `templates:read` | Read task templates: list, get by id |
+| `templates:write` | Create, update, delete task templates |
 | `troiki:read` | Read current Troiki view |
 | `troiki:write` | Start a Troiki day; reset Troiki |
 | `settings:read` | Read user settings, server config, persisted UI state |
@@ -679,6 +685,7 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `POST /api/v1/tasks/:id/move` | `tasks:write` |
 | `POST /api/v1/tasks/:id/plan` | `tasks:write` |
 | `POST /api/v1/tasks/:id/relations` | `tasks:write` |
+| `GET /api/v1/tasks/:id/relations/blocker-check` | `tasks:read` |
 | `DELETE /api/v1/tasks/:id/relations/:relationId` | `tasks:write` |
 | `GET /api/v1/tasks/today` | `tasks:read` |
 | `GET /api/v1/tasks/tomorrow` | `tasks:read` |
@@ -699,6 +706,17 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 |----------|-------|
 | `GET /api/v1/inbox` | `tasks:read` |
 | `POST /api/v1/inbox/tasks` | `tasks:write` |
+
+#### Inbox processing
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/inbox/processing` | `settings:read` |
+| `POST /api/v1/inbox/processing/run` | `tasks:write` |
+| `POST /api/v1/inbox/processing/preview` | `settings:read` |
+| `GET /api/v1/inbox/processing/log` | `tasks:read` |
+| `POST /api/v1/inbox/processing/log/:id/revert` | `tasks:write` |
+| `PUT /api/v1/app-settings/inbox-processing` | `settings:write` |
 
 #### Projects
 
@@ -807,6 +825,16 @@ Required scope for every authenticated endpoint. Endpoints marked **JWT only** r
 | `GET /api/v1/calendars/google/start` | `calendars:read` |
 | other `/api/v1/calendars` subroutes | `calendars:read` |
 
+#### Sync
+
+Both endpoints can carry every kind of row in the workspace in one response, so
+they require every read scope at once (see [Sync](#sync)).
+
+| Endpoint | Scope |
+|----------|-------|
+| `GET /api/v1/sync/changes` | `tasks:read` **and** `projects:read`, `sections:read`, `contexts:read`, `labels:read`, `templates:read`, `settings:read` |
+| `GET /api/v1/sync/snapshot` | `tasks:read` **and** `projects:read`, `sections:read`, `contexts:read`, `labels:read`, `templates:read`, `settings:read` |
+
 #### JWT-only endpoints (no API-token access)
 
 These endpoints reject Bearer API tokens with `401`. They cannot be granted via any scope, including `*`.
@@ -891,6 +919,8 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
   "completedAt": null,
   "recurrenceRule": null,
   "postponeCount": 0,
+  "autoSortedAt": null,
+  "autoSortUndecidedAt": null,
   "labels": [{ "id": 3, "name": "bug", "color": "red", "isFavourite": false, "isPrivate": false, "createdAt": "...", "updatedAt": "..." }],
   "blockedByCount": 0,
   "relationCount": 0,
@@ -903,6 +933,10 @@ curl -X DELETE "$BASE/api/v1/sessions/12" \
 A task belongs to exactly one placement: `inboxId`, `contextId`, `projectId`, or `sectionId`. `parentId` identifies a subtask relationship.
 
 `blockedByCount` is how many still-open tasks block this one (see [Task Relations](#task-relations)); a non-zero value means completion is refused with `task_blocked`. It includes blockers **inherited from ancestor tasks** — a subtask of a blocked task is blocked too — so a subtask can report `blockedByCount: 1` with `relationCount: 0`. `relationCount` is every relation touching the task itself, both directions and both types. Both are present on **every** task-returning endpoint — the single get, all list and view endpoints, and `GET /api/v1/config`'s `pinnedTasks` — so a client never has to ask separately whether a task is blocked.
+
+`autoSortedAt` is set when the LLM Inbox processor filed the task out of the Inbox (see [Inbox processing](#inbox-processing-1)) and `null` when a person placed it. Any manual move clears it. `autoSortUndecidedAt` is set when the
+processor looked at an Inbox task but could not pick a project; such a task is not sent to the model
+again until its title or description changes or it is moved, which clears the field.
 
 `relations` is present only where noted below (`GET /api/v1/tasks/:id?relations=true` and the two relation mutations).
 
@@ -971,6 +1005,8 @@ curl -X PATCH "$BASE/api/v1/tasks/42" \
 
 ### `DELETE /api/v1/tasks/:id`
 
+Hard-deletes the task **and its whole subtask tree**, at any depth — subtasks have no meaning without their parent, so none are left orphaned. Relations and label links of every deleted task go with them.
+
 Returns `204 No Content`.
 
 ```sh
@@ -1018,7 +1054,7 @@ curl -X POST "$BASE/api/v1/tasks/42/subtasks" \
 
 ### `POST /api/v1/tasks/:id/duplicate`
 
-Creates a copy of the task with title suffixed `(2)`. Subtasks are cloned recursively under the new task (keeping their original titles). Returns `201` with the new task.
+Creates a copy of the task with title suffixed `(2)`. Subtasks are cloned recursively under the new task (keeping their original titles). Placement, description, priority, day part, plan state, deadline, recurrence, labels and the `isComplex` flag are copied — the flag describes the work, not one instance of it. Returns `201` with the new task.
 
 ```sh
 curl -X POST "$BASE/api/v1/tasks/42/duplicate" \
@@ -1159,7 +1195,11 @@ curl -X POST "$BASE/api/v1/tasks/42/move" \
 
 Set the plan state. `state` is one of `none`, `week`, `backlog`. Fails with `CodeLimitExceeded` if the plan limit is exceeded.
 
-Parking a task in the `backlog` parks its **open subtasks** with it, at any depth — their `planState` becomes `backlog` and their due date is cleared, exactly as for the parent. Completed and cancelled subtasks are left untouched, and the cascade is not counted against the backlog limit (it follows the parent rather than being a plan of its own). The same cascade runs when `PATCH /api/v1/tasks/:id` sets `planState` to `backlog`. Moving a task *out* of the backlog does not cascade — a subtask parked deliberately stays parked.
+Parking a task in the `backlog` parks its **open subtasks** with it, at any depth — their `planState` becomes `backlog` and their due date is cleared, exactly as for the parent. Completed and cancelled subtasks are left untouched, and the cascade is not counted against the backlog limit (it follows the parent rather than being a plan of its own). The same cascade runs when `PATCH /api/v1/tasks/:id` sets `planState` to `backlog`.
+
+Planning a task for the `week` cascades the same way: its **open subtasks** at any depth get `planState: "week"` too, so a subtask does not stay behind in the backlog as a separate, context-less row. Due dates are **kept** here (a day inside the week is still valid planning), completed and cancelled subtasks are untouched, and the cascade runs on `PATCH /api/v1/tasks/:id` with `planState: "week"` as well.
+
+A subtask that is in the week only because this cascade put it there does **not** consume the weekly limit: both the limit check and the `total` of `GET /api/v1/tasks/week` skip a week task whose parent is an open week task. Moving a task *out* of the backlog or the week does not cascade — a subtask parked deliberately stays parked.
 
 ```json
 { "state": "week" }
@@ -1195,7 +1235,7 @@ Directed links between two tasks. Two types:
 - `incoming` — the other task blocks this one ("blocked by"),
 - `outgoing` — this task blocks the other one ("blocks").
 
-Both endpoints below answer with the **updated task**, with `relations` hydrated. There is deliberately no `GET` for relations: they ride inside `GET /api/v1/tasks/:id?relations=true`, and the mutations return the task, so a client never needs a follow-up read.
+Both mutations below answer with the **updated task**, with `relations` hydrated. There is deliberately no `GET` listing relations: they ride inside `GET /api/v1/tasks/:id?relations=true`, and the mutations return the task, so a client never needs a follow-up read. The one read is `blocker-check`, a dry run of adding blockers.
 
 ### Relation Object
 
@@ -1249,6 +1289,28 @@ curl -X POST "$BASE/api/v1/tasks/42/relations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"targetTaskId":11,"type":"related"}'
+```
+
+### `GET /api/v1/tasks/:id/relations/blocker-check`
+
+Dry run of "each candidate blocks task `:id`" — nothing is written. Answers which of the comma-separated `candidates` (at most 500, duplicates ignored) the `POST` above would refuse, so a drag-and-drop gesture can show the refusal before the drop. Candidates that are not listed may be added. `POST` still re-checks everything on write.
+
+```json
+{ "refused": [ { "taskId": 7, "reason": "relation_exists" }, { "taskId": 9, "reason": "relation_cycle" } ] }
+```
+
+| `reason` | Meaning |
+|----------|---------|
+| `relation_self` | The candidate is `:id` itself |
+| `not_found` | No such task |
+| `relation_exists` | The candidate already blocks `:id` |
+| `relation_cycle` | `:id` already blocks the candidate, directly or through a chain |
+
+Errors: `404 not_found` when `:id` does not exist; `400 validation_failed` when `candidates` is missing, holds a non-positive or non-numeric id, or names more than 500 tasks.
+
+```sh
+curl "$BASE/api/v1/tasks/42/relations/blocker-check?candidates=7,9,11" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### `DELETE /api/v1/tasks/:id/relations/:relationId`
@@ -1355,7 +1417,11 @@ curl "$BASE/api/v1/tasks/pinned" \
 ### `GET /api/v1/tasks/completed`
 
 Tasks completed within a date window. Query params:
-- `days` — number of days back (1–90, default 1). Today is always included.
+- `days` — number of days back (default 1, capped at 36500). Today is always
+  included. The cap is only a guard against a nonsensical value: this endpoint
+  is how a client whose local copy of the history is bounded reads what has
+  aged out of it, so the window it may ask for is deliberately far wider than
+  that copy.
 
 Returns paged response.
 
@@ -2249,6 +2315,107 @@ curl -X POST "$BASE/api/v1/inbox/tasks" \
 
 ---
 
+## Inbox processing
+
+An optional background job files open Inbox tasks into projects with an OpenAI-compatible language
+model (configured with the `INBOX_PROCESSING_*` environment variables; off by default). The endpoints
+below are mounted either way, so a client can tell a disabled feature from an old server. Scopes are
+listed under [Endpoint → Scope Mapping](#endpoint--scope-mapping).
+
+### `GET /api/v1/inbox/processing`
+
+```json
+{
+  "enabled": true,
+  "model": "openai/gpt-4.1-mini",
+  "apiHost": "openrouter.ai",
+  "interval": "3m",
+  "batchLimit": 10,
+  "running": false,
+  "pendingCount": 3,
+  "undecidedCount": 1,
+  "lastRunAt": "2026-09-13T10:00:00.000Z",
+  "lastRunSummary": { "sorted": 2, "kept": 1, "failed": 0 },
+  "lastError": null,
+  "backoffUntil": null,
+  "paused": false,
+  "defaultPrompt": "You are the triage assistant…"
+}
+```
+
+`pendingCount` is how many open Inbox tasks are waiting for a decision; `undecidedCount` is how many
+the processor could not place (`autoSortUndecidedAt` set) and will not retry. `lastRunAt`,
+`lastRunSummary`, `lastError` and `backoffUntil` live in memory and reset on restart; `backoffUntil`
+is set while scheduled runs pause after a provider failure. `paused` is the persistent pause set from
+the settings page (see `PUT /api/v1/app-settings/inbox-processing`). The API key is never part of the
+response.
+
+### `POST /api/v1/inbox/processing/run`
+
+Queues an immediate run and returns at once — `202 {"running": true}`. Poll the status until
+`running` is `false`. A manual run ignores both a provider pause and the settings pause. `409 inbox_processing_disabled` when the
+feature is off, `409 inbox_processing_nothing_pending` when `pendingCount` is `0`. Does not emit an SSE invalidation itself; the processor publishes `tasks`, `inbox` and
+`plan` once it has filed a task.
+
+### `POST /api/v1/inbox/processing/preview`
+
+**Request:** `{"prompt": "…"}` renders that template (an empty string renders the built-in default);
+an empty body renders the saved prompt. The template is rendered against the live catalogue and the
+oldest open Inbox task, or a sample task when the Inbox is empty.
+
+```json
+{ "rendered": "You are the triage assistant…\n\n## Output\n…" }
+```
+
+A template that does not parse or render is `422 validation_failed` with `details.error`.
+
+### `GET /api/v1/inbox/processing/log`
+
+The decision journal, newest first, in the standard paged envelope (`limit` default 50, max 200).
+Rows are kept for 90 days.
+
+```json
+{
+  "items": [
+    {
+      "id": 17,
+      "taskId": 42,
+      "taskTitle": "Fix login redirect on Safari",
+      "outcome": "sorted",
+      "model": "openai/gpt-4.1-mini",
+      "reason": "Bug in the Turboist web app",
+      "confidence": 0.86,
+      "before": { "labelIds": [], "priority": "no-priority", "dueAt": null, "dueHasTime": false },
+      "after": { "contextId": 2, "projectId": 10, "labelIds": [3], "priority": "no-priority", "dueAt": null },
+      "error": null,
+      "promptTokens": 1830,
+      "completionTokens": 64,
+      "revertedAt": null,
+      "createdAt": "2026-09-13T10:00:02.000Z"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+`outcome` is `sorted`, `kept` or `failed`. `after` is present only for `sorted`; `error` only for
+`failed`. `taskId` becomes `null` when the task is deleted. Project and label ids are resolved by the
+client.
+
+### `POST /api/v1/inbox/processing/log/:id/revert`
+
+Returns a filed task to the Inbox: clears the marker, removes the labels the decision added and
+restores priority and due date where they still hold the values the decision set. The task is not
+filed again until it is edited. Answers with the [Task Object](#task-object).
+
+- `404 not_found` — no such journal row, or its task was deleted
+- `409 conflict` — the row is not a `sorted` decision, or it was already reverted
+- `422 forbidden_placement` — the task has since become a subtask
+
+---
+
 ## Calendars
 
 Read-only Google Calendar integration. Events are fetched live from Google and
@@ -2409,7 +2576,8 @@ sessions bypass scope checks entirely.
   "backlog": { "limit": 50 },
   "inbox": {
     "warnThreshold": 10,
-    "overflowTask": { "title": "Clear inbox", "priority": "high" }
+    "overflowTask": { "title": "Clear inbox", "priority": "high" },
+    "processingEnabled": true
   },
   "dayParts": {
     "morning": { "start": 6, "end": 12 },
@@ -2455,6 +2623,302 @@ curl -i "$BASE/api/v1/config" \
 
 The ETag is derived from the serialized payload, so it changes whenever any
 embedded section does.
+
+---
+
+## Sync
+
+Two endpoints for clients that keep a **full local copy** of the workspace and
+reconcile it in the background instead of fetching a screen at a time. They are
+additive: every other endpoint keeps its shape, the payloads are the objects the
+REST API already serves, and a client that does not want a local copy never has
+to call them.
+
+- `GET /api/v1/sync/snapshot` — seeds a replica.
+- `GET /api/v1/sync/changes` — carries what changed since a given cursor.
+
+There is no push endpoint. Writes go through the ordinary mutation endpoints.
+
+### The loop
+
+1. `GET /api/v1/sync/snapshot` — store every collection together with the
+   returned `epoch` and `cursor`.
+2. `GET /api/v1/sync/changes?since=<cursor>&epoch=<epoch>` — apply the page and
+   persist the new `cursor` with it in one local transaction, then repeat while
+   `hasMore` is `true`.
+3. Pull again whenever something moves. The SSE stream (`GET /api/v1/events`) is
+   the trigger; which scope it names does not matter here — any event, or a
+   reconnect, means "ask for changes". The stream is reachable with a JWT session
+   only, so an API-token integration polls the change feed instead.
+4. Write through the normal endpoints (`PATCH /api/v1/tasks/:id`,
+   `POST /api/v1/tasks/:id/complete`, …), each carrying an
+   [`Idempotency-Key`](#idempotency) so a retry after a lost response is safe.
+   Your own writes come back through the feed as upserts of state you already
+   hold.
+5. On `409 sync_epoch_mismatch` or `410 sync_cursor_expired`, go back to step 1.
+
+Applying is idempotent by construction: a change carries the entity's **current**
+row rather than a diff, and a delete is a tombstone for a row that is simply
+gone. Replaying a page after a crash therefore costs nothing but the work of
+writing it twice.
+
+### Entities
+
+Both endpoints speak the same entity vocabulary. Each one is a resource the API
+already serves, and its payload is that resource's object, byte for byte.
+
+| `entity` | Payload | Snapshot field | Also served by |
+|----------|---------|----------------|----------------|
+| `task` | [Task Object](#task-object) | `tasks` | `GET /api/v1/tasks/:id` |
+| `project` | [Project Object](#project-object) | `projects` | `GET /api/v1/projects/:id` |
+| `section` | [Section Object](#section-object) | `sections` | `GET /api/v1/sections/:id` |
+| `context` | [Context Object](#context-object) | `contexts` | `GET /api/v1/contexts/:id` |
+| `label` | [Label Object](#label-object) | `labels` | `GET /api/v1/labels/:id` |
+| `task_relation` | [Relation Edge](#relation-edge) | `taskRelations` | — (see below) |
+| `task_template` | [Template Object](#template-object) | `taskTemplates` | `GET /api/v1/task-templates/:id` |
+| `user_settings` | Settings object | `userSettings` | `GET /api/v1/settings` |
+| `user_state` | The stored UI-state object | `userState` | `GET /api/v1/state` |
+| `app_settings` | App settings object | `appSettings` | `GET /api/v1/app-settings` |
+
+Join and child rows have no entity of their own — the API serves their contents
+inside the owner's payload, and so does sync:
+
+| What changed | Reported as |
+|--------------|-------------|
+| A task's labels | `upsert` of the `task` |
+| A project's labels | `upsert` of the `project` |
+| A template's subtasks, its labels, or a subtask's labels | `upsert` of the `task_template` |
+
+**Never replicated**: sessions, API tokens, TOTP recovery codes, passkeys,
+idempotency keys and calendar data. Read those through their own endpoints.
+
+The `entity` strings are part of the wire contract: the set only ever grows, and
+an existing name is never repurposed.
+
+#### Relation Edge
+
+`task_relation` carries the stored edge itself rather than the direction-relative
+[Relation Object](#relation-object) that `GET /api/v1/tasks/:id?relations=true`
+returns — a client holding the whole graph derives direction locally for
+whichever end it is drawing, and has both tasks already.
+
+```json
+{
+  "id": 7,
+  "sourceTaskId": 42,
+  "targetTaskId": 9,
+  "type": "blocks",
+  "createdAt": "2026-03-09T12:34:56.789Z"
+}
+```
+
+The stored direction is *source → target*: for `type: "blocks"`, the source task
+blocks the target task. See [Task Relations](#task-relations) for the rules the
+graph enforces.
+
+### `GET /api/v1/sync/changes`
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `since` | `0` | The cursor the client already holds. Everything logged after it is returned. `0` is just the lowest possible cursor, not a bootstrap: it is served only while the log still reaches back to its first entry, and once anything older than the retained window has been trimmed (or a restore has rewritten the history) it is refused with `410 sync_cursor_expired` like any other expired cursor. Seed a replica from the snapshot |
+| `epoch` | — | The epoch the client believes its cursor belongs to. Omit it on a first call to learn the current one; send it on every call afterwards |
+| `limit` | `500` | Maximum changes in one page. `500` is also the maximum accepted value |
+
+`since` and `limit` must be non-negative integers and `limit` must not exceed
+`500`; anything else answers `400 validation_failed`.
+
+```sh
+curl "$BASE/api/v1/sync/changes?since=18200&epoch=1&limit=500" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "epoch": 1,
+  "cursor": 18234,
+  "hasMore": false,
+  "changes": [
+    {
+      "entity": "task",
+      "op": "upsert",
+      "seq": 18201,
+      "id": 42,
+      "data": {
+        "id": 42,
+        "title": "Write the quarterly report",
+        "description": "",
+        "inboxId": null,
+        "contextId": 1,
+        "projectId": 3,
+        "sectionId": null,
+        "parentId": null,
+        "priority": "high",
+        "status": "open",
+        "dueAt": "2026-03-10T00:00:00.000Z",
+        "dueHasTime": false,
+        "deadlineAt": null,
+        "deadlineHasTime": false,
+        "dayPart": "morning",
+        "planState": "week",
+        "isPinned": false,
+        "pinnedAt": null,
+        "isPrivate": false,
+        "isComplex": false,
+        "completedAt": null,
+        "recurrenceRule": null,
+        "sourceTaskId": null,
+        "postponeCount": 0,
+        "labels": [],
+        "url": "https://turboist.example.com/task/42",
+        "createdAt": "2026-03-09T12:34:56.789Z",
+        "updatedAt": "2026-03-09T13:02:11.004Z",
+        "blockedByCount": 0,
+        "relationCount": 1
+      }
+    },
+    {
+      "entity": "label",
+      "op": "delete",
+      "seq": 18209,
+      "id": 14
+    },
+    {
+      "entity": "user_state",
+      "op": "upsert",
+      "seq": 18234,
+      "id": 1,
+      "data": { "sidebarCollapsed": true }
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `epoch` | The epoch this page belongs to. Store it with the cursor |
+| `cursor` | The `seq` of the last change in the page, or `since` when the page is empty. Persist it only once the page is applied |
+| `hasMore` | `true` when more changes were waiting behind this page. `false` means the replica is level with the server as of `cursor` |
+| `changes[].entity` | One of the entity names above |
+| `changes[].op` | `upsert` or `delete` |
+| `changes[].seq` | Position in the change history — the ordering key, ascending across the page |
+| `changes[].id` | The entity id. Present on both operations; for `user_settings` and `user_state` it is the user id, for `app_settings` it is always `1` |
+| `changes[].data` | The entity's current object. Present on `upsert` only |
+
+Semantics worth knowing before writing a client:
+
+- **One change per entity per page.** Everything that happened to an entity since
+  `since` collapses into its latest state: a task edited twelve times is one
+  `upsert`, and a task created and then deleted is just the `delete`.
+- **`data` is the row as it is now**, not as it was when the change happened.
+  Two entities in the same page are therefore mutually consistent.
+- **An upsert whose row no longer exists is served as a `delete`.** A row can be
+  removed by a cascade attributed to its owner, or after the end of the page;
+  either way the client is never told to keep a row the server does not have.
+- **Deletes are the only tombstones.** The resource is gone from its table; there
+  is no soft-delete state to read instead.
+- **`epoch` is checked, not guessed.** Omitting it skips the check and is how a
+  client learns the current value; sending a stale one is refused rather than
+  silently served against a history that was replaced.
+
+**Errors**
+
+| Code | HTTP | When | `details` | Recovery |
+|------|------|------|-----------|----------|
+| `sync_epoch_mismatch` | 409 | The `epoch` sent does not match the server's — the data was replaced wholesale since the cursor was issued | `epoch` — the current epoch | Take a fresh snapshot |
+| `sync_cursor_expired` | 410 | The changes after `since` have already been trimmed, so no sequence of pages can close the gap | `epoch`, `oldestRetained` — the lowest `seq` still held | Take a fresh snapshot |
+
+```json
+{
+  "error": {
+    "code": "sync_cursor_expired",
+    "message": "sync cursor expired",
+    "details": { "epoch": 1, "oldestRetained": 18000 }
+  }
+}
+```
+
+### `GET /api/v1/sync/snapshot`
+
+Takes no parameters and is not paged: it returns every replicated entity in one
+payload, plus the position to continue the change feed from.
+
+```sh
+curl "$BASE/api/v1/sync/snapshot" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "epoch": 1,
+  "cursor": 18234,
+  "completedSince": "2025-12-10T09:15:00.000Z",
+  "tasks": [ /* Task Objects */ ],
+  "projects": [ /* Project Objects */ ],
+  "sections": [ /* Section Objects */ ],
+  "contexts": [ /* Context Objects */ ],
+  "labels": [ /* Label Objects */ ],
+  "taskRelations": [ /* Relation Edges */ ],
+  "taskTemplates": [ /* Template Objects */ ],
+  "userSettings": { "locale": "en", "maxPinnedTasks": 10, "…": "…" },
+  "appSettings": { "autoLabels": [], "projectSuggestions": [] },
+  "userState": {}
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `epoch` | The epoch the `cursor` belongs to |
+| `cursor` | The history position this payload was read at. Continue with `GET /api/v1/sync/changes?since=<cursor>` |
+| `completedSince` | Start of the completed-task window this payload was cut at |
+| collections | One field per entity, each carrying that entity's object. Empty collections are `[]`, never `null` |
+
+- **The cursor never runs ahead of the rows.** It is read in the same
+  transaction, so a write that lands mid-read either is already reflected in the
+  payload or arrives with the next page; the worst case is applying one row twice.
+- **Completed tasks are windowed to the last 90 days**, measured back from the
+  request and reported as `completedSince`. Open tasks are always included
+  whatever their age.
+- **Ancestors are always included**, however old and however long completed, so
+  an open subtask never arrives pointing at a parent the client has never seen.
+- **`taskRelations` carries only edges whose both endpoints are in the payload**,
+  so no relation ever names a task the client does not have.
+- **Older completed history is never delivered by sync.** No change page will
+  ever carry it either. Read it online with
+  [`GET /api/v1/tasks/completed`](#get-apiv1taskscompleted).
+
+### Retention
+
+The change history is kept for **90 days** — the same window the snapshot seeds
+completed tasks over, so a client is handed exactly the stretch of history it is
+allowed to catch up across — and trimmed daily.
+
+A cursor that has fallen behind the oldest retained change cannot be caught up by
+any number of pages, so the feed answers `410 sync_cursor_expired` instead of
+serving a page that would leave the copy quietly incomplete. A cursor sitting
+exactly on the trim boundary lost nothing and keeps working: routine trimming
+never forces a re-sync on a client that is merely up to date.
+
+### Epoch
+
+`epoch` names the history a cursor belongs to. It advances when the data is
+replaced wholesale — restoring a backup (`POST /api/v1/restore`) is the only
+thing that does that — after which every cursor issued earlier points into a
+history that no longer exists.
+
+A client presenting the older `epoch` is answered `409 sync_epoch_mismatch`. A
+client that omits `epoch` is not quietly resumed onto the new data either: a
+restore pushes the history past every cursor handed out before it, so a stale
+cursor is refused as `410 sync_cursor_expired`. Either way the remedy is a fresh
+snapshot.
+
+### Scopes
+
+Both endpoints require **every read scope**: `tasks:read`, `projects:read`,
+`sections:read`, `contexts:read`, `labels:read`, `templates:read` and
+`settings:read`. A single response can carry all of it, so reading the workspace
+through sync must not be cheaper than reading it endpoint by endpoint. A token
+missing any one of them gets `403 forbidden`. JWT sessions are unaffected, as
+everywhere else.
 
 ---
 
@@ -2592,9 +3056,13 @@ Global, server-wide rules (single-row `app_settings` table). Reads require the
   ],
   "projectSuggestions": [
     { "mask": "deploy", "projectIds": [4, 7], "ignoreCase": true }
-  ]
+  ],
+  "inboxProcessing": { "prompt": "", "paused": false }
 }
 ```
+
+`inboxProcessing.prompt` is the Inbox processing prompt template; an empty string means the built-in
+default. `inboxProcessing.paused` stops the scheduled Inbox processing runs.
 
 ```sh
 curl "$BASE/api/v1/app-settings" \
@@ -2625,6 +3093,35 @@ curl -X PUT "$BASE/api/v1/app-settings/project-suggestions" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"projectSuggestions":[{"mask":"deploy","projectIds":[4,7],"ignoreCase":true}]}'
+```
+
+### `PUT /api/v1/app-settings/inbox-processing`
+
+**Request:** `{"prompt": "…", "paused": false}` — either field or both; a field left out keeps its
+stored value, and a body with neither is `400`.
+
+- `prompt` — the Inbox processing prompt, a Go `text/template` of at most 20000 characters. It is
+  validated by rendering it against the live catalogue; a broken template is `422 validation_failed`
+  with `details.error`. An empty prompt, or the unchanged built-in default, is stored as `""` so later
+  default improvements still apply.
+- `paused` — `true` skips the scheduled runs until set back to `false`. Persists across restarts; a
+  manual `POST /api/v1/inbox/processing/run` still runs.
+
+Works whether or not the feature is enabled. Returns the full app settings and emits no SSE
+invalidation.
+
+```sh
+curl -X PUT "$BASE/api/v1/app-settings/inbox-processing" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"File {{.Task.Title}} into one of {{len .Projects}} projects."}'
+```
+
+```sh
+curl -X PUT "$BASE/api/v1/app-settings/inbox-processing" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"paused":true}'
 ```
 
 ---

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Declared by the module that needs it rather than only by the app: the sync
+      engine watches for the network coming back so a device that was offline
+      catches up on its own, and asking the connectivity service anything at all
+      requires this permission. Keeping it here means the requirement travels
+      with the code that depends on it, and any consumer of this module inherits
+      it through the manifest merge instead of having to know about it.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+</manifest>

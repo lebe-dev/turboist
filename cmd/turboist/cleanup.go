@@ -51,3 +51,96 @@ func pruneIdempotencyOnce(ctx context.Context, keys *repo.IdempotencyRepo, log *
 	}
 	log.Info("idempotency cleanup done", slog.String("op", "main.IdempotencyCleanup"), slog.Int64("removed", n))
 }
+
+// changeLogPruneInterval is how often the change log is trimmed back to the
+// retention window. Daily is plenty: the window is measured in months, and the
+// only cost of a late prune is a few rows nobody reads.
+const changeLogPruneInterval = 24 * time.Hour
+
+// startChangeLogPrune trims the change log immediately, then once a day until
+// ctx is cancelled. It shares the cleanup context with the other background
+// jobs, so it stops on graceful shutdown.
+//
+// Trimming is what keeps the log from growing for the life of the install. It
+// removes only history older than the window a replica is allowed to catch up
+// over, so a client that is merely up to date is never affected; one that has
+// been offline for longer is told to reseed instead of resuming.
+func startChangeLogPrune(ctx context.Context, changes *repo.ChangeLogRepo, log *slog.Logger) {
+	go runChangeLogPrune(ctx, changes, log, changeLogPruneInterval)
+}
+
+func runChangeLogPrune(ctx context.Context, changes *repo.ChangeLogRepo, log *slog.Logger, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	pruneChangeLogOnce(ctx, changes, log)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			pruneChangeLogOnce(ctx, changes, log)
+		}
+	}
+}
+
+func pruneChangeLogOnce(ctx context.Context, changes *repo.ChangeLogRepo, log *slog.Logger) {
+	const op = "main.ChangeLogPrune"
+	n, err := changes.Prune(ctx, time.Now().Add(-repo.SyncHistoryWindow))
+	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": op})
+		log.Error("change log prune failed", slog.String("op", op), slog.String("err", err.Error()))
+		return
+	}
+	if n == 0 {
+		log.Debug("change log prune done", slog.String("op", op), slog.Int64("removed", n))
+		return
+	}
+	log.Info("change log prune done", slog.String("op", op), slog.Int64("removed", n))
+}
+
+// inboxProcessingJournalRetention is how long LLM Inbox decisions stay in the
+// journal. It matches the sync history window: a decision older than that is
+// no longer something anyone reverts.
+const inboxProcessingJournalRetention = repo.SyncHistoryWindow
+
+// startInboxProcessingPrune trims the Inbox processing journal and forgets the
+// state of tasks that left the Inbox, immediately and then once a day. It runs
+// whether or not the feature is enabled, so a switched-off install does not keep
+// old rows forever.
+func startInboxProcessingPrune(ctx context.Context, journal *repo.InboxProcessingRepo, log *slog.Logger) {
+	go func() {
+		ticker := time.NewTicker(changeLogPruneInterval)
+		defer ticker.Stop()
+		pruneInboxProcessingOnce(ctx, journal, log)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				pruneInboxProcessingOnce(ctx, journal, log)
+			}
+		}
+	}()
+}
+
+func pruneInboxProcessingOnce(ctx context.Context, journal *repo.InboxProcessingRepo, log *slog.Logger) {
+	const op = "main.InboxProcessingPrune"
+	logs, err := journal.PruneLog(ctx, time.Now().Add(-inboxProcessingJournalRetention))
+	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": op})
+		log.Error("inbox processing journal prune failed", slog.String("op", op), slog.String("err", err.Error()))
+		return
+	}
+	states, err := journal.PruneStaleStates(ctx)
+	if err != nil {
+		obs.CaptureError(err, map[string]string{"op": op})
+		log.Error("inbox processing state prune failed", slog.String("op", op), slog.String("err", err.Error()))
+		return
+	}
+	if logs == 0 && states == 0 {
+		log.Debug("inbox processing prune done", slog.String("op", op))
+		return
+	}
+	log.Info("inbox processing prune done", slog.String("op", op),
+		slog.Int64("journal_removed", logs), slog.Int64("states_removed", states))
+}
