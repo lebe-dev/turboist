@@ -141,7 +141,9 @@ describe('Troiki page render', () => {
 				]
 			}
 		});
-		projectsStore.upsert(makeProject({ id: 10, title: 'Side hustle', troikiCategory: 'important' }));
+		projectsStore.upsert(
+			makeProject({ id: 10, title: 'Side hustle', troikiCategory: 'important' })
+		);
 		render(TroikiPage);
 		expect(await screen.findByText('Side hustle')).toBeTruthy();
 		expect(await screen.findByText('first task')).toBeTruthy();
@@ -151,7 +153,47 @@ describe('Troiki page render', () => {
 		hydrate({ important: { capacity: 3, projects: [] }, started: true });
 		render(TroikiPage);
 		const empties = await screen.findAllByText(/Empty slot/);
-		expect(empties.length).toBeGreaterThanOrEqual(3);
+		expect(empties).toHaveLength(3);
+	});
+
+	it.each<TroikiCategory>(['important', 'medium', 'rest'])(
+		'limits empty placeholders in %s when capacity accumulates',
+		async (category) => {
+			hydrate({
+				important: { capacity: 0, projects: [] },
+				[category]: {
+					capacity: 114,
+					projects: [1, 2].map((id) => ({
+						...makeProject({ id, title: `Project ${id}`, troikiCategory: category }),
+						tasks: []
+					}))
+				},
+				started: true
+			});
+			render(TroikiPage);
+			expect(await screen.findAllByText(/Empty slot/)).toHaveLength(1);
+			expect(screen.getByText('2/114')).toBeTruthy();
+			expect(screen.getByText('Project 1')).toBeTruthy();
+			expect(screen.getByText('Project 2')).toBeTruthy();
+		}
+	);
+
+	it('keeps all assigned projects without placeholders when more than three are assigned', async () => {
+		hydrate({
+			important: { capacity: 0, projects: [] },
+			medium: {
+				capacity: 114,
+				projects: [1, 2, 3, 4].map((id) => ({
+					...makeProject({ id, title: `Project ${id}`, troikiCategory: 'medium' }),
+					tasks: []
+				}))
+			},
+			started: true
+		});
+		render(TroikiPage);
+		expect(await screen.findByText('Project 4')).toBeTruthy();
+		expect(screen.getAllByText(/^Project \d$/)).toHaveLength(4);
+		expect(screen.queryAllByText(/Empty slot/)).toHaveLength(0);
 	});
 
 	it('shows initial-mode placeholder before Start when no projects assigned', async () => {

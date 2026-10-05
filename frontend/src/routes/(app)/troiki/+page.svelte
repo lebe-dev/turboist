@@ -307,7 +307,7 @@
 				{@const locked = !initialMode && slot.capacity === 0}
 				{@const open = slot.projects.length}
 				{@const cap = slot.capacity}
-				{@const emptySlots = Math.max(0, cap - open)}
+				{@const emptySlots = Math.max(0, Math.min(3, cap) - open)}
 				<section>
 					<header class="flex items-baseline justify-between px-3 pb-2">
 						<div class="flex items-center gap-2">
