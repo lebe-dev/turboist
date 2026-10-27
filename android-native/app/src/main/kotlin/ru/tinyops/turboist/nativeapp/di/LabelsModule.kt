@@ -4,7 +4,9 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import ru.tinyops.turboist.nativeapp.labels.DataStoreRecentLabels
 import ru.tinyops.turboist.nativeapp.labels.LabelActions
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.labels.WriteRepoLabelActions
 import javax.inject.Singleton
 
@@ -21,4 +23,8 @@ abstract class LabelsModule {
     @Binds
     @Singleton
     abstract fun bindLabelActions(actions: WriteRepoLabelActions): LabelActions
+
+    @Binds
+    @Singleton
+    abstract fun bindRecentLabels(recent: DataStoreRecentLabels): RecentLabels
 }

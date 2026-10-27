@@ -51,6 +51,7 @@ import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labels.pickRecentLabels
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -388,9 +389,23 @@ internal fun LabelsSheet(
     selected: List<String>,
     onChange: (List<String>) -> Unit,
     onDismiss: () -> Unit,
+    recentOrder: List<Long> = emptyList(),
 ) {
     var query by remember { mutableStateOf("") }
     val matches = known.filter { it.name.contains(query.trim(), ignoreCase = true) }
+    // The labels this device applied lately lead, lifted out of the list below
+    // so none is offered twice.
+    val recent = pickRecentLabels(recentOrder, matches)
+    val lifted = recent.mapTo(HashSet()) { it.localId }
+    val chip: @Composable (Label) -> Unit = { label ->
+        val on = label.name in selected
+        FilterChip(
+            selected = on,
+            onClick = { onChange(if (on) selected - label.name else selected + label.name) },
+            label = { Text(label.name) },
+            modifier = Modifier.semantics { contentDescription = label.name },
+        )
+    }
 
     FieldSheet(title = stringResource(R.string.page_task_labels), onDismiss = onDismiss) {
         Text(
@@ -407,19 +422,29 @@ internal fun LabelsSheet(
             leadingIcon = { Icon(imageVector = Icons.Filled.Search, contentDescription = null) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
         )
+        if (recent.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.label_picker_recent),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp),
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                for (label in recent) chip(label)
+            }
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
+        }
         FlowRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             for (label in matches) {
-                val on = label.name in selected
-                FilterChip(
-                    selected = on,
-                    onClick = { onChange(if (on) selected - label.name else selected + label.name) },
-                    label = { Text(label.name) },
-                    modifier = Modifier.semantics { contentDescription = label.name },
-                )
+                if (label.localId !in lifted) chip(label)
             }
         }
         Row(

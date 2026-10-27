@@ -311,6 +311,7 @@ private fun QuickAddFields(
             known = state.knownLabels,
             selected = state.draft.labelNames,
             onChange = callbacks.onLabels,
+            recentOrder = state.recentLabelOrder,
         )
 
         Row(

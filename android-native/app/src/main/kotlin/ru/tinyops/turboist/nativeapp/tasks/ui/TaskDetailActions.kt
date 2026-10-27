@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.CallSplit
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.DataObject
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.DriveFileMove
 import androidx.compose.material3.AlertDialog
@@ -61,6 +62,7 @@ fun TaskActionsSheet(
     canDecompose: Boolean = false,
     onDecompose: (List<String>) -> Unit = {},
     onCreateTemplate: () -> Unit = {},
+    onCopyJson: () -> Unit = {},
 ) {
     var confirmingDelete by remember { mutableStateOf(false) }
     var splitting by remember { mutableStateOf(false) }
@@ -92,6 +94,14 @@ fun TaskActionsSheet(
                 onClick = {
                     onDismiss()
                     onCreateTemplate()
+                },
+            )
+            SheetActionRow(
+                text = stringResource(R.string.task_actions_copyJson),
+                leading = Icons.Outlined.DataObject,
+                onClick = {
+                    onDismiss()
+                    onCopyJson()
                 },
             )
             // Splitting a task that already has work under it is refused, here as

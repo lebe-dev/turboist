@@ -18,6 +18,8 @@ import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
+import ru.tinyops.turboist.nativeapp.labels.withRecentLabel
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import ru.tinyops.turboist.nativeapp.templates.TemplateCapture
 import java.time.LocalDate
@@ -854,6 +856,194 @@ class TaskDetailPresenterTest {
 
             assertEquals(listOf(TaskListMessage.FAILED), said)
         }
+
+    // --- lifting a subtask out to the top level -----------------------------
+
+    @Test
+    fun `dropping a subtask on the detach zone lifts it into its own section and offers an undo`() =
+        runTest {
+            val presenter =
+                open(
+                    task(1, contextLocalId = 6, projectLocalId = 7, sectionLocalId = 8),
+                    subtasks =
+                        listOf(
+                            task(3, parentLocalId = 1, contextLocalId = 6, projectLocalId = 7, sectionLocalId = 8),
+                            task(4, parentLocalId = 3, contextLocalId = 6, projectLocalId = 7, sectionLocalId = 8),
+                        ),
+                )
+            val detached = mutableListOf<SubtaskDetached>()
+            backgroundScope.launch { presenter.subtaskDetached.collect { detached += it } }
+
+            presenter.detachSubtask(4)
+            runCurrent()
+
+            assertEquals(listOf("move 4 InSection(sectionLocalId=8)"), actions.calls)
+            assertEquals(listOf(SubtaskDetached(taskLocalId = 4, previousParentLocalId = 3)), detached)
+
+            presenter.undoDetach(detached.single())
+            runCurrent()
+
+            assertEquals("move 4 SubtaskOf(parentTaskLocalId=3)", actions.calls.last())
+        }
+
+    @Test
+    fun `a subtask outside any section is lifted into its project, and one outside a project into its context`() =
+        runTest {
+            val presenter =
+                open(
+                    task(1, contextLocalId = 6, projectLocalId = 7),
+                    subtasks =
+                        listOf(
+                            task(2, parentLocalId = 1, contextLocalId = 6, projectLocalId = 7),
+                            task(3, parentLocalId = 1, contextLocalId = 6),
+                        ),
+                )
+
+            presenter.detachSubtask(2)
+            presenter.detachSubtask(3)
+            runCurrent()
+
+            assertEquals(
+                listOf("move 2 InProject(projectLocalId=7)", "move 3 InContext(contextLocalId=6)"),
+                actions.calls,
+            )
+        }
+
+    @Test
+    fun `a row the screen does not show as a subtask is never lifted`() =
+        runTest {
+            val presenter = open(task(1, contextLocalId = 6), subtasks = siblings)
+
+            presenter.detachSubtask(1)
+            presenter.detachSubtask(42)
+            runCurrent()
+
+            assertEquals(emptyList(), actions.calls)
+        }
+
+    @Test
+    fun `a lift the device turns down is reported and offers nothing to undo`() =
+        runTest {
+            val presenter =
+                open(task(1, contextLocalId = 6), subtasks = listOf(task(2, parentLocalId = 1, contextLocalId = 6)))
+            val said = mutableListOf<TaskListMessage>()
+            val detached = mutableListOf<SubtaskDetached>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            backgroundScope.launch { presenter.subtaskDetached.collect { detached += it } }
+            actions.refuseWith = WriteRefused.Invalid("no")
+
+            presenter.detachSubtask(2)
+            runCurrent()
+
+            assertEquals(listOf(TaskListMessage.FAILED), said)
+            assertEquals(emptyList(), detached)
+        }
+
+    // --- the subtasks of finished work --------------------------------------
+
+    @Test
+    fun `every subtask of a finished task reads as finished, whatever its own status`() =
+        runTest {
+            val presenter = open(task(1, status = TaskStatus.COMPLETED), subtasks = siblings)
+            val rows = presenter.state.value.openSubtasks + presenter.state.value.doneSubtasks
+
+            assertEquals(listOf(2L, 3L, 4L), rows.map { it.task.localId }.sorted())
+            assertTrue(rows.all { it.ancestorCompleted })
+        }
+
+    @Test
+    fun `an open subtask under a finished one reads as finished, while its open neighbours do not`() =
+        runTest {
+            val presenter =
+                open(
+                    task(1),
+                    subtasks =
+                        listOf(
+                            task(2, parentLocalId = 1),
+                            task(3, parentLocalId = 1, status = TaskStatus.COMPLETED),
+                            task(4, parentLocalId = 3),
+                        ),
+                )
+            val rows = (presenter.state.value.openSubtasks + presenter.state.value.doneSubtasks)
+            val finishedAbove = rows.filter { it.ancestorCompleted }.map { it.task.localId }
+
+            assertEquals(listOf(4L), finishedAbove)
+        }
+
+    // --- recently applied labels --------------------------------------------
+
+    @Test
+    fun `labels added to the task are remembered as recent, labels taken off are not`() =
+        runTest {
+            val home = Label(localId = 10, name = "home", createdAt = 0, updatedAt = 0)
+            val work = Label(localId = 11, name = "work", createdAt = 0, updatedAt = 0)
+            val urgent = Label(localId = 12, name = "urgent", createdAt = 0, updatedAt = 0)
+            val recent = RecordingRecentLabels()
+            val presenter =
+                TaskDetailPresenter(backgroundScope, content, actions, sync, relationSearch, recentLabels = recent)
+            backgroundScope.launch { presenter.state.collect {} }
+            content.value = detail(task(1, labels = listOf(home)), knownLabels = listOf(home, work, urgent))
+            runCurrent()
+
+            presenter.setLabels(listOf("work", "urgent"))
+            runCurrent()
+
+            assertEquals(listOf(11L, 12L), recent.remembered)
+            assertEquals(listOf(12L, 11L), presenter.state.value.recentLabelOrder)
+        }
+
+    // --- copying the task as JSON -------------------------------------------
+
+    @Test
+    fun `the task copies as JSON with its whole subtree, nested the way it is on screen`() =
+        runTest {
+            val presenter = open(task(1, title = "Trip", description = "Summer"), subtasks = siblings)
+
+            val json = presenter.taskJson()
+
+            assertEquals(
+                """
+                {
+                  "title": "Trip",
+                  "description": "Summer",
+                  "subtasks": [
+                    {
+                      "title": "Order the parts",
+                      "description": ""
+                    },
+                    {
+                      "title": "Assemble",
+                      "description": "",
+                      "subtasks": [
+                        {
+                          "title": "Unpack",
+                          "description": ""
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.trimIndent(),
+                json,
+            )
+        }
+
+    /** The device's memory of recently applied labels, kept in a list. */
+    private class RecordingRecentLabels : RecentLabels {
+        val remembered = mutableListOf<Long>()
+        private val order = MutableStateFlow<List<Long>>(emptyList())
+
+        override fun observe() = order
+
+        override suspend fun remember(labelLocalId: Long) {
+            remembered += labelLocalId
+            order.value = withRecentLabel(order.value, labelLocalId)
+        }
+
+        override suspend fun clear() {
+            order.value = emptyList()
+        }
+    }
 
     /** Cutting a template out of a task, remembered rather than performed. */
     private class RecordingCapture : TemplateCapture {

@@ -42,6 +42,7 @@ import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labels.pickRecentLabels
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -341,20 +342,33 @@ fun LabelSelector(
     selected: List<String>,
     onChange: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
+    recentOrder: List<Long> = emptyList(),
 ) {
     if (known.isEmpty()) return
+    // The labels this device applied lately get a row of their own above the
+    // rest, and are lifted out of it so none is offered twice.
+    val recent = pickRecentLabels(recentOrder, known)
+    val lifted = recent.mapTo(HashSet()) { it.localId }
+    val chip: @Composable (Label) -> Unit = { label ->
+        val on = label.name in selected
+        FilterChip(
+            selected = on,
+            onClick = { onChange(if (on) selected - label.name else selected + label.name) },
+            label = { Text(label.name) },
+            modifier = Modifier.semantics { contentDescription = label.name },
+        )
+    }
+    if (recent.isNotEmpty()) {
+        ChoiceRow(label = stringResource(R.string.label_picker_recent), modifier = modifier) {
+            for (label in recent) chip(label)
+        }
+    }
     ChoiceRow(
         label = stringResource(R.string.page_task_labels),
         modifier = modifier,
     ) {
         for (label in known) {
-            val on = label.name in selected
-            FilterChip(
-                selected = on,
-                onClick = { onChange(if (on) selected - label.name else selected + label.name) },
-                label = { Text(label.name) },
-                modifier = Modifier.semantics { contentDescription = label.name },
-            )
+            if (label.localId !in lifted) chip(label)
         }
     }
 }

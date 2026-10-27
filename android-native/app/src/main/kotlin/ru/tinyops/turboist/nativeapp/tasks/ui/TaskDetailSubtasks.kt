@@ -68,9 +68,9 @@ fun TaskDetailSubtasks(
     onAdd: (String) -> Unit,
     modifier: Modifier = Modifier,
     dependencies: SubtaskDependencies = SubtaskDependencies.None,
+    drag: SubtaskDragState = remember { SubtaskDragState() },
 ) {
     val total = open.size + done.size
-    val drag = remember { SubtaskDragState() }
     val row: @Composable (TaskListRow) -> Unit = { row ->
         SubtaskRow(row, zone, today, onToggleComplete, onOpen, drag, dependencies)
     }

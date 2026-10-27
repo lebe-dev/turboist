@@ -76,7 +76,7 @@ fun TaskRow(
     modifier: Modifier = Modifier,
 ) {
     val task = row.task
-    val completed = task.status == TaskStatus.COMPLETED
+    val completed = task.status == TaskStatus.COMPLETED || row.ancestorCompleted
     val blocked = task.isBlocked && !completed
     val tint = priorityTint(task.priority)
 

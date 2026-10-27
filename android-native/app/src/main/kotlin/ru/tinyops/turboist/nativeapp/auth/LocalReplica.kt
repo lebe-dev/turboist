@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import ru.tinyops.turboist.core.database.TurboistDatabase
 import ru.tinyops.turboist.nativeapp.calendar.CalendarCache
 import ru.tinyops.turboist.nativeapp.harpoon.HarpoonStore
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,6 +38,7 @@ class RoomLocalReplica
         private val database: TurboistDatabase,
         private val calendar: CalendarCache,
         private val harpoon: HarpoonStore,
+        private val recentLabels: RecentLabels,
     ) : LocalReplica {
         override suspend fun unsentChangeCount(): Int =
             database.outbox().all().size + database.outbox().quarantined().size
@@ -56,5 +58,8 @@ class RoomLocalReplica
             // database for the same reason, and are the next person's business
             // even less than the diary is.
             harpoon.clear()
+            // Recent labels are remembered by the ids this replica gave them, and
+            // the next replica hands the same ids out to different labels.
+            recentLabels.clear()
         }
     }

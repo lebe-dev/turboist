@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import ru.tinyops.turboist.nativeapp.templates.TemplateCapture
 import java.time.LocalDate
@@ -35,6 +36,7 @@ class TaskDetailViewModel
         actions: TaskDetailActions,
         relationSearch: TaskRelationSearch,
         templates: TemplateCapture,
+        recentLabels: RecentLabels,
         sync: SyncScheduler,
         clock: DayClock,
     ) : ViewModel() {
@@ -57,7 +59,8 @@ class TaskDetailViewModel
                 }
 
         /** The rows, the writes and the refresh gesture. */
-        val presenter = TaskDetailPresenter(viewModelScope, content, actions, sync, relationSearch, templates)
+        val presenter =
+            TaskDetailPresenter(viewModelScope, content, actions, sync, relationSearch, templates, recentLabels)
 
         /** Where the task can be moved to. Read only while the move sheet is open. */
         val moveOptions: StateFlow<List<MoveProject>> =

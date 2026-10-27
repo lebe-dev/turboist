@@ -21,11 +21,15 @@ import java.time.ZoneId
  *   root, because indenting it under nothing would only look like damage.
  * @property projectTitle the project the task lives in, already resolved, or
  *   `null` when it lives somewhere else — the inbox, or a context directly.
+ * @property ancestorCompleted a task above this one is finished, so the row is
+ *   drawn as finished too, whatever its own status says: work under a finished
+ *   task is not work that is still waiting.
  */
 data class TaskListRow(
     val task: Task,
     val depth: Int,
     val projectTitle: String?,
+    val ancestorCompleted: Boolean = false,
 )
 
 /** What a block of rows is headed with. */

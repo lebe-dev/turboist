@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -25,6 +26,7 @@ class QuickAddViewModel
     constructor(
         repository: QuickAddRepository,
         recent: RecentProjects,
+        recentLabels: RecentLabels,
         actions: QuickAddActions,
         requests: QuickAddRequests,
         clock: DayClock,
@@ -36,7 +38,8 @@ class QuickAddViewModel
         val today: StateFlow<LocalDate> =
             clock.days().stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), clock.today())
 
-        val presenter = QuickAddPresenter(viewModelScope, repository.observeWorkspace(), recent, actions, clock.zone)
+        val presenter =
+            QuickAddPresenter(viewModelScope, repository.observeWorkspace(), recent, actions, clock.zone, recentLabels)
 
         init {
             // A share or a launcher shortcut can arrive long before this exists —

@@ -1,16 +1,19 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import android.app.Application
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.junit.Rule
 import org.junit.Test
@@ -432,4 +435,144 @@ class TaskDetailScreenTest {
 
         compose.onNodeWithText("Kitchen · Doing").performScrollTo().assertIsDisplayed()
     }
+
+    // --- dragging subtasks ----------------------------------------------------
+
+    private fun showWithDrag(state: TaskDetailUiState) {
+        compose.setContent {
+            TurboistTheme {
+                TaskDetailScreen(
+                    state = state,
+                    zone = zone,
+                    today = today,
+                    moveOptions = emptyList(),
+                    messages = messages,
+                    callbacks =
+                        callbacks().copy(
+                            onNestUnder = { dragged, target -> performed += "nest $dragged $target" },
+                            onDetachSubtask = { performed += "detach $it" },
+                        ),
+                )
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    /** Long-presses [title], then carries it to the root-coordinate point [to] and lets go. */
+    private fun carry(
+        title: String,
+        to: () -> Offset,
+    ) {
+        compose.onNodeWithText(title).performScrollTo()
+        // Once the row is picked up the tooltip by the finger names it too, so the
+        // row is the first of the two from then on.
+        val row = compose.onAllNodesWithText(title).onFirst()
+        val rowTopLeft = row.fetchSemanticsNode().boundsInRoot.topLeft
+        row.performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            moveBy(Offset(0f, 4f))
+        }
+        compose.waitForIdle()
+        val target = to()
+        row.performTouchInput {
+            moveTo(target - rowTopLeft)
+            up()
+        }
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun `a subtask carried onto another's middle is nested under it`() {
+        val subtasks =
+            listOf(
+                task(2, title = "Order the parts", parentLocalId = 1),
+                task(3, title = "Assemble", parentLocalId = 1),
+            )
+        showWithDrag(stateOf(task(1, title = "Build a shelf"), openSubtasks = subtasks))
+
+        carry("Assemble") { compose.onNodeWithText("Order the parts").fetchSemanticsNode().boundsInRoot.center }
+
+        assertEquals(listOf("nest 3 2"), performed)
+    }
+
+    /**
+     * The drag reads the gesture before the row does, so both halves of that are
+     * worth holding down: a tap is still the row's, and a hold that never moves
+     * is the drag's and so is not mistaken for a tap.
+     */
+    @Test
+    fun `a tap still opens a subtask, and holding one still without moving does nothing`() {
+        showWithDrag(
+            stateOf(
+                task(1, title = "Build a shelf"),
+                openSubtasks = listOf(task(3, title = "Assemble", parentLocalId = 1)),
+            ),
+        )
+        compose.onNodeWithText("Assemble").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("open 3"), performed)
+        performed.clear()
+
+        compose.onNodeWithText("Assemble").performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(LONG_PRESS_HOLD_MILLIS)
+        compose.onAllNodesWithText("Assemble").onFirst().performTouchInput { up() }
+        compose.waitForIdle()
+
+        assertEquals(emptyList(), performed)
+    }
+
+    @Test
+    fun `a subtask carried onto the detach zone is lifted to the top level`() {
+        val subtasks =
+            listOf(
+                task(2, title = "Order the parts", parentLocalId = 1),
+                task(3, title = "Assemble", parentLocalId = 1),
+            )
+        showWithDrag(stateOf(task(1, title = "Build a shelf"), openSubtasks = subtasks))
+
+        carry("Assemble") {
+            compose.onNodeWithText(text(R.string.page_task_detachDrag_hint)).fetchSemanticsNode().boundsInRoot.center
+        }
+
+        assertEquals(listOf("detach 3"), performed)
+    }
+
+    @Test
+    fun `the subtasks of a finished task are drawn as finished`() {
+        val state =
+            stateOf(
+                task(1, status = TaskStatus.COMPLETED, completedAt = 1_000L),
+                openSubtasks = listOf(task(2, title = "Sand it", parentLocalId = 1)),
+            )
+        show(state.copy(openSubtasks = state.openSubtasks.map { it.copy(ancestorCompleted = true) }))
+
+        compose.onAllNodesWithContentDescription(text(R.string.task_markIncomplete)).assertCountEquals(2)
+    }
+
+    @Test
+    fun `the label sheet leads with the labels applied lately`() {
+        val labels = (1L..7L).map { label(it, "label $it") }
+        show(stateOf(task(1), knownLabels = labels).copy(recentLabelOrder = listOf(6L, 2L)))
+
+        compose.onNodeWithText(text(R.string.native_task_change)).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.label_picker_recent)).assertIsDisplayed()
+        // Lifted into the recent row, so offered once rather than twice.
+        compose.onAllNodesWithText("label 6").assertCountEquals(1)
+    }
+
+    @Test
+    fun `the actions offer to copy the task as JSON`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithContentDescription(text(R.string.native_task_more)).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.task_actions_copyJson)).assertIsDisplayed()
+    }
 }
+
+/** Comfortably longer than any long-press timeout. */
+private const val LONG_PRESS_HOLD_MILLIS = 1_000L

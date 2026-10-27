@@ -8,8 +8,12 @@ import kotlinx.coroutines.test.runTest
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.TroikiCategory
+import ru.tinyops.turboist.core.model.view.BlockEdge
+import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
+import ru.tinyops.turboist.core.model.view.NestDropRefusal
 import ru.tinyops.turboist.core.sync.write.ProjectStatusAction
 import ru.tinyops.turboist.core.sync.write.WriteRefused
+import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.task
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,11 +46,13 @@ class ProjectBoardPresenterTest {
         sections: List<ru.tinyops.turboist.core.model.ProjectSection> = emptyList(),
         tasks: List<ru.tinyops.turboist.core.model.Task> = emptyList(),
         status: ProjectStatus = ProjectStatus.OPEN,
+        blockEdges: List<BlockEdge> = emptyList(),
     ) = ProjectBoardContent(
         project = project(1, "Website", status = status),
         contextName = "Work",
         sections = sections,
         tasks = tasks,
+        blockEdges = blockEdges,
     )
 
     @Test
@@ -272,5 +278,131 @@ class ProjectBoardPresenterTest {
             runCurrent()
 
             assertEquals(emptyList(), actions.calls)
+        }
+
+    // --- dragging one task onto another -------------------------------------
+
+    /** Two columns: 2 and 3 in the project's own, 3 holding 4; 5 in "Doing". */
+    private val dragBoard =
+        board(
+            sections = listOf(section(10, "Doing")),
+            tasks =
+                listOf(
+                    task(2, title = "Design", projectLocalId = 1),
+                    task(3, title = "Build", projectLocalId = 1),
+                    task(4, title = "Wire it up", projectLocalId = 1, parentLocalId = 3),
+                    task(5, title = "Launch", projectLocalId = 1, sectionLocalId = 10),
+                    task(6, title = "Kickoff", projectLocalId = 1, status = TaskStatus.COMPLETED),
+                ),
+            blockEdges = listOf(BlockEdge(blockerLocalId = 2, blockedLocalId = 5)),
+        )
+
+    @Test
+    fun `dropping a task on another's edge makes it wait for that one, across columns, and offers an undo`() =
+        runTest {
+            val presenter = presenter()
+            content.value = dragBoard
+            runCurrent()
+            val added = mutableListOf<DependencyAdded>()
+            backgroundScope.launch { presenter.dependencyAdded.collect { added += it } }
+
+            presenter.makeDependent(draggedLocalId = 3, targetLocalId = 5)
+            runCurrent()
+
+            assertEquals(listOf("addBlocker 3 5"), actions.calls)
+            assertEquals(listOf(DependencyAdded(3, RecordingProjectActions.ADDED_RELATION_LOCAL_ID, "Launch")), added)
+
+            presenter.undoDependency(added.single())
+            runCurrent()
+
+            assertEquals("removeRelation 3 ${RecordingProjectActions.ADDED_RELATION_LOCAL_ID}", actions.calls.last())
+        }
+
+    @Test
+    fun `the board knows while the finger is still down which drops it would refuse`() =
+        runTest {
+            val presenter = presenter()
+            content.value = dragBoard
+            runCurrent()
+            val state = presenter.state.value
+
+            assertEquals(DependencyDropRefusal.EXISTS, state.dependencyRefusal(draggedLocalId = 5, targetLocalId = 2))
+            assertEquals(DependencyDropRefusal.CYCLE, state.dependencyRefusal(draggedLocalId = 2, targetLocalId = 5))
+            assertEquals(
+                DependencyDropRefusal.COMPLETED,
+                state.dependencyRefusal(draggedLocalId = 2, targetLocalId = 6),
+            )
+            assertEquals(DependencyDropRefusal.ANCESTOR, state.dependencyRefusal(draggedLocalId = 4, targetLocalId = 3))
+            assertEquals(NestDropRefusal.DESCENDANT, state.nestRefusal(draggedLocalId = 3, targetLocalId = 4))
+            assertTrue(state.nestNoop(draggedLocalId = 4, targetLocalId = 3))
+            assertTrue(state.canDetach(4))
+            assertFalse(state.canDetach(3))
+        }
+
+    @Test
+    fun `a refused drop queues nothing`() =
+        runTest {
+            val presenter = presenter()
+            content.value = dragBoard
+            runCurrent()
+
+            presenter.makeDependent(draggedLocalId = 2, targetLocalId = 6)
+            presenter.nestUnder(draggedLocalId = 3, targetLocalId = 4)
+            presenter.nestUnder(draggedLocalId = 4, targetLocalId = 3)
+            runCurrent()
+
+            assertEquals(emptyList(), actions.calls)
+        }
+
+    @Test
+    fun `dropping a task on another's middle nests it there, whichever column the target is in`() =
+        runTest {
+            val presenter = presenter()
+            content.value = dragBoard
+            runCurrent()
+
+            presenter.nestUnder(draggedLocalId = 2, targetLocalId = 5)
+            runCurrent()
+
+            assertEquals(listOf("moveTask 2 SubtaskOf(parentTaskLocalId=5)"), actions.calls)
+        }
+
+    @Test
+    fun `dropping a subtask on the detach zone lifts it to the top of its own column`() =
+        runTest {
+            val presenter = presenter()
+            content.value =
+                board(
+                    sections = listOf(section(10, "Doing")),
+                    tasks =
+                        listOf(
+                            task(5, projectLocalId = 1, sectionLocalId = 10),
+                            task(7, projectLocalId = 1, sectionLocalId = 10, parentLocalId = 5),
+                            task(3, projectLocalId = 1),
+                        ),
+                )
+            runCurrent()
+
+            presenter.detach(7)
+            presenter.detach(3)
+            runCurrent()
+
+            assertEquals(listOf("moveTask 7 InSection(sectionLocalId=10)"), actions.calls)
+        }
+
+    @Test
+    fun `a link the device turns down is told apart from a plain failure`() =
+        runTest {
+            val presenter = presenter()
+            content.value = dragBoard
+            runCurrent()
+            val said = mutableListOf<ProjectMessage>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            actions.refuseWith = WriteRefused.RelationCycle(blockerLocalId = 5, blockedLocalId = 3)
+
+            presenter.makeDependent(draggedLocalId = 3, targetLocalId = 5)
+            runCurrent()
+
+            assertEquals(listOf<ProjectMessage>(ProjectMessage.RelationCycle), said)
         }
 }

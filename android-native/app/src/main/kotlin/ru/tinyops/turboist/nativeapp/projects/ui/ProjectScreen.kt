@@ -24,12 +24,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,13 +41,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.Task
+import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.TroikiCategory
 import ru.tinyops.turboist.core.sync.write.ProjectStatusAction
 import ru.tinyops.turboist.nativeapp.R
@@ -51,8 +61,16 @@ import ru.tinyops.turboist.nativeapp.projects.BoardColumn
 import ru.tinyops.turboist.nativeapp.projects.ProjectBoardUiState
 import ru.tinyops.turboist.nativeapp.projects.ProjectBoardViewModel
 import ru.tinyops.turboist.nativeapp.projects.ProjectMessage
+import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
+import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDependencies
+import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDetachZone
+import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragMarks
+import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragState
+import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragTooltip
 import ru.tinyops.turboist.nativeapp.tasks.ui.TaskRow
+import ru.tinyops.turboist.nativeapp.tasks.ui.subtaskDragFade
+import ru.tinyops.turboist.nativeapp.tasks.ui.subtaskDragSource
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -74,6 +92,14 @@ data class ProjectBoardCallbacks(
     val onSetTroiki: (TroikiCategory?) -> Unit,
     val onSetPrivate: (Boolean) -> Unit,
     val onDelete: () -> Unit,
+    /** A task was dropped onto another's edge: the first now waits for the second. */
+    val onMakeDependent: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
+    /** Takes back a wait a drop just added. */
+    val onUndoDependency: (DependencyAdded) -> Unit = {},
+    /** A task was dropped onto another's middle: the first is now the second's subtask. */
+    val onNestUnder: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
+    /** A subtask was dropped onto the detach zone: it moves to the top of its column. */
+    val onDetach: (taskLocalId: Long) -> Unit = {},
 )
 
 /**
@@ -89,9 +115,14 @@ data class ProjectBoardCallbacks(
  * way the server will renumber it, so what the user sees after a move is what
  * they will still see after the phone reconnects.
  *
- * Moving a task between columns is a long press rather than a drag: a drag on a
- * touch screen is ambiguous with a scroll, and a long press also reaches anyone
- * driving the screen with an assistive reader, which a drag never does.
+ * A long press on an open task picks it up. Dropped onto the edge of another
+ * task it makes the carried one wait for that one; dropped onto its middle it
+ * becomes that task's subtask; a subtask dropped onto the zone at the foot of the
+ * screen goes back to the top of its column. Lifting the finger without having
+ * moved asks which column the task should go to instead — the board's older
+ * long-press gesture, kept because a drag cannot reach a column that is scrolled
+ * out of sight, and kept as an accessibility action because a drag never reaches
+ * anyone driving the screen with an assistive reader.
  */
 @Composable
 fun ProjectScreen(
@@ -101,9 +132,25 @@ fun ProjectScreen(
     messages: Flow<ProjectMessage>,
     callbacks: ProjectBoardCallbacks,
     modifier: Modifier = Modifier,
+    dependencyAdded: Flow<DependencyAdded> = emptyFlow(),
 ) {
     val snackbars = remember { SnackbarHostState() }
     MessageHost(messages, snackbars)
+    val context = LocalContext.current
+    val undo = stringResource(R.string.view_undo)
+    // A drop leaves no trace but a padlock, so it is confirmed in words and can be
+    // taken back: a drop onto the wrong row is an easy slip.
+    LaunchedEffect(dependencyAdded, undo) {
+        dependencyAdded.collect { added ->
+            val result =
+                snackbars.showSnackbar(
+                    message = context.getString(R.string.page_task_dependencyDrag_added, added.blockerTitle),
+                    actionLabel = undo,
+                    duration = SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) callbacks.onUndoDependency(added)
+        }
+    }
 
     var addingTo by remember { mutableStateOf<BoardColumn?>(null) }
     var renaming by remember { mutableStateOf<BoardColumn?>(null) }
@@ -192,6 +239,7 @@ fun ProjectScreen(
         zone = viewModel.zone,
         today = today,
         messages = presenter.messages,
+        dependencyAdded = presenter.dependencyAdded,
         callbacks =
             remember(presenter, onOpenTask, onLeave) {
                 ProjectBoardCallbacks(
@@ -216,6 +264,10 @@ fun ProjectScreen(
                         presenter.delete()
                         onLeave()
                     },
+                    onMakeDependent = presenter::makeDependent,
+                    onUndoDependency = presenter::undoDependency,
+                    onNestUnder = presenter::nestUnder,
+                    onDetach = presenter::detach,
                 )
             },
         modifier = modifier,
@@ -395,6 +447,18 @@ private fun BoardBody(
     onDelete: (BoardColumn) -> Unit,
     onMoveTask: (Task) -> Unit,
 ) {
+    val drag = remember { SubtaskDragState() }
+    val dependencies =
+        SubtaskDependencies(
+            enabled = true,
+            dependencyRefusal = state::dependencyRefusal,
+            nestRefusal = state::nestRefusal,
+            nestNoop = state::nestNoop,
+            onDependencyDrop = callbacks.onMakeDependent,
+            onNestDrop = callbacks.onNestUnder,
+            onDetachDrop = callbacks.onDetach,
+        )
+    val rows = state.columns.flatMap { it.open + it.done }
     PullToRefreshBox(
         isRefreshing = state.refreshing,
         onRefresh = callbacks.onRefresh,
@@ -416,19 +480,32 @@ private fun BoardBody(
                     item(key = "empty-" + column.key) { ColumnNote(stringResource(R.string.section_noTasks)) }
                 }
                 items(column.open, key = { "task-" + it.task.localId }) { row ->
-                    BoardTaskRow(row, zone, today, callbacks, onMoveTask)
+                    BoardTaskRow(row, zone, today, callbacks, onMoveTask, drag, dependencies)
                 }
                 if (column.done.isNotEmpty()) {
                     item(key = "done-" + column.key) {
                         ColumnNote(stringResource(R.string.native_project_finished))
                     }
                     items(column.done, key = { "done-task-" + it.task.localId }) { row ->
-                        BoardTaskRow(row, zone, today, callbacks, onMoveTask)
+                        BoardTaskRow(row, zone, today, callbacks, onMoveTask, drag, dependencies)
                     }
                 }
             }
         }
+        // Over the list rather than in it, so appearing never pushes the rows out
+        // from under the finger; and only for a subtask, the one thing it can lift.
+        val dragged = drag.draggedLocalId
+        if (dragged != null && state.canDetach(dragged)) {
+            Surface(
+                tonalElevation = 3.dp,
+                shadowElevation = 6.dp,
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            ) {
+                SubtaskDetachZone(drag, modifier = Modifier.padding(bottom = 8.dp))
+            }
+        }
     }
+    SubtaskDragTooltip(drag, rows, dependencies)
 }
 
 @Composable
@@ -438,21 +515,45 @@ private fun BoardTaskRow(
     today: LocalDate,
     callbacks: ProjectBoardCallbacks,
     onMoveTask: (Task) -> Unit,
+    drag: SubtaskDragState,
+    dependencies: SubtaskDependencies,
 ) {
-    TaskRow(
-        row = row,
-        zone = zone,
-        today = today,
-        selectionMode = false,
-        selected = false,
-        onToggleComplete = { callbacks.onToggleComplete(row.task) },
-        onOpen = { callbacks.onOpenTask(row.task) },
-        onSelectToggle = { onMoveTask(row.task) },
-        // A long press asks where the task should go. It is the board's one
-        // rearranging gesture, and it is a press rather than a drag so that it
-        // cannot be confused with a scroll.
-        onStartSelection = { onMoveTask(row.task) },
-    )
+    val localId = row.task.localId
+    val draggable = row.task.status == TaskStatus.OPEN
+    val moveLabel = stringResource(R.string.dialog_moveSection_title)
+    DisposableEffect(localId) { onDispose { drag.forget(localId) } }
+    Box(
+        modifier =
+            Modifier
+                .subtaskDragSource(row, drag, dependencies, onPressWithoutDrag = { onMoveTask(row.task) })
+                .subtaskDragFade(row, drag)
+                .semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(moveLabel) {
+                                onMoveTask(row.task)
+                                true
+                            },
+                        )
+                },
+    ) {
+        TaskRow(
+            row = row,
+            zone = zone,
+            today = today,
+            selectionMode = false,
+            selected = false,
+            onToggleComplete = { callbacks.onToggleComplete(row.task) },
+            onOpen = { callbacks.onOpenTask(row.task) },
+            onSelectToggle = { onMoveTask(row.task) },
+            // An open row's long press belongs to the drag (see subtaskDragSource),
+            // which falls back to asking for a column when the finger does not move;
+            // the row's own handler stays, empty, so a long hold is never read as a
+            // tap. A finished row cannot be picked up, so its long press asks directly.
+            onStartSelection = { if (!draggable) onMoveTask(row.task) },
+        )
+        SubtaskDragMarks(row, drag, dependencies)
+    }
 }
 
 /** A column heading: what it is called, how much is in it, and what can be done to it. */

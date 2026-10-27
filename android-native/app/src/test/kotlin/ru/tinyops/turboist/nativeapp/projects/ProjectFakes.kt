@@ -137,6 +137,24 @@ class RecordingProjectActions : ProjectActions {
         taskLocalId: Long,
         destination: TaskDestination,
     ) = record("moveTask $taskLocalId $destination")
+
+    override suspend fun addBlocker(
+        taskLocalId: Long,
+        blockerLocalId: Long,
+    ): Long {
+        record("addBlocker $taskLocalId $blockerLocalId")
+        return ADDED_RELATION_LOCAL_ID
+    }
+
+    override suspend fun removeRelation(
+        taskLocalId: Long,
+        relationLocalId: Long,
+    ) = record("removeRelation $taskLocalId $relationLocalId")
+
+    companion object {
+        /** The relation id handed back for a new blocker. */
+        const val ADDED_RELATION_LOCAL_ID = 99L
+    }
 }
 
 /** Every write the context screen can make, remembered rather than performed. */

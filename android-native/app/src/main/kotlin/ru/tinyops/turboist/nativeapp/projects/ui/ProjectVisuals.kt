@@ -113,5 +113,7 @@ fun projectMessageText(message: ProjectMessage): String =
         is ProjectMessage.Blocked -> stringResource(R.string.task_toast_blockedCannotComplete)
         is ProjectMessage.PinLimitReached -> stringResource(R.string.native_project_pinLimit, message.limit)
         is ProjectMessage.TroikiSlotFull -> stringResource(R.string.native_project_troikiFull, message.capacity)
+        is ProjectMessage.RelationExists -> stringResource(R.string.native_task_relationExists)
+        is ProjectMessage.RelationCycle -> stringResource(R.string.native_task_relationCycle)
         is ProjectMessage.Failed -> stringResource(R.string.task_toast_failedUpdate)
     }

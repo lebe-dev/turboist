@@ -1,5 +1,8 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +68,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +89,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
@@ -98,6 +103,7 @@ import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
 import ru.tinyops.turboist.nativeapp.tasks.NestAdded
 import ru.tinyops.turboist.nativeapp.tasks.RecurrenceWording
+import ru.tinyops.turboist.nativeapp.tasks.SubtaskDetached
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
 import ru.tinyops.turboist.nativeapp.tasks.TaskDetailPresenter
 import ru.tinyops.turboist.nativeapp.tasks.TaskDetailUiState
@@ -157,6 +163,12 @@ data class TaskDetailCallbacks(
     val onNestUnder: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
     /** Takes back a nesting a drop just added. */
     val onUndoNest: (NestAdded) -> Unit = {},
+    /** A subtask was dropped onto the detach zone: it leaves its parent for the top level. */
+    val onDetachSubtask: (draggedLocalId: Long) -> Unit = {},
+    /** Takes back a lift a drop just made. */
+    val onUndoDetach: (SubtaskDetached) -> Unit = {},
+    /** The task and its subtree as JSON, for the clipboard; `null` while there is no task. */
+    val taskJson: () -> String? = { null },
 )
 
 /** The field a sheet is currently open for, or nothing when none is. */
@@ -197,6 +209,7 @@ fun TaskDetailScreen(
     harpoon: @Composable () -> Unit = {},
     dependencyAdded: Flow<DependencyAdded> = emptyFlow(),
     nestAdded: Flow<NestAdded> = emptyFlow(),
+    subtaskDetached: Flow<SubtaskDetached> = emptyFlow(),
 ) {
     val snackbars = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -252,6 +265,18 @@ fun TaskDetailScreen(
         }
     }
 
+    LaunchedEffect(subtaskDetached, undo) {
+        subtaskDetached.collect { detached ->
+            val result =
+                snackbars.showSnackbar(
+                    message = context.getString(R.string.page_task_detachDrag_added),
+                    actionLabel = undo,
+                    duration = SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) callbacks.onUndoDetach(detached)
+        }
+    }
+
     TaskDetailBody(
         state = state,
         zone = zone,
@@ -278,6 +303,7 @@ private fun TaskDetailBody(
 ) {
     var field by remember { mutableStateOf<TaskField?>(null) }
     val scroll = rememberScrollState()
+    val subtaskDrag = remember { SubtaskDragState() }
     // The title moves into the bar once the one on the page has gone: a detail
     // screen with no heading anywhere says nothing about what is being edited.
     // The distance is in dp, since the same number of pixels is a different
@@ -372,7 +398,10 @@ private fun TaskDetailBody(
                             nestNoop = state::nestNoop,
                             onDependencyDrop = callbacks.onMakeDependent,
                             onNestDrop = callbacks.onNestUnder,
+                            // An inbox task has no subtasks to lift, and no top level to lift them to.
+                            onDetachDrop = callbacks.onDetachSubtask.takeUnless { state.placement.inInbox },
                         ),
+                    drag = subtaskDrag,
                 )
 
                 TaskDetailRelations(
@@ -404,6 +433,16 @@ private fun TaskDetailBody(
                     RecordOfTheTask(task = task, zone = zone)
                 }
             }
+            // An inbox task has no subtasks to lift, and no top level to lift them to.
+            if (subtaskDrag.draggedLocalId != null && !state.placement.inInbox) {
+                Surface(
+                    tonalElevation = 3.dp,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                ) {
+                    SubtaskDetachZone(subtaskDrag, modifier = Modifier.padding(bottom = 8.dp))
+                }
+            }
         }
     }
 
@@ -414,6 +453,7 @@ private fun TaskDetailBody(
         today = today,
         moveOptions = moveOptions,
         callbacks = callbacks,
+        snackbars = snackbars,
         onField = { field = it },
     )
 }
@@ -433,10 +473,14 @@ private fun TaskFieldSheets(
     today: LocalDate,
     moveOptions: List<MoveProject>,
     callbacks: TaskDetailCallbacks,
+    snackbars: SnackbarHostState,
     onField: (TaskField?) -> Unit,
 ) {
     val task = state.task ?: return
     val onClose = { onField(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val jsonCopied = stringResource(R.string.task_toast_jsonCopied)
     when (field) {
         null -> Unit
 
@@ -479,6 +523,7 @@ private fun TaskFieldSheets(
         TaskField.LABELS ->
             LabelsSheet(
                 known = state.knownLabels,
+                recentOrder = state.recentLabelOrder,
                 selected = task.labels.map { it.name },
                 onChange = callbacks.onLabels,
                 onDismiss = onClose,
@@ -497,6 +542,13 @@ private fun TaskFieldSheets(
                 canDecompose = state.openSubtasks.isEmpty() && state.doneSubtasks.isEmpty(),
                 onDecompose = callbacks.onDecompose,
                 onCreateTemplate = callbacks.onCreateTemplate,
+                onCopyJson = {
+                    val json = callbacks.taskJson()
+                    if (json != null) {
+                        copyPlainText(context, json)
+                        scope.launch { snackbars.showSnackbar(jsonCopied) }
+                    }
+                },
             )
 
         TaskField.MOVE ->
@@ -1128,6 +1180,7 @@ fun TaskDetailScreen(
         harpoon = harpoon,
         dependencyAdded = presenter.dependencyAdded,
         nestAdded = presenter.nestAdded,
+        subtaskDetached = presenter.subtaskDetached,
     )
 }
 
@@ -1174,8 +1227,20 @@ private fun detailCallbacks(
             onUndoDependency = presenter::undoDependency,
             onNestUnder = presenter::nestUnder,
             onUndoNest = presenter::undoNest,
+            onDetachSubtask = presenter::detachSubtask,
+            onUndoDetach = presenter::undoDetach,
+            taskJson = presenter::taskJson,
         )
     }
+
+/** Puts text on the clipboard as ordinary, shareable text. */
+private fun copyPlainText(
+    context: Context,
+    text: String,
+) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
+}
 
 /** How far the page scrolls before the title moves into the bar. */
 private const val TITLE_HANDOVER_DP = 72

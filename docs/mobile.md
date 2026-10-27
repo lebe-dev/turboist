@@ -1494,10 +1494,17 @@ never gets torn in half. The board is drawn vertically rather than side by side:
 a phone is a tall screen, and a sideways board puts every column but one out of
 sight.
 
-**Rearranging is a press, not a drag.** A drag on a touch screen is ambiguous
-with a scroll and is unreachable to anyone driving the screen with an assistive
-reader, so a column is moved one place at a time from its own menu and a task is
-moved between columns by long-pressing it and picking where it goes. Both write
+**Columns move from a menu; tasks are picked up.** A column is moved one place at
+a time from its own menu. A long press on an open task picks it up: dropped on the
+edge of another task it waits for that task, dropped on the middle it becomes that
+task's subtask, and a subtask dropped on the zone at the foot of the screen goes
+back to the top of its column — the same rules, answered from the replica, as the
+subtask card on the task screen. Released without moving, the long press asks which
+column the task should go to, which is also offered as an accessibility action,
+because a drag cannot reach a column scrolled out of sight and never reaches anyone
+driving the screen with an assistive reader. The gesture is read before the row and
+the list see it, so a tap still opens a task and a swipe still scrolls until the
+press has lasted long enough. Every one of these writes goes
 through the shared write path, so a board rearranged with no connection is right
 on screen at once and right on the server whenever the phone comes back — and
 because moving a column renumbers the whole board exactly as the server will, the

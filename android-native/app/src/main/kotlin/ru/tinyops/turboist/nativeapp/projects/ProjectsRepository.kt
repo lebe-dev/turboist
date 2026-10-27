@@ -6,11 +6,14 @@ import kotlinx.coroutines.flow.map
 import ru.tinyops.turboist.core.database.dao.ContextDao
 import ru.tinyops.turboist.core.database.dao.ProjectDao
 import ru.tinyops.turboist.core.database.dao.ProjectSectionDao
+import ru.tinyops.turboist.core.database.dao.TaskHydrationDao
 import ru.tinyops.turboist.core.database.entity.toDomain
 import ru.tinyops.turboist.core.model.Context
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectSection
+import ru.tinyops.turboist.core.model.RelationType
 import ru.tinyops.turboist.core.model.Task
+import ru.tinyops.turboist.core.model.view.BlockEdge
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,6 +36,12 @@ data class ProjectBoardContent(
     val contextName: String?,
     val sections: List<ProjectSection>,
     val tasks: List<Task>,
+    /**
+     * Every `blocks` link in the workspace, not only the board's: a drop that
+     * would close a loop through a task in another project is refused all the
+     * same, and the board has to be able to say so before the finger lifts.
+     */
+    val blockEdges: List<BlockEdge> = emptyList(),
 )
 
 /** Everything the screen showing one context reads. */
@@ -59,6 +68,7 @@ class ProjectsRepository
         private val projects: ProjectDao,
         private val sections: ProjectSectionDao,
         private val tasks: TaskListRepository,
+        private val hydration: TaskHydrationDao,
     ) {
         /**
          * Every project, under the context it belongs to.
@@ -90,13 +100,23 @@ class ProjectsRepository
                 sections.observeForProject(projectLocalId),
                 tasks.observeProject(projectLocalId),
                 contexts.observeAll(),
-            ) { projectRow, sectionRows, taskRows, contextRows ->
+                hydration.observeRelationEdges(),
+            ) { projectRow, sectionRows, taskRows, contextRows, edges ->
                 val project = projectRow?.toDomain() ?: return@combine null
                 ProjectBoardContent(
                     project = project,
                     contextName = contextRows.firstOrNull { it.localId == project.contextLocalId }?.name,
                     sections = sectionRows.map { it.toDomain() },
                     tasks = taskRows,
+                    blockEdges =
+                        edges
+                            .filter { it.type == RelationType.BLOCKS }
+                            .map {
+                                BlockEdge(
+                                    blockerLocalId = it.sourceTaskLocalId,
+                                    blockedLocalId = it.targetTaskLocalId,
+                                )
+                            },
                 )
             }
 

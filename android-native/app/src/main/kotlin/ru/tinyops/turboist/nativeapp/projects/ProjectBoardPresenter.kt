@@ -17,10 +17,17 @@ import ru.tinyops.turboist.core.model.ProjectType
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.TroikiCategory
+import ru.tinyops.turboist.core.model.view.BlockEdge
+import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
+import ru.tinyops.turboist.core.model.view.NestDropRefusal
+import ru.tinyops.turboist.core.model.view.dependencyDropRefusal
+import ru.tinyops.turboist.core.model.view.isNestNoop
+import ru.tinyops.turboist.core.model.view.nestDropRefusal
 import ru.tinyops.turboist.core.sync.write.ProjectEdit
 import ru.tinyops.turboist.core.sync.write.ProjectStatusAction
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
+import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.TaskListActions
 
 /** Everything the project board renders. */
@@ -37,6 +44,9 @@ data class ProjectBoardUiState(
      */
     val dailyPlanEnabled: Boolean = false,
     val refreshing: Boolean = false,
+    /** Every task on the board, flat — what the drag rules are read against. */
+    val tasks: List<Task> = emptyList(),
+    val blockEdges: List<BlockEdge> = emptyList(),
 ) {
     /** True once the project is known not to be here, as opposed to not being known yet. */
     val missing: Boolean get() = !loading && project == null
@@ -51,6 +61,52 @@ data class ProjectBoardUiState(
      * keep a daily plan is not offered one either.
      */
     val canJoinDailyPlan: Boolean get() = dailyPlanEnabled && project?.status == ProjectStatus.OPEN
+
+    private val parentOf: Map<Long, Long> by lazy {
+        tasks.mapNotNull { task -> task.parentLocalId?.let { task.localId to it } }.toMap()
+    }
+
+    /**
+     * Why dropping one task onto another's edge — "the dragged one waits for the
+     * target" — would be refused, or `null` when it may go ahead. The same rules
+     * as the subtask card, applied to the whole board.
+     */
+    fun dependencyRefusal(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ): DependencyDropRefusal? {
+        val target = tasks.firstOrNull { it.localId == targetLocalId } ?: return null
+        return dependencyDropRefusal(
+            draggedLocalId = draggedLocalId,
+            targetLocalId = targetLocalId,
+            parentOf = parentOf,
+            targetOpen = target.status == TaskStatus.OPEN,
+            blockEdges = blockEdges,
+        )
+    }
+
+    /** Why nesting the dragged task under the target would be refused, or `null`. */
+    fun nestRefusal(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ): NestDropRefusal? {
+        val target = tasks.firstOrNull { it.localId == targetLocalId } ?: return null
+        return nestDropRefusal(
+            draggedLocalId = draggedLocalId,
+            targetLocalId = targetLocalId,
+            parentOf = parentOf,
+            targetOpen = target.status == TaskStatus.OPEN,
+        )
+    }
+
+    /** Whether nesting the dragged task under the target would change nothing. */
+    fun nestNoop(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ): Boolean = isNestNoop(draggedLocalId, targetLocalId, parentOf)
+
+    /** Whether the task is a subtask, and so has a top level to be lifted to. */
+    fun canDetach(taskLocalId: Long): Boolean = taskLocalId in parentOf
 }
 
 /**
@@ -76,6 +132,7 @@ class ProjectBoardPresenter(
 ) {
     private val refreshing = MutableStateFlow(false)
     private val outgoing = MutableSharedFlow<ProjectMessage>(extraBufferCapacity = 1)
+    private val dependencies = MutableSharedFlow<DependencyAdded>(extraBufferCapacity = 1)
 
     /** What the screen renders. */
     val state: StateFlow<ProjectBoardUiState> =
@@ -87,11 +144,16 @@ class ProjectBoardPresenter(
                 columns = board?.let { boardColumns(it.sections, it.tasks) }.orEmpty(),
                 dailyPlanEnabled = planEnabled,
                 refreshing = isRefreshing,
+                tasks = board?.tasks.orEmpty(),
+                blockEdges = board?.blockEdges.orEmpty(),
             )
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ProjectBoardUiState())
 
     /** What the screen says back, once each. */
     val messages: SharedFlow<ProjectMessage> = outgoing.asSharedFlow()
+
+    /** Fires when a dropped task was made to wait for another, so the screen can offer an undo. */
+    val dependencyAdded: SharedFlow<DependencyAdded> = dependencies.asSharedFlow()
 
     /** Asks the sync engine to catch up; the board changes when it writes to the replica. */
     fun refresh() {
@@ -147,6 +209,52 @@ class ProjectBoardPresenter(
     ) {
         val projectLocalId = state.value.project?.localId ?: return
         queue { actions.moveTask(taskLocalId, destination(projectLocalId, sectionLocalId)) }
+    }
+
+    // --- dropping one task onto another --------------------------------------
+
+    /**
+     * Makes the dropped task wait for the one it was dropped on. A drop the board
+     * already showed as refused queues nothing.
+     */
+    fun makeDependent(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ) {
+        val current = state.value
+        if (draggedLocalId == targetLocalId) return
+        if (current.dependencyRefusal(draggedLocalId, targetLocalId) != null) return
+        val blockerTitle = current.tasks.firstOrNull { it.localId == targetLocalId }?.title ?: return
+        queue {
+            val relationLocalId = actions.addBlocker(draggedLocalId, targetLocalId)
+            dependencies.emit(DependencyAdded(draggedLocalId, relationLocalId, blockerTitle))
+        }
+    }
+
+    /** Takes back a wait added by a drop. */
+    fun undoDependency(added: DependencyAdded) =
+        queue { actions.removeRelation(added.taskLocalId, added.relationLocalId) }
+
+    /**
+     * Nests the dropped task under the one it was dropped on, in the target's
+     * column. Refused, or a no-op, exactly as the board showed it.
+     */
+    fun nestUnder(
+        draggedLocalId: Long,
+        targetLocalId: Long,
+    ) {
+        val current = state.value
+        if (draggedLocalId == targetLocalId) return
+        if (current.nestNoop(draggedLocalId, targetLocalId)) return
+        if (current.nestRefusal(draggedLocalId, targetLocalId) != null) return
+        queue { actions.moveTask(draggedLocalId, TaskDestination.SubtaskOf(targetLocalId)) }
+    }
+
+    /** Lifts a dropped subtask out to the top level of the column it is already in. */
+    fun detach(taskLocalId: Long) {
+        val task = state.value.tasks.firstOrNull { it.localId == taskLocalId } ?: return
+        if (task.parentLocalId == null) return
+        moveTask(taskLocalId, task.sectionLocalId)
     }
 
     // --- the columns ---------------------------------------------------------
