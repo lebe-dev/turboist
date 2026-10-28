@@ -98,6 +98,24 @@ class MarkdownTest {
     }
 
     @Test
+    fun `a description pointing at exactly one web address names it`() {
+        assertEquals("https://example.com/a", Markdown.singleWebLink("see https://example.com/a."))
+        assertEquals("https://example.com/a", Markdown.singleWebLink("[docs](https://example.com/a)"))
+        assertEquals(
+            "https://example.com/a",
+            Markdown.singleWebLink("[docs](https://example.com/a) or https://example.com/a"),
+        )
+    }
+
+    @Test
+    fun `no address, several, or one that is not on the web name nothing`() {
+        assertEquals(null, Markdown.singleWebLink("just words"))
+        assertEquals(null, Markdown.singleWebLink("https://a.example and https://b.example"))
+        assertEquals(null, Markdown.singleWebLink("[mail](mailto:a@b.c)"))
+        assertEquals(null, Markdown.singleWebLink("[here](/task/1)"))
+    }
+
+    @Test
     fun `a link makes text worth rendering even with no other markup`() {
         assertTrue(Markdown.hasLink("[a](/today)"))
         assertTrue(Markdown.hasContent("[a](/today)"))

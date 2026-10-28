@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -293,15 +294,21 @@ private fun SectionHeader(
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
         )
-        Text(
-            // Everything the block holds, appointments included: the number
-            // answers "how much is in here", and a heading with two meetings
-            // under it must not read as a zero.
-            text = (section.rows.size + section.events.size).toString(),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
+        if (heading is SectionHeading.Phase) {
+            // The parts of a day are headed by their name alone: on the day
+            // views a number beside each of them was noise, not information.
+            Spacer(modifier = Modifier.weight(1f))
+        } else {
+            Text(
+                // Everything the block holds, appointments included: the number
+                // answers "how much is in here", and a heading with two meetings
+                // under it must not read as a zero.
+                text = (section.rows.size + section.events.size).toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+        }
         if (selectionMode && section.rows.isNotEmpty()) {
             TextButton(onClick = onSelectAll) { Text(stringResource(R.string.selection_bar_selectAll)) }
         }

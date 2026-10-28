@@ -17,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.ViewColumn
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,7 +48,6 @@ import kotlinx.coroutines.flow.Flow
 import ru.tinyops.turboist.core.model.Context
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
-import ru.tinyops.turboist.core.model.ProjectType
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.projects.ProjectFilter
 import ru.tinyops.turboist.nativeapp.projects.ProjectMessage
@@ -270,8 +268,9 @@ private fun GroupHeading(text: String) {
  *
  * Everything on it is a fact worth seeing without opening the project: the
  * colour it was given, whether it is hidden from the shared view, whether it
- * holds a place in the daily plan, what kind of work it is, and — when it is no
- * longer open — where it stands.
+ * holds a place in the daily plan, and — when it is no longer open — where it
+ * stands. Pinning and the kind of work are left off: the pinned ones already sit
+ * under their own heading, and the kind is what the filter chips are for.
  *
  * [dailyPlanEnabled] is the user's preference for the plan. A workspace that
  * does not keep one is not told which projects stand in it: the mark would name
@@ -304,14 +303,6 @@ fun ProjectRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (project.isPinned) {
-            Icon(
-                imageVector = Icons.Outlined.PushPin,
-                contentDescription = stringResource(R.string.project_pinned),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp),
-            )
-        }
         if (project.isPrivate) {
             Icon(
                 imageVector = Icons.Outlined.Lock,
@@ -327,9 +318,6 @@ fun ProjectRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp),
             )
-        }
-        if (project.type == ProjectType.SOFTWARE) {
-            AssistChip(onClick = onOpen, label = { Text(stringResource(R.string.dialog_project_typeSoftware)) })
         }
         val status = statusLabel(project.status)
         if (project.status != ProjectStatus.OPEN && status != null) {

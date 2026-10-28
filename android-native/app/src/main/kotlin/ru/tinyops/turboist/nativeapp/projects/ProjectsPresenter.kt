@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.Context
 import ru.tinyops.turboist.core.model.Project
+import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.sync.write.NewProject
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 
@@ -23,7 +24,7 @@ data class ProjectsUiState(
     val query: String = "",
     /** The workspace as the screen draws it: a heading per context, its projects under it. */
     val groups: List<ProjectGroup> = emptyList(),
-    /** The projects the user keeps to hand, whichever context they live in. */
+    /** The open projects the user keeps to hand, whichever context they live in. */
     val pinned: List<Project> = emptyList(),
     /** How many projects each narrowing would show, so the chips can carry a number. */
     val counts: Map<ProjectFilter, Int> = emptyMap(),
@@ -81,7 +82,7 @@ class ProjectsPresenter(
                 filter = chosen,
                 query = typed,
                 groups = narrow(all, chosen, typed),
-                pinned = all.flatMap { it.projects }.filter { it.isPinned }.sortedBy { it.pinnedAt },
+                pinned = pinned(all, chosen),
                 counts = ProjectFilter.entries.associateWith { candidate -> count(all, candidate) },
                 contexts = knownContexts,
                 dailyPlanEnabled = planEnabled,
@@ -146,6 +147,20 @@ class ProjectsPresenter(
             )
         }
     }
+
+    /**
+     * The pinned row. While the narrowing spans every status only open projects
+     * are on it — a finished project has nothing left to keep to hand — and a
+     * narrowing to one status shows the pinned projects standing there instead.
+     */
+    private fun pinned(
+        all: List<ProjectGroup>,
+        chosen: ProjectFilter,
+    ): List<Project> =
+        all
+            .flatMap { it.projects }
+            .filter { it.isPinned && if (chosen.spansStatuses) it.status == ProjectStatus.OPEN else chosen.matches(it) }
+            .sortedBy { it.pinnedAt }
 
     private fun count(
         all: List<ProjectGroup>,

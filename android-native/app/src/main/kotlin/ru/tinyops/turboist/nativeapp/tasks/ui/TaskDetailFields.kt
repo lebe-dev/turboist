@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.core.model.DayPart
@@ -141,7 +143,10 @@ fun DetailRow(
                 tint = leadingTint ?: MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Column(modifier = Modifier.weight(1f)) {
+        // The label keeps to its own width and the value takes the rest, ending
+        // at the right edge: halving the row between the two cut off values like
+        // "Planned for the week" next to a four-letter label.
+        Column(modifier = Modifier.widthIn(max = LABEL_MAX_WIDTH_DP.dp)) {
             Text(text = label, style = MaterialTheme.typography.bodyMedium)
             if (supporting != null) {
                 Text(
@@ -155,9 +160,10 @@ fun DetailRow(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = valueTint ?: MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            textAlign = TextAlign.End,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.weight(1f),
         )
         if (onClick != null) {
             Icon(
@@ -447,6 +453,9 @@ internal const val CARD_CORNER_DP = 24
 
 /** The height every row inside a card is at least, which is also its hit target. */
 internal const val ROW_HEIGHT_DP = 56
+
+/** The most a row's label may take, so the value beside it has the rest of the row. */
+private const val LABEL_MAX_WIDTH_DP = 160
 
 /** The levels a user can choose, most urgent first. The unreadable one is not offered. */
 internal val PRIORITY_CHOICES = listOf(Priority.HIGH, Priority.MEDIUM, Priority.LOW, Priority.NONE)

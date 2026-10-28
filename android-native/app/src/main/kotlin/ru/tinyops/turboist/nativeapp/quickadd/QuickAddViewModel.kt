@@ -36,7 +36,8 @@ class QuickAddViewModel
         val today: StateFlow<LocalDate> =
             clock.days().stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), clock.today())
 
-        val presenter = QuickAddPresenter(viewModelScope, repository.observeWorkspace(), recent, actions, clock.zone)
+        val presenter =
+            QuickAddPresenter(viewModelScope, repository.observeWorkspace(), recent, actions, clock.zone, clock::now)
 
         init {
             // A share or a launcher shortcut can arrive long before this exists —

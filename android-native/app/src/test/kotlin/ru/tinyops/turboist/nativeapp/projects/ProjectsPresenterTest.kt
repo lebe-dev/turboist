@@ -142,7 +142,20 @@ class ProjectsPresenterTest {
         }
 
     @Test
-    fun `a narrowing never hides a pinned project from the pinned row`() =
+    fun `a narrowing by kind never hides an open pinned project from the pinned row`() =
+        runTest {
+            val presenter = presenter()
+            groups.value =
+                listOf(ProjectGroup(context(1), listOf(project(10, "Website", isPinned = true))))
+            presenter.narrowTo(ProjectFilter.SOFTWARE)
+            runCurrent()
+
+            assertTrue(presenter.state.value.groups.single().projects.isEmpty())
+            assertEquals(listOf("Website"), presenter.state.value.pinned.map { it.title })
+        }
+
+    @Test
+    fun `a finished pinned project stays off the pinned row until its status is chosen`() =
         runTest {
             val presenter = presenter()
             groups.value =
@@ -152,10 +165,13 @@ class ProjectsPresenterTest {
                         listOf(project(10, "Old one", status = ProjectStatus.ARCHIVED, isPinned = true)),
                     ),
                 )
-            presenter.narrowTo(ProjectFilter.SOFTWARE)
             runCurrent()
 
-            assertTrue(presenter.state.value.groups.single().projects.isEmpty())
+            assertTrue(presenter.state.value.pinned.isEmpty())
+
+            presenter.narrowTo(ProjectFilter.ARCHIVED)
+            runCurrent()
+
             assertEquals(listOf("Old one"), presenter.state.value.pinned.map { it.title })
         }
 

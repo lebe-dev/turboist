@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Notes
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -38,8 +39,8 @@ import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Splitscreen
 import androidx.compose.material.icons.outlined.WbSunny
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -74,6 +75,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -923,6 +925,33 @@ private fun DescriptionBlock(
             modifier = Modifier.weight(1f),
         )
     }
+    val link = remember(description) { Markdown.singleWebLink(description) }
+    if (link != null) OpenLinkButton(link)
+}
+
+/**
+ * Opens the one address a description points at in the default browser.
+ *
+ * A description that is a single link is usually a task that means "go there",
+ * and a button is easier to hit than a word inside a paragraph.
+ */
+@Composable
+private fun OpenLinkButton(url: String) {
+    val links = LocalUriHandler.current
+    FilledTonalButton(
+        onClick = { runCatching { links.openUri(url) } },
+        modifier = Modifier.padding(start = 52.dp, top = 4.dp, bottom = 4.dp),
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = stringResource(R.string.native_task_openLink),
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
 }
 
 /**
@@ -1009,17 +1038,15 @@ private fun LabelsSection(
     onOpen: () -> Unit,
 ) {
     if (names.isEmpty() && !knownLabels) return
+    // With nothing chosen the section is a single line: the heading and the way
+    // to add one. A row of its own for an "add" chip spent a screen's worth of
+    // height on a field that says nothing yet.
     SectionHeading(text = stringResource(R.string.page_task_labels)) {
-        TextButton(onClick = onOpen) { Text(stringResource(R.string.native_task_change)) }
+        TextButton(onClick = onOpen) {
+            Text(stringResource(if (names.isEmpty()) R.string.common_add else R.string.native_task_change))
+        }
     }
-    if (names.isEmpty()) {
-        AssistChip(
-            onClick = onOpen,
-            label = { Text(stringResource(R.string.common_add)) },
-            modifier = Modifier.padding(horizontal = 20.dp),
-        )
-        return
-    }
+    if (names.isEmpty()) return
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

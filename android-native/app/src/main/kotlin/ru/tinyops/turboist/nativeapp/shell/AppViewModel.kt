@@ -37,6 +37,7 @@ class AppViewModel
         sessionStateSource: SessionStateSource,
         offlineSessionSource: OfflineSessionSource,
         drawerCountsSource: DrawerCountsSource,
+        drawerPinnedSource: DrawerPinnedSource,
         syncStatusSource: SyncStatusSource,
         deviceOptions: DeviceOptionsStore,
         settings: SettingsRepository,
@@ -68,6 +69,11 @@ class AppViewModel
             combine(drawerCountsSource.counts, syncStatusSource.status) { counts, status ->
                 counts.copy(unsentChanges = status.setAside)
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(COUNTS_TIMEOUT_MILLIS), DrawerCounts())
+
+        /** The pinned projects and tasks the drawer lists as shortcuts. */
+        val drawerPinned: StateFlow<DrawerPinned> =
+            drawerPinnedSource.pinned
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(COUNTS_TIMEOUT_MILLIS), DrawerPinned())
 
         /**
          * Which colours the whole app is drawn in.

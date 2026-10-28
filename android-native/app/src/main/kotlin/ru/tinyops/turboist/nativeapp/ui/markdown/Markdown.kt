@@ -18,6 +18,9 @@ package ru.tinyops.turboist.nativeapp.ui.markdown
 object Markdown {
     private val LINK = Regex("""\[([^\]]+)\]\(([^)\s]+)\)""")
     private val SAFE_SCHEME = Regex("""^(https?://|mailto:|/|#)""", RegexOption.IGNORE_CASE)
+    private val WEB_SCHEME = Regex("""^https?://\S""", RegexOption.IGNORE_CASE)
+    private val BARE_URL = Regex("""https?://[^\s<>()\[\]]+""", RegexOption.IGNORE_CASE)
+    private val TRAILING_PUNCTUATION = charArrayOf('.', ',', ';', ':', '!', '?', '"', '\'')
     private val HEADING = Regex("""^(#{1,6})\s+(.*)$""")
     private val UNORDERED_ITEM = Regex("""^[-*+]\s+(.*)$""")
     private val ORDERED_ITEM = Regex("""^\d+\.\s+(.*)$""")
@@ -44,6 +47,21 @@ object Markdown {
     fun hasLink(input: String): Boolean {
         val match = LINK.find(input) ?: return false
         return SAFE_SCHEME.containsMatchIn(match.groupValues[2])
+    }
+
+    /**
+     * The one web address the text points at, or null when it points at none or
+     * at several.
+     *
+     * Both spellings count — a Markdown link and an address pasted as it is —
+     * and the same address written twice is still one. It answers whether a
+     * description is, in effect, "go here", which is worth a button of its own.
+     */
+    fun singleWebLink(input: String): String? {
+        if (input.isEmpty()) return null
+        val linked = LINK.findAll(input).map { it.groupValues[2] }.filter { WEB_SCHEME.containsMatchIn(it) }
+        val bare = BARE_URL.findAll(LINK.replace(input, " ")).map { it.value.trimEnd(*TRAILING_PUNCTUATION) }
+        return (linked + bare).distinct().singleOrNull()
     }
 
     /** True when [input] holds any markup at all, a link included. */

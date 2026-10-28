@@ -78,6 +78,9 @@ private val PermanentDrawerBreakpoint = 840.dp
  * [dailyPlanEnabled] is the user's preference for the daily plan, which decides
  * whether the plan is one of the places the drawer offers at all.
  *
+ * [pinned] is the shelf of pinned projects and tasks the drawer lists below
+ * its destinations.
+ *
  * [pendingTaskLinks] holds a link that arrived when there was nothing to show it
  * — during sign-in, or before this tree existed. Following it here is what makes
  * a link tapped on the sign-in screen land on the task once the user is in.
@@ -92,6 +95,7 @@ fun AppShell(
     syncStatus: SyncStatus = SyncStatus(),
     onRetrySync: () -> Unit = {},
     dailyPlanEnabled: Boolean = false,
+    pinned: DrawerPinned = DrawerPinned(),
     pendingTaskLinks: PendingTaskLinks = PendingTaskLinks(),
     navController: NavHostController = rememberNavController(),
     screens: AppScreens = AppScreens(),
@@ -162,6 +166,20 @@ fun AppShell(
         }
     }
 
+    // A pinned entry is a shortcut to a detail screen, not a top-level place: it
+    // stacks on whatever is open, like a tap on a row would, so back returns to
+    // where the drawer was opened. Tapping the entry already on screen is a no-op.
+    val openProject: Long? =
+        backStackEntry?.takeIf { it.destination.hasRoute(ProjectRoute::class) }?.toRoute<ProjectRoute>()?.projectLocalId
+    val openTask: Long? =
+        backStackEntry?.takeIf { it.destination.hasRoute(TaskRoute::class) }?.toRoute<TaskRoute>()?.taskLocalId
+    val openPinnedProject: (Long) -> Unit = { localId ->
+        if (openProject != localId) navController.navigate(ProjectRoute(localId))
+    }
+    val openPinnedTask: (Long) -> Unit = { localId ->
+        if (openTask != localId) navController.navigate(TaskRoute(localId))
+    }
+
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         if (maxWidth >= PermanentDrawerBreakpoint) {
             PermanentNavigationDrawer(
@@ -173,6 +191,11 @@ fun AppShell(
                             onSelect = open,
                             onSignOut = onSignOut,
                             dailyPlanEnabled = dailyPlanEnabled,
+                            pinned = pinned,
+                            selectedProject = openProject,
+                            selectedTask = openTask,
+                            onOpenProject = openPinnedProject,
+                            onOpenTask = openPinnedTask,
                         )
                     }
                 },
@@ -204,6 +227,17 @@ fun AppShell(
                             },
                             onSignOut = onSignOut,
                             dailyPlanEnabled = dailyPlanEnabled,
+                            pinned = pinned,
+                            selectedProject = openProject,
+                            selectedTask = openTask,
+                            onOpenProject = { localId ->
+                                openPinnedProject(localId)
+                                scope.launch { drawerState.close() }
+                            },
+                            onOpenTask = { localId ->
+                                openPinnedTask(localId)
+                                scope.launch { drawerState.close() }
+                            },
                         )
                     }
                 },

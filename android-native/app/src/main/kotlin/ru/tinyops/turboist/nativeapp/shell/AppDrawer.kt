@@ -6,8 +6,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
@@ -15,10 +18,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.navigation.DrawerDestination
+import ru.tinyops.turboist.nativeapp.navigation.DrawerGroup
+import ru.tinyops.turboist.nativeapp.projects.ui.projectTint
 import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
 
 /**
@@ -31,6 +37,10 @@ import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
  * [dailyPlanEnabled] is the user's preference for the daily plan, which the
  * catalog uses to decide whether the plan is one of this installation's places
  * at all.
+ *
+ * [pinned] is the shelf of pinned projects and tasks, drawn as its own group
+ * after the planning one — where the web sidebar puts it. [selectedProject] and
+ * [selectedTask] name what is on screen, so its entry is drawn as selected.
  */
 @Composable
 fun AppDrawerContent(
@@ -40,6 +50,11 @@ fun AppDrawerContent(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
     dailyPlanEnabled: Boolean = false,
+    pinned: DrawerPinned = DrawerPinned(),
+    selectedProject: Long? = null,
+    selectedTask: Long? = null,
+    onOpenProject: (Long) -> Unit = {},
+    onOpenTask: (Long) -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(vertical = 12.dp),
@@ -52,12 +67,7 @@ fun AppDrawerContent(
         )
 
         DrawerDestination.grouped(dailyPlanEnabled).forEach { (group, destinations) ->
-            Text(
-                text = stringResource(group.titleRes),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 4.dp),
-            )
+            GroupTitle(stringResource(group.titleRes))
             destinations.forEach { destination ->
                 NavigationDrawerItem(
                     selected = selected(destination),
@@ -75,6 +85,9 @@ fun AppDrawerContent(
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                 )
             }
+            if (group == DrawerGroup.Planning) {
+                PinnedShelf(pinned, selectedProject, selectedTask, onOpenProject, onOpenTask)
+            }
         }
 
         // Signing out is the one drawer entry that is not a place to go, so it is
@@ -85,6 +98,53 @@ fun AppDrawerContent(
             onClick = onSignOut,
             icon = { Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
             label = { Text(stringResource(R.string.sidebar_logOut)) },
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+        )
+    }
+}
+
+@Composable
+private fun GroupTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 4.dp),
+    )
+}
+
+/** The pinned projects and tasks as shortcuts; an empty shelf draws nothing, heading included. */
+@Composable
+private fun PinnedShelf(
+    pinned: DrawerPinned,
+    selectedProject: Long?,
+    selectedTask: Long?,
+    onOpenProject: (Long) -> Unit,
+    onOpenTask: (Long) -> Unit,
+) {
+    if (pinned.isEmpty) return
+    GroupTitle(stringResource(R.string.nav_pinned))
+    pinned.projects.forEach { project ->
+        NavigationDrawerItem(
+            selected = project.localId == selectedProject,
+            onClick = { onOpenProject(project.localId) },
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Folder,
+                    contentDescription = null,
+                    tint = projectTint(project.color) ?: LocalContentColor.current,
+                )
+            },
+            label = { Text(project.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+        )
+    }
+    pinned.tasks.forEach { task ->
+        NavigationDrawerItem(
+            selected = task.localId == selectedTask,
+            onClick = { onOpenTask(task.localId) },
+            icon = { Icon(imageVector = Icons.Outlined.PushPin, contentDescription = null) },
+            label = { Text(task.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
         )
     }
