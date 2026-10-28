@@ -1117,7 +1117,13 @@ private fun WhenCard(
                 trailing = Icons.Filled.ExpandMore,
                 onClick = { expanded = true },
             )
-            QuickDueDays(due = due, today = today, onDueDate = onDueDate)
+            QuickDueDays(
+                due = due,
+                today = today,
+                dayPart = task.dayPart,
+                onDueDate = onDueDate,
+                onDayPart = onDayPart,
+            )
         }
         return
     }
@@ -1157,23 +1163,29 @@ private fun WhenCard(
 }
 
 /**
- * The two days a task is most often put on, one tap each, on the folded card.
+ * The two days a task is most often put on, one tap each, on the folded card,
+ * and the phase of the day beside them.
  *
  * Moving a task to today or tomorrow is most of what the date is ever changed
  * for, and the sheet behind the date row is two taps and a calendar away. The
  * day the task is already on is shown picked, so the chips also say which of the
- * two it is.
+ * two it is. The phase is the next thing decided about a day, so it sits on the
+ * same line rather than behind the unfolded card; on a narrow screen it wraps
+ * under the days instead of squeezing them.
  */
 @Composable
 private fun QuickDueDays(
     due: LocalDate?,
     today: LocalDate,
+    dayPart: DayPart,
     onDueDate: (LocalDate?) -> Unit,
+    onDayPart: (DayPart) -> Unit,
 ) {
     val tomorrow = today.plusDays(1)
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 54.dp, end = 16.dp, bottom = 8.dp),
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(start = 54.dp, end = 8.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         for ((day, labelRes) in listOf(today to R.string.common_today, tomorrow to R.string.common_tomorrow)) {
             FilterChip(
@@ -1182,6 +1194,7 @@ private fun QuickDueDays(
                 label = { Text(stringResource(labelRes)) },
             )
         }
+        DayPartIconGroup(dayPart = dayPart, onSelect = onDayPart, compact = true)
     }
 }
 

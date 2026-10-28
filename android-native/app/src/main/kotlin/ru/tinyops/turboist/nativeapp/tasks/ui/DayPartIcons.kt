@@ -70,10 +70,36 @@ internal fun DayPartIconRow(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        Row(modifier = Modifier.selectableGroup()) {
-            for (part in DAY_PART_CHOICES) {
-                DayPartIconButton(part, chosen = part == selected, onSelect = { onSelect(part) })
-            }
+        DayPartIconGroup(selected, onSelect)
+    }
+}
+
+/**
+ * The phases as one group of icon buttons, without a label of its own.
+ *
+ * [compact] is for a line the group shares with other controls — the quick days
+ * on the folded "When" card — rather than a row of its own. It draws the icons
+ * smaller and leaves "any time" out to fit beside them: tapping the phase that
+ * is already chosen takes it back to any time instead.
+ */
+@Composable
+internal fun DayPartIconGroup(
+    dayPart: DayPart,
+    onSelect: (DayPart) -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    val selected = if (dayPart == DayPart.UNKNOWN) DayPart.NONE else dayPart
+    val choices = if (compact) DAY_PART_CHOICES - DayPart.NONE else DAY_PART_CHOICES
+    Row(modifier = modifier.selectableGroup()) {
+        for (part in choices) {
+            val chosen = part == selected
+            DayPartIconButton(
+                part,
+                chosen = chosen,
+                compact = compact,
+                onSelect = { onSelect(if (compact && chosen) DayPart.NONE else part) },
+            )
         }
     }
 }
@@ -83,13 +109,14 @@ private fun DayPartIconButton(
     part: DayPart,
     chosen: Boolean,
     onSelect: () -> Unit,
+    compact: Boolean = false,
 ) {
     val description = stringResource(dayPartLabel(part))
     val tint = if (chosen) dayPartTint(part) else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier =
             Modifier
-                .size(44.dp)
+                .size(if (compact) 40.dp else 44.dp)
                 .clip(CircleShape)
                 .selectable(selected = chosen, role = Role.RadioButton, onClick = onSelect)
                 .semantics { contentDescription = description },
@@ -98,7 +125,7 @@ private fun DayPartIconButton(
         Box(
             modifier =
                 Modifier
-                    .size(34.dp)
+                    .size(if (compact) 30.dp else 34.dp)
                     .clip(CircleShape)
                     .then(
                         if (chosen) {

@@ -200,6 +200,13 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		u.PlanState = &ps
 	}
 
+	// Parking a task through a PATCH clears its due date exactly as the plan
+	// endpoint does (see service.PlanService.SetPlanState), unless the same
+	// request names a date of its own.
+	if u.PlanState != nil && *u.PlanState == model.PlanStateBacklog && t.PlanState != model.PlanStateBacklog && u.DueAt == nil {
+		u.DueAtClear = true
+	}
+
 	// Assigning a due date pulls a task out of the backlog: a scheduled task no
 	// longer belongs to the unscheduled backlog. This is the inverse of planning
 	// into backlog, which clears due (see service.PlanService.SetPlanState). An

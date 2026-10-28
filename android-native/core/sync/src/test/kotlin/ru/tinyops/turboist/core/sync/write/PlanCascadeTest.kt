@@ -6,6 +6,7 @@ import ru.tinyops.turboist.core.database.entity.TaskRow
 import ru.tinyops.turboist.core.model.INBOX_ID
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.network.Clearable
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -112,6 +113,52 @@ class PlanCascadeTest : WriteTest() {
         }
 
     @Test
+    fun `parking while editing unschedules the task and the whole open subtree`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val parent = scheduled("Release", null, projectLocalId)
+            val child = scheduled("Tag it", parent, projectLocalId)
+            val grandchild = scheduled("Sign the tag", child, projectLocalId)
+
+            tasks.patch(parent, TaskEdit(planState = PlanState.BACKLOG))
+
+            for (localId in listOf(parent, child, grandchild)) {
+                val row = assertNotNull(db.tasks().byLocalId(localId))
+                assertEquals(PlanState.BACKLOG, row.planState)
+                assertNull(row.dueAt, "a parked task has no day")
+                assertEquals(false, row.dueHasTime, "a parked task has no time either")
+            }
+        }
+
+    @Test
+    fun `parking unschedules a subtask that was already planned for a day in the week`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val parent = givenTask(title = "Release", serverId = 11, projectLocalId = projectLocalId)
+            val child = scheduled("Tag it", parent, projectLocalId)
+            db.tasks().update(assertNotNull(db.tasks().byLocalId(child)).copy(planState = PlanState.WEEK))
+
+            tasks.plan(parent, PlanState.BACKLOG)
+
+            val row = assertNotNull(db.tasks().byLocalId(child))
+            assertEquals(PlanState.BACKLOG, row.planState)
+            assertNull(row.dueAt, "the week's day goes with the parent into the backlog")
+            assertEquals(false, row.dueHasTime)
+        }
+
+    @Test
+    fun `an edit that parks a task and names a day keeps that day`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val task = givenTask(title = "Release", serverId = 11, projectLocalId = projectLocalId)
+            val day = NOW + 86_400_000L
+
+            tasks.patch(task, TaskEdit(planState = PlanState.BACKLOG, dueAt = Clearable.Set(day)))
+
+            assertEquals(day, assertNotNull(db.tasks().byLocalId(task)).dueAt, "the edit said so explicitly")
+        }
+
+    @Test
     fun `planning queues one request and lets the server cascade on its side`() =
         runTest {
             val projectLocalId = givenProject(givenContext())
@@ -128,7 +175,7 @@ class PlanCascadeTest : WriteTest() {
     /** An open subtask with a day of its own, which is what the two cascades treat differently. */
     private suspend fun scheduled(
         title: String,
-        parentLocalId: Long,
+        parentLocalId: Long?,
         projectLocalId: Long,
     ): Long =
         db.tasks().insert(

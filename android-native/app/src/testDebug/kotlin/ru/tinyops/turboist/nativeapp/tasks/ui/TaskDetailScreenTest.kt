@@ -22,6 +22,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
@@ -447,6 +448,24 @@ class TaskDetailScreenTest {
         compose.onNodeWithText(text(R.string.common_tomorrow)).performScrollTo().performClick()
 
         assertEquals(listOf("dueDate $today", "dueDate ${today.plusDays(1)}"), performed)
+    }
+
+    @Test
+    fun `the folded when card picks a part of the day beside the quick days`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithContentDescription(text(R.string.task_dayPart_morning)).performScrollTo().performClick()
+
+        assertEquals(listOf("dayPart morning"), performed)
+    }
+
+    @Test
+    fun `tapping the part of the day already chosen on the folded card takes it back to any time`() {
+        show(stateOf(task(1, dayPart = DayPart.EVENING)))
+
+        compose.onNodeWithContentDescription(text(R.string.task_dayPart_evening)).performScrollTo().performClick()
+
+        assertEquals(listOf("dayPart ${DayPart.NONE.wire}"), performed)
     }
 
     @Test
