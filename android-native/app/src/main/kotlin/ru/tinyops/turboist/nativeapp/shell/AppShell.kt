@@ -3,7 +3,6 @@ package ru.tinyops.turboist.nativeapp.shell
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,20 +11,30 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -58,6 +67,24 @@ import ru.tinyops.turboist.nativeapp.sync.SyncStatus
 private val PermanentDrawerBreakpoint = 840.dp
 
 /**
+ * How tall the top bar is while the screen is scrolled to the top. Lower than
+ * Material's default for a large bar: the title should lead the screen, not
+ * take a fifth of it.
+ */
+private val ExpandedTopBarHeight = 120.dp
+
+/**
+ * The places the navigation bar offers on a phone, in its order. They are the
+ * four the day is spent between; everything else stays one swipe away in the
+ * drawer.
+ */
+internal val BottomBarDestinations: List<DrawerDestination> =
+    listOf(DrawerDestination.Inbox, DrawerDestination.Today, DrawerDestination.Week, DrawerDestination.Projects)
+
+/** Test tag of the navigation bar, which repeats some of the drawer's entries. */
+internal const val BOTTOM_BAR_TAG = "bottom-navigation"
+
+/**
  * The signed-in shell: drawer, top bar, and the app's navigation graph.
  *
  * [newIntents] carries links delivered to an already-running app. The graph
@@ -71,9 +98,9 @@ private val PermanentDrawerBreakpoint = 840.dp
  *
  * [syncStatus] is the rest of that story: whether a cycle is running, how the
  * last one ended, and how much of the user's own work has not gone out yet. It
- * is drawn as a strip above the graph rather than inside any screen, because it
- * is true of everything below it and because a screen that had to render it
- * would have to know about the engine.
+ * is drawn in the top bar rather than inside any screen, because it is true of
+ * everything below it and because a screen that had to render it would have to
+ * know about the engine.
  *
  * [dailyPlanEnabled] is the user's preference for the daily plan, which decides
  * whether the plan is one of the places the drawer offers at all.
@@ -162,64 +189,74 @@ fun AppShell(
         }
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        if (maxWidth >= PermanentDrawerBreakpoint) {
-            PermanentNavigationDrawer(
-                drawerContent = {
-                    PermanentDrawerSheet {
-                        AppDrawerContent(
-                            counts = counts,
-                            selected = { currentDestination.isOn(it) },
-                            onSelect = open,
-                            onSignOut = onSignOut,
-                            dailyPlanEnabled = dailyPlanEnabled,
-                        )
-                    }
-                },
-            ) {
-                ShellScaffold(
-                    currentDestination = currentDestination,
-                    screenOwnsChrome = screenOwnsChrome,
-                    harpoonable = harpoonable,
-                    onJump = jump,
-                    onOpenDrawer = null,
-                    unverifiedSession = unverifiedSession,
-                    syncStatus = syncStatus,
-                    onRetrySync = onRetrySync,
-                    navController = navController,
-                    screens = screens,
-                )
-            }
-        } else {
-            ModalNavigationDrawer(
-                drawerState = drawerState,
-                drawerContent = {
-                    ModalDrawerSheet {
-                        AppDrawerContent(
-                            counts = counts,
-                            selected = { currentDestination.isOn(it) },
-                            onSelect = { destination ->
-                                open(destination)
-                                scope.launch { drawerState.close() }
-                            },
-                            onSignOut = onSignOut,
-                            dailyPlanEnabled = dailyPlanEnabled,
-                        )
-                    }
-                },
-            ) {
-                ShellScaffold(
-                    currentDestination = currentDestination,
-                    screenOwnsChrome = screenOwnsChrome,
-                    harpoonable = harpoonable,
-                    onJump = jump,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                    unverifiedSession = unverifiedSession,
-                    syncStatus = syncStatus,
-                    onRetrySync = onRetrySync,
-                    navController = navController,
-                    screens = screens,
-                )
+    val chrome = remember { ShellChrome() }
+
+    CompositionLocalProvider(LocalShellChrome provides chrome) {
+        BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+            if (maxWidth >= PermanentDrawerBreakpoint) {
+                PermanentNavigationDrawer(
+                    drawerContent = {
+                        PermanentDrawerSheet {
+                            AppDrawerContent(
+                                counts = counts,
+                                selected = { currentDestination.isOn(it) },
+                                onSelect = open,
+                                onSignOut = onSignOut,
+                                dailyPlanEnabled = dailyPlanEnabled,
+                            )
+                        }
+                    },
+                ) {
+                    ShellScaffold(
+                        currentDestination = currentDestination,
+                        screenOwnsChrome = screenOwnsChrome,
+                        harpoonable = harpoonable,
+                        onJump = jump,
+                        onOpenDrawer = null,
+                        bottomBar = null,
+                        chrome = chrome,
+                        unverifiedSession = unverifiedSession,
+                        syncStatus = syncStatus,
+                        onRetrySync = onRetrySync,
+                        navController = navController,
+                        screens = screens,
+                    )
+                }
+            } else {
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet {
+                            AppDrawerContent(
+                                counts = counts,
+                                selected = { currentDestination.isOn(it) },
+                                onSelect = { destination ->
+                                    open(destination)
+                                    scope.launch { drawerState.close() }
+                                },
+                                onSignOut = onSignOut,
+                                dailyPlanEnabled = dailyPlanEnabled,
+                            )
+                        }
+                    },
+                ) {
+                    ShellScaffold(
+                        currentDestination = currentDestination,
+                        screenOwnsChrome = screenOwnsChrome,
+                        harpoonable = harpoonable,
+                        onJump = jump,
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                        bottomBar = {
+                            BottomBar(selected = { currentDestination.isOn(it) }, onSelect = open)
+                        },
+                        chrome = chrome,
+                        unverifiedSession = unverifiedSession,
+                        syncStatus = syncStatus,
+                        onRetrySync = onRetrySync,
+                        navController = navController,
+                        screens = screens,
+                    )
+                }
             }
         }
     }
@@ -233,18 +270,29 @@ private fun ShellScaffold(
     harpoonable: HarpoonEntry?,
     onJump: (HarpoonEntry) -> Unit,
     onOpenDrawer: (() -> Unit)?,
+    bottomBar: (@Composable () -> Unit)?,
+    chrome: ShellChrome,
     unverifiedSession: Boolean,
     syncStatus: SyncStatus,
     onRetrySync: () -> Unit,
     navController: NavHostController,
     screens: AppScreens,
 ) {
+    // The title shrinks into the bar as a list scrolls under it and comes back
+    // at the top, which is what keeps a large title from costing a list its rows.
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             if (!screenOwnsChrome) {
-                TopAppBar(
-                    title = { Text(stringResource(titleResFor(currentDestination))) },
+                LargeTopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(titleResFor(currentDestination)),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
                     navigationIcon = {
                         if (onOpenDrawer != null) {
                             IconButton(onClick = onOpenDrawer) {
@@ -255,24 +303,71 @@ private fun ShellScaffold(
                             }
                         }
                     },
-                    actions = { screens.harpoon(harpoonable, onJump) },
+                    actions = {
+                        // How current the screen is sits with the screen's own
+                        // controls: it is a fact about what is on screen, and
+                        // drawing it in the bar means it never pushes the list.
+                        SyncIndicator(
+                            status = syncStatus,
+                            sessionUnverified = unverifiedSession,
+                            onRetry = onRetrySync,
+                        )
+                        screens.harpoon(harpoonable, onJump)
+                    },
+                    expandedHeight = ExpandedTopBarHeight,
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        ),
+                    scrollBehavior = scrollBehavior,
                 )
             }
+        },
+        bottomBar = {
+            // A picked selection puts its own toolbar along the bottom edge, and
+            // two bars there would be a stack of targets with no clear owner.
+            if (bottomBar != null && !screenOwnsChrome && !chrome.selectionActive) bottomBar()
         },
     ) { innerPadding ->
         // The capture surface sits over the screens rather than inside any one
         // of them: writing something down is reachable from everywhere, and the
         // sheet it raises has to survive moving between destinations.
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SyncBanner(
-                    status = syncStatus,
-                    sessionUnverified = unverifiedSession,
-                    onRetry = onRetrySync,
-                )
-                AppNavHost(navController = navController, screens = screens)
-            }
-            screens.quickAdd(!screenOwnsChrome)
+            AppNavHost(navController = navController, screens = screens)
+            screens.quickAdd(!screenOwnsChrome && !chrome.selectionActive)
+        }
+    }
+}
+
+/**
+ * The navigation bar a phone gets under every list.
+ *
+ * It repeats four of the drawer's entries rather than replacing the drawer: the
+ * places the day is spent between are a thumb away, and the rest of the catalog
+ * keeps the home it has always had.
+ */
+@Composable
+private fun BottomBar(
+    selected: (DrawerDestination) -> Boolean,
+    onSelect: (DrawerDestination) -> Unit,
+) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.testTag(BOTTOM_BAR_TAG),
+    ) {
+        for (destination in BottomBarDestinations) {
+            NavigationBarItem(
+                selected = selected(destination),
+                onClick = { onSelect(destination) },
+                icon = { Icon(destination.icon, contentDescription = null) },
+                label = { Text(stringResource(destination.labelRes), maxLines = 1) },
+                colors =
+                    NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+            )
         }
     }
 }

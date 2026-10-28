@@ -64,4 +64,14 @@
     <string name="native_recurrence_ruleUnreadable">Это не правило повтора.</string>
     <string name="native_recurrence_next">Следующая: %1$s</string>
     <string name="native_recurrence_noNext">После текущей у этого правила нет повторов.</string>
+
+    <string name="native_sync_inProgress">Синхронизация</string>
+    <string name="native_sync_failed">Не удалось синхронизироваться с сервером</string>
+    <string name="native_sync_offlineChip">Офлайн</string>
+    <string name="native_sync_failedChip">Не синхронизировано</string>
+    <string name="native_drawer_open">Открыть меню</string>
+    <string name="native_selection_plan">План</string>
+    <string name="native_selection_more">Ещё</string>
+    <string name="native_labels_showAll">Ещё %1$d</string>
+    <string name="native_labels_showFewer">Свернуть</string>
 </resources>

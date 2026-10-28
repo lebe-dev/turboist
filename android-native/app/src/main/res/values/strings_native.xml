@@ -176,6 +176,8 @@
          carries the title of the thing the change was for. -->
     <string name="native_sync_inProgress">Syncing</string>
     <string name="native_sync_failed">Could not sync with the server</string>
+    <string name="native_sync_offlineChip">Offline</string>
+    <string name="native_sync_failedChip">Not synced</string>
     <string name="native_unsent_openSetAside">Unsent changes</string>
     <string name="native_unsent_settingsDescription">Changes this device made that the server would not take.</string>
     <string name="native_unsent_setAsideHeading">Refused by the server</string>
@@ -296,4 +298,12 @@
          therefore nothing to show. -->
     <string name="native_account_needsConnection">This is read from the server as you look at it and is not kept on this device, so it needs a connection.</string>
     <string name="native_account_clientUnknown">Other</string>
+
+    <!-- The selection toolbar: short labels under each action's icon. -->
+    <string name="native_selection_plan">Plan</string>
+    <string name="native_selection_more">More</string>
+
+    <!-- The label picker, folded down to the labels most likely to be wanted. -->
+    <string name="native_labels_showAll">%1$d more</string>
+    <string name="native_labels_showFewer">Fewer</string>
 </resources>

@@ -5,18 +5,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
@@ -26,18 +27,23 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.shell.LocalShellChrome
 import ru.tinyops.turboist.nativeapp.tasks.SectionHeading
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 import ru.tinyops.turboist.nativeapp.tasks.TaskListSection
@@ -97,61 +103,105 @@ fun TaskList(
     callbacks: TaskListCallbacks,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
-        if (state.announcement != null) Announcement(state.announcement)
-        // The age of the appointments, when they are stale, belongs above the
-        // whole list: it qualifies every band on the screen at once, and one line
-        // is less noise than the same note repeated under each heading.
-        if (state.calendarAsOf != null) CalendarAsOfNote(state.calendarAsOf, zone)
-        if (state.selectionMode) {
-            SelectionBar(
-                count = state.selected.size,
-                actions = callbacks.selectionActions,
-                onClear = callbacks.onClearSelection,
-                modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer),
-            )
+    // While tasks are picked the toolbar owns the bottom edge, so the shell's
+    // capture button and navigation bar step aside for exactly that long.
+    val chrome = LocalShellChrome.current
+    if (chrome != null) {
+        DisposableEffect(chrome, state.selectionMode) {
+            chrome.selectionActive = state.selectionMode
+            onDispose { chrome.selectionActive = false }
         }
+    }
+    val actions = callbacks.selectionActions
+    val toolbarShown = state.selectionMode && actions != null
 
-        PullToRefreshBox(
-            isRefreshing = state.refreshing,
-            onRefresh = callbacks.onRefresh,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            if (state.isEmpty && empty != null) {
-                EmptyList(empty)
-                return@PullToRefreshBox
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (state.announcement != null) Announcement(state.announcement)
+            // The age of the appointments, when they are stale, belongs above the
+            // whole list: it qualifies every band on the screen at once, and one
+            // line is less noise than the same note repeated under each heading.
+            if (state.calendarAsOf != null) CalendarAsOfNote(state.calendarAsOf, zone)
+            if (state.selectionMode) {
+                SelectionHeader(count = state.selected.size, onClear = callbacks.onClearSelection)
             }
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                for (section in state.sections) {
-                    item(key = "heading-" + section.key) {
-                        SectionHeader(
-                            section = section,
-                            selectionMode = state.selectionMode,
-                            onSelectAll = {
-                                callbacks.onSelectAllInSection(section.rows.map { it.task.localId })
-                            },
-                        )
-                    }
-                    if (section.events.isNotEmpty()) {
-                        item(key = "events-" + section.key) { CalendarEventBand(section.events, zone) }
-                    }
-                    if (section.rows.isEmpty() && section.emptyRes != null) {
-                        item(key = "empty-" + section.key) { EmptySection(section.emptyRes) }
-                    }
-                    items(section.rows, key = { "task-" + it.task.localId }) { row ->
-                        SwipeableTaskRow(
-                            row = row,
-                            zone = zone,
-                            today = today,
-                            selectionMode = state.selectionMode,
-                            selected = row.task.localId in state.selected,
-                            callbacks = callbacks,
-                        )
+
+            PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = callbacks.onRefresh,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (state.isEmpty && empty != null) {
+                    EmptyList(empty)
+                    return@PullToRefreshBox
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding =
+                        PaddingValues(
+                            start = LIST_GUTTER,
+                            end = LIST_GUTTER,
+                            // The last row has to be able to scroll clear of
+                            // whatever floats over the bottom of the list.
+                            bottom = if (toolbarShown) TOOLBAR_CLEARANCE else FAB_CLEARANCE,
+                        ),
+                ) {
+                    for (section in state.sections) {
+                        item(key = "heading-" + section.key) {
+                            SectionHeader(
+                                section = section,
+                                selectionMode = state.selectionMode,
+                                onSelectAll = {
+                                    callbacks.onSelectAllInSection(section.rows.map { it.task.localId })
+                                },
+                            )
+                        }
+                        if (section.events.isNotEmpty()) {
+                            item(key = "events-" + section.key) { CalendarEventBand(section.events, zone) }
+                        }
+                        if (section.rows.isEmpty() && section.emptyRes != null) {
+                            item(key = "empty-" + section.key) { EmptySection(section.emptyRes) }
+                        }
+                        itemsIndexed(section.rows, key = { _, row -> "task-" + row.task.localId }) { index, row ->
+                            SwipeableTaskRow(
+                                row = row,
+                                zone = zone,
+                                today = today,
+                                selectionMode = state.selectionMode,
+                                selected = row.task.localId in state.selected,
+                                callbacks = callbacks,
+                                shape = segmentShape(index, section.rows.size),
+                                modifier = Modifier.padding(top = if (index == 0) 0.dp else SEGMENT_GAP),
+                            )
+                        }
                     }
                 }
             }
         }
+        if (toolbarShown && actions != null) {
+            SelectionToolbar(
+                count = state.selected.size,
+                actions = actions,
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 12.dp, vertical = 16.dp),
+            )
+        }
     }
+}
+
+/**
+ * The shape of a row inside its block: the block reads as one card, so only its
+ * outer corners are fully rounded and the seams between rows are barely cut.
+ */
+internal fun segmentShape(
+    index: Int,
+    count: Int,
+): Shape {
+    val top = if (index == 0) OUTER_CORNER else INNER_CORNER
+    val bottom = if (index == count - 1) OUTER_CORNER else INNER_CORNER
+    return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
 }
 
 /**
@@ -172,6 +222,8 @@ private fun SwipeableTaskRow(
     selectionMode: Boolean,
     selected: Boolean,
     callbacks: TaskListCallbacks,
+    shape: Shape,
+    modifier: Modifier = Modifier,
 ) {
     val parked = row.task.planState == PlanState.BACKLOG
     // The swipes are unreachable to anyone driving the screen with an assistive
@@ -194,7 +246,7 @@ private fun SwipeableTaskRow(
     SwipeToDismissBox(
         state = swipeState,
         modifier =
-            Modifier.semantics {
+            modifier.clip(shape).semantics {
                 customActions =
                     listOf(
                         CustomAccessibilityAction(completeLabel) {
@@ -219,7 +271,7 @@ private fun SwipeableTaskRow(
                 onOpen = { callbacks.onOpen(row.task) },
                 onSelectToggle = { callbacks.onSelectToggle(row.task) },
                 onStartSelection = { callbacks.onStartSelection(row.task) },
-                modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow),
             )
         },
     )
@@ -239,8 +291,8 @@ private fun SwipeBackground(parked: Boolean) {
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 16.dp),
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -277,19 +329,20 @@ private fun SectionHeader(
         return
     }
     val overdue = heading is SectionHeading.Overdue
-    val emphasised = overdue || (heading is SectionHeading.Phase && heading.active)
+    val emphasised = heading is SectionHeading.Phase && heading.active
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 0.dp, top = 20.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = headingText(heading),
             style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
             color =
                 when {
                     overdue -> MaterialTheme.colorScheme.error
-                    emphasised -> MaterialTheme.colorScheme.onSurface
+                    emphasised -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
         )
@@ -306,14 +359,13 @@ private fun SectionHeader(
             TextButton(onClick = onSelectAll) { Text(stringResource(R.string.selection_bar_selectAll)) }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 /** The whole-block gesture on a list whose blocks carry no heading of their own. */
 @Composable
 private fun SelectAllRow(onSelectAll: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
     ) {
         TextButton(onClick = onSelectAll) { Text(stringResource(R.string.selection_bar_selectAll)) }
@@ -355,8 +407,9 @@ private fun Announcement(text: String) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.secondaryContainer)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = LIST_GUTTER, vertical = 4.dp)
+                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(OUTER_CORNER))
+                .padding(horizontal = 16.dp, vertical = 12.dp),
     )
 }
 
@@ -400,6 +453,24 @@ private fun EmptySection(
         text = stringResource(textRes),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
     )
 }
+
+/** How far the cards of a list sit in from the screen's edges. */
+private val LIST_GUTTER = 12.dp
+
+/** The corner a block of rows is rounded with on the outside. */
+private val OUTER_CORNER = 20.dp
+
+/** The corner cut into the seam between two rows of one block. */
+private val INNER_CORNER = 4.dp
+
+/** The gap between two rows of one block. */
+private val SEGMENT_GAP = 2.dp
+
+/** Room under the last row for the capture button to float over nothing. */
+private val FAB_CLEARANCE = 96.dp
+
+/** Room under the last row for the selection toolbar. */
+private val TOOLBAR_CLEARANCE = 112.dp

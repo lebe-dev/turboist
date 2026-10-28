@@ -1,8 +1,10 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -12,10 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.outlined.CheckBox
-import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
-import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.HourglassEmpty
@@ -33,8 +32,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.core.model.PlanState
@@ -50,7 +52,7 @@ import java.time.ZoneId
  * One task, as a list draws it.
  *
  * The control on the left is the whole story of what can be done with the row.
- * A task something still holds up shows a padlock instead of an empty box and
+ * A task something still holds up shows a padlock instead of an empty ring and
  * cannot be ticked: the rule is the server's, the device repeats it, and saying
  * so before the tap is the only version of it the user is not misled by. A task
  * created while offline shows that it is still waiting to be sent — it is real
@@ -86,7 +88,7 @@ fun TaskRow(
                 .fillMaxWidth()
                 .then(
                     if (selected) {
-                        Modifier.background(MaterialTheme.colorScheme.secondaryContainer)
+                        Modifier.background(selectedRowColor())
                     } else {
                         Modifier
                     },
@@ -95,29 +97,27 @@ fun TaskRow(
                     onClick = { if (selectionMode) onSelectToggle() else onOpen() },
                     onLongClick = onStartSelection,
                 )
-                .padding(start = (row.depth * INDENT_STEP_DP).dp + 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = (row.depth * INDENT_STEP_DP).dp + 4.dp, end = 16.dp, top = 4.dp, bottom = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {
+        // While tasks are being picked, the control on the left picks. Ticking a
+        // task off in the middle of a selection would be the one gesture on the
+        // screen that does something other than what every other tap is doing.
         if (selectionMode) {
-            IconButton(onClick = onSelectToggle) {
-                Icon(
-                    imageVector = if (selected) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
-                    contentDescription =
-                        stringResource(
-                            if (selected) R.string.selection_unselectTask else R.string.selection_selectTask,
-                        ),
-                )
-            }
+            SelectionControl(selected = selected, onSelectToggle = onSelectToggle)
+        } else {
+            CompletionControl(
+                completed = completed,
+                blocked = blocked,
+                tint = tint,
+                onToggleComplete = onToggleComplete,
+            )
         }
 
-        CompletionControl(
-            completed = completed,
-            blocked = blocked,
-            tint = tint,
-            onToggleComplete = onToggleComplete,
-        )
-
-        Column(modifier = Modifier.padding(start = 4.dp, top = 8.dp)) {
+        Column(
+            modifier = Modifier.padding(start = 4.dp, top = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             TitleLine(task = task, completed = completed)
             MetaLine(
                 task = task,
@@ -131,12 +131,26 @@ fun TaskRow(
 }
 
 /**
- * The tick box, and the two things it can be instead of one.
+ * The fill a picked row takes: the row's own container pulled towards the
+ * accent, so a picked row reads as part of the same card rather than as a
+ * different surface laid over it.
+ */
+@Composable
+private fun selectedRowColor(): Color =
+    lerp(
+        MaterialTheme.colorScheme.surfaceContainerLow,
+        MaterialTheme.colorScheme.primaryContainer,
+        SELECTED_ROW_BLEND,
+    )
+
+/**
+ * The tick ring, and the two things it can be instead of one.
  *
- * A blocked task gets a padlock rather than a greyed-out box, because a greyed
- * box still reads as "a box you may tick later"; the padlock says what is
- * actually true. Its colour still carries the priority, so nothing is lost by
- * the swap.
+ * An open task is a ring in its priority's colour with a faint fill of the same,
+ * so the level reads before the title does. A blocked task gets a padlock rather
+ * than a greyed-out ring, because a greyed ring still reads as "a ring you may
+ * tick later"; the padlock says what is actually true. Its colour still carries
+ * the priority, so nothing is lost by the swap.
  */
 @Composable
 private fun CompletionControl(
@@ -152,21 +166,76 @@ private fun CompletionControl(
                     imageVector = Icons.Outlined.Lock,
                     contentDescription = stringResource(R.string.task_blockedTooltip),
                     tint = tint,
+                    modifier = Modifier.size(20.dp),
                 )
 
-            completed ->
-                Icon(
-                    imageVector = Icons.Filled.CheckCircle,
-                    contentDescription = stringResource(R.string.task_markIncomplete),
-                    tint = MaterialTheme.colorScheme.outline,
-                )
+            completed -> {
+                val description = stringResource(R.string.task_markIncomplete)
+                Box(
+                    modifier =
+                        Modifier
+                            .size(RING_SIZE)
+                            .background(MaterialTheme.colorScheme.outline, CircleShape)
+                            .semantics { contentDescription = description },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
 
-            else ->
-                Icon(
-                    imageVector = Icons.Outlined.Circle,
-                    contentDescription = stringResource(R.string.task_markComplete),
-                    tint = tint,
+            else -> {
+                val description = stringResource(R.string.task_markComplete)
+                Box(
+                    modifier =
+                        Modifier
+                            .size(RING_SIZE)
+                            .background(tint.copy(alpha = RING_FILL_ALPHA), CircleShape)
+                            .border(2.dp, tint, CircleShape)
+                            .semantics { contentDescription = description },
                 )
+            }
+        }
+    }
+}
+
+/** The ring a row shows while tasks are being picked: empty, or filled and ticked. */
+@Composable
+private fun SelectionControl(
+    selected: Boolean,
+    onSelectToggle: () -> Unit,
+) {
+    val description =
+        stringResource(if (selected) R.string.selection_unselectTask else R.string.selection_selectTask)
+    IconButton(onClick = onSelectToggle) {
+        if (selected) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(RING_SIZE + 2.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        .semantics { contentDescription = description },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        } else {
+            Box(
+                modifier =
+                    Modifier
+                        .size(RING_SIZE + 2.dp)
+                        .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                        .semantics { contentDescription = description },
+            )
         }
     }
 }
@@ -180,7 +249,7 @@ private fun TitleLine(
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = task.title,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             color =
                 if (completed) {
                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -258,9 +327,9 @@ private fun MetaLine(
     if (nothingToShow) return
 
     FlowRow(
-        modifier = Modifier.padding(top = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         if (recurring) {
             MarkerIcon(
@@ -280,7 +349,7 @@ private fun MetaLine(
             }
         }
         if (projectTitle != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 MarkerIcon(Icons.Outlined.Folder, R.string.nav_projects)
                 MetaText(projectTitle)
             }
@@ -346,22 +415,34 @@ private fun MetaText(text: String) {
 }
 
 /**
- * One tag, drawn as the web client draws it: a filled pill rather than an
- * outlined one. A row can carry several, and several outlines in a line read as
- * a row of empty boxes.
+ * One tag, written as a hashtag rather than boxed. A row can carry several, and
+ * a line of pills beside a project name and a date turns the facts under the
+ * title into a row of buttons; a quiet hashtag stays a fact.
  */
 @Composable
 private fun LabelChip(name: String) {
-    Text(
-        text = name,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier =
-            Modifier
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                .padding(horizontal = 8.dp, vertical = 1.dp),
-    )
+    Row {
+        Text(
+            text = "#",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.outline,
+        )
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
+
+/** The size of the tick ring on the left of a row. */
+private val RING_SIZE = 22.dp
+
+/** How much of a priority's colour fills the inside of its ring. */
+private const val RING_FILL_ALPHA = 0.14f
+
+/** How far a picked row's fill is pulled from its card towards the accent. */
+private const val SELECTED_ROW_BLEND = 0.45f
 
 /** How far one level of nesting shifts a row, in density-independent pixels. */
 private const val INDENT_STEP_DP = 16

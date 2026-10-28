@@ -4,7 +4,9 @@ import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -24,6 +26,8 @@ import org.robolectric.annotation.Config
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsNavigationRows
 import ru.tinyops.turboist.nativeapp.shell.AppShell
+import ru.tinyops.turboist.nativeapp.shell.BOTTOM_BAR_TAG
+import ru.tinyops.turboist.nativeapp.shell.BottomBarDestinations
 import ru.tinyops.turboist.nativeapp.shell.DrawerCounts
 import ru.tinyops.turboist.nativeapp.shell.StubScreen
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
@@ -175,9 +179,14 @@ class AppNavigationTest {
 
     private fun tapDrawerEntry(destination: DrawerDestination) {
         openDrawer()
-        // The label also appears in the title bar; only the drawer entry is
-        // clickable, which is what tells the two apart.
-        compose.onNode(hasText(text(destination.labelRes)) and hasClickAction()).performClick()
+        // The label also appears in the title bar and, for a few entries, in the
+        // navigation bar. Only the drawer entry is clickable outside that bar,
+        // which is what tells them apart.
+        compose
+            .onNode(
+                hasText(text(destination.labelRes)) and hasClickAction() and
+                    !hasAnyAncestor(hasTestTag(BOTTOM_BAR_TAG)),
+            ).performClick()
         compose.waitForIdle()
     }
 
@@ -199,6 +208,25 @@ class AppNavigationTest {
             // The title bar is the user's own confirmation that the tap landed,
             // so it is asserted alongside the back stack.
             compose.onAllNodesWithText(text(destination.labelRes)).onFirst().assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `the navigation bar opens the places the day is spent between`() {
+        launchShell()
+
+        BottomBarDestinations.forEach { destination ->
+            compose
+                .onNode(
+                    hasText(text(destination.labelRes)) and hasClickAction() and
+                        hasAnyAncestor(hasTestTag(BOTTOM_BAR_TAG)),
+                ).performClick()
+            compose.waitForIdle()
+
+            assertTrue(
+                navController.currentBackStackEntry?.destination?.hasRoute(destination.route::class) == true,
+                "the navigation bar entry ${destination.name} did not open the destination it names",
+            )
         }
     }
 

@@ -20,16 +20,20 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -218,8 +222,8 @@ fun DetailSwitchRow(
  * the levels are a scale — exactly one of them is true at a time — and a row of
  * chips says the opposite.
  *
- * The chosen level is filled with its own signalling colour rather than with the
- * scheme's accent. The colour is what a user reads first on every list in both
+ * The chosen level is filled solid with its own signalling colour rather than
+ * with the scheme's accent. The colour is what a user reads first on every list in both
  * clients, and a picker that drops it would be the one place in the product
  * where P1 is not red.
  *
@@ -255,36 +259,21 @@ fun PrioritySelector(
                 )
             }
         }
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            PRIORITY_CHOICES.forEachIndexed { index, level ->
-                val text = priorityLabel(level)
+        ConnectedChoiceGroup(
+            options = PRIORITY_CHOICES,
+            selected = priority,
+            onSelect = onSelect,
+            label = { priorityLabel(it) },
+            enabled = !locked,
+            selectedColors = { level ->
                 val tint = priorityTint(level)
-                SegmentedButton(
-                    selected = level == priority,
-                    onClick = { onSelect(level) },
-                    enabled = !locked,
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = PRIORITY_CHOICES.size),
-                    colors =
-                        SegmentedButtonDefaults.colors(
-                            activeContainerColor = tint.copy(alpha = SELECTED_LEVEL_ALPHA),
-                            activeContentColor = tint,
-                            activeBorderColor = Color.Transparent,
-                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            inactiveBorderColor = Color.Transparent,
-                            disabledActiveContainerColor = tint.copy(alpha = SELECTED_LEVEL_ALPHA),
-                            disabledActiveContentColor = tint,
-                            disabledActiveBorderColor = Color.Transparent,
-                            disabledInactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            disabledInactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledInactiveBorderColor = Color.Transparent,
-                        ),
-                    icon = { LevelDot(tint) },
-                    label = { Text(text) },
-                    modifier = Modifier.semantics { contentDescription = text },
+                ChoiceColors(
+                    container = tint,
+                    content = if (tint.luminance() > BRIGHT_TINT) Color.Black else Color.White,
                 )
-            }
-        }
+            },
+            leading = { level -> LevelDot(priorityTint(level)) },
+        )
         if (locked) {
             Text(
                 text = stringResource(R.string.page_task_priorityLockedByTroiki),
@@ -302,31 +291,34 @@ private fun LevelDot(tint: Color) {
     Surface(
         color = tint,
         shape = CircleShape,
-        modifier = Modifier.size(8.dp),
+        modifier = Modifier.size(10.dp),
         content = {},
     )
 }
 
-/** The phase of the day a task is meant for. */
+/** The phase of the day a task is meant for, as one connected group. */
 @Composable
 fun DayPartSelector(
     dayPart: DayPart,
     onSelect: (DayPart) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ChoiceRow(
-        label = stringResource(R.string.page_task_dayPart),
-        modifier = modifier,
-    ) {
-        for (part in DAY_PART_CHOICES) {
-            val text = stringResource(dayPartLabel(part))
-            FilterChip(
-                selected = part == dayPart,
-                onClick = { onSelect(part) },
-                label = { Text(text) },
-                modifier = Modifier.semantics { contentDescription = text },
-            )
-        }
+    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(
+            text = stringResource(R.string.page_task_dayPart),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        ConnectedChoiceGroup(
+            options = DAY_PART_CHOICES,
+            // A phase this build cannot read sits with "any time", which is where
+            // the lists already put it.
+            selected = if (dayPart == DayPart.UNKNOWN) DayPart.NONE else dayPart,
+            onSelect = onSelect,
+            label = { stringResource(dayPartLabel(it)) },
+            equalWidths = false,
+        )
     }
 }
 
@@ -345,10 +337,20 @@ fun LabelSelector(
     recentOrder: List<Long> = emptyList(),
 ) {
     if (known.isEmpty()) return
+    var expanded by rememberSaveable { mutableStateOf(false) }
     // The labels this device applied lately get a row of their own above the
     // rest, and are lifted out of it so none is offered twice.
     val recent = pickRecentLabels(recentOrder, known)
-    val lifted = recent.mapTo(HashSet()) { it.localId }
+    // Folded, the picker offers what the task already carries, what was used
+    // lately, and enough of the rest to reach for. The set is fixed when the
+    // picker opens, so a chip that is tapped off does not vanish under the
+    // finger that tapped it.
+    val initiallySelected = remember { selected }
+    val folded =
+        remember(known, recent, initiallySelected) {
+            foldedLabels(known, recent, initiallySelected)
+        }
+    val hidden = known.size - folded.size
     val chip: @Composable (Label) -> Unit = { label ->
         val on = label.name in selected
         FilterChip(
@@ -358,6 +360,14 @@ fun LabelSelector(
             modifier = Modifier.semantics { contentDescription = label.name },
         )
     }
+    if (!expanded && hidden > 0) {
+        ChoiceRow(label = stringResource(R.string.page_task_labels), modifier = modifier) {
+            for (label in folded) chip(label)
+            FoldToggle(text = stringResource(R.string.native_labels_showAll, hidden), onClick = { expanded = true })
+        }
+        return
+    }
+    val lifted = recent.mapTo(HashSet()) { it.localId }
     if (recent.isNotEmpty()) {
         ChoiceRow(label = stringResource(R.string.label_picker_recent), modifier = modifier) {
             for (label in recent) chip(label)
@@ -370,6 +380,44 @@ fun LabelSelector(
         for (label in known) {
             if (label.localId !in lifted) chip(label)
         }
+        if (hidden > 0) {
+            FoldToggle(text = stringResource(R.string.native_labels_showFewer), onClick = { expanded = false })
+        }
+    }
+}
+
+/**
+ * The labels a folded picker shows: the ones already on the task, then the ones
+ * used lately, then the rest in their own order until there are enough.
+ */
+internal fun foldedLabels(
+    known: List<Label>,
+    recent: List<Label>,
+    selected: List<String>,
+): List<Label> {
+    val picked = known.filter { it.name in selected }
+    val shown = LinkedHashMap<Long, Label>()
+    for (label in picked + recent) shown.putIfAbsent(label.localId, label)
+    for (label in known) {
+        if (shown.size >= FOLDED_LABELS) break
+        shown.putIfAbsent(label.localId, label)
+    }
+    return shown.values.toList()
+}
+
+/** The chip that unfolds the picker, or folds it again. */
+@Composable
+private fun FoldToggle(
+    text: String,
+    onClick: () -> Unit,
+) {
+    TextButton(onClick = onClick) {
+        Text(text)
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -453,8 +501,11 @@ fun statusLabel(status: TaskStatus): String =
         TaskStatus.UNKNOWN -> stringResource(R.string.native_task_unset)
     }
 
-/** How much of the chosen level's own colour its segment is filled with. */
-private const val SELECTED_LEVEL_ALPHA = 0.20f
+/** Above this luminance a level's colour takes dark text on it, below it light. */
+private const val BRIGHT_TINT = 0.4f
+
+/** How many labels a folded picker shows before offering the rest. */
+private const val FOLDED_LABELS = 6
 
 /** The corner every card on the screen is cut with. */
 internal const val CARD_CORNER_DP = 24

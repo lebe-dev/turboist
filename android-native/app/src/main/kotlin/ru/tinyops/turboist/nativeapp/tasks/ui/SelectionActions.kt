@@ -1,22 +1,32 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
-import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.EventAvailable
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -26,8 +36,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -40,9 +52,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
@@ -68,80 +83,155 @@ data class SelectionActions(
 )
 
 /**
- * The bar shown while tasks are being picked.
+ * The header shown above the list while tasks are being picked: the way out and
+ * the count. It replaces nothing and pushes nothing off screen; it is the
+ * reminder that taps now pick rather than open.
+ */
+@Composable
+fun SelectionHeader(
+    count: Int,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(bottomStart = HEADER_CORNER, bottomEnd = HEADER_CORNER),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onClear) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.selection_bar_cancel),
+                )
+            }
+            Text(
+                text = stringResource(R.string.selection_bar_count, count),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * The toolbar that floats over the bottom of the list while tasks are picked.
  *
- * The three actions a selection is usually made for — finish it, file it
- * somewhere, make one thing out of it — are on the bar itself; the rest are
- * behind the overflow, because a bar of seven buttons on a phone is a row of
- * targets too small to hit. The count and the way out flank them, and they are
- * what make the mode usable at all.
+ * Every action carries its name under its icon: a row of bare icons is a row of
+ * guesses, and these are the gestures that change many tasks at once. Finishing
+ * the selection is what it is most often made for, so it is the one filled
+ * button. Priority and plan open their own short menus; grouping and deleting,
+ * the two that reshape or remove work, sit behind "more".
  *
  * Grouping needs at least two tasks: one task under a new parent is not a group,
  * it is a rename with extra steps, and the server refuses the shape anyway.
  */
 @Composable
-fun SelectionBar(
+fun SelectionToolbar(
     count: Int,
-    actions: SelectionActions?,
-    onClear: () -> Unit,
+    actions: SelectionActions,
     modifier: Modifier = Modifier,
 ) {
-    var overflowOpen by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     val barLabel = stringResource(R.string.selection_bar_aria)
-    Row(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 4.dp)
-                .semantics { contentDescription = barLabel },
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shape = RoundedCornerShape(TOOLBAR_CORNER),
+        shadowElevation = 6.dp,
+        modifier = modifier.fillMaxWidth().semantics { contentDescription = barLabel },
     ) {
-        Text(
-            text = stringResource(R.string.selection_bar_count, count),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.weight(1f),
-        )
-        if (actions != null) {
-            BarAction(
-                labelRes = R.string.selection_bar_complete,
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ToolbarAction(
+                label = stringResource(R.string.selection_bar_complete),
+                icon = Icons.Outlined.CheckCircle,
                 onClick = actions.onComplete,
-                icon = { tint -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = tint) },
+                emphasised = true,
+                modifier = Modifier.weight(1f),
             )
-            BarAction(
-                labelRes = R.string.selection_bar_move,
+            ToolbarAction(
+                label = stringResource(R.string.selection_bar_move),
+                icon = Icons.Outlined.DriveFileMove,
                 onClick = actions.onMove,
-                icon = { tint -> Icon(Icons.Outlined.DriveFileMove, contentDescription = null, tint = tint) },
+                modifier = Modifier.weight(1f),
             )
-            if (count >= MIN_TASKS_IN_A_GROUP) {
-                BarAction(
-                    labelRes = R.string.selection_bar_group,
-                    onClick = actions.onGroup,
-                    icon = { tint -> Icon(Icons.Outlined.AccountTree, contentDescription = null, tint = tint) },
+            ToolbarMenu(
+                label = stringResource(R.string.selection_bar_priority),
+                icon = Icons.Outlined.Flag,
+                modifier = Modifier.weight(1f),
+            ) { close ->
+                for (level in PRIORITY_CHOICES) {
+                    DropdownMenuItem(
+                        text = { Text(priorityLabel(level)) },
+                        leadingIcon = { PriorityDot(priorityTint(level)) },
+                        onClick = {
+                            close()
+                            actions.onPriority(level)
+                        },
+                    )
+                }
+            }
+            ToolbarMenu(
+                label = stringResource(R.string.native_selection_plan),
+                icon = Icons.Outlined.EventAvailable,
+                modifier = Modifier.weight(1f),
+            ) { close ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.page_nextWeek_planForWeek)) },
+                    leadingIcon = { Icon(Icons.Outlined.EventAvailable, contentDescription = null) },
+                    onClick = {
+                        close()
+                        actions.onPlan(PlanState.WEEK)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.task_actions_toBacklog)) },
+                    leadingIcon = { Icon(Icons.Outlined.Inventory2, contentDescription = null) },
+                    onClick = {
+                        close()
+                        actions.onPlan(PlanState.BACKLOG)
+                    },
                 )
             }
-            BarAction(
-                labelRes = R.string.selection_bar_more,
-                onClick = { overflowOpen = true },
-                icon = { tint -> Icon(Icons.Filled.MoreVert, contentDescription = null, tint = tint) },
-            )
-            SelectionOverflow(
-                open = overflowOpen,
-                actions = actions,
-                onDismiss = { overflowOpen = false },
-                onDeleteRequested = { confirmingDelete = true },
-            )
-        }
-        IconButton(onClick = onClear) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.selection_bar_cancel),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
+            ToolbarMenu(
+                label = stringResource(R.string.native_selection_more),
+                description = stringResource(R.string.selection_bar_more),
+                icon = Icons.Filled.MoreHoriz,
+                modifier = Modifier.weight(1f),
+            ) { close ->
+                if (count >= MIN_TASKS_IN_A_GROUP) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.selection_bar_group)) },
+                        leadingIcon = { Icon(Icons.Outlined.AccountTree, contentDescription = null) },
+                        onClick = {
+                            close()
+                            actions.onGroup()
+                        },
+                    )
+                    HorizontalDivider()
+                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.common_delete)) },
+                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                    colors =
+                        MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.error,
+                            leadingIconColor = MaterialTheme.colorScheme.error,
+                        ),
+                    onClick = {
+                        close()
+                        confirmingDelete = true
+                    },
+                )
+            }
         }
     }
-    if (confirmingDelete && actions != null) {
+    if (confirmingDelete) {
         ConfirmBulkDelete(
             count = count,
             onConfirm = {
@@ -153,61 +243,66 @@ fun SelectionBar(
     }
 }
 
-/** One button of the bar: an icon, described by the action it takes. */
+/** One button of the toolbar: an icon with its name under it. */
 @Composable
-private fun BarAction(
-    @StringRes labelRes: Int,
+private fun ToolbarAction(
+    label: String,
+    icon: ImageVector,
     onClick: () -> Unit,
-    icon: @Composable (Color) -> Unit,
+    modifier: Modifier = Modifier,
+    description: String = label,
+    emphasised: Boolean = false,
 ) {
-    val label = stringResource(labelRes)
-    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
-        icon(MaterialTheme.colorScheme.onPrimaryContainer)
+    Surface(
+        onClick = onClick,
+        color = if (emphasised) MaterialTheme.colorScheme.primary else Color.Transparent,
+        contentColor = if (emphasised) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(TOOLBAR_CORNER),
+        modifier = modifier.height(TOOLBAR_ACTION_HEIGHT).semantics { contentDescription = description },
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+            modifier = Modifier.padding(horizontal = 2.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (emphasised) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
-/** The actions that do not fit on the bar: the priority levels, planning, and deleting. */
+/** A toolbar button that opens a short menu of its own, anchored to it. */
 @Composable
-private fun SelectionOverflow(
-    open: Boolean,
-    actions: SelectionActions,
-    onDismiss: () -> Unit,
-    onDeleteRequested: () -> Unit,
+private fun ToolbarMenu(
+    label: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    description: String = label,
+    items: @Composable ColumnScope.(close: () -> Unit) -> Unit,
 ) {
-    DropdownMenu(expanded = open, onDismissRequest = onDismiss) {
-        for (level in PRIORITY_CHOICES) {
-            DropdownMenuItem(
-                text = { Text(priorityLabel(level)) },
-                onClick = {
-                    onDismiss()
-                    actions.onPriority(level)
-                },
-            )
+    var open by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        ToolbarAction(label = label, description = description, icon = icon, onClick = { open = true })
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            shape = MaterialTheme.shapes.large,
+        ) {
+            items { open = false }
         }
-        HorizontalDivider()
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.page_nextWeek_planForWeek)) },
-            onClick = {
-                onDismiss()
-                actions.onPlan(PlanState.WEEK)
-            },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.task_actions_toBacklog)) },
-            onClick = {
-                onDismiss()
-                actions.onPlan(PlanState.BACKLOG)
-            },
-        )
-        HorizontalDivider()
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.common_delete)) },
-            onClick = {
-                onDismiss()
-                onDeleteRequested()
-            },
-        )
     }
+}
+
+/** The mark a level carries in every list, repeated in the menu that sets it. */
+@Composable
+private fun PriorityDot(tint: Color) {
+    Box(modifier = Modifier.size(10.dp).background(tint, CircleShape))
 }
 
 /**
@@ -389,6 +484,15 @@ fun GroupTasksSheet(
         }
     }
 }
+
+/** The corner the toolbar and its buttons are cut with: a pill at their height. */
+private val TOOLBAR_CORNER = 32.dp
+
+/** How tall each toolbar button is, which is also its hit target. */
+private val TOOLBAR_ACTION_HEIGHT = 64.dp
+
+/** The corner the selection header is rounded with where it meets the list. */
+private val HEADER_CORNER = 24.dp
 
 /** Below this, a group is a rename rather than a grouping, and the server refuses the shape. */
 const val MIN_TASKS_IN_A_GROUP: Int = 2

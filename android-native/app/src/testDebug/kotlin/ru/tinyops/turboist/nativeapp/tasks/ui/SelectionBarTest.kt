@@ -3,7 +3,6 @@ package ru.tinyops.turboist.nativeapp.tasks.ui
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -28,12 +27,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The bar the list puts up while tasks are being picked.
+ * The header and the floating toolbar the list puts up while tasks are being
+ * picked.
  *
  * What is checked here is what a finger can reach: that the count is on screen,
- * that each action is described by name for a reader that cannot see the icon,
- * that grouping is offered only once there is something to group, and that a
- * whole block can be picked from its heading.
+ * that each action is named in words under its icon, that grouping is offered
+ * only once there is something to group, and that a whole block can be picked
+ * from its heading.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp", application = Application::class)
@@ -110,7 +110,7 @@ class SelectionBarTest {
     }
 
     @Test
-    fun `finishing and filing the selection are on the bar itself`() {
+    fun `finishing and filing the selection are on the toolbar itself`() {
         showSelection(setOf(1L, 2L))
 
         compose.onNodeWithContentDescription(text(R.string.selection_bar_complete)).performClick()
@@ -120,40 +120,57 @@ class SelectionBarTest {
     }
 
     @Test
+    fun `every action on the toolbar is named in words, not only drawn`() {
+        showSelection(setOf(1L, 2L))
+
+        for (
+        label in
+        listOf(
+            R.string.selection_bar_complete,
+            R.string.selection_bar_move,
+            R.string.selection_bar_priority,
+            R.string.native_selection_plan,
+            R.string.native_selection_more,
+        )
+        ) {
+            compose.onNodeWithText(text(label)).assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun `grouping is not offered while one task is picked`() {
         showSelection(setOf(1L))
 
-        val offered =
-            compose.onAllNodesWithContentDescription(text(R.string.selection_bar_group))
-                .fetchSemanticsNodes()
+        compose.onNodeWithContentDescription(text(R.string.selection_bar_more)).performClick()
 
-        assertTrue(offered.isEmpty(), "one task under a new parent is not a group")
+        compose.onNodeWithText(text(R.string.selection_bar_group)).assertDoesNotExist()
     }
 
     @Test
     fun `grouping is offered from two tasks up`() {
         showSelection(setOf(1L, 2L))
 
-        compose.onNodeWithContentDescription(text(R.string.selection_bar_group)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.selection_bar_more)).performClick()
+        compose.onNodeWithText(text(R.string.selection_bar_group)).performClick()
 
         assertEquals(listOf("group"), taken)
     }
 
     @Test
-    fun `the rest of the actions are behind the overflow`() {
+    fun `parking the selection is a choice of plan`() {
         showSelection(setOf(1L, 2L))
 
-        compose.onNodeWithContentDescription(text(R.string.selection_bar_more)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.native_selection_plan)).performClick()
         compose.onNodeWithText(text(R.string.task_actions_toBacklog)).performClick()
 
         assertEquals(listOf("plan ${PlanState.BACKLOG.wire}"), taken)
     }
 
     @Test
-    fun `a priority level is chosen from the overflow`() {
+    fun `a priority level is chosen from its own menu`() {
         showSelection(setOf(1L, 2L))
 
-        compose.onNodeWithContentDescription(text(R.string.selection_bar_more)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.selection_bar_priority)).performClick()
         compose.onNodeWithText(text(R.string.native_priority_p1)).performClick()
 
         assertEquals(listOf("priority ${Priority.HIGH.wire}"), taken)

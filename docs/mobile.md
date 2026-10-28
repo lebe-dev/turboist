@@ -947,8 +947,8 @@ allowed to end the loop that every automatic reason goes through.
 ### Saying how current the screen is (`app/.../sync`, `app/.../unsent`)
 
 Every screen is a query over the replica, so nothing on one can say whether the
-replica is current. That is a property of the app, and it is said once, above
-the whole graph, rather than in each screen.
+replica is current. That is a property of the app, and it is said once, in the
+shell's top bar, rather than in each screen.
 
 **What the shell knows.** A status is assembled from what the device already
 records, so it cannot disagree with the queue underneath it: how far the replica
@@ -960,14 +960,19 @@ a cycle is *running* is kept apart from how the last one *ended*: a new attempt
 does not undo what the previous one concluded, so a device out of coverage keeps
 saying so while it retries instead of flickering once per attempt.
 
-**Two levels of interruption.** A running cycle draws a hairline under the top
-bar and nothing else — it happens constantly, it needs no answer, and a banner
-for it would be a banner that is always there. A strip is drawn only for the
-three states that change what the user should believe about the screen: the
-server cannot be reached (with the moment the copy on screen was last level with
-it, because a minute old and a week old are not the same thing), a turn the
-server did not complete, or work of the user's that has not gone out yet. An app
-that is keeping up says nothing at all. Retry is offered on the first two, and
+**Two levels of interruption, neither of which moves the screen.** Both are drawn
+among the top bar's actions, so nothing above the list ever appears or vanishes
+and pushes the rows down. A running cycle draws a small spinner and nothing else
+— it happens constantly and needs no answer — and only once the cycle has run for
+400 ms, so the many cycles that finish inside that do not flash. A chip is drawn
+only for the three states that change what the user should believe about the
+screen: the server cannot be reached ("Offline"), a turn the server did not
+complete ("Not synced"), or work of the user's that has not gone out yet (the
+count). The chip is short; tapping it opens a card with the full sentence — for
+an unreachable server including the moment the copy on screen was last level
+with it, because a minute old and a week old are not the same thing — and the
+retry where there is one. An app that is keeping up says nothing at all. Retry
+is offered on the first two, and
 not on the third: a queue that is simply on its way out has nothing to retry, and
 the button would do nothing. Retrying runs the same cycle every automatic trigger
 runs — what the button buys is the cycle the user is standing there waiting for,
@@ -1032,6 +1037,12 @@ Counters come from a `DrawerCountsSource` and are nullable: unknown means "draw
 no badge" rather than zero. Below 840 dp the drawer is a modal overlay; above it
 the drawer becomes part of the layout and the menu button disappears.
 
+**Navigation bar.** Below 840 dp the shell also draws a navigation bar with four
+of the drawer's entries — inbox, today, week and projects — the places the day
+is spent between. It repeats them rather than replacing the drawer, which keeps
+the full catalog. The top bar is a large one whose title shrinks into the bar as
+a list scrolls under it.
+
 **A screen may own its own chrome.** The shell draws a top bar with a menu
 button and the name of a destination, which is right for a list and wrong for one
 task: a detail screen needs a back arrow, a pin and an overflow, and a back arrow
@@ -1039,7 +1050,10 @@ drawn *underneath* the shell's bar — which is what the task screen used to do 
 reads as two navigations stacked on each other. So the shell asks whether the
 destination on screen brings its own bar and draws none of its own when it does.
 The capture button is hidden the same way and for the same reason, since it sits
-in the corner such a screen draws in; the capture *sheet* stays composed either
+in the corner such a screen draws in — and so is the navigation bar, as both are
+while a list has tasks picked and its selection toolbar owns the bottom edge
+(a screen asks for that through `ShellChrome`, which it holds only as long as
+the selection lasts); the capture *sheet* stays composed either
 way, because a share from another app opens it without anyone having touched the
 button. The task screen is the only destination that takes the offer, and it is
 handed the jump-pair control by the graph, since that control navigates and where
@@ -1353,8 +1367,11 @@ real off-device and read back through the descriptions an assistive reader would
 announce, one test per state it can be in. One screen is driven end to end
 against a stand-in for the replica that behaves the way the write path does, and
 the sync engine behind it is a counter that has to stay at zero: a task ticked
-off leaves the day at once, with nothing asked of a server. The selection bar is composed
-for real too and driven by the descriptions an assistive reader would announce,
+off leaves the day at once, with nothing asked of a server. The selection header
+and the floating toolbar are composed for real too — every action on the toolbar
+carries its name under its icon, priority and plan open their own menus, and
+grouping and deleting sit behind "more" — and are driven by the descriptions an
+assistive reader would announce,
 and the selection actions are checked against a port that records what it was
 asked for — one call carrying the whole selection, never one call per task.
 
