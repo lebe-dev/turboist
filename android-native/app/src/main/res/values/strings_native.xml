@@ -93,6 +93,7 @@
          was last touched, for example "Open · updated 5 Sep 2026, 10:39". -->
     <string name="native_task_detailsSummary">%1$s · updated %2$s</string>
     <string name="native_task_addDescription">Add description</string>
+    <string name="native_task_openLink">Open link</string>
     <string name="native_task_more">More</string>
     <string name="native_task_change">Change</string>
     <string name="native_task_dateAndTime">Date and time</string>

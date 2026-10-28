@@ -19,6 +19,8 @@ import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
+import ru.tinyops.turboist.nativeapp.tasks.DayPartSchedule
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -96,6 +98,8 @@ class QuickAddPresenter(
     private val recent: RecentProjects,
     private val actions: QuickAddActions,
     private val zone: ZoneId,
+    private val now: () -> Instant = Instant::now,
+    private val schedule: DayPartSchedule = DayPartSchedule.Default,
 ) {
     private val editing = MutableStateFlow(Editing())
     private val outgoing = MutableSharedFlow<QuickAddMessage>(extraBufferCapacity = 4)
@@ -118,7 +122,7 @@ class QuickAddPresenter(
      * still open.
      */
     fun open(request: QuickAddRequest = QuickAddRequest()) {
-        editing.value = Editing(visible = true, draft = QuickAddDraft.from(request))
+        editing.value = Editing(visible = true, draft = QuickAddDraft.from(request)).withDayPartGuess()
     }
 
     /** Closes the sheet and forgets the draft. */
@@ -132,7 +136,10 @@ class QuickAddPresenter(
 
     fun setPriority(priority: Priority) = edit { it.copy(priority = priority) }
 
-    fun setDayPart(dayPart: DayPart) = edit { it.copy(dayPart = dayPart) }
+    /** A part of the day the user picked is theirs: no guess replaces it afterwards. */
+    fun setDayPart(dayPart: DayPart) {
+        editing.update { it.copy(draft = it.draft.copy(dayPart = dayPart), dayPartGuessed = false) }
+    }
 
     /** Sets or clears the due date. Tapping the day already set clears it. */
     fun setDueDate(date: LocalDate?) = edit { it.copy(dueDate = if (it.dueDate == date) null else date) }
@@ -172,7 +179,7 @@ class QuickAddPresenter(
                 draft = current.draft.copy(projectLocalId = projectLocalId, sectionLocalId = null),
                 pickingProject = false,
                 projectQuery = "",
-            )
+            ).withDayPartGuess()
         }
     }
 
@@ -234,7 +241,31 @@ class QuickAddPresenter(
     }
 
     private fun edit(change: (QuickAddDraft) -> QuickAddDraft) {
-        editing.update { it.copy(draft = change(it.draft)) }
+        editing.update { it.copy(draft = change(it.draft)).withDayPartGuess() }
+    }
+
+    /**
+     * Fills in the part of the day for a task headed for a project today, so the
+     * user does not have to: written in the evening, it is an evening task.
+     *
+     * Only an empty part is filled, and only a guess is taken back — when the
+     * draft stops being "a project, today" — so a choice the user made by hand
+     * is never overwritten either way.
+     */
+    private fun Editing.withDayPartGuess(): Editing {
+        val today = now().atZone(zone).toLocalDate()
+        val forTodayInProject = !draft.isInbox && draft.dueDate == today
+        return when {
+            forTodayInProject && draft.dayPart == DayPart.NONE -> {
+                val guess = schedule.nearestAt(now(), zone) ?: return this
+                copy(draft = draft.copy(dayPart = guess), dayPartGuessed = true)
+            }
+
+            !forTodayInProject && dayPartGuessed ->
+                copy(draft = draft.copy(dayPart = DayPart.NONE), dayPartGuessed = false)
+
+            else -> this
+        }
     }
 
     private fun render(
@@ -279,6 +310,8 @@ class QuickAddPresenter(
         val submitting: Boolean = false,
         val pickingProject: Boolean = false,
         val projectQuery: String = "",
+        /** True while the draft's part of the day is the presenter's guess rather than the user's pick. */
+        val dayPartGuessed: Boolean = false,
     )
 
     private companion object {

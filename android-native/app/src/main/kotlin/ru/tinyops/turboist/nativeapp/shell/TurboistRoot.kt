@@ -37,6 +37,7 @@ fun TurboistRoot(
 ) {
     val session by viewModel.sessionState.collectAsStateWithLifecycle()
     val counts by viewModel.drawerCounts.collectAsStateWithLifecycle()
+    val pinned by viewModel.drawerPinned.collectAsStateWithLifecycle()
     val authStep by viewModel.authStep.collectAsStateWithLifecycle()
     val unverified by viewModel.unverifiedSession.collectAsStateWithLifecycle()
     val prompt by viewModel.unsentChangesPrompt.collectAsStateWithLifecycle()
@@ -57,6 +58,7 @@ fun TurboistRoot(
             ShellGraph.App ->
                 AppShell(
                     counts = counts,
+                    pinned = pinned,
                     newIntents = newIntents,
                     unverifiedSession = unverified,
                     onSignOut = viewModel::signOut,

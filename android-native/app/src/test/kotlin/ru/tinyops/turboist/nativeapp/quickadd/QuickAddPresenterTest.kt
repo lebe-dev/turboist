@@ -15,7 +15,11 @@ import ru.tinyops.turboist.core.model.AutoLabelRule
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.sync.write.TaskDestination
+import ru.tinyops.turboist.core.model.DayPart
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -62,6 +66,7 @@ class QuickAddPresenterTest {
     private fun TestScope.presenter(
         workspace: Flow<QuickAddWorkspace> = this@QuickAddPresenterTest.workspace,
         recent: RecentProjects = this@QuickAddPresenterTest.recent,
+        now: Instant = NOW,
     ): QuickAddPresenter =
         QuickAddPresenter(
             scope = CoroutineScope(StandardTestDispatcher(testScheduler)),
@@ -69,6 +74,7 @@ class QuickAddPresenterTest {
             recent = recent,
             actions = actions,
             zone = zone,
+            now = { now },
         )
 
     /**
@@ -220,6 +226,72 @@ class QuickAddPresenterTest {
             runCurrent()
 
             assertNull(presenter.state.value.draft.dueDate)
+        }
+
+    // --- the part of the day, guessed ---
+
+    @Test
+    fun `a task for a project today takes the part of the day it is written in`() =
+        runTest {
+            val presenter = presenter(now = at(TODAY, 19))
+            watch(presenter)
+
+            presenter.open()
+            presenter.chooseProject(1)
+            presenter.setDueDate(TODAY)
+            runCurrent()
+
+            assertEquals(DayPart.EVENING, presenter.state.value.draft.dayPart)
+        }
+
+    @Test
+    fun `before the day starts the guess is the morning`() =
+        runTest {
+            val presenter = presenter(now = at(TODAY, 6))
+            watch(presenter)
+
+            presenter.open()
+            presenter.setDueDate(TODAY)
+            presenter.chooseProject(1)
+            runCurrent()
+
+            assertEquals(DayPart.MORNING, presenter.state.value.draft.dayPart)
+        }
+
+    @Test
+    fun `no guess for the inbox or another day, and a guess is taken back when it stops fitting`() =
+        runTest {
+            val presenter = presenter(now = at(TODAY, 14))
+            watch(presenter)
+
+            presenter.open()
+            presenter.setDueDate(TODAY)
+            runCurrent()
+            assertEquals(DayPart.NONE, presenter.state.value.draft.dayPart)
+
+            presenter.chooseProject(1)
+            runCurrent()
+            assertEquals(DayPart.AFTERNOON, presenter.state.value.draft.dayPart)
+
+            presenter.setDueDate(TODAY.plusDays(1))
+            runCurrent()
+            assertEquals(DayPart.NONE, presenter.state.value.draft.dayPart)
+        }
+
+    @Test
+    fun `a part of the day picked by hand is never replaced`() =
+        runTest {
+            val presenter = presenter(now = at(TODAY, 19))
+            watch(presenter)
+
+            presenter.open()
+            presenter.setDayPart(DayPart.MORNING)
+            presenter.chooseProject(1)
+            presenter.setDueDate(TODAY)
+            presenter.setDueDate(TODAY.plusDays(1))
+            runCurrent()
+
+            assertEquals(DayPart.MORNING, presenter.state.value.draft.dayPart)
         }
 
     // --- the two title rules ---
@@ -397,4 +469,15 @@ class QuickAddPresenterTest {
             assertEquals("Shared page", draft.titles)
             assertEquals("https://example.test", draft.description)
         }
+
+    private fun at(
+        day: LocalDate,
+        hour: Int,
+    ): Instant = LocalDateTime.of(day, LocalTime.of(hour, 0)).atZone(zone).toInstant()
+
+    private companion object {
+        /** A day none of the other checks set a due date on, so no guess reaches them. */
+        val TODAY: LocalDate = LocalDate.of(2026, 5, 20)
+        val NOW: Instant = LocalDateTime.of(2026, 5, 20, 12, 0).atZone(ZoneId.of("Europe/Berlin")).toInstant()
+    }
 }
