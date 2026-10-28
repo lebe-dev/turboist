@@ -408,7 +408,7 @@ class TaskDetailScreenTest {
         val bug = label(1, "bug")
 
         show(stateOf(task(1), knownLabels = listOf(bug)))
-        compose.onNodeWithText(text(R.string.native_task_change)).performScrollTo().performClick()
+        compose.onNodeWithText(text(R.string.common_add)).performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText(text(R.string.native_task_findLabel)).performTextInput("errands")
         compose.waitForIdle()
@@ -607,7 +607,7 @@ class TaskDetailScreenTest {
         val labels = (1L..7L).map { label(it, "label $it") }
         show(stateOf(task(1), knownLabels = labels).copy(recentLabelOrder = listOf(6L, 2L)))
 
-        compose.onNodeWithText(text(R.string.native_task_change)).performScrollTo().performClick()
+        compose.onNodeWithText(text(R.string.common_add)).performScrollTo().performClick()
         compose.waitForIdle()
 
         compose.onNodeWithText(text(R.string.label_picker_recent)).assertIsDisplayed()

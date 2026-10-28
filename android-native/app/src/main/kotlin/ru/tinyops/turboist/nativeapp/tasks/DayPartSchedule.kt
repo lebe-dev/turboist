@@ -44,6 +44,21 @@ data class DayPartSchedule(
         return windows.firstOrNull { hour >= it.startHour && hour < it.endHour }?.part
     }
 
+    /**
+     * The phase a task written down at [now] for today most likely belongs to:
+     * the one [now] falls in, the day's first before it has started, and its
+     * last once it is over. `null` only for a schedule with no phases at all.
+     */
+    fun nearestAt(
+        now: Instant,
+        zone: ZoneId,
+    ): DayPart? {
+        activeAt(now, zone)?.let { return it }
+        val hour = now.atZone(zone).hour
+        val first = windows.minByOrNull { it.startHour } ?: return null
+        return if (hour < first.startHour) first.part else windows.maxBy { it.endHour }.part
+    }
+
     companion object {
         /** The product's own boundaries, and what a device uses until it is told otherwise. */
         val Default: DayPartSchedule =

@@ -41,6 +41,7 @@
     <string name="native_task_details">Сведения</string>
     <string name="native_task_detailsSummary">%1$s · обновлена %2$s</string>
     <string name="native_task_addDescription">Добавить описание</string>
+    <string name="native_task_openLink">Открыть ссылку</string>
     <string name="native_task_more">Ещё</string>
     <string name="native_task_change">Изменить</string>
     <string name="native_task_dateAndTime">Дата и время</string>
