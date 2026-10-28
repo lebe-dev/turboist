@@ -74,4 +74,8 @@
     <string name="native_selection_more">Ещё</string>
     <string name="native_labels_showAll">Ещё %1$d</string>
     <string name="native_labels_showFewer">Свернуть</string>
+    <string name="native_labels_create">Создать метку «%1$s»</string>
+    <string name="native_task_whenEmpty">Не запланирована</string>
+    <string name="native_task_whenExpand">Показать все поля дат</string>
+    <string name="native_task_whenCollapse">Скрыть поля дат</string>
 </resources>

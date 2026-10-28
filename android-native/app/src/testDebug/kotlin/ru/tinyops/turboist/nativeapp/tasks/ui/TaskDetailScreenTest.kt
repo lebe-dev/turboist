@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.junit.Rule
@@ -91,6 +92,7 @@ class TaskDetailScreenTest {
             onAddRelation = { peer, group -> performed += "addRelation $peer $group" },
             onRemoveRelation = { performed += "removeRelation $it" },
             onOpenTask = { performed += "open $it" },
+            onCreateLabel = { performed += "createLabel $it" },
         )
 
     private fun show(state: TaskDetailUiState) {
@@ -388,6 +390,35 @@ class TaskDetailScreenTest {
         compose.waitForIdle()
 
         compose.onNodeWithText("magic").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a name typed into the label sheet that no label has is offered as a new label`() {
+        val bug = label(1, "bug")
+
+        show(stateOf(task(1), knownLabels = listOf(bug)))
+        compose.onNodeWithText(text(R.string.native_task_change)).performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(text(R.string.native_task_findLabel)).performTextInput("errands")
+        compose.waitForIdle()
+
+        val offer = RuntimeEnvironment.getApplication().getString(R.string.native_labels_create, "errands")
+        compose.onNodeWithText(offer).performClick()
+
+        assertEquals(listOf("createLabel errands"), performed)
+    }
+
+    @Test
+    fun `the when card starts as one row and opens into its four`() {
+        show(stateOf(task(1)))
+
+        compose.onAllNodesWithText(text(R.string.native_task_deadline)).assertCountEquals(0)
+
+        compose.onNodeWithText(text(R.string.native_task_whenEmpty)).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.native_task_deadline)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.page_task_repeat)).performScrollTo().assertIsDisplayed()
     }
 
     @Test

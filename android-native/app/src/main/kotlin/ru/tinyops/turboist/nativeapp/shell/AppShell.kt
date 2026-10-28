@@ -3,6 +3,7 @@ package ru.tinyops.turboist.nativeapp.shell
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -52,11 +54,13 @@ import ru.tinyops.turboist.nativeapp.harpoon.HarpoonEntry
 import ru.tinyops.turboist.nativeapp.navigation.AppNavHost
 import ru.tinyops.turboist.nativeapp.navigation.AppScreens
 import ru.tinyops.turboist.nativeapp.navigation.DrawerDestination
+import ru.tinyops.turboist.nativeapp.navigation.LabelsRoute
 import ru.tinyops.turboist.nativeapp.navigation.PendingTaskLinks
 import ru.tinyops.turboist.nativeapp.navigation.ProjectRoute
 import ru.tinyops.turboist.nativeapp.navigation.RouteTitles
 import ru.tinyops.turboist.nativeapp.navigation.TaskLinkRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskRoute
+import ru.tinyops.turboist.nativeapp.navigation.TemplatesRoute
 import ru.tinyops.turboist.nativeapp.sync.SyncStatus
 
 /**
@@ -281,8 +285,17 @@ private fun ShellScaffold(
     // The title shrinks into the bar as a list scrolls under it and comes back
     // at the top, which is what keeps a large title from costing a list its rows.
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // A screen with a create button of its own in the bottom corner keeps that
+    // corner: the capture button would be drawn over it and hide it.
+    val screenOwnsCorner =
+        currentDestination?.hasRoute(LabelsRoute::class) == true ||
+            currentDestination?.hasRoute(TemplatesRoute::class) == true
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
+        // A screen that draws its own bar insets it from the status bar itself;
+        // padding the content for it here as well would leave a blank strip
+        // the height of the status bar above that bar.
+        contentWindowInsets = if (screenOwnsChrome) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
         topBar = {
             if (!screenOwnsChrome) {
                 LargeTopAppBar(
@@ -335,7 +348,7 @@ private fun ShellScaffold(
         // sheet it raises has to survive moving between destinations.
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             AppNavHost(navController = navController, screens = screens)
-            screens.quickAdd(!screenOwnsChrome && !chrome.selectionActive)
+            screens.quickAdd(!screenOwnsChrome && !screenOwnsCorner && !chrome.selectionActive)
         }
     }
 }

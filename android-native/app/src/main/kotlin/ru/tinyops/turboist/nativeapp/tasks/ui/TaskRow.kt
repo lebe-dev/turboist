@@ -39,10 +39,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labels.ui.labelTint
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
 import java.time.LocalDate
@@ -354,7 +356,7 @@ private fun MetaLine(
                 MetaText(projectTitle)
             }
         }
-        for (label in task.labels) LabelChip(label.name)
+        for (label in task.labels) LabelChip(label)
         if (plan == PlanState.WEEK) MarkerIcon(Icons.Outlined.EventAvailable, R.string.task_weekPlannedLabel)
         if (plan == PlanState.BACKLOG) MarkerIcon(Icons.Outlined.Inventory2, R.string.task_backlogLabel)
     }
@@ -417,18 +419,20 @@ private fun MetaText(text: String) {
 /**
  * One tag, written as a hashtag rather than boxed. A row can carry several, and
  * a line of pills beside a project name and a date turns the facts under the
- * title into a row of buttons; a quiet hashtag stays a fact.
+ * title into a row of buttons; a quiet hashtag stays a fact. The hash carries
+ * the label's colour, which is enough to tell labels apart without turning the
+ * line into a row of coloured badges.
  */
 @Composable
-private fun LabelChip(name: String) {
+private fun LabelChip(label: Label) {
     Row {
         Text(
             text = "#",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.outline,
+            color = labelTint(label) ?: MaterialTheme.colorScheme.outline,
         )
         Text(
-            text = name,
+            text = label.name,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

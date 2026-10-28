@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -69,6 +70,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,6 +93,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
+import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
@@ -98,6 +101,8 @@ import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labels.ui.LABEL_FILL_ALPHA
+import ru.tinyops.turboist.nativeapp.labels.ui.labelTint
 import ru.tinyops.turboist.nativeapp.tasks.BlockerRef
 import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
@@ -169,6 +174,8 @@ data class TaskDetailCallbacks(
     val onUndoDetach: (SubtaskDetached) -> Unit = {},
     /** The task and its subtree as JSON, for the clipboard; `null` while there is no task. */
     val taskJson: () -> String? = { null },
+    /** Makes a label from a name typed into the picker, and puts it on the task. */
+    val onCreateLabel: (String) -> Unit = {},
 )
 
 /** The field a sheet is currently open for, or nothing when none is. */
@@ -359,7 +366,6 @@ private fun TaskDetailBody(
                 )
                 if (state.blockers.isNotEmpty()) BlockedNotice(state.blockers, callbacks.onOpenTask)
 
-                SectionHeading(stringResource(R.string.native_task_sectionWhen))
                 WhenCard(task = task, zone = zone, today = today, onOpen = { field = it })
 
                 SectionHeading(stringResource(R.string.native_task_sectionPlanning))
@@ -376,7 +382,7 @@ private fun TaskDetailBody(
                 }
 
                 LabelsSection(
-                    names = task.labels.map { it.name },
+                    labels = task.labels,
                     knownLabels = state.knownLabels.isNotEmpty(),
                     onOpen = { field = TaskField.LABELS },
                 )
@@ -527,6 +533,7 @@ private fun TaskFieldSheets(
                 selected = task.labels.map { it.name },
                 onChange = callbacks.onLabels,
                 onDismiss = onClose,
+                onCreate = callbacks.onCreateLabel,
             )
 
         TaskField.ACTIONS ->
@@ -983,6 +990,11 @@ private fun DescriptionBlock(
  * The four rows are one question asked four ways — which day, which part of it,
  * by when at the latest, and how often it comes back — so they sit together, and
  * each opens the sheet that answers it.
+ *
+ * Folded, which is how the card starts, the four answers are one row: the day on
+ * it and whatever else is set underneath. Most tasks have a day and nothing more,
+ * and four rows saying "none" three times pushed the subtasks off the screen.
+ * Tapping the row or the toggle in the heading opens the card into its four rows.
  */
 @Composable
 private fun WhenCard(
@@ -1000,18 +1012,60 @@ private fun WhenCard(
     // A task that comes back is marked in the same green every list marks it in.
     val repeating = rule.isNotBlank() && wording != RecurrenceWording.Unreadable
     val repeatTint = TurboistTheme.accents.recurring
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val dateValue = listOfNotNull(dateLabel(due, today), dueTime).joinToString(", ")
+    val dateTint =
+        when {
+            overdue -> MaterialTheme.colorScheme.error
+            due != null -> MaterialTheme.colorScheme.onSurface
+            else -> null
+        }
+
+    SectionHeading(stringResource(R.string.native_task_sectionWhen)) {
+        IconButton(onClick = { expanded = !expanded }) {
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription =
+                    stringResource(
+                        if (expanded) R.string.native_task_whenCollapse else R.string.native_task_whenExpand,
+                    ),
+            )
+        }
+    }
+    if (!expanded) {
+        val facts =
+            listOfNotNull(
+                stringResource(dayPartLabel(task.dayPart)).takeIf { task.dayPart != DayPart.NONE },
+                deadline?.let { stringResource(R.string.native_task_deadline) + " " + dateLabel(it, today) },
+                recurrenceLabel(wording).takeIf { repeating },
+            )
+        DetailCard {
+            DetailRow(
+                label =
+                    if (due == null && facts.isEmpty()) {
+                        stringResource(
+                            R.string.native_task_whenEmpty,
+                        )
+                    } else {
+                        dateValue
+                    },
+                value = "",
+                leading = if (repeating) Icons.Outlined.Repeat else Icons.Outlined.CalendarMonth,
+                leadingTint = dateTint.takeIf { overdue } ?: repeatTint.takeIf { repeating },
+                supporting = facts.joinToString(WHEN_FACT_SEPARATOR).ifEmpty { null },
+                trailing = Icons.Filled.ExpandMore,
+                onClick = { expanded = true },
+            )
+        }
+        return
+    }
 
     DetailCard {
         DetailRow(
             label = stringResource(R.string.page_task_date),
-            value = listOfNotNull(dateLabel(due, today), dueTime).joinToString(", "),
+            value = dateValue,
             leading = Icons.Outlined.CalendarMonth,
-            valueTint =
-                when {
-                    overdue -> MaterialTheme.colorScheme.error
-                    due != null -> MaterialTheme.colorScheme.onSurface
-                    else -> null
-                },
+            valueTint = dateTint,
             onClick = { onOpen(TaskField.DATE) },
         )
         DetailRow(
@@ -1056,15 +1110,15 @@ private fun WhenCard(
  */
 @Composable
 private fun LabelsSection(
-    names: List<String>,
+    labels: List<Label>,
     knownLabels: Boolean,
     onOpen: () -> Unit,
 ) {
-    if (names.isEmpty() && !knownLabels) return
+    if (labels.isEmpty() && !knownLabels) return
     SectionHeading(text = stringResource(R.string.page_task_labels)) {
         TextButton(onClick = onOpen) { Text(stringResource(R.string.native_task_change)) }
     }
-    if (names.isEmpty()) {
+    if (labels.isEmpty()) {
         AssistChip(
             onClick = onOpen,
             label = { Text(stringResource(R.string.common_add)) },
@@ -1077,12 +1131,23 @@ private fun LabelsSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        for (name in names) {
+        for (label in labels) {
+            // Filled with the label's own colour, as the web client draws it, so
+            // the labels on a task read apart before their names are read.
+            val tint = labelTint(label)
             InputChip(
                 selected = true,
                 onClick = onOpen,
-                label = { Text(name) },
-                modifier = Modifier.semantics { contentDescription = name },
+                label = { Text(label.name) },
+                colors =
+                    if (tint == null) {
+                        InputChipDefaults.inputChipColors()
+                    } else {
+                        InputChipDefaults.inputChipColors(
+                            selectedContainerColor = tint.copy(alpha = LABEL_FILL_ALPHA),
+                        )
+                    },
+                modifier = Modifier.semantics { contentDescription = label.name },
             )
         }
     }
@@ -1230,6 +1295,7 @@ private fun detailCallbacks(
             onDetachSubtask = presenter::detachSubtask,
             onUndoDetach = presenter::undoDetach,
             taskJson = presenter::taskJson,
+            onCreateLabel = presenter::createLabel,
         )
     }
 
@@ -1241,6 +1307,9 @@ private fun copyPlainText(
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
     clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
 }
+
+/** What stands between the facts on the folded When row. */
+private const val WHEN_FACT_SEPARATOR = " · "
 
 /** How far the page scrolls before the title moves into the bar. */
 private const val TITLE_HANDOVER_DP = 72

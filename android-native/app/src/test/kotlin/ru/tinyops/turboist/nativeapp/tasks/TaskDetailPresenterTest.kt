@@ -116,6 +116,11 @@ class TaskDetailPresenterTest {
             record("addBlocker $taskLocalId $blockerLocalId")
             return ADDED_RELATION_LOCAL_ID
         }
+
+        override suspend fun createLabel(name: String): Long {
+            record("createLabel $name")
+            return CREATED_LABEL_LOCAL_ID
+        }
     }
 
     /** A device that answers the picker with whatever a test put in it. */
@@ -992,6 +997,54 @@ class TaskDetailPresenterTest {
             assertEquals(listOf(12L, 11L), presenter.state.value.recentLabelOrder)
         }
 
+    @Test
+    fun `a typed label nobody has is made first and then put on the task`() =
+        runTest {
+            val home = Label(localId = 10, name = "home", createdAt = 0, updatedAt = 0)
+            val recent = RecordingRecentLabels()
+            val presenter =
+                TaskDetailPresenter(backgroundScope, content, actions, sync, relationSearch, recentLabels = recent)
+            backgroundScope.launch { presenter.state.collect {} }
+            content.value = detail(task(1, labels = listOf(home)), knownLabels = listOf(home))
+            runCurrent()
+
+            presenter.createLabel("  errands ")
+            runCurrent()
+
+            assertEquals(listOf("createLabel errands", "edit 1"), actions.calls)
+            assertEquals(listOf("home", "errands"), actions.edits.single().labels)
+            assertEquals(listOf(CREATED_LABEL_LOCAL_ID), recent.remembered)
+        }
+
+    @Test
+    fun `a typed name some label already has, in any case, applies that label instead of making a twin`() =
+        runTest {
+            val home = Label(localId = 10, name = "home", createdAt = 0, updatedAt = 0)
+            val work = Label(localId = 11, name = "Work", createdAt = 0, updatedAt = 0)
+            val presenter = open(task(1, labels = listOf(home)))
+            content.value = detail(task(1, labels = listOf(home)), knownLabels = listOf(home, work))
+            runCurrent()
+
+            presenter.createLabel("work")
+            runCurrent()
+
+            assertEquals(listOf("edit 1"), actions.calls)
+            assertEquals(listOf("home", "Work"), actions.edits.single().labels)
+        }
+
+    @Test
+    fun `a label that could not be made is not put on the task`() =
+        runTest {
+            val presenter = open(task(1))
+            actions.refuseWith = WriteRefused.RowMissing("label", 0)
+
+            presenter.createLabel("errands")
+            runCurrent()
+
+            assertEquals(listOf("createLabel errands"), actions.calls)
+            assertTrue(actions.edits.isEmpty())
+        }
+
     // --- copying the task as JSON -------------------------------------------
 
     @Test
@@ -1083,3 +1136,4 @@ class TaskDetailPresenterTest {
 
 /** The relation id the recording actions hand back for a new blocker. */
 private const val ADDED_RELATION_LOCAL_ID = 99L
+private const val CREATED_LABEL_LOCAL_ID = 77L

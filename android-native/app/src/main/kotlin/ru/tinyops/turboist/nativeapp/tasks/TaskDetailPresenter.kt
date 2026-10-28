@@ -237,6 +237,12 @@ interface TaskDetailActions : TaskListActions {
         relationLocalId: Long,
     )
 
+    /**
+     * Makes a new label from the task screen's picker, and answers its id. The
+     * label is not put on anything here: tagging stays a field edit.
+     */
+    suspend fun createLabel(name: String): Long
+
     override suspend fun park(taskLocalId: Long) {
         plan(taskLocalId, PlanState.BACKLOG)
     }
@@ -395,6 +401,33 @@ class TaskDetailPresenter(
         apply { TaskEdit(labels = names.takeIf { it != task.labels.map { label -> label.name } }) }
         // Only a label put on counts as reaching for it; taking one off says nothing.
         if (added.isNotEmpty()) scope.launch { added.forEach { recentLabels.remember(it.localId) } }
+    }
+
+    /**
+     * Puts a label on the task by name, making the label first when no label
+     * carries that name yet.
+     *
+     * The two writes are queued in that order, so the server knows the label by
+     * the time the task names it. A name some label already has — in any case —
+     * is that label, not a second one.
+     */
+    fun createLabel(name: String) {
+        val current = state.value
+        val task = current.task ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val names = task.labels.map { it.name }
+        val existing = current.knownLabels.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }
+        if (existing != null) {
+            if (existing.name !in names) setLabels(names + existing.name)
+            return
+        }
+        scope.launch {
+            var created = 0L
+            if (!report { created = actions.createLabel(trimmed) }) return@launch
+            if (!report { actions.edit(task.localId, TaskEdit(labels = names + trimmed)) }) return@launch
+            recentLabels.remember(created)
+        }
     }
 
     fun setComplex(isComplex: Boolean) {

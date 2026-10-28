@@ -2,6 +2,7 @@ package ru.tinyops.turboist.nativeapp.tasks
 
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
+import ru.tinyops.turboist.core.sync.write.LabelWriteRepo
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -21,7 +22,10 @@ class WriteRepoTaskDetailActions
     @Inject
     constructor(
         private val tasks: TaskWriteRepo,
+        private val labels: LabelWriteRepo,
     ) : TaskDetailActions {
+        override suspend fun createLabel(name: String): Long = labels.create(name = name).entityLocalId
+
         override suspend fun complete(taskLocalId: Long) {
             tasks.complete(taskLocalId)
         }

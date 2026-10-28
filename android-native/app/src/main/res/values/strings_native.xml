@@ -306,4 +306,10 @@
     <!-- The label picker, folded down to the labels most likely to be wanted. -->
     <string name="native_labels_showAll">%1$d more</string>
     <string name="native_labels_showFewer">Fewer</string>
+    <string name="native_labels_create">Create label “%1$s”</string>
+
+    <!-- The When card on the task screen: one summary line that opens into its four rows. -->
+    <string name="native_task_whenEmpty">Not scheduled</string>
+    <string name="native_task_whenExpand">Show all date fields</string>
+    <string name="native_task_whenCollapse">Hide date fields</string>
 </resources>

@@ -47,6 +47,8 @@ import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.labels.pickRecentLabels
+import ru.tinyops.turboist.nativeapp.labels.ui.LabelDot
+import ru.tinyops.turboist.nativeapp.labels.ui.labelTint
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -357,6 +359,7 @@ fun LabelSelector(
             selected = on,
             onClick = { onChange(if (on) selected - label.name else selected + label.name) },
             label = { Text(label.name) },
+            leadingIcon = labelTint(label)?.let { { LabelDot(label) } },
             modifier = Modifier.semantics { contentDescription = label.name },
         )
     }
