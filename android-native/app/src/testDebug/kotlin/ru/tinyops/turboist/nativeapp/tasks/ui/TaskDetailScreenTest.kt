@@ -92,6 +92,8 @@ class TaskDetailScreenTest {
             onAddRelation = { peer, group -> performed += "addRelation $peer $group" },
             onRemoveRelation = { performed += "removeRelation $it" },
             onOpenTask = { performed += "open $it" },
+            onOpenProject = { performed += "openProject $it" },
+            onOpenContext = { performed += "openContext $it" },
             onCreateLabel = { performed += "createLabel $it" },
         )
 
@@ -241,7 +243,7 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `subtasks are listed, finished ones under their own heading`() {
+    fun `subtasks are listed, finished ones folded under their own heading`() {
         show(
             stateOf(
                 task(1),
@@ -252,7 +254,12 @@ class TaskDetailScreenTest {
 
         compose.onNodeWithText(text(R.string.page_task_subtasks)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Wash up").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.native_task_completedSubtasks)).performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("Dry up").assertCountEquals(0)
+
+        compose
+            .onNodeWithText(text(R.string.native_task_completedSubtasks) + " · 1")
+            .performScrollTo()
+            .performClick()
         compose.onNodeWithText("Dry up").performScrollTo().assertIsDisplayed()
     }
 
@@ -477,7 +484,7 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `the location row names where the task lives and opens the move sheet`() {
+    fun `the location row names where the task lives and opens its project`() {
         show(
             stateOf(
                 task(1, projectLocalId = 4),
@@ -485,7 +492,29 @@ class TaskDetailScreenTest {
             ),
         )
 
-        compose.onNodeWithText("Kitchen · Doing").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Kitchen · Doing").performScrollTo().assertIsDisplayed().performClick()
+
+        assertEquals(listOf("openProject 4"), performed)
+    }
+
+    @Test
+    fun `the location row of a subtask opens its parent`() {
+        show(
+            stateOf(
+                task(2, projectLocalId = 4, parentLocalId = 1),
+                placement =
+                    TaskPlacement(
+                        projectLocalId = 4,
+                        projectTitle = "Kitchen",
+                        parentLocalId = 1,
+                        parentTitle = "Dinner",
+                    ),
+            ),
+        )
+
+        compose.onNodeWithText("Dinner").performScrollTo().performClick()
+
+        assertEquals(listOf("open 1"), performed)
     }
 
     // --- dragging subtasks ----------------------------------------------------

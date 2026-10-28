@@ -3,6 +3,7 @@ package ru.tinyops.turboist.nativeapp.shell
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,6 +25,7 @@ import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -189,11 +191,17 @@ fun AppShell(
     // One entry per top-level destination: re-selecting the current one must not
     // stack a second copy, and returning to a destination should find it as it
     // was left rather than reset to the top.
+    //
+    // The start destination is the exception: a pop that stops at it files the
+    // entries it removes under its id, so restoring it would bring back whatever
+    // was stacked on top — the project the user was just in — instead of the day.
     val open: (DrawerDestination) -> Unit = { destination ->
+        val start = navController.graph.findStartDestination()
+        val isStart = start.hasRoute(destination.route::class)
         navController.navigate(destination.route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            popUpTo(start.id) { saveState = !isStart }
             launchSingleTop = true
-            restoreState = true
+            restoreState = !isStart
         }
     }
 
@@ -236,6 +244,7 @@ fun AppShell(
                 ) {
                     ShellScaffold(
                         currentDestination = currentDestination,
+                        openProject = openProject,
                         screenOwnsChrome = screenOwnsChrome,
                         harpoonable = harpoonable,
                         onJump = jump,
@@ -280,6 +289,7 @@ fun AppShell(
                 ) {
                     ShellScaffold(
                         currentDestination = currentDestination,
+                        openProject = openProject,
                         screenOwnsChrome = screenOwnsChrome,
                         harpoonable = harpoonable,
                         onJump = jump,
@@ -304,6 +314,7 @@ fun AppShell(
 @Composable
 private fun ShellScaffold(
     currentDestination: NavDestination?,
+    openProject: Long?,
     screenOwnsChrome: Boolean,
     harpoonable: HarpoonEntry?,
     onJump: (HarpoonEntry) -> Unit,
@@ -332,43 +343,60 @@ private fun ShellScaffold(
         contentWindowInsets = if (screenOwnsChrome) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
         topBar = {
             if (!screenOwnsChrome) {
-                LargeTopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(titleResFor(currentDestination)),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    navigationIcon = {
-                        if (onOpenDrawer != null) {
-                            IconButton(onClick = onOpenDrawer) {
-                                Icon(
-                                    imageVector = Icons.Filled.Menu,
-                                    contentDescription = stringResource(R.string.native_drawer_open),
-                                )
-                            }
+                val navigationIcon: @Composable () -> Unit = {
+                    if (onOpenDrawer != null) {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(
+                                imageVector = Icons.Filled.Menu,
+                                contentDescription = stringResource(R.string.native_drawer_open),
+                            )
                         }
-                    },
-                    actions = {
-                        // How current the screen is sits with the screen's own
-                        // controls: it is a fact about what is on screen, and
-                        // drawing it in the bar means it never pushes the list.
-                        SyncIndicator(
-                            status = syncStatus,
-                            sessionUnverified = unverifiedSession,
-                            onRetry = onRetrySync,
-                        )
-                        screens.harpoon(harpoonable, onJump)
-                    },
-                    expandedHeight = ExpandedTopBarHeight,
-                    colors =
-                        TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        ),
-                    scrollBehavior = scrollBehavior,
-                )
+                    }
+                }
+                val actions: @Composable RowScope.() -> Unit = {
+                    // How current the screen is sits with the screen's own
+                    // controls: it is a fact about what is on screen, and
+                    // drawing it in the bar means it never pushes the list.
+                    SyncIndicator(
+                        status = syncStatus,
+                        sessionUnverified = unverifiedSession,
+                        onRetry = onRetrySync,
+                    )
+                    screens.harpoon(harpoonable, onJump)
+                }
+                val colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    )
+                val title = stringResource(titleResFor(currentDestination))
+                if (currentDestination.isNamedByItsScreen()) {
+                    // The screen heads itself with the name of the thing it shows,
+                    // so the bar only says what kind of thing that is, quietly: a
+                    // large "Project" over a small project name reads upside down.
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        },
+                        navigationIcon = navigationIcon,
+                        actions = actions,
+                        colors = colors,
+                    )
+                } else {
+                    LargeTopAppBar(
+                        title = { Text(text = title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        navigationIcon = navigationIcon,
+                        actions = actions,
+                        expandedHeight = ExpandedTopBarHeight,
+                        colors = colors,
+                        scrollBehavior = scrollBehavior,
+                    )
+                }
             }
         },
         bottomBar = {
@@ -382,7 +410,7 @@ private fun ShellScaffold(
         // sheet it raises has to survive moving between destinations.
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             AppNavHost(navController = navController, screens = screens)
-            screens.quickAdd(!screenOwnsChrome && !screenOwnsCorner && !chrome.selectionActive)
+            screens.quickAdd(!screenOwnsChrome && !screenOwnsCorner && !chrome.selectionActive, openProject)
         }
     }
 }
@@ -418,6 +446,9 @@ private fun BottomBar(
         }
     }
 }
+
+/** True for a destination whose screen draws the name of what it shows as its own heading. */
+private fun NavDestination?.isNamedByItsScreen(): Boolean = this?.hasRoute(ProjectRoute::class) == true
 
 /** True when the drawer entry points at the destination currently on screen. */
 private fun NavDestination?.isOn(destination: DrawerDestination): Boolean =

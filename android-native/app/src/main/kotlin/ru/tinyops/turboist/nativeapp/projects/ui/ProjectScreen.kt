@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,6 +65,7 @@ import ru.tinyops.turboist.nativeapp.projects.ProjectBoardViewModel
 import ru.tinyops.turboist.nativeapp.projects.ProjectMessage
 import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
+import ru.tinyops.turboist.nativeapp.tasks.ui.CompletedToggle
 import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDependencies
 import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDetachZone
 import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragMarks
@@ -285,21 +288,24 @@ private fun ProjectHeader(
 ) {
     val project = state.project ?: return
     var open by remember { mutableStateOf(false) }
+    // The project's name is the screen's heading; the bar above only says, in
+    // small type, that this is a project.
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(
             imageVector = Icons.Outlined.Folder,
             contentDescription = null,
             tint = projectTint(project.color) ?: MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(28.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = project.title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             val status = statusLabel(project.status)
@@ -459,6 +465,8 @@ private fun BoardBody(
             onDetachDrop = callbacks.onDetach,
         )
     val rows = state.columns.flatMap { it.open + it.done }
+    // Which columns have their finished work unfolded; every column starts folded.
+    val shownDone = remember { mutableStateMapOf<String, Boolean>() }
     PullToRefreshBox(
         isRefreshing = state.refreshing,
         onRefresh = callbacks.onRefresh,
@@ -483,11 +491,19 @@ private fun BoardBody(
                     BoardTaskRow(row, zone, today, callbacks, onMoveTask, drag, dependencies)
                 }
                 if (column.done.isNotEmpty()) {
+                    val expanded = shownDone[column.key] == true
                     item(key = "done-" + column.key) {
-                        ColumnNote(stringResource(R.string.native_project_finished))
+                        CompletedToggle(
+                            text = stringResource(R.string.native_project_finished),
+                            count = column.done.size,
+                            expanded = expanded,
+                            onToggle = { shownDone[column.key] = !expanded },
+                        )
                     }
-                    items(column.done, key = { "done-task-" + it.task.localId }) { row ->
-                        BoardTaskRow(row, zone, today, callbacks, onMoveTask, drag, dependencies)
+                    if (expanded) {
+                        items(column.done, key = { "done-task-" + it.task.localId }) { row ->
+                            BoardTaskRow(row, zone, today, callbacks, onMoveTask, drag, dependencies)
+                        }
                     }
                 }
             }

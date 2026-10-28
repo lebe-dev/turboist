@@ -83,4 +83,8 @@
     <string name="native_task_whenExpand">Показать все поля дат</string>
     <string name="native_task_whenCollapse">Скрыть поля дат</string>
     <string name="native_harpoon_jumps">Показать прыжки</string>
+    <string name="native_dest_project">Проект</string>
+    <string name="native_dest_label">Метка</string>
+    <string name="native_dest_context">Контекст</string>
+    <string name="native_project_finished">Выполненные</string>
 </resources>

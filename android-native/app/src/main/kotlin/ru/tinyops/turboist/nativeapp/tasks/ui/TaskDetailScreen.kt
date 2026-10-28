@@ -159,6 +159,10 @@ data class TaskDetailCallbacks(
     val onAddRelation: (Long, TaskRelationGroup) -> Unit,
     val onRemoveRelation: (Long) -> Unit,
     val onOpenTask: (Long) -> Unit,
+    /** Opens the project the task lives in; moving it elsewhere is in the overflow. */
+    val onOpenProject: (Long) -> Unit = {},
+    /** Opens the context the task lives in directly, when it is in no project. */
+    val onOpenContext: (Long) -> Unit = {},
     /** Splits the task into the titles typed into the outline. */
     val onDecompose: (List<String>) -> Unit = {},
     /** Saves the task and its subtree as a reusable template. */
@@ -672,7 +676,21 @@ private fun Hero(
     val completed = task.status == TaskStatus.COMPLETED
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        PlacementCrumb(state.placement, onOpenMove)
+        val placement = state.placement
+        // The crumb leads to where the task lives — its parent, its project or
+        // its context — so the place is one tap away. Moving the task is in the
+        // overflow; only a task with nowhere to go to yet opens the move sheet.
+        val parent = placement.parentLocalId
+        val project = placement.projectLocalId
+        val context = placement.contextLocalId
+        val openPlacement: () -> Unit =
+            when {
+                parent != null -> { -> callbacks.onOpenTask(parent) }
+                project != null -> { -> callbacks.onOpenProject(project) }
+                context != null -> { -> callbacks.onOpenContext(context) }
+                else -> onOpenMove
+            }
+        PlacementCrumb(placement, openPlacement)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -819,11 +837,11 @@ private fun TitleField(
     )
 }
 
-/** Where the task lives, and the way to move it. */
+/** Where the task lives, and the way there. */
 @Composable
 private fun PlacementCrumb(
     placement: TaskPlacement,
-    onOpenMove: () -> Unit,
+    onClick: () -> Unit,
 ) {
     val value =
         when {
@@ -840,7 +858,7 @@ private fun PlacementCrumb(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onOpenMove)
+                .clickable(onClick = onClick)
                 .defaultMinSize(minHeight = 40.dp)
                 .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1284,6 +1302,8 @@ fun TaskDetailScreen(
     onOpenTask: (Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenProject: (Long) -> Unit = {},
+    onOpenContext: (Long) -> Unit = {},
     harpoon: @Composable () -> Unit = {},
     viewModel: TaskDetailViewModel = hiltViewModel(),
 ) {
@@ -1305,7 +1325,7 @@ fun TaskDetailScreen(
         today = today,
         moveOptions = moveOptions,
         messages = presenter.messages,
-        callbacks = detailCallbacks(presenter, zone, onOpenTask, onBack),
+        callbacks = detailCallbacks(presenter, zone, onOpenTask, onBack, onOpenProject, onOpenContext),
         modifier = modifier,
         harpoon = harpoon,
         dependencyAdded = presenter.dependencyAdded,
@@ -1321,8 +1341,10 @@ private fun detailCallbacks(
     zone: ZoneId,
     onOpenTask: (Long) -> Unit,
     onBack: () -> Unit,
+    onOpenProject: (Long) -> Unit,
+    onOpenContext: (Long) -> Unit,
 ): TaskDetailCallbacks =
-    remember(presenter, zone, onOpenTask, onBack) {
+    remember(presenter, zone, onOpenTask, onBack, onOpenProject, onOpenContext) {
         TaskDetailCallbacks(
             onBack = onBack,
             onRefresh = presenter::refresh,
@@ -1351,6 +1373,8 @@ private fun detailCallbacks(
             onAddRelation = presenter::addRelation,
             onRemoveRelation = presenter::removeRelation,
             onOpenTask = onOpenTask,
+            onOpenProject = onOpenProject,
+            onOpenContext = onOpenContext,
             onDecompose = presenter::decompose,
             onCreateTemplate = presenter::createTemplate,
             onMakeDependent = presenter::makeDependent,

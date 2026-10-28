@@ -151,7 +151,7 @@
     <!-- Projects and their boards. The web client rearranges a board by dragging,
          which a touch screen cannot offer unambiguously, so the wording here is
          about the two gestures this client offers instead. -->
-    <string name="native_project_finished">Finished</string>
+    <string name="native_project_finished">Completed</string>
     <string name="native_project_statusUnknown">Unknown status</string>
     <string name="native_project_pinLimit">You can pin only %1$d projects. Unpin one first.</string>
     <string name="native_project_troikiFull">That part of the daily plan already holds %1$d projects.</string>

@@ -76,6 +76,7 @@ import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddMessage
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddPresenter
+import ru.tinyops.turboist.nativeapp.quickadd.QuickAddRequest
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddUiState
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddViewModel
 import ru.tinyops.turboist.nativeapp.tasks.ui.DayPartSelector
@@ -120,6 +121,7 @@ data class QuickAddCallbacks(
 fun QuickAddHost(
     modifier: Modifier = Modifier,
     showButton: Boolean = true,
+    projectLocalId: Long? = null,
     viewModel: QuickAddViewModel = hiltViewModel(),
 ) {
     val presenter = viewModel.presenter
@@ -131,7 +133,9 @@ fun QuickAddHost(
         today = today,
         messages = presenter.messages,
         callbacks = quickAddCallbacks(presenter),
-        onOpen = { presenter.open() },
+        // The button opens on the project on screen, if any: a task written down
+        // while looking at a project belongs to it far more often than to the inbox.
+        onOpen = { presenter.open(QuickAddRequest(projectLocalId = projectLocalId)) },
         modifier = modifier,
         showButton = showButton,
     )

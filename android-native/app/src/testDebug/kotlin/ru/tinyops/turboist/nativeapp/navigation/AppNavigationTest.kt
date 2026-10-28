@@ -104,7 +104,7 @@ class AppNavigationTest {
             harpoon = { _, _ -> },
             // The capture surface reads the replica for the places a task can go,
             // so it stands in for itself here. Nothing in this walk opens it.
-            quickAdd = { _ -> },
+            quickAdd = { _, _ -> },
             // Settings is drawn as its real navigation rows and nothing else.
             // Those rows are the only way to three destinations, so substituting
             // them would remove the very wiring the walk is here to check; the
@@ -130,7 +130,10 @@ class AppNavigationTest {
             // The task screen reads the replica, so it stands in for itself and
             // shows the address the destination handed it — which is the half of
             // a link the walk is actually about.
-            task = { address, _, _, _ ->
+            // A project's board reads the replica; only the way back out of it
+            // is under test, so it stands in for itself.
+            project = { _, _, _ -> StubScreen(R.string.native_dest_project) },
+            task = { address, _, _ ->
                 StubScreen(
                     R.string.native_dest_task,
                     argument =
@@ -228,6 +231,32 @@ class AppNavigationTest {
                 "the navigation bar entry ${destination.name} did not open the destination it names",
             )
         }
+    }
+
+    @Test
+    fun `the day is reached from a project stacked on top of it`() {
+        launchShell()
+        val tapBar: (DrawerDestination) -> Unit = { destination ->
+            compose
+                .onNode(
+                    hasText(text(destination.labelRes)) and hasClickAction() and
+                        hasAnyAncestor(hasTestTag(BOTTOM_BAR_TAG)),
+                ).performClick()
+            compose.waitForIdle()
+        }
+        // A round trip through another tab leaves the day with nothing filed
+        // under it, which is when a pop that stops at it files what it removes.
+        tapBar(DrawerDestination.Inbox)
+        tapBar(DrawerDestination.Today)
+        compose.runOnUiThread { navController.navigate(ProjectRoute(7)) }
+        compose.waitForIdle()
+
+        tapBar(DrawerDestination.Today)
+
+        assertTrue(
+            navController.currentBackStackEntry?.destination?.hasRoute(TodayRoute::class) == true,
+            "the navigation bar brought the project back instead of opening the day",
+        )
     }
 
     @Test

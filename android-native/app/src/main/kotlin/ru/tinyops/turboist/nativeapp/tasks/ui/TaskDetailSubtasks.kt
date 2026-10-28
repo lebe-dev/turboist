@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +44,8 @@ import java.time.ZoneId
  *
  * The rows are the same ones every list draws, so a subtask reads and behaves
  * here exactly as it does on the day it is due. Finished work is kept in a block
- * of its own: it is worth being able to see, and worth being out of the way.
+ * of its own, folded until asked for: it is worth being able to see, and worth
+ * being out of the way.
  *
  * The bar across the top is the one thing this screen can say that a list
  * cannot: how much of the work under this task is done. It is drawn only when
@@ -71,6 +73,7 @@ fun TaskDetailSubtasks(
     drag: SubtaskDragState = remember { SubtaskDragState() },
 ) {
     val total = open.size + done.size
+    var showDone by rememberSaveable { mutableStateOf(false) }
     val row: @Composable (TaskListRow) -> Unit = { row ->
         SubtaskRow(row, zone, today, onToggleComplete, onOpen, drag, dependencies)
     }
@@ -84,14 +87,17 @@ fun TaskDetailSubtasks(
             row(subtask)
         }
         if (done.isNotEmpty()) {
-            Text(
+            CompletedToggle(
                 text = stringResource(R.string.native_task_completedSubtasks),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
+                count = done.size,
+                expanded = showDone,
+                onToggle = { showDone = !showDone },
+                modifier = Modifier.padding(top = 4.dp),
             )
-            for (subtask in done) {
-                row(subtask)
+            if (showDone) {
+                for (subtask in done) {
+                    row(subtask)
+                }
             }
         }
         if (inInbox) {
