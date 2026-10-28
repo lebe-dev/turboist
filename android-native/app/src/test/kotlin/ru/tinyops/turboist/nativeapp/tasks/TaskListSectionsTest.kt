@@ -124,6 +124,21 @@ class TaskListSectionsTest {
     }
 
     @Test
+    fun `the week starts with today folded and every other day open`() {
+        val sections =
+            withTodayFolded(
+                dueDaySections(
+                    listOf(task(1, dueAt = noon(today)), task(2, dueAt = noon(today.plusDays(1))), task(3)),
+                    titles,
+                    zone,
+                    today,
+                ),
+            )
+
+        assertEquals(listOf(true, false, false), sections.map { it.foldedByDefault })
+    }
+
+    @Test
     fun `a day with a name of its own is marked so the screen can use the name`() {
         val sections =
             dueDaySections(

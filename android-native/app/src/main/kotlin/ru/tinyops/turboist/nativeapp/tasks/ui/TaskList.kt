@@ -19,11 +19,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EventAvailable
@@ -39,6 +42,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -50,6 +54,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -135,6 +140,8 @@ fun TaskList(
     }
     val actions = callbacks.selectionActions
     val toolbarShown = state.selectionMode && actions != null
+    // The blocks the user unfolded; one that starts folded stays so until tapped.
+    val unfolded = remember { mutableStateMapOf<String, Boolean>() }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -168,6 +175,7 @@ fun TaskList(
                         ),
                 ) {
                     for (section in state.sections) {
+                        val folded = section.foldedByDefault && unfolded[section.key] != true
                         item(key = "heading-" + section.key) {
                             SectionHeader(
                                 section = section,
@@ -175,8 +183,11 @@ fun TaskList(
                                 onSelectAll = {
                                     callbacks.onSelectAllInSection(section.rows.map { it.task.localId })
                                 },
+                                folded = folded,
+                                onToggleFold = { unfolded[section.key] = folded },
                             )
                         }
+                        if (folded) continue
                         if (section.events.isNotEmpty()) {
                             item(key = "events-" + section.key) { CalendarEventBand(section.events, zone) }
                         }
@@ -440,6 +451,8 @@ private fun SectionHeader(
     section: TaskListSection,
     selectionMode: Boolean = false,
     onSelectAll: () -> Unit = {},
+    folded: Boolean = false,
+    onToggleFold: () -> Unit = {},
 ) {
     val heading = section.heading
     if (heading is SectionHeading.None) {
@@ -449,7 +462,16 @@ private fun SectionHeader(
     val overdue = heading is SectionHeading.Overdue
     val emphasised = heading is SectionHeading.Phase && heading.active
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 0.dp, top = 20.dp, bottom = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .then(
+                    if (section.foldedByDefault) {
+                        Modifier.clickable(role = Role.Button, onClick = onToggleFold)
+                    } else {
+                        Modifier
+                    },
+                ).padding(start = 8.dp, end = 0.dp, top = 20.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -481,6 +503,14 @@ private fun SectionHeader(
         }
         if (selectionMode && section.rows.isNotEmpty()) {
             TextButton(onClick = onSelectAll) { Text(stringResource(R.string.selection_bar_selectAll)) }
+        }
+        if (section.foldedByDefault) {
+            Icon(
+                imageVector = if (folded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 8.dp).size(20.dp),
+            )
         }
     }
 }

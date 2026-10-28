@@ -204,7 +204,9 @@ class WeekViewModel
                         calendar.observe(moment.window),
                     ) { tasks, titles, events ->
                         val today = dayOf(moment.dayStart)
-                        withDayEvents(dueDaySections(tasks, titles, clock.zone, today), events, clock.zone, today)
+                        withTodayFolded(
+                            withDayEvents(dueDaySections(tasks, titles, clock.zone, today), events, clock.zone, today),
+                        )
                     }
                 }
 
