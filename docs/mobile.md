@@ -1329,9 +1329,10 @@ screen left open has to notice midnight and the turn of a phase on its own —
 neither arrives as a change to the replica.
 
 **The row** carries what is worth seeing without opening the task: priority as
-the colour of its control, the due date, its labels, its project, and markers for
-recurring, complex, private, pinned, postponed-often, entangled, planned and
-parked. Two of its states are rules made visible. A task something still blocks
+the colour of its control, the due date, its labels (each `#name` drawn whole in
+the label's colour), its project, and markers for recurring, complex, private,
+postponed-often, entangled, planned and parked. A pin has no marker: a pinned
+task already sorts to the top of every list it is in. Two of its states are rules made visible. A task something still blocks
 shows a padlock instead of an empty box and cannot be ticked at all — a greyed
 box would still read as "tick me later". A task the server has never seen shows
 that it is waiting to be sent, which is exactly the set of rows with no server id
@@ -1339,11 +1340,14 @@ yet; it disappears by itself when the queue drains, with nothing to clear.
 
 **Gestures.** Pulling a list down does not reload it — it cannot, it is a query —
 so the gesture asks the sync engine to catch up and the rows change because the
-catch-up wrote to the replica underneath them. Swiping a row one way completes
-it, the other way moves it between the week and the backlog; neither dismisses
-the row, which leaves the list only if the change took it out of the query. The
-swipes are unreachable to an assistive reader, so the same two actions are also
-named actions on the row.
+catch-up wrote to the replica underneath them. Swiping a row towards the end
+completes it. Swiping it towards the start does nothing by itself: it uncovers a
+panel of actions — the week or the backlog, whichever the task is not already
+in, and picking the row — and the row stays open until one is tapped or the row
+is tapped or swiped shut. Acting on release made it too easy to park a task by
+accident while scrolling. Neither swipe dismisses the row, which leaves the list
+only if the change took it out of the query. The swipes are unreachable to an
+assistive reader, so the same actions are also named actions on the row.
 
 **Acting on a selection.** A long press starts selection mode; tapping rows adds
 and removes them, a heading offers its whole block at once, and un-picking the
@@ -1402,6 +1406,12 @@ both clients. And the record of the task — how often it was put off, when it w
 written down, last changed and finished — is folded into a block whose summary
 line carries the two facts anyone actually wants from it, because it is the part
 of the screen a person reads once a month.
+
+The When card starts folded into one row, and under it sit two chips — today and
+tomorrow — that put the task on that day with one tap, since that is most of what
+a date is ever changed for. Its heading sits closer to the title block than other
+section headings do: straight under the description it reads as the next part of
+the same block.
 
 Pinning moved to the top bar. It is not a field: a pin is a place on a shelf with
 a cap on it, and the write is what refuses a pin over that cap, so a switch would
@@ -1640,8 +1650,11 @@ the pair as it is read, as it does on the server.
 **One control, in the top bar, for both halves of it.** The pair is only useful
 from wherever you happen to be, so it is not a screen: the control lists the two
 things by their current names and jumps to whichever is picked, and it is also
-where the task or project on screen is hooked on or taken off. It draws nothing
-at all when there is nothing to jump to and nothing on screen to hook on.
+where the task or project on screen is hooked on or taken off. With something on
+screen a tap hooks it on or takes it off at once and the anchor fills while it is
+on the pair; the jumps are then a long press away. With nothing on screen to hook
+on, a tap opens the jumps. It draws nothing at all when there is nothing to jump
+to and nothing on screen to hook on.
 
 **What is checked.** The bucket cut, the plan's presenter and the pair's rule are
 plain JVM tests — no Compose, no database, no server — including that a bucket

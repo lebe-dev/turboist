@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.Splitscreen
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -85,6 +86,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -371,6 +373,12 @@ private fun TaskDetailBody(
                     today = today,
                     onOpen = { field = it },
                     onDayPart = callbacks.onDayPart,
+                    onDueDate = callbacks.onDueDate,
+                    // Straight under the title and its description the card is
+                    // the next part of the same block, not a new section, so it
+                    // does not take a section's full gap — unless a notice sits
+                    // between them.
+                    headingTop = if (state.blockers.isEmpty()) WHEN_HEADING_TOP else SECTION_HEADING_TOP,
                 )
 
                 SectionHeading(stringResource(R.string.native_task_sectionPlanning))
@@ -1006,6 +1014,8 @@ private fun WhenCard(
     today: LocalDate,
     onOpen: (TaskField) -> Unit,
     onDayPart: (DayPart) -> Unit,
+    onDueDate: (LocalDate?) -> Unit,
+    headingTop: Dp,
 ) {
     val due = task.dueDate(zone)
     val dueTime = timeLabel(task.dueTime(zone))
@@ -1025,7 +1035,7 @@ private fun WhenCard(
             else -> null
         }
 
-    SectionHeading(stringResource(R.string.native_task_sectionWhen)) {
+    SectionHeading(stringResource(R.string.native_task_sectionWhen), top = headingTop) {
         IconButton(onClick = { expanded = !expanded }) {
             Icon(
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
@@ -1060,6 +1070,7 @@ private fun WhenCard(
                 trailing = Icons.Filled.ExpandMore,
                 onClick = { expanded = true },
             )
+            QuickDueDays(due = due, today = today, onDueDate = onDueDate)
         }
         return
     }
@@ -1095,6 +1106,35 @@ private fun WhenCard(
             valueTint = repeatTint.takeIf { repeating },
             onClick = { onOpen(TaskField.REPEAT) },
         )
+    }
+}
+
+/**
+ * The two days a task is most often put on, one tap each, on the folded card.
+ *
+ * Moving a task to today or tomorrow is most of what the date is ever changed
+ * for, and the sheet behind the date row is two taps and a calendar away. The
+ * day the task is already on is shown picked, so the chips also say which of the
+ * two it is.
+ */
+@Composable
+private fun QuickDueDays(
+    due: LocalDate?,
+    today: LocalDate,
+    onDueDate: (LocalDate?) -> Unit,
+) {
+    val tomorrow = today.plusDays(1)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 54.dp, end = 16.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for ((day, labelRes) in listOf(today to R.string.common_today, tomorrow to R.string.common_tomorrow)) {
+            FilterChip(
+                selected = due == day,
+                onClick = { if (due != day) onDueDate(day) },
+                label = { Text(stringResource(labelRes)) },
+            )
+        }
     }
 }
 
@@ -1305,6 +1345,12 @@ private fun copyPlainText(
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
     clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
 }
+
+/** The gap above an ordinary section heading. */
+private val SECTION_HEADING_TOP = 20.dp
+
+/** The gap above the When heading when it follows the title block directly. */
+private val WHEN_HEADING_TOP = 4.dp
 
 /** What stands between the facts on the folded When row. */
 private const val WHEN_FACT_SEPARATOR = " · "

@@ -303,6 +303,11 @@
     <string name="native_selection_plan">Plan</string>
     <string name="native_selection_more">More</string>
 
+    <!-- The actions a row uncovers when it is swiped towards the start: short labels under each icon. -->
+    <string name="native_swipe_week">This week</string>
+    <string name="native_swipe_backlog">Backlog</string>
+    <string name="native_swipe_select">Select</string>
+
     <!-- The label picker, folded down to the labels most likely to be wanted. -->
     <string name="native_labels_showAll">%1$d more</string>
     <string name="native_labels_showFewer">Fewer</string>
@@ -312,4 +317,6 @@
     <string name="native_task_whenEmpty">Not scheduled</string>
     <string name="native_task_whenExpand">Show all date fields</string>
     <string name="native_task_whenCollapse">Hide date fields</string>
+    <!-- What a long press on the jump pair control offers: the list of things to jump to. -->
+    <string name="native_harpoon_jumps">Show jumps</string>
 </resources>

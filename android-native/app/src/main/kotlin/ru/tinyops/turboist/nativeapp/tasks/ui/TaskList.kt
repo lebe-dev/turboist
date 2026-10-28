@@ -2,43 +2,60 @@ package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.AnchoredDraggableState
+import androidx.compose.foundation.gestures.DraggableAnchors
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
@@ -50,6 +67,7 @@ import ru.tinyops.turboist.nativeapp.tasks.TaskListSection
 import ru.tinyops.turboist.nativeapp.tasks.TaskListUiState
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.roundToInt
 
 /**
  * What a list says when it holds nothing at all.
@@ -204,16 +222,29 @@ internal fun segmentShape(
     return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
 }
 
+/** Where a row rests after it has been swiped. */
+private enum class RowSwipe { COMPLETE, SETTLED, REVEALED }
+
+/** One action a swiped row uncovers. */
+private data class RowAction(
+    val icon: ImageVector,
+    @param:StringRes val labelRes: Int,
+    val run: () -> Unit,
+)
+
 /**
  * A row with its two gestures.
  *
- * Swiping one way finishes the task; swiping the other moves it between the week
- * and the backlog, in whichever direction the task is not already in. Neither
- * gesture dismisses the row — the row leaves the list only if the change it made
- * takes it out of the query behind it, which is the honest outcome: a completed
- * task disappears from a day view and stays put on a project's.
+ * Swiping towards the end finishes the task. Swiping towards the start only
+ * uncovers the actions behind the row — the week or the backlog, whichever the
+ * task is not already in, and picking it — and the row stays open until one of
+ * them is tapped or the row is swiped or tapped shut. Taking the action on the
+ * swipe itself made it far too easy to park a task by accident while scrolling.
+ *
+ * Neither gesture dismisses the row: it leaves the list only if the change takes
+ * it out of the query behind it, which is the honest outcome — a completed task
+ * disappears from a day view and stays put on a project's.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableTaskRow(
     row: TaskListRow,
@@ -225,87 +256,169 @@ private fun SwipeableTaskRow(
     shape: Shape,
     modifier: Modifier = Modifier,
 ) {
-    val parked = row.task.planState == PlanState.BACKLOG
-    // The swipes are unreachable to anyone driving the screen with an assistive
-    // reader, so the same two actions are offered as named actions on the row.
-    val completeLabel = stringResource(R.string.task_markComplete)
-    val planLabel = stringResource(if (parked) R.string.page_nextWeek_planForWeek else R.string.task_actions_toBacklog)
-    val swipeState =
-        rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                when (value) {
-                    SwipeToDismissBoxValue.StartToEnd -> callbacks.onToggleComplete(row.task)
-                    SwipeToDismissBoxValue.EndToStart ->
-                        if (parked) callbacks.onPlanForWeek(row.task) else callbacks.onPark(row.task)
+    val task = row.task
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val swipe = remember { AnchoredDraggableState(RowSwipe.SETTLED) }
+    val close: () -> Unit = { scope.launch { swipe.animateTo(RowSwipe.SETTLED) } }
+    val actions =
+        buildList {
+            if (task.planState != PlanState.WEEK) {
+                add(
+                    RowAction(
+                        Icons.Outlined.EventAvailable,
+                        R.string.native_swipe_week,
+                    ) { callbacks.onPlanForWeek(task) },
+                )
+            }
+            if (task.planState != PlanState.BACKLOG) {
+                add(RowAction(Icons.Outlined.Inventory2, R.string.native_swipe_backlog) { callbacks.onPark(task) })
+            }
+            add(RowAction(Icons.Outlined.Checklist, R.string.native_swipe_select) { callbacks.onStartSelection(task) })
+        }
+    val panelWidth = ACTION_WIDTH * actions.size
+    val revealing by remember { derivedStateOf { swipe.offset.let { !it.isNaN() && it < 0f } } }
+    val completing by remember { derivedStateOf { swipe.offset.let { !it.isNaN() && it > 0f } } }
 
-                    SwipeToDismissBoxValue.Settled -> Unit
-                }
-                false
-            },
-        )
-    SwipeToDismissBox(
-        state = swipeState,
+    // Ticking the task off is the one swipe that acts on its own; the row springs
+    // back as soon as it has.
+    LaunchedEffect(swipe.settledValue) {
+        if (swipe.settledValue != RowSwipe.COMPLETE) return@LaunchedEffect
+        callbacks.onToggleComplete(task)
+        swipe.animateTo(RowSwipe.SETTLED)
+    }
+    // Picking starts with every row shut: an open one would hold actions that
+    // are not what a tap means any more.
+    LaunchedEffect(selectionMode) {
+        if (selectionMode) swipe.animateTo(RowSwipe.SETTLED)
+    }
+
+    // The swipes are unreachable to anyone driving the screen with an assistive
+    // reader, so the same actions are offered as named actions on the row.
+    val completeLabel = stringResource(R.string.task_markComplete)
+    val actionLabels = actions.map { stringResource(it.labelRes) }
+    Box(
         modifier =
-            modifier.clip(shape).semantics {
-                customActions =
-                    listOf(
-                        CustomAccessibilityAction(completeLabel) {
-                            callbacks.onToggleComplete(row.task)
-                            true
-                        },
-                        CustomAccessibilityAction(planLabel) {
-                            if (parked) callbacks.onPlanForWeek(row.task) else callbacks.onPark(row.task)
-                            true
+            modifier
+                .clip(shape)
+                .onSizeChanged { size ->
+                    val panel = with(density) { panelWidth.toPx() }
+                    swipe.updateAnchors(
+                        DraggableAnchors {
+                            RowSwipe.COMPLETE at size.width * COMPLETE_TRAVEL
+                            RowSwipe.SETTLED at 0f
+                            RowSwipe.REVEALED at -panel
                         },
                     )
-            },
-        backgroundContent = { SwipeBackground(parked) },
-        content = {
-            TaskRow(
-                row = row,
-                zone = zone,
-                today = today,
-                selectionMode = selectionMode,
-                selected = selected,
-                onToggleComplete = { callbacks.onToggleComplete(row.task) },
-                onOpen = { callbacks.onOpen(row.task) },
-                onSelectToggle = { callbacks.onSelectToggle(row.task) },
-                onStartSelection = { callbacks.onStartSelection(row.task) },
-                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow),
+                }.semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(completeLabel) {
+                                callbacks.onToggleComplete(task)
+                                true
+                            },
+                        ) +
+                        actions.mapIndexed { index, action ->
+                            CustomAccessibilityAction(actionLabels[index]) {
+                                action.run()
+                                true
+                            }
+                        }
+                },
+    ) {
+        if (completing) CompleteBackground(modifier = Modifier.matchParentSize())
+        if (revealing) {
+            RowActionPanel(
+                actions = actions,
+                onAction = { action ->
+                    close()
+                    action.run()
+                },
+                modifier = Modifier.matchParentSize(),
             )
-        },
-    )
+        }
+        TaskRow(
+            row = row,
+            zone = zone,
+            today = today,
+            selectionMode = selectionMode,
+            selected = selected,
+            onToggleComplete = { callbacks.onToggleComplete(task) },
+            // A tap on an open row shuts it: opening the task from under the
+            // actions would leave them hanging there on the way back.
+            onOpen = { if (swipe.currentValue == RowSwipe.SETTLED) callbacks.onOpen(task) else close() },
+            onSelectToggle = { callbacks.onSelectToggle(task) },
+            onStartSelection = { callbacks.onStartSelection(task) },
+            modifier =
+                Modifier
+                    .offset { IntOffset(swipe.offset.takeUnless { it.isNaN() }?.roundToInt() ?: 0, 0) }
+                    .anchoredDraggable(swipe, Orientation.Horizontal, enabled = !selectionMode)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow),
+        )
+    }
 }
 
 /**
- * What shows behind a row being swiped: the action each direction stands for.
+ * What shows behind a row being swiped towards the end: the tick it stands for.
  *
- * The two icons are described to no one: they are the feedback of a gesture, and
- * they exist only while that gesture is under way. A reader that cannot make the
- * gesture is offered the same two actions on the row itself instead, which is
- * where they can actually be taken.
+ * The icon is described to no one: it is the feedback of a gesture and exists
+ * only while that gesture is under way. A reader that cannot make the gesture is
+ * offered the same action on the row itself instead.
  */
 @Composable
-private fun SwipeBackground(parked: Boolean) {
+private fun CompleteBackground(modifier: Modifier = Modifier) {
     Row(
         modifier =
-            Modifier
-                .fillMaxSize()
+            modifier
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Icon(
             imageVector = Icons.Outlined.CheckCircle,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Icon(
-            imageVector = if (parked) Icons.Outlined.EventAvailable else Icons.Outlined.Inventory2,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    }
+}
+
+/** The actions a row uncovers when it is swiped towards the start, each named under its icon. */
+@Composable
+private fun RowActionPanel(
+    actions: List<RowAction>,
+    onAction: (RowAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        for (action in actions) {
+            Column(
+                modifier =
+                    Modifier
+                        .width(ACTION_WIDTH)
+                        .fillMaxHeight()
+                        .clickable { onAction(action) }
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    imageVector = action.icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(action.labelRes),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
     }
 }
 
@@ -471,6 +584,12 @@ private val SEGMENT_GAP = 2.dp
 
 /** Room under the last row for the capture button to float over nothing. */
 private val FAB_CLEARANCE = 96.dp
+
+/** The width of one action a swiped row uncovers. */
+private val ACTION_WIDTH = 76.dp
+
+/** How far, as a share of its width, a row travels towards the end to be ticked off. */
+private const val COMPLETE_TRAVEL = 0.4f
 
 /** Room under the last row for the selection toolbar. */
 private val TOOLBAR_CLEARANCE = 112.dp

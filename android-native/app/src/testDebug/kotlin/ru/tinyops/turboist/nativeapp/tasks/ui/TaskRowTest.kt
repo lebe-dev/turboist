@@ -150,11 +150,17 @@ class TaskRowTest {
 
     @Test
     fun `the markers a task carries are announced`() {
-        show(task(1, isComplex = true, isPrivate = true, isPinned = true))
+        show(task(1, isComplex = true, isPrivate = true))
 
         compose.onNodeWithContentDescription(text(R.string.task_complexMarker)).assertIsDisplayed()
         compose.onNodeWithContentDescription(text(R.string.common_privateMarker)).assertIsDisplayed()
-        compose.onNodeWithContentDescription(text(R.string.nav_pinned)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a pinned task is not marked, since its place at the top already says so`() {
+        show(task(1, isPinned = true))
+
+        compose.onNodeWithContentDescription(text(R.string.nav_pinned)).assertDoesNotExist()
     }
 
     @Test
@@ -208,7 +214,7 @@ class TaskRowTest {
             )
         show(tagged)
 
-        compose.onNodeWithText("errand").assertIsDisplayed()
+        compose.onNodeWithText("#errand").assertIsDisplayed()
     }
 
     @Test

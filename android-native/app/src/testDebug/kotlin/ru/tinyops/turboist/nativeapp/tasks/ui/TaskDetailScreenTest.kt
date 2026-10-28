@@ -433,6 +433,16 @@ class TaskDetailScreenTest {
     }
 
     @Test
+    fun `the folded when card puts a task on today or tomorrow with one tap`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithText(text(R.string.common_today)).performScrollTo().performClick()
+        compose.onNodeWithText(text(R.string.common_tomorrow)).performScrollTo().performClick()
+
+        assertEquals(listOf("dueDate $today", "dueDate ${today.plusDays(1)}"), performed)
+    }
+
+    @Test
     fun `what the task has been through is folded away until it is asked for`() {
         show(stateOf(task(1)))
 

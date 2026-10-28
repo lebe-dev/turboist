@@ -22,7 +22,6 @@ import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Psychology
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,7 +63,9 @@ import java.time.ZoneId
  * Everything else on the row is a fact about the task worth seeing without
  * opening it: how urgent it is, when it is due, what it is tagged with, where it
  * lives, whether it repeats, whether it has been put off, whether it is linked
- * to other work, and whether it has been planned for the week or parked.
+ * to other work, and whether it has been planned for the week or parked. A pin
+ * is not marked: a pinned task already sorts to the top of every list it is in,
+ * and a marker would repeat what its place says.
  */
 @Composable
 fun TaskRow(
@@ -264,12 +265,6 @@ private fun TitleLine(
         if (task.isComplex) {
             MarkerIcon(Icons.Outlined.Psychology, R.string.task_complexMarker, TurboistTheme.accents.demanding)
         }
-        // A pinned task is one the user asked to keep in front of them, and it
-        // sorts to the top of every list it is in. The marker says why it is
-        // there, so the ordering does not read as arbitrary.
-        if (task.isPinned) {
-            MarkerIcon(Icons.Outlined.PushPin, R.string.nav_pinned, MaterialTheme.colorScheme.primary)
-        }
         if (task.isPrivate) {
             MarkerIcon(Icons.Outlined.Lock, R.string.common_privateMarker, MaterialTheme.colorScheme.outline)
         }
@@ -419,24 +414,17 @@ private fun MetaText(text: String) {
 /**
  * One tag, written as a hashtag rather than boxed. A row can carry several, and
  * a line of pills beside a project name and a date turns the facts under the
- * title into a row of buttons; a quiet hashtag stays a fact. The hash carries
- * the label's colour, which is enough to tell labels apart without turning the
- * line into a row of coloured badges.
+ * title into a row of buttons; a quiet hashtag stays a fact. The whole tag
+ * carries the label's colour, as the web client draws it, so labels read apart
+ * before their names are read.
  */
 @Composable
 private fun LabelChip(label: Label) {
-    Row {
-        Text(
-            text = "#",
-            style = MaterialTheme.typography.labelMedium,
-            color = labelTint(label) ?: MaterialTheme.colorScheme.outline,
-        )
-        Text(
-            text = label.name,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    Text(
+        text = "#" + label.name,
+        style = MaterialTheme.typography.labelMedium,
+        color = labelTint(label) ?: MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** The size of the tick ring on the left of a row. */

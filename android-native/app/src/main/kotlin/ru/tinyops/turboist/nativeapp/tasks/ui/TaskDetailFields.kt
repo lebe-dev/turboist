@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
@@ -89,10 +90,11 @@ fun DetailCard(
 fun SectionHeading(
     text: String,
     modifier: Modifier = Modifier,
+    top: Dp = 20.dp,
     action: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
