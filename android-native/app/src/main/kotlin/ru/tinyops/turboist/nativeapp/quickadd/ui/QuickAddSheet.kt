@@ -13,17 +13,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -42,6 +46,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -54,9 +61,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,6 +76,7 @@ import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddMessage
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddPresenter
+import ru.tinyops.turboist.nativeapp.quickadd.QuickAddRequest
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddUiState
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddViewModel
 import ru.tinyops.turboist.nativeapp.tasks.ui.DayPartSelector
@@ -111,6 +121,7 @@ data class QuickAddCallbacks(
 fun QuickAddHost(
     modifier: Modifier = Modifier,
     showButton: Boolean = true,
+    projectLocalId: Long? = null,
     viewModel: QuickAddViewModel = hiltViewModel(),
 ) {
     val presenter = viewModel.presenter
@@ -122,7 +133,9 @@ fun QuickAddHost(
         today = today,
         messages = presenter.messages,
         callbacks = quickAddCallbacks(presenter),
-        onOpen = { presenter.open() },
+        // The button opens on the project on screen, if any: a task written down
+        // while looking at a project belongs to it far more often than to the inbox.
+        onOpen = { presenter.open(QuickAddRequest(projectLocalId = projectLocalId)) },
         modifier = modifier,
         showButton = showButton,
     )
@@ -169,6 +182,8 @@ fun QuickAddHost(
         if (showButton) {
             FloatingActionButton(
                 onClick = onOpen,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             ) {
                 Icon(
@@ -261,49 +276,61 @@ private fun QuickAddFields(
     val descriptionLabel = stringResource(R.string.dialog_quickAdd_descriptionAriaLabel)
 
     Column(
-        modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+        modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = stringResource(R.string.dialog_quickAdd_title),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-
-        OutlinedTextField(
+        // The title is the one thing the sheet is opened for, so it is written
+        // large and without a box: a field that looks like a form asks to be
+        // filled in, a line that looks like a heading asks to be written.
+        TextField(
             value = state.draft.titles,
             onValueChange = callbacks.onTitles,
             placeholder = { Text(stringResource(R.string.dialog_quickAdd_titlePlaceholder)) },
+            textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
+            colors = borderlessFieldColors(),
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 4.dp)
                     .focusRequester(focus)
                     .semantics { contentDescription = titleLabel },
         )
 
-        OutlinedTextField(
+        TextField(
             value = state.draft.description,
             onValueChange = callbacks.onDescription,
             placeholder = { Text(stringResource(R.string.dialog_quickAdd_descriptionPlaceholder)) },
+            textStyle = MaterialTheme.typography.bodyLarge,
+            colors = borderlessFieldColors(),
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 4.dp)
                     .semantics { contentDescription = descriptionLabel },
         )
 
         AutoLabelChips(names = state.autoLabels, onReject = callbacks.onRejectAutoLabel)
         SuggestedProjectChips(projects = state.suggestedProjects, onChoose = callbacks.onChooseProject)
 
-        DestinationRow(projectTitle = state.projectTitle, onPick = { callbacks.onPickingProject(true) })
-
-        // A date is a plan, and the inbox holds what has not been planned yet, so
-        // scheduling is offered only once the task has a home. The same rule
-        // hides these controls in the web client.
-        if (!state.draft.isInbox) {
-            DueDateRow(dueDate = state.draft.dueDate, today = today, onPick = callbacks.onDueDate)
+        // Where the task goes and when it is for are the two facts a capture
+        // most often settles, so they sit together on one line under the text.
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            DestinationChip(projectTitle = state.projectTitle, onPick = { callbacks.onPickingProject(true) })
+            // A date is a plan, and the inbox holds what has not been planned
+            // yet, so scheduling is offered only once the task has a home. The
+            // same rule hides these controls in the web client.
+            if (!state.draft.isInbox) {
+                DueDateChips(dueDate = state.draft.dueDate, today = today, onPick = callbacks.onDueDate)
+            }
         }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
 
         PrioritySelector(priority = state.draft.priority, onSelect = callbacks.onPriority)
         DayPartSelector(dayPart = state.draft.dayPart, onSelect = callbacks.onDayPart)
@@ -311,22 +338,42 @@ private fun QuickAddFields(
             known = state.knownLabels,
             selected = state.draft.labelNames,
             onChange = callbacks.onLabels,
+            recentOrder = state.recentLabelOrder,
         )
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = callbacks.onDismiss) { Text(stringResource(R.string.common_cancel)) }
             Button(
                 onClick = callbacks.onSubmit,
                 enabled = state.draft.canSubmit && !state.submitting,
+                contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
             ) {
-                Text(submitLabel(state.draft.titleLines.size))
+                Icon(
+                    imageVector = Icons.Filled.ArrowUpward,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(submitLabel(state.draft.titleLines.size), modifier = Modifier.padding(start = 8.dp))
             }
         }
     }
 }
+
+/** A text field drawn as bare text on the sheet: no box, no underline. */
+@Composable
+private fun borderlessFieldColors(): TextFieldColors =
+    TextFieldDefaults.colors(
+        focusedContainerColor = Color.Transparent,
+        unfocusedContainerColor = Color.Transparent,
+        disabledContainerColor = Color.Transparent,
+        focusedIndicatorColor = Color.Transparent,
+        unfocusedIndicatorColor = Color.Transparent,
+        disabledIndicatorColor = Color.Transparent,
+    )
 
 /** The wording on the save button: one task, or how many. */
 @Composable
@@ -425,7 +472,7 @@ private fun SuggestedProjectChips(
 
 /** Where the task is going, and the way to change it. */
 @Composable
-private fun DestinationRow(
+private fun DestinationChip(
     projectTitle: String?,
     onPick: () -> Unit,
 ) {
@@ -437,16 +484,20 @@ private fun DestinationRow(
             Icon(
                 imageVector = if (projectTitle == null) Icons.Outlined.Inbox else Icons.Outlined.Folder,
                 contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
             )
         },
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).semantics { contentDescription = name },
+        trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+        border = null,
+        colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        modifier = Modifier.semantics { contentDescription = name },
     )
 }
 
 /** Today, tomorrow, or a day off the calendar. Tapping the day already set clears it. */
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DueDateRow(
+private fun DueDateChips(
     dueDate: LocalDate?,
     today: LocalDate,
     onPick: (LocalDate?) -> Unit,
@@ -455,23 +506,14 @@ private fun DueDateRow(
     val tomorrow = today.plusDays(1)
     val custom = dueDate?.takeIf { it != today && it != tomorrow }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Text(
-            text = stringResource(R.string.dialog_quickAdd_dueDateAriaLabel),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            DayChip(stringResource(R.string.common_today), dueDate == today) { onPick(today) }
-            DayChip(stringResource(R.string.common_tomorrow), dueDate == tomorrow) { onPick(tomorrow) }
-            DayChip(
-                text =
-                    custom?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-                        ?: stringResource(R.string.dialog_quickAdd_pickDateTitle),
-                selected = custom != null,
-            ) { picking = true }
-        }
-    }
+    DayChip(stringResource(R.string.common_today), dueDate == today) { onPick(today) }
+    DayChip(stringResource(R.string.common_tomorrow), dueDate == tomorrow) { onPick(tomorrow) }
+    DayChip(
+        text =
+            custom?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+                ?: stringResource(R.string.dialog_quickAdd_pickDateTitle),
+        selected = custom != null,
+    ) { picking = true }
 
     if (!picking) return
     // The picker speaks in UTC midnights, so the day is read back at that offset

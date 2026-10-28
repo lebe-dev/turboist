@@ -295,8 +295,8 @@ class SessionManager
             endSession(confirmDiscard) { gateway.revokeEverySession() }
 
         /**
-         * The sign-out both flavours share: ask, revoke on the server, then empty
-         * the device.
+         * The sign-out both flavours share: send what can still be sent, ask about
+         * the rest, revoke on the server, then empty the device.
          *
          * The revocation is best-effort. A device that cannot reach the server
          * must still be able to sign out of it, and the session dies with its
@@ -307,6 +307,9 @@ class SessionManager
             confirmDiscard: suspend (Int) -> Boolean,
             revoke: suspend () -> Unit,
         ): Boolean {
+            // Whatever can still go out goes out first, so the question is only
+            // ever about work the server really cannot take right now.
+            replica.sendWaiting()
             val unsent = replica.unsentChangeCount()
             if (unsent > 0 && !confirmDiscard(unsent)) return false
 

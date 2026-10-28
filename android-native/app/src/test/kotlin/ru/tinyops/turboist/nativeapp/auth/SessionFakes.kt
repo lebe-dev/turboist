@@ -184,13 +184,25 @@ internal class FakeNetworkAvailability : NetworkAvailability {
     }
 }
 
-/** A replica that only counts what was asked of it. */
+/**
+ * A replica that only counts what was asked of it.
+ *
+ * [reachable] is how many of the unsent changes a send attempt gets out — none
+ * by default, which is a device out of coverage.
+ */
 internal class FakeLocalReplica(
     var unsent: Int = 0,
+    private val reachable: Int = 0,
 ) : LocalReplica {
     var wipes: Int = 0
+    var sendAttempts: Int = 0
 
     override suspend fun unsentChangeCount(): Int = unsent
+
+    override suspend fun sendWaiting() {
+        sendAttempts++
+        unsent -= minOf(unsent, reachable)
+    }
 
     override suspend fun wipe() {
         wipes++

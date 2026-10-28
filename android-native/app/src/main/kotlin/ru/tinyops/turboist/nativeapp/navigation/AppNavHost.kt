@@ -1,5 +1,7 @@
 package ru.tinyops.turboist.nativeapp.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -54,11 +56,24 @@ fun AppNavHost(
     val openProject: (Project) -> Unit = { project -> navController.navigate(ProjectRoute(project.localId)) }
     val openContext: (Context) -> Unit = { context -> navController.navigate(ContextRoute(context.localId)) }
     val openLabel: (Label) -> Unit = { label -> navController.navigate(LabelRoute(label.localId)) }
+    val taskNavigation =
+        TaskNavigation(
+            openTask = openTaskById,
+            openProject = { localId -> navController.navigate(ProjectRoute(localId)) },
+            openContext = { localId -> navController.navigate(ContextRoute(localId)) },
+            back = leave,
+        )
 
     NavHost(
         navController = navController,
         startDestination = TodayRoute,
         modifier = modifier,
+        // Moving between screens is instant: a cross-fade on every tap made the
+        // app feel slower than it is and showed two screens at once mid-way.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
     ) {
         composable<TodayRoute> { screens.today(openTask) }
         composable<TomorrowRoute> { screens.tomorrow(openTask) }
@@ -113,7 +128,7 @@ fun AppNavHost(
 
         composable<TaskRoute> { entry ->
             val taskLocalId = entry.toRoute<TaskRoute>().taskLocalId
-            screens.task(TaskAddress.Local(taskLocalId), openTaskById, leave) {
+            screens.task(TaskAddress.Local(taskLocalId), taskNavigation) {
                 screens.harpoon(HarpoonEntry(HarpoonTarget.TASK, taskLocalId), jump)
             }
         }
@@ -129,7 +144,7 @@ fun AppNavHost(
             // remembered by the ids this device holds its rows under. There is
             // nothing to hook on until the task has been opened normally, so the
             // control is handed no current entry rather than a wrong one.
-            screens.task(TaskAddress.Server(entry.toRoute<TaskLinkRoute>().serverId), openTaskById, leave) {
+            screens.task(TaskAddress.Server(entry.toRoute<TaskLinkRoute>().serverId), taskNavigation) {
                 screens.harpoon(null, jump)
             }
         }

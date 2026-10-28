@@ -34,12 +34,29 @@ class ErrorMappingInterceptor : Interceptor {
             } catch (e: IOException) {
                 throw ApiException.Network(e.message ?: "the request did not reach the server", e)
             }
-        if (response.isSuccessful) return response
+        if (response.isSuccessful) {
+            if (!response.isWebPage()) return response
+            response.close()
+            throw ApiException.Network(NOT_FROM_SERVER)
+        }
 
         val body = response.readErrorBody()
         response.close()
         throw ApiException.from(response.code, body)
     }
+
+    /**
+     * True when a success arrived as a web page.
+     *
+     * The server answers every API call in JSON — an unknown path included,
+     * which gets the JSON not-found envelope rather than the web app — so a page
+     * here came from something standing between the device and the server: the
+     * sign-in page of a hotel or train network, typically, which answers every
+     * request with itself until the user has been through it. Reading that as
+     * the server's own success would hand a parser HTML and count the failure
+     * against a write the server never saw.
+     */
+    private fun Response.isWebPage(): Boolean = header("Content-Type")?.startsWith(HTML_TYPE, ignoreCase = true) == true
 
     /**
      * Reads the error envelope, tolerating anything that is not one. A proxy
@@ -59,5 +76,11 @@ class ErrorMappingInterceptor : Interceptor {
         } catch (_: Exception) {
             null
         }
+    }
+
+    private companion object {
+        const val HTML_TYPE = "text/html"
+        const val NOT_FROM_SERVER =
+            "the answer came from the network rather than the server; it may need signing in to"
     }
 }

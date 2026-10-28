@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.projects
 
 import ru.tinyops.turboist.core.model.TroikiCategory
+import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.sync.write.ContextWriteRepo
 import ru.tinyops.turboist.core.sync.write.NewProject
 import ru.tinyops.turboist.core.sync.write.NewTask
@@ -104,6 +105,25 @@ class WriteRepoProjectActions
             destination: TaskDestination,
         ) {
             tasks.move(taskLocalId, destination)
+        }
+
+        override suspend fun addBlocker(
+            taskLocalId: Long,
+            blockerLocalId: Long,
+        ): Long =
+            tasks
+                .addRelation(
+                    taskLocalId,
+                    blockerLocalId,
+                    TaskRelationGroup.BLOCKED_BY.type,
+                    TaskRelationGroup.BLOCKED_BY.direction,
+                ).entityLocalId
+
+        override suspend fun removeRelation(
+            taskLocalId: Long,
+            relationLocalId: Long,
+        ) {
+            tasks.removeRelation(taskLocalId, relationLocalId)
         }
     }
 

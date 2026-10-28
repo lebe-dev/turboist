@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lebe-dev/turboist/internal/httpapi/dto"
 	"github.com/lebe-dev/turboist/internal/model"
 )
 
@@ -117,5 +118,89 @@ func TestTaskPlan_SetBacklog_CascadesToSubtasks(t *testing.T) {
 		if got.PlanState != "backlog" {
 			t.Errorf("task %d planState: got %q, want %q", id, got.PlanState, "backlog")
 		}
+	}
+}
+
+// schedule gives a task a due date with a time, as a planned task would have.
+func schedule(t *testing.T, e *apiEnv, id int64) {
+	t.Helper()
+	tomorrow := time.Now().Add(24 * time.Hour)
+	updated := patchTask(t, e, id, map[string]any{"dueAt": model.FormatUTC(tomorrow), "dueHasTime": true})
+	if updated.DueAt == nil {
+		t.Fatalf("schedule task %d: dueAt not set", id)
+	}
+}
+
+// assertUnscheduled fails unless the task is parked with no day and no time.
+func assertUnscheduled(t *testing.T, got dto.TaskDTO) {
+	t.Helper()
+	if got.PlanState != "backlog" {
+		t.Errorf("task %q planState: got %q, want %q", got.Title, got.PlanState, "backlog")
+	}
+	if got.DueAt != nil {
+		t.Errorf("task %q dueAt: got %v, want nil", got.Title, *got.DueAt)
+	}
+	if got.DueHasTime {
+		t.Errorf("task %q dueHasTime: got true, want false", got.Title)
+	}
+}
+
+// Parking a parent unschedules the whole open subtree, whichever endpoint parks
+// it: a subtask keeping its day would surface in the day views for postponed work.
+func TestTaskBacklog_UnschedulesSubtasks(t *testing.T) {
+	for _, via := range []string{"plan", "patch"} {
+		t.Run(via, func(t *testing.T) {
+			e := setupAPIEnv(t)
+			ctx := createTestContext(t, e, "Work")
+			parent := createTestTask(t, e, ctx.ID, "Parent")
+			child := createTestSubtask(t, e, parent.ID, "Child")
+			grandchild := createTestSubtask(t, e, child.ID, "Grandchild")
+			for _, id := range []int64{parent.ID, child.ID, grandchild.ID} {
+				schedule(t, e, id)
+			}
+
+			if via == "plan" {
+				planTask(t, e, parent.ID, "backlog")
+			} else {
+				patchTask(t, e, parent.ID, map[string]any{"planState": "backlog"})
+			}
+
+			for _, id := range []int64{parent.ID, child.ID, grandchild.ID} {
+				assertUnscheduled(t, fetchTask(t, e, id))
+			}
+		})
+	}
+}
+
+// A subtask planned for the week with a day of its own is parked and unscheduled
+// with its parent too — the cascade does not skip work that was already planned.
+func TestTaskBacklog_UnschedulesSubtaskPlannedForWeek(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	child := createTestSubtask(t, e, parent.ID, "Child")
+	planTask(t, e, child.ID, "week")
+	schedule(t, e, child.ID)
+
+	planTask(t, e, parent.ID, "backlog")
+
+	assertUnscheduled(t, fetchTask(t, e, child.ID))
+}
+
+// A PATCH that parks a task and names a day in the same request keeps that day:
+// the request said so explicitly.
+func TestTaskPatch_SetBacklogWithDue_KeepsDue(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, ctx.ID, "Task")
+
+	tomorrow := time.Now().Add(24 * time.Hour)
+	updated := patchTask(t, e, task.ID, map[string]any{
+		"dueAt":     model.FormatUTC(tomorrow),
+		"planState": "backlog",
+	})
+
+	if updated.DueAt == nil {
+		t.Error("dueAt: got nil, want the date named in the request")
 	}
 }

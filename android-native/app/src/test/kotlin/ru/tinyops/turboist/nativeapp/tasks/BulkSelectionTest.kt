@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.sync.write.TaskDestination
+import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import kotlin.test.Test
@@ -84,6 +85,11 @@ class BulkSelectionTest {
         override suspend fun park(taskLocalId: Long) = Unit
 
         override suspend fun planForWeek(taskLocalId: Long) = Unit
+
+        override suspend fun edit(
+            taskLocalId: Long,
+            edit: TaskEdit,
+        ) = Unit
     }
 
     private class SilentScheduler : SyncScheduler {

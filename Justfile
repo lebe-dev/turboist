@@ -33,7 +33,7 @@ build: build-frontend && format
     go build -ldflags="-X main.Version={{ version }}" -o turboist ./cmd/turboist
 
 # --- Lints ---
-lint-backend: format
+lint-backend: ensure-frontend-build format
     golangci-lint run ./...
 
 lint-frontend:
@@ -48,7 +48,12 @@ lint: format
     just android-native-lint
 
 # --- Tests ---
-test name="":
+# `static.go` embeds frontend/build, which is gitignored: without a real build the
+# Go packages do not compile at all. A placeholder is enough for tests and lint.
+ensure-frontend-build:
+    @[ -d frontend/build ] || { mkdir -p frontend/build && touch frontend/build/.placeholder; }
+
+test name="": ensure-frontend-build
     go test -run "{{ name }}" ./...
 
 test-frontend name="":
@@ -60,7 +65,7 @@ frontend-test-watch:
 test-all: test && test-frontend android-native-test
 
 # --- Coverage ---
-coverage:
+coverage: ensure-frontend-build
     go test ./... -coverprofile=coverage.out
     go tool cover -func=coverage.out
     go tool cover -html=coverage.out -o coverage.html

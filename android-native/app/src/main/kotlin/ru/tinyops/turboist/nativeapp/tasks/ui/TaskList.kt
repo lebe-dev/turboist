@@ -2,49 +2,79 @@ package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.AnchoredDraggableState
+import androidx.compose.foundation.gestures.DraggableAnchors
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.shell.LocalShellChrome
 import ru.tinyops.turboist.nativeapp.tasks.SectionHeading
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 import ru.tinyops.turboist.nativeapp.tasks.TaskListSection
 import ru.tinyops.turboist.nativeapp.tasks.TaskListUiState
+import ru.tinyops.turboist.nativeapp.tasks.dueDate
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.roundToInt
 
 /**
  * What a list says when it holds nothing at all.
@@ -70,7 +100,8 @@ data class TaskListCallbacks(
     val onToggleComplete: (Task) -> Unit,
     val onOpen: (Task) -> Unit,
     val onPark: (Task) -> Unit,
-    val onPlanForWeek: (Task) -> Unit,
+    /** Puts a task on the given day — the swiped row's "tomorrow". */
+    val onMoveToDay: (Task, LocalDate) -> Unit,
     val onStartSelection: (Task) -> Unit,
     val onSelectToggle: (Task) -> Unit,
     val onClearSelection: () -> Unit,
@@ -98,73 +129,137 @@ fun TaskList(
     callbacks: TaskListCallbacks,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
-        if (state.announcement != null) Announcement(state.announcement)
-        // The age of the appointments, when they are stale, belongs above the
-        // whole list: it qualifies every band on the screen at once, and one line
-        // is less noise than the same note repeated under each heading.
-        if (state.calendarAsOf != null) CalendarAsOfNote(state.calendarAsOf, zone)
-        if (state.selectionMode) {
-            SelectionBar(
-                count = state.selected.size,
-                actions = callbacks.selectionActions,
-                onClear = callbacks.onClearSelection,
-                modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer),
-            )
+    // While tasks are picked the toolbar owns the bottom edge, so the shell's
+    // capture button and navigation bar step aside for exactly that long.
+    val chrome = LocalShellChrome.current
+    if (chrome != null) {
+        DisposableEffect(chrome, state.selectionMode) {
+            chrome.selectionActive = state.selectionMode
+            onDispose { chrome.selectionActive = false }
         }
+    }
+    val actions = callbacks.selectionActions
+    val toolbarShown = state.selectionMode && actions != null
+    // The blocks the user unfolded; one that starts folded stays so until tapped.
+    val unfolded = remember { mutableStateMapOf<String, Boolean>() }
 
-        PullToRefreshBox(
-            isRefreshing = state.refreshing,
-            onRefresh = callbacks.onRefresh,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            if (state.isEmpty && empty != null) {
-                EmptyList(empty)
-                return@PullToRefreshBox
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (state.announcement != null) Announcement(state.announcement)
+            // The age of the appointments, when they are stale, belongs above the
+            // whole list: it qualifies every band on the screen at once, and one
+            // line is less noise than the same note repeated under each heading.
+            if (state.calendarAsOf != null) CalendarAsOfNote(state.calendarAsOf, zone)
+            if (state.selectionMode) {
+                SelectionHeader(count = state.selected.size, onClear = callbacks.onClearSelection)
             }
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                for (section in state.sections) {
-                    item(key = "heading-" + section.key) {
-                        SectionHeader(
-                            section = section,
-                            selectionMode = state.selectionMode,
-                            onSelectAll = {
-                                callbacks.onSelectAllInSection(section.rows.map { it.task.localId })
-                            },
-                        )
-                    }
-                    if (section.events.isNotEmpty()) {
-                        item(key = "events-" + section.key) { CalendarEventBand(section.events, zone) }
-                    }
-                    if (section.rows.isEmpty() && section.emptyRes != null) {
-                        item(key = "empty-" + section.key) { EmptySection(section.emptyRes) }
-                    }
-                    items(section.rows, key = { "task-" + it.task.localId }) { row ->
-                        SwipeableTaskRow(
-                            row = row,
-                            zone = zone,
-                            today = today,
-                            selectionMode = state.selectionMode,
-                            selected = row.task.localId in state.selected,
-                            callbacks = callbacks,
-                        )
+
+            PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = callbacks.onRefresh,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (state.isEmpty && empty != null) {
+                    EmptyList(empty)
+                    return@PullToRefreshBox
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding =
+                        PaddingValues(
+                            start = LIST_GUTTER,
+                            end = LIST_GUTTER,
+                            // The last row has to be able to scroll clear of
+                            // whatever floats over the bottom of the list.
+                            bottom = if (toolbarShown) TOOLBAR_CLEARANCE else FAB_CLEARANCE,
+                        ),
+                ) {
+                    for (section in state.sections) {
+                        val folded = section.foldedByDefault && unfolded[section.key] != true
+                        item(key = "heading-" + section.key) {
+                            SectionHeader(
+                                section = section,
+                                selectionMode = state.selectionMode,
+                                onSelectAll = {
+                                    callbacks.onSelectAllInSection(section.rows.map { it.task.localId })
+                                },
+                                folded = folded,
+                                onToggleFold = { unfolded[section.key] = folded },
+                            )
+                        }
+                        if (folded) continue
+                        if (section.events.isNotEmpty()) {
+                            item(key = "events-" + section.key) { CalendarEventBand(section.events, zone) }
+                        }
+                        if (section.rows.isEmpty() && section.emptyRes != null) {
+                            item(key = "empty-" + section.key) { EmptySection(section.emptyRes) }
+                        }
+                        itemsIndexed(section.rows, key = { _, row -> "task-" + row.task.localId }) { index, row ->
+                            SwipeableTaskRow(
+                                row = row,
+                                zone = zone,
+                                today = today,
+                                selectionMode = state.selectionMode,
+                                selected = row.task.localId in state.selected,
+                                callbacks = callbacks,
+                                shape = segmentShape(index, section.rows.size),
+                                modifier = Modifier.padding(top = if (index == 0) 0.dp else SEGMENT_GAP),
+                            )
+                        }
                     }
                 }
             }
+        }
+        if (toolbarShown && actions != null) {
+            SelectionToolbar(
+                count = state.selected.size,
+                actions = actions,
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 12.dp, vertical = 16.dp),
+            )
         }
     }
 }
 
 /**
+ * The shape of a row inside its block: the block reads as one card, so only its
+ * outer corners are fully rounded and the seams between rows are barely cut.
+ */
+internal fun segmentShape(
+    index: Int,
+    count: Int,
+): Shape {
+    val top = if (index == 0) OUTER_CORNER else INNER_CORNER
+    val bottom = if (index == count - 1) OUTER_CORNER else INNER_CORNER
+    return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
+}
+
+/** Where a row rests after it has been swiped. */
+private enum class RowSwipe { COMPLETE, SETTLED, REVEALED }
+
+/** One action a swiped row uncovers. */
+private data class RowAction(
+    val icon: ImageVector,
+    @param:StringRes val labelRes: Int,
+    val run: () -> Unit,
+)
+
+/**
  * A row with its two gestures.
  *
- * Swiping one way finishes the task; swiping the other moves it between the week
- * and the backlog, in whichever direction the task is not already in. Neither
- * gesture dismisses the row — the row leaves the list only if the change it made
- * takes it out of the query behind it, which is the honest outcome: a completed
- * task disappears from a day view and stays put on a project's.
+ * Swiping towards the end finishes the task. Swiping towards the start only
+ * uncovers the actions behind the row — tomorrow, unless the task is already
+ * on it; the backlog, unless it is already parked; and picking it — and the
+ * row stays open until one of them is tapped or the row is swiped or tapped
+ * shut. Taking the action on the
+ * swipe itself made it far too easy to park a task by accident while scrolling.
+ *
+ * Neither gesture dismisses the row: it leaves the list only if the change takes
+ * it out of the query behind it, which is the honest outcome — a completed task
+ * disappears from a day view and stays put on a project's.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableTaskRow(
     row: TaskListRow,
@@ -173,88 +268,173 @@ private fun SwipeableTaskRow(
     selectionMode: Boolean,
     selected: Boolean,
     callbacks: TaskListCallbacks,
+    shape: Shape,
+    modifier: Modifier = Modifier,
 ) {
-    val parked = row.task.planState == PlanState.BACKLOG
-    // The swipes are unreachable to anyone driving the screen with an assistive
-    // reader, so the same two actions are offered as named actions on the row.
-    val completeLabel = stringResource(R.string.task_markComplete)
-    val planLabel = stringResource(if (parked) R.string.page_nextWeek_planForWeek else R.string.task_actions_toBacklog)
-    val swipeState =
-        rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                when (value) {
-                    SwipeToDismissBoxValue.StartToEnd -> callbacks.onToggleComplete(row.task)
-                    SwipeToDismissBoxValue.EndToStart ->
-                        if (parked) callbacks.onPlanForWeek(row.task) else callbacks.onPark(row.task)
+    val task = row.task
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val swipe = remember { AnchoredDraggableState(RowSwipe.SETTLED) }
+    val close: () -> Unit = { scope.launch { swipe.animateTo(RowSwipe.SETTLED) } }
+    val actions =
+        buildList {
+            val tomorrow = today.plusDays(1)
+            if (task.dueDate(zone) != tomorrow) {
+                add(
+                    RowAction(
+                        Icons.Outlined.EventAvailable,
+                        R.string.common_tomorrow,
+                    ) { callbacks.onMoveToDay(task, tomorrow) },
+                )
+            }
+            if (task.planState != PlanState.BACKLOG) {
+                add(RowAction(Icons.Outlined.Inventory2, R.string.native_swipe_backlog) { callbacks.onPark(task) })
+            }
+            add(RowAction(Icons.Outlined.Checklist, R.string.native_swipe_select) { callbacks.onStartSelection(task) })
+        }
+    val panelWidth = ACTION_WIDTH * actions.size
+    val revealing by remember { derivedStateOf { swipe.offset.let { !it.isNaN() && it < 0f } } }
+    val completing by remember { derivedStateOf { swipe.offset.let { !it.isNaN() && it > 0f } } }
 
-                    SwipeToDismissBoxValue.Settled -> Unit
-                }
-                false
-            },
-        )
-    SwipeToDismissBox(
-        state = swipeState,
+    // Ticking the task off is the one swipe that acts on its own; the row springs
+    // back as soon as it has.
+    LaunchedEffect(swipe.settledValue) {
+        if (swipe.settledValue != RowSwipe.COMPLETE) return@LaunchedEffect
+        callbacks.onToggleComplete(task)
+        swipe.animateTo(RowSwipe.SETTLED)
+    }
+    // Picking starts with every row shut: an open one would hold actions that
+    // are not what a tap means any more.
+    LaunchedEffect(selectionMode) {
+        if (selectionMode) swipe.animateTo(RowSwipe.SETTLED)
+    }
+
+    // The swipes are unreachable to anyone driving the screen with an assistive
+    // reader, so the same actions are offered as named actions on the row.
+    val completeLabel = stringResource(R.string.task_markComplete)
+    val actionLabels = actions.map { stringResource(it.labelRes) }
+    Box(
         modifier =
-            Modifier.semantics {
-                customActions =
-                    listOf(
-                        CustomAccessibilityAction(completeLabel) {
-                            callbacks.onToggleComplete(row.task)
-                            true
-                        },
-                        CustomAccessibilityAction(planLabel) {
-                            if (parked) callbacks.onPlanForWeek(row.task) else callbacks.onPark(row.task)
-                            true
+            modifier
+                .clip(shape)
+                .onSizeChanged { size ->
+                    val panel = with(density) { panelWidth.toPx() }
+                    swipe.updateAnchors(
+                        DraggableAnchors {
+                            RowSwipe.COMPLETE at size.width * COMPLETE_TRAVEL
+                            RowSwipe.SETTLED at 0f
+                            RowSwipe.REVEALED at -panel
                         },
                     )
-            },
-        backgroundContent = { SwipeBackground(parked) },
-        content = {
-            TaskRow(
-                row = row,
-                zone = zone,
-                today = today,
-                selectionMode = selectionMode,
-                selected = selected,
-                onToggleComplete = { callbacks.onToggleComplete(row.task) },
-                onOpen = { callbacks.onOpen(row.task) },
-                onSelectToggle = { callbacks.onSelectToggle(row.task) },
-                onStartSelection = { callbacks.onStartSelection(row.task) },
-                modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+                }.semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(completeLabel) {
+                                callbacks.onToggleComplete(task)
+                                true
+                            },
+                        ) +
+                        actions.mapIndexed { index, action ->
+                            CustomAccessibilityAction(actionLabels[index]) {
+                                action.run()
+                                true
+                            }
+                        }
+                },
+    ) {
+        if (completing) CompleteBackground(modifier = Modifier.matchParentSize())
+        if (revealing) {
+            RowActionPanel(
+                actions = actions,
+                onAction = { action ->
+                    close()
+                    action.run()
+                },
+                modifier = Modifier.matchParentSize(),
             )
-        },
-    )
+        }
+        TaskRow(
+            row = row,
+            zone = zone,
+            today = today,
+            selectionMode = selectionMode,
+            selected = selected,
+            onToggleComplete = { callbacks.onToggleComplete(task) },
+            // A tap on an open row shuts it: opening the task from under the
+            // actions would leave them hanging there on the way back.
+            onOpen = { if (swipe.currentValue == RowSwipe.SETTLED) callbacks.onOpen(task) else close() },
+            onSelectToggle = { callbacks.onSelectToggle(task) },
+            onStartSelection = { callbacks.onStartSelection(task) },
+            modifier =
+                Modifier
+                    .offset { IntOffset(swipe.offset.takeUnless { it.isNaN() }?.roundToInt() ?: 0, 0) }
+                    .anchoredDraggable(swipe, Orientation.Horizontal, enabled = !selectionMode)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow),
+        )
+    }
 }
 
 /**
- * What shows behind a row being swiped: the action each direction stands for.
+ * What shows behind a row being swiped towards the end: the tick it stands for.
  *
- * The two icons are described to no one: they are the feedback of a gesture, and
- * they exist only while that gesture is under way. A reader that cannot make the
- * gesture is offered the same two actions on the row itself instead, which is
- * where they can actually be taken.
+ * The icon is described to no one: it is the feedback of a gesture and exists
+ * only while that gesture is under way. A reader that cannot make the gesture is
+ * offered the same action on the row itself instead.
  */
 @Composable
-private fun SwipeBackground(parked: Boolean) {
+private fun CompleteBackground(modifier: Modifier = Modifier) {
     Row(
         modifier =
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 16.dp),
+            modifier
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Icon(
             imageVector = Icons.Outlined.CheckCircle,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Icon(
-            imageVector = if (parked) Icons.Outlined.EventAvailable else Icons.Outlined.Inventory2,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    }
+}
+
+/** The actions a row uncovers when it is swiped towards the start, each named under its icon. */
+@Composable
+private fun RowActionPanel(
+    actions: List<RowAction>,
+    onAction: (RowAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        for (action in actions) {
+            Column(
+                modifier =
+                    Modifier
+                        .width(ACTION_WIDTH)
+                        .fillMaxHeight()
+                        .clickable { onAction(action) }
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    imageVector = action.icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(action.labelRes),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
     }
 }
 
@@ -271,6 +451,8 @@ private fun SectionHeader(
     section: TaskListSection,
     selectionMode: Boolean = false,
     onSelectAll: () -> Unit = {},
+    folded: Boolean = false,
+    onToggleFold: () -> Unit = {},
 ) {
     val heading = section.heading
     if (heading is SectionHeading.None) {
@@ -278,19 +460,29 @@ private fun SectionHeader(
         return
     }
     val overdue = heading is SectionHeading.Overdue
-    val emphasised = overdue || (heading is SectionHeading.Phase && heading.active)
+    val emphasised = heading is SectionHeading.Phase && heading.active
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .then(
+                    if (section.foldedByDefault) {
+                        Modifier.clickable(role = Role.Button, onClick = onToggleFold)
+                    } else {
+                        Modifier
+                    },
+                ).padding(start = 8.dp, end = 0.dp, top = 20.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = headingText(heading),
             style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
             color =
                 when {
                     overdue -> MaterialTheme.colorScheme.error
-                    emphasised -> MaterialTheme.colorScheme.onSurface
+                    emphasised -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
         )
@@ -312,15 +504,22 @@ private fun SectionHeader(
         if (selectionMode && section.rows.isNotEmpty()) {
             TextButton(onClick = onSelectAll) { Text(stringResource(R.string.selection_bar_selectAll)) }
         }
+        if (section.foldedByDefault) {
+            Icon(
+                imageVector = if (folded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 8.dp).size(20.dp),
+            )
+        }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 /** The whole-block gesture on a list whose blocks carry no heading of their own. */
 @Composable
 private fun SelectAllRow(onSelectAll: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
     ) {
         TextButton(onClick = onSelectAll) { Text(stringResource(R.string.selection_bar_selectAll)) }
@@ -362,8 +561,9 @@ private fun Announcement(text: String) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.secondaryContainer)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = LIST_GUTTER, vertical = 4.dp)
+                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(OUTER_CORNER))
+                .padding(horizontal = 16.dp, vertical = 12.dp),
     )
 }
 
@@ -407,6 +607,30 @@ private fun EmptySection(
         text = stringResource(textRes),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
     )
 }
+
+/** How far the cards of a list sit in from the screen's edges. */
+private val LIST_GUTTER = 12.dp
+
+/** The corner a block of rows is rounded with on the outside. */
+private val OUTER_CORNER = 20.dp
+
+/** The corner cut into the seam between two rows of one block. */
+private val INNER_CORNER = 4.dp
+
+/** The gap between two rows of one block. */
+private val SEGMENT_GAP = 2.dp
+
+/** Room under the last row for the capture button to float over nothing. */
+private val FAB_CLEARANCE = 96.dp
+
+/** The width of one action a swiped row uncovers. */
+private val ACTION_WIDTH = 76.dp
+
+/** How far, as a share of its width, a row travels towards the end to be ticked off. */
+private const val COMPLETE_TRAVEL = 0.4f
+
+/** Room under the last row for the selection toolbar. */
+private val TOOLBAR_CLEARANCE = 112.dp

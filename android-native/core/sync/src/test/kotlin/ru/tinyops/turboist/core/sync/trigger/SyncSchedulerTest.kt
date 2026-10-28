@@ -147,6 +147,90 @@ class SyncSchedulerTest {
             )
         }
 
+    @Test
+    fun `a queue the server could not take yet is tried again after the wait it earned`() =
+        runTest {
+            val scheduler =
+                SyncScheduler(
+                    cycle = {
+                        if (cycles.incrementAndGet() == 1) {
+                            SyncCycleResult.Refused(
+                                IllegalStateException("the server is unwell"),
+                                retryAfterMillis = RETRY,
+                            )
+                        } else {
+                            SyncCycleResult.Synced
+                        }
+                    },
+                    scope = backgroundScope,
+                    windowMillis = WINDOW,
+                )
+
+            scheduler.requestSync(SyncReason.LOCAL_WRITE)
+            advanceTimeBy(WINDOW + 1)
+            runCurrent()
+            assertEquals(1, cycles.get())
+
+            advanceTimeBy(RETRY + WINDOW + 1)
+            runCurrent()
+            assertEquals(
+                2,
+                cycles.get(),
+                "an edit held up by a server error must not wait for an unrelated reason to sync",
+            )
+
+            advanceTimeBy(HOUR)
+            runCurrent()
+            assertEquals(2, cycles.get(), "once the queue has gone out, nothing is retried")
+        }
+
+    @Test
+    fun `a refusal that asking again cannot change is not retried`() =
+        runTest {
+            val scheduler =
+                SyncScheduler(
+                    cycle = {
+                        cycles.incrementAndGet()
+                        SyncCycleResult.Refused(IllegalStateException("signed out"))
+                    },
+                    scope = backgroundScope,
+                    windowMillis = WINDOW,
+                )
+
+            scheduler.requestSync(SyncReason.LOCAL_WRITE)
+            advanceTimeBy(HOUR)
+            runCurrent()
+
+            assertEquals(1, cycles.get())
+        }
+
+    @Test
+    fun `a retry already waiting is not doubled by the next failure`() =
+        runTest {
+            val scheduler =
+                SyncScheduler(
+                    cycle = {
+                        cycles.incrementAndGet()
+                        SyncCycleResult.Refused(IllegalStateException("the server is unwell"), retryAfterMillis = RETRY)
+                    },
+                    scope = backgroundScope,
+                    windowMillis = WINDOW,
+                )
+
+            scheduler.requestSync(SyncReason.LOCAL_WRITE)
+            advanceTimeBy(WINDOW + 1)
+            runCurrent()
+            scheduler.requestSync(SyncReason.SERVER_EVENT)
+            advanceTimeBy(WINDOW + 1)
+            runCurrent()
+            assertEquals(2, cycles.get())
+
+            advanceTimeBy(RETRY + WINDOW + 1)
+            runCurrent()
+
+            assertEquals(3, cycles.get(), "two failures in a row still wait out one timer, not two")
+        }
+
     private fun TestScope.scheduler(): SyncScheduler =
         SyncScheduler(
             cycle = countingCycle(),
@@ -162,5 +246,7 @@ class SyncSchedulerTest {
 
     private companion object {
         const val WINDOW = 500L
+        const val RETRY = 10_000L
+        const val HOUR = 60L * 60L * 1000L
     }
 }

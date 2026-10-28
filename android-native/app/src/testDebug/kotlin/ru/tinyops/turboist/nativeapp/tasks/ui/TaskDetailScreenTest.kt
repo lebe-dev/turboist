@@ -1,16 +1,20 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import android.app.Application
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.junit.Rule
 import org.junit.Test
@@ -18,6 +22,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
@@ -88,6 +93,9 @@ class TaskDetailScreenTest {
             onAddRelation = { peer, group -> performed += "addRelation $peer $group" },
             onRemoveRelation = { performed += "removeRelation $it" },
             onOpenTask = { performed += "open $it" },
+            onOpenProject = { performed += "openProject $it" },
+            onOpenContext = { performed += "openContext $it" },
+            onCreateLabel = { performed += "createLabel $it" },
         )
 
     private fun show(state: TaskDetailUiState) {
@@ -236,7 +244,7 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `subtasks are listed, finished ones under their own heading`() {
+    fun `subtasks are listed, finished ones folded under their own heading`() {
         show(
             stateOf(
                 task(1),
@@ -247,7 +255,12 @@ class TaskDetailScreenTest {
 
         compose.onNodeWithText(text(R.string.page_task_subtasks)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Wash up").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.native_task_completedSubtasks)).performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("Dry up").assertCountEquals(0)
+
+        compose
+            .onNodeWithText(text(R.string.native_task_completedSubtasks) + " · 1")
+            .performScrollTo()
+            .performClick()
         compose.onNodeWithText("Dry up").performScrollTo().assertIsDisplayed()
     }
 
@@ -311,10 +324,21 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `a task with no links says so rather than showing empty headings`() {
+    fun `a part of the day is picked with one tap on its icon`() {
         show(stateOf(task(1)))
 
-        compose.onNodeWithText(text(R.string.page_task_relationEmpty)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.native_task_whenExpand)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.task_dayPart_evening)).performScrollTo().performClick()
+
+        assertEquals(listOf("dayPart evening"), performed)
+    }
+
+    @Test
+    fun `a task with no links shows only the way to add one`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithText(text(R.string.page_task_addRelation)).performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText(text(R.string.page_task_relationEmpty)).assertCountEquals(0)
         compose.onAllNodesWithText(text(R.string.page_task_relation_blockedBy)).assertCountEquals(0)
     }
 
@@ -388,6 +412,63 @@ class TaskDetailScreenTest {
     }
 
     @Test
+    fun `a name typed into the label sheet that no label has is offered as a new label`() {
+        val bug = label(1, "bug")
+
+        show(stateOf(task(1), knownLabels = listOf(bug)))
+        compose.onNodeWithText(text(R.string.common_add)).performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(text(R.string.native_task_findLabel)).performTextInput("errands")
+        compose.waitForIdle()
+
+        val offer = RuntimeEnvironment.getApplication().getString(R.string.native_labels_create, "errands")
+        compose.onNodeWithText(offer).performClick()
+
+        assertEquals(listOf("createLabel errands"), performed)
+    }
+
+    @Test
+    fun `the when card starts as one row and opens into its four`() {
+        show(stateOf(task(1)))
+
+        compose.onAllNodesWithText(text(R.string.native_task_deadline)).assertCountEquals(0)
+
+        compose.onNodeWithText(text(R.string.native_task_whenEmpty)).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.native_task_deadline)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.page_task_repeat)).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `the folded when card puts a task on today or tomorrow with one tap`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithText(text(R.string.common_today)).performScrollTo().performClick()
+        compose.onNodeWithText(text(R.string.common_tomorrow)).performScrollTo().performClick()
+
+        assertEquals(listOf("dueDate $today", "dueDate ${today.plusDays(1)}"), performed)
+    }
+
+    @Test
+    fun `the folded when card picks a part of the day beside the quick days`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithContentDescription(text(R.string.task_dayPart_morning)).performScrollTo().performClick()
+
+        assertEquals(listOf("dayPart morning"), performed)
+    }
+
+    @Test
+    fun `tapping the part of the day already chosen on the folded card takes it back to any time`() {
+        show(stateOf(task(1, dayPart = DayPart.EVENING)))
+
+        compose.onNodeWithContentDescription(text(R.string.task_dayPart_evening)).performScrollTo().performClick()
+
+        assertEquals(listOf("dayPart ${DayPart.NONE.wire}"), performed)
+    }
+
+    @Test
     fun `what the task has been through is folded away until it is asked for`() {
         show(stateOf(task(1)))
 
@@ -422,7 +503,7 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `the location row names where the task lives and opens the move sheet`() {
+    fun `the location row names where the task lives and opens its project`() {
         show(
             stateOf(
                 task(1, projectLocalId = 4),
@@ -430,6 +511,168 @@ class TaskDetailScreenTest {
             ),
         )
 
-        compose.onNodeWithText("Kitchen · Doing").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Kitchen · Doing").performScrollTo().assertIsDisplayed().performClick()
+
+        assertEquals(listOf("openProject 4"), performed)
+    }
+
+    @Test
+    fun `the location row of a subtask opens its parent`() {
+        show(
+            stateOf(
+                task(2, projectLocalId = 4, parentLocalId = 1),
+                placement =
+                    TaskPlacement(
+                        projectLocalId = 4,
+                        projectTitle = "Kitchen",
+                        parentLocalId = 1,
+                        parentTitle = "Dinner",
+                    ),
+            ),
+        )
+
+        compose.onNodeWithText("Dinner").performScrollTo().performClick()
+
+        assertEquals(listOf("open 1"), performed)
+    }
+
+    // --- dragging subtasks ----------------------------------------------------
+
+    private fun showWithDrag(state: TaskDetailUiState) {
+        compose.setContent {
+            TurboistTheme {
+                TaskDetailScreen(
+                    state = state,
+                    zone = zone,
+                    today = today,
+                    moveOptions = emptyList(),
+                    messages = messages,
+                    callbacks =
+                        callbacks().copy(
+                            onNestUnder = { dragged, target -> performed += "nest $dragged $target" },
+                            onDetachSubtask = { performed += "detach $it" },
+                        ),
+                )
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    /** Long-presses [title], then carries it to the root-coordinate point [to] and lets go. */
+    private fun carry(
+        title: String,
+        to: () -> Offset,
+    ) {
+        compose.onNodeWithText(title).performScrollTo()
+        // Once the row is picked up the tooltip by the finger names it too, so the
+        // row is the first of the two from then on.
+        val row = compose.onAllNodesWithText(title).onFirst()
+        val rowTopLeft = row.fetchSemanticsNode().boundsInRoot.topLeft
+        row.performTouchInput {
+            down(center)
+            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            moveBy(Offset(0f, 4f))
+        }
+        compose.waitForIdle()
+        val target = to()
+        row.performTouchInput {
+            moveTo(target - rowTopLeft)
+            up()
+        }
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun `a subtask carried onto another's middle is nested under it`() {
+        val subtasks =
+            listOf(
+                task(2, title = "Order the parts", parentLocalId = 1),
+                task(3, title = "Assemble", parentLocalId = 1),
+            )
+        showWithDrag(stateOf(task(1, title = "Build a shelf"), openSubtasks = subtasks))
+
+        carry("Assemble") { compose.onNodeWithText("Order the parts").fetchSemanticsNode().boundsInRoot.center }
+
+        assertEquals(listOf("nest 3 2"), performed)
+    }
+
+    /**
+     * The drag reads the gesture before the row does, so both halves of that are
+     * worth holding down: a tap is still the row's, and a hold that never moves
+     * is the drag's and so is not mistaken for a tap.
+     */
+    @Test
+    fun `a tap still opens a subtask, and holding one still without moving does nothing`() {
+        showWithDrag(
+            stateOf(
+                task(1, title = "Build a shelf"),
+                openSubtasks = listOf(task(3, title = "Assemble", parentLocalId = 1)),
+            ),
+        )
+        compose.onNodeWithText("Assemble").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("open 3"), performed)
+        performed.clear()
+
+        compose.onNodeWithText("Assemble").performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(LONG_PRESS_HOLD_MILLIS)
+        compose.onAllNodesWithText("Assemble").onFirst().performTouchInput { up() }
+        compose.waitForIdle()
+
+        assertEquals(emptyList(), performed)
+    }
+
+    @Test
+    fun `a subtask carried onto the detach zone is lifted to the top level`() {
+        val subtasks =
+            listOf(
+                task(2, title = "Order the parts", parentLocalId = 1),
+                task(3, title = "Assemble", parentLocalId = 1),
+            )
+        showWithDrag(stateOf(task(1, title = "Build a shelf"), openSubtasks = subtasks))
+
+        carry("Assemble") {
+            compose.onNodeWithText(text(R.string.page_task_detachDrag_hint)).fetchSemanticsNode().boundsInRoot.center
+        }
+
+        assertEquals(listOf("detach 3"), performed)
+    }
+
+    @Test
+    fun `the subtasks of a finished task are drawn as finished`() {
+        val state =
+            stateOf(
+                task(1, status = TaskStatus.COMPLETED, completedAt = 1_000L),
+                openSubtasks = listOf(task(2, title = "Sand it", parentLocalId = 1)),
+            )
+        show(state.copy(openSubtasks = state.openSubtasks.map { it.copy(ancestorCompleted = true) }))
+
+        compose.onAllNodesWithContentDescription(text(R.string.task_markIncomplete)).assertCountEquals(2)
+    }
+
+    @Test
+    fun `the label sheet leads with the labels applied lately`() {
+        val labels = (1L..7L).map { label(it, "label $it") }
+        show(stateOf(task(1), knownLabels = labels).copy(recentLabelOrder = listOf(6L, 2L)))
+
+        compose.onNodeWithText(text(R.string.common_add)).performScrollTo().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.label_picker_recent)).assertIsDisplayed()
+        // Lifted into the recent row, so offered once rather than twice.
+        compose.onAllNodesWithText("label 6").assertCountEquals(1)
+    }
+
+    @Test
+    fun `the actions offer to copy the task as JSON`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithContentDescription(text(R.string.native_task_more)).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.task_actions_copyJson)).assertIsDisplayed()
     }
 }
+
+/** Comfortably longer than any long-press timeout. */
+private const val LONG_PRESS_HOLD_MILLIS = 1_000L

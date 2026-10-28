@@ -95,12 +95,19 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Lists the languages the app ships in, so Android 13 and later offers a
+    // per-app language choice in the system settings. The list is read off the
+    // values-* folders; src/main/res/resources.properties names the default.
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     lint {
         abortOnError = true
         warningsAsErrors = false
-        // A phrase translated in English but not yet in Russian is not an error:
-        // Android falls back to the English resource, which is the same fallback
-        // the web client applies, and shows real wording instead of a blank.
+        // Coverage of the hand-written strings is checked by LocalizationCoverageTest
+        // instead, which knows that the generated shared wording is complete by
+        // construction and so does not need this check's blanket view of it.
         disable += "MissingTranslation"
     }
 

@@ -55,7 +55,7 @@ class CalendarBandTest {
             onToggleComplete = {},
             onOpen = {},
             onPark = {},
-            onPlanForWeek = {},
+            onMoveToDay = { _, _ -> },
             onStartSelection = {},
             onSelectToggle = {},
             onClearSelection = {},

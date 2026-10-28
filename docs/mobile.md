@@ -807,8 +807,11 @@ How a failure is answered is the whole of the design:
 | What happened | The queue | The write |
 |---|---|---|
 | Nothing reached the server | stalls, with a doubling wait capped at five minutes | keeps its place |
+| Something other than the server answered (an HTML page — a network's sign-in page) | stalls, as if nothing reached the server | keeps its place |
 | Too many requests (`429`) | stalls the same way | keeps its place |
+| An earlier attempt is still running on the server (`409 idempotency_in_flight`) | stalls the same way | keeps its place; its repeat is answered from the server's record |
 | The server broke (`5xx`) | stalls | retried on later cycles, a bounded number of times, then set aside |
+| The answer could not be read | stalls | repeated under the same key like a `5xx`, then set aside, so it cannot hold up the queue forever |
 | The server refused (`4xx`) | carries on | set aside at once |
 | The credentials were refused | stops, intact | keeps its place |
 
@@ -823,6 +826,13 @@ which tasks to go and look at — they are in that one answer and nowhere else
 afterwards. Waiting for a network never counts against a write; only the server
 actually breaking does, because a week somewhere with no signal is not a broken
 write.
+
+A queue stalled on a server that was reached but unwell, throttling or still busy
+is not left waiting for some unrelated reason to sync: the cycle reports the wait
+the drain earned (doubling from two seconds to five minutes), the scheduler holds
+one timer for it, and the background job asks the platform for a retry instead
+of reporting success. Nothing is retried once the queue is empty, and a refusal
+that asking again cannot change is never retried.
 
 Discarding one of those usually closes a note and nothing more: the change never
 happened on the server, and the row it was made against has already been corrected
@@ -846,7 +856,7 @@ what stopped it, and the next turn tries again.
 
 ### When it syncs (`core/sync/trigger`)
 
-Five reasons, one door. `SyncScheduler` is the only way anything asks for a
+Six reasons, one door. `SyncScheduler` is the only way anything asks for a
 cycle, and what reaches it is a *request*, not a run: a request opens a 500 ms
 window, everything arriving inside it is folded into the same cycle, and the
 cycle happens when the window closes. Bursts are the normal case — one edit on
@@ -891,12 +901,28 @@ The two remaining reasons are the ones a device is best placed to act on. The
 platform's default-network callback fires when the device gets a usable network
 back — the radio is awake and the user is still standing where they made their
 changes — and asks for the expedited job; a handover from one network to another
-is not a return and is not acted on. Coming to the front asks for the same job,
+is not a return and is not acted on — except when the network it handed over to
+only proves it reaches the internet afterwards (`NET_CAPABILITY_VALIDATED`
+arriving late is what getting past a hotel's or train's sign-in page looks like),
+which is a return too. Coming to the front asks for the same job,
 through the schedule rather than straight at the engine, so that an app sent
 away again immediately still gets its catch-up. And the user can always ask:
 pulling a list down runs a cycle directly and holds the spinner until it is over,
 since a list is a query over the replica and there is nothing else the gesture
 could mean.
+
+The sixth reason is the device's own: **a change made here**. `OutboxWriter`
+ticks once each time a transaction that queued an op has committed — after the
+commit, because a drain started between the enqueue and the commit would read a
+queue without the op and report itself finished. In front of the user the tick
+asks the in-process scheduler, so an edit made with the server in reach is sent
+within the window instead of waiting until another device writes, the app comes
+back to the front or the quarter-hourly job comes round. Behind, it asks for the
+expedited job instead: the process may not outlive the write, and the job is
+what carries the user's choice about mobile data. Putting the app away with
+anything still unsent asks for that job as well, so writes made in a dead zone
+leave the moment a network returns even when the process that made them is long
+gone.
 
 Both jobs wait for a network, and which network counts is the device's own
 choice: a phone told in settings not to sync on mobile data asks the platform for
@@ -921,8 +947,8 @@ allowed to end the loop that every automatic reason goes through.
 ### Saying how current the screen is (`app/.../sync`, `app/.../unsent`)
 
 Every screen is a query over the replica, so nothing on one can say whether the
-replica is current. That is a property of the app, and it is said once, above
-the whole graph, rather than in each screen.
+replica is current. That is a property of the app, and it is said once, in the
+shell's top bar, rather than in each screen.
 
 **What the shell knows.** A status is assembled from what the device already
 records, so it cannot disagree with the queue underneath it: how far the replica
@@ -934,14 +960,19 @@ a cycle is *running* is kept apart from how the last one *ended*: a new attempt
 does not undo what the previous one concluded, so a device out of coverage keeps
 saying so while it retries instead of flickering once per attempt.
 
-**Two levels of interruption.** A running cycle draws a hairline under the top
-bar and nothing else — it happens constantly, it needs no answer, and a banner
-for it would be a banner that is always there. A strip is drawn only for the
-three states that change what the user should believe about the screen: the
-server cannot be reached (with the moment the copy on screen was last level with
-it, because a minute old and a week old are not the same thing), a turn the
-server did not complete, or work of the user's that has not gone out yet. An app
-that is keeping up says nothing at all. Retry is offered on the first two, and
+**Two levels of interruption, neither of which moves the screen.** Both are drawn
+among the top bar's actions, so nothing above the list ever appears or vanishes
+and pushes the rows down. A running cycle draws a small spinner and nothing else
+— it happens constantly and needs no answer — and only once the cycle has run for
+400 ms, so the many cycles that finish inside that do not flash. A chip is drawn
+only for the three states that change what the user should believe about the
+screen: the server cannot be reached ("Offline"), a turn the server did not
+complete ("Not synced"), or work of the user's that has not gone out yet (the
+count). The chip is short; tapping it opens a card with the full sentence — for
+an unreachable server including the moment the copy on screen was last level
+with it, because a minute old and a week old are not the same thing — and the
+retry where there is one. An app that is keeping up says nothing at all. Retry
+is offered on the first two, and
 not on the third: a queue that is simply on its way out has nothing to retry, and
 the button would do nothing. Retrying runs the same cycle every automatic trigger
 runs — what the button buys is the cycle the user is standing there waiting for,
@@ -1006,6 +1037,12 @@ Counters come from a `DrawerCountsSource` and are nullable: unknown means "draw
 no badge" rather than zero. Below 840 dp the drawer is a modal overlay; above it
 the drawer becomes part of the layout and the menu button disappears.
 
+**Navigation bar.** Below 840 dp the shell also draws a navigation bar with four
+of the drawer's entries — inbox, today, week and projects — the places the day
+is spent between. It repeats them rather than replacing the drawer, which keeps
+the full catalog. The top bar is a large one whose title shrinks into the bar as
+a list scrolls under it.
+
 **A screen may own its own chrome.** The shell draws a top bar with a menu
 button and the name of a destination, which is right for a list and wrong for one
 task: a detail screen needs a back arrow, a pin and an overflow, and a back arrow
@@ -1013,7 +1050,10 @@ drawn *underneath* the shell's bar — which is what the task screen used to do 
 reads as two navigations stacked on each other. So the shell asks whether the
 destination on screen brings its own bar and draws none of its own when it does.
 The capture button is hidden the same way and for the same reason, since it sits
-in the corner such a screen draws in; the capture *sheet* stays composed either
+in the corner such a screen draws in — and so is the navigation bar, as both are
+while a list has tasks picked and its selection toolbar owns the bottom edge
+(a screen asks for that through `ShellChrome`, which it holds only as long as
+the selection lasts); the capture *sheet* stays composed either
 way, because a share from another app opens it without anyone having touched the
 button. The task screen is the only destination that takes the offer, and it is
 handed the jump-pair control by the graph, since that control navigates and where
@@ -1232,8 +1272,12 @@ itself.
 **Signing out** revokes the session server-side (best-effort — a device that
 cannot reach its server must still be able to leave it), forgets the token and
 empties the replica, the outbox and the quarantine. Because that discards work
-the server has never seen, the queued and refused ops are counted first and the
-user is asked, with the number, before anything is touched; declining leaves both
+the server has never seen, the queue is first given one bounded attempt (ten
+seconds) to go out — so the only work ever offered up for loss is work the server
+really cannot take right now — then the queued and refused ops that remain are
+counted and the user is asked, with the number, before anything is touched. The
+same attempt precedes every other confirmation that counts unsent work: signing
+out everywhere, forgetting the server, clearing local data. Declining leaves both
 the session and the queue exactly as they were. The server address is kept: it is
 configuration the user chose, not a credential they proved, so signing back in
 does not start by typing a URL.
@@ -1285,9 +1329,10 @@ screen left open has to notice midnight and the turn of a phase on its own —
 neither arrives as a change to the replica.
 
 **The row** carries what is worth seeing without opening the task: priority as
-the colour of its control, the due date, its labels, its project, and markers for
-recurring, complex, private, pinned, postponed-often, entangled, planned and
-parked. Two of its states are rules made visible. A task something still blocks
+the colour of its control, the due date, its labels (each `#name` drawn whole in
+the label's colour), its project, and markers for recurring, complex, private,
+postponed-often, entangled, planned and parked. A pin has no marker: a pinned
+task already sorts to the top of every list it is in. Two of its states are rules made visible. A task something still blocks
 shows a padlock instead of an empty box and cannot be ticked at all — a greyed
 box would still read as "tick me later". A task the server has never seen shows
 that it is waiting to be sent, which is exactly the set of rows with no server id
@@ -1295,11 +1340,14 @@ yet; it disappears by itself when the queue drains, with nothing to clear.
 
 **Gestures.** Pulling a list down does not reload it — it cannot, it is a query —
 so the gesture asks the sync engine to catch up and the rows change because the
-catch-up wrote to the replica underneath them. Swiping a row one way completes
-it, the other way moves it between the week and the backlog; neither dismisses
-the row, which leaves the list only if the change took it out of the query. The
-swipes are unreachable to an assistive reader, so the same two actions are also
-named actions on the row.
+catch-up wrote to the replica underneath them. Swiping a row towards the end
+completes it. Swiping it towards the start does nothing by itself: it uncovers a
+panel of actions — the week or the backlog, whichever the task is not already
+in, and picking the row — and the row stays open until one is tapped or the row
+is tapped or swiped shut. Acting on release made it too easy to park a task by
+accident while scrolling. Neither swipe dismisses the row, which leaves the list
+only if the change took it out of the query. The swipes are unreachable to an
+assistive reader, so the same actions are also named actions on the row.
 
 **Acting on a selection.** A long press starts selection mode; tapping rows adds
 and removes them, a heading offers its whole block at once, and un-picking the
@@ -1323,8 +1371,11 @@ real off-device and read back through the descriptions an assistive reader would
 announce, one test per state it can be in. One screen is driven end to end
 against a stand-in for the replica that behaves the way the write path does, and
 the sync engine behind it is a counter that has to stay at zero: a task ticked
-off leaves the day at once, with nothing asked of a server. The selection bar is composed
-for real too and driven by the descriptions an assistive reader would announce,
+off leaves the day at once, with nothing asked of a server. The selection header
+and the floating toolbar are composed for real too — every action on the toolbar
+carries its name under its icon, priority and plan open their own menus, and
+grouping and deleting sit behind "more" — and are driven by the descriptions an
+assistive reader would announce,
 and the selection actions are checked against a port that records what it was
 asked for — one call carrying the whole selection, never one call per task.
 
@@ -1355,6 +1406,12 @@ both clients. And the record of the task — how often it was put off, when it w
 written down, last changed and finished — is folded into a block whose summary
 line carries the two facts anyone actually wants from it, because it is the part
 of the screen a person reads once a month.
+
+The When card starts folded into one row, and under it sit two chips — today and
+tomorrow — that put the task on that day with one tap, since that is most of what
+a date is ever changed for. Its heading sits closer to the title block than other
+section headings do: straight under the description it reads as the next part of
+the same block.
 
 Pinning moved to the top bar. It is not a field: a pin is a place on a shelf with
 a cap on it, and the write is what refuses a pin over that cap, so a switch would
@@ -1494,10 +1551,17 @@ never gets torn in half. The board is drawn vertically rather than side by side:
 a phone is a tall screen, and a sideways board puts every column but one out of
 sight.
 
-**Rearranging is a press, not a drag.** A drag on a touch screen is ambiguous
-with a scroll and is unreachable to anyone driving the screen with an assistive
-reader, so a column is moved one place at a time from its own menu and a task is
-moved between columns by long-pressing it and picking where it goes. Both write
+**Columns move from a menu; tasks are picked up.** A column is moved one place at
+a time from its own menu. A long press on an open task picks it up: dropped on the
+edge of another task it waits for that task, dropped on the middle it becomes that
+task's subtask, and a subtask dropped on the zone at the foot of the screen goes
+back to the top of its column — the same rules, answered from the replica, as the
+subtask card on the task screen. Released without moving, the long press asks which
+column the task should go to, which is also offered as an accessibility action,
+because a drag cannot reach a column scrolled out of sight and never reaches anyone
+driving the screen with an assistive reader. The gesture is read before the row and
+the list see it, so a tap still opens a task and a swipe still scrolls until the
+press has lasted long enough. Every one of these writes goes
 through the shared write path, so a board rearranged with no connection is right
 on screen at once and right on the server whenever the phone comes back — and
 because moving a column renumbers the whole board exactly as the server will, the
@@ -1586,8 +1650,11 @@ the pair as it is read, as it does on the server.
 **One control, in the top bar, for both halves of it.** The pair is only useful
 from wherever you happen to be, so it is not a screen: the control lists the two
 things by their current names and jumps to whichever is picked, and it is also
-where the task or project on screen is hooked on or taken off. It draws nothing
-at all when there is nothing to jump to and nothing on screen to hook on.
+where the task or project on screen is hooked on or taken off. With something on
+screen a tap hooks it on or takes it off at once and the anchor fills while it is
+on the pair; the jumps are then a long press away. With nothing on screen to hook
+on, a tap opens the jumps. It draws nothing at all when there is nothing to jump
+to and nothing on screen to hook on.
 
 **What is checked.** The bucket cut, the plan's presenter and the pair's rule are
 plain JVM tests — no Compose, no database, no server — including that a bucket

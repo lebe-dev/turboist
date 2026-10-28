@@ -18,10 +18,19 @@ sealed interface SyncCycleResult {
     data object Offline : SyncCycleResult
 
     /**
-     * The server was reached and refused. Trying the identical request again
-     * would be refused identically, so the next scheduled run is soon enough.
+     * The server was reached and the turn did not complete.
+     *
+     * Usually that is a refusal, and trying the identical request again would be
+     * refused identically, so the next scheduled run is soon enough. But a server
+     * that broke, throttled the device or was still busy with an earlier attempt
+     * has said nothing about the write itself, and the write is still waiting:
+     * then [retryAfterMillis] is set, and says how soon another turn is worth
+     * taking.
      */
-    data class Refused(val cause: Throwable) : SyncCycleResult
+    data class Refused(
+        val cause: Throwable,
+        val retryAfterMillis: Long? = null,
+    ) : SyncCycleResult
 }
 
 /**
@@ -55,7 +64,9 @@ fun interface SyncCycle {
          * So a queue that stopped ends the turn, and what stopped it decides how
          * the turn reads: nothing reached the server, or the server refused. Both
          * leave the replica exactly as it was, which is the state every screen is
-         * already reading, and the next turn tries again.
+         * already reading, and the next turn tries again. A queue held up by a
+         * server that broke or was busy carries the wait it earned, so the next
+         * turn does not depend on something else happening to ask for one.
          */
         fun sending(
             drainer: OutboxDrainer,
@@ -69,7 +80,7 @@ fun interface SyncCycle {
                         if (drain.cause is ApiException.Network) {
                             SyncCycleResult.Offline
                         } else {
-                            SyncCycleResult.Refused(drain.cause)
+                            SyncCycleResult.Refused(drain.cause, retryAfterMillis = drain.retryAfterMillis)
                         }
                 }
             }

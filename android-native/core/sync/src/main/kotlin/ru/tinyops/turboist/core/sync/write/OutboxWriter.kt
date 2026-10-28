@@ -1,6 +1,10 @@
 package ru.tinyops.turboist.core.sync.write
 
 import androidx.room.withTransaction
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.json.Json
 import ru.tinyops.turboist.core.database.TurboistDatabase
 import ru.tinyops.turboist.core.database.entity.OutboxOpRow
@@ -8,6 +12,7 @@ import ru.tinyops.turboist.core.database.sync.ReplicaEntityKind
 import ru.tinyops.turboist.core.model.NO_LOCAL_ID
 import ru.tinyops.turboist.core.network.TurboistJson
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * How an op is stored in, and read back out of, the queue.
@@ -102,11 +107,44 @@ class OutboxWriter(
     private val clock: WriteClock = WriteClock.System,
     private val opIds: OpIdFactory = OpIdFactory.Uuid,
 ) {
+    /** How many ops have been queued by this process, so a transaction can tell whether it queued one. */
+    private val queued = AtomicLong()
+
+    private val committed =
+        MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Ticks once each time a transaction that queued something has committed.
+     *
+     * This is the reason to sync that the device itself produces: a change made
+     * while the server is in reach should reach it now, not when some unrelated
+     * event — another device's edit, the app coming back to the front, the
+     * quarter-hourly job — happens to ask. It ticks after the commit rather than
+     * at the enqueue, because a drain that started between the two would read a
+     * queue that does not hold the op yet and report itself finished.
+     *
+     * Ticks are conflated: they all mean "the queue has something in it", and the
+     * scheduler folds a burst into one cycle anyway.
+     */
+    val enqueued: Flow<Unit> = committed.asSharedFlow()
+
     /** The moment the write is being made, for both the replica row and the op. */
     fun now(): Long = clock.now()
 
-    /** Runs [body] as one transaction, so the optimistic change and its op commit together. */
-    suspend fun <T> transaction(body: suspend () -> T): T = db.withTransaction { body() }
+    /**
+     * Runs [body] as one transaction, so the optimistic change and its op commit
+     * together, and announces the commit when it queued anything.
+     *
+     * A concurrent transaction may make this one announce a write it did not
+     * make; that costs at most one cycle with nothing to send, whereas missing a
+     * write would leave it waiting for an unrelated reason to sync.
+     */
+    suspend fun <T> transaction(body: suspend () -> T): T {
+        val before = queued.get()
+        val result = db.withTransaction { body() }
+        if (queued.get() != before) committed.tryEmit(Unit)
+        return result
+    }
 
     /**
      * Queues an op against the row it changes.
@@ -137,6 +175,7 @@ class OutboxWriter(
                 updatedAt = at,
             ),
         )
+        queued.incrementAndGet()
         return id
     }
 }

@@ -146,6 +146,62 @@ class DrainFailureTest : DrainTest() {
         }
 
     @Test
+    fun `a repeat the server is still working on waits instead of being set aside`() =
+        runReplicaTest {
+            tasks.create(TaskDestination.Inbox, NewTask(title = "Buy milk"))
+            // The first attempt is still running on the server when its repeat
+            // arrives. That is not a refusal of the write: the write is about to
+            // land, and setting it aside now would leave the device holding a
+            // nameless copy beside the one the server is creating.
+            scripted.faults += ScriptedServer.Fault.Refuse(409, ApiErrorCodes.IDEMPOTENCY_IN_FLIGHT)
+
+            val stalled = assertIs<DrainResult.Stalled>(drainer.drain())
+
+            assertEquals(1, stalled.remaining)
+            assertTrue(setAside().isEmpty())
+            assertEquals(0, queue().single().attempts, "a server busy with this very write has not failed on it")
+
+            assertTrue(drainer.drain().isDrained)
+            assertEquals(1, scripted.tasks().size)
+            assertTrue(setAside().isEmpty())
+        }
+
+    @Test
+    fun `an answer this build cannot read is tried again under the same key`() =
+        runReplicaTest {
+            val created = tasks.create(TaskDestination.Inbox, NewTask(title = "Buy milk"))
+            scripted.faults += ScriptedServer.Fault.Garble
+
+            val stalled = assertIs<DrainResult.Stalled>(drainer.drain())
+
+            assertEquals(1, stalled.remaining)
+            assertEquals(OutboxState.FAILED, queue().single().state)
+            assertEquals(1, queue().single().attempts)
+
+            assertTrue(drainer.drain().isDrained, "the repeat is answered from the server's record of the first")
+            assertEquals(1, scripted.tasks().size, "one task, however many times it was asked for")
+            assertNotNull(db.tasks().byLocalId(created.entityLocalId)?.serverId)
+        }
+
+    @Test
+    fun `an answer that is never readable does not hold up the queue forever`() =
+        runReplicaTest {
+            val patient = newDrainer(serverErrorLimit = 2)
+            tasks.create(TaskDestination.Inbox, NewTask(title = "Buy milk"))
+            tasks.create(TaskDestination.Inbox, NewTask(title = "Behind it"))
+            repeat(2) { scripted.faults += ScriptedServer.Fault.Garble }
+
+            assertIs<DrainResult.Stalled>(patient.drain())
+            val second = patient.drain()
+
+            assertTrue(second.isDrained, "a write that can never be answered must not stall every write behind it")
+            assertEquals(1, second.sent)
+            assertEquals(1, second.quarantined)
+            assertEquals(2, setAside().single().attempts)
+            assertEquals(1, scripted.tasks().count { it.title == "Behind it" })
+        }
+
+    @Test
     fun `credentials the server will not accept stop the drain with nothing lost`() =
         runReplicaTest {
             tasks.create(TaskDestination.Inbox, NewTask(title = "Buy milk"))

@@ -12,6 +12,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
@@ -21,7 +27,9 @@ import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.view.BlockEdge
 import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.NestDropRefusal
+import ru.tinyops.turboist.core.model.view.TaskNode
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
+import ru.tinyops.turboist.core.model.view.buildTaskTree
 import ru.tinyops.turboist.core.model.view.dependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.isNestNoop
 import ru.tinyops.turboist.core.model.view.nestDropRefusal
@@ -29,6 +37,7 @@ import ru.tinyops.turboist.core.model.view.splitByRootCompletion
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import ru.tinyops.turboist.nativeapp.templates.TemplateCapture
 import java.time.LocalDate
@@ -49,6 +58,8 @@ data class TaskDetailUiState(
     val priorityLocked: Boolean = false,
     val refreshing: Boolean = false,
     val blockEdges: List<BlockEdge> = emptyList(),
+    /** The labels this device applied lately, most recent first — what the label picker leads with. */
+    val recentLabelOrder: List<Long> = emptyList(),
 ) {
     /** True once the task is known not to be here, as opposed to not being known yet. */
     val missing: Boolean get() = !loading && task == null
@@ -132,6 +143,15 @@ data class NestAdded(
 )
 
 /**
+ * A subtask was just lifted out to the top level by dropping it on the detach
+ * zone. Carries what its undo moves it back under.
+ */
+data class SubtaskDetached(
+    val taskLocalId: Long,
+    val previousParentLocalId: Long,
+)
+
+/**
  * The writes the task detail screen can make.
  *
  * It is the list screens' port plus everything a screen showing one whole task
@@ -144,12 +164,6 @@ data class NestAdded(
  * disagree about what either does.
  */
 interface TaskDetailActions : TaskListActions {
-    /** Applies a field edit. The edit carries only the fields that changed. */
-    suspend fun edit(
-        taskLocalId: Long,
-        edit: TaskEdit,
-    )
-
     /** Closes a task without claiming it was finished. */
     suspend fun cancel(taskLocalId: Long)
 
@@ -217,6 +231,12 @@ interface TaskDetailActions : TaskListActions {
         relationLocalId: Long,
     )
 
+    /**
+     * Makes a new label from the task screen's picker, and answers its id. The
+     * label is not put on anything here: tagging stays a field edit.
+     */
+    suspend fun createLabel(name: String): Long
+
     override suspend fun park(taskLocalId: Long) {
         plan(taskLocalId, PlanState.BACKLOG)
     }
@@ -245,6 +265,7 @@ class TaskDetailPresenter(
     private val sync: SyncScheduler,
     private val relationSearch: TaskRelationSearch = TaskRelationSearch.None,
     private val templates: TemplateCapture = TemplateCapture.Unavailable,
+    private val recentLabels: RecentLabels = RecentLabels.None,
 ) {
     private val refreshing = MutableStateFlow(false)
     private val candidates = MutableStateFlow<List<TaskRelationCandidate>>(emptyList())
@@ -253,11 +274,12 @@ class TaskDetailPresenter(
     private val removals = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val dependencies = MutableSharedFlow<DependencyAdded>(extraBufferCapacity = 1)
     private val nests = MutableSharedFlow<NestAdded>(extraBufferCapacity = 1)
+    private val detachments = MutableSharedFlow<SubtaskDetached>(extraBufferCapacity = 1)
 
     /** What the screen renders. */
     val state: StateFlow<TaskDetailUiState> =
-        combine(content, refreshing, candidates) { detail, isRefreshing, offered ->
-            render(detail, isRefreshing, offered)
+        combine(content, refreshing, candidates, recentLabels.observe()) { detail, isRefreshing, offered, recent ->
+            render(detail, isRefreshing, offered).copy(recentLabelOrder = recent)
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), TaskDetailUiState())
 
     /** What the screen says back, once each. */
@@ -271,6 +293,9 @@ class TaskDetailPresenter(
 
     /** Fires when a dropped subtask was nested under another, so the screen can offer an undo. */
     val nestAdded: SharedFlow<NestAdded> = nests.asSharedFlow()
+
+    /** Fires when a dropped subtask was lifted out to the top level, so the screen can offer an undo. */
+    val subtaskDetached: SharedFlow<SubtaskDetached> = detachments.asSharedFlow()
 
     /** Asks the sync engine to catch up. The screen itself is a query and needs no reload. */
     fun refresh() {
@@ -363,9 +388,39 @@ class TaskDetailPresenter(
      * stores the resulting edges. It is still one field.
      */
     fun setLabels(names: List<String>) {
-        apply { task ->
-            val current = task.labels.map { it.name }
-            TaskEdit(labels = names.takeIf { it != current })
+        val current = state.value
+        val task = current.task ?: return
+        val had = task.labels.mapTo(HashSet()) { it.name }
+        val added = current.knownLabels.filter { it.name in names && it.name !in had }
+        apply { TaskEdit(labels = names.takeIf { it != task.labels.map { label -> label.name } }) }
+        // Only a label put on counts as reaching for it; taking one off says nothing.
+        if (added.isNotEmpty()) scope.launch { added.forEach { recentLabels.remember(it.localId) } }
+    }
+
+    /**
+     * Puts a label on the task by name, making the label first when no label
+     * carries that name yet.
+     *
+     * The two writes are queued in that order, so the server knows the label by
+     * the time the task names it. A name some label already has — in any case —
+     * is that label, not a second one.
+     */
+    fun createLabel(name: String) {
+        val current = state.value
+        val task = current.task ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val names = task.labels.map { it.name }
+        val existing = current.knownLabels.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }
+        if (existing != null) {
+            if (existing.name !in names) setLabels(names + existing.name)
+            return
+        }
+        scope.launch {
+            var created = 0L
+            if (!report { created = actions.createLabel(trimmed) }) return@launch
+            if (!report { actions.edit(task.localId, TaskEdit(labels = names + trimmed)) }) return@launch
+            recentLabels.remember(created)
         }
     }
 
@@ -584,6 +639,60 @@ class TaskDetailPresenter(
         }
     }
 
+    /**
+     * Lifts a dropped subtask out to the top level, where it keeps the place it
+     * already had: its section, else its project, else its context. Only a row
+     * this screen shows as a subtask can be lifted.
+     */
+    fun detachSubtask(draggedLocalId: Long) {
+        val current = state.value
+        val dragged =
+            (current.openSubtasks + current.doneSubtasks).firstOrNull { it.task.localId == draggedLocalId }?.task
+                ?: return
+        val previousParentLocalId = dragged.parentLocalId ?: return
+        val destination =
+            dragged.sectionLocalId?.let(TaskDestination::InSection)
+                ?: dragged.projectLocalId?.let(TaskDestination::InProject)
+                ?: dragged.contextLocalId?.let(TaskDestination::InContext)
+                ?: return
+        scope.launch {
+            if (report { actions.move(draggedLocalId, destination) }) {
+                detachments.emit(SubtaskDetached(draggedLocalId, previousParentLocalId))
+            }
+        }
+    }
+
+    /** Takes back a lift added by a drop, moving the task back under its previous parent. */
+    fun undoDetach(detached: SubtaskDetached) {
+        scope.launch {
+            report { actions.move(detached.taskLocalId, TaskDestination.SubtaskOf(detached.previousParentLocalId)) }
+        }
+    }
+
+    // --- copying -------------------------------------------------------
+
+    /**
+     * The task and everything under it as JSON — the title, the description and
+     * the subtasks, nested — for pasting into whatever the user plans with
+     * outside the app. Read from what the screen holds, so it needs no network.
+     */
+    fun taskJson(): String? {
+        val current = state.value
+        val task = current.task ?: return null
+        val subtree = (current.openSubtasks + current.doneSubtasks).map { it.task }
+        val root = buildTaskTree(listOf(task) + subtree).firstOrNull { it.task.localId == task.localId } ?: return null
+        return TASK_JSON.encodeToString(JsonObject.serializer(), jsonOf(root))
+    }
+
+    private fun jsonOf(node: TaskNode): JsonObject =
+        buildJsonObject {
+            put("title", JsonPrimitive(node.task.title))
+            put("description", JsonPrimitive(node.task.description))
+            if (node.children.isNotEmpty()) {
+                put("subtasks", JsonArray(node.children.map(::jsonOf)))
+            }
+        }
+
     // --- internals -----------------------------------------------------
 
     private fun render(
@@ -610,13 +719,35 @@ class TaskDetailPresenter(
                     candidate.taskLocalId == detail.task.localId ||
                         detail.relations.any { it.peerLocalId == candidate.taskLocalId }
                 },
-            openSubtasks = taskListRows(split.open, detail.projectTitles),
-            doneSubtasks = taskListRows(split.done, detail.projectTitles),
+            openSubtasks = withFinishedAncestors(taskListRows(split.open, detail.projectTitles), detail),
+            doneSubtasks = withFinishedAncestors(taskListRows(split.done, detail.projectTitles), detail),
             knownLabels = detail.knownLabels,
             priorityLocked = detail.priorityLockedByTroiki,
             refreshing = isRefreshing,
             blockEdges = detail.blockEdges,
         )
+    }
+
+    /**
+     * Marks the rows that sit under finished work: every one of them when the task
+     * itself is finished, otherwise those with a finished subtask above them.
+     */
+    private fun withFinishedAncestors(
+        rows: List<TaskListRow>,
+        detail: TaskDetailContent,
+    ): List<TaskListRow> {
+        val byLocalId = detail.subtasks.associateBy { it.localId }
+        val rootFinished = detail.task.status == TaskStatus.COMPLETED
+        val parentOf = { task: Task -> task.parentLocalId?.let(byLocalId::get) }
+        return rows.map { row ->
+            val finishedAbove =
+                rootFinished ||
+                    generateSequence(parentOf(row.task), parentOf)
+                        // A damaged circle of parent links must still end.
+                        .take(byLocalId.size)
+                        .any { it.status == TaskStatus.COMPLETED }
+            if (finishedAbove) row.copy(ancestorCompleted = true) else row
+        }
     }
 
     /**
@@ -670,5 +801,13 @@ class TaskDetailPresenter(
     private companion object {
         /** Matches the list presenter, so a screen and the queries behind it stop together. */
         const val STOP_TIMEOUT_MILLIS = 5_000L
+
+        /** Two-space indentation, the way the web client copies the same tree. */
+        @OptIn(ExperimentalSerializationApi::class)
+        val TASK_JSON =
+            Json {
+                prettyPrint = true
+                prettyPrintIndent = "  "
+            }
     }
 }

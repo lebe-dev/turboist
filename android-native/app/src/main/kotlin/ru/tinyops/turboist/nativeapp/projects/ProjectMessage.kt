@@ -23,6 +23,12 @@ sealed interface ProjectMessage {
     /** The slot of the daily plan already holds as many projects as it takes. */
     data class TroikiSlotFull(val capacity: Int) : ProjectMessage
 
+    /** The two tasks are already linked that way round. */
+    data object RelationExists : ProjectMessage
+
+    /** The link would leave two tasks waiting on each other. */
+    data object RelationCycle : ProjectMessage
+
     /** The change did not happen, and the user is not expected to know why. */
     data object Failed : ProjectMessage
 }
@@ -44,6 +50,8 @@ internal suspend fun MutableSharedFlow<ProjectMessage>.reporting(write: suspend 
                 is WriteRefused.TaskBlocked -> ProjectMessage.Blocked
                 is WriteRefused.PinLimitReached -> ProjectMessage.PinLimitReached(refusal.limit)
                 is WriteRefused.TroikiSlotFull -> ProjectMessage.TroikiSlotFull(refusal.capacity)
+                is WriteRefused.RelationExists -> ProjectMessage.RelationExists
+                is WriteRefused.RelationCycle -> ProjectMessage.RelationCycle
                 else -> ProjectMessage.Failed
             },
         )

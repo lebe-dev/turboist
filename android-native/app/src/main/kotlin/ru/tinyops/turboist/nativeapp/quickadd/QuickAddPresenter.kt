@@ -19,6 +19,7 @@ import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.tasks.DayPartSchedule
 import java.time.Instant
 import java.time.LocalDate
@@ -55,6 +56,8 @@ data class QuickAddUiState(
     /** Will be attached on save unless taken off. */
     val autoLabels: List<String> = emptyList(),
     val knownLabels: List<Label> = emptyList(),
+    /** The labels this device applied lately, most recent first — what the label row leads with. */
+    val recentLabelOrder: List<Long> = emptyList(),
     /** The chosen project's title, or `null` while the draft is headed for the inbox. */
     val projectTitle: String? = null,
 )
@@ -98,6 +101,7 @@ class QuickAddPresenter(
     private val recent: RecentProjects,
     private val actions: QuickAddActions,
     private val zone: ZoneId,
+    private val recentLabels: RecentLabels = RecentLabels.None,
     private val now: () -> Instant = Instant::now,
     private val schedule: DayPartSchedule = DayPartSchedule.Default,
 ) {
@@ -106,8 +110,8 @@ class QuickAddPresenter(
 
     /** What the sheet renders. */
     val state: StateFlow<QuickAddUiState> =
-        combine(editing, workspace, recent.observe()) { edit, space, order ->
-            render(edit, space, order)
+        combine(editing, workspace, recent.observe(), recentLabels.observe()) { edit, space, order, labelOrder ->
+            render(edit, space, order).copy(recentLabelOrder = labelOrder)
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), QuickAddUiState())
 
     /** What the sheet says back, once each. */
@@ -222,6 +226,10 @@ class QuickAddPresenter(
                 return@launch
             }
             draft.projectLocalId?.let { recent.remember(it) }
+            // Only the labels picked by hand: the ones a title earned were never a choice.
+            state.value.knownLabels
+                .filter { it.name in draft.labelNames }
+                .forEach { recentLabels.remember(it.localId) }
             editing.value = Editing()
             outgoing.emit(
                 if (draft.isInbox) QuickAddMessage.ADDED_TO_INBOX else QuickAddMessage.ADDED_TO_PROJECT,

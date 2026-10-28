@@ -31,6 +31,11 @@ import androidx.compose.ui.graphics.Color
  *   user chose, the other a warning about the shape of the work.
  * @property recurring the mark on a task that comes back.
  * @property pending text saying a write is still queued on this device.
+ * @property morning the chosen morning icon in the day-part picker.
+ * @property afternoon the chosen afternoon icon.
+ * @property evening the chosen evening icon.
+ * @property postponedTwice the count on a task put off twice.
+ * @property postponedOften the count on a task put off three times or more.
  * @property pendingContainer what that text sits on: the same amber at the
  *   sliver of opacity the web uses, so it reads as a tint of the page rather
  *   than as a second surface.
@@ -42,6 +47,11 @@ data class TurboistAccents(
     val priorityLow: Color,
     val demanding: Color,
     val recurring: Color,
+    val morning: Color,
+    val afternoon: Color,
+    val evening: Color,
+    val postponedTwice: Color,
+    val postponedOften: Color,
     val pending: Color,
     val pendingContainer: Color,
 )
@@ -49,9 +59,14 @@ data class TurboistAccents(
 // The Tailwind steps the web names, by their own names, so a change over there
 // can be followed here without decoding a hex value first.
 private val Red500 = Color(0xFFFB2C36)
+private val Red600 = Color(0xFFE7000B)
+private val Amber600 = Color(0xFFE17100)
 private val Amber500 = Color(0xFFFE9A00)
 private val Amber700 = Color(0xFFBB4D00)
 private val Amber300 = Color(0xFFFFD230)
+private val Orange400 = Color(0xFFFF8904)
+private val Yellow400 = Color(0xFFFDC700)
+private val Indigo400 = Color(0xFF7C86FF)
 private val Blue500 = Color(0xFF2B7FFF)
 private val Emerald600 = Color(0xFF009966)
 private val Emerald400 = Color(0xFF00D492)
@@ -67,6 +82,11 @@ val TurboistLightAccents: TurboistAccents =
         priorityLow = Blue500,
         demanding = Red500,
         recurring = Emerald600,
+        morning = Orange400,
+        afternoon = Yellow400,
+        evening = Indigo400,
+        postponedTwice = Amber600,
+        postponedOften = Red600,
         pending = Amber700,
         pendingContainer = Amber500.copy(alpha = PENDING_TINT_ALPHA),
     )

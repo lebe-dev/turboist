@@ -3,7 +3,8 @@ package ru.tinyops.turboist.nativeapp.shell
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,20 +13,32 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -43,11 +56,13 @@ import ru.tinyops.turboist.nativeapp.harpoon.HarpoonEntry
 import ru.tinyops.turboist.nativeapp.navigation.AppNavHost
 import ru.tinyops.turboist.nativeapp.navigation.AppScreens
 import ru.tinyops.turboist.nativeapp.navigation.DrawerDestination
+import ru.tinyops.turboist.nativeapp.navigation.LabelsRoute
 import ru.tinyops.turboist.nativeapp.navigation.PendingTaskLinks
 import ru.tinyops.turboist.nativeapp.navigation.ProjectRoute
 import ru.tinyops.turboist.nativeapp.navigation.RouteTitles
 import ru.tinyops.turboist.nativeapp.navigation.TaskLinkRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskRoute
+import ru.tinyops.turboist.nativeapp.navigation.TemplatesRoute
 import ru.tinyops.turboist.nativeapp.sync.SyncStatus
 
 /**
@@ -56,6 +71,24 @@ import ru.tinyops.turboist.nativeapp.sync.SyncStatus
  * it, hiding the destination list behind a tap wastes space that is there.
  */
 private val PermanentDrawerBreakpoint = 840.dp
+
+/**
+ * How tall the top bar is while the screen is scrolled to the top. Lower than
+ * Material's default for a large bar: the title should lead the screen, not
+ * take a fifth of it.
+ */
+private val ExpandedTopBarHeight = 120.dp
+
+/**
+ * The places the navigation bar offers on a phone, in its order. They are the
+ * four the day is spent between; everything else stays one swipe away in the
+ * drawer.
+ */
+internal val BottomBarDestinations: List<DrawerDestination> =
+    listOf(DrawerDestination.Inbox, DrawerDestination.Today, DrawerDestination.Week, DrawerDestination.Projects)
+
+/** Test tag of the navigation bar, which repeats some of the drawer's entries. */
+internal const val BOTTOM_BAR_TAG = "bottom-navigation"
 
 /**
  * The signed-in shell: drawer, top bar, and the app's navigation graph.
@@ -71,9 +104,9 @@ private val PermanentDrawerBreakpoint = 840.dp
  *
  * [syncStatus] is the rest of that story: whether a cycle is running, how the
  * last one ended, and how much of the user's own work has not gone out yet. It
- * is drawn as a strip above the graph rather than inside any screen, because it
- * is true of everything below it and because a screen that had to render it
- * would have to know about the engine.
+ * is drawn in the top bar rather than inside any screen, because it is true of
+ * everything below it and because a screen that had to render it would have to
+ * know about the engine.
  *
  * [dailyPlanEnabled] is the user's preference for the daily plan, which decides
  * whether the plan is one of the places the drawer offers at all.
@@ -158,11 +191,17 @@ fun AppShell(
     // One entry per top-level destination: re-selecting the current one must not
     // stack a second copy, and returning to a destination should find it as it
     // was left rather than reset to the top.
+    //
+    // The start destination is the exception: a pop that stops at it files the
+    // entries it removes under its id, so restoring it would bring back whatever
+    // was stacked on top — the project the user was just in — instead of the day.
     val open: (DrawerDestination) -> Unit = { destination ->
+        val start = navController.graph.findStartDestination()
+        val isStart = start.hasRoute(destination.route::class)
         navController.navigate(destination.route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            popUpTo(start.id) { saveState = !isStart }
             launchSingleTop = true
-            restoreState = true
+            restoreState = !isStart
         }
     }
 
@@ -180,80 +219,92 @@ fun AppShell(
         if (openTask != localId) navController.navigate(TaskRoute(localId))
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        if (maxWidth >= PermanentDrawerBreakpoint) {
-            PermanentNavigationDrawer(
-                drawerContent = {
-                    PermanentDrawerSheet {
-                        AppDrawerContent(
-                            counts = counts,
-                            selected = { currentDestination.isOn(it) },
-                            onSelect = open,
-                            onSignOut = onSignOut,
-                            dailyPlanEnabled = dailyPlanEnabled,
-                            pinned = pinned,
-                            selectedProject = openProject,
-                            selectedTask = openTask,
-                            onOpenProject = openPinnedProject,
-                            onOpenTask = openPinnedTask,
-                        )
-                    }
-                },
-            ) {
-                ShellScaffold(
-                    currentDestination = currentDestination,
-                    screenOwnsChrome = screenOwnsChrome,
-                    harpoonable = harpoonable,
-                    onJump = jump,
-                    onOpenDrawer = null,
-                    unverifiedSession = unverifiedSession,
-                    syncStatus = syncStatus,
-                    onRetrySync = onRetrySync,
-                    navController = navController,
-                    screens = screens,
-                )
-            }
-        } else {
-            ModalNavigationDrawer(
-                drawerState = drawerState,
-                drawerContent = {
-                    ModalDrawerSheet {
-                        AppDrawerContent(
-                            counts = counts,
-                            selected = { currentDestination.isOn(it) },
-                            onSelect = { destination ->
-                                open(destination)
-                                scope.launch { drawerState.close() }
-                            },
-                            onSignOut = onSignOut,
-                            dailyPlanEnabled = dailyPlanEnabled,
-                            pinned = pinned,
-                            selectedProject = openProject,
-                            selectedTask = openTask,
-                            onOpenProject = { localId ->
-                                openPinnedProject(localId)
-                                scope.launch { drawerState.close() }
-                            },
-                            onOpenTask = { localId ->
-                                openPinnedTask(localId)
-                                scope.launch { drawerState.close() }
-                            },
-                        )
-                    }
-                },
-            ) {
-                ShellScaffold(
-                    currentDestination = currentDestination,
-                    screenOwnsChrome = screenOwnsChrome,
-                    harpoonable = harpoonable,
-                    onJump = jump,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                    unverifiedSession = unverifiedSession,
-                    syncStatus = syncStatus,
-                    onRetrySync = onRetrySync,
-                    navController = navController,
-                    screens = screens,
-                )
+    val chrome = remember { ShellChrome() }
+
+    CompositionLocalProvider(LocalShellChrome provides chrome) {
+        BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+            if (maxWidth >= PermanentDrawerBreakpoint) {
+                PermanentNavigationDrawer(
+                    drawerContent = {
+                        PermanentDrawerSheet {
+                            AppDrawerContent(
+                                counts = counts,
+                                selected = { currentDestination.isOn(it) },
+                                onSelect = open,
+                                onSignOut = onSignOut,
+                                dailyPlanEnabled = dailyPlanEnabled,
+                                pinned = pinned,
+                                selectedProject = openProject,
+                                selectedTask = openTask,
+                                onOpenProject = openPinnedProject,
+                                onOpenTask = openPinnedTask,
+                            )
+                        }
+                    },
+                ) {
+                    ShellScaffold(
+                        currentDestination = currentDestination,
+                        openProject = openProject,
+                        screenOwnsChrome = screenOwnsChrome,
+                        harpoonable = harpoonable,
+                        onJump = jump,
+                        onOpenDrawer = null,
+                        bottomBar = null,
+                        chrome = chrome,
+                        unverifiedSession = unverifiedSession,
+                        syncStatus = syncStatus,
+                        onRetrySync = onRetrySync,
+                        navController = navController,
+                        screens = screens,
+                    )
+                }
+            } else {
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet {
+                            AppDrawerContent(
+                                counts = counts,
+                                selected = { currentDestination.isOn(it) },
+                                onSelect = { destination ->
+                                    open(destination)
+                                    scope.launch { drawerState.close() }
+                                },
+                                onSignOut = onSignOut,
+                                dailyPlanEnabled = dailyPlanEnabled,
+                                pinned = pinned,
+                                selectedProject = openProject,
+                                selectedTask = openTask,
+                                onOpenProject = { localId ->
+                                    openPinnedProject(localId)
+                                    scope.launch { drawerState.close() }
+                                },
+                                onOpenTask = { localId ->
+                                    openPinnedTask(localId)
+                                    scope.launch { drawerState.close() }
+                                },
+                            )
+                        }
+                    },
+                ) {
+                    ShellScaffold(
+                        currentDestination = currentDestination,
+                        openProject = openProject,
+                        screenOwnsChrome = screenOwnsChrome,
+                        harpoonable = harpoonable,
+                        onJump = jump,
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                        bottomBar = {
+                            BottomBar(selected = { currentDestination.isOn(it) }, onSelect = open)
+                        },
+                        chrome = chrome,
+                        unverifiedSession = unverifiedSession,
+                        syncStatus = syncStatus,
+                        onRetrySync = onRetrySync,
+                        navController = navController,
+                        screens = screens,
+                    )
+                }
             }
         }
     }
@@ -263,53 +314,141 @@ fun AppShell(
 @Composable
 private fun ShellScaffold(
     currentDestination: NavDestination?,
+    openProject: Long?,
     screenOwnsChrome: Boolean,
     harpoonable: HarpoonEntry?,
     onJump: (HarpoonEntry) -> Unit,
     onOpenDrawer: (() -> Unit)?,
+    bottomBar: (@Composable () -> Unit)?,
+    chrome: ShellChrome,
     unverifiedSession: Boolean,
     syncStatus: SyncStatus,
     onRetrySync: () -> Unit,
     navController: NavHostController,
     screens: AppScreens,
 ) {
+    // The title shrinks into the bar as a list scrolls under it and comes back
+    // at the top, which is what keeps a large title from costing a list its rows.
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // A screen with a create button of its own in the bottom corner keeps that
+    // corner: the capture button would be drawn over it and hide it.
+    val screenOwnsCorner =
+        currentDestination?.hasRoute(LabelsRoute::class) == true ||
+            currentDestination?.hasRoute(TemplatesRoute::class) == true
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
+        // A screen that draws its own bar insets it from the status bar itself;
+        // padding the content for it here as well would leave a blank strip
+        // the height of the status bar above that bar.
+        contentWindowInsets = if (screenOwnsChrome) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
         topBar = {
             if (!screenOwnsChrome) {
-                TopAppBar(
-                    title = { Text(stringResource(titleResFor(currentDestination))) },
-                    navigationIcon = {
-                        if (onOpenDrawer != null) {
-                            IconButton(onClick = onOpenDrawer) {
-                                Icon(
-                                    imageVector = Icons.Filled.Menu,
-                                    contentDescription = stringResource(R.string.native_drawer_open),
-                                )
-                            }
+                val navigationIcon: @Composable () -> Unit = {
+                    if (onOpenDrawer != null) {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(
+                                imageVector = Icons.Filled.Menu,
+                                contentDescription = stringResource(R.string.native_drawer_open),
+                            )
                         }
-                    },
-                    actions = { screens.harpoon(harpoonable, onJump) },
-                )
+                    }
+                }
+                val actions: @Composable RowScope.() -> Unit = {
+                    // How current the screen is sits with the screen's own
+                    // controls: it is a fact about what is on screen, and
+                    // drawing it in the bar means it never pushes the list.
+                    SyncIndicator(
+                        status = syncStatus,
+                        sessionUnverified = unverifiedSession,
+                        onRetry = onRetrySync,
+                    )
+                    screens.harpoon(harpoonable, onJump)
+                }
+                val colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    )
+                val title = stringResource(titleResFor(currentDestination))
+                if (currentDestination.isNamedByItsScreen()) {
+                    // The screen heads itself with the name of the thing it shows,
+                    // so the bar only says what kind of thing that is, quietly: a
+                    // large "Project" over a small project name reads upside down.
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        },
+                        navigationIcon = navigationIcon,
+                        actions = actions,
+                        colors = colors,
+                    )
+                } else {
+                    LargeTopAppBar(
+                        title = { Text(text = title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        navigationIcon = navigationIcon,
+                        actions = actions,
+                        expandedHeight = ExpandedTopBarHeight,
+                        colors = colors,
+                        scrollBehavior = scrollBehavior,
+                    )
+                }
             }
+        },
+        bottomBar = {
+            // A picked selection puts its own toolbar along the bottom edge, and
+            // two bars there would be a stack of targets with no clear owner.
+            if (bottomBar != null && !screenOwnsChrome && !chrome.selectionActive) bottomBar()
         },
     ) { innerPadding ->
         // The capture surface sits over the screens rather than inside any one
         // of them: writing something down is reachable from everywhere, and the
         // sheet it raises has to survive moving between destinations.
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SyncBanner(
-                    status = syncStatus,
-                    sessionUnverified = unverifiedSession,
-                    onRetry = onRetrySync,
-                )
-                AppNavHost(navController = navController, screens = screens)
-            }
-            screens.quickAdd(!screenOwnsChrome)
+            AppNavHost(navController = navController, screens = screens)
+            screens.quickAdd(!screenOwnsChrome && !screenOwnsCorner && !chrome.selectionActive, openProject)
         }
     }
 }
+
+/**
+ * The navigation bar a phone gets under every list.
+ *
+ * It repeats four of the drawer's entries rather than replacing the drawer: the
+ * places the day is spent between are a thumb away, and the rest of the catalog
+ * keeps the home it has always had.
+ */
+@Composable
+private fun BottomBar(
+    selected: (DrawerDestination) -> Boolean,
+    onSelect: (DrawerDestination) -> Unit,
+) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.testTag(BOTTOM_BAR_TAG),
+    ) {
+        for (destination in BottomBarDestinations) {
+            NavigationBarItem(
+                selected = selected(destination),
+                onClick = { onSelect(destination) },
+                icon = { Icon(destination.icon, contentDescription = null) },
+                label = { Text(stringResource(destination.labelRes), maxLines = 1) },
+                colors =
+                    NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+            )
+        }
+    }
+}
+
+/** True for a destination whose screen draws the name of what it shows as its own heading. */
+private fun NavDestination?.isNamedByItsScreen(): Boolean = this?.hasRoute(ProjectRoute::class) == true
 
 /** True when the drawer entry points at the destination currently on screen. */
 private fun NavDestination?.isOn(destination: DrawerDestination): Boolean =

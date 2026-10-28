@@ -82,15 +82,22 @@ class AppScreens(
     val search: @Composable (SearchNavigation) -> Unit = { navigation -> SearchScreen(navigation = navigation) },
     /**
      * One whole task, opened at whichever address brought the user here. Takes
-     * how to open another task — a subtask, or the work that is blocking this one
-     * — how to leave, and the jump-pair control. All three belong to the graph
-     * rather than the screen: the first two are destinations, and the third is a
+     * where the screen can lead — another task, the project or context the task
+     * lives in, and back — and the jump-pair control. Both belong to the graph
+     * rather than the screen: the first are destinations, and the second is a
      * control that navigates to one. The screen draws its own top bar, which is
      * where that control has to sit.
      */
-    val task: @Composable (TaskAddress, (Long) -> Unit, () -> Unit, @Composable () -> Unit) -> Unit =
-        { address, open, back, harpoon ->
-            TaskDetailScreen(address = address, onOpenTask = open, onBack = back, harpoon = harpoon)
+    val task: @Composable (TaskAddress, TaskNavigation, @Composable () -> Unit) -> Unit =
+        { address, navigation, harpoon ->
+            TaskDetailScreen(
+                address = address,
+                onOpenTask = navigation.openTask,
+                onBack = navigation.back,
+                onOpenProject = navigation.openProject,
+                onOpenContext = navigation.openContext,
+                harpoon = harpoon,
+            )
         },
     /**
      * The workspace, browsed. Takes how to open a project and how to open the
@@ -171,10 +178,25 @@ class AppScreens(
      * fixture of the shell so a check about navigation can compose the shell
      * without a database and a sync engine behind it.
      *
-     * It is told whether to draw its button, and stays composed either way: a
-     * share from another app opens the sheet without anyone touching the button,
-     * so a screen that does not want the button — one that has a control of its
-     * own in the same corner — must not take the sheet down with it.
+     * It is told whether to draw its button and which project is on screen, so
+     * a task captured from a project's page lands in that project rather than
+     * in the inbox. It stays composed either way: a share from another app
+     * opens the sheet without anyone touching the button, so a screen that does
+     * not want the button — one that has a control of its own in the same
+     * corner — must not take the sheet down with it.
      */
-    val quickAdd: @Composable (Boolean) -> Unit = { showButton -> QuickAddHost(showButton = showButton) },
+    val quickAdd: @Composable (Boolean, Long?) -> Unit = { showButton, projectLocalId ->
+        QuickAddHost(showButton = showButton, projectLocalId = projectLocalId)
+    },
+)
+
+/**
+ * Where a task screen can lead, all by the ids this device holds rows under: to
+ * another task, to the project or context the task lives in, and back.
+ */
+data class TaskNavigation(
+    val openTask: (Long) -> Unit,
+    val openProject: (Long) -> Unit,
+    val openContext: (Long) -> Unit,
+    val back: () -> Unit,
 )

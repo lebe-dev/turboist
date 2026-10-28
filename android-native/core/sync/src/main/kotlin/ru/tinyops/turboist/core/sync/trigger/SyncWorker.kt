@@ -28,7 +28,7 @@ class SyncWorker(
             inputData.getString(REASON)
                 ?.let { name -> SyncReason.entries.firstOrNull { it.name == name } }
                 ?: SyncReason.PERIODIC
-        return when (scheduler.requestSyncNow(reason)) {
+        return when (val result = scheduler.requestSyncNow(reason)) {
             SyncCycleResult.Synced -> Result.success()
             // The network went away between the job's constraint being met and
             // the request going out. Worth another attempt, which the system will
@@ -37,8 +37,11 @@ class SyncWorker(
             // The server was reached and said no. Repeating the identical call
             // repeats the identical answer, so this run is over; whatever the
             // refusal was about is settled by the user or by the next scheduled
-            // run, not by trying harder right now.
-            is SyncCycleResult.Refused -> Result.success()
+            // run, not by trying harder right now. The exception is a server that
+            // broke or was busy with a write still waiting: that write is worth
+            // another attempt, and the process may not be alive to make it.
+            is SyncCycleResult.Refused ->
+                if (result.retryAfterMillis != null) Result.retry() else Result.success()
         }
     }
 

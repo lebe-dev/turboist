@@ -1,5 +1,7 @@
 package ru.tinyops.turboist.nativeapp.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,6 +63,12 @@ fun AuthNavHost(
         navController = navController,
         startDestination = routeFor(startStep),
         modifier = modifier,
+        // Moving between screens is instant: a cross-fade on every tap made the
+        // app feel slower than it is and showed two screens at once mid-way.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
     ) {
         composable<ConnectRoute> {
             ConnectScreen(

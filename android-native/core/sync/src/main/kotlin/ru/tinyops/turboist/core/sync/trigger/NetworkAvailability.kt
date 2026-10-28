@@ -45,23 +45,53 @@ class ConnectivityWatcher(
                 return@callbackFlow
             }
             val connected = AtomicBoolean(manager.hasUsableNetwork())
+            val validated = AtomicBoolean(manager.hasValidatedNetwork())
             val callback =
                 object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
+                        validated.set(manager.getNetworkCapabilities(network)?.isValidated() == true)
                         // A network arriving while one was already there is a
                         // handover, not a return: nothing was queued up waiting
                         // for it, so it is not a reason to go and ask the server.
                         if (connected.compareAndSet(false, true)) trySend(Unit)
                     }
 
+                    override fun onCapabilitiesChanged(
+                        network: Network,
+                        capabilities: NetworkCapabilities,
+                    ) {
+                        // A network that only now proved it reaches the internet
+                        // is a return too: a hotel or train network answers with
+                        // its own sign-in page until the user has been through it,
+                        // and the moment they have is the moment the queue can go.
+                        // A network that is never validated — a server on a home
+                        // network with no internet behind it — was already
+                        // announced when it arrived, so nothing waits on this.
+                        if (!capabilities.isValidated()) {
+                            validated.set(false)
+                            return
+                        }
+                        if (validated.compareAndSet(false, true) && connected.get()) trySend(Unit)
+                    }
+
                     override fun onLost(network: Network) {
                         if (manager.hasUsableNetwork()) return
                         connected.set(false)
+                        validated.set(false)
                     }
                 }
             manager.registerDefaultNetworkCallback(callback)
             awaitClose { manager.unregisterNetworkCallback(callback) }
         }
+
+    private fun ConnectivityManager.hasValidatedNetwork(): Boolean {
+        val active = activeNetwork ?: return false
+        return getNetworkCapabilities(active)?.isValidated() == true
+    }
+
+    private fun NetworkCapabilities.isValidated(): Boolean =
+        hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 
     private fun ConnectivityManager.hasUsableNetwork(): Boolean {
         val active = activeNetwork ?: return false

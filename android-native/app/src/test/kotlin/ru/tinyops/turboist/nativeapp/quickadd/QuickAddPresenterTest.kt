@@ -12,10 +12,10 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import ru.tinyops.turboist.core.model.AppSettings
 import ru.tinyops.turboist.core.model.AutoLabelRule
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.sync.write.TaskDestination
-import ru.tinyops.turboist.core.model.DayPart
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -38,6 +38,7 @@ import kotlin.test.assertTrue
 class QuickAddPresenterTest {
     private val actions = RecordingQuickAddActions()
     private val recent = FakeRecentProjects()
+    private val recentLabels = FakeRecentLabels()
     private val zone: ZoneId = ZoneId.of("Europe/Berlin")
 
     private val workspace =
@@ -74,6 +75,7 @@ class QuickAddPresenterTest {
             recent = recent,
             actions = actions,
             zone = zone,
+            recentLabels = recentLabels,
             now = { now },
         )
 
@@ -155,6 +157,30 @@ class QuickAddPresenterTest {
             runCurrent()
 
             assertEquals(listOf(3L), recent.remembered)
+        }
+
+    @Test
+    fun `labels chosen by hand are remembered once the task is saved, and lead the picker next time`() =
+        runTest {
+            workspace.value =
+                workspace.value.copy(
+                    appSettings = AppSettings(autoLabels = listOf(AutoLabelRule("milk", listOf(1), ignoreCase = true))),
+                )
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setTitles("Buy milk")
+            presenter.setLabels(listOf("urgent"))
+            runCurrent()
+            assertEquals(emptyList(), recentLabels.remembered, "nothing is remembered before the save")
+
+            presenter.submit()
+            runCurrent()
+
+            // The label the title earned was not a choice, so it is not a habit either.
+            assertEquals(listOf(2L), recentLabels.remembered)
+            assertEquals(listOf(2L), presenter.state.value.recentLabelOrder)
         }
 
     @Test

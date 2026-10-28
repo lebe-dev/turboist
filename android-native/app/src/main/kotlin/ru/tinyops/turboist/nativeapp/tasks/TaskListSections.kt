@@ -21,11 +21,15 @@ import java.time.ZoneId
  *   root, because indenting it under nothing would only look like damage.
  * @property projectTitle the project the task lives in, already resolved, or
  *   `null` when it lives somewhere else — the inbox, or a context directly.
+ * @property ancestorCompleted a task above this one is finished, so the row is
+ *   drawn as finished too, whatever its own status says: work under a finished
+ *   task is not work that is still waiting.
  */
 data class TaskListRow(
     val task: Task,
     val depth: Int,
     val projectTitle: String?,
+    val ancestorCompleted: Boolean = false,
 )
 
 /** What a block of rows is headed with. */
@@ -70,6 +74,9 @@ sealed interface SectionHeading {
  * as one thing — the meetings and the work are the same afternoon — and because
  * an appointment is not a task: it is shown, never ticked, never selected, and
  * nothing here can change it.
+ *
+ * [foldedByDefault] starts the block folded down to its heading, which then
+ * unfolds it with a tap. A block without it cannot be folded at all.
  */
 data class TaskListSection(
     val key: String,
@@ -77,6 +84,7 @@ data class TaskListSection(
     val rows: List<TaskListRow>,
     @param:StringRes val emptyRes: Int? = null,
     val events: List<CalendarEvent> = emptyList(),
+    val foldedByDefault: Boolean = false,
 )
 
 /**
@@ -159,6 +167,20 @@ fun dueDaySections(
             heading = SectionHeading.Day(group.day, group.day?.let { relativeDay(it, today) }),
             rows = taskListRows(group.tasks, projectTitles),
         )
+    }
+
+/**
+ * Starts today's block folded, for a list where today is not what it is read
+ * for: the week is opened to look past today, which has a screen of its own.
+ */
+fun withTodayFolded(sections: List<TaskListSection>): List<TaskListSection> =
+    sections.map { section ->
+        val heading = section.heading
+        if (heading is SectionHeading.Day && heading.relative == RelativeDay.TODAY) {
+            section.copy(foldedByDefault = true)
+        } else {
+            section
+        }
     }
 
 /** A block with a fixed name. Returned even when empty, so its heading and its emptiness both show. */

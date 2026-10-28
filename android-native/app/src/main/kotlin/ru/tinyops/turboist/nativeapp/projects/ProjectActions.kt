@@ -76,6 +76,21 @@ interface ProjectActions {
         taskLocalId: Long,
         destination: TaskDestination,
     )
+
+    /**
+     * Makes [taskLocalId] wait for [blockerLocalId], and answers the id of the
+     * new link so it can be taken back.
+     */
+    suspend fun addBlocker(
+        taskLocalId: Long,
+        blockerLocalId: Long,
+    ): Long
+
+    /** Takes a link off, from the side of [taskLocalId]. */
+    suspend fun removeRelation(
+        taskLocalId: Long,
+        relationLocalId: Long,
+    )
 }
 
 /** The writes the context screens make. */

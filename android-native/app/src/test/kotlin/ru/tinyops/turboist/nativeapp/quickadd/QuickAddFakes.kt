@@ -7,6 +7,8 @@ import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
+import ru.tinyops.turboist.nativeapp.labels.RecentLabels
+import ru.tinyops.turboist.nativeapp.labels.withRecentLabel
 
 /** One task the sheet asked for, recorded so a test can say what was written down. */
 data class CreateCall(
@@ -49,6 +51,26 @@ class FakeRecentProjects(
 
     override suspend fun remember(projectLocalId: Long) {
         order.value = withRecentProject(order.value, projectLocalId)
+    }
+
+    override suspend fun clear() {
+        order.value = emptyList()
+    }
+}
+
+/** The remembered label order, in memory. */
+class FakeRecentLabels(
+    initial: List<Long> = emptyList(),
+) : RecentLabels {
+    private val order = MutableStateFlow(initial)
+
+    /** The order as it stands, for a case that asserts about it. */
+    val remembered: List<Long> get() = order.value
+
+    override fun observe(): Flow<List<Long>> = order
+
+    override suspend fun remember(labelLocalId: Long) {
+        order.value = withRecentLabel(order.value, labelLocalId)
     }
 
     override suspend fun clear() {

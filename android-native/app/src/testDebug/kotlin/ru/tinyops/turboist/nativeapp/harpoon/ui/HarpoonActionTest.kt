@@ -3,10 +3,12 @@ package ru.tinyops.turboist.nativeapp.harpoon.ui
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,18 +79,18 @@ class HarpoonActionTest {
     }
 
     @Test
-    fun `what is on screen and off the pair is offered to be hooked on`() {
+    fun `what is on screen and off the pair is hooked on with one tap`() {
         val toggled = mutableListOf<HarpoonEntry>()
         show(current = website, jumps = emptyList(), onToggle = { toggled += it })
 
-        openMenu()
-        compose.onNodeWithText(text(R.string.harpoon_attach)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.harpoon_attach)).performClick()
 
         assertEquals(listOf(website), toggled)
+        compose.onNodeWithText(text(R.string.harpoon_attach)).assertDoesNotExist()
     }
 
     @Test
-    fun `what is on screen and already on the pair is offered to be taken off`() {
+    fun `what is on screen and already on the pair is taken off with one tap`() {
         val toggled = mutableListOf<HarpoonEntry>()
         show(
             current = website,
@@ -96,10 +98,27 @@ class HarpoonActionTest {
             onToggle = { toggled += it },
         )
 
-        openMenu()
-        compose.onNodeWithText(text(R.string.harpoon_detach)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.harpoon_detach)).performClick()
 
         assertEquals(listOf(website), toggled)
+    }
+
+    @Test
+    fun `with something on screen the jumps are a long press away`() {
+        val opened = mutableListOf<HarpoonEntry>()
+        val toggled = mutableListOf<HarpoonEntry>()
+        show(
+            current = website,
+            jumps = listOf(HarpoonJump(shipIt, "Ship it")),
+            onToggle = { toggled += it },
+            onOpen = { opened += it },
+        )
+
+        compose.onNodeWithContentDescription(text(R.string.harpoon_attach)).performTouchInput { longClick() }
+        compose.onNodeWithText(text(R.string.harpoon_jumpTo, "Ship it")).performClick()
+
+        assertEquals(listOf(shipIt), opened)
+        assertEquals(emptyList(), toggled)
     }
 
     @Test

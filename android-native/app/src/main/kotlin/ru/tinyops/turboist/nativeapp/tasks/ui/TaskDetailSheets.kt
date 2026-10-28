@@ -12,12 +12,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -46,11 +50,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labels.pickRecentLabels
+import ru.tinyops.turboist.nativeapp.labels.ui.LabelDot
+import ru.tinyops.turboist.nativeapp.labels.ui.labelTint
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -328,27 +335,6 @@ private fun QuickDateChip(
     )
 }
 
-/** The phase of the day the task is meant for. */
-@Composable
-internal fun DayPartSheet(
-    dayPart: DayPart,
-    onSelect: (DayPart) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    FieldSheet(title = stringResource(R.string.page_task_dayPart), onDismiss = onDismiss) {
-        for (part in DAY_PART_CHOICES) {
-            SheetChoiceRow(
-                text = stringResource(dayPartLabel(part)),
-                selected = part == dayPart,
-                onSelect = {
-                    onSelect(part)
-                    onDismiss()
-                },
-            )
-        }
-    }
-}
-
 /**
  * Where the task stands in the week's planning: committed to it, parked out of
  * it, or neither.
@@ -381,6 +367,11 @@ internal fun PlanSheet(
  * own two were indistinguishable. On the screen a label is a fact about the
  * task; in here it is a choice, and the search box is what makes a long list of
  * choices usable.
+ *
+ * The search box doubles as the way to make a label: a name typed that no label
+ * carries yet is offered as a new one, made and put on the task in one tap, so
+ * a label that turns out to be missing does not send the user off to another
+ * screen in the middle of filing a task.
  */
 @Composable
 internal fun LabelsSheet(
@@ -388,9 +379,32 @@ internal fun LabelsSheet(
     selected: List<String>,
     onChange: (List<String>) -> Unit,
     onDismiss: () -> Unit,
+    recentOrder: List<Long> = emptyList(),
+    onCreate: ((String) -> Unit)? = null,
 ) {
     var query by remember { mutableStateOf("") }
     val matches = known.filter { it.name.contains(query.trim(), ignoreCase = true) }
+    val creatable = creatableLabelName(query, known).takeIf { onCreate != null }
+    val create: () -> Unit = {
+        if (creatable != null && onCreate != null) {
+            onCreate(creatable)
+            query = ""
+        }
+    }
+    // The labels this device applied lately lead, lifted out of the list below
+    // so none is offered twice.
+    val recent = pickRecentLabels(recentOrder, matches)
+    val lifted = recent.mapTo(HashSet()) { it.localId }
+    val chip: @Composable (Label) -> Unit = { label ->
+        val on = label.name in selected
+        FilterChip(
+            selected = on,
+            onClick = { onChange(if (on) selected - label.name else selected + label.name) },
+            label = { Text(label.name) },
+            leadingIcon = labelTint(label)?.let { { LabelDot(label) } },
+            modifier = Modifier.semantics { contentDescription = label.name },
+        )
+    }
 
     FieldSheet(title = stringResource(R.string.page_task_labels), onDismiss = onDismiss) {
         Text(
@@ -405,21 +419,41 @@ internal fun LabelsSheet(
             singleLine = true,
             placeholder = { Text(stringResource(R.string.native_task_findLabel)) },
             leadingIcon = { Icon(imageVector = Icons.Filled.Search, contentDescription = null) },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { create() }),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
         )
+        if (creatable != null) {
+            AssistChip(
+                onClick = create,
+                label = { Text(stringResource(R.string.native_labels_create, creatable)) },
+                leadingIcon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp),
+            )
+        }
+        if (recent.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.label_picker_recent),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp),
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                for (label in recent) chip(label)
+            }
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
+        }
         FlowRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             for (label in matches) {
-                val on = label.name in selected
-                FilterChip(
-                    selected = on,
-                    onClick = { onChange(if (on) selected - label.name else selected + label.name) },
-                    label = { Text(label.name) },
-                    modifier = Modifier.semantics { contentDescription = label.name },
-                )
+                if (label.localId !in lifted) chip(label)
             }
         }
         Row(
@@ -429,6 +463,21 @@ internal fun LabelsSheet(
             Button(onClick = onDismiss) { Text(stringResource(R.string.native_task_done)) }
         }
     }
+}
+
+/**
+ * The name a label picker offers to create, or `null` when there is nothing to
+ * offer: nothing typed, or a label already carries the name. The match ignores
+ * case because the server does — "Home" and "home" are one label there.
+ */
+internal fun creatableLabelName(
+    query: String,
+    known: List<Label>,
+): String? {
+    val name = query.trim()
+    if (name.isEmpty()) return null
+    if (known.any { it.name.equals(name, ignoreCase = true) }) return null
+    return name
 }
 
 /** How a date reads on a row: the day itself, and what it is to the user today. */

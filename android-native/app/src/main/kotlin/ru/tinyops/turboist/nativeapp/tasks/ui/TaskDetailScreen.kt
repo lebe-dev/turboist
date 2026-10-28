@@ -1,5 +1,8 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,15 +41,16 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Splitscreen
-import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -66,6 +70,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,12 +88,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
+import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
@@ -95,11 +104,14 @@ import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.view.TaskRelationGroup
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labels.ui.LABEL_FILL_ALPHA
+import ru.tinyops.turboist.nativeapp.labels.ui.labelTint
 import ru.tinyops.turboist.nativeapp.tasks.BlockerRef
 import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
 import ru.tinyops.turboist.nativeapp.tasks.NestAdded
 import ru.tinyops.turboist.nativeapp.tasks.RecurrenceWording
+import ru.tinyops.turboist.nativeapp.tasks.SubtaskDetached
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
 import ru.tinyops.turboist.nativeapp.tasks.TaskDetailPresenter
 import ru.tinyops.turboist.nativeapp.tasks.TaskDetailUiState
@@ -147,6 +159,10 @@ data class TaskDetailCallbacks(
     val onAddRelation: (Long, TaskRelationGroup) -> Unit,
     val onRemoveRelation: (Long) -> Unit,
     val onOpenTask: (Long) -> Unit,
+    /** Opens the project the task lives in; moving it elsewhere is in the overflow. */
+    val onOpenProject: (Long) -> Unit = {},
+    /** Opens the context the task lives in directly, when it is in no project. */
+    val onOpenContext: (Long) -> Unit = {},
     /** Splits the task into the titles typed into the outline. */
     val onDecompose: (List<String>) -> Unit = {},
     /** Saves the task and its subtree as a reusable template. */
@@ -159,10 +175,18 @@ data class TaskDetailCallbacks(
     val onNestUnder: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
     /** Takes back a nesting a drop just added. */
     val onUndoNest: (NestAdded) -> Unit = {},
+    /** A subtask was dropped onto the detach zone: it leaves its parent for the top level. */
+    val onDetachSubtask: (draggedLocalId: Long) -> Unit = {},
+    /** Takes back a lift a drop just made. */
+    val onUndoDetach: (SubtaskDetached) -> Unit = {},
+    /** The task and its subtree as JSON, for the clipboard; `null` while there is no task. */
+    val taskJson: () -> String? = { null },
+    /** Makes a label from a name typed into the picker, and puts it on the task. */
+    val onCreateLabel: (String) -> Unit = {},
 )
 
 /** The field a sheet is currently open for, or nothing when none is. */
-private enum class TaskField { DATE, DAY_PART, DEADLINE, REPEAT, PLAN, LABELS, ACTIONS, MOVE }
+private enum class TaskField { DATE, DEADLINE, REPEAT, PLAN, LABELS, ACTIONS, MOVE }
 
 /**
  * One task, whole.
@@ -199,6 +223,7 @@ fun TaskDetailScreen(
     harpoon: @Composable () -> Unit = {},
     dependencyAdded: Flow<DependencyAdded> = emptyFlow(),
     nestAdded: Flow<NestAdded> = emptyFlow(),
+    subtaskDetached: Flow<SubtaskDetached> = emptyFlow(),
 ) {
     val snackbars = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -254,6 +279,18 @@ fun TaskDetailScreen(
         }
     }
 
+    LaunchedEffect(subtaskDetached, undo) {
+        subtaskDetached.collect { detached ->
+            val result =
+                snackbars.showSnackbar(
+                    message = context.getString(R.string.page_task_detachDrag_added),
+                    actionLabel = undo,
+                    duration = SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) callbacks.onUndoDetach(detached)
+        }
+    }
+
     TaskDetailBody(
         state = state,
         zone = zone,
@@ -280,6 +317,7 @@ private fun TaskDetailBody(
 ) {
     var field by remember { mutableStateOf<TaskField?>(null) }
     val scroll = rememberScrollState()
+    val subtaskDrag = remember { SubtaskDragState() }
     // The title moves into the bar once the one on the page has gone: a detail
     // screen with no heading anywhere says nothing about what is being edited.
     // The distance is in dp, since the same number of pixels is a different
@@ -335,8 +373,19 @@ private fun TaskDetailBody(
                 )
                 if (state.blockers.isNotEmpty()) BlockedNotice(state.blockers, callbacks.onOpenTask)
 
-                SectionHeading(stringResource(R.string.native_task_sectionWhen))
-                WhenCard(task = task, zone = zone, today = today, onOpen = { field = it })
+                WhenCard(
+                    task = task,
+                    zone = zone,
+                    today = today,
+                    onOpen = { field = it },
+                    onDayPart = callbacks.onDayPart,
+                    onDueDate = callbacks.onDueDate,
+                    // Straight under the title and its description the card is
+                    // the next part of the same block, not a new section, so it
+                    // does not take a section's full gap — unless a notice sits
+                    // between them.
+                    headingTop = if (state.blockers.isEmpty()) WHEN_HEADING_TOP else SECTION_HEADING_TOP,
+                )
 
                 SectionHeading(stringResource(R.string.native_task_sectionPlanning))
                 DetailCard {
@@ -352,7 +401,7 @@ private fun TaskDetailBody(
                 }
 
                 LabelsSection(
-                    names = task.labels.map { it.name },
+                    labels = task.labels,
                     knownLabels = state.knownLabels.isNotEmpty(),
                     onOpen = { field = TaskField.LABELS },
                 )
@@ -374,7 +423,10 @@ private fun TaskDetailBody(
                             nestNoop = state::nestNoop,
                             onDependencyDrop = callbacks.onMakeDependent,
                             onNestDrop = callbacks.onNestUnder,
+                            // An inbox task has no subtasks to lift, and no top level to lift them to.
+                            onDetachDrop = callbacks.onDetachSubtask.takeUnless { state.placement.inInbox },
                         ),
+                    drag = subtaskDrag,
                 )
 
                 TaskDetailRelations(
@@ -406,6 +458,16 @@ private fun TaskDetailBody(
                     RecordOfTheTask(task = task, zone = zone)
                 }
             }
+            // An inbox task has no subtasks to lift, and no top level to lift them to.
+            if (subtaskDrag.draggedLocalId != null && !state.placement.inInbox) {
+                Surface(
+                    tonalElevation = 3.dp,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                ) {
+                    SubtaskDetachZone(subtaskDrag, modifier = Modifier.padding(bottom = 8.dp))
+                }
+            }
         }
     }
 
@@ -416,6 +478,7 @@ private fun TaskDetailBody(
         today = today,
         moveOptions = moveOptions,
         callbacks = callbacks,
+        snackbars = snackbars,
         onField = { field = it },
     )
 }
@@ -435,10 +498,14 @@ private fun TaskFieldSheets(
     today: LocalDate,
     moveOptions: List<MoveProject>,
     callbacks: TaskDetailCallbacks,
+    snackbars: SnackbarHostState,
     onField: (TaskField?) -> Unit,
 ) {
     val task = state.task ?: return
     val onClose = { onField(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val jsonCopied = stringResource(R.string.task_toast_jsonCopied)
     when (field) {
         null -> Unit
 
@@ -464,8 +531,6 @@ private fun TaskFieldSheets(
                 onDismiss = onClose,
             )
 
-        TaskField.DAY_PART -> DayPartSheet(task.dayPart, callbacks.onDayPart, onClose)
-
         TaskField.PLAN -> PlanSheet(task.planState, callbacks.onPlanState, onClose)
 
         TaskField.REPEAT ->
@@ -481,9 +546,11 @@ private fun TaskFieldSheets(
         TaskField.LABELS ->
             LabelsSheet(
                 known = state.knownLabels,
+                recentOrder = state.recentLabelOrder,
                 selected = task.labels.map { it.name },
                 onChange = callbacks.onLabels,
                 onDismiss = onClose,
+                onCreate = callbacks.onCreateLabel,
             )
 
         TaskField.ACTIONS ->
@@ -499,6 +566,13 @@ private fun TaskFieldSheets(
                 canDecompose = state.openSubtasks.isEmpty() && state.doneSubtasks.isEmpty(),
                 onDecompose = callbacks.onDecompose,
                 onCreateTemplate = callbacks.onCreateTemplate,
+                onCopyJson = {
+                    val json = callbacks.taskJson()
+                    if (json != null) {
+                        copyPlainText(context, json)
+                        scope.launch { snackbars.showSnackbar(jsonCopied) }
+                    }
+                },
             )
 
         TaskField.MOVE ->
@@ -602,7 +676,21 @@ private fun Hero(
     val completed = task.status == TaskStatus.COMPLETED
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        PlacementCrumb(state.placement, onOpenMove)
+        val placement = state.placement
+        // The crumb leads to where the task lives — its parent, its project or
+        // its context — so the place is one tap away. Moving the task is in the
+        // overflow; only a task with nowhere to go to yet opens the move sheet.
+        val parent = placement.parentLocalId
+        val project = placement.projectLocalId
+        val context = placement.contextLocalId
+        val openPlacement: () -> Unit =
+            when {
+                parent != null -> { -> callbacks.onOpenTask(parent) }
+                project != null -> { -> callbacks.onOpenProject(project) }
+                context != null -> { -> callbacks.onOpenContext(context) }
+                else -> onOpenMove
+            }
+        PlacementCrumb(placement, openPlacement)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -749,11 +837,11 @@ private fun TitleField(
     )
 }
 
-/** Where the task lives, and the way to move it. */
+/** Where the task lives, and the way there. */
 @Composable
 private fun PlacementCrumb(
     placement: TaskPlacement,
-    onOpenMove: () -> Unit,
+    onClick: () -> Unit,
 ) {
     val value =
         when {
@@ -770,7 +858,7 @@ private fun PlacementCrumb(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onOpenMove)
+                .clickable(onClick = onClick)
                 .defaultMinSize(minHeight = 40.dp)
                 .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -960,6 +1048,11 @@ private fun OpenLinkButton(url: String) {
  * The four rows are one question asked four ways — which day, which part of it,
  * by when at the latest, and how often it comes back — so they sit together, and
  * each opens the sheet that answers it.
+ *
+ * Folded, which is how the card starts, the four answers are one row: the day on
+ * it and whatever else is set underneath. Most tasks have a day and nothing more,
+ * and four rows saying "none" three times pushed the subtasks off the screen.
+ * Tapping the row or the toggle in the heading opens the card into its four rows.
  */
 @Composable
 private fun WhenCard(
@@ -967,6 +1060,9 @@ private fun WhenCard(
     zone: ZoneId,
     today: LocalDate,
     onOpen: (TaskField) -> Unit,
+    onDayPart: (DayPart) -> Unit,
+    onDueDate: (LocalDate?) -> Unit,
+    headingTop: Dp,
 ) {
     val due = task.dueDate(zone)
     val dueTime = timeLabel(task.dueTime(zone))
@@ -977,27 +1073,70 @@ private fun WhenCard(
     // A task that comes back is marked in the same green every list marks it in.
     val repeating = rule.isNotBlank() && wording != RecurrenceWording.Unreadable
     val repeatTint = TurboistTheme.accents.recurring
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val dateValue = listOfNotNull(dateLabel(due, today), dueTime).joinToString(", ")
+    val dateTint =
+        when {
+            overdue -> MaterialTheme.colorScheme.error
+            due != null -> MaterialTheme.colorScheme.onSurface
+            else -> null
+        }
+
+    SectionHeading(stringResource(R.string.native_task_sectionWhen), top = headingTop) {
+        IconButton(onClick = { expanded = !expanded }) {
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription =
+                    stringResource(
+                        if (expanded) R.string.native_task_whenCollapse else R.string.native_task_whenExpand,
+                    ),
+            )
+        }
+    }
+    if (!expanded) {
+        val facts =
+            listOfNotNull(
+                stringResource(dayPartLabel(task.dayPart)).takeIf { task.dayPart != DayPart.NONE },
+                deadline?.let { stringResource(R.string.native_task_deadline) + " " + dateLabel(it, today) },
+                recurrenceLabel(wording).takeIf { repeating },
+            )
+        DetailCard {
+            DetailRow(
+                label =
+                    if (due == null && facts.isEmpty()) {
+                        stringResource(
+                            R.string.native_task_whenEmpty,
+                        )
+                    } else {
+                        dateValue
+                    },
+                value = "",
+                leading = if (repeating) Icons.Outlined.Repeat else Icons.Outlined.CalendarMonth,
+                leadingTint = dateTint.takeIf { overdue } ?: repeatTint.takeIf { repeating },
+                supporting = facts.joinToString(WHEN_FACT_SEPARATOR).ifEmpty { null },
+                trailing = Icons.Filled.ExpandMore,
+                onClick = { expanded = true },
+            )
+            QuickDueDays(
+                due = due,
+                today = today,
+                dayPart = task.dayPart,
+                onDueDate = onDueDate,
+                onDayPart = onDayPart,
+            )
+        }
+        return
+    }
 
     DetailCard {
         DetailRow(
             label = stringResource(R.string.page_task_date),
-            value = listOfNotNull(dateLabel(due, today), dueTime).joinToString(", "),
+            value = dateValue,
             leading = Icons.Outlined.CalendarMonth,
-            valueTint =
-                when {
-                    overdue -> MaterialTheme.colorScheme.error
-                    due != null -> MaterialTheme.colorScheme.onSurface
-                    else -> null
-                },
+            valueTint = dateTint,
             onClick = { onOpen(TaskField.DATE) },
         )
-        DetailRow(
-            label = stringResource(R.string.page_task_dayPart),
-            value = stringResource(dayPartLabel(task.dayPart)),
-            leading = Icons.Outlined.WbSunny,
-            valueTint = MaterialTheme.colorScheme.onSurface.takeIf { task.dayPart != DayPart.NONE },
-            onClick = { onOpen(TaskField.DAY_PART) },
-        )
+        DayPartIconRow(task.dayPart, onDayPart)
         DetailRow(
             label = stringResource(R.string.native_task_deadline),
             value = dateLabel(deadline, today),
@@ -1024,6 +1163,42 @@ private fun WhenCard(
 }
 
 /**
+ * The two days a task is most often put on, one tap each, on the folded card,
+ * and the phase of the day beside them.
+ *
+ * Moving a task to today or tomorrow is most of what the date is ever changed
+ * for, and the sheet behind the date row is two taps and a calendar away. The
+ * day the task is already on is shown picked, so the chips also say which of the
+ * two it is. The phase is the next thing decided about a day, so it sits on the
+ * same line rather than behind the unfolded card; on a narrow screen it wraps
+ * under the days instead of squeezing them.
+ */
+@Composable
+private fun QuickDueDays(
+    due: LocalDate?,
+    today: LocalDate,
+    dayPart: DayPart,
+    onDueDate: (LocalDate?) -> Unit,
+    onDayPart: (DayPart) -> Unit,
+) {
+    val tomorrow = today.plusDays(1)
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(start = 54.dp, end = 8.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        for ((day, labelRes) in listOf(today to R.string.common_today, tomorrow to R.string.common_tomorrow)) {
+            FilterChip(
+                selected = due == day,
+                onClick = { if (due != day) onDueDate(day) },
+                label = { Text(stringResource(labelRes)) },
+            )
+        }
+        DayPartIconGroup(dayPart = dayPart, onSelect = onDayPart, compact = true)
+    }
+}
+
+/**
  * The labels this task carries, and the way to change them.
  *
  * Only the task's own are here. The workspace's whole set used to be laid out
@@ -1033,31 +1208,42 @@ private fun WhenCard(
  */
 @Composable
 private fun LabelsSection(
-    names: List<String>,
+    labels: List<Label>,
     knownLabels: Boolean,
     onOpen: () -> Unit,
 ) {
-    if (names.isEmpty() && !knownLabels) return
+    if (labels.isEmpty() && !knownLabels) return
     // With nothing chosen the section is a single line: the heading and the way
     // to add one. A row of its own for an "add" chip spent a screen's worth of
     // height on a field that says nothing yet.
     SectionHeading(text = stringResource(R.string.page_task_labels)) {
         TextButton(onClick = onOpen) {
-            Text(stringResource(if (names.isEmpty()) R.string.common_add else R.string.native_task_change))
+            Text(stringResource(if (labels.isEmpty()) R.string.common_add else R.string.native_task_change))
         }
     }
-    if (names.isEmpty()) return
+    if (labels.isEmpty()) return
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        for (name in names) {
+        for (label in labels) {
+            // Filled with the label's own colour, as the web client draws it, so
+            // the labels on a task read apart before their names are read.
+            val tint = labelTint(label)
             InputChip(
                 selected = true,
                 onClick = onOpen,
-                label = { Text(name) },
-                modifier = Modifier.semantics { contentDescription = name },
+                label = { Text(label.name) },
+                colors =
+                    if (tint == null) {
+                        InputChipDefaults.inputChipColors()
+                    } else {
+                        InputChipDefaults.inputChipColors(
+                            selectedContainerColor = tint.copy(alpha = LABEL_FILL_ALPHA),
+                        )
+                    },
+                modifier = Modifier.semantics { contentDescription = label.name },
             )
         }
     }
@@ -1129,6 +1315,8 @@ fun TaskDetailScreen(
     onOpenTask: (Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenProject: (Long) -> Unit = {},
+    onOpenContext: (Long) -> Unit = {},
     harpoon: @Composable () -> Unit = {},
     viewModel: TaskDetailViewModel = hiltViewModel(),
 ) {
@@ -1150,11 +1338,12 @@ fun TaskDetailScreen(
         today = today,
         moveOptions = moveOptions,
         messages = presenter.messages,
-        callbacks = detailCallbacks(presenter, zone, onOpenTask, onBack),
+        callbacks = detailCallbacks(presenter, zone, onOpenTask, onBack, onOpenProject, onOpenContext),
         modifier = modifier,
         harpoon = harpoon,
         dependencyAdded = presenter.dependencyAdded,
         nestAdded = presenter.nestAdded,
+        subtaskDetached = presenter.subtaskDetached,
     )
 }
 
@@ -1165,8 +1354,10 @@ private fun detailCallbacks(
     zone: ZoneId,
     onOpenTask: (Long) -> Unit,
     onBack: () -> Unit,
+    onOpenProject: (Long) -> Unit,
+    onOpenContext: (Long) -> Unit,
 ): TaskDetailCallbacks =
-    remember(presenter, zone, onOpenTask, onBack) {
+    remember(presenter, zone, onOpenTask, onBack, onOpenProject, onOpenContext) {
         TaskDetailCallbacks(
             onBack = onBack,
             onRefresh = presenter::refresh,
@@ -1195,14 +1386,38 @@ private fun detailCallbacks(
             onAddRelation = presenter::addRelation,
             onRemoveRelation = presenter::removeRelation,
             onOpenTask = onOpenTask,
+            onOpenProject = onOpenProject,
+            onOpenContext = onOpenContext,
             onDecompose = presenter::decompose,
             onCreateTemplate = presenter::createTemplate,
             onMakeDependent = presenter::makeDependent,
             onUndoDependency = presenter::undoDependency,
             onNestUnder = presenter::nestUnder,
             onUndoNest = presenter::undoNest,
+            onDetachSubtask = presenter::detachSubtask,
+            onUndoDetach = presenter::undoDetach,
+            taskJson = presenter::taskJson,
+            onCreateLabel = presenter::createLabel,
         )
     }
+
+/** Puts text on the clipboard as ordinary, shareable text. */
+private fun copyPlainText(
+    context: Context,
+    text: String,
+) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
+}
+
+/** The gap above an ordinary section heading. */
+private val SECTION_HEADING_TOP = 20.dp
+
+/** The gap above the When heading when it follows the title block directly. */
+private val WHEN_HEADING_TOP = 4.dp
+
+/** What stands between the facts on the folded When row. */
+private const val WHEN_FACT_SEPARATOR = " · "
 
 /** How far the page scrolls before the title moves into the bar. */
 private const val TITLE_HANDOVER_DP = 72

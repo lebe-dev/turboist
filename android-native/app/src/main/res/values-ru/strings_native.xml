@@ -7,10 +7,8 @@
   the hand-written names here had no Russian at all, which is why a Russian
   phone showed English words in the middle of a translated screen.
 
-  This file covers the task screen and the repeat editor — every string those
-  two surfaces reach. The rest of strings_native.xml (sync, the unsent queue,
-  settings, search, the account screens) still falls back to English and is
-  worth a pass of its own.
+  Every translatable string in values/strings_native.xml has its Russian here;
+  LocalizationCoverageTest fails the build when one is added without it.
 
   A name absent here falls back to values/strings_native.xml, which is why the
   priority codes P1..P4 and the em dash that stands in for an empty field are
@@ -65,4 +63,175 @@
     <string name="native_recurrence_ruleUnreadable">Это не правило повтора.</string>
     <string name="native_recurrence_next">Следующая: %1$s</string>
     <string name="native_recurrence_noNext">После текущей у этого правила нет повторов.</string>
+
+    <string name="native_sync_inProgress">Синхронизация</string>
+    <string name="native_sync_failed">Не удалось синхронизироваться с сервером</string>
+    <string name="native_sync_offlineChip">Офлайн</string>
+    <string name="native_sync_failedChip">Не синхронизировано</string>
+    <string name="native_drawer_open">Открыть меню</string>
+    <string name="native_selection_plan">План</string>
+    <string name="native_selection_more">Ещё</string>
+    <string name="native_swipe_backlog">В бэклог</string>
+    <string name="native_swipe_select">Выбрать</string>
+    <string name="native_labels_showAll">Ещё %1$d</string>
+    <string name="native_labels_showFewer">Свернуть</string>
+    <string name="native_labels_create">Создать метку «%1$s»</string>
+    <string name="native_task_whenEmpty">Не запланирована</string>
+    <string name="native_task_whenExpand">Показать все поля дат</string>
+    <string name="native_task_whenCollapse">Скрыть поля дат</string>
+    <string name="native_harpoon_jumps">Показать прыжки</string>
+    <string name="native_dest_project">Проект</string>
+    <string name="native_dest_label">Метка</string>
+    <string name="native_dest_context">Контекст</string>
+    <string name="native_project_finished">Выполненные</string>
+
+    <!-- Everything else the native client says: sign-in, search, sync, settings. -->
+    <string name="native_connecting">Подключение…</string>
+    <string name="native_nav_group_more">Ещё</string>
+    <string name="native_dest_task">Задача</string>
+    <string name="native_dest_connect">Подключение к серверу</string>
+    <string name="native_dest_setup">Создание аккаунта</string>
+    <string name="native_dest_login">Вход</string>
+    <string name="native_connect_address">Адрес сервера</string>
+    <string name="native_connect_requires_https">Введите адрес https://. Приложение не передаёт учётные данные по незащищённому HTTP.</string>
+    <string name="native_connect_change_server">Другой сервер</string>
+    <string name="native_auth_too_many_attempts">Слишком много попыток. Подождите немного и попробуйте снова.</string>
+    <string name="native_auth_already_set_up">На этом сервере уже есть аккаунт. Войдите в него.</string>
+    <string name="native_auth_invalid_details">Сервер не принял эти данные.</string>
+    <string name="native_auth_server_error">Сервер не ответил. Попробуйте ещё раз.</string>
+    <string name="native_passkey_cancelled">Вход по ключу доступа отменён. Можно войти с паролем.</string>
+    <string name="native_passkey_not_enrolled">На этом устройстве нет ключа доступа для этого аккаунта. Войдите с паролем, а затем добавьте ключ в настройках.</string>
+    <string name="native_passkey_untrusted">Устройство не смогло проверить сервер для ключей доступа. Войдите с паролем.</string>
+    <string name="native_passkey_unsupported">Это устройство не поддерживает ключи доступа. Войдите с паролем.</string>
+    <string name="native_passkey_refused">Сервер не принял этот ключ доступа. Войдите с паролем.</string>
+    <string name="native_passkeys_retry">Попробовать снова</string>
+    <string name="native_calendar_as_of">Календарь на %1$s</string>
+    <string name="native_calendar_managed_on_web">События здесь только для просмотра. Подключите аккаунт Google и выберите календари в веб-версии Turboist.</string>
+    <string name="native_stub_body">Этот экран ещё не готов.</string>
+    <string name="native_stub_argument">ID %1$d</string>
+    <string name="native_search_contextsTab">Контексты</string>
+    <string name="native_search_openOnly">Только открытые</string>
+    <string name="native_search_emptyDescription">Введите хотя бы 2 символа, чтобы искать по задачам, проектам, меткам и контекстам на этом устройстве.</string>
+    <string name="native_search_noMatches">Ничего не найдено</string>
+    <string name="native_search_clearQuery">Очистить поиск</string>
+    <string name="native_search_recent">Недавние запросы</string>
+    <string name="native_search_clearRecent">Очистить недавние запросы</string>
+    <string name="native_search_taskFinished">Выполнена</string>
+    <string name="native_quickAdd_recentProjects">Недавние проекты</string>
+    <string name="native_project_statusUnknown">Неизвестный статус</string>
+    <string name="native_project_pinLimit">Можно закрепить не больше %1$d проектов. Сначала открепите один.</string>
+    <string name="native_project_troikiFull">В этой части плана на день уже %1$d проектов.</string>
+    <string name="native_section_moveEarlier">Переместить секцию выше</string>
+    <string name="native_section_moveLater">Переместить секцию ниже</string>
+    <string name="native_section_currentColumn">Сейчас здесь</string>
+    <string name="native_context_tasks">Задачи</string>
+    <string name="native_completed_showOlder">Показать более ранние</string>
+    <string name="native_completed_olderNeedsConnection">Более ранняя история хранится на сервере. Подключитесь к сети, чтобы её увидеть.</string>
+    <string name="native_completed_olderUnavailable">Не удалось загрузить более раннюю историю.</string>
+    <string name="native_completed_allShown">Это вся история.</string>
+    <string name="native_completed_loadingOlder">Загрузка более ранней истории</string>
+    <string name="native_unsent_openSetAside">Неотправленные изменения</string>
+    <string name="native_unsent_settingsDescription">Изменения с этого устройства, которые сервер не принял.</string>
+    <string name="native_unsent_setAsideHeading">Отклонены сервером</string>
+    <string name="native_unsent_setAsideDescription">Эти изменения сделаны на этом устройстве, и сервер их не принял. Они никогда не будут отправлены. Сами данные уже вернулись к тому, что хранится на сервере, поэтому удаление записи просто закрывает её и ничего не отменяет.</string>
+    <string name="native_unsent_waitingHeading">Ожидают отправки</string>
+    <string name="native_unsent_waitingDescription">Эти изменения уйдут, как только сервер станет доступен.</string>
+    <string name="native_unsent_discard">Удалить</string>
+    <string name="native_unsent_discardAll">Удалить все</string>
+    <string name="native_unsent_discardAllConfirm">Удалить</string>
+    <string name="native_unsent_discardAllTitle">Удалить все отклонённые изменения?</string>
+    <string name="native_unsent_discardAllBody">Отклонённых изменений будет удалено из списка: %1$d. Ни одно из них не дошло до сервера, поэтому ничего не отменяется.</string>
+    <string name="native_unsent_blockedBy">Ещё открыто: %1$s</string>
+    <string name="native_unsent_reason_blocked">Блокирующая задача ещё была открыта.</string>
+    <string name="native_unsent_reason_targetGone">Того, к чему относилось изменение, на сервере уже нет.</string>
+    <string name="native_unsent_reason_limitReached">Лимит уже был исчерпан.</string>
+    <string name="native_unsent_reason_placementRefused">Сервер не разрешил поместить это туда.</string>
+    <string name="native_unsent_reason_troikiSlotFull">Эта часть плана на день уже была заполнена.</string>
+    <string name="native_unsent_reason_invalid">Сервер не принял параметры этого изменения.</string>
+    <string name="native_unsent_reason_conflict">Это уже было изменено в другом месте.</string>
+    <string name="native_unsent_reason_notAllowed">Этой сессии не разрешено вносить такое изменение.</string>
+    <string name="native_unsent_reason_unsendable">Это изменение не удалось превратить в запрос, поэтому оно не отправлялось.</string>
+    <string name="native_unsent_reason_serverError">Сервер несколько раз завершился ошибкой на этом изменении.</string>
+    <string name="native_unsent_reason_unknown">Сервер отклонил изменение.</string>
+    <string name="native_unsent_op_unknown">Изменение, которое эта версия приложения не распознаёт</string>
+    <string name="native_unsent_op_taskCreate">Новая задача</string>
+    <string name="native_unsent_op_taskPatch">Изменение задачи</string>
+    <string name="native_unsent_op_taskDelete">Удаление задачи</string>
+    <string name="native_unsent_op_taskCancel">Отмена задачи</string>
+    <string name="native_unsent_op_taskMove">Перемещение задачи</string>
+    <string name="native_unsent_op_taskPlan">Планирование задачи</string>
+    <string name="native_unsent_op_taskPin">Закрепление задачи</string>
+    <string name="native_unsent_op_taskUnpin">Открепление задачи</string>
+    <string name="native_unsent_op_taskDuplicate">Дублирование задачи</string>
+    <string name="native_unsent_op_taskDecompose">Разбиение задачи на подзадачи</string>
+    <string name="native_unsent_op_taskRelationAdd">Связывание задач</string>
+    <string name="native_unsent_op_taskRelationRemove">Удаление связи задач</string>
+    <string name="native_unsent_op_taskBulkComplete">Выполнение нескольких задач</string>
+    <string name="native_unsent_op_taskBulkMove">Перемещение нескольких задач</string>
+    <string name="native_unsent_op_taskBulkPriority">Смена приоритета нескольких задач</string>
+    <string name="native_unsent_op_taskGroup">Группировка задач под новой задачей</string>
+    <string name="native_unsent_op_projectCreate">Новый проект</string>
+    <string name="native_unsent_op_projectPatch">Изменение проекта</string>
+    <string name="native_unsent_op_projectDelete">Удаление проекта</string>
+    <string name="native_unsent_op_projectStatus">Смена статуса проекта</string>
+    <string name="native_unsent_op_projectPin">Закрепление проекта</string>
+    <string name="native_unsent_op_projectUnpin">Открепление проекта</string>
+    <string name="native_unsent_op_projectTroiki">Перемещение проекта в плане на день</string>
+    <string name="native_unsent_op_sectionCreate">Новая секция</string>
+    <string name="native_unsent_op_sectionPatch">Изменение секции</string>
+    <string name="native_unsent_op_sectionDelete">Удаление секции</string>
+    <string name="native_unsent_op_sectionReorder">Изменение порядка секций</string>
+    <string name="native_unsent_op_contextCreate">Новый контекст</string>
+    <string name="native_unsent_op_contextPatch">Изменение контекста</string>
+    <string name="native_unsent_op_contextDelete">Удаление контекста</string>
+    <string name="native_unsent_op_labelCreate">Новая метка</string>
+    <string name="native_unsent_op_labelPatch">Изменение метки</string>
+    <string name="native_unsent_op_labelDelete">Удаление метки</string>
+    <string name="native_unsent_op_templateCreate">Новый шаблон</string>
+    <string name="native_unsent_op_templateReplace">Изменение шаблона</string>
+    <string name="native_unsent_op_templateDelete">Удаление шаблона</string>
+    <string name="native_unsent_op_templateInstantiate">Применение шаблона</string>
+    <string name="native_unsent_op_settingsPatch">Изменение настроек</string>
+    <string name="native_unsent_op_autoLabelRules">Правила автометок</string>
+    <string name="native_unsent_op_projectSuggestionRules">Правила подсказки проектов</string>
+    <string name="native_unsent_op_statePatch">Изменение состояния интерфейса</string>
+    <string name="native_unsent_op_troikiStart">Запуск плана на день</string>
+    <string name="native_unsent_op_troikiReset">Сброс плана на день</string>
+    <string name="native_unsent_op_harpoonAttach">Добавление в пару прыжков</string>
+    <string name="native_unsent_op_harpoonDetach">Удаление из пары прыжков</string>
+    <string name="native_settings_deviceHeading">Это устройство</string>
+    <string name="native_settings_deviceDescription">Хранится только на этом телефоне. Эти настройки не отправляются на сервер и не переносятся на другие устройства.</string>
+    <string name="native_settings_languageDeviceNote">Приложение использует язык телефона. На Android 13 и новее язык приложения можно выбрать отдельно в системных настройках. Выбор выше относится к веб-версии.</string>
+    <string name="native_settings_syncOnMetered">Синхронизация по мобильной сети</string>
+    <string name="native_settings_syncOnMeteredDescription">Когда выключено, фоновая синхронизация ждёт Wi-Fi. Обновление вручную работает при любом подключении.</string>
+    <string name="native_settings_serverHeading">Сервер</string>
+    <string name="native_settings_serverUnset">Сервер ещё не задан</string>
+    <string name="native_settings_changeServer">Другой сервер</string>
+    <string name="native_settings_changeServerDescription">Выйти и вернуться к вводу адреса.</string>
+    <string name="native_settings_confirmChangeServerTitle">Подключиться к другому серверу?</string>
+    <string name="native_settings_confirmChangeServerBody">На этом устройстве будет выполнен выход, а локальная копия данных удалена. На другом сервере другие данные, поэтому ничего перенести нельзя.</string>
+    <string name="native_settings_confirmChangeServerAction">Отключиться</string>
+    <string name="native_settings_clearLocalData">Очистить копию на устройстве</string>
+    <string name="native_settings_clearLocalDataDescription">Удалить локальную копию и загрузить её заново. Пригодится, если на экране что-то выглядит неправильно.</string>
+    <string name="native_settings_confirmClearLocalDataTitle">Очистить копию на этом устройстве?</string>
+    <string name="native_settings_confirmClearLocalDataBody">Всё, что уже есть на сервере, вернётся при следующей синхронизации. Вы останетесь в аккаунте.</string>
+    <string name="native_settings_confirmClearLocalDataAction">Очистить</string>
+    <plurals name="native_settings_confirmUnsent">
+        <item quantity="one">%1$d изменение ещё не дошло до сервера и будет потеряно.</item>
+        <item quantity="few">%1$d изменения ещё не дошли до сервера и будут потеряны.</item>
+        <item quantity="many">%1$d изменений ещё не дошли до сервера и будут потеряны.</item>
+        <item quantity="other">%1$d изменения ещё не дошли до сервера и будут потеряны.</item>
+    </plurals>
+    <string name="native_settings_localDataCleared">Копия на устройстве очищена и загружается заново.</string>
+    <string name="native_settings_aboutHeading">О приложении</string>
+    <string name="native_settings_versionUnknown">Неизвестно</string>
+    <string name="native_settings_ruleMaskEmpty">Введите маску и выберите хотя бы один элемент.</string>
+    <string name="native_settings_ruleAppliedAutomatically">Применяется автоматически при создании задачи.</string>
+    <string name="native_settings_ruleOnlySuggested">Только предлагается. Ничего не применяется само.</string>
+    <string name="native_settings_noLabelsYet">На это устройство ещё не загружено ни одной метки.</string>
+    <string name="native_settings_noProjectsYet">На это устройство ещё не загружено ни одного проекта.</string>
+    <string name="native_settings_saved">Сохранено</string>
+    <string name="native_settings_saveFailed">Не удалось сохранить изменение.</string>
+    <string name="native_account_needsConnection">Эти данные читаются с сервера при просмотре и не хранятся на устройстве, поэтому нужно подключение.</string>
+    <string name="native_account_clientUnknown">Другое</string>
 </resources>

@@ -7,8 +7,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.network.Clearable
+import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -47,6 +51,11 @@ class TaskListPresenterTest {
         override suspend fun park(taskLocalId: Long) = record("park $taskLocalId")
 
         override suspend fun planForWeek(taskLocalId: Long) = record("plan $taskLocalId")
+
+        override suspend fun edit(
+            taskLocalId: Long,
+            edit: TaskEdit,
+        ) = record("edit $taskLocalId $edit")
     }
 
     /** A sync engine that counts requests and can be held open mid-cycle. */
@@ -143,6 +152,24 @@ class TaskListPresenterTest {
             runCurrent()
 
             assertContentEquals(listOf("park 1", "plan 2"), actions.calls)
+        }
+
+    @Test
+    fun `moving a task to a day keeps the time it is due at, and a task already there is left alone`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            val zone = ZoneId.of("Europe/Moscow")
+            val today = LocalDate.of(2026, 3, 12)
+            val dueToday = today.atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
+            val tomorrow = today.plusDays(1)
+
+            presenter.moveToDay(task(1, dueAt = dueToday, dueHasTime = true), tomorrow, zone)
+            presenter.moveToDay(task(2, dueAt = tomorrow.atStartOfDay(zone).toInstant().toEpochMilli()), tomorrow, zone)
+            runCurrent()
+
+            val tomorrowEvening = tomorrow.atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
+            val expected = TaskEdit(dueAt = Clearable.Set(tomorrowEvening))
+            assertContentEquals(listOf("edit 1 $expected"), actions.calls)
         }
 
     @Test

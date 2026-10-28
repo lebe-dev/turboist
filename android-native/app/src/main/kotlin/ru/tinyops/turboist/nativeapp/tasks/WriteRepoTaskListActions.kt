@@ -1,16 +1,17 @@
 package ru.tinyops.turboist.nativeapp.tasks
 
 import ru.tinyops.turboist.core.model.PlanState
+import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.TaskWriteRepo
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * The list screens' four writes, made against the shared write path.
+ * The list screens' five writes, made against the shared write path.
  *
  * Nothing is decided here: every one of these applies its change to the replica
  * and queues it for the server in a single transaction, and refuses what the
- * server would refuse. This class only names the four the lists use.
+ * server would refuse. This class only names the five the lists use.
  */
 @Singleton
 class WriteRepoTaskListActions
@@ -32,5 +33,12 @@ class WriteRepoTaskListActions
 
         override suspend fun planForWeek(taskLocalId: Long) {
             tasks.plan(taskLocalId, PlanState.WEEK)
+        }
+
+        override suspend fun edit(
+            taskLocalId: Long,
+            edit: TaskEdit,
+        ) {
+            tasks.patch(taskLocalId, edit)
         }
     }

@@ -121,7 +121,12 @@ class HttpSessionControl
             auth.logoutOthers()
         }
 
-        override suspend fun unsentChangeCount(): Int = replica.unsentChangeCount()
+        override suspend fun unsentChangeCount(): Int {
+            // Asked right before the user is shown what they would lose, so what
+            // can still be sent is sent first and the number is the real loss.
+            replica.sendWaiting()
+            return replica.unsentChangeCount()
+        }
 
         override suspend fun signOutEverywhere() {
             // The confirmation has already been given by the screen, with the
