@@ -52,7 +52,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.nativeapp.R
@@ -334,27 +333,6 @@ private fun QuickDateChip(
         label = { Text(text) },
         modifier = Modifier.semantics { contentDescription = text },
     )
-}
-
-/** The phase of the day the task is meant for. */
-@Composable
-internal fun DayPartSheet(
-    dayPart: DayPart,
-    onSelect: (DayPart) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    FieldSheet(title = stringResource(R.string.page_task_dayPart), onDismiss = onDismiss) {
-        for (part in DAY_PART_CHOICES) {
-            SheetChoiceRow(
-                text = stringResource(dayPartLabel(part)),
-                selected = part == dayPart,
-                onSelect = {
-                    onSelect(part)
-                    onDismiss()
-                },
-            )
-        }
-    }
 }
 
 /**

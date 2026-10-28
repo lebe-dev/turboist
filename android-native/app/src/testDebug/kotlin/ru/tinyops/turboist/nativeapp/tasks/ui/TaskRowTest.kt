@@ -177,14 +177,15 @@ class TaskRowTest {
     fun `a habit of putting a task off is worth showing`() {
         show(task(1, postponeCount = 3))
 
-        compose.onNodeWithText(text(R.string.task_postponedTimes, 3)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.task_postponedTimes, 3)).assertIsDisplayed()
+        compose.onNodeWithText("3").assertIsDisplayed()
     }
 
     @Test
     fun `one slip is not worth showing`() {
         show(task(1, postponeCount = 1))
 
-        compose.onNodeWithText(text(R.string.task_postponedTimes, 1)).assertDoesNotExist()
+        compose.onNodeWithContentDescription(text(R.string.task_postponedTimes, 1)).assertDoesNotExist()
     }
 
     @Test

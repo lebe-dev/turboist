@@ -85,25 +85,21 @@ fun TaskDetailRelations(
             )
         }
     }
-    DetailCard {
-        if (relations.isEmpty()) {
-            Text(
-                text = stringResource(R.string.page_task_relationEmpty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            )
-        }
-        for (group in TaskRelationGroup.entries) {
-            val links = relations.filter { it.group == group }
-            if (links.isEmpty()) continue
-            Text(
-                text = stringResource(groupLabel(group)),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
-            )
-            for (link in links) RelationRow(link, onRemove, onOpen)
+    // With nothing linked the heading and its add button say all there is; an
+    // empty card announcing it would cost a row on every task that has none.
+    if (relations.isNotEmpty()) {
+        DetailCard {
+            for (group in TaskRelationGroup.entries) {
+                val links = relations.filter { it.group == group }
+                if (links.isEmpty()) continue
+                Text(
+                    text = stringResource(groupLabel(group)),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
+                )
+                for (link in links) RelationRow(link, onRemove, onOpen)
+            }
         }
     }
 

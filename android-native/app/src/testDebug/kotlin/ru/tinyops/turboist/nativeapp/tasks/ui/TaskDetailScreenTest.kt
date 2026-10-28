@@ -316,10 +316,21 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `a task with no links says so rather than showing empty headings`() {
+    fun `a part of the day is picked with one tap on its icon`() {
         show(stateOf(task(1)))
 
-        compose.onNodeWithText(text(R.string.page_task_relationEmpty)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.native_task_whenExpand)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.task_dayPart_evening)).performScrollTo().performClick()
+
+        assertEquals(listOf("dayPart evening"), performed)
+    }
+
+    @Test
+    fun `a task with no links shows only the way to add one`() {
+        show(stateOf(task(1)))
+
+        compose.onNodeWithText(text(R.string.page_task_addRelation)).performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText(text(R.string.page_task_relationEmpty)).assertCountEquals(0)
         compose.onAllNodesWithText(text(R.string.page_task_relation_blockedBy)).assertCountEquals(0)
     }
 

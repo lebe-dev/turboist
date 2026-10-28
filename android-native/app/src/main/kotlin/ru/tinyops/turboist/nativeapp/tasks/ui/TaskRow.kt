@@ -321,10 +321,10 @@ private fun MetaLine(
     val due = dueLabel(task, zone, today)
     val recurring = task.recurrenceRule != null || task.sourceTaskLocalId != null
     val relations = task.relationSummary.total
-    val postponed = task.postponeCount >= POSTPONE_WORTH_SHOWING
+    val postpone = postponeTone(task.postponeCount, completed)
     val plan = task.planState
     val nothingToShow =
-        due == null && !recurring && relations == 0 && !postponed && projectTitle == null &&
+        due == null && !recurring && relations == 0 && postpone == null && projectTitle == null &&
             task.labels.isEmpty() && plan != PlanState.WEEK && plan != PlanState.BACKLOG
     if (nothingToShow) return
 
@@ -343,7 +343,7 @@ private fun MetaLine(
             )
         }
         if (due != null) DueText(due, if (completed) DueUrgency.ORDINARY else dueUrgency(task.dueAt, zone, today))
-        if (postponed) MetaText(stringResource(R.string.task_postponedTimes, task.postponeCount))
+        if (postpone != null) PostponeBadge(task.postponeCount, postpone)
         if (relations > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 MarkerIcon(Icons.Outlined.Link, R.string.task_relationCountLabel, argument = relations)
@@ -450,9 +450,3 @@ private const val SELECTED_ROW_BLEND = 0.45f
 
 /** How far one level of nesting shifts a row, in density-independent pixels. */
 private const val INDENT_STEP_DP = 16
-
-/**
- * How many postponements are worth showing. One is a normal day; a habit of
- * putting the same task off is the thing worth noticing.
- */
-private const val POSTPONE_WORTH_SHOWING = 2

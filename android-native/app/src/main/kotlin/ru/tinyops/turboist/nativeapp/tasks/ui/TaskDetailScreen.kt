@@ -40,7 +40,6 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Splitscreen
-import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
@@ -179,7 +178,7 @@ data class TaskDetailCallbacks(
 )
 
 /** The field a sheet is currently open for, or nothing when none is. */
-private enum class TaskField { DATE, DAY_PART, DEADLINE, REPEAT, PLAN, LABELS, ACTIONS, MOVE }
+private enum class TaskField { DATE, DEADLINE, REPEAT, PLAN, LABELS, ACTIONS, MOVE }
 
 /**
  * One task, whole.
@@ -366,7 +365,13 @@ private fun TaskDetailBody(
                 )
                 if (state.blockers.isNotEmpty()) BlockedNotice(state.blockers, callbacks.onOpenTask)
 
-                WhenCard(task = task, zone = zone, today = today, onOpen = { field = it })
+                WhenCard(
+                    task = task,
+                    zone = zone,
+                    today = today,
+                    onOpen = { field = it },
+                    onDayPart = callbacks.onDayPart,
+                )
 
                 SectionHeading(stringResource(R.string.native_task_sectionPlanning))
                 DetailCard {
@@ -511,8 +516,6 @@ private fun TaskFieldSheets(
                 onPickTime = callbacks.onDeadlineTime,
                 onDismiss = onClose,
             )
-
-        TaskField.DAY_PART -> DayPartSheet(task.dayPart, callbacks.onDayPart, onClose)
 
         TaskField.PLAN -> PlanSheet(task.planState, callbacks.onPlanState, onClose)
 
@@ -1002,6 +1005,7 @@ private fun WhenCard(
     zone: ZoneId,
     today: LocalDate,
     onOpen: (TaskField) -> Unit,
+    onDayPart: (DayPart) -> Unit,
 ) {
     val due = task.dueDate(zone)
     val dueTime = timeLabel(task.dueTime(zone))
@@ -1068,13 +1072,7 @@ private fun WhenCard(
             valueTint = dateTint,
             onClick = { onOpen(TaskField.DATE) },
         )
-        DetailRow(
-            label = stringResource(R.string.page_task_dayPart),
-            value = stringResource(dayPartLabel(task.dayPart)),
-            leading = Icons.Outlined.WbSunny,
-            valueTint = MaterialTheme.colorScheme.onSurface.takeIf { task.dayPart != DayPart.NONE },
-            onClick = { onOpen(TaskField.DAY_PART) },
-        )
+        DayPartIconRow(task.dayPart, onDayPart)
         DetailRow(
             label = stringResource(R.string.native_task_deadline),
             value = dateLabel(deadline, today),
