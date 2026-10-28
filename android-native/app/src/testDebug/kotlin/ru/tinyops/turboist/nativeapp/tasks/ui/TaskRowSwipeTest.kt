@@ -1,8 +1,10 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import android.app.Application
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -64,7 +66,7 @@ class TaskRowSwipeTest {
                             onToggleComplete = { taken += "complete ${it.localId}" },
                             onOpen = { taken += "open ${it.localId}" },
                             onPark = { taken += "park ${it.localId}" },
-                            onPlanForWeek = { taken += "week ${it.localId}" },
+                            onMoveToDay = { task, day -> taken += "day ${task.localId} $day" },
                             onStartSelection = { taken += "select ${it.localId}" },
                             onSelectToggle = {},
                             onClearSelection = {},
@@ -95,7 +97,7 @@ class TaskRowSwipeTest {
         swipeTowardsStart("Buy milk")
 
         compose.onNodeWithText(text(R.string.native_swipe_backlog)).assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.native_swipe_week)).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.common_tomorrow)).assertIsDisplayed()
         compose.onNodeWithText(text(R.string.native_swipe_select)).assertIsDisplayed()
         assertEquals(emptyList(), taken)
     }
@@ -111,13 +113,25 @@ class TaskRowSwipeTest {
     }
 
     @Test
-    fun `a parked task is offered the week and not the backlog it is already in`() {
+    fun `a parked task is offered tomorrow and not the backlog it is already in`() {
         show(task(1, title = "Buy milk", dayPart = DayPart.MORNING, planState = PlanState.BACKLOG))
 
         swipeTowardsStart("Buy milk")
         compose.onNodeWithText(text(R.string.native_swipe_backlog)).assertDoesNotExist()
-        compose.onNodeWithText(text(R.string.native_swipe_week)).performClick()
+        compose.onNodeWithText(text(R.string.common_tomorrow)).performClick()
 
-        assertEquals(listOf("week 1"), taken)
+        assertEquals(listOf("day 1 ${today.plusDays(1)}"), taken)
+    }
+
+    @Test
+    fun `a task already on tomorrow is not offered tomorrow again`() {
+        val tomorrow = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        show(task(1, title = "Buy milk", dayPart = DayPart.MORNING, dueAt = tomorrow))
+
+        swipeTowardsStart("Buy milk")
+
+        // The row's own due label still says when the task is; only the action is gone.
+        compose.onNodeWithText(text(R.string.native_swipe_backlog)).assertIsDisplayed()
+        compose.onAllNodesWithText(text(R.string.common_tomorrow)).assertCountEquals(1)
     }
 }

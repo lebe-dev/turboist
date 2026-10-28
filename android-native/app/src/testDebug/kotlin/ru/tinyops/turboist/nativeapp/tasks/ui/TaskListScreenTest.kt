@@ -23,6 +23,7 @@ import org.robolectric.annotation.Config
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
@@ -94,6 +95,13 @@ class TaskListScreenTest {
         override suspend fun planForWeek(taskLocalId: Long) {
             refuseWith?.let { throw it }
         }
+
+        override suspend fun edit(
+            taskLocalId: Long,
+            edit: TaskEdit,
+        ) {
+            refuseWith?.let { throw it }
+        }
     }
 
     private fun showDay(empty: EmptyListText? = dayEmptyText()) {
@@ -117,7 +125,7 @@ class TaskListScreenTest {
                             onToggleComplete = screen::toggleComplete,
                             onOpen = {},
                             onPark = screen::park,
-                            onPlanForWeek = screen::planForWeek,
+                            onMoveToDay = { task, day -> screen.moveToDay(task, day, zone) },
                             onStartSelection = { screen.startSelection(it.localId) },
                             onSelectToggle = { screen.toggleSelection(it.localId) },
                             onClearSelection = screen::clearSelection,

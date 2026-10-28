@@ -66,6 +66,7 @@ import ru.tinyops.turboist.nativeapp.tasks.SectionHeading
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 import ru.tinyops.turboist.nativeapp.tasks.TaskListSection
 import ru.tinyops.turboist.nativeapp.tasks.TaskListUiState
+import ru.tinyops.turboist.nativeapp.tasks.dueDate
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.roundToInt
@@ -94,7 +95,8 @@ data class TaskListCallbacks(
     val onToggleComplete: (Task) -> Unit,
     val onOpen: (Task) -> Unit,
     val onPark: (Task) -> Unit,
-    val onPlanForWeek: (Task) -> Unit,
+    /** Puts a task on the given day — the swiped row's "tomorrow". */
+    val onMoveToDay: (Task, LocalDate) -> Unit,
     val onStartSelection: (Task) -> Unit,
     val onSelectToggle: (Task) -> Unit,
     val onClearSelection: () -> Unit,
@@ -237,9 +239,10 @@ private data class RowAction(
  * A row with its two gestures.
  *
  * Swiping towards the end finishes the task. Swiping towards the start only
- * uncovers the actions behind the row — the week or the backlog, whichever the
- * task is not already in, and picking it — and the row stays open until one of
- * them is tapped or the row is swiped or tapped shut. Taking the action on the
+ * uncovers the actions behind the row — tomorrow, unless the task is already
+ * on it; the backlog, unless it is already parked; and picking it — and the
+ * row stays open until one of them is tapped or the row is swiped or tapped
+ * shut. Taking the action on the
  * swipe itself made it far too easy to park a task by accident while scrolling.
  *
  * Neither gesture dismisses the row: it leaves the list only if the change takes
@@ -264,12 +267,13 @@ private fun SwipeableTaskRow(
     val close: () -> Unit = { scope.launch { swipe.animateTo(RowSwipe.SETTLED) } }
     val actions =
         buildList {
-            if (task.planState != PlanState.WEEK) {
+            val tomorrow = today.plusDays(1)
+            if (task.dueDate(zone) != tomorrow) {
                 add(
                     RowAction(
                         Icons.Outlined.EventAvailable,
-                        R.string.native_swipe_week,
-                    ) { callbacks.onPlanForWeek(task) },
+                        R.string.common_tomorrow,
+                    ) { callbacks.onMoveToDay(task, tomorrow) },
                 )
             }
             if (task.planState != PlanState.BACKLOG) {

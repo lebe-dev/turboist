@@ -17,9 +17,12 @@ import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.sync.write.TaskDestination
+import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.quickadd.pickRecent
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
+import java.time.LocalDate
+import java.time.ZoneId
 
 /** Everything a task list screen renders. */
 data class TaskListUiState(
@@ -109,7 +112,7 @@ data class BulkDestinations(
 /**
  * The writes a task list can make.
  *
- * A narrow port onto the write path, so a list screen depends on the four things
+ * A narrow port onto the write path, so a list screen depends on the few things
  * it actually does rather than on the whole catalogue of task mutations — and so
  * a test of a screen needs no database.
  */
@@ -123,6 +126,12 @@ interface TaskListActions {
 
     /** Commits a task to the current week. */
     suspend fun planForWeek(taskLocalId: Long)
+
+    /** Applies a field edit. The edit carries only the fields that changed. */
+    suspend fun edit(
+        taskLocalId: Long,
+        edit: TaskEdit,
+    )
 }
 
 /**
@@ -241,6 +250,20 @@ class TaskListPresenter(
     /** Commits a task to the current week, taking the open work under it along. */
     fun planForWeek(task: Task) {
         scope.launch { report { actions.planForWeek(task.localId) } }
+    }
+
+    /**
+     * Puts a task on [day], keeping the time of day it is due at, if any — the
+     * one-tap "tomorrow" a swiped row offers.
+     */
+    fun moveToDay(
+        task: Task,
+        day: LocalDate,
+        zone: ZoneId,
+    ) {
+        val edit = dueDateEdit(task, day, zone)
+        if (edit == TaskEdit()) return
+        scope.launch { report { actions.edit(task.localId, edit) } }
     }
 
     /** Starts picking tasks, with the one that was long-pressed already picked. */

@@ -180,6 +180,9 @@ class TaskWriteRepo(
             // left scheduled would keep surfacing in the day views.
             val parks =
                 edit.planState == PlanState.BACKLOG && row.planState != PlanState.BACKLOG && edit.dueAt == null
+            // And the inverse, as the server does it: giving a parked task a day
+            // takes it out of the backlog, unless the edit names a plan itself.
+            val unparks = edit.dueAt is Clearable.Set && edit.planState == null && row.planState == PlanState.BACKLOG
             val edited =
                 row.copy(
                     title = edit.title ?: row.title,
@@ -190,7 +193,7 @@ class TaskWriteRepo(
                     deadlineAt = edit.deadlineAt.applyTo(row.deadlineAt),
                     deadlineHasTime = edit.deadlineHasTime ?: row.deadlineHasTime,
                     dayPart = edit.dayPart ?: row.dayPart,
-                    planState = edit.planState ?: row.planState,
+                    planState = if (unparks) PlanState.NONE else edit.planState ?: row.planState,
                     recurrenceRule = edit.recurrenceRule.applyTo(row.recurrenceRule),
                     isPrivate = edit.isPrivate ?: row.isPrivate,
                     isComplex = edit.isComplex ?: row.isComplex,

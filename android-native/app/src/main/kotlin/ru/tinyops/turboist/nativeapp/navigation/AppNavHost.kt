@@ -1,5 +1,7 @@
 package ru.tinyops.turboist.nativeapp.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -66,6 +68,12 @@ fun AppNavHost(
         navController = navController,
         startDestination = TodayRoute,
         modifier = modifier,
+        // Moving between screens is instant: a cross-fade on every tap made the
+        // app feel slower than it is and showed two screens at once mid-way.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
     ) {
         composable<TodayRoute> { screens.today(openTask) }
         composable<TomorrowRoute> { screens.tomorrow(openTask) }

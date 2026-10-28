@@ -159,6 +159,18 @@ class PlanCascadeTest : WriteTest() {
         }
 
     @Test
+    fun `giving a parked task a day takes it out of the backlog`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val task = givenTask(title = "Release", serverId = 11, projectLocalId = projectLocalId)
+            tasks.plan(task, PlanState.BACKLOG)
+
+            tasks.patch(task, TaskEdit(dueAt = Clearable.Set(NOW + 86_400_000L)))
+
+            assertEquals(PlanState.NONE, assertNotNull(db.tasks().byLocalId(task)).planState)
+        }
+
+    @Test
     fun `planning queues one request and lets the server cascade on its side`() =
         runTest {
             val projectLocalId = givenProject(givenContext())

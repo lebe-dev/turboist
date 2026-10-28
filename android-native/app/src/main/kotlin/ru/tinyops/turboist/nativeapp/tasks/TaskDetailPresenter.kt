@@ -164,12 +164,6 @@ data class SubtaskDetached(
  * disagree about what either does.
  */
 interface TaskDetailActions : TaskListActions {
-    /** Applies a field edit. The edit carries only the fields that changed. */
-    suspend fun edit(
-        taskLocalId: Long,
-        edit: TaskEdit,
-    )
-
     /** Closes a task without claiming it was finished. */
     suspend fun cancel(taskLocalId: Long)
 

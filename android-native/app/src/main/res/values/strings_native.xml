@@ -7,14 +7,14 @@
   prefixed `native_`, which no generated name can take.
 -->
 <resources>
-    <string name="native_app_name">Turboist (Beta)</string>
+    <string name="native_app_name" translatable="false">Turboist (Beta)</string>
 
     <!-- Shell chrome -->
     <string name="native_connecting">Connecting…</string>
     <string name="native_drawer_open">Open navigation</string>
     <string name="native_nav_group_more">More</string>
     <!-- Planned against a cap, for example 5 of 12 tasks planned for the week. -->
-    <string name="native_count_ratio">%1$d/%2$d</string>
+    <string name="native_count_ratio" translatable="false">%1$d/%2$d</string>
 
     <!-- Destination names the shared locale files have no wording for -->
     <string name="native_dest_project">Project</string>
@@ -58,10 +58,10 @@
     <!-- Task detail wording the shared locale files have no entry for. The
          priority names are the same short codes the web client shows and are not
          translated: they are a scale, not a sentence. -->
-    <string name="native_priority_p1">P1</string>
-    <string name="native_priority_p2">P2</string>
-    <string name="native_priority_p3">P3</string>
-    <string name="native_priority_p4">P4</string>
+    <string name="native_priority_p1" translatable="false">P1</string>
+    <string name="native_priority_p2" translatable="false">P2</string>
+    <string name="native_priority_p3" translatable="false">P3</string>
+    <string name="native_priority_p4" translatable="false">P4</string>
     <string name="native_task_deadline">Deadline</string>
     <string name="native_task_time">Time</string>
     <string name="native_task_clearTime">Clear time</string>
@@ -108,7 +108,7 @@
          "Today, 5 Sep 2026". -->
     <string name="native_task_dayNamed">%1$s, %2$s</string>
     <!-- Stands in for a field the task has no value for. -->
-    <string name="native_task_unset">\u2014</string>
+    <string name="native_task_unset" translatable="false">\u2014</string>
     <!-- Why a link between two tasks was turned down. Both refusals are the
          server's rules, answered on the device so the user hears them while the
          picker is still open rather than a day later. -->
@@ -160,7 +160,7 @@
     <string name="native_section_currentColumn">Where it is now</string>
     <string name="native_context_tasks">Tasks</string>
     <!-- A narrowing and how much it would show, for example "Archived 3". -->
-    <string name="native_count_suffix">%1$s %2$d</string>
+    <string name="native_count_suffix" translatable="false">%1$s %2$d</string>
 
     <!-- The completion history. The device keeps a recent stretch of finished
          work and the server keeps the rest, so this screen has an edge to it that
@@ -258,7 +258,7 @@
          choices kept on the device, and the two ways of letting go of a server. -->
     <string name="native_settings_deviceHeading">This device</string>
     <string name="native_settings_deviceDescription">Kept on this phone only. These choices are never sent to the server and never follow you to another device.</string>
-    <string name="native_settings_languageDeviceNote">This app follows your phone\'s language. The choice above is what the web app uses.</string>
+    <string name="native_settings_languageDeviceNote">This app follows your phone\'s language. On Android 13 and later you can pick a language for the app alone in the system settings. The choice above is what the web app uses.</string>
     <string name="native_settings_syncOnMetered">Sync on mobile data</string>
     <string name="native_settings_syncOnMeteredDescription">When this is off, background catch-ups wait for Wi-Fi. A refresh you ask for still runs on any connection.</string>
     <string name="native_settings_serverHeading">Server</string>
@@ -305,7 +305,6 @@
     <string name="native_selection_more">More</string>
 
     <!-- The actions a row uncovers when it is swiped towards the start: short labels under each icon. -->
-    <string name="native_swipe_week">This week</string>
     <string name="native_swipe_backlog">Backlog</string>
     <string name="native_swipe_select">Select</string>
 

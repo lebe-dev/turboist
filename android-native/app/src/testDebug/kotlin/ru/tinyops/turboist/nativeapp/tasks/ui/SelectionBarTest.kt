@@ -75,7 +75,7 @@ class SelectionBarTest {
                             onToggleComplete = {},
                             onOpen = {},
                             onPark = {},
-                            onPlanForWeek = {},
+                            onMoveToDay = { _, _ -> },
                             onStartSelection = {},
                             onSelectToggle = {},
                             onClearSelection = { taken += "clear" },

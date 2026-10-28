@@ -10,6 +10,7 @@ import ru.tinyops.turboist.core.sync.write.NewProject
 import ru.tinyops.turboist.core.sync.write.ProjectEdit
 import ru.tinyops.turboist.core.sync.write.ProjectStatusAction
 import ru.tinyops.turboist.core.sync.write.TaskDestination
+import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import ru.tinyops.turboist.nativeapp.tasks.TaskListActions
@@ -177,7 +178,7 @@ class RecordingContextActions : ContextActions {
     }
 }
 
-/** The four task writes a board shares with every list, remembered rather than performed. */
+/** The task writes a board shares with every list, remembered rather than performed. */
 class RecordingTaskActions : TaskListActions {
     val calls = mutableListOf<String>()
     var refuseWith: WriteRefused? = null
@@ -194,6 +195,11 @@ class RecordingTaskActions : TaskListActions {
     override suspend fun park(taskLocalId: Long) = record("park $taskLocalId")
 
     override suspend fun planForWeek(taskLocalId: Long) = record("plan $taskLocalId")
+
+    override suspend fun edit(
+        taskLocalId: Long,
+        edit: TaskEdit,
+    ) = record("edit $taskLocalId $edit")
 }
 
 /** A sync engine that counts requests instead of running one. */
