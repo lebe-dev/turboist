@@ -37,6 +37,26 @@ class ErrorMappingTest {
     }
 
     @Test
+    fun `a web page answering in place of the server reads as the server being out of reach`() {
+        NetworkFixture().use { fixture ->
+            // What a hotel or train network hands back until its sign-in page has
+            // been filled in. The request never reached the server, so a queued
+            // write must wait for it rather than be counted as one it broke on.
+            fixture.server.enqueue(
+                MockResponse.Builder()
+                    .code(200)
+                    .addHeader("Content-Type", "text/html; charset=utf-8")
+                    .body("<html><body>Please sign in to the network</body></html>")
+                    .build(),
+            )
+
+            assertFailsWith<ApiException.Network> {
+                runBlocking { fixture.network.tasks.complete(3, completeBody()) }
+            }
+        }
+    }
+
+    @Test
     fun `a replaced history tells the replica which epoch to start over on`() {
         NetworkFixture().use { fixture ->
             fixture.server.enqueue(

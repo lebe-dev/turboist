@@ -3,6 +3,7 @@ package ru.tinyops.turboist.core.sync.trigger
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -29,6 +30,12 @@ enum class SyncReason {
 
     /** The user asked, by pulling the list down. */
     MANUAL_REFRESH,
+
+    /** Something was changed on this device and is waiting to be sent. */
+    LOCAL_WRITE,
+
+    /** A cycle the server could not finish is being tried again after the wait it earned. */
+    RETRY,
     ;
 
     /** How the reason reads in a log line. */
@@ -41,6 +48,8 @@ enum class SyncReason {
                 APP_FOREGROUND -> "the app came to the front"
                 PERIODIC -> "the periodic background job ran"
                 MANUAL_REFRESH -> "the user asked for a refresh"
+                LOCAL_WRITE -> "a change was made on this device"
+                RETRY -> "an earlier attempt did not finish"
             }
 }
 
@@ -64,9 +73,19 @@ enum class SyncReason {
  */
 class SyncScheduler(
     private val cycle: SyncCycle,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     private val windowMillis: Long = DEFAULT_WINDOW_MILLIS,
 ) {
+    /**
+     * The one pending retry of a turn the server could not finish, if any.
+     *
+     * One, because every retry asks the same question: a second failure moves
+     * the timer rather than adding another, and a turn that finished by any
+     * route makes it pointless.
+     */
+    private var retry: Job? = null
+    private val retryLock = Any()
+
     /** Numbers every request, so a request can be placed in time against a cycle. */
     private val requested = AtomicLong()
 
@@ -123,6 +142,7 @@ class SyncScheduler(
         val covering = requested.get()
         val result = attempt(reason)
         served.updateAndGet { previous -> maxOf(previous, covering) }
+        scheduleRetry(result)
         when (result) {
             SyncCycleResult.Synced -> Log.i(LOG_TAG, "Synced because ${reason.phrase}")
             SyncCycleResult.Offline ->
@@ -134,6 +154,30 @@ class SyncScheduler(
                 Log.w(LOG_TAG, "The sync cycle did not complete; asked because ${reason.phrase}", result.cause)
         }
         return result
+    }
+
+    /**
+     * Arranges another turn when the last one was held up by a server that will
+     * probably take the write a little later.
+     *
+     * This is not polling: it happens only while a write is waiting on a server
+     * that was reached and was unwell or busy, and the wait grows with each
+     * failure up to the drain's own ceiling. Without it, an edit held up by one
+     * server error would sit until another device happened to write, the app was
+     * brought back to the front, or the quarter-hourly job came round.
+     */
+    private fun scheduleRetry(result: SyncCycleResult) {
+        val after = (result as? SyncCycleResult.Refused)?.retryAfterMillis
+        synchronized(retryLock) {
+            retry?.cancel()
+            retry =
+                after?.let { wait ->
+                    scope.launch {
+                        delay(wait)
+                        requestSync(SyncReason.RETRY)
+                    }
+                }
+        }
     }
 
     /**

@@ -2,6 +2,7 @@ package ru.tinyops.turboist.core.sync.drain
 
 import android.util.Log
 import androidx.room.withTransaction
+import kotlinx.coroutines.CancellationException
 import ru.tinyops.turboist.core.database.TurboistDatabase
 import ru.tinyops.turboist.core.database.entity.OutboxOpRow
 import ru.tinyops.turboist.core.database.sync.OutboxState
@@ -138,6 +139,10 @@ class OutboxDrainer(
                 setAside(row.copy(attempts = attempts), broke.code, broke.messageOrType(), broke.status)
                 quarantined++
             } catch (refused: ApiException) {
+                // An earlier attempt at this very write is still running on the
+                // server. That is the opposite of a refusal: the write is about to
+                // land, and its repeat will be answered from the server's record.
+                if (refused.code == ApiErrorCodes.IDEMPOTENCY_IN_FLIGHT) return stall(row, refused, sent, quarantined)
                 Log.w(DRAIN_LOG_TAG, "The server refused a queued change: ${refused.code}", refused)
                 setAside(row, quarantineCode(refused), refused.messageOrType(), refused.status, refused.blockerIds)
                 quarantined++
@@ -145,9 +150,33 @@ class OutboxDrainer(
                 val unreachable =
                     ApiException.Network(transport.message ?: "the request did not reach the server", transport)
                 return stall(row, unreachable, sent, quarantined)
+            } catch (cancelled: CancellationException) {
+                // The op stays in flight, which is safe: the next pass sends it
+                // again under the same key.
+                throw cancelled
+            } catch (unreadable: Exception) {
+                // An answer this build could not make sense of — a body cut short,
+                // a shape it does not know. The write may well have landed, so it
+                // is repeated under its key like a server that broke, and set aside
+                // after as many attempts: left to throw, it would stay at the head
+                // and stop every write behind it for as long as the app is installed.
+                val attempts = row.attempts + 1
+                val broke = unreadableAnswer(unreadable)
+                Log.w(DRAIN_LOG_TAG, "The answer to a queued change could not be read (attempt $attempts)", unreadable)
+                if (attempts < serverErrorLimit) return stall(row, broke, sent, quarantined, attempts)
+                setAside(row.copy(attempts = attempts), broke.code, broke.messageOrType(), status = null)
+                quarantined++
             }
         }
     }
+
+    private fun unreadableAnswer(cause: Exception): ApiException.Server =
+        ApiException.Server(
+            code = ApiErrorCodes.UNKNOWN_ERROR,
+            status = 0,
+            details = null,
+            message = "the server's answer could not be read: ${cause.messageOrType()}",
+        )
 
     /**
      * Sends one write and records what the server made of it.

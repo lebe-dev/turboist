@@ -19,6 +19,7 @@ import ru.tinyops.turboist.core.sync.SyncCycle
 import ru.tinyops.turboist.core.sync.SyncCycleResult
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * When the app syncs, and — just as important — when it does not.
@@ -39,6 +40,8 @@ class SyncTriggersTest {
     private val signedIn = MutableStateFlow(true)
     private val foreground = MutableStateFlow(false)
     private val cycles = AtomicInteger()
+    private val localWrites = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    private val unsent = AtomicInteger()
 
     @Test
     fun `the change stream is open only while the app is in front of the user`() =
@@ -185,6 +188,99 @@ class SyncTriggersTest {
             assertEquals(1, schedule.calls.count { it == "keep" })
         }
 
+    @Test
+    fun `a change made on this device is sent without waiting for anything else`() =
+        runTest {
+            foreground.value = true
+            start()
+            runCurrent()
+
+            unsent.set(1)
+            localWrites.emit(Unit)
+            advanceTimeBy(WINDOW + 1)
+            runCurrent()
+
+            assertEquals(
+                1,
+                cycles.get(),
+                "with the server in reach, an edit must not sit in the queue until another device happens to write",
+            )
+        }
+
+    @Test
+    fun `a burst of edits on this device is one cycle`() =
+        runTest {
+            foreground.value = true
+            start()
+            runCurrent()
+
+            repeat(5) { localWrites.emit(Unit) }
+            advanceTimeBy(WINDOW + 1)
+            runCurrent()
+
+            assertEquals(1, cycles.get())
+        }
+
+    @Test
+    fun `putting the app away with unsent changes hands them to the system`() =
+        runTest {
+            foreground.value = true
+            start()
+            runCurrent()
+
+            unsent.set(2)
+            foreground.value = false
+            runCurrent()
+
+            assertEquals(
+                "sync:LOCAL_WRITE",
+                schedule.calls.last(),
+                "a process killed in the background must not take the only reason to send them with it",
+            )
+        }
+
+    @Test
+    fun `putting the app away with nothing unsent asks the system for nothing`() =
+        runTest {
+            foreground.value = true
+            start()
+            runCurrent()
+            val before = schedule.calls.toList()
+
+            foreground.value = false
+            runCurrent()
+
+            assertEquals(before, schedule.calls)
+        }
+
+    @Test
+    fun `a change made while the app is in the background is handed to the system`() =
+        runTest {
+            start()
+
+            unsent.set(1)
+            localWrites.emit(Unit)
+            advanceTimeBy(WINDOW + 1)
+            runCurrent()
+
+            assertTrue("sync:LOCAL_WRITE" in schedule.calls, "the process that made it may not live to send it")
+            assertEquals(0, cycles.get(), "the background is the system's, and so is the choice about mobile data")
+        }
+
+    @Test
+    fun `a signed out app ignores changes made on the device`() =
+        runTest {
+            signedIn.value = false
+            foreground.value = true
+            start()
+
+            localWrites.emit(Unit)
+            advanceTimeBy(WINDOW + 1)
+            runCurrent()
+
+            assertEquals(0, cycles.get())
+        }
+
     private fun TestScope.start() {
         val scheduler =
             SyncScheduler(
@@ -203,6 +299,8 @@ class SyncTriggersTest {
             scheduler = scheduler,
             signedIn = signedIn,
             foreground = foreground,
+            localWrites = localWrites,
+            unsentCount = { unsent.get() },
         ).start(backgroundScope)
         runCurrent()
     }

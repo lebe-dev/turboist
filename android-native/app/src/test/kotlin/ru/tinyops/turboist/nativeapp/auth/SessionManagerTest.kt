@@ -494,6 +494,42 @@ class SessionManagerTest {
         }
 
     @Test
+    fun `signing out sends what it can before asking to discard anything`() =
+        runTest {
+            val gateway = FakeAuthGateway()
+            val replica = FakeLocalReplica(unsent = 3, reachable = 3)
+            val session = manager(gateway = gateway, addresses = FakeServerAddressStore(ADDRESS), replica = replica)
+            var asked = false
+
+            assertTrue(
+                session.logOut {
+                    asked = true
+                    false
+                },
+            )
+
+            assertEquals(1, replica.sendAttempts)
+            assertFalse(asked, "changes the server could still take are sent, not offered up for loss")
+            assertEquals(1, replica.wipes)
+        }
+
+    @Test
+    fun `signing out with the server out of reach still asks about what is left`() =
+        runTest {
+            val replica = FakeLocalReplica(unsent = 3, reachable = 1)
+            val session = manager(addresses = FakeServerAddressStore(ADDRESS), replica = replica)
+            var offered = 0
+
+            session.logOut { count ->
+                offered = count
+                false
+            }
+
+            assertEquals(2, offered, "the number shown is what would really be lost")
+            assertEquals(0, replica.wipes)
+        }
+
+    @Test
     fun `signing out discards queued work once the user agrees`() =
         runTest {
             val tokens = FakeRefreshTokenStore("refresh-1")

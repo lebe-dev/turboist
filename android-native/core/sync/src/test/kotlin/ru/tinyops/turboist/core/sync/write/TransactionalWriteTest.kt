@@ -1,5 +1,8 @@
 package ru.tinyops.turboist.core.sync.write
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import ru.tinyops.turboist.core.database.sync.OutboxState
@@ -19,6 +22,7 @@ import kotlin.test.assertTrue
  * screen never made — and neither is recoverable afterwards, because nothing
  * would know it had happened.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class TransactionalWriteTest : WriteTest() {
     @Test
     fun `a write leaves the change and the request that reports it`() =
@@ -87,5 +91,35 @@ class TransactionalWriteTest : WriteTest() {
                 queue().map { it.op },
             )
             assertTrue(queue().zipWithNext().all { (a, b) -> a.seq < b.seq })
+        }
+
+    @Test
+    fun `a committed write tells the sync engine there is something to send`() =
+        runTest {
+            var signalled = 0
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                writer.enqueued.collect { signalled++ }
+            }
+
+            tasks.create(TaskDestination.Inbox, NewTask(title = "Buy milk"))
+
+            assertEquals(1, signalled, "a change made with the server in reach must not wait for an unrelated reason")
+        }
+
+    @Test
+    fun `a write that queued nothing or was rolled back says nothing`() =
+        runTest {
+            var signalled = 0
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                writer.enqueued.collect { signalled++ }
+            }
+            val blocker = givenTask(title = "Blocker", serverId = 10)
+            val blocked = givenTask(title = "Blocked", serverId = 11)
+            givenBlocks(blocker, blocked)
+
+            assertFailsWith<WriteRefused.TaskBlocked> { tasks.complete(blocked) }
+            writer.transaction { db.tasks().count() }
+
+            assertEquals(0, signalled, "a sync asked for with nothing queued is a radio wake-up for nothing")
         }
 }

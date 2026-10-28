@@ -55,6 +55,12 @@ class ScriptedServer(private val now: Long) : Dispatcher() {
 
         /** The write lands and the answer does not come back in a usable form. */
         data class LoseAnswer(val status: Int = HTTP_SERVER_ERROR) : Fault
+
+        /**
+         * The write lands — once, however often it is repeated — and the answer
+         * is a success this build cannot read: a proxy's page, a truncated body.
+         */
+        data object Garble : Fault
     }
 
     /** Every request the server saw, in the order it saw them. */
@@ -136,6 +142,13 @@ class ScriptedServer(private val now: Long) : Dispatcher() {
 
         val fault = faults.removeFirstOrNull()
         if (fault is Fault.Refuse) return error(fault.status, fault.code, fault.details)
+        if (fault is Fault.Garble) {
+            if (key == null || key !in answers) {
+                val landed = apply(request, path)
+                if (landed.first in SUCCESS) key?.let { answers[it] = landed }
+            }
+            return json("{\"truncated\":", HTTP_OK)
+        }
 
         val remembered = key?.let { answers[it] }
         if (remembered != null) return json(remembered.second, remembered.first, replayed = true)

@@ -807,8 +807,11 @@ How a failure is answered is the whole of the design:
 | What happened | The queue | The write |
 |---|---|---|
 | Nothing reached the server | stalls, with a doubling wait capped at five minutes | keeps its place |
+| Something other than the server answered (an HTML page — a network's sign-in page) | stalls, as if nothing reached the server | keeps its place |
 | Too many requests (`429`) | stalls the same way | keeps its place |
+| An earlier attempt is still running on the server (`409 idempotency_in_flight`) | stalls the same way | keeps its place; its repeat is answered from the server's record |
 | The server broke (`5xx`) | stalls | retried on later cycles, a bounded number of times, then set aside |
+| The answer could not be read | stalls | repeated under the same key like a `5xx`, then set aside, so it cannot hold up the queue forever |
 | The server refused (`4xx`) | carries on | set aside at once |
 | The credentials were refused | stops, intact | keeps its place |
 
@@ -823,6 +826,13 @@ which tasks to go and look at — they are in that one answer and nowhere else
 afterwards. Waiting for a network never counts against a write; only the server
 actually breaking does, because a week somewhere with no signal is not a broken
 write.
+
+A queue stalled on a server that was reached but unwell, throttling or still busy
+is not left waiting for some unrelated reason to sync: the cycle reports the wait
+the drain earned (doubling from two seconds to five minutes), the scheduler holds
+one timer for it, and the background job asks the platform for a retry instead
+of reporting success. Nothing is retried once the queue is empty, and a refusal
+that asking again cannot change is never retried.
 
 Discarding one of those usually closes a note and nothing more: the change never
 happened on the server, and the row it was made against has already been corrected
@@ -846,7 +856,7 @@ what stopped it, and the next turn tries again.
 
 ### When it syncs (`core/sync/trigger`)
 
-Five reasons, one door. `SyncScheduler` is the only way anything asks for a
+Six reasons, one door. `SyncScheduler` is the only way anything asks for a
 cycle, and what reaches it is a *request*, not a run: a request opens a 500 ms
 window, everything arriving inside it is folded into the same cycle, and the
 cycle happens when the window closes. Bursts are the normal case — one edit on
@@ -891,12 +901,28 @@ The two remaining reasons are the ones a device is best placed to act on. The
 platform's default-network callback fires when the device gets a usable network
 back — the radio is awake and the user is still standing where they made their
 changes — and asks for the expedited job; a handover from one network to another
-is not a return and is not acted on. Coming to the front asks for the same job,
+is not a return and is not acted on — except when the network it handed over to
+only proves it reaches the internet afterwards (`NET_CAPABILITY_VALIDATED`
+arriving late is what getting past a hotel's or train's sign-in page looks like),
+which is a return too. Coming to the front asks for the same job,
 through the schedule rather than straight at the engine, so that an app sent
 away again immediately still gets its catch-up. And the user can always ask:
 pulling a list down runs a cycle directly and holds the spinner until it is over,
 since a list is a query over the replica and there is nothing else the gesture
 could mean.
+
+The sixth reason is the device's own: **a change made here**. `OutboxWriter`
+ticks once each time a transaction that queued an op has committed — after the
+commit, because a drain started between the enqueue and the commit would read a
+queue without the op and report itself finished. In front of the user the tick
+asks the in-process scheduler, so an edit made with the server in reach is sent
+within the window instead of waiting until another device writes, the app comes
+back to the front or the quarter-hourly job comes round. Behind, it asks for the
+expedited job instead: the process may not outlive the write, and the job is
+what carries the user's choice about mobile data. Putting the app away with
+anything still unsent asks for that job as well, so writes made in a dead zone
+leave the moment a network returns even when the process that made them is long
+gone.
 
 Both jobs wait for a network, and which network counts is the device's own
 choice: a phone told in settings not to sync on mobile data asks the platform for
@@ -1232,8 +1258,12 @@ itself.
 **Signing out** revokes the session server-side (best-effort — a device that
 cannot reach its server must still be able to leave it), forgets the token and
 empties the replica, the outbox and the quarantine. Because that discards work
-the server has never seen, the queued and refused ops are counted first and the
-user is asked, with the number, before anything is touched; declining leaves both
+the server has never seen, the queue is first given one bounded attempt (ten
+seconds) to go out — so the only work ever offered up for loss is work the server
+really cannot take right now — then the queued and refused ops that remain are
+counted and the user is asked, with the number, before anything is touched. The
+same attempt precedes every other confirmation that counts unsent work: signing
+out everywhere, forgetting the server, clearing local data. Declining leaves both
 the session and the queue exactly as they were. The server address is kept: it is
 configuration the user chose, not a credential they proved, so signing back in
 does not start by typing a URL.

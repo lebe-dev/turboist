@@ -329,6 +329,8 @@ object SyncModule {
         scheduler: SyncScheduler,
         @SignedInState signedIn: Flow<Boolean>,
         @ForegroundState foreground: Flow<Boolean>,
+        writer: OutboxWriter,
+        database: TurboistDatabase,
     ): SyncTriggers =
         SyncTriggers(
             stream = stream,
@@ -337,5 +339,7 @@ object SyncModule {
             scheduler = scheduler,
             signedIn = signedIn,
             foreground = foreground,
+            localWrites = writer.enqueued,
+            unsentCount = { database.outbox().count() },
         )
 }
