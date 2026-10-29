@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.AppSettings
@@ -37,6 +38,31 @@ sealed interface SettingsMessage {
 
     /** The on-device copy was emptied and asked for again. */
     data object LocalDataCleared : SettingsMessage
+
+    /** A rule was taken out of its list; carries the rule, so it can be put back. */
+    data class RuleDeleted(val deleted: DeletedRule) : SettingsMessage
+}
+
+/**
+ * A rule that was just deleted, and where it stood.
+ *
+ * Kept as the rule itself rather than as an index into the list, because the
+ * list it came from has already been rewritten without it by the time anyone
+ * asks for it back.
+ */
+sealed interface DeletedRule {
+    /** Where the rule stood in its list before it was taken out. */
+    val index: Int
+
+    data class AutoLabel(
+        override val index: Int,
+        val rule: AutoLabelRule,
+    ) : DeletedRule
+
+    data class ProjectSuggestion(
+        override val index: Int,
+        val rule: ProjectSuggestionRule,
+    ) : DeletedRule
 }
 
 /** Which of the two rule lists an editor is open on. */
@@ -99,6 +125,8 @@ data class SettingsUiState(
     val confirming: SettingsConfirmation? = null,
     /** How many changes the server has not accepted, shown before anything that would discard them. */
     val unsentChangeCount: Int = 0,
+    /** How many changes the server refused and nobody has cleared yet, followed as it changes. */
+    val refusedChangeCount: Int = 0,
     val serverAddress: String = "",
     val version: String = "",
     /** What is being typed into the banner field, or `null` while nothing is. */
@@ -174,6 +202,7 @@ class SettingsPresenter(
     private val device: DeviceOptionActions,
     private val connection: ServerConnection,
     private val release: AppRelease,
+    refusedChanges: Flow<Int> = flowOf(0),
 ) {
     /** The part of the screen's state that is being typed rather than stored. */
     private data class Local(
@@ -204,8 +233,9 @@ class SettingsPresenter(
 
     /** What the screen renders. */
     val state: StateFlow<SettingsUiState> =
-        combine(stored, local) { rendered, own ->
+        combine(stored, local, refusedChanges) { rendered, own, refused ->
             rendered.copy(
+                refusedChangeCount = refused,
                 editor = own.editor,
                 confirming = own.confirming,
                 unsentChangeCount = own.unsentChangeCount,
@@ -390,6 +420,13 @@ class SettingsPresenter(
         kind: RuleKind,
         index: Int,
     ) {
+        val app = state.value.app
+        val deleted =
+            when (kind) {
+                RuleKind.AUTO_LABEL -> app.autoLabels.getOrNull(index)?.let { DeletedRule.AutoLabel(index, it) }
+                RuleKind.PROJECT_SUGGESTION ->
+                    app.projectSuggestions.getOrNull(index)?.let { DeletedRule.ProjectSuggestion(index, it) }
+            } ?: return
         scope.launch {
             val written =
                 report {
@@ -400,6 +437,30 @@ class SettingsPresenter(
                         RuleKind.PROJECT_SUGGESTION ->
                             actions.putProjectSuggestions(
                                 state.value.app.projectSuggestions.filterIndexed { at, _ -> at != index },
+                            )
+                    }
+                }
+            if (written) outgoing.emit(SettingsMessage.RuleDeleted(deleted))
+        }
+    }
+
+    /**
+     * Puts a rule that was just deleted back where it stood.
+     *
+     * The place is taken from what the list holds now, so a list that has
+     * shrunk in the meantime gets the rule at its end rather than not at all.
+     */
+    fun restoreRule(deleted: DeletedRule) {
+        scope.launch {
+            val written =
+                report {
+                    when (deleted) {
+                        is DeletedRule.AutoLabel ->
+                            actions.putAutoLabels(inserted(state.value.app.autoLabels, deleted.index, deleted.rule))
+
+                        is DeletedRule.ProjectSuggestion ->
+                            actions.putProjectSuggestions(
+                                inserted(state.value.app.projectSuggestions, deleted.index, deleted.rule),
                             )
                     }
                 }
@@ -512,6 +573,12 @@ class SettingsPresenter(
         } else {
             rules.mapIndexed { at, existing -> if (at == index) rule else existing }
         }
+
+    private fun <T> inserted(
+        rules: List<T>,
+        index: Int,
+        rule: T,
+    ): List<T> = rules.toMutableList().apply { add(index.coerceIn(0, size), rule) }
 
     /** A typed cap, or `null` when it is not a whole number the server would accept. */
     private fun capOf(typed: String): Int? = typed.trim().toIntOrNull()?.takeIf { it in MIN_MAX_PINNED..MAX_MAX_PINNED }

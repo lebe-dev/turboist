@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.settings.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Info
@@ -11,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.settings.SettingsUiState
 
@@ -32,20 +34,24 @@ import ru.tinyops.turboist.nativeapp.settings.SettingsUiState
 internal fun AboutSection(state: SettingsUiState) {
     val links = LocalUriHandler.current
 
-    SettingsSectionHeading(R.string.native_settings_aboutHeading)
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.settings_version_heading)) },
-        supportingContent = { Text(stringResource(R.string.settings_version_description)) },
-        leadingContent = { Icon(imageVector = Icons.Outlined.Info, contentDescription = null) },
-        trailingContent = {
-            Text(state.version.ifEmpty { stringResource(R.string.native_settings_versionUnknown) })
-        },
-    )
-    if (state.termsUrl.isNotEmpty()) {
-        LegalRow(R.string.legal_tos_title) { links.openUri(state.termsUrl) }
-    }
-    if (state.privacyUrl.isNotEmpty()) {
-        LegalRow(R.string.legal_privacy_title) { links.openUri(state.privacyUrl) }
+    SettingsGroup(modifier = Modifier.padding(top = 8.dp)) {
+        row {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_version_heading)) },
+                supportingContent = { Text(stringResource(R.string.settings_version_description)) },
+                leadingContent = { Icon(imageVector = Icons.Outlined.Info, contentDescription = null) },
+                trailingContent = {
+                    Text(state.version.ifEmpty { stringResource(R.string.native_settings_versionUnknown) })
+                },
+                colors = groupRowColors(),
+            )
+        }
+        if (state.termsUrl.isNotEmpty()) {
+            row { LegalRow(R.string.legal_tos_title) { links.openUri(state.termsUrl) } }
+        }
+        if (state.privacyUrl.isNotEmpty()) {
+            row { LegalRow(R.string.legal_privacy_title) { links.openUri(state.privacyUrl) } }
+        }
     }
 }
 
@@ -62,6 +68,7 @@ private fun LegalRow(
         trailingContent = {
             Icon(imageVector = Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null)
         },
+        colors = groupRowColors(),
         modifier = Modifier.clickable(onClick = onOpen),
     )
 }

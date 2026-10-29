@@ -54,6 +54,28 @@ data object SearchRoute
 @Serializable
 data object SettingsRoute
 
+// The sections of settings, one destination each. A section is a step below
+// settings rather than a place of its own, so the bar over it leads back up
+// instead of opening the drawer, and the system back gesture does the same.
+
+@Serializable
+data object SettingsGeneralRoute
+
+@Serializable
+data object SettingsWorkspaceRoute
+
+@Serializable
+data object SettingsRulesRoute
+
+@Serializable
+data object SettingsSecurityRoute
+
+@Serializable
+data object SettingsDeviceRoute
+
+@Serializable
+data object SettingsAboutRoute
+
 /**
  * The reusable blueprints: the templates the user keeps, and the editor that
  * writes one. Reached from settings rather than from the drawer — a template is

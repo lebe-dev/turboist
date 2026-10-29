@@ -1,7 +1,9 @@
 package ru.tinyops.turboist.nativeapp.settings
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -55,10 +57,11 @@ class SettingsPresenterTest {
     private val deviceActions = RecordingDeviceOptionActions()
     private val connection = RecordingServerConnection()
 
-    private fun TestScope.presenter(): SettingsPresenter {
+    private fun TestScope.presenter(refusedChanges: Flow<Int> = flowOf(0)): SettingsPresenter {
         val presenter =
             SettingsPresenter(
                 scope = backgroundScope,
+                refusedChanges = refusedChanges,
                 userSettings = userSettings,
                 appSettings = appSettings,
                 labels = labels,
@@ -422,6 +425,86 @@ class SettingsPresenterTest {
             assertEquals("1.2.3+abc1234", state.version)
             assertEquals("https://turboist.example/terms-of-service", state.termsUrl)
             assertEquals("https://turboist.example/privacy-policy", state.privacyUrl)
+        }
+
+    // --- taking a deletion back ---------------------------------------------
+
+    @Test
+    fun `deleting a rule says which rule went, so it can be offered back`() =
+        runTest {
+            appSettings.value =
+                AppSettings(autoLabels = listOf(AutoLabelRule("buy", listOf(30)), AutoLabelRule("call", listOf(40))))
+            val presenter = presenter()
+            val said = mutableListOf<SettingsMessage>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            runCurrent()
+
+            presenter.deleteRule(RuleKind.AUTO_LABEL, 0)
+            runCurrent()
+
+            assertContentEquals(listOf(AutoLabelRule("call", listOf(40))), actions.autoLabelWrites.single())
+            assertEquals(
+                listOf<SettingsMessage>(
+                    SettingsMessage.RuleDeleted(DeletedRule.AutoLabel(0, AutoLabelRule("buy", listOf(30)))),
+                ),
+                said,
+            )
+        }
+
+    @Test
+    fun `a deleted rule taken back returns to the place it was taken from`() =
+        runTest {
+            appSettings.value =
+                AppSettings(
+                    projectSuggestions =
+                        listOf(ProjectSuggestionRule("deploy", listOf(70)), ProjectSuggestionRule("ship", listOf(70))),
+                )
+            val presenter = presenter()
+            runCurrent()
+
+            // What the store holds once the deletion has been written and read back.
+            appSettings.value = AppSettings(projectSuggestions = listOf(ProjectSuggestionRule("ship", listOf(70))))
+            runCurrent()
+            presenter.restoreRule(DeletedRule.ProjectSuggestion(0, ProjectSuggestionRule("deploy", listOf(70))))
+            runCurrent()
+
+            assertContentEquals(
+                listOf(ProjectSuggestionRule("deploy", listOf(70)), ProjectSuggestionRule("ship", listOf(70))),
+                actions.suggestionWrites.single(),
+            )
+            assertTrue(actions.autoLabelWrites.isEmpty(), "taking a suggestion back rewrote the labelling rules")
+        }
+
+    @Test
+    fun `a deleted rule whose place no longer exists goes back at the end`() =
+        runTest {
+            appSettings.value = AppSettings(autoLabels = listOf(AutoLabelRule("call", listOf(40))))
+            val presenter = presenter()
+            runCurrent()
+
+            presenter.restoreRule(DeletedRule.AutoLabel(5, AutoLabelRule("buy", listOf(30))))
+            runCurrent()
+
+            assertContentEquals(
+                listOf(AutoLabelRule("call", listOf(40)), AutoLabelRule("buy", listOf(30))),
+                actions.autoLabelWrites.single(),
+            )
+        }
+
+    // --- what the server refused ---------------------------------------------
+
+    @Test
+    fun `the refused pile is followed as it changes, so the warning on settings is never stale`() =
+        runTest {
+            val refused = MutableStateFlow(0)
+            val presenter = presenter(refusedChanges = refused)
+            runCurrent()
+            assertEquals(0, presenter.state.value.refusedChangeCount)
+
+            refused.value = 3
+            runCurrent()
+
+            assertEquals(3, presenter.state.value.refusedChangeCount)
         }
 
     private fun encoded(edit: PatchUserSettingsRequest): String =

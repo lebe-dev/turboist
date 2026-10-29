@@ -19,8 +19,10 @@ import ru.tinyops.turboist.nativeapp.projects.ui.ProjectsScreen
 import ru.tinyops.turboist.nativeapp.quickadd.ui.QuickAddHost
 import ru.tinyops.turboist.nativeapp.search.SearchNavigation
 import ru.tinyops.turboist.nativeapp.search.ui.SearchScreen
+import ru.tinyops.turboist.nativeapp.settings.SettingsSection
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsDestinations
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsScreen
+import ru.tinyops.turboist.nativeapp.settings.ui.SettingsSectionScreen
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
 import ru.tinyops.turboist.nativeapp.tasks.ui.CompletedScreen
 import ru.tinyops.turboist.nativeapp.tasks.ui.InboxScreen
@@ -65,6 +67,13 @@ class AppScreens(
      */
     val settings: @Composable (SettingsDestinations) -> Unit = { destinations ->
         SettingsScreen(destinations = destinations)
+    },
+    /**
+     * One section of settings, one step below it. Takes the same destinations
+     * the top level does: a section's rows lead to the account's screens too.
+     */
+    val settingsSection: @Composable (SettingsSection, SettingsDestinations) -> Unit = { section, destinations ->
+        SettingsSectionScreen(section = section, destinations = destinations)
     },
     /**
      * The reusable blueprints. Takes how to open a task, because using a template

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +61,8 @@ import ru.tinyops.turboist.nativeapp.navigation.LabelsRoute
 import ru.tinyops.turboist.nativeapp.navigation.PendingTaskLinks
 import ru.tinyops.turboist.nativeapp.navigation.ProjectRoute
 import ru.tinyops.turboist.nativeapp.navigation.RouteTitles
+import ru.tinyops.turboist.nativeapp.navigation.SettingsChildRoutes
+import ru.tinyops.turboist.nativeapp.navigation.SettingsRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskLinkRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskRoute
 import ru.tinyops.turboist.nativeapp.navigation.TemplatesRoute
@@ -344,7 +347,20 @@ private fun ShellScaffold(
         topBar = {
             if (!screenOwnsChrome) {
                 val navigationIcon: @Composable () -> Unit = {
-                    if (onOpenDrawer != null) {
+                    if (currentDestination.isUnderSettings()) {
+                        // A step down from settings leads back up, never into the
+                        // drawer: the drawer is how one moves between places, and
+                        // this screen is not one. Settings is the fallback for a
+                        // stack with nothing behind it.
+                        IconButton(
+                            onClick = { if (!navController.popBackStack()) navController.navigate(SettingsRoute) },
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.common_back),
+                            )
+                        }
+                    } else if (onOpenDrawer != null) {
                         IconButton(onClick = onOpenDrawer) {
                             Icon(
                                 imageVector = Icons.Filled.Menu,
@@ -446,6 +462,9 @@ private fun BottomBar(
         }
     }
 }
+
+/** True for a destination reached only through settings. */
+private fun NavDestination?.isUnderSettings(): Boolean = this != null && SettingsChildRoutes.any { hasRoute(it) }
 
 /** True for a destination whose screen draws the name of what it shows as its own heading. */
 private fun NavDestination?.isNamedByItsScreen(): Boolean = this?.hasRoute(ProjectRoute::class) == true

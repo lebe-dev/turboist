@@ -1259,7 +1259,7 @@ account with a second factor configured. The sign-in screen offers the passkey
 button only when the instance reports both that the feature is configured and
 that something is enrolled, since a button that can only end in an explanation is
 worse than no button. Enrolment and the credential list live behind **Settings →
-Passkeys**, which never caches: a stale answer to "which devices can sign in to
+Security and sign-in → Passkey**, which never caches: a stale answer to "which devices can sign in to
 this account" is worse than no answer. The ceremony options travel to the
 platform and its answer travels back as the JSON the server wrote and verifies,
 untouched — decoding and re-encoding base64url is how the URL alphabet gets lost
@@ -2071,8 +2071,36 @@ write exists that could send one.
 
 ### Settings (`app/.../settings`)
 
-One screen over **three stores that are never merged**, and keeping them apart is
-the whole design:
+**The top level is a map, not a list of controls.** It holds a search field, a
+warning card when the server has refused changes (the same count the drawer
+badges, so the two never disagree), and one row per section, grouped by what the
+user came to do: *General* (language, theme, Public view), *Workspace* (the Today
+banner, the pinning caps, the daily plan, calendars), *Rules and labels*, the
+templates, *Security and sign-in* (passkeys, the second factor, sessions, API
+tokens), *This device* (mobile data, the refused pile, the server, the two reset
+actions) and *About*. Each row's summary says what is inside — the General row
+says the current language and theme — so a section rarely has to be opened just
+to check it.
+
+**Every section is a destination of its own**, one step below settings, and so
+is every screen settings leads to. The shell's bar over any of them shows a back
+arrow rather than the drawer button: the drawer moves between places, and these
+are not places. The system back gesture does the same.
+
+**Search matches words the user can see**: a setting's name, its section's name
+and the sentence that describes it, every typed word required. A result opens the
+section the setting lives in.
+
+**A deleted rule can be taken back.** The deletion is written at once; the
+snackbar that says so carries an undo that writes the rule back at the place it
+stood, or at the end of a list that has shrunk since.
+
+**The rule editor is a bottom sheet with a rehearsal field**: a task title typed
+there is checked against the mask by the same test quick add applies, so the user
+sees whether the rule fires before saving it. Nothing typed there is kept.
+
+Underneath, settings sits over **three stores that are never merged**, and keeping
+them apart is the whole design:
 
 - the **account's own preferences** — one document on the server that follows the
   user to every device: language, public view, the Today banner and its optional
@@ -2084,6 +2112,10 @@ the whole design:
   may spend mobile data. They are stored in a small key-value file, never sent
   anywhere and never carried to a second device: a tablet on wi-fi and a phone on
   a metered plan want opposite answers to the same question.
+
+The sections group by purpose rather than by store, so a row that belongs to a
+different store from its neighbours says so: the theme sits beside the language
+and carries an *Only on this device* mark.
 
 **Every server-side edit says only what changed.** A switch writes one key; a
 list writes that one list. Sending a full snapshot instead would hand the server
@@ -2152,9 +2184,14 @@ leave what was typed on screen, and neither destructive action happens until it
 has been confirmed. The same separation is asserted again against a real database
 on the write path, where it is a claim about which table a write lands in and
 which document keeps the keys this build cannot read. The screen is composed for
-real off-device: that the two rule lists say which one acts, that the device's own
-choices say they stay on the phone, and that changing servers asks first and says
-how much work would be lost.
+real off-device: that the top level leads to every section and announces the
+refused pile, that a search result opens its section, that the two rule lists say
+which one acts, that a deleted rule can be taken back, that the theme and the
+device's own choices say they stay on the phone, that a pinning cap is stepped,
+that hiding past events waits for calendars to be on, and that changing servers
+asks first and says how much work would be lost. The navigation walk opens every
+section from settings and asserts that the bar over a section, and over a screen
+reached from one, leads back up rather than into the drawer.
 
 ### The account's own screens (`app/.../account`)
 

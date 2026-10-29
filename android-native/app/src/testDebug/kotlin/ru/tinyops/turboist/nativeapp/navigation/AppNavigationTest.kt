@@ -3,6 +3,10 @@ package ru.tinyops.turboist.nativeapp.navigation
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
@@ -13,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -24,7 +29,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.settings.SettingsSection
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsNavigationRows
+import ru.tinyops.turboist.nativeapp.settings.ui.SettingsSectionLinks
+import ru.tinyops.turboist.nativeapp.settings.ui.titleRes
 import ru.tinyops.turboist.nativeapp.shell.AppShell
 import ru.tinyops.turboist.nativeapp.shell.BOTTOM_BAR_TAG
 import ru.tinyops.turboist.nativeapp.shell.BottomBarDestinations
@@ -110,7 +118,16 @@ class AppNavigationTest {
             // them would remove the very wiring the walk is here to check; the
             // controls underneath them read the replica and the device's own
             // preferences, which a walk about the graph has no business starting.
-            settings = { destinations -> SettingsNavigationRows(destinations) },
+            settings = { destinations ->
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    SettingsNavigationRows(destinations)
+                }
+            },
+            // Each section is drawn as the rows in it that lead elsewhere and
+            // nothing else, for the same reason: those rows are the only way to
+            // the account's screens, and the controls beside them read stores a
+            // walk about the graph has no business starting.
+            settingsSection = { section, destinations -> SettingsSectionLinks(section, destinations) },
             // What the first of those rows opens. Stood in for, because the
             // passkey screen talks to the server.
             passkeys = { StubScreen(R.string.settings_passkeys_heading) },
@@ -193,6 +210,12 @@ class AppNavigationTest {
         compose.waitForIdle()
     }
 
+    private fun openSettingsSection(section: SettingsSection) {
+        tapDrawerEntry(DrawerDestination.Settings)
+        compose.onNode(hasText(text(section.titleRes)) and hasClickAction()).performScrollTo().performClick()
+        compose.waitForIdle()
+    }
+
     /** The entries the drawer is showing, in the order it draws them. */
     private fun offeredEntries(dailyPlanEnabled: Boolean = true): List<DrawerDestination> =
         DrawerDestination.grouped(dailyPlanEnabled).flatMap { (_, destinations) -> destinations }
@@ -260,10 +283,60 @@ class AppNavigationTest {
     }
 
     @Test
+    fun `every settings section opens from the settings screen`() {
+        launchShell()
+
+        for (section in SettingsSection.entries) {
+            openSettingsSection(section)
+
+            assertTrue(
+                navController.currentBackStackEntry?.destination?.hasRoute(section.route::class) == true,
+                "the settings row did not open the $section section",
+            )
+            compose.runOnIdle { navController.popBackStack() }
+            compose.waitForIdle()
+        }
+    }
+
+    @Test
+    fun `a settings section offers the way back rather than the drawer`() {
+        launchShell()
+        openSettingsSection(SettingsSection.GENERAL)
+
+        // A section is a step down from settings, not a place of its own: the
+        // corner that opens the drawer on a top-level screen leads back up here.
+        compose.onNodeWithContentDescription(text(R.string.native_drawer_open)).assertDoesNotExist()
+        compose.onNodeWithContentDescription(text(R.string.common_back)).performClick()
+        compose.waitForIdle()
+
+        assertTrue(
+            navController.currentBackStackEntry?.destination?.hasRoute(SettingsRoute::class) == true,
+            "the back arrow on a settings section did not return to settings",
+        )
+        compose.onNodeWithContentDescription(text(R.string.native_drawer_open)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a screen reached from a settings section leads back to that section`() {
+        launchShell()
+        openSettingsSection(SettingsSection.SECURITY)
+        compose.onNode(hasText(text(R.string.settings_passkeys_heading)) and hasClickAction()).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription(text(R.string.common_back)).performClick()
+        compose.waitForIdle()
+
+        assertTrue(
+            navController.currentBackStackEntry?.destination?.hasRoute(SettingsSecurityRoute::class) == true,
+            "the back arrow on the passkeys screen did not return to the security section",
+        )
+    }
+
+    @Test
     fun `settings leads to the account's passkeys`() {
         launchShell()
 
-        tapDrawerEntry(DrawerDestination.Settings)
+        openSettingsSection(SettingsSection.SECURITY)
         // The row, not the heading inside it: the screen's own title is not
         // clickable, and only a row that navigates makes the destination real.
         compose.onNode(hasText(text(R.string.settings_passkeys_heading)) and hasClickAction()).performClick()
@@ -295,7 +368,7 @@ class AppNavigationTest {
     fun `settings leads to the changes the server refused`() {
         launchShell()
 
-        tapDrawerEntry(DrawerDestination.Settings)
+        openSettingsSection(SettingsSection.DEVICE)
         compose.onNode(hasText(text(R.string.offline_unsentTitle)) and hasClickAction()).performClick()
         compose.waitForIdle()
 
@@ -310,7 +383,7 @@ class AppNavigationTest {
     fun `settings leads to the sessions that can reach the account`() {
         launchShell()
 
-        tapDrawerEntry(DrawerDestination.Settings)
+        openSettingsSection(SettingsSection.SECURITY)
         compose.onNode(hasText(text(R.string.settings_sessions_heading)) and hasClickAction()).performClick()
         compose.waitForIdle()
 
@@ -325,7 +398,7 @@ class AppNavigationTest {
     fun `settings leads to the API tokens`() {
         launchShell()
 
-        tapDrawerEntry(DrawerDestination.Settings)
+        openSettingsSection(SettingsSection.SECURITY)
         compose.onNode(hasText(text(R.string.settings_api_heading)) and hasClickAction()).performClick()
         compose.waitForIdle()
 
@@ -340,7 +413,7 @@ class AppNavigationTest {
     fun `settings leads to the second factor`() {
         launchShell()
 
-        tapDrawerEntry(DrawerDestination.Settings)
+        openSettingsSection(SettingsSection.SECURITY)
         compose.onNode(hasText(text(R.string.settings_twofa_heading)) and hasClickAction()).performClick()
         compose.waitForIdle()
 

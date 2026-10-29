@@ -16,6 +16,7 @@ import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.sync.write.HarpoonTarget
 import ru.tinyops.turboist.nativeapp.harpoon.HarpoonEntry
 import ru.tinyops.turboist.nativeapp.search.SearchNavigation
+import ru.tinyops.turboist.nativeapp.settings.SettingsSection
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsDestinations
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
 
@@ -64,6 +65,19 @@ fun AppNavHost(
             back = leave,
         )
 
+    // Where every row of settings and of its sections leads. One value for all
+    // of them, because a section's rows lead to the same places the top level's do.
+    val settingsDestinations =
+        SettingsDestinations(
+            openSection = { section -> navController.navigate(section.route) { launchSingleTop = true } },
+            openPasskeys = { navController.navigate(PasskeysRoute) },
+            openSessions = { navController.navigate(SessionsRoute) },
+            openApiTokens = { navController.navigate(ApiTokensRoute) },
+            openTwoFactor = { navController.navigate(TwoFactorRoute) },
+            openTemplates = { navController.navigate(TemplatesRoute) },
+            openUnsentChanges = { navController.navigate(UnsentChangesRoute) },
+        )
+
     NavHost(
         navController = navController,
         startDestination = TodayRoute,
@@ -95,18 +109,14 @@ fun AppNavHost(
                 ),
             )
         }
-        composable<SettingsRoute> {
-            screens.settings(
-                SettingsDestinations(
-                    openPasskeys = { navController.navigate(PasskeysRoute) },
-                    openSessions = { navController.navigate(SessionsRoute) },
-                    openApiTokens = { navController.navigate(ApiTokensRoute) },
-                    openTwoFactor = { navController.navigate(TwoFactorRoute) },
-                    openTemplates = { navController.navigate(TemplatesRoute) },
-                    openUnsentChanges = { navController.navigate(UnsentChangesRoute) },
-                ),
-            )
-        }
+        composable<SettingsRoute> { screens.settings(settingsDestinations) }
+        // Every section is the same screen showing a different part of settings.
+        composable<SettingsGeneralRoute> { screens.settingsSection(SettingsSection.GENERAL, settingsDestinations) }
+        composable<SettingsWorkspaceRoute> { screens.settingsSection(SettingsSection.WORKSPACE, settingsDestinations) }
+        composable<SettingsRulesRoute> { screens.settingsSection(SettingsSection.RULES, settingsDestinations) }
+        composable<SettingsSecurityRoute> { screens.settingsSection(SettingsSection.SECURITY, settingsDestinations) }
+        composable<SettingsDeviceRoute> { screens.settingsSection(SettingsSection.DEVICE, settingsDestinations) }
+        composable<SettingsAboutRoute> { screens.settingsSection(SettingsSection.ABOUT, settingsDestinations) }
         composable<PasskeysRoute> { screens.passkeys() }
         composable<SessionsRoute> { screens.sessions() }
         composable<ApiTokensRoute> { screens.apiTokens() }

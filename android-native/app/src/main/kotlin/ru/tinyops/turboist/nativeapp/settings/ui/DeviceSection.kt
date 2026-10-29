@@ -1,87 +1,169 @@
 package ru.tinyops.turboist.nativeapp.settings.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.SignalCellularAlt
+import androidx.compose.material.icons.outlined.SyncAlt
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.settings.SettingsConfirmation
 import ru.tinyops.turboist.nativeapp.settings.SettingsUiState
-import ru.tinyops.turboist.nativeapp.settings.ThemeChoice
-import ru.tinyops.turboist.nativeapp.tasks.ui.ChoiceRow
-
-/** The three answers to "which colours", in the order they read best. */
-private val THEME_CHOICES: List<Pair<ThemeChoice, Int>> =
-    listOf(
-        ThemeChoice.SYSTEM to R.string.settings_theme_system,
-        ThemeChoice.LIGHT to R.string.settings_theme_light,
-        ThemeChoice.DARK to R.string.settings_theme_dark,
-    )
 
 /**
- * The choices that stay on this phone.
+ * The choices that stay on this phone, and the server it talks to.
  *
  * None of it is sent anywhere, and that is the point of drawing it apart from
- * everything above: which colours a screen uses and whether a radio may spend a
- * data allowance are facts about a device, and a tablet on wi-fi wants different
- * answers from a phone on a metered plan.
+ * the account's settings: whether a radio may spend a data allowance is a fact
+ * about a device, and a tablet on wi-fi wants a different answer from a phone on
+ * a metered plan.
  *
- * The two destructive actions live here too, because both are about this device
- * rather than about the workspace: one throws the copy away and asks for it
- * again, the other walks away from the server altogether.
+ * The two destructive actions live here too, under a heading of their own,
+ * because both are about this device rather than about the workspace: one throws
+ * the copy away and asks for it again, the other walks away from the server
+ * altogether.
  */
 @Composable
 internal fun DeviceSection(
     state: SettingsUiState,
     callbacks: SettingsCallbacks,
+    destinations: SettingsDestinations,
 ) {
-    SettingsSectionHeading(R.string.native_settings_deviceHeading, R.string.native_settings_deviceDescription)
+    val context = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
 
-    ChoiceRow(label = stringResource(R.string.settings_theme_ariaLabel)) {
-        for ((choice, wording) in THEME_CHOICES) {
-            FilterChip(
-                selected = state.device.theme == choice,
-                onClick = { callbacks.onSetTheme(choice) },
-                label = { Text(stringResource(wording)) },
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = scheme.surfaceContainerHighest,
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+    ) {
+        SettingsNote(
+            text = stringResource(R.string.native_settings_deviceDescription),
+            icon = Icons.Outlined.PhoneAndroid,
+        )
+    }
+
+    SettingsGroupLabel(stringResource(R.string.native_settings_syncHeading))
+    SettingsGroup {
+        row {
+            SettingsSwitchRow(
+                title = stringResource(R.string.native_settings_syncOnMetered),
+                checked = state.device.syncOnMetered,
+                onCheckedChange = callbacks.onSetSyncOnMetered,
+                description = stringResource(R.string.native_settings_syncOnMeteredDescription),
+                icon = Icons.Outlined.SignalCellularAlt,
+            )
+        }
+        row { UnsentChangesRow(state.refusedChangeCount, destinations.openUnsentChanges) }
+    }
+
+    SettingsGroupLabel(stringResource(R.string.native_settings_serverHeading))
+    SettingsGroup {
+        row {
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = state.serverAddress.ifEmpty { stringResource(R.string.native_settings_serverUnset) },
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                leadingContent = { Icon(imageVector = Icons.Outlined.Dns, contentDescription = null) },
+                trailingContent = {
+                    if (state.serverAddress.isNotEmpty()) {
+                        IconButton(onClick = { copyServerAddress(context, state.serverAddress) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.ContentCopy,
+                                contentDescription = stringResource(R.string.native_settings_copyServer),
+                            )
+                        }
+                    }
+                },
+                colors = groupRowColors(),
             )
         }
     }
 
-    SettingsSwitchRow(
-        titleRes = R.string.native_settings_syncOnMetered,
-        checked = state.device.syncOnMetered,
-        onCheckedChange = callbacks.onSetSyncOnMetered,
-        descriptionRes = R.string.native_settings_syncOnMeteredDescription,
-    )
+    SettingsGroupLabel(text = stringResource(R.string.native_settings_resetHeading), color = scheme.error)
+    SettingsGroup {
+        row {
+            DestructiveRow(
+                titleRes = R.string.native_settings_changeServer,
+                descriptionRes = R.string.native_settings_changeServerDescription,
+                icon = Icons.Outlined.SyncAlt,
+                onClick = { callbacks.onAsk(SettingsConfirmation.CHANGE_SERVER) },
+            )
+        }
+        row {
+            DestructiveRow(
+                titleRes = R.string.native_settings_clearLocalData,
+                descriptionRes = R.string.native_settings_clearLocalDataDescription,
+                icon = Icons.Outlined.DeleteSweep,
+                onClick = { callbacks.onAsk(SettingsConfirmation.CLEAR_LOCAL_DATA) },
+            )
+        }
+    }
+}
 
+/** A row that empties something, drawn in the colour that says so before it is tapped. */
+@Composable
+private fun DestructiveRow(
+    titleRes: Int,
+    descriptionRes: Int,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
     ListItem(
-        headlineContent = { Text(stringResource(R.string.native_settings_serverHeading)) },
-        supportingContent = {
-            Text(state.serverAddress.ifEmpty { stringResource(R.string.native_settings_serverUnset) })
+        headlineContent = { Text(stringResource(titleRes), color = MaterialTheme.colorScheme.error) },
+        supportingContent = { Text(stringResource(descriptionRes)) },
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+            )
         },
-        leadingContent = { Icon(imageVector = Icons.Outlined.Dns, contentDescription = null) },
+        colors = groupRowColors(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     )
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.native_settings_changeServer)) },
-        supportingContent = { Text(stringResource(R.string.native_settings_changeServerDescription)) },
-        modifier = Modifier.clickable { callbacks.onAsk(SettingsConfirmation.CHANGE_SERVER) },
-    )
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.native_settings_clearLocalData)) },
-        supportingContent = { Text(stringResource(R.string.native_settings_clearLocalDataDescription)) },
-        leadingContent = { Icon(imageVector = Icons.Outlined.DeleteSweep, contentDescription = null) },
-        modifier = Modifier.clickable { callbacks.onAsk(SettingsConfirmation.CLEAR_LOCAL_DATA) },
-    )
+}
+
+/** Puts the server's address on the clipboard; the system says it was copied on Android 13 and later. */
+private fun copyServerAddress(
+    context: Context,
+    address: String,
+) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+    clipboard.setPrimaryClip(ClipData.newPlainText(null, address))
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        Toast.makeText(context, R.string.native_settings_serverCopied, Toast.LENGTH_SHORT).show()
+    }
 }
 
 /**
