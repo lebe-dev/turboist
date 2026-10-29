@@ -39,6 +39,11 @@ import androidx.compose.ui.graphics.Color
  * @property pendingContainer what that text sits on: the same amber at the
  *   sliver of opacity the web uses, so it reads as a tint of the page rather
  *   than as a second surface.
+ * @property announcement the megaphone on the day's announcement and the colour
+ *   its opening shimmer runs in — the red the web's banner sweeps with.
+ * @property announcementContainer what the announcement sits on: the same red,
+ *   thinned until the text on it reads as plainly as on the page, but strong
+ *   enough that the banner is noticed before the list under it.
  */
 @Immutable
 data class TurboistAccents(
@@ -54,6 +59,8 @@ data class TurboistAccents(
     val postponedOften: Color,
     val pending: Color,
     val pendingContainer: Color,
+    val announcement: Color,
+    val announcementContainer: Color,
 )
 
 // The Tailwind steps the web names, by their own names, so a change over there
@@ -74,6 +81,13 @@ private val Emerald400 = Color(0xFF00D492)
 /** How much of the amber the queued-write badge's backdrop keeps. The web's `bg-amber-500/15`. */
 private const val PENDING_TINT_ALPHA = 0.15f
 
+/**
+ * How much of the red the announcement's backdrop keeps. A dark page swallows a
+ * tint, so the night value is a step stronger to stand out as much.
+ */
+private const val ANNOUNCEMENT_TINT_ALPHA_LIGHT = 0.12f
+private const val ANNOUNCEMENT_TINT_ALPHA_DARK = 0.22f
+
 /** The signals as the web client draws them in daylight. */
 val TurboistLightAccents: TurboistAccents =
     TurboistAccents(
@@ -89,6 +103,8 @@ val TurboistLightAccents: TurboistAccents =
         postponedOften = Red600,
         pending = Amber700,
         pendingContainer = Amber500.copy(alpha = PENDING_TINT_ALPHA),
+        announcement = Red500,
+        announcementContainer = Red500.copy(alpha = ANNOUNCEMENT_TINT_ALPHA_LIGHT),
     )
 
 /**
@@ -103,6 +119,7 @@ val TurboistDarkAccents: TurboistAccents =
     TurboistLightAccents.copy(
         recurring = Emerald400,
         pending = Amber300,
+        announcementContainer = Red500.copy(alpha = ANNOUNCEMENT_TINT_ALPHA_DARK),
     )
 
 /** The signals in force for the tree below the theme. */

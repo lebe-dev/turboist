@@ -145,7 +145,7 @@ fun TaskList(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (state.announcement != null) Announcement(state.announcement)
+            if (state.announcement != null) AnnouncementBanner(state.announcement, LIST_GUTTER, OUTER_CORNER)
             // The age of the appointments, when they are stale, belongs above the
             // whole list: it qualifies every band on the screen at once, and one
             // line is less noise than the same note repeated under each heading.
@@ -550,22 +550,6 @@ fun dayPartLabel(part: DayPart): Int =
         DayPart.EVENING -> R.string.task_dayPart_evening
         DayPart.NONE, DayPart.UNKNOWN -> R.string.task_dayPart_anytime
     }
-
-/** The user's own message, shown above the day it was written for. */
-@Composable
-private fun Announcement(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSecondaryContainer,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = LIST_GUTTER, vertical = 4.dp)
-                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(OUTER_CORNER))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-    )
-}
 
 /**
  * What a list says when it holds nothing.
