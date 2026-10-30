@@ -496,6 +496,114 @@ class QuickAddPresenterTest {
             assertEquals("https://example.test", draft.description)
         }
 
+    @Test
+    fun `a title is saved without the dots and spaces at its end`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setTitles("Buy milk. \nCall v2.5 support...\nSee example.com")
+            presenter.submit()
+            runCurrent()
+
+            assertEquals(
+                listOf("Buy milk", "Call v2.5 support", "See example.com"),
+                actions.calls.map { it.task.title },
+            )
+        }
+
+    @Test
+    fun `a title of nothing but dots cannot be saved`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setTitles(" . .. ")
+            runCurrent()
+
+            assertFalse(presenter.state.value.draft.canSubmit)
+        }
+
+    @Test
+    fun `an untouched sheet closes without asking`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open(QuickAddRequest(projectLocalId = 1))
+            runCurrent()
+            assertFalse(presenter.state.value.holdsInput)
+
+            presenter.requestDismiss()
+            runCurrent()
+
+            assertFalse(presenter.state.value.visible)
+        }
+
+    @Test
+    fun `a sheet holding anything asks before it closes`() =
+        runTest {
+            val fills =
+                listOf<(QuickAddPresenter) -> Unit>(
+                    { it.setTitles("Buy milk") },
+                    { it.setDescription("Oat") },
+                    { it.setPriority(Priority.HIGH) },
+                    { it.setDayPart(DayPart.EVENING) },
+                    { it.setLabels(listOf("errand")) },
+                    { it.chooseProject(2) },
+                )
+            for (fill in fills) {
+                val presenter = presenter()
+                watch(presenter)
+                presenter.open()
+                fill(presenter)
+                presenter.requestDismiss()
+                runCurrent()
+
+                assertTrue(presenter.state.value.visible)
+                assertTrue(presenter.state.value.confirmingDiscard)
+            }
+        }
+
+    @Test
+    fun `text that arrived in a share counts as something to lose`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open(QuickAddRequest(title = "Shared page"))
+            presenter.requestDismiss()
+            runCurrent()
+
+            assertTrue(presenter.state.value.confirmingDiscard)
+        }
+
+    @Test
+    fun `keeping on editing leaves the draft as it was, and discarding forgets it`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setTitles("Buy milk")
+            presenter.requestDismiss()
+            presenter.keepEditing()
+            runCurrent()
+
+            assertFalse(presenter.state.value.confirmingDiscard)
+            assertTrue(presenter.state.value.visible)
+            assertEquals("Buy milk", presenter.state.value.draft.titles)
+
+            presenter.requestDismiss()
+            presenter.dismiss()
+            runCurrent()
+
+            assertFalse(presenter.state.value.visible)
+            assertEquals("", presenter.state.value.draft.titles)
+        }
+
     private fun at(
         day: LocalDate,
         hour: Int,

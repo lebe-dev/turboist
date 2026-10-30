@@ -147,6 +147,10 @@
          native client's own because the web client leads its pickers with an
          unlabelled group. -->
     <string name="native_quickAdd_recentProjects">Recent projects</string>
+    <string name="native_quickAdd_discardTitle">Discard this task?</string>
+    <string name="native_quickAdd_discardBody">What you have filled in will be lost.</string>
+    <string name="native_quickAdd_discardConfirm">Discard</string>
+    <string name="native_quickAdd_discardKeep">Keep editing</string>
 
     <!-- Projects and their boards. The web client rearranges a board by dragging,
          which a touch screen cannot offer unambiguously, so the wording here is

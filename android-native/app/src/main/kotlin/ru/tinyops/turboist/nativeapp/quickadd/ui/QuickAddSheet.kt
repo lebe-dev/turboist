@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -42,6 +43,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -56,6 +58,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
@@ -92,6 +97,8 @@ import java.time.format.FormatStyle
 /** Every gesture the capture sheet can make. */
 data class QuickAddCallbacks(
     val onDismiss: () -> Unit = {},
+    val onDiscard: () -> Unit = {},
+    val onKeepEditing: () -> Unit = {},
     val onTitles: (String) -> Unit = {},
     val onDescription: (String) -> Unit = {},
     val onPriority: (Priority) -> Unit = {},
@@ -205,7 +212,9 @@ fun QuickAddHost(
 fun quickAddCallbacks(presenter: QuickAddPresenter): QuickAddCallbacks =
     remember(presenter) {
         QuickAddCallbacks(
-            onDismiss = presenter::dismiss,
+            onDismiss = presenter::requestDismiss,
+            onDiscard = presenter::dismiss,
+            onKeepEditing = presenter::keepEditing,
             onTitles = presenter::setTitles,
             onDescription = presenter::setDescription,
             onPriority = presenter::setPriority,
@@ -229,9 +238,33 @@ fun QuickAddSheet(
     callbacks: QuickAddCallbacks,
     modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val latestState by rememberUpdatedState(state)
+    val latestCallbacks by rememberUpdatedState(callbacks)
+    // A swipe or a tap outside would slide the sheet away before anyone could be
+    // asked, so one that holds something refuses to go and asks instead. The lambda
+    // has to stay the same one: the sheet's state is keyed on it.
+    val confirmValueChange =
+        remember {
+            { target: SheetValue ->
+                val refused = target == SheetValue.Hidden && latestState.holdsInput
+                if (refused) latestCallbacks.onDismiss()
+                !refused
+            }
+        }
+    val sheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = confirmValueChange,
+        )
     ModalBottomSheet(
-        onDismissRequest = callbacks.onDismiss,
+        onDismissRequest = {
+            callbacks.onDismiss()
+            // The back gesture hides the sheet without asking the check above. If
+            // the sheet is staying, it has to come back; if not, this is cancelled
+            // along with the sheet.
+            scope.launch { sheetState.show() }
+        },
         sheetState = sheetState,
         modifier = modifier,
     ) {
@@ -259,6 +292,28 @@ fun QuickAddSheetContent(
     } else {
         QuickAddFields(state = state, today = today, callbacks = callbacks, modifier = modifier)
     }
+    if (state.confirmingDiscard) {
+        DiscardDraftDialog(onDiscard = callbacks.onDiscard, onKeepEditing = callbacks.onKeepEditing)
+    }
+}
+
+/** Asks before the sheet throws away what it holds. */
+@Composable
+private fun DiscardDraftDialog(
+    onDiscard: () -> Unit,
+    onKeepEditing: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onKeepEditing,
+        title = { Text(stringResource(R.string.native_quickAdd_discardTitle)) },
+        text = { Text(stringResource(R.string.native_quickAdd_discardBody)) },
+        confirmButton = {
+            TextButton(onClick = onDiscard) { Text(stringResource(R.string.native_quickAdd_discardConfirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onKeepEditing) { Text(stringResource(R.string.native_quickAdd_discardKeep)) }
+        },
+    )
 }
 
 @Composable
@@ -288,6 +343,7 @@ private fun QuickAddFields(
             placeholder = { Text(stringResource(R.string.dialog_quickAdd_titlePlaceholder)) },
             textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
             colors = borderlessFieldColors(),
+            visualTransformation = HiddenTitleTail,
             modifier =
                 Modifier
                     .fillMaxWidth()

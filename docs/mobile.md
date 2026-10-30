@@ -1689,6 +1689,16 @@ the write path refuses partway through, the lines that landed stay landed and th
 sheet is left holding only the ones that did not, so saving again cannot write
 anything twice.
 
+Dots and spaces at the end of a title line are not part of the title. A dot there
+disappears from the field as it is typed and is left off what is saved. It is
+hidden rather than deleted, because the next keystroke may turn it into "3.5" or
+"example.com", which come out whole.
+
+A sheet holding something asks before it closes, whichever way it was asked to:
+a swipe, a tap outside, the back gesture or the cancel button. Text that arrived
+in a share counts, the project the sheet opened on does not, and an empty sheet
+just closes.
+
 **Two title rules, and the difference between them is the point.** The
 installation's rules document carries both, and the device reads it from the
 replica. *Auto-labels are applied*: a rule whose mask occurs in the title attaches

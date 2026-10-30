@@ -182,6 +182,40 @@ class QuickAddSheetTest {
         assertEquals("Music", presenter.state.value.projectTitle)
     }
 
+    @Test
+    fun `cancelling a filled in sheet asks first, and only the answer closes it`() {
+        launch()
+
+        type("Buy milk")
+        compose.onNodeWithText(text(R.string.common_cancel)).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.native_quickAdd_discardTitle)).assertIsDisplayed()
+        assertEquals(true, presenter.state.value.visible)
+
+        compose.onNodeWithText(text(R.string.native_quickAdd_discardKeep)).performClick()
+        compose.waitForIdle()
+        assertEquals(0, shown(R.string.native_quickAdd_discardTitle))
+        assertEquals("Buy milk", presenter.state.value.draft.titles)
+
+        compose.onNodeWithText(text(R.string.common_cancel)).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(text(R.string.native_quickAdd_discardConfirm)).performClick()
+        compose.waitForIdle()
+        assertEquals(false, presenter.state.value.visible)
+    }
+
+    @Test
+    fun `cancelling an empty sheet closes it without asking`() {
+        launch()
+
+        compose.onNodeWithText(text(R.string.common_cancel)).performClick()
+        compose.waitForIdle()
+
+        assertEquals(0, shown(R.string.native_quickAdd_discardTitle))
+        assertEquals(false, presenter.state.value.visible)
+    }
+
     /**
      * A date is a plan and the inbox holds what has not been planned, so the day
      * shortcuts appear only once the task has somewhere to live.

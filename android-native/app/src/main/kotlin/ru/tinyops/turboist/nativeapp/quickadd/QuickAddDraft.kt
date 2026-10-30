@@ -23,6 +23,14 @@ data class QuickAddRequest(
 )
 
 /**
+ * A title line with the dots and spaces at its end taken off.
+ *
+ * A sentence's full stop is not part of a task's name, and neither is the space
+ * a keyboard leaves behind a suggestion.
+ */
+fun String.withoutTitleTail(): String = trim().trimEnd { it == '.' || it.isWhitespace() }
+
+/**
  * What the user has typed so far.
  *
  * [titles] is the raw contents of the title field, which may hold several lines:
@@ -47,7 +55,7 @@ data class QuickAddDraft(
 ) {
     /** One task per non-blank line, in the order they were typed. */
     val titleLines: List<String>
-        get() = titles.lines().map(String::trim).filter(String::isNotEmpty)
+        get() = titles.lines().map(String::withoutTitleTail).filter(String::isNotEmpty)
 
     /** True while the draft is headed for the inbox rather than for a project. */
     val isInbox: Boolean
@@ -56,6 +64,24 @@ data class QuickAddDraft(
     /** True once there is something to create. */
     val canSubmit: Boolean
         get() = titleLines.isNotEmpty()
+
+    /**
+     * True when closing the sheet would lose something the user put here.
+     *
+     * The place the sheet was opened on is compared with [opened] rather than with
+     * the inbox: opening on the project on screen is not a choice anybody made. The
+     * text is not compared, so a share that arrived filled in still counts, since
+     * it exists nowhere else on this device.
+     */
+    fun holdsInput(opened: QuickAddDraft): Boolean =
+        canSubmit ||
+            description.isNotBlank() ||
+            priority != Priority.NONE ||
+            dayPart != DayPart.NONE ||
+            dueDate != null ||
+            labelNames.isNotEmpty() ||
+            projectLocalId != opened.projectLocalId ||
+            sectionLocalId != opened.sectionLocalId
 
     /**
      * Where the tasks will be filed.
