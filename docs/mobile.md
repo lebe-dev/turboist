@@ -2326,13 +2326,13 @@ just android-native-build    # debug APK
 just android-native-run      # build, install and launch on a device/emulator
 just android-native-deploy   # install an APK on a connected device, without launching it
 just android-native-test     # JVM unit tests
-just android-native-lint     # ktlint + Android Lint
+just android-lint            # ktlint + detekt (with the Compose rules) + Android Lint
 just android-native-format   # rewrite sources to the ktlint style
 just android-native-e2e      # on-device round trip against a real backend (needs a running emulator)
 just android-native-release  # signed release bundle for the store
 ```
 
-`android-native-test` and `android-native-lint` are part of `just test-all` and
+`android-native-test` and `android-lint` are part of `just test-all` and
 `just lint`, so both aggregates — and `just build-image`, which is gated on them
 — now need a JDK and an Android SDK on the machine running them.
 

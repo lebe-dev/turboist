@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:OpSender.kt$OpSender$suspend fun send( op: OutboxOp, idempotencyKey: String, ): SendOutcome</ID>
+    <ID>CyclomaticComplexMethod:OutboxDrainer.kt$OutboxDrainer$@Suppress("ReturnCount") private suspend fun drainQueue(): DrainResult</ID>
+    <ID>CyclomaticComplexMethod:OutboxOp.kt$fun OutboxOp.endpoint(): OpEndpoint</ID>
+    <ID>CyclomaticComplexMethod:ScriptedServer.kt$ScriptedServer$private fun apply( request: RecordedRequest, path: String, ): Pair&lt;Int, String&gt;</ID>
+    <ID>CyclomaticComplexMethod:TaskWriteRepo.kt$TaskWriteRepo$suspend fun patch( taskLocalId: Long, edit: TaskEdit, ): QueuedWrite</ID>
+    <ID>ImplicitDefaultLocale:SyncCostTest.kt$SyncCostTest$String.format( "%-22s %2d request(s) %8.1f KB applied in %7.1f ms", what, requests, bytes / 1024.0, nanos / 1_000_000.0, )</ID>
+    <ID>LargeClass:TaskWriteRepo.kt$TaskWriteRepo</ID>
+    <ID>LongMethod:OpSender.kt$OpSender$suspend fun send( op: OutboxOp, idempotencyKey: String, ): SendOutcome</ID>
+    <ID>LongMethod:OutboxDrainer.kt$OutboxDrainer$@Suppress("ReturnCount") private suspend fun drainQueue(): DrainResult</ID>
+    <ID>LongMethod:TaskWriteRepo.kt$TaskWriteRepo$suspend fun patch( taskLocalId: Long, edit: TaskEdit, ): QueuedWrite</ID>
+    <ID>LongParameterList:OpSender.kt$OpSender$( private val tasks: TaskApi, private val projects: ProjectApi, private val contexts: ContextApi, private val labels: LabelApi, private val templates: TemplateApi, private val settings: SettingsApi, private val troiki: TroikiApi, private val ids: ReplicaServerIds, )</ID>
+    <ID>LongParameterList:OutboxDrainer.kt$OutboxDrainer$( private val db: TurboistDatabase, private val sender: OpSender, private val ids: ReplicaServerIds, private val mutex: SyncMutex, private val clock: WriteClock = WriteClock.System, private val backoff: DrainBackoff = DrainBackoff.Default, private val serverErrorLimit: Int = DEFAULT_SERVER_ERROR_LIMIT, )</ID>
+    <ID>LongParameterList:SyncTest.kt$SyncTest$( id: Long, title: String = "Write it down", projectId: Long? = null, sectionId: Long? = null, parentId: Long? = null, contextId: Long? = null, sourceTaskId: Long? = null, status: String = "open", planState: String = "none", labels: List&lt;String&gt; = emptyList(), completedAt: String? = null, )</ID>
+    <ID>LongParameterList:SyncTriggers.kt$SyncTriggers$( private val stream: ChangeStream, private val network: NetworkAvailability, private val schedule: BackgroundSyncSchedule, private val scheduler: SyncScheduler, private val signedIn: Flow&lt;Boolean&gt;, private val foreground: Flow&lt;Boolean&gt;, private val localWrites: Flow&lt;Unit&gt;, private val unsentCount: suspend () -&gt; Int, )</ID>
+    <ID>LongParameterList:TaskWriteRepo.kt$TaskWriteRepo$( title: String, childTaskLocalIds: List&lt;Long&gt;, destination: TaskDestination, description: String = "", priority: Priority = Priority.NONE, dayPart: DayPart = DayPart.NONE, planState: PlanState = PlanState.NONE, labels: List&lt;String&gt; = emptyList(), )</ID>
+    <ID>LongParameterList:WriteTest.kt$WriteTest$( title: String = "Write it down", serverId: Long? = 1L, projectLocalId: Long? = null, parentLocalId: Long? = null, inboxId: Long? = null, dueAt: Long? = null, recurrenceRule: String? = null, priority: Priority = Priority.NONE, status: TaskStatus = TaskStatus.OPEN, )</ID>
+    <ID>LoopWithTooManyJumpStatements:ReplicaApplier.kt$ReplicaApplier$for</ID>
+    <ID>LoopWithTooManyJumpStatements:ReplicaRules.kt$ReplicaRules$for</ID>
+    <ID>LoopWithTooManyJumpStatements:TaskWriteRepo.kt$TaskWriteRepo$for</ID>
+    <ID>MaxLineLength:OutboxOp.kt$OutboxOp$*</ID>
+    <ID>NestedBlockDepth:ScriptedServer.kt$ScriptedServer$override fun dispatch(request: RecordedRequest): MockResponse</ID>
+    <ID>ReturnCount:CompletedHistoryPrune.kt$CompletedHistoryPrune$suspend fun prune(): Int</ID>
+    <ID>ReturnCount:ScriptedServer.kt$ScriptedServer$override fun dispatch(request: RecordedRequest): MockResponse</ID>
+    <ID>ReturnCount:ScriptedServer.kt$ScriptedServer$private fun apply( request: RecordedRequest, path: String, ): Pair&lt;Int, String&gt;</ID>
+    <ID>ReturnCount:SyncPuller.kt$SyncPuller$private suspend fun catchUp(): PullResult</ID>
+    <ID>ReturnCount:SyncPuller.kt$SyncPuller$private suspend fun takeCompleteCopy(): PullResult</ID>
+    <ID>SwallowedException:RecurrenceAdvancer.kt$RecurrenceAdvancer.Companion$malformed: IllegalArgumentException</ID>
+    <ID>SwallowedException:RecurrenceAdvancer.kt$RecurrenceAdvancer.Companion$malformed: InvalidRecurrenceRuleException</ID>
+    <ID>TooGenericExceptionCaught:OutboxDrainer.kt$OutboxDrainer$unreadable: Exception</ID>
+    <ID>TooGenericExceptionCaught:ReplicaMaintenance.kt$fault: Exception</ID>
+    <ID>TooGenericExceptionCaught:SyncScheduler.kt$SyncScheduler$fault: Exception</ID>
+    <ID>TooManyFunctions:OpSender.kt$OpSender</ID>
+    <ID>TooManyFunctions:ProjectWriteRepo.kt$ProjectWriteRepo</ID>
+    <ID>TooManyFunctions:ReplicaApplier.kt$ReplicaApplier</ID>
+    <ID>TooManyFunctions:ReplicaIdIndex.kt$ReplicaIdIndex : ReplicaIds</ID>
+    <ID>TooManyFunctions:ReplicaRules.kt$ReplicaRules</ID>
+    <ID>TooManyFunctions:TaskWriteRepo.kt$TaskWriteRepo</ID>
+    <ID>TooManyFunctions:UnsentChanges.kt$UnsentChanges</ID>
+  </CurrentIssues>
+</SmellBaseline>

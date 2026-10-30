@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongParameterList:LabelUsageTest.kt$LabelUsageTest$( label: Label, taggedAt: Long? = daysAgo(1), status: TaskStatus = TaskStatus.OPEN, dueAt: Long? = null, completedAt: Long? = null, projectLocalId: Long? = null, )</ID>
+    <ID>LongParameterList:TaskGroupingTest.kt$TaskGroupingTest$( localId: Long, dayPart: DayPart = DayPart.NONE, dueAt: Long? = null, completedAt: Long? = null, parentLocalId: Long? = null, sectionLocalId: Long? = null, projectLocalId: Long? = null, )</ID>
+    <ID>MagicNumber:LabelUsage.kt$LabelUsagePeriod.MONTH$30</ID>
+    <ID>MagicNumber:LabelUsage.kt$LabelUsagePeriod.QUARTER$90</ID>
+    <ID>MagicNumber:LabelUsage.kt$LabelUsagePeriod.WEEK$7</ID>
+    <ID>MagicNumber:ViewWindows.kt$ViewWindows$6</ID>
+    <ID>MagicNumber:ViewWindows.kt$ViewWindows$7</ID>
+    <ID>MatchingDeclarationName:Replica.kt$ReplicaEntity</ID>
+    <ID>MatchingDeclarationName:TaskBlockers.kt$BlockEdge</ID>
+  </CurrentIssues>
+</SmellBaseline>

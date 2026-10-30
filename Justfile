@@ -45,7 +45,7 @@ frontend-lint:
 lint: format
     just lint-backend
     just lint-frontend
-    just android-native-lint
+    just android-lint
 
 # --- Tests ---
 # `static.go` embeds frontend/build, which is gitignored: without a real build the
@@ -351,7 +351,7 @@ deploy-android: cap-sync-versioned
 # `android-native/` is a Gradle build of its own, entirely separate from the
 # Capacitor shell in `frontend/android/`. It shares the repo-root VERSION file.
 #
-# `android-native-test` and `android-native-lint` are part of `test-all` and
+# `android-native-test` and `android-lint` are part of `test-all` and
 # `lint`, so an Android SDK (found via ANDROID_SDK_ROOT/ANDROID_HOME, or a
 # standard install path) and a JDK are needed to run either of those aggregates
 # — and therefore to run `build-image`, which is gated on them.
@@ -367,9 +367,17 @@ android-native-test:
     cd android-native && ./gradlew --console=plain -p buildSrc test
     cd android-native && ./gradlew --console=plain test
 
-# Check the native Android client: ktlint (Kotlin style) + Android Lint.
-android-native-lint:
-    cd android-native && ./gradlew --console=plain ktlintCheck lint
+# Check the native Android client: ktlint (Kotlin style), detekt with the Compose
+# rules (code smells, likely bugs, Compose misuse) and Android Lint.
+android-lint:
+    cd android-native && ./gradlew --console=plain ktlintCheck detekt lint
+
+alias android-native-lint := android-lint
+
+# Rewrite the per-module detekt baselines after clearing old findings. New findings
+# are meant to be fixed rather than added here.
+android-detekt-baseline:
+    cd android-native && ./gradlew --console=plain detektBaseline
 
 # Rewrite the native Android client's Kotlin sources to the ktlint style.
 android-native-format:
