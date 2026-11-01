@@ -1349,6 +1349,17 @@ accident while scrolling. Neither swipe dismisses the row, which leaves the list
 only if the change took it out of the query. The swipes are unreachable to an
 assistive reader, so the same actions are also named actions on the row.
 
+**Carrying a task between phases.** On Today a long press on an open task in one
+of the day's phases picks it up; dropped on another phase's heading or rows it
+moves there, which is a write of the phase alone. Since the list leaves out a
+phase with nothing in it and a long day pushes most of them off screen, a bar
+naming all four phases floats over the top of the list while a task is carried —
+at the top, because the bottom edge belongs to the capture button, and over the
+list rather than in it, so appearing never shifts the rows under the finger.
+Released without moving, the long press starts a selection exactly as before.
+Overdue tasks are not carried: a new phase would leave them overdue all the
+same. An assistive reader gets each other phase as a named action on the row.
+
 **Acting on a selection.** A long press starts selection mode; tapping rows adds
 and removes them, a heading offers its whole block at once, and un-picking the
 last task leaves the mode rather than leaving a bar hanging over nothing. The

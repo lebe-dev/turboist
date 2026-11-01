@@ -46,6 +46,13 @@ abstract class TaskListViewModel(
     /** The rows, the writes and the refresh gesture. */
     abstract val presenter: TaskListPresenter
 
+    /**
+     * True on a list cut into the phases of one day, where a row can be carried
+     * from one phase to another. Elsewhere a phase is not what the list is cut
+     * on, and there would be nothing on screen to drop a row onto.
+     */
+    open val offersDayPartDrops: Boolean = false
+
     private companion object {
         /** Matches the presenter's own grace period, so both stop watching together. */
         const val STOP_TIMEOUT_MILLIS = 5_000L
@@ -129,6 +136,8 @@ class TodayViewModel
                 repository.observeMoveOptions(),
                 recent.observe(),
             )
+
+        override val offersDayPartDrops: Boolean = true
     }
 
 /** Tomorrow: the next day, phase by phase. Nothing is overdue in the future. */

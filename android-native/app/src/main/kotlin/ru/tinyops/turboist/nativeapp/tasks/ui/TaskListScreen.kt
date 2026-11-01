@@ -201,7 +201,15 @@ fun TaskListScreen(
         today = today,
         empty = empty,
         messages = presenter.messages,
-        callbacks = presenterCallbacks(presenter, viewModel.zone, onOpenTask, onMoveRequested, onGroupRequested),
+        callbacks =
+            presenterCallbacks(
+                presenter,
+                viewModel.zone,
+                viewModel.offersDayPartDrops,
+                onOpenTask,
+                onMoveRequested,
+                onGroupRequested,
+            ),
         modifier = modifier,
         bulkOutcomes = presenter.bulkOutcomes,
     )
@@ -279,11 +287,12 @@ private fun SelectionSheets(
 private fun presenterCallbacks(
     presenter: TaskListPresenter,
     zone: ZoneId,
+    dayPartDrops: Boolean,
     onOpenTask: (Task) -> Unit,
     onMoveRequested: () -> Unit,
     onGroupRequested: () -> Unit,
 ): TaskListCallbacks =
-    remember(presenter, zone, onOpenTask, onMoveRequested, onGroupRequested) {
+    remember(presenter, zone, dayPartDrops, onOpenTask, onMoveRequested, onGroupRequested) {
         TaskListCallbacks(
             onToggleComplete = presenter::toggleComplete,
             onOpen = onOpenTask,
@@ -294,6 +303,7 @@ private fun presenterCallbacks(
             onClearSelection = presenter::clearSelection,
             onRefresh = presenter::refresh,
             onSelectAllInSection = presenter::toggleSelectAll,
+            onMoveToDayPart = if (dayPartDrops) presenter::moveToDayPart else null,
             selectionActions =
                 if (!presenter.offersBulkActions) {
                     null

@@ -10,6 +10,7 @@ import ru.tinyops.turboist.core.model.view.buildTaskTree
 import ru.tinyops.turboist.core.model.view.groupByDayPart
 import ru.tinyops.turboist.core.model.view.groupTreeByDueDay
 import ru.tinyops.turboist.core.model.view.relativeDay
+import ru.tinyops.turboist.core.sync.write.TaskEdit
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -146,6 +147,25 @@ fun dayPartSections(
             rows = taskListRows(group.tasks, projectTitles),
         )
     }
+}
+
+/**
+ * Moves a task to another phase of the day, or leaves it where it is.
+ *
+ * A phase this build does not recognise is read as "any time", because that is
+ * the block the list files it under; dropping it there again is a drop onto the
+ * block it came from, and writing "any time" would erase a phase a newer client
+ * set on purpose. An unrecognised phase is never written either: it has no name
+ * the server would accept.
+ */
+fun dayPartEdit(
+    task: Task,
+    part: DayPart,
+): TaskEdit {
+    if (part == DayPart.UNKNOWN) return TaskEdit()
+    val current = if (task.dayPart == DayPart.UNKNOWN) DayPart.NONE else task.dayPart
+    if (part == current) return TaskEdit()
+    return TaskEdit(dayPart = part)
 }
 
 /**

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.network.Clearable
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -170,6 +171,33 @@ class TaskListPresenterTest {
             val tomorrowEvening = tomorrow.atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
             val expected = TaskEdit(dueAt = Clearable.Set(tomorrowEvening))
             assertContentEquals(listOf("edit 1 $expected"), actions.calls)
+        }
+
+    @Test
+    fun `dropping a task onto another phase moves it there, and onto its own phase does nothing`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+
+            presenter.moveToDayPart(task(1, dayPart = DayPart.MORNING), DayPart.EVENING)
+            presenter.moveToDayPart(task(2, dayPart = DayPart.AFTERNOON), DayPart.AFTERNOON)
+            runCurrent()
+
+            assertContentEquals(listOf("edit 1 ${TaskEdit(dayPart = DayPart.EVENING)}"), actions.calls)
+        }
+
+    @Test
+    fun `a refused phase move says the change did not happen`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            val said = mutableListOf<TaskListMessage>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            runCurrent()
+            actions.failWith = IllegalStateException("replica is gone")
+
+            presenter.moveToDayPart(task(1, dayPart = DayPart.MORNING), DayPart.EVENING)
+            runCurrent()
+
+            assertEquals(listOf(TaskListMessage.FAILED), said)
         }
 
     @Test

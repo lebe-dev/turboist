@@ -377,4 +377,8 @@
     <string name="native_task_whenCollapse">Hide date fields</string>
     <!-- What a long press on the jump pair control offers: the list of things to jump to. -->
     <string name="native_harpoon_jumps">Show jumps</string>
+    <!-- Over the list while a task is carried between the parts of a day. -->
+    <string name="native_dayPartDrag_hint">Drop on a part of the day</string>
+    <!-- Beside the finger while a carried task is over another part of the day; the value is that part's name. -->
+    <string name="native_dayPartDrag_willMove">Move to %1$s</string>
 </resources>

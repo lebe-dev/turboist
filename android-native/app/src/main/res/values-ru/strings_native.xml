@@ -284,4 +284,8 @@
     <string name="native_settings_ruleProbeNoMatch">Не совпадает</string>
     <string name="native_account_needsConnection">Эти данные читаются с сервера при просмотре и не хранятся на устройстве, поэтому нужно подключение.</string>
     <string name="native_account_clientUnknown">Другое</string>
+    <!-- Over the list while a task is carried between the parts of a day. -->
+    <string name="native_dayPartDrag_hint">Перетащите в часть дня</string>
+    <!-- Beside the finger while a carried task is over another part of the day; the value is that part's name. -->
+    <string name="native_dayPartDrag_willMove">Перенести: %1$s</string>
 </resources>

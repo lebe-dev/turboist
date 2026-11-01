@@ -1,5 +1,6 @@
 package ru.tinyops.turboist.nativeapp.tasks
 
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.network.Clearable
 import ru.tinyops.turboist.core.sync.write.TaskEdit
 import java.time.LocalDate
@@ -151,5 +152,33 @@ class TaskEditsTest {
     @Test
     fun `an untouched edit names no fields`() {
         assertTrue(TaskEdit().touchedFields().isEmpty())
+    }
+
+    @Test
+    fun `moving a task to another phase of the day touches only the phase`() {
+        val edit = dayPartEdit(task(1, dayPart = DayPart.MORNING), DayPart.EVENING)
+
+        assertEquals(listOf("dayPart"), edit.touchedFields())
+        assertEquals(DayPart.EVENING, edit.dayPart)
+    }
+
+    @Test
+    fun `moving a task to the phase it is already in changes nothing`() {
+        assertTrue(dayPartEdit(task(1, dayPart = DayPart.AFTERNOON), DayPart.AFTERNOON).touchedFields().isEmpty())
+        assertTrue(dayPartEdit(task(1), DayPart.NONE).touchedFields().isEmpty())
+    }
+
+    @Test
+    fun `a phase this build does not know is already read as any time, and is kept when dropped there`() {
+        // The list files such a task under "any time", so dropping it back there is
+        // a drop onto the block it came from — and writing NONE would erase a phase
+        // a newer client set on purpose.
+        assertTrue(dayPartEdit(task(1, dayPart = DayPart.UNKNOWN), DayPart.NONE).touchedFields().isEmpty())
+        assertEquals(DayPart.MORNING, dayPartEdit(task(1, dayPart = DayPart.UNKNOWN), DayPart.MORNING).dayPart)
+    }
+
+    @Test
+    fun `an unknown phase is never written`() {
+        assertTrue(dayPartEdit(task(1, dayPart = DayPart.MORNING), DayPart.UNKNOWN).touchedFields().isEmpty())
     }
 }

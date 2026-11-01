@@ -65,6 +65,7 @@ import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
+import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.shell.LocalShellChrome
 import ru.tinyops.turboist.nativeapp.tasks.SectionHeading
@@ -108,6 +109,12 @@ data class TaskListCallbacks(
     val onRefresh: () -> Unit,
     val onSelectAllInSection: (List<Long>) -> Unit = {},
     val selectionActions: SelectionActions? = null,
+    /**
+     * Moves a task to another phase of the day — a row carried onto another
+     * phase. `null` on a list that is not cut into phases, which leaves its rows
+     * where they are.
+     */
+    val onMoveToDayPart: ((Task, DayPart) -> Unit)? = null,
 )
 
 /**
@@ -142,6 +149,9 @@ fun TaskList(
     val toolbarShown = state.selectionMode && actions != null
     // The blocks the user unfolded; one that starts folded stays so until tapped.
     val unfolded = remember { mutableStateMapOf<String, Boolean>() }
+    // The row being carried between phases, on a list that offers that at all.
+    val dragState = remember { DayPartDragState() }
+    val drag = dragState.takeIf { callbacks.onMoveToDayPart != null }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -176,6 +186,8 @@ fun TaskList(
                 ) {
                     for (section in state.sections) {
                         val folded = section.foldedByDefault && unfolded[section.key] != true
+                        // Only a phase's block takes a carried row, and only its rows can be carried.
+                        val part = (section.heading as? SectionHeading.Phase)?.part
                         item(key = "heading-" + section.key) {
                             SectionHeader(
                                 section = section,
@@ -185,11 +197,17 @@ fun TaskList(
                                 },
                                 folded = folded,
                                 onToggleFold = { unfolded[section.key] = folded },
+                                dropActive = drag.wouldLandIn(part),
+                                modifier = Modifier.dayPartDropTarget("heading-" + section.key, part, drag),
                             )
                         }
                         if (folded) continue
                         if (section.events.isNotEmpty()) {
-                            item(key = "events-" + section.key) { CalendarEventBand(section.events, zone) }
+                            item(key = "events-" + section.key) {
+                                Box(modifier = Modifier.dayPartDropTarget("events-" + section.key, part, drag)) {
+                                    CalendarEventBand(section.events, zone)
+                                }
+                            }
                         }
                         if (section.rows.isEmpty() && section.emptyRes != null) {
                             item(key = "empty-" + section.key) { EmptySection(section.emptyRes) }
@@ -203,13 +221,28 @@ fun TaskList(
                                 selected = row.task.localId in state.selected,
                                 callbacks = callbacks,
                                 shape = segmentShape(index, section.rows.size),
-                                modifier = Modifier.padding(top = if (index == 0) 0.dp else SEGMENT_GAP),
+                                part = part,
+                                drag = drag,
+                                modifier =
+                                    Modifier
+                                        .dayPartDropTarget("task-" + row.task.localId, part, drag)
+                                        .padding(top = if (index == 0) 0.dp else SEGMENT_GAP),
                             )
                         }
                     }
                 }
+                if (drag?.dragged != null) {
+                    DayPartDropBar(
+                        drag = drag,
+                        modifier =
+                            Modifier.align(
+                                Alignment.TopCenter,
+                            ).padding(horizontal = LIST_GUTTER, vertical = 8.dp),
+                    )
+                }
             }
         }
+        if (drag != null) DayPartDragTooltip(drag)
         if (toolbarShown && actions != null) {
             SelectionToolbar(
                 count = state.selected.size,
@@ -235,6 +268,41 @@ internal fun segmentShape(
     val bottom = if (index == count - 1) OUTER_CORNER else INNER_CORNER
     return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
 }
+
+/** True while [task] can be picked up and carried to another phase of the day. */
+private fun isCarriable(
+    task: Task,
+    part: DayPart?,
+    drag: DayPartDragState?,
+    onMoveToDayPart: ((Task, DayPart) -> Unit)?,
+    selectionMode: Boolean,
+): Boolean = drag != null && part != null && onMoveToDayPart != null && !selectionMode && task.status == TaskStatus.OPEN
+
+/**
+ * The actions a swiped row uncovers: tomorrow, unless the task is already on
+ * it; the backlog, unless it is already parked; and picking it.
+ */
+private fun rowActions(
+    task: Task,
+    zone: ZoneId,
+    today: LocalDate,
+    callbacks: TaskListCallbacks,
+): List<RowAction> =
+    buildList {
+        val tomorrow = today.plusDays(1)
+        if (task.dueDate(zone) != tomorrow) {
+            add(
+                RowAction(
+                    Icons.Outlined.EventAvailable,
+                    R.string.common_tomorrow,
+                ) { callbacks.onMoveToDay(task, tomorrow) },
+            )
+        }
+        if (task.planState != PlanState.BACKLOG) {
+            add(RowAction(Icons.Outlined.Inventory2, R.string.native_swipe_backlog) { callbacks.onPark(task) })
+        }
+        add(RowAction(Icons.Outlined.Checklist, R.string.native_swipe_select) { callbacks.onStartSelection(task) })
+    }
 
 /** Where a row rests after it has been swiped. */
 private enum class RowSwipe { COMPLETE, SETTLED, REVEALED }
@@ -269,29 +337,23 @@ private fun SwipeableTaskRow(
     selected: Boolean,
     callbacks: TaskListCallbacks,
     shape: Shape,
+    part: DayPart?,
+    drag: DayPartDragState?,
     modifier: Modifier = Modifier,
 ) {
     val task = row.task
+    val onMoveToDayPart = callbacks.onMoveToDayPart
+    // While the row can be carried, its long press belongs to the drag, which
+    // starts the selection itself when the finger lifts without moving.
+    val carriable = isCarriable(task, part, drag, onMoveToDayPart, selectionMode)
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val swipe = remember { AnchoredDraggableState(RowSwipe.SETTLED) }
     val close: () -> Unit = { scope.launch { swipe.animateTo(RowSwipe.SETTLED) } }
-    val actions =
-        buildList {
-            val tomorrow = today.plusDays(1)
-            if (task.dueDate(zone) != tomorrow) {
-                add(
-                    RowAction(
-                        Icons.Outlined.EventAvailable,
-                        R.string.common_tomorrow,
-                    ) { callbacks.onMoveToDay(task, tomorrow) },
-                )
-            }
-            if (task.planState != PlanState.BACKLOG) {
-                add(RowAction(Icons.Outlined.Inventory2, R.string.native_swipe_backlog) { callbacks.onPark(task) })
-            }
-            add(RowAction(Icons.Outlined.Checklist, R.string.native_swipe_select) { callbacks.onStartSelection(task) })
-        }
+    val actions = rowActions(task, zone, today, callbacks)
+    // Carrying the row is out of reach of an assistive reader, so each other
+    // phase is offered as a named action instead.
+    val phaseMoves = if (carriable) DROP_DAY_PARTS.filter { it != part } else emptyList()
     val panelWidth = ACTION_WIDTH * actions.size
     val revealing by remember { derivedStateOf { swipe.offset.let { !it.isNaN() && it < 0f } } }
     val completing by remember { derivedStateOf { swipe.offset.let { !it.isNaN() && it > 0f } } }
@@ -313,9 +375,19 @@ private fun SwipeableTaskRow(
     // reader, so the same actions are offered as named actions on the row.
     val completeLabel = stringResource(R.string.task_markComplete)
     val actionLabels = actions.map { stringResource(it.labelRes) }
+    val phaseLabels =
+        phaseMoves.map { stringResource(R.string.native_dayPartDrag_willMove, stringResource(dayPartLabel(it))) }
     Box(
         modifier =
             modifier
+                .dayPartDragSource(
+                    task = task,
+                    part = part,
+                    drag = drag,
+                    enabled = carriable,
+                    onPressWithoutDrag = { callbacks.onStartSelection(task) },
+                    onDrop = { carried, target -> onMoveToDayPart?.invoke(carried, target) },
+                ).dayPartDragFade(task, drag)
                 .clip(shape)
                 .onSizeChanged { size ->
                     val panel = with(density) { panelWidth.toPx() }
@@ -337,6 +409,12 @@ private fun SwipeableTaskRow(
                         actions.mapIndexed { index, action ->
                             CustomAccessibilityAction(actionLabels[index]) {
                                 action.run()
+                                true
+                            }
+                        } +
+                        phaseMoves.mapIndexed { index, target ->
+                            CustomAccessibilityAction(phaseLabels[index]) {
+                                onMoveToDayPart?.invoke(task, target)
                                 true
                             }
                         }
@@ -364,7 +442,7 @@ private fun SwipeableTaskRow(
             // actions would leave them hanging there on the way back.
             onOpen = { if (swipe.currentValue == RowSwipe.SETTLED) callbacks.onOpen(task) else close() },
             onSelectToggle = { callbacks.onSelectToggle(task) },
-            onStartSelection = { callbacks.onStartSelection(task) },
+            onStartSelection = { if (!carriable) callbacks.onStartSelection(task) },
             modifier =
                 Modifier
                     .offset { IntOffset(swipe.offset.takeUnless { it.isNaN() }?.roundToInt() ?: 0, 0) }
@@ -449,10 +527,12 @@ private fun RowActionPanel(
 @Composable
 private fun SectionHeader(
     section: TaskListSection,
+    modifier: Modifier = Modifier,
     selectionMode: Boolean = false,
     onSelectAll: () -> Unit = {},
     folded: Boolean = false,
     onToggleFold: () -> Unit = {},
+    dropActive: Boolean = false,
 ) {
     val heading = section.heading
     if (heading is SectionHeading.None) {
@@ -463,8 +543,9 @@ private fun SectionHeader(
     val emphasised = heading is SectionHeading.Phase && heading.active
     Row(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
+                .dropHighlight(dropActive)
                 .then(
                     if (section.foldedByDefault) {
                         Modifier.clickable(role = Role.Button, onClick = onToggleFold)
@@ -525,6 +606,15 @@ private fun SelectAllRow(onSelectAll: () -> Unit) {
         TextButton(onClick = onSelectAll) { Text(stringResource(R.string.selection_bar_selectAll)) }
     }
 }
+
+/** Lights the heading of the phase a carried row would land in, the way the drop bar lights it. */
+@Composable
+private fun Modifier.dropHighlight(active: Boolean): Modifier =
+    if (active) {
+        clip(RoundedCornerShape(OUTER_CORNER)).background(MaterialTheme.colorScheme.secondaryContainer)
+    } else {
+        this
+    }
 
 @Composable
 private fun headingText(heading: SectionHeading): String =

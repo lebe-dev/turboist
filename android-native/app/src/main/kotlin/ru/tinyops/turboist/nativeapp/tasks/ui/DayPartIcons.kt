@@ -146,7 +146,7 @@ private fun DayPartIconButton(
     }
 }
 
-private fun dayPartIcon(part: DayPart): ImageVector =
+internal fun dayPartIcon(part: DayPart): ImageVector =
     when (part) {
         DayPart.MORNING -> Icons.Outlined.WbTwilight
         DayPart.AFTERNOON -> Icons.Outlined.WbSunny
@@ -155,7 +155,7 @@ private fun dayPartIcon(part: DayPart): ImageVector =
     }
 
 @Composable
-private fun dayPartTint(part: DayPart): Color =
+internal fun dayPartTint(part: DayPart): Color =
     when (part) {
         DayPart.MORNING -> TurboistTheme.accents.morning
         DayPart.AFTERNOON -> TurboistTheme.accents.afternoon

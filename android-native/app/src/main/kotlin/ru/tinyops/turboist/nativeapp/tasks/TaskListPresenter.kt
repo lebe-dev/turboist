@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
@@ -262,6 +263,16 @@ class TaskListPresenter(
         zone: ZoneId,
     ) {
         val edit = dueDateEdit(task, day, zone)
+        if (edit == TaskEdit()) return
+        scope.launch { report { actions.edit(task.localId, edit) } }
+    }
+
+    /** Moves a task to another phase of the day — what a row carried onto another phase's block asks for. */
+    fun moveToDayPart(
+        task: Task,
+        part: DayPart,
+    ) {
+        val edit = dayPartEdit(task, part)
         if (edit == TaskEdit()) return
         scope.launch { report { actions.edit(task.localId, edit) } }
     }
