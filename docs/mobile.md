@@ -1359,6 +1359,8 @@ list rather than in it, so appearing never shifts the rows under the finger.
 Released without moving, the long press starts a selection exactly as before.
 Overdue tasks are not carried: a new phase would leave them overdue all the
 same. An assistive reader gets each other phase as a named action on the row.
+The web client's Today page offers the same gesture and the same bar, with the
+mouse (HTML5 drag) and with a long press on touch screens.
 
 **Acting on a selection.** A long press starts selection mode; tapping rows adds
 and removes them, a heading offers its whole block at once, and un-picking the

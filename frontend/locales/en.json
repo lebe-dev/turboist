@@ -966,7 +966,8 @@
 			"emptyTitle": "Nothing for today",
 			"emptyDescription": "No tasks are scheduled for today. Enjoy the calm.",
 			"errorLoading": "Failed to load today",
-			"overdueTitle": "Overdue"
+			"overdueTitle": "Overdue",
+			"dayPartDropHint": "Drop on a part of the day"
 		},
 		"tomorrow": {
 			"emptyTitle": "Nothing for tomorrow",

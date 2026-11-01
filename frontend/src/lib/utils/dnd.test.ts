@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cancelTouchDrag, endTouchDrag, initTouchDrag, updateTouchDrag } from './dnd';
+import {
+	cancelTouchDrag,
+	endTouchDrag,
+	initTouchDrag,
+	setTouchDayPartDragListener,
+	updateTouchDrag
+} from './dnd';
 
 // jsdom has no TouchEvent constructor: build a plain Event carrying the touch
 // lists the module reads.
@@ -82,5 +88,56 @@ describe('touch drag', () => {
 		document.dispatchEvent(new Event('visibilitychange'));
 		Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
 		expect(scrollBlocked()).toBe(false);
+	});
+});
+
+describe('touch drag between the phases of a day', () => {
+	function phase(part: string): HTMLElement {
+		const el = document.createElement('section');
+		el.dataset.dayPartDrop = part;
+		const inner = document.createElement('span');
+		el.appendChild(inner);
+		document.body.appendChild(el);
+		return inner;
+	}
+
+	function listen() {
+		const calls: string[] = [];
+		const off = setTouchDayPartDragListener({
+			begin: (id) => calls.push(`begin ${id}`),
+			over: (part) => calls.push(`over ${part}`),
+			drop: (part) => calls.push(`drop ${part}`)
+		});
+		return { calls, off };
+	}
+
+	it('reports the phase under the finger and the one it was let go over', () => {
+		const evening = phase('evening');
+		const { calls, off } = listen();
+		armDragOn(row);
+		document.elementFromPoint = () => evening;
+		updateTouchDrag(touchEvent('touchmove', 20, 40));
+		expect(evening.parentElement!.classList.contains('touch-drag-over')).toBe(true);
+		const result = endTouchDrag(touchEvent('touchend', 20, 40));
+		expect(result).toBeNull();
+		expect(calls).toEqual(['begin 1', 'over evening', 'drop evening']);
+		off();
+	});
+
+	it('drops over nothing when let go outside every phase', () => {
+		const { calls, off } = listen();
+		armDragOn(row);
+		updateTouchDrag(touchEvent('touchmove', 20, 40));
+		endTouchDrag(touchEvent('touchend', 20, 40));
+		expect(calls).toEqual(['begin 1', 'over null', 'drop null']);
+		off();
+	});
+
+	it('drops over nothing when the system cancels the touch', () => {
+		const { calls, off } = listen();
+		armDragOn(row);
+		window.dispatchEvent(touchEvent('touchcancel', 0, 0, 0));
+		expect(calls).toEqual(['begin 1', 'drop null']);
+		off();
 	});
 });
