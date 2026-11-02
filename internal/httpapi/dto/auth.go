@@ -18,6 +18,11 @@ type UserDTO struct {
 	TOTPEnabled bool   `json:"totpEnabled"`
 }
 
+// MeResponse is the body of GET /auth/me.
+type MeResponse struct {
+	User UserDTO `json:"user"`
+}
+
 type AuthResponse struct {
 	Access  string  `json:"access"`
 	Refresh string  `json:"refresh"`

@@ -352,8 +352,8 @@ func (h *CalendarHandler) googleStart(c fiber.Ctx) error {
 	if err := h.calendars.CreateOAuthState(c.Context(), state, claims.UserID, claims.SessionID, model.CalendarProviderGoogle, 10*time.Minute); err != nil {
 		return httpapi.ErrInternal("save oauth state").WithCause(err)
 	}
-	return c.JSON(fiber.Map{
-		"url": cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce),
+	return c.JSON(googleStartResp{
+		URL: cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce),
 	})
 }
 
@@ -456,6 +456,14 @@ func (h *CalendarHandler) googleSync(c fiber.Ctx) error {
 	return h.list(c)
 }
 
+type googleStartResp struct {
+	URL string `json:"url"`
+}
+
+type calendarEventsResp struct {
+	Items []calendarEventResp `json:"items"`
+}
+
 type calendarSourcePatchReq struct {
 	Selected *bool `json:"selected"`
 }
@@ -516,7 +524,7 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 		return httpapi.ErrInternal(msgLoadSettings).WithCause(err)
 	}
 	if !settings.CalendarEnabled {
-		return c.JSON(fiber.Map{"items": []calendarEventResp{}})
+		return c.JSON(calendarEventsResp{Items: []calendarEventResp{}})
 	}
 	start, end, appErr := parseEventRange(c)
 	if appErr != nil {
@@ -527,11 +535,11 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 		return httpapi.ErrInternal(msgLoadGoogleCalendarConfig).WithCause(err)
 	}
 	if !ok {
-		return c.JSON(fiber.Map{"items": []calendarEventResp{}})
+		return c.JSON(calendarEventsResp{Items: []calendarEventResp{}})
 	}
 	account, err := h.calendars.GetAccountByProvider(c.Context(), userID, model.CalendarProviderGoogle)
 	if errors.Is(err, repo.ErrNotFound) {
-		return c.JSON(fiber.Map{"items": []calendarEventResp{}})
+		return c.JSON(calendarEventsResp{Items: []calendarEventResp{}})
 	}
 	if err != nil {
 		return httpapi.ErrInternal("load calendar account").WithCause(err)
@@ -546,7 +554,7 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 		for i, e := range items {
 			resps[i] = calendarEventToResp(e)
 		}
-		return c.JSON(fiber.Map{"items": resps})
+		return c.JSON(calendarEventsResp{Items: resps})
 	}
 	ctx, cancel := context.WithTimeout(c.Context(), 20*time.Second)
 	defer cancel()
@@ -564,7 +572,7 @@ func (h *CalendarHandler) events(c fiber.Ctx) error {
 	for i, e := range items {
 		resps[i] = calendarEventToResp(e)
 	}
-	return c.JSON(fiber.Map{"items": resps})
+	return c.JSON(calendarEventsResp{Items: resps})
 }
 
 func parseEventRange(c fiber.Ctx) (time.Time, time.Time, *httpapi.AppError) {

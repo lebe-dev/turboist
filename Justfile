@@ -29,8 +29,15 @@ bump-deps: bump-backend-deps && bump-frontend-deps
 build-frontend:
     cd frontend && yarn && yarn build
 
-build: build-frontend && format
+build: build-frontend && format openapi
     go build -ldflags="-X main.Version={{ version }}" -o turboist ./cmd/turboist
+
+# --- OpenAPI ---
+# Regenerate api/openapi.yaml from the route table (handlers.Operations) and the
+# DTO types. `just test` fails while the committed file is stale; the running
+# server publishes the same document at /api/v1/openapi.json.
+openapi: ensure-frontend-build
+    go test ./internal/httpapi/handlers -run TestOpenAPIDocument_IsUpToDate -count=1 -update
 
 # --- Lints ---
 lint-backend: ensure-frontend-build format

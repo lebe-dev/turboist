@@ -255,21 +255,6 @@ func main() {
 		env.CalendarCacheTTL,
 		log,
 	)
-	calendarHandler := handlers.NewCalendarHandler(
-		calendarSvc,
-		calendarRepo,
-		userRepo,
-		env.BaseURL,
-		log,
-	)
-	calendarHandler.RegisterPublic(app)
-
-	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets)
-	eventsHandler.RegisterPublic(app)
-
-	api := httpapi.RegisterRoutes(app, deps)
-	eventsHandler.Register(api)
-
 	authHandler := handlers.NewAuthHandler(userRepo, sessionRepo, jwtIssuer, ipLimiter, env.Argon2Params)
 	if totpSvc != nil {
 		authHandler.WithTOTP(totpSvc)
@@ -277,44 +262,45 @@ func main() {
 	if passkeySvc != nil {
 		authHandler.WithPasskeys(passkeySvc)
 	}
-	authGroup := app.Group("/auth")
-	authHandler.RegisterAuth(authGroup, jwtIssuer)
+	var totpHandler *handlers.TOTPHandler
 	if totpSvc != nil {
-		totpHandler := handlers.NewTOTPHandler(userRepo, totpSvc, ipLimiter)
-		totpHandler.RegisterTOTP(authGroup.Group("", httpapi.AuthMiddleware(jwtIssuer)))
+		totpHandler = handlers.NewTOTPHandler(userRepo, totpSvc, ipLimiter)
 	}
-	handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/contexts"))
-	handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, cfg, env.BaseURL).Register(api.Group("/labels"))
-	handlers.NewTemplateHandler(templateRepo, templateSvc, env.BaseURL).Register(api.Group("/task-templates"))
-	handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL).Register(api.Group("/sections"))
-	handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).Register(api)
-	handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL).Register(api.Group("/inbox"))
-	handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, taskSvc, env.BaseURL).Register(api)
-	handlers.NewTaskViewHandler(taskRepo, userRepo, troikiSvc, cfg, env.BaseURL).Register(api)
-	handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL).Register(api)
-	handlers.NewTroikiHandler(troikiSvc, env.BaseURL).Register(api)
-	handlers.NewTaskRelationHandler(relationSvc, env.BaseURL).Register(api)
-	handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL).Register(api)
-	handlers.NewSearchHandler(searchRepo, env.BaseURL).Register(api)
-	handlers.NewMetaHandler(cfg, totpSvc != nil, inboxProcessor.Enabled(), ctxRepo, projectRepo, labelRepo, taskRepo, userRepo, appSettingsRepo, templateRepo, troikiSvc, harpoonSvc, env.BaseURL).Register(api)
-	handlers.NewStateHandler(userRepo).Register(api)
-	handlers.NewSettingsHandler(userRepo).Register(api)
-	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
-	handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo, projectRepo).Register(api)
-	handlers.NewInboxProcessingHandler(inboxProcessor, inboxProcRepo, appSettingsRepo, env.BaseURL).Register(api)
-	handlers.NewSyncHandler(changeLogRepo, env.BaseURL).Register(api.Group("/sync"))
-	handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)).
-		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
-	handlers.NewSessionsHandler(sessionRepo).
-		Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
+	var passkeysHandler *handlers.PasskeysHandler
 	if passkeySvc != nil {
-		// Registering a passkey mints a password-equivalent credential, so the
-		// group is JWT-only: an API token must never be able to add one.
-		handlers.NewPasskeysHandler(passkeySvc).
-			Register(api.Group("/passkeys", httpapi.RequireJWTAuth()))
+		passkeysHandler = handlers.NewPasskeysHandler(passkeySvc)
 	}
-	handlers.NewBackupHandler(backupSvc).Register(api.Group("", httpapi.RequireJWTAuth()))
-	calendarHandler.Register(api.Group("/calendars"))
+	handlers.Mount(app, deps, handlers.Handlers{
+		Auth:          authHandler,
+		TOTP:          totpHandler,
+		Events:        handlers.NewEventsHandler(eventsHub, eventsTickets),
+		Calendar:      handlers.NewCalendarHandler(calendarSvc, calendarRepo, userRepo, env.BaseURL, log),
+		Contexts:      handlers.NewContextHandler(ctxRepo, projectRepo, taskRepo, taskSvc, env.BaseURL),
+		Labels:        handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, cfg, env.BaseURL),
+		Templates:     handlers.NewTemplateHandler(templateRepo, templateSvc, env.BaseURL),
+		Sections:      handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL),
+		Projects:      handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL),
+		Inbox:         handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL),
+		TaskBulk:      handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, taskSvc, env.BaseURL),
+		TaskViews:     handlers.NewTaskViewHandler(taskRepo, userRepo, troikiSvc, cfg, env.BaseURL),
+		TaskActions:   handlers.NewTaskActionHandler(taskRepo, completeSvc, planSvc, pinSvc, moveSvc, env.BaseURL),
+		Troiki:        handlers.NewTroikiHandler(troikiSvc, env.BaseURL),
+		TaskRelations: handlers.NewTaskRelationHandler(relationSvc, env.BaseURL),
+		Tasks:         handlers.NewTaskHandler(taskRepo, projectRepo, taskSvc, env.BaseURL),
+		Search:        handlers.NewSearchHandler(searchRepo, env.BaseURL),
+		Meta: handlers.NewMetaHandler(cfg, totpSvc != nil, inboxProcessor.Enabled(), ctxRepo, projectRepo, labelRepo,
+			taskRepo, userRepo, appSettingsRepo, templateRepo, troikiSvc, harpoonSvc, env.BaseURL),
+		State:           handlers.NewStateHandler(userRepo),
+		Settings:        handlers.NewSettingsHandler(userRepo),
+		Harpoon:         handlers.NewHarpoonHandler(harpoonSvc),
+		AppSettings:     handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo, projectRepo),
+		InboxProcessing: handlers.NewInboxProcessingHandler(inboxProcessor, inboxProcRepo, appSettingsRepo, env.BaseURL),
+		Sync:            handlers.NewSyncHandler(changeLogRepo, env.BaseURL),
+		APITokens:       handlers.NewAPITokensHandler(apiTokenRepo, []byte(env.APITokenSalt)),
+		Sessions:        handlers.NewSessionsHandler(sessionRepo),
+		Passkeys:        passkeysHandler,
+		Backup:          handlers.NewBackupHandler(backupSvc),
+	})
 
 	// Deployment-specific association files for the native passkey flow; a
 	// no-op unless WELL_KNOWN_PATH is set. Must precede the SPA catch-all.

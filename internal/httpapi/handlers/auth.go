@@ -528,7 +528,7 @@ func (h *AuthHandler) me(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("get user").WithCause(err)
 	}
-	return c.JSON(fiber.Map{"user": dto.UserDTO{ID: user.ID, Username: user.Username, TOTPEnabled: user.TOTPEnabled}})
+	return c.JSON(dto.MeResponse{User: dto.UserDTO{ID: user.ID, Username: user.Username, TOTPEnabled: user.TOTPEnabled}})
 }
 
 // issueSession creates a session, enforces the per-client limit, issues tokens,
