@@ -106,3 +106,73 @@ export function lastUsedDaysAgo(
 	if (!date) return null;
 	return Math.max(0, daysBetweenKeys(dayKeyInTz(date, tz), dayKeyInTz(now, tz)));
 }
+
+/** The radar never draws more spokes than this: past a dozen the names collide. */
+export const LABEL_RADAR_MAX_AXES = 12;
+
+/** Fewer spokes than this make a line or a point, not a shape. */
+export const LABEL_RADAR_MIN_AXES = 3;
+
+/**
+ * One spoke of the label radar. `current` and `previous` are fractions of the
+ * chart's radius (0..1) for the selected window and the one before it; `angle`
+ * is in radians, clockwise from twelve o'clock.
+ */
+export interface LabelRadarAxis {
+	row: LabelStatsRow;
+	angle: number;
+	current: number;
+	previous: number;
+}
+
+export interface LabelRadar {
+	axes: LabelRadarAxis[];
+	/** The application count the outer ring stands for. */
+	scaleMax: number;
+	/** Labels with activity that did not get a spoke because of the cap. */
+	hidden: number;
+}
+
+/**
+ * Lay the labels out as a radar: every label is a direction, and the shape shows
+ * which way the work pulls in the selected window, with the window before it as a
+ * second outline to compare against.
+ *
+ * A label earns a spoke when it was applied in either window, so a label that
+ * stopped pulling still shows where the pull used to be. Past the cap, the
+ * busiest labels win. Spokes are then placed by name rather than by count, so a
+ * label keeps its direction when the period changes and only the shape moves.
+ * Returns null when there are too few spokes to make a shape.
+ */
+export function buildLabelRadar(
+	rows: LabelStatsRow[],
+	maxAxes: number = LABEL_RADAR_MAX_AXES
+): LabelRadar | null {
+	const weight = (row: LabelStatsRow) => Math.max(row.applied, row.previousApplied);
+	const candidates = rows
+		.filter((row) => weight(row) > 0)
+		.sort((a, b) => weight(b) - weight(a) || a.item.label.name.localeCompare(b.item.label.name));
+	const picked = candidates
+		.slice(0, maxAxes)
+		.sort(
+			(a, b) =>
+				a.item.label.name.localeCompare(b.item.label.name) || a.item.label.id - b.item.label.id
+		);
+	if (picked.length < LABEL_RADAR_MIN_AXES) return null;
+	const scaleMax = Math.max(1, ...picked.map(weight));
+	return {
+		axes: picked.map((row, index) => ({
+			row,
+			angle: (2 * Math.PI * index) / picked.length,
+			current: row.applied / scaleMax,
+			previous: row.previousApplied / scaleMax
+		})),
+		scaleMax,
+		hidden: candidates.length - picked.length
+	};
+}
+
+/** Where a point `fraction` of the way along a spoke lands, for a chart centred on 0,0. */
+export function radarPoint(angle: number, fraction: number, radius: number): [number, number] {
+	return [Math.sin(angle) * fraction * radius, -Math.cos(angle) * fraction * radius];
+}

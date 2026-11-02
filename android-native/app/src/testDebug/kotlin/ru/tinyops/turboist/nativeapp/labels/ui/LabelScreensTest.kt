@@ -20,6 +20,7 @@ import ru.tinyops.turboist.core.model.view.LabelPeriodUsage
 import ru.tinyops.turboist.core.model.view.LabelUsage
 import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
 import ru.tinyops.turboist.core.model.view.LabelUsageTotals
+import ru.tinyops.turboist.core.model.view.labelRadar
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.labels.LabelDetailUiState
 import ru.tinyops.turboist.nativeapp.labels.LabelStatsRow
@@ -142,7 +143,6 @@ class LabelScreensTest {
                                 ),
                             totals = LabelUsageTotals(applied = 4, completed = 2, overdue = 1),
                             labelCount = 1,
-                            mostApplied = 4,
                         ),
                     messages = emptyFlow(),
                     callbacks = labelsCallbacks {},
@@ -161,6 +161,37 @@ class LabelScreensTest {
                 text(R.string.page_labels_row_projects, "2"),
             ).joinToString(" · ")
         compose.onNodeWithText(facts).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the radar shows which way the labels pull`() {
+        val active =
+            listOf(
+                row(localId = 1, name = "work", applied = 5, previousApplied = 1),
+                row(localId = 2, name = "money", applied = 2),
+                row(localId = 3, name = "art", applied = 1, previousApplied = 4),
+            )
+        compose.setContent {
+            TurboistTheme {
+                LabelsScreen(
+                    state =
+                        LabelStatsUiState(
+                            loading = false,
+                            active = active,
+                            labelCount = 3,
+                            radar = labelRadar(active.map { it.usage }, LabelUsagePeriod.WEEK),
+                        ),
+                    messages = emptyFlow(),
+                    callbacks = labelsCallbacks {},
+                )
+            }
+        }
+
+        compose.onNodeWithText(text(R.string.page_labels_radar_title)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.page_labels_radar_aria)).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.page_labels_radar_previous)).assertIsDisplayed()
+        // The painted names are not text nodes: each label is still one tappable row.
+        compose.onNodeWithText("work").assertIsDisplayed()
     }
 
     @Test
@@ -214,7 +245,6 @@ class LabelScreensTest {
                             loading = false,
                             active = listOf(row(localId = 5, name = "urgent", applied = 1)),
                             labelCount = 1,
-                            mostApplied = 1,
                         ),
                     messages = emptyFlow(),
                     callbacks = labelsCallbacks { asked += it },

@@ -11,9 +11,11 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.view.LabelRadar
 import ru.tinyops.turboist.core.model.view.LabelUsage
 import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
 import ru.tinyops.turboist.core.model.view.LabelUsageTotals
+import ru.tinyops.turboist.core.model.view.labelRadar
 import ru.tinyops.turboist.core.model.view.labelUsageTotals
 import ru.tinyops.turboist.core.model.view.lastUsedDaysAgo
 import ru.tinyops.turboist.core.model.view.splitLabelUsage
@@ -44,8 +46,8 @@ data class LabelStatsUiState(
     val idle: List<LabelStatsRow> = emptyList(),
     val totals: LabelUsageTotals = LabelUsageTotals(),
     val labelCount: Int = 0,
-    /** The busiest label's count, which the bars beside the rows are drawn against. */
-    val mostApplied: Int = 0,
+    /** Which way the work pulls, label by label; null when too few labels pulled to make a shape. */
+    val radar: LabelRadar? = null,
     val refreshing: Boolean = false,
 ) {
     /** True once the workspace is known to hold no labels, as opposed to not being known yet. */
@@ -86,7 +88,7 @@ class LabelStatsPresenter(
                 idle = split.idle.map { it.asRow(at) },
                 totals = labelUsageTotals(rows, chosen),
                 labelCount = rows.size,
-                mostApplied = split.active.maxOfOrNull { it.period(chosen).applied } ?: 0,
+                radar = labelRadar(rows, chosen),
                 refreshing = isRefreshing,
             )
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), LabelStatsUiState())

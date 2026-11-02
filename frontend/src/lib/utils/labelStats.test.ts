@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+	buildLabelRadar,
 	buildLabelStatsRows,
 	isLabelRowActive,
 	labelStatsTotals,
 	lastUsedDaysAgo,
+	radarPoint,
 	splitLabelStatsRows
 } from './labelStats';
 import type { LabelStatsItem, LabelStatsPeriod, LabelStatsPeriodStats } from '../api/types';
@@ -167,5 +169,71 @@ describe('lastUsedDaysAgo', () => {
 
 	it('never returns a negative age for a future timestamp', () => {
 		expect(lastUsedDaysAgo('2026-07-30T09:00:00.000Z', 'UTC', now)).toBe(0);
+	});
+});
+
+describe('buildLabelRadar', () => {
+	const rowsOf = (items: LabelStatsItem[]) => buildLabelStatsRows(items, 'week');
+
+	it('needs at least three labels with activity to make a shape', () => {
+		const rows = rowsOf([
+			makeItem('a', { week: period(3) }),
+			makeItem('b', { week: period(1) }),
+			makeItem('c', {})
+		]);
+		expect(buildLabelRadar(rows)).toBeNull();
+	});
+
+	it('gives a spoke to a label used only in the previous window', () => {
+		const radar = buildLabelRadar(
+			rowsOf([
+				makeItem('a', { week: period(4) }),
+				makeItem('b', { week: period(2) }),
+				makeItem('gone', { week: period(0, 8) })
+			])
+		);
+		expect(radar?.axes.map((a) => a.row.item.label.name)).toEqual(['a', 'b', 'gone']);
+		expect(radar?.scaleMax).toBe(8);
+		const gone = radar?.axes.find((a) => a.row.item.label.name === 'gone');
+		expect(gone?.current).toBe(0);
+		expect(gone?.previous).toBe(1);
+	});
+
+	it('orders spokes by name so a label keeps its direction across periods', () => {
+		const items = [
+			makeItem('zeta', { week: period(9), month: period(1) }),
+			makeItem('alpha', { week: period(1), month: period(9) }),
+			makeItem('mid', { week: period(5), month: period(5) })
+		];
+		const week = buildLabelRadar(buildLabelStatsRows(items, 'week'));
+		const month = buildLabelRadar(buildLabelStatsRows(items, 'month'));
+		expect(week?.axes.map((a) => a.row.item.label.name)).toEqual(['alpha', 'mid', 'zeta']);
+		expect(month?.axes.map((a) => [a.row.item.label.name, a.angle])).toEqual(
+			week?.axes.map((a) => [a.row.item.label.name, a.angle])
+		);
+		expect(week?.axes[0].angle).toBe(0);
+	});
+
+	it('keeps the busiest labels when there are more than the cap', () => {
+		const radar = buildLabelRadar(
+			rowsOf([
+				makeItem('a', { week: period(1) }),
+				makeItem('b', { week: period(5) }),
+				makeItem('c', { week: period(4) }),
+				makeItem('d', { week: period(0, 3) })
+			]),
+			3
+		);
+		expect(radar?.axes.map((a) => a.row.item.label.name)).toEqual(['b', 'c', 'd']);
+		expect(radar?.hidden).toBe(1);
+	});
+
+	it('maps a spoke fraction onto the chart, twelve o’clock first', () => {
+		const [x, y] = radarPoint(0, 1, 100);
+		expect(x).toBeCloseTo(0);
+		expect(y).toBeCloseTo(-100);
+		const [x2, y2] = radarPoint(Math.PI / 2, 0.5, 100);
+		expect(x2).toBeCloseTo(50);
+		expect(y2).toBeCloseTo(0);
 	});
 });

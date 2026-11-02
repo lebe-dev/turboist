@@ -1103,6 +1103,13 @@
 				"today": "used today",
 				"yesterday": "used yesterday",
 				"daysAgo": "used {days} days ago"
+			},
+			"radar": {
+				"title": "Where labels pull",
+				"aria": "Radar of label usage: how often each label was applied in this period and in the previous one",
+				"current": "This period",
+				"previous": "Previous period",
+				"hidden": "{count} less used labels are only in the list"
 			}
 		},
 		"search": {

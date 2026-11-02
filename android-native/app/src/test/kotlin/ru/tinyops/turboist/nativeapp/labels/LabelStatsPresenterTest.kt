@@ -17,6 +17,7 @@ import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -79,7 +80,7 @@ class LabelStatsPresenterTest {
             assertEquals(listOf("hot", "warm"), state.active.map { it.usage.label.name })
             assertEquals(listOf("cold"), state.idle.map { it.usage.label.name })
             assertEquals(3, state.labelCount)
-            assertEquals(2, state.mostApplied, "the bars are drawn against the busiest label")
+            assertNull(state.radar, "two labels pulling make no radar shape")
         }
 
     @Test
