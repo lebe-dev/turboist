@@ -15,6 +15,7 @@ data class PlannedLabelCount(
  *
  * @property labels the labels the open planned tasks carry, most used first and
  *   ties by name, so the order does not shuffle between two equal counts.
+ * @property unlabeled how many of those tasks carry no label at all.
  * @property fromTroiki how many of those tasks belong to a project standing in
  *   a daily-plan bucket.
  * @property total how many open planned tasks the counters were taken over.
@@ -23,6 +24,7 @@ data class WeekPlanStats(
     val labels: List<PlannedLabelCount>,
     val fromTroiki: Int,
     val total: Int,
+    val unlabeled: Int = 0,
 ) {
     companion object {
         val EMPTY = WeekPlanStats(emptyList(), 0, 0)
@@ -30,7 +32,9 @@ data class WeekPlanStats(
 }
 
 /**
- * Summarises the planned week the same way the web planning screen does.
+ * Summarises the planned week the same way the web week view does, so the
+ * screen can show which labels dominate it. The caller passes only tasks planned
+ * for the week.
  *
  * Subtasks count on their own: planning a parent cascades onto them, so they
  * are planned work too. Finished work is left out — the plan is about what is
@@ -48,5 +52,10 @@ fun weekPlanStats(
             .map { (_, carried) -> PlannedLabelCount(carried.first(), carried.size) }
             .sortedWith(compareByDescending<PlannedLabelCount> { it.count }.thenBy { it.label.name })
     val fromTroiki = open.count { task -> task.projectLocalId?.let { it in troikiProjectLocalIds } == true }
-    return WeekPlanStats(labels = labels, fromTroiki = fromTroiki, total = open.size)
+    return WeekPlanStats(
+        labels = labels,
+        fromTroiki = fromTroiki,
+        total = open.size,
+        unlabeled = open.count { it.labels.isEmpty() },
+    )
 }

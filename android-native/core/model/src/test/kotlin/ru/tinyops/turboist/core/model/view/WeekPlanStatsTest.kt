@@ -64,6 +64,21 @@ class WeekPlanStatsTest {
     }
 
     @Test
+    fun `open tasks without labels are counted`() {
+        val stats =
+            weekPlanStats(
+                listOf(
+                    task(1L, labels = listOf(work)),
+                    task(2L),
+                    task(3L, status = TaskStatus.COMPLETED),
+                ),
+                emptySet(),
+            )
+
+        assertEquals(1, stats.unlabeled)
+    }
+
+    @Test
     fun `an empty plan has nothing to count`() {
         assertEquals(WeekPlanStats.EMPTY, weekPlanStats(emptyList(), emptySet()))
     }

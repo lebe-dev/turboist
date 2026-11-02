@@ -998,7 +998,14 @@
 			"limitReached": "Weekly limit reached ({total}/{limit}). Adding more tasks to the week will be rejected.",
 			"daysLeft": "{count, plural, one {# day left in this week} other {# days left in this week}}",
 			"onlyPlanned": "Only planned",
-			"onlyPlannedTooltip": "Show only tasks planned for this week and calendar events"
+			"onlyPlannedTooltip": "Show only tasks planned for this week and calendar events",
+			"planStats": {
+				"label": "What the planned week is tagged with",
+				"unlabeled": "no labels",
+				"more": "+{count} more",
+				"fromTroiki": "From Troiki",
+				"fromTroikiTooltip": "Planned tasks whose project stands in a Troiki bucket"
+			}
 		},
 		"weekSummary": {
 			"title": "Weekly summary",
@@ -1037,9 +1044,7 @@
 			"weekEmptyDesc": "Move tasks here from the backlog with the arrow.",
 			"planForWeek": "Plan for next week",
 			"returnToBacklog": "Return to backlog",
-			"withSubtasks": "{total} tasks including subtasks",
-			"statsLabel": "Labels and Troiki share of the planned week",
-			"fromTroiki": "From Troiki: {count} of {total}"
+			"withSubtasks": "{total} tasks including subtasks"
 		},
 		"completed": {
 			"emptyTitle": "Nothing completed yet",

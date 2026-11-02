@@ -93,6 +93,19 @@ describe('weekPlanStats', () => {
 			['admin', 1]
 		]);
 		expect(stats.total).toBe(4);
+		expect(stats.unlabeled).toBe(0);
+	});
+
+	it('counts open tasks without labels', () => {
+		const stats = weekPlanStats(
+			[
+				makeTask({ id: 1, labels: [work] }),
+				makeTask({ id: 2 }),
+				makeTask({ id: 3, status: 'completed' })
+			],
+			[]
+		);
+		expect(stats.unlabeled).toBe(1);
 	});
 
 	it('counts tasks whose project stands in a troiki bucket', () => {
@@ -122,6 +135,6 @@ describe('weekPlanStats', () => {
 	});
 
 	it('is empty for an empty plan', () => {
-		expect(weekPlanStats([], [])).toEqual({ labels: [], fromTroiki: 0, total: 0 });
+		expect(weekPlanStats([], [])).toEqual({ labels: [], fromTroiki: 0, unlabeled: 0, total: 0 });
 	});
 });

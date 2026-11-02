@@ -43,7 +43,8 @@
 
 	const backlogTree = $derived(buildTree(backlog.items));
 	const weekTree = $derived(buildTree(week.items));
-	const stats = $derived(weekPlanStats(week.items, projectsStore.items));
+	// The planned column only: what is parked in the backlog is not part of the week.
+	const planStats = $derived(weekPlanStats(week.items, projectsStore.items));
 
 	const weeklyLimit = $derived(configStore.value?.weekly.limit ?? null);
 	const backlogLimit = $derived(configStore.value?.backlog.limit ?? null);
@@ -156,7 +157,7 @@
 <ViewHeader>
 	{#snippet meta()}
 		<p class="text-sm text-muted-foreground">{headerSubtitle}</p>
-		<WeekPlanStats {stats} showTroiki={settingsStore.troikiEnabled} />
+		<WeekPlanStats stats={planStats} showTroiki={settingsStore.troikiEnabled} />
 	{/snippet}
 </ViewHeader>
 

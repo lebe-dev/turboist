@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import ru.tinyops.turboist.core.model.DayPart
+import ru.tinyops.turboist.core.model.PlanState
+import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.view.TimeWindow
 import ru.tinyops.turboist.core.model.view.ViewWindows
 import ru.tinyops.turboist.core.model.view.weekPlanStats
@@ -203,14 +205,24 @@ class WeekViewModel
         calendar: CalendarRepository,
         private val clock: DayClock,
     ) : TaskListViewModel(clock) {
-        @OptIn(ExperimentalCoroutinesApi::class)
-        private val sections =
+        private val moments =
             clock.ticks()
                 .map { WeekMoment(ViewWindows.dayStart(it, clock.zone), ViewWindows.week(it, clock.zone)) }
                 .distinctUntilChanged()
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        private val week: Flow<List<Task>> =
+            moments
+                .flatMapLatest { repository.observeWeek(it.window) }
+                // Read by both the day blocks and the header; one standing query feeds both.
+                .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        private val sections =
+            moments
                 .flatMapLatest { moment ->
                     combine(
-                        repository.observeWeek(moment.window),
+                        week,
                         repository.observeProjectTitles(),
                         calendar.observe(moment.window),
                     ) { tasks, titles, events ->
@@ -220,6 +232,23 @@ class WeekViewModel
                         )
                     }
                 }
+
+        /**
+         * Which labels the planned week is made of. Only what was planned for the
+         * week counts: a task that is here merely because it falls due inside it
+         * says nothing about what the week was planned around.
+         */
+        private val planStats =
+            combine(
+                week,
+                repository.observeTroikiProjectIds(),
+                repository.observeUserSettings(),
+            ) { tasks, troikiProjects, settings ->
+                PlanStatsHeader(
+                    weekPlanStats(tasks.filter { it.planState == PlanState.WEEK }, troikiProjects),
+                    showTroiki = settings.troikiEnabled,
+                )
+            }
 
         /** The calendar day the week view calls "today" when it names a heading. */
         private fun dayOf(dayStart: Long) = Instant.ofEpochMilli(dayStart).atZone(clock.zone).toLocalDate()
@@ -234,6 +263,7 @@ class WeekViewModel
                 bulk = bulk,
                 moveOptions = repository.observeMoveOptions(),
                 recentProjects = recent.observe(),
+                planStats = planStats,
             )
     }
 
@@ -256,7 +286,7 @@ class NextWeekViewModel
         clock: DayClock,
     ) : TaskListViewModel(clock) {
         @OptIn(ExperimentalCoroutinesApi::class)
-        private val planned =
+        private val planned: Flow<List<Task>> =
             clock.ticks()
                 .map { ViewWindows.week(it, clock.zone) }
                 .distinctUntilChanged()
@@ -288,6 +318,7 @@ class NextWeekViewModel
                 )
             }
 
+        /** The planned block only: what is parked in the backlog is not part of the week. */
         private val planStats =
             combine(
                 planned,
