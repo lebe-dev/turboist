@@ -60,7 +60,7 @@
 	const list = useListMutator<Task>();
 	const { mutator } = list;
 	const plannedTotal = $derived(
-		list.items.filter((t) => t.planState === 'week' && t.status === 'open').length
+		list.items.filter((t) => t.planState === 'week' && t.status === 'open' && !t.parentId).length
 	);
 
 	const tz = $derived(configStore.value?.timezone ?? null);

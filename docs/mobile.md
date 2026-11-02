@@ -460,8 +460,8 @@ by when work finished, because it is read as days.
 The week list is the one place where the list and its badge answer different
 questions. The list holds what the user planned for the week, what falls due
 inside it, and the whole open subtree beneath each of those, so a parent is never
-shown without the work it is made of. The badge counts only the tasks the user
-chose: planning a task cascades down its open subtasks, and counting those would
+shown without the work it is made of. The badge counts only parent
+(top-level) tasks: subtasks travel with their parent, and counting them would
 let one decision eat several slots of the weekly limit.
 
 Every list is required to be answered through an index rather than by reading

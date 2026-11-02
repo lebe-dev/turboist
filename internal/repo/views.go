@@ -219,9 +219,8 @@ func (r *TaskRepo) ListOverdue(ctx context.Context, todayStart time.Time, filter
 // when the subtask itself has no due date or plan_state for this week. The
 // returned `total` counts only planned-for-week tasks (not the pulled-in
 // subtasks) — it drives the weekly limit badge, so due-in-week and subtask
-// additions must not consume the limit. A subtask that is itself plan_state =
-// 'week' only because the week cascade put it there (its parent is an open week
-// task) is excluded too, see notCascadedIntoWeek.
+// additions must not consume the limit. Subtasks are never counted, even when
+// they are plan_state = 'week' themselves, see topLevelOnly.
 func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter TaskFilter) ([]model.Task, int, error) {
 	const op = "repo.tasks.ListWeek"
 	logQuery(ctx, op, start, end, filter)
@@ -275,7 +274,7 @@ func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter Ta
 		return nil, 0, err
 	}
 
-	plannedBase := "FROM tasks t WHERE t.status = 'open' AND t.plan_state = 'week'" + notCascadedIntoWeek
+	plannedBase := "FROM tasks t WHERE t.status = 'open' AND t.plan_state = 'week'" + topLevelOnly
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+plannedBase+whereExtra, extraArgs...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count week planned: %w", err)
@@ -283,13 +282,10 @@ func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter Ta
 	return items, total, nil
 }
 
-// notCascadedIntoWeek narrows a `plan_state = 'week'` filter (on alias `t`) to the
-// tasks the user planned for the week themselves. A subtask whose parent is an open
-// week task is in the week on that parent's behalf — CascadeWeekToDescendants put it
-// there — so counting it would let one parent eat several slots of the weekly limit.
-const notCascadedIntoWeek = ` AND NOT EXISTS (
-			SELECT 1 FROM tasks p
-			WHERE p.id = t.parent_id AND p.status = 'open' AND p.plan_state = 'week')`
+// topLevelOnly narrows a `plan_state = 'week'` filter (on alias `t`) to parent
+// tasks. Subtasks never use up a slot of the weekly limit: the limit is a budget of
+// top-level choices, and a parent's subtasks travel with it.
+const topLevelOnly = ` AND t.parent_id IS NULL`
 
 func (r *TaskRepo) ListBacklog(ctx context.Context, filter TaskFilter) ([]model.Task, int, error) {
 	base := "FROM tasks t WHERE t.plan_state = 'backlog' AND t.status = 'open'"

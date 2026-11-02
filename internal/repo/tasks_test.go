@@ -839,3 +839,27 @@ func TestTaskRepo_ListByProjectIDs_Empty(t *testing.T) {
 		t.Errorf("empty input: got %d entries, want 0", len(got))
 	}
 }
+
+func TestTaskRepo_CountWeek_IgnoresSubtasks(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	week := model.PlanStateWeek
+	parent, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID},
+		Title:     "parent",
+	})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	// A subtask planned for the week on its own, under a parent that is not in the week.
+	if _, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ParentID: &parent.ID},
+		Title:     "child",
+		PlanState: week,
+	}); err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	if got, _ := f.tasks.CountWeek(ctx); got != 0 {
+		t.Errorf("week count: got %d, want 0 (only top-level tasks are counted)", got)
+	}
+}

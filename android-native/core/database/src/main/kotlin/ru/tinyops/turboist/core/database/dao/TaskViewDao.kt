@@ -80,8 +80,7 @@ internal object TaskViewSql {
 
     const val WEEK_PLANNED_COUNT =
         "SELECT COUNT(*) FROM tasks t WHERE t.status = 'open' AND t.planState = 'week' " +
-            "AND NOT EXISTS (SELECT 1 FROM tasks p " +
-            "WHERE p.localId = t.parentLocalId AND p.status = 'open' AND p.planState = 'week')"
+            "AND t.parentLocalId IS NULL"
 
     const val BACKLOG =
         "SELECT * FROM tasks WHERE planState = 'backlog' AND status = 'open'" + PRIORITY_FILTER + TASK_ORDER
@@ -273,10 +272,9 @@ abstract class TaskViewDao {
     /**
      * How much of the weekly plan is spent.
      *
-     * Only the tasks the user planned themselves are counted. Planning a task
-     * cascades the plan state down its open subtasks, and a task that is in the
-     * week solely because its parent is has not been chosen for the week — were
-     * it counted, one decision would eat several slots of the limit. A task that
+     * Only parent (top-level) tasks are counted. Subtasks travel with their
+     * parent and never use up a slot, whether the plan state reached them by
+     * cascade or they were planned on their own. A task that
      * merely falls due inside the week is not counted either, for the same
      * reason: the limit is a budget of choices, not of work.
      */
