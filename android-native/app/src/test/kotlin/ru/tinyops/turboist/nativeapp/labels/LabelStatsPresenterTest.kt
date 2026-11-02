@@ -161,10 +161,10 @@ class LabelStatsPresenterTest {
         runTest {
             val presenter = presenter()
 
-            presenter.createLabel("  urgent  ", "red")
+            presenter.createLabel("  urgent  ", "red", "  Must ship today \n")
             runCurrent()
 
-            assertEquals(listOf("create(urgent,red,false)"), actions.calls)
+            assertEquals(listOf("create(urgent,red,false,Must ship today)"), actions.calls)
         }
 
     @Test
@@ -172,7 +172,7 @@ class LabelStatsPresenterTest {
         runTest {
             val presenter = presenter()
 
-            presenter.createLabel("   ", "red")
+            presenter.createLabel("   ", "red", "")
             runCurrent()
 
             assertEquals(emptyList(), actions.calls)
@@ -187,7 +187,7 @@ class LabelStatsPresenterTest {
             backgroundScope.launch { presenter.messages.collect { said += it } }
             runCurrent()
 
-            presenter.createLabel("urgent", "")
+            presenter.createLabel("urgent", "", "")
             runCurrent()
 
             assertEquals(listOf(LabelMessage.FAILED), said)

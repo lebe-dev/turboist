@@ -49,10 +49,10 @@ func insertContexts(ctx context.Context, tx *sql.Tx, rows []BackupContext) error
 }
 
 func insertLabels(ctx context.Context, tx *sql.Tx, rows []BackupLabel) error {
-	const q = `INSERT INTO labels (id, name, color, is_favourite, is_private, created_at, updated_at)
-	           VALUES (?, ?, ?, ?, ?, ?, ?)`
+	const q = `INSERT INTO labels (id, name, color, description, is_favourite, is_private, created_at, updated_at)
+	           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	for _, r := range rows {
-		if _, err := tx.ExecContext(ctx, q, r.ID, r.Name, r.Color,
+		if _, err := tx.ExecContext(ctx, q, r.ID, r.Name, r.Color, r.Description,
 			boolToInt(r.IsFavourite), boolToInt(r.IsPrivate), r.CreatedAt, r.UpdatedAt); err != nil {
 			return err
 		}

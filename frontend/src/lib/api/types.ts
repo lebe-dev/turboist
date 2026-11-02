@@ -80,6 +80,8 @@ export interface Label {
 	id: number;
 	name: string;
 	color: ColorToken;
+	/** What the label means; plain text, empty when not set. */
+	description: string;
 	isFavourite: boolean;
 	isPrivate: boolean;
 	createdAt: string;
@@ -630,6 +632,7 @@ export interface SectionInput {
 export interface LabelInput {
 	name?: string;
 	color?: ColorToken;
+	description?: string;
 	isFavourite?: boolean;
 	isPrivate?: boolean;
 }

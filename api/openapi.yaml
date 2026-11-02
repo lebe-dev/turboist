@@ -4376,6 +4376,8 @@ components:
       properties:
         color:
           type: string
+        description:
+          type: string
         isFavourite:
           type: boolean
         name:
@@ -4554,6 +4556,8 @@ components:
         color:
           type: string
         createdAt:
+          type: string
+        description:
           type: string
         id:
           format: int64
@@ -4764,6 +4768,10 @@ components:
     DtoPatchLabelRequest:
       properties:
         color:
+          type:
+          - "null"
+          - string
+        description:
           type:
           - "null"
           - string

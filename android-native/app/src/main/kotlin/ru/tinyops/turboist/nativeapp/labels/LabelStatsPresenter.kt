@@ -121,10 +121,12 @@ class LabelStatsPresenter(
     fun createLabel(
         name: String,
         color: String,
+        description: String,
     ) {
         val named = name.trim()
         if (named.isEmpty()) return
-        scope.launch { outgoing.reporting { actions.createLabel(named, color, isFavourite = false) } }
+        val meaning = description.trim()
+        scope.launch { outgoing.reporting { actions.createLabel(named, color, isFavourite = false, meaning) } }
     }
 
     private fun LabelUsage.asRow(at: Instant) = LabelStatsRow(this, lastUsedDaysAgo(lastUsedAt, at, zone))

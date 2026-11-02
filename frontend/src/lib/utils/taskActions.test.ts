@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '$lib/api/errors';
-import type { Task } from '$lib/api/types';
+import type { Label, Task } from '$lib/api/types';
 import { describeError, isBlocked, taskToJson } from './taskActions';
 
 describe('describeError', () => {
@@ -81,13 +81,22 @@ describe('isBlocked', () => {
 });
 
 describe('taskToJson', () => {
-	const task = (id: number, parentId: number | null, title: string, description: string) =>
-		({ id, parentId, title, description, priority: 'high', status: 'open' }) as Task;
+	const label = (id: number, name: string, description: string) =>
+		({ id, name, description, color: 'blue', isFavourite: false, isPrivate: false }) as Label;
+	const task = (
+		id: number,
+		parentId: number | null,
+		title: string,
+		description: string,
+		labels: Label[] = []
+	) => ({ id, parentId, title, description, labels, priority: 'high', status: 'open' }) as Task;
 
-	it('copies only title and description for a task without subtasks', () => {
+	it('copies title, description and an empty label list for a bare task', () => {
 		expect(taskToJson(task(1, null, 'Root', ''), [])).toEqual({
 			title: 'Root',
-			description: ''
+			description: '',
+			labels: [],
+			labelGlossary: []
 		});
 	});
 
@@ -100,14 +109,43 @@ describe('taskToJson', () => {
 		expect(taskToJson(root, [first, second, grandchild])).toEqual({
 			title: 'Root',
 			description: 'Root description',
+			labels: [],
 			subtasks: [
 				{
 					title: 'First',
 					description: 'First description',
-					subtasks: [{ title: 'Grandchild', description: 'Nested description' }]
+					labels: [],
+					subtasks: [{ title: 'Grandchild', description: 'Nested description', labels: [] }]
 				},
-				{ title: 'Second', description: '' }
-			]
+				{ title: 'Second', description: '', labels: [] }
+			],
+			labelGlossary: []
 		});
+	});
+
+	it('names labels on every task and describes each one once in the root glossary', () => {
+		const urgent = label(1, 'urgent', 'Must ship today');
+		const backend = label(2, 'backend', '');
+		const root = task(1, null, 'Root', '', [urgent]);
+		const child = task(2, 1, 'Child', '', [backend, urgent]);
+
+		const json = taskToJson(root, [child]);
+
+		expect(json.labels).toEqual(['urgent']);
+		expect(json.subtasks?.[0].labels).toEqual(['backend', 'urgent']);
+		expect(json.labelGlossary).toEqual([
+			{ name: 'backend', description: '' },
+			{ name: 'urgent', description: 'Must ship today' }
+		]);
+		expect(Object.keys(json)).toEqual(['title', 'description', 'labels', 'subtasks', 'labelGlossary']);
+	});
+
+	it('prefers the freshest known description over the one embedded in the task', () => {
+		const stale = label(1, 'urgent', 'old text');
+		const fresh = label(1, 'urgent', 'new text');
+
+		expect(taskToJson(task(1, null, 'Root', '', [stale]), [], [fresh]).labelGlossary).toEqual([
+			{ name: 'urgent', description: 'new text' }
+		]);
 	});
 });

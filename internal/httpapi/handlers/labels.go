@@ -3,6 +3,8 @@ package handlers
 import (
 	"errors"
 	"log/slog"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/auth"
@@ -76,7 +78,12 @@ func (h *LabelHandler) create(c fiber.Ctx) error {
 		logValidation(c, opLabelCreate, msgInvalidColor)
 		return httpapi.ErrValidation(msgInvalidColor)
 	}
-	l, err := h.labels.Create(c.Context(), req.Name, req.Color, req.IsFavourite)
+	description, ok := normalizeLabelDescription(req.Description)
+	if !ok {
+		logValidation(c, opLabelCreate, msgLabelDescriptionTooLong)
+		return httpapi.ErrValidation(msgLabelDescriptionTooLong)
+	}
+	l, err := h.labels.CreateDescribed(c.Context(), req.Name, req.Color, description, req.IsFavourite)
 	if err != nil {
 		if errors.Is(err, repo.ErrConflict) {
 			return httpapi.ErrConflict("label name already exists")
@@ -117,9 +124,19 @@ func (h *LabelHandler) patch(c fiber.Ctx) error {
 		logValidation(c, opLabelPatch, msgInvalidColor)
 		return httpapi.ErrValidation(msgInvalidColor)
 	}
+	var description *string
+	if req.Description != nil {
+		normalized, ok := normalizeLabelDescription(*req.Description)
+		if !ok {
+			logValidation(c, opLabelPatch, msgLabelDescriptionTooLong)
+			return httpapi.ErrValidation(msgLabelDescriptionTooLong)
+		}
+		description = &normalized
+	}
 	l, err := h.labels.Update(c.Context(), id, repo.LabelUpdate{
 		Name:        req.Name,
 		Color:       req.Color,
+		Description: description,
 		IsFavourite: req.IsFavourite,
 		IsPrivate:   req.IsPrivate,
 	})
@@ -196,4 +213,16 @@ func (h *LabelHandler) listProjects(c fiber.Ctx) error {
 		dtos[i] = dto.ProjectFromModel(p)
 	}
 	return c.JSON(dto.NewPagedResponse(dtos, total, pp.Limit, pp.Offset))
+}
+
+// maxLabelDescriptionLen caps a label description, counted in characters.
+const maxLabelDescriptionLen = 500
+
+const msgLabelDescriptionTooLong = "description must be at most 500 characters"
+
+// normalizeLabelDescription trims surrounding whitespace and reports whether
+// the result fits the length limit.
+func normalizeLabelDescription(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	return trimmed, utf8.RuneCountInString(trimmed) <= maxLabelDescriptionLen
 }

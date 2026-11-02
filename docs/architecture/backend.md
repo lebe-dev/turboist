@@ -112,6 +112,16 @@ Keys are persisted in the `idempotency_keys` table (migration `044_idempotency_k
 
 Reads are shaped by the "one aggregate" rule: there is no relations endpoint. `TaskDTO` always carries `blockedByCount` / `relationCount`, hydrated by one batch query (`TaskRelationsRepo.SummaryByTaskIDs`) in `TaskRepo.Get` and in the single list funnel `listWithBaseArgsOrdered` — `blockedByCount` counts inherited blockers too, so the padlock in the lists agrees with the guard, while `relationCount` stays the task's own relations because those are what the detail page lists — so every list view, `GET /api/v1/config`'s `pinnedTasks` and `/stats/sidebar`'s `pinned` get them without a per-task query. The full relation list is opt-in via `GET /api/v1/tasks/:id?relations=true`, and both mutations answer with the updated task so no follow-up read is needed.
 
+## Label descriptions
+
+`labels.description` (migration `053_labels_description.sql`, `TEXT NOT NULL DEFAULT ''`)
+is plain text up to 500 characters, trimmed and length-checked in the label handler.
+Every label read goes through `repo.labelCols` / `scanLabel` (or the `task_labels` /
+`project_labels` hydration queries), so the field rides along wherever a `LabelDTO`
+is served — including sync snapshots and change batches, which the existing
+`trg_changelog_labels_upd` trigger already covers. See [Labels](../labels.md) for
+the user-facing behaviour and the task JSON copy format.
+
 ## Label usage stats
 
 `GET /api/v1/labels/stats` powers the Labels page. One `GROUP BY` over

@@ -51,6 +51,7 @@ type BackupLabel struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Color       string `json:"color"`
+	Description string `json:"description"`
 	IsFavourite bool   `json:"isFavourite"`
 	IsPrivate   bool   `json:"isPrivate"`
 	CreatedAt   string `json:"createdAt"`

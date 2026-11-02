@@ -238,6 +238,7 @@ data class PatchContextRequest(
 data class CreateLabelRequest(
     val name: String,
     val color: String? = null,
+    val description: String? = null,
     val isFavourite: Boolean? = null,
 )
 
@@ -245,6 +246,7 @@ data class CreateLabelRequest(
 data class PatchLabelRequest(
     val name: String? = null,
     val color: String? = null,
+    val description: String? = null,
     val isFavourite: Boolean? = null,
     val isPrivate: Boolean? = null,
 )

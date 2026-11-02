@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/lebe-dev/turboist/internal/httpapi"
@@ -212,5 +213,89 @@ func TestLabelListProjects_LabelNotFound(t *testing.T) {
 	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/labels/9999/projects", nil))
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d, want 404; body: %s", resp.StatusCode, body)
+	}
+}
+
+func TestLabelCreate_WithDescription(t *testing.T) {
+	e := setupAPIEnv(t)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/labels/", map[string]any{
+		"name":        "deep",
+		"color":       "blue",
+		"description": "  Needs two focused hours\n",
+	}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var result dto.LabelDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Description != "Needs two focused hours" {
+		t.Errorf("description: got %q, want trimmed text", result.Description)
+	}
+}
+
+func TestLabelPatch_Description(t *testing.T) {
+	e := setupAPIEnv(t)
+	l, err := e.labels.CreateDescribed(context.Background(), "agent", "blue", "old", false)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPatch, "/api/v1/labels/"+itoa(l.ID), map[string]any{
+		"description": "Safe for an AI agent",
+	}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var result dto.LabelDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Description != "Safe for an AI agent" {
+		t.Errorf("description: got %q", result.Description)
+	}
+
+	// A patch without the field keeps the description.
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPatch, "/api/v1/labels/"+itoa(l.ID), map[string]any{
+		"color": "red",
+	}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.Description != "Safe for an AI agent" {
+		t.Errorf("description after colour patch: got %q", result.Description)
+	}
+}
+
+func TestLabelDescription_TooLong(t *testing.T) {
+	e := setupAPIEnv(t)
+	long := strings.Repeat("я", 501)
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/labels/", map[string]any{
+		"name": "long", "color": "blue", "description": long,
+	}))
+	if resp.StatusCode != 400 {
+		t.Fatalf("create: got %d, want 400; body: %s", resp.StatusCode, body)
+	}
+
+	l, err := e.labels.Create(context.Background(), "short", "blue", false)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPatch, "/api/v1/labels/"+itoa(l.ID), map[string]any{
+		"description": long,
+	}))
+	if resp.StatusCode != 400 {
+		t.Fatalf("patch: got %d, want 400; body: %s", resp.StatusCode, body)
+	}
+
+	// Exactly the limit, counted in characters rather than bytes, is accepted.
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPatch, "/api/v1/labels/"+itoa(l.ID), map[string]any{
+		"description": strings.Repeat("я", 500),
+	}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("patch at limit: got %d, want 200; body: %s", resp.StatusCode, body)
 	}
 }

@@ -92,13 +92,13 @@ class LabelScreensTest {
         LabelsCallbacks(
             onChoosePeriod = { record("period ${it.name}") },
             onRefresh = { record("refresh") },
-            onCreateLabel = { name, color -> record("create $name $color") },
+            onCreateLabel = { name, color, description -> record("create $name $color $description") },
             onOpenLabel = { record("open ${it.localId}") },
         )
 
     private fun detailCallbacks(record: (String) -> Unit) =
         LabelDetailCallbacks(
-            onEdit = { name, color -> record("edit $name $color") },
+            onEdit = { name, color, description -> record("edit $name $color $description") },
             onToggleFavourite = { record("favourite") },
             onTogglePrivate = { record("private") },
             onDelete = { record("delete") },
@@ -278,6 +278,61 @@ class LabelScreensTest {
         compose.onNodeWithText(text(R.string.common_save)).performClick()
 
         assertEquals(listOf(LabelDraft("urgent", "green")), saved)
+    }
+
+    @Test
+    fun `a description typed into the editor is saved trimmed`() {
+        val saved = mutableListOf<LabelDraft>()
+        compose.setContent {
+            TurboistTheme {
+                LabelEditorContent(initial = null, onConfirm = { saved += it }, onDismiss = {})
+            }
+        }
+
+        compose.onNodeWithContentDescription(text(R.string.common_name)).performTextInput("deep")
+        compose
+            .onNodeWithContentDescription(text(R.string.common_description))
+            .performTextInput("  Needs two focused hours  ")
+        compose.onNodeWithText(text(R.string.common_create)).performClick()
+
+        assertEquals(listOf(LabelDraft("deep", "", "Needs two focused hours")), saved)
+    }
+
+    @Test
+    fun `an editor keeps the description the label already has`() {
+        val saved = mutableListOf<LabelDraft>()
+        compose.setContent {
+            TurboistTheme {
+                LabelEditorContent(
+                    initial = LabelDraft("agent", "red", "Safe for an AI agent"),
+                    onConfirm = { saved += it },
+                    onDismiss = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Safe for an AI agent").assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.common_save)).performClick()
+
+        assertEquals(listOf(LabelDraft("agent", "red", "Safe for an AI agent")), saved)
+    }
+
+    @Test
+    fun `a description longer than the limit is cut at the limit`() {
+        val saved = mutableListOf<LabelDraft>()
+        compose.setContent {
+            TurboistTheme {
+                LabelEditorContent(initial = null, onConfirm = { saved += it }, onDismiss = {})
+            }
+        }
+
+        compose.onNodeWithContentDescription(text(R.string.common_name)).performTextInput("long")
+        compose
+            .onNodeWithContentDescription(text(R.string.common_description))
+            .performTextInput("x".repeat(LABEL_DESCRIPTION_MAX + 20))
+        compose.onNodeWithText(text(R.string.common_create)).performClick()
+
+        assertEquals(LABEL_DESCRIPTION_MAX, saved.single().description.length)
     }
 
     @Test

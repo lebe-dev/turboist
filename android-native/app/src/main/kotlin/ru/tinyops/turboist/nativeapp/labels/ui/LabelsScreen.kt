@@ -57,7 +57,7 @@ import ru.tinyops.turboist.nativeapp.projects.ui.projectTint
 data class LabelsCallbacks(
     val onChoosePeriod: (LabelUsagePeriod) -> Unit,
     val onRefresh: () -> Unit,
-    val onCreateLabel: (name: String, color: String) -> Unit,
+    val onCreateLabel: (name: String, color: String, description: String) -> Unit,
     val onOpenLabel: (Label) -> Unit,
 )
 
@@ -121,7 +121,7 @@ fun LabelsScreen(
     if (creating) {
         LabelEditorSheet(
             initial = null,
-            onConfirm = { draft -> callbacks.onCreateLabel(draft.name, draft.color) },
+            onConfirm = { draft -> callbacks.onCreateLabel(draft.name, draft.color, draft.description) },
             onDismiss = { creating = false },
         )
     }

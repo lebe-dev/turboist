@@ -41,7 +41,7 @@ type TemplateInput struct {
 	Subtasks    []TemplateSubtaskInput
 }
 
-const templateLabelCols = `l.id, l.name, l.color, l.is_favourite, l.is_private, l.created_at, l.updated_at`
+var templateLabelCols = labelColsAs("l")
 
 func (r *TemplateRepo) List(ctx context.Context) ([]model.TaskTemplate, error) {
 	const op = "repo.templates.List"

@@ -53,7 +53,7 @@ class LabelDetailPresenter(
     val messages: SharedFlow<LabelMessage> = outgoing.asSharedFlow()
 
     /**
-     * Renames and recolours the label in one change.
+     * Renames, recolours and redescribes the label in one change.
      *
      * One change rather than two, because the editor asks both questions at
      * once: two writes would queue two requests and let the phone come back from
@@ -64,10 +64,11 @@ class LabelDetailPresenter(
     fun save(
         name: String,
         color: String,
+        description: String,
     ) {
         val named = name.trim()
         if (named.isEmpty()) return
-        edit(LabelEdit(name = named, color = color))
+        edit(LabelEdit(name = named, color = color, description = description.trim()))
     }
 
     fun toggleFavourite() {

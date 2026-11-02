@@ -22,6 +22,7 @@ function makeItem(
 			id: name.length * 100 + name.charCodeAt(0),
 			name,
 			color: 'blue',
+			description: '',
 			isFavourite: false,
 			isPrivate: false,
 			createdAt: '2026-01-01T00:00:00.000Z',

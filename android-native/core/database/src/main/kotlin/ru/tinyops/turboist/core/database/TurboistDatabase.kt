@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.core.database
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -94,6 +95,10 @@ import ru.tinyops.turboist.core.database.entity.UserStateRow
     ],
     version = TurboistDatabase.VERSION,
     exportSchema = true,
+    autoMigrations = [
+        // 1 -> 2: labels gain a description, empty for every label already copied.
+        AutoMigration(from = 1, to = 2),
+    ],
 )
 @TypeConverters(ReplicaConverters::class)
 abstract class TurboistDatabase : RoomDatabase() {
@@ -132,7 +137,7 @@ abstract class TurboistDatabase : RoomDatabase() {
     abstract fun search(): SearchDao
 
     companion object {
-        const val VERSION: Int = 1
+        const val VERSION: Int = 2
 
         /** The file the replica lives in, inside the app's private storage. */
         const val FILE_NAME: String = "turboist-replica.db"

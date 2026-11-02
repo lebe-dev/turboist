@@ -2,6 +2,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import { Label as FormLabel } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 	import { getApiClient } from '$lib/api/client';
@@ -12,6 +13,7 @@
 	import { DEFAULT_COLOR } from './colorPalette';
 	import { useFormDialog } from '$lib/hooks/useFormDialog.svelte';
 	import { t } from '$lib/i18n';
+	import { LABEL_DESCRIPTION_MAX } from '$lib/utils/labelDescription';
 
 	let {
 		open = $bindable(false),
@@ -25,6 +27,7 @@
 
 	let name = $state('');
 	let color = $state<string>(DEFAULT_COLOR);
+	let description = $state('');
 	let isFavourite = $state(false);
 
 	const form = useFormDialog();
@@ -33,6 +36,7 @@
 		if (open) {
 			name = initial?.name ?? '';
 			color = initial?.color ?? DEFAULT_COLOR;
+			description = initial?.description ?? '';
 			isFavourite = initial?.isFavourite ?? false;
 		}
 	});
@@ -43,7 +47,7 @@
 		const saved = await form.submit(
 			async () => {
 				const client = getApiClient();
-				const payload = { name: name.trim(), color, isFavourite };
+				const payload = { name: name.trim(), color, description: description.trim(), isFavourite };
 				return initial
 					? await labelsApi.update(client, initial.id, payload)
 					: await labelsApi.create(client, payload);
@@ -72,6 +76,18 @@
 			<div class="flex flex-col gap-1">
 				<FormLabel for="lbl-name">{$t('common.name')}</FormLabel>
 				<Input id="lbl-name" bind:value={name} placeholder={$t('dialog.label.namePlaceholder')} autofocus />
+			</div>
+
+			<div class="flex flex-col gap-1">
+				<FormLabel for="lbl-desc">{$t('common.description')}</FormLabel>
+				<Textarea
+					id="lbl-desc"
+					rows={3}
+					maxlength={LABEL_DESCRIPTION_MAX}
+					bind:value={description}
+					placeholder={$t('dialog.label.descriptionPlaceholder')}
+				/>
+				<p class="text-muted-foreground text-xs">{$t('dialog.label.descriptionHint')}</p>
 			</div>
 
 			<div class="flex flex-col gap-1">

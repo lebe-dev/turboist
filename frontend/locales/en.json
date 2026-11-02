@@ -759,6 +759,8 @@
 			"newTitle": "New label",
 			"description": "Tag tasks across projects.",
 			"namePlaceholder": "urgent",
+			"descriptionPlaceholder": "Tasks that need a quiet, focused block of time",
+			"descriptionHint": "Explains the label to people and AI agents. It goes into the task JSON copy.",
 			"updated": "Label updated",
 			"created": "Label created",
 			"failedSave": "Failed to save label"

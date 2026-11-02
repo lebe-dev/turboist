@@ -62,7 +62,7 @@ func labelsByProjectIDs(ctx context.Context, src queryer, projectIDs []int64) (m
 		placeholders[i] = "?"
 		args[i] = id
 	}
-	q := `SELECT pl.project_id, l.id, l.name, l.color, l.is_favourite, l.created_at, l.updated_at
+	q := `SELECT pl.project_id, l.id, l.name, l.color, l.description, l.is_favourite, l.created_at, l.updated_at
 	      FROM project_labels pl
 	      JOIN labels l ON l.id = pl.label_id
 	      WHERE pl.project_id IN (` + strings.Join(placeholders, ",") + `)
@@ -79,7 +79,7 @@ func labelsByProjectIDs(ctx context.Context, src queryer, projectIDs []int64) (m
 		var l model.Label
 		var fav int
 		var createdAt, updatedAt string
-		if err := rows.Scan(&projectID, &l.ID, &l.Name, &l.Color, &fav, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&projectID, &l.ID, &l.Name, &l.Color, &l.Description, &fav, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
 		l.IsFavourite = fav == 1

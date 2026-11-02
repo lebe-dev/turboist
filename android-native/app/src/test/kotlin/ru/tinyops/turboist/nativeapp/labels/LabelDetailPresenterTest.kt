@@ -62,10 +62,10 @@ class LabelDetailPresenterTest {
             label.value = label(7, "urgent", color = "red")
             runCurrent()
 
-            presenter.save("  important  ", "blue")
+            presenter.save("  important  ", "blue", "  Needs attention today  ")
             runCurrent()
 
-            assertEquals(listOf("edit(7,important,blue,null,null)"), actions.calls)
+            assertEquals(listOf("edit(7,important,blue,null,null,Needs attention today)"), actions.calls)
         }
 
     @Test
@@ -75,7 +75,7 @@ class LabelDetailPresenterTest {
             label.value = label(7)
             runCurrent()
 
-            presenter.save("   ", "blue")
+            presenter.save("   ", "blue", "")
             runCurrent()
 
             assertEquals(emptyList(), actions.calls)
@@ -93,7 +93,7 @@ class LabelDetailPresenterTest {
             runCurrent()
 
             assertEquals(
-                listOf("edit(7,null,null,true,null)", "edit(7,null,null,null,false)"),
+                listOf("edit(7,null,null,true,null,null)", "edit(7,null,null,null,false,null)"),
                 actions.calls,
             )
         }
@@ -119,7 +119,7 @@ class LabelDetailPresenterTest {
         runTest {
             val presenter = presenter()
 
-            presenter.save("name", "red")
+            presenter.save("name", "red", "")
             presenter.toggleFavourite()
             presenter.togglePrivate()
             presenter.delete()

@@ -46,7 +46,7 @@ import ru.tinyops.turboist.nativeapp.tasks.ui.TaskListScreen
 
 /** What the header of a label's own screen can be asked to do. */
 data class LabelDetailCallbacks(
-    val onEdit: (name: String, color: String) -> Unit,
+    val onEdit: (name: String, color: String, description: String) -> Unit,
     val onToggleFavourite: () -> Unit,
     val onTogglePrivate: () -> Unit,
     val onDelete: () -> Unit,
@@ -150,8 +150,8 @@ fun LabelHeader(
 
     if (editing) {
         LabelEditorSheet(
-            initial = LabelDraft(label.name, label.color),
-            onConfirm = { draft -> callbacks.onEdit(draft.name, draft.color) },
+            initial = LabelDraft(label.name, label.color, label.description),
+            onConfirm = { draft -> callbacks.onEdit(draft.name, draft.color, draft.description) },
             onDismiss = { editing = false },
         )
     }
