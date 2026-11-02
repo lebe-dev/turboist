@@ -1037,7 +1037,9 @@
 			"weekEmptyDesc": "Перенесите задачи сюда из бэклога стрелкой.",
 			"planForWeek": "Запланировать на следующую неделю",
 			"returnToBacklog": "Вернуть в бэклог",
-			"withSubtasks": "{total} задач с учётом подзадач"
+			"withSubtasks": "{total} задач с учётом подзадач",
+			"statsLabel": "Метки и доля Троек в плане недели",
+			"fromTroiki": "Из Троек: {count} из {total}"
 		},
 		"completed": {
 			"emptyTitle": "Пока ничего не завершено",

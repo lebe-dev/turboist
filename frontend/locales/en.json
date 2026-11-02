@@ -1037,7 +1037,9 @@
 			"weekEmptyDesc": "Move tasks here from the backlog with the arrow.",
 			"planForWeek": "Plan for next week",
 			"returnToBacklog": "Return to backlog",
-			"withSubtasks": "{total} tasks including subtasks"
+			"withSubtasks": "{total} tasks including subtasks",
+			"statsLabel": "Labels and Troiki share of the planned week",
+			"fromTroiki": "From Troiki: {count} of {total}"
 		},
 		"completed": {
 			"emptyTitle": "Nothing completed yet",

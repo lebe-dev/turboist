@@ -11,10 +11,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.view.TimeWindow
 import ru.tinyops.turboist.core.model.view.ViewWindows
+import ru.tinyops.turboist.core.model.view.weekPlanStats
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.calendar.CalendarRepository
 import ru.tinyops.turboist.nativeapp.quickadd.RecentProjects
@@ -53,7 +55,7 @@ abstract class TaskListViewModel(
      */
     open val offersDayPartDrops: Boolean = false
 
-    private companion object {
+    protected companion object {
         /** Matches the presenter's own grace period, so both stop watching together. */
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }
@@ -254,34 +256,46 @@ class NextWeekViewModel
         clock: DayClock,
     ) : TaskListViewModel(clock) {
         @OptIn(ExperimentalCoroutinesApi::class)
-        private val sections =
+        private val planned =
             clock.ticks()
                 .map { ViewWindows.week(it, clock.zone) }
                 .distinctUntilChanged()
-                .flatMapLatest { window ->
-                    combine(
-                        repository.observeBacklog(),
-                        repository.observePlannedForWeek(window),
-                        repository.observeProjectTitles(),
-                    ) { backlog, planned, titles ->
-                        listOf(
-                            namedSection(
-                                key = "backlog",
-                                titleRes = R.string.page_nextWeek_backlogTitle,
-                                tasks = backlog,
-                                projectTitles = titles,
-                                emptyRes = R.string.page_nextWeek_backlogEmptyDesc,
-                            ),
-                            namedSection(
-                                key = "planned",
-                                titleRes = R.string.page_nextWeek_nextWeekTitle,
-                                tasks = planned,
-                                projectTitles = titles,
-                                emptyRes = R.string.page_nextWeek_weekEmptyDesc,
-                            ),
-                        )
-                    }
-                }
+                .flatMapLatest { window -> repository.observePlannedForWeek(window) }
+                // Read by both the blocks and the header; one standing query feeds both.
+                .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
+
+        private val sections =
+            combine(
+                repository.observeBacklog(),
+                planned,
+                repository.observeProjectTitles(),
+            ) { backlog, planned, titles ->
+                listOf(
+                    namedSection(
+                        key = "backlog",
+                        titleRes = R.string.page_nextWeek_backlogTitle,
+                        tasks = backlog,
+                        projectTitles = titles,
+                        emptyRes = R.string.page_nextWeek_backlogEmptyDesc,
+                    ),
+                    namedSection(
+                        key = "planned",
+                        titleRes = R.string.page_nextWeek_nextWeekTitle,
+                        tasks = planned,
+                        projectTitles = titles,
+                        emptyRes = R.string.page_nextWeek_weekEmptyDesc,
+                    ),
+                )
+            }
+
+        private val planStats =
+            combine(
+                planned,
+                repository.observeTroikiProjectIds(),
+                repository.observeUserSettings(),
+            ) { tasks, troikiProjects, settings ->
+                PlanStatsHeader(weekPlanStats(tasks, troikiProjects), showTroiki = settings.troikiEnabled)
+            }
 
         override val presenter =
             TaskListPresenter(
@@ -292,5 +306,6 @@ class NextWeekViewModel
                 bulk = bulk,
                 moveOptions = repository.observeMoveOptions(),
                 recentProjects = recent.observe(),
+                planStats = planStats,
             )
     }

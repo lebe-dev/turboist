@@ -156,6 +156,7 @@ fun TaskList(
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (state.announcement != null) AnnouncementBanner(state.announcement, LIST_GUTTER, OUTER_CORNER)
+            if (state.planStats != null) PlanStatsBar(state.planStats, LIST_GUTTER)
             // The age of the appointments, when they are stale, belongs above the
             // whole list: it qualifies every band on the screen at once, and one
             // line is less noise than the same note repeated under each heading.

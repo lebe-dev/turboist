@@ -177,6 +177,12 @@ class TaskListRepository
                 }
             }
 
+        /** The projects standing in a daily-plan bucket, by local id. */
+        fun observeTroikiProjectIds(): Flow<Set<Long>> =
+            projects.observeAll().map { rows ->
+                rows.filter { it.troikiCategory != null }.mapTo(HashSet()) { it.localId }
+            }
+
         /** Project titles by local id, for the folder a row names. */
         fun observeProjectTitles(): Flow<Map<Long, String>> =
             projects.observeAll().map { rows -> rows.associate { it.localId to it.title } }

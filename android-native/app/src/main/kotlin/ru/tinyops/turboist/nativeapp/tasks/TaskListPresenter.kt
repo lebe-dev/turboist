@@ -17,6 +17,7 @@ import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.model.view.WeekPlanStats
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
@@ -30,6 +31,11 @@ data class TaskListUiState(
     val loading: Boolean = true,
     val sections: List<TaskListSection> = emptyList(),
     val announcement: String? = null,
+    /**
+     * What the week being planned is made of, on the planning screen only, and
+     * `null` everywhere else.
+     */
+    val planStats: PlanStatsHeader? = null,
     val refreshing: Boolean = false,
     val selectionMode: Boolean = false,
     val selected: Set<Long> = emptySet(),
@@ -49,6 +55,18 @@ data class TaskListUiState(
     val isEmpty: Boolean
         get() = !loading && sections.all { it.rows.isEmpty() && it.events.isEmpty() }
 }
+
+/**
+ * The summary the planning screen leads with.
+ *
+ * [showTroiki] travels with the counters because the daily plan is optional:
+ * a workspace that keeps none has nothing to be "taken from", and saying
+ * "0 of 12" would read as a shortfall.
+ */
+data class PlanStatsHeader(
+    val stats: WeekPlanStats,
+    val showTroiki: Boolean,
+)
 
 /**
  * Something a list has to say back to the user after an action.
@@ -160,6 +178,7 @@ class TaskListPresenter(
     private val bulk: BulkTaskActions? = null,
     moveOptions: Flow<List<MoveProject>> = flowOf(emptyList()),
     recentProjects: Flow<List<Long>> = flowOf(emptyList()),
+    planStats: Flow<PlanStatsHeader?> = flowOf(null),
 ) {
     private val refreshing = MutableStateFlow(false)
     private val selection = MutableStateFlow(Selection())
@@ -170,15 +189,16 @@ class TaskListPresenter(
     val state: StateFlow<TaskListUiState> =
         combine(
             sections,
-            announcement,
+            combine(announcement, planStats, ::Pair),
             refreshing,
             selection,
             calendarAsOf,
-        ) { blocks, banner, isRefreshing, picked, asOf ->
+        ) { blocks, (banner, stats), isRefreshing, picked, asOf ->
             TaskListUiState(
                 loading = false,
                 sections = blocks,
                 announcement = banner,
+                planStats = stats,
                 refreshing = isRefreshing,
                 selectionMode = picked.active,
                 selected = picked.ids,
