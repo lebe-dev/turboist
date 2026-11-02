@@ -2,10 +2,8 @@ package handlers
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sort"
@@ -144,32 +142,5 @@ func TestOpenAPIDocument_IsUpToDate(t *testing.T) {
 	}
 	if !bytes.Equal(got, want) {
 		t.Fatalf("%s is out of date with the API; run `just openapi` and commit the result", openAPIFile)
-	}
-}
-
-// The document is public: it is mounted ahead of the /api/v1 group, whose
-// middleware (here built on nil repositories) must never run for it.
-func TestOpenAPIEndpoint_ServesDocumentWithoutAuth(t *testing.T) {
-	app := mountedApp()
-	resp, err := app.Test(httptest.NewRequest(http.MethodGet, OpenAPIPath, nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status: got %d, want 200", resp.StatusCode)
-	}
-	var doc struct {
-		OpenAPI string         `json:"openapi"`
-		Paths   map[string]any `json:"paths"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if doc.OpenAPI != "3.1.0" {
-		t.Errorf("openapi: got %q, want 3.1.0", doc.OpenAPI)
-	}
-	if _, ok := doc.Paths["/api/v1/tasks/{id}"]; !ok {
-		t.Errorf("paths: missing /api/v1/tasks/{id}")
 	}
 }

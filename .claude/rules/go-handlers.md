@@ -48,6 +48,7 @@ h.Sessions.Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
 ```
 
 - Every route needs an entry in `handlers.Operations()` (`handlers/openapi.go`) with the exact request/response types the handler binds and sends — a test fails when a mounted route is missing from the table or the table names a route that is not mounted. Respond with named structs, not `fiber.Map`, so the schema can be reflected. Then run `just openapi` to regenerate `api/openapi.yaml`
+- The document itself is served at `GET /api/v1/openapi.json` inside the authenticated group — a session or any valid API token (no scope needed) may read it; anonymous callers get 401
 - Static routes before parameterized ones (`/tasks/bulk/complete` before `/tasks/:id`) — within a single `Register` and across handlers, so registration order in `mount.go` matters
 - Per-route authorization is declarative: `httpapi.RequireScope(auth.ScopeTasksRead)` for API-token scopes, `httpapi.RequireJWTAuth()` (group level) for endpoints an API token must never reach — sessions, api-tokens, backup
 - Tests wire the same way via `setupAPIEnv(t)` (`handlers/testhelper_test.go`)

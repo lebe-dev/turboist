@@ -38,17 +38,17 @@ type Handlers struct {
 	Backup          *BackupHandler
 }
 
-// Mount wires every API route onto app: the public endpoints, the OpenAPI
-// document, /auth and the /api/v1 group. Registration order is load-bearing —
-// static paths go before parameterised ones, and the public /api/v1 routes go
-// before the group so its middleware never sees them. The SPA catch-all is the
-// caller's to add afterwards.
+// Mount wires every API route onto app: the public endpoints, /auth and the
+// /api/v1 group, which also carries the OpenAPI document. Registration order is
+// load-bearing — static paths go before parameterised ones, and the public
+// /api/v1 routes go before the group so its middleware never sees them. The SPA
+// catch-all is the caller's to add afterwards.
 func Mount(app *fiber.App, deps httpapi.Deps, h Handlers) fiber.Router {
-	RegisterOpenAPI(app, deps.Version)
 	h.Calendar.RegisterPublic(app)
 	h.Events.RegisterPublic(app)
 
 	api := httpapi.RegisterRoutes(app, deps)
+	RegisterOpenAPI(api, deps.Version)
 	h.Events.Register(api)
 
 	authGroup := app.Group("/auth")

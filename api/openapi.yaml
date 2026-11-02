@@ -1444,6 +1444,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HttpapiErrorEnvelope'
           description: Error
+      security:
+      - bearerAuth: []
       summary: This OpenAPI document
       tags:
       - system

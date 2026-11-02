@@ -35,7 +35,8 @@ build: build-frontend && format openapi
 # --- OpenAPI ---
 # Regenerate api/openapi.yaml from the route table (handlers.Operations) and the
 # DTO types. `just test` fails while the committed file is stale; the running
-# server publishes the same document at /api/v1/openapi.json.
+# server publishes the same document at /api/v1/openapi.json to any session or
+# API token (anonymous requests get 401).
 openapi: ensure-frontend-build
     go test ./internal/httpapi/handlers -run TestOpenAPIDocument_IsUpToDate -count=1 -update
 

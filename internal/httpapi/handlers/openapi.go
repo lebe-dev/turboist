@@ -11,8 +11,11 @@ import (
 	"github.com/lebe-dev/turboist/internal/httpapi/openapi"
 )
 
+// openAPIRoute is the document's path inside the /api/v1 group.
+const openAPIRoute = "/openapi.json"
+
 // OpenAPIPath is where the server publishes its own OpenAPI document.
-const OpenAPIPath = "/api/v1/openapi.json"
+const OpenAPIPath = "/api/v1" + openAPIRoute
 
 // OpenAPIDocument describes the API as a whole. Its version is the API's, not
 // the build's, so the committed document does not change on every release.
@@ -26,16 +29,16 @@ func OpenAPIDocument() openapi.Document {
 	}
 }
 
-// RegisterOpenAPI publishes the OpenAPI document. It is public and must be
-// mounted before the /api/v1 group, whose middleware would otherwise demand a
-// finished setup and a token.
-func RegisterOpenAPI(app *fiber.App, version string) {
+// RegisterOpenAPI publishes the OpenAPI document on the authenticated /api/v1
+// group: a session or any valid API token may read it, anonymous callers may
+// not. No scope is required — the document describes the API, not user data.
+func RegisterOpenAPI(api fiber.Router, version string) {
 	var (
 		once sync.Once
 		body []byte
 		err  error
 	)
-	app.Get(OpenAPIPath, func(c fiber.Ctx) error {
+	api.Get(openAPIRoute, func(c fiber.Ctx) error {
 		once.Do(func() {
 			doc := OpenAPIDocument()
 			if version != "" {
@@ -219,7 +222,7 @@ func Operations() []openapi.Operation {
 		{Method: get, Path: "/healthz", Tag: tagSystem, Auth: none, Summary: "Liveness probe", Response: httpapi.HealthResponse{}},
 		{Method: get, Path: "/version", Tag: tagSystem, Auth: none, Summary: "Server version", Response: httpapi.VersionResponse{}},
 		{Method: get, Path: "/api/config", Tag: tagSystem, Auth: none, Summary: "Public client bootstrap config", Response: httpapi.PublicConfigResponse{}},
-		{Method: get, Path: OpenAPIPath, Tag: tagSystem, Auth: none, Summary: "This OpenAPI document", Response: map[string]any{}},
+		{Method: get, Path: OpenAPIPath, Tag: tagSystem, Auth: api, Summary: "This OpenAPI document", Response: map[string]any{}},
 		{Method: get, Path: "/api/v1/config", Tag: tagSystem, Auth: api, Summary: "Everything the client shell needs at start",
 			Description: "Answers 304 when If-None-Match carries the current ETag.",
 			Scopes:      scopes(setr, tr, pr, lr, cr, auth.ScopeTroikiRead, mr), Response: configResp{}},
