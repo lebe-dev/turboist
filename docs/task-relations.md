@@ -85,4 +85,4 @@ GET    /api/v1/tasks/:id/relations/blocker-check?candidates=1,2,3
 
 There is no separate endpoint for listing relations. Every task carries `blockedByCount` and `relationCount` on all endpoints that return tasks, and the full list arrives inline via `GET /api/v1/tasks/:id?relations=true`. Completing a blocked task answers `409` with the code `task_blocked` and the blocker ids in `details.blockerIds`.
 
-See [API.md → Task Relations](../API.md#task-relations) for request bodies, error cases and examples.
+See the OpenAPI spec ([API.md](../API.md)) for request bodies, error cases and examples.

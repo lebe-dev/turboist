@@ -7,7 +7,7 @@ in the shared JS layer, it works identically on all three shells: the web app, t
 installed web-PWA, and the native iOS/Android apps.
 
 > The idempotency guarantees the outbox relies on are documented on the backend side:
-> see [API.md](../API.md#idempotency) and
+> see [API.md](../API.md) and
 > [docs/architecture/backend.md](architecture/backend.md#idempotency).
 
 ## What works offline

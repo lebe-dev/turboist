@@ -1985,7 +1985,7 @@ the device holds and lets the server cap it, so the client never has the server'
 current limit written into it; that endpoint deliberately serves a window much
 wider than a replica is seeded with, because reading what has aged out of a
 replica is what it is for (see
-[API.md](../API.md#get-apiv1taskscompleted)). Writing them into the replica would
+[API.md](../API.md)). Writing them into the replica would
 put rows there that the very next tidy-up removes again, so reading back through
 a year of history would rewrite the database on every pass. The first request
 starts at the offset where the device's own copy ends, which keeps the common

@@ -284,7 +284,7 @@ worth reading as a diagnosis:
 ## How it works
 
 The wire protocol, error codes and endpoint list live in
-[API.md](../API.md#passkeys-webauthn); the server-side design — discoverable
+[API.md](../API.md); the server-side design — discoverable
 credentials, the single-use in-memory challenge store, signature-counter
 write-back — is in
 [architecture/backend.md](architecture/backend.md#passkeys-webauthn).
