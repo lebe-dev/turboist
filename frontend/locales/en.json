@@ -625,6 +625,8 @@
 		"autoSortUndecidedMarker": "Not filed by AI",
 		"autoSortUndecidedTooltip": "AI could not pick a project for this task; edit it to try again",
 		"recurringLabel": "Recurring task",
+		"noLabels": "no labels",
+		"noLabelsTooltip": "Labels show where you are heading and help agents understand what a task is about",
 		"unplannedLabel": "Added outside of planning",
 		"weekPlannedLabel": "Planned for this week",
 		"actions": {

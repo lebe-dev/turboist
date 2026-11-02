@@ -11,7 +11,7 @@
     <ID>CyclomaticComplexMethod:TaskDetailScreen.kt$@Composable private fun WhenCard( task: Task, zone: ZoneId, today: LocalDate, onOpen: (TaskField) -&gt; Unit, onDayPart: (DayPart) -&gt; Unit, onDueDate: (LocalDate?) -&gt; Unit, headingTop: Dp, )</ID>
     <ID>CyclomaticComplexMethod:TaskEdits.kt$fun TaskEdit.touchedFields(): List&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:TaskList.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TaskList( state: TaskListUiState, zone: ZoneId, today: LocalDate, empty: EmptyListText?, callbacks: TaskListCallbacks, modifier: Modifier = Modifier, )</ID>
-    <ID>CyclomaticComplexMethod:TaskRow.kt$@Composable private fun MetaLine( task: Task, projectTitle: String?, zone: ZoneId, today: LocalDate, completed: Boolean, )</ID>
+    <ID>CyclomaticComplexMethod:TaskRow.kt$@Composable private fun MetaLine( task: Task, projectTitle: String?, zone: ZoneId, today: LocalDate, completed: Boolean, selectionMode: Boolean, )</ID>
     <ID>CyclomaticComplexMethod:UnsentWording.kt$@StringRes fun labelFor(kind: OutboxOpKind?): Int</ID>
     <ID>InstanceOfCheckForException:TaskListPresenter.kt$TaskListPresenter$refusal is WriteRefused.TaskBlocked</ID>
     <ID>LambdaParameterInRestartableEffect:CompletedScreen.kt$onShowMore</ID>

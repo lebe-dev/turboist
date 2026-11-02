@@ -2,6 +2,7 @@ package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,11 +24,18 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +46,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
@@ -128,6 +137,7 @@ fun TaskRow(
                 zone = zone,
                 today = today,
                 completed = completed,
+                selectionMode = selectionMode,
             )
         }
     }
@@ -312,15 +322,18 @@ private fun MetaLine(
     zone: ZoneId,
     today: LocalDate,
     completed: Boolean,
+    selectionMode: Boolean,
 ) {
     val due = dueLabel(task, zone, today)
     val recurring = task.recurrenceRule != null || task.sourceTaskLocalId != null
     val relations = task.relationSummary.total
     val postpone = postponeTone(task.postponeCount, completed)
     val plan = task.planState
+    // An open task always has something to say about its tags: either the tags or that it has none.
+    val tagsToShow = task.labels.isNotEmpty() || !completed
     val nothingToShow =
         due == null && !recurring && relations == 0 && postpone == null && projectTitle == null &&
-            task.labels.isEmpty() && plan != PlanState.WEEK && plan != PlanState.BACKLOG
+            !tagsToShow && plan != PlanState.WEEK && plan != PlanState.BACKLOG
     if (nothingToShow) return
 
     FlowRow(
@@ -351,7 +364,7 @@ private fun MetaLine(
                 MetaText(projectTitle)
             }
         }
-        for (label in task.labels) LabelChip(label)
+        Tags(task.labels, completed = completed, explainable = !selectionMode)
         if (plan == PlanState.WEEK) MarkerIcon(Icons.Outlined.EventAvailable, R.string.task_weekPlannedLabel)
         if (plan == PlanState.BACKLOG) MarkerIcon(Icons.Outlined.Inventory2, R.string.task_backlogLabel)
     }
@@ -425,6 +438,51 @@ private fun LabelChip(label: Label) {
         style = MaterialTheme.typography.labelMedium,
         color = labelTint(label) ?: MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/** The task's tags, or — on open work that has none — the mark saying so. */
+@Composable
+private fun Tags(
+    labels: List<Label>,
+    completed: Boolean,
+    explainable: Boolean,
+) {
+    for (label in labels) LabelChip(label)
+    if (labels.isEmpty() && !completed) NoLabelsMark(explainable)
+}
+
+/**
+ * Stands where an open task's tags would be when it has none, in the alarm colour.
+ * Tags say where the work is heading and are what agents read a task's meaning
+ * from, so an untagged task is called out rather than left looking finished.
+ * A tap explains why — there is no hover on a phone. While tasks are being
+ * picked the mark stays inert, so a tap on it picks the row like a tap anywhere
+ * else on it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NoLabelsMark(explainable: Boolean) {
+    val tooltip = rememberTooltipState(isPersistent = true)
+    val scope = rememberCoroutineScope()
+    val explanation = stringResource(R.string.task_noLabelsTooltip)
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(explanation) } },
+        state = tooltip,
+        enableUserInput = false,
+    ) {
+        Text(
+            text = stringResource(R.string.task_noLabels),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier =
+                if (explainable) {
+                    Modifier.clickable { scope.launch { tooltip.show() } }
+                } else {
+                    Modifier
+                },
+        )
+    }
 }
 
 /** The size of the tick ring on the left of a row. */

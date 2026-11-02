@@ -63,3 +63,41 @@ describe('TaskItem auto-sorted marker', () => {
 		expect(screen.queryByTestId('task-auto-sorted')).toBeNull();
 	});
 });
+
+describe('TaskItem missing-labels marker', () => {
+	it('marks an open task that has no labels', () => {
+		render(TaskItem, { props: { task: task() } });
+		const marker = screen.getByTestId('task-no-labels');
+		expect(marker.textContent).toMatch(/no labels|нет тэгов/);
+		expect(marker.getAttribute('title')).toMatch(/agents|агент/);
+	});
+
+	it('shows no marker once the task has a label', () => {
+		render(TaskItem, {
+			props: {
+				task: task({
+					labels: [
+						{
+							id: 1,
+							name: 'home',
+							color: 'blue',
+							description: '',
+							isFavourite: false,
+							isPrivate: false,
+							createdAt: '2026-09-13T09:00:00.000Z',
+							updatedAt: '2026-09-13T09:00:00.000Z'
+						}
+					]
+				})
+			}
+		});
+		expect(screen.queryByTestId('task-no-labels')).toBeNull();
+	});
+
+	it('shows no marker on a completed task', () => {
+		render(TaskItem, {
+			props: { task: task({ status: 'completed', completedAt: '2026-09-13T10:00:00.000Z' }) }
+		});
+		expect(screen.queryByTestId('task-no-labels')).toBeNull();
+	});
+});

@@ -310,8 +310,12 @@
 			(!settingsStore.troikiEnabled || !project?.troikiCategory) &&
 			!task.labels.some((l) => settingsStore.weeklyUnplannedExcludedLabelIds.includes(l.id))
 	);
+	// An open task without labels is called out where its labels would be: labels say
+	// where the work is heading, and the Inbox processor and other agents read them.
+	const showNoLabels = $derived(!checked && task.labels.length === 0);
 	const hasMeta = $derived(
 		description.length > 0 ||
+			showNoLabels ||
 			(!hideDue && !!task.dueAt) ||
 			(showProject && !!project) ||
 			task.labels.length > 0 ||
@@ -488,7 +492,7 @@
 			>{descriptionPreview}</p>
 		{/if}
 
-		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || relationCount > 0 || showCalendarSlash || showWeekBadge || showBacklogBadge}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || showNoLabels || task.postponeCount >= 2 || relationCount > 0 || showCalendarSlash || showWeekBadge || showBacklogBadge}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -530,6 +534,14 @@
 				{/if}
 				{#if task.labels.length > 0}
 					<LabelChips labels={task.labels} />
+				{:else if showNoLabels}
+					<span
+						class="cursor-help text-red-500"
+						title={$t('task.noLabelsTooltip')}
+						data-testid="task-no-labels"
+					>
+						{$t('task.noLabels')}
+					</span>
 				{/if}
 				{#if showCalendarSlash}
 					<span
