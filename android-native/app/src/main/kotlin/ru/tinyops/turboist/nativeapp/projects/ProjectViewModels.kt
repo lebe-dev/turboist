@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import ru.tinyops.turboist.nativeapp.labels.reportDays
 import ru.tinyops.turboist.nativeapp.settings.SettingsRepository
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import ru.tinyops.turboist.nativeapp.tasks.DayClock
@@ -46,7 +47,10 @@ class ProjectsViewModel
         settings: SettingsRepository,
         actions: ProjectActions,
         sync: SyncScheduler,
+        clock: DayClock,
     ) : ViewModel() {
+        // The radar's windows are cut in the device's zone, like the label
+        // report's: the server's configured timezone is on neither sync payload.
         val presenter =
             ProjectsPresenter(
                 scope = viewModelScope,
@@ -55,6 +59,7 @@ class ProjectsViewModel
                 dailyPlanEnabled = settings.dailyPlanEnabled(),
                 actions = actions,
                 sync = sync,
+                activity = repository.observeActivity(clock.reportDays(), clock.zone),
             )
     }
 

@@ -6,6 +6,7 @@ import type {
 	ProjectBundle,
 	ProjectInput,
 	ProjectSection,
+	ProjectStatsResponse,
 	ProjectsQuery,
 	SectionInput,
 	Task,
@@ -17,6 +18,12 @@ import type {
 export const projects = {
 	list(client: ApiClient, query: ProjectsQuery = {}): Promise<Page<Project>> {
 		return client.fetch('/api/v1/projects', { query });
+	},
+
+	// stats returns per-project completion counters for all three rolling windows
+	// in one round-trip; the radar switches periods without refetching.
+	stats(client: ApiClient): Promise<ProjectStatsResponse> {
+		return client.fetch('/api/v1/projects/stats');
 	},
 
 	// bundle returns the project, its sections and all its tasks in one request.
@@ -42,7 +49,11 @@ export const projects = {
 	pin: (client: ApiClient, id: number) => action(client, id, 'pin'),
 	unpin: (client: ApiClient, id: number) => action(client, id, 'unpin'),
 
-	listSections(client: ApiClient, id: number, query: ListQuery = {}): Promise<Page<ProjectSection>> {
+	listSections(
+		client: ApiClient,
+		id: number,
+		query: ListQuery = {}
+	): Promise<Page<ProjectSection>> {
 		return client.fetch(`/api/v1/projects/${id}/sections`, { query });
 	},
 

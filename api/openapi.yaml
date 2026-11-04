@@ -2153,6 +2153,28 @@ paths:
       summary: Unpin a project
       tags:
       - projects
+  /api/v1/projects/stats:
+    get:
+      operationId: getProjectsStats
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersProjectStatsResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:read
+      summary: Project activity statistics
+      tags:
+      - projects
   /api/v1/restore:
     post:
       description: |-
@@ -5977,6 +5999,40 @@ components:
           $ref: '#/components/schemas/DtoPagedResponseSectionDTO'
         tasks:
           $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+      type: object
+    HandlersProjectStatsItemDTO:
+      properties:
+        periods:
+          additionalProperties:
+            $ref: '#/components/schemas/HandlersProjectStatsPeriodDTO'
+          type:
+          - object
+          - "null"
+        projectId:
+          format: int64
+          type: integer
+      type: object
+    HandlersProjectStatsPeriodDTO:
+      properties:
+        completed:
+          type: integer
+        previousCompleted:
+          type: integer
+      type: object
+    HandlersProjectStatsResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/HandlersProjectStatsItemDTO'
+          type:
+          - array
+          - "null"
+        ranges:
+          additionalProperties:
+            $ref: '#/components/schemas/HandlersLabelStatsRangeDTO'
+          type:
+          - object
+          - "null"
       type: object
     HandlersProjectSuggestionDTO:
       properties:

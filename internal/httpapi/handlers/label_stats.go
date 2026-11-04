@@ -72,9 +72,17 @@ type labelStatsResponse struct {
 // timezone, as UTC instants. Ranges end at tomorrow's start so today counts in
 // full instead of cutting off at the current clock time.
 func (h *LabelHandler) dayBounds() (time.Time, time.Time) {
-	loc := time.UTC
-	if h.cfg != nil && h.cfg.Location != nil {
+	var loc *time.Location
+	if h.cfg != nil {
 		loc = h.cfg.Location
+	}
+	return statsDayBounds(loc)
+}
+
+// statsDayBounds is dayBounds for any stats report: UTC when loc is nil.
+func statsDayBounds(loc *time.Location) (time.Time, time.Time) {
+	if loc == nil {
+		loc = time.UTC
 	}
 	now := time.Now().In(loc)
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)

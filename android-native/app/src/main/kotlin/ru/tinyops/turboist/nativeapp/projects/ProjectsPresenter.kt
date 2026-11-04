@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.projects
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,11 +10,18 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.Context
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
+import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
+import ru.tinyops.turboist.core.model.view.ProjectActivity
+import ru.tinyops.turboist.core.model.view.ProjectRadar
+import ru.tinyops.turboist.core.model.view.projectRadar
 import ru.tinyops.turboist.core.sync.write.NewProject
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 
@@ -36,6 +44,14 @@ data class ProjectsUiState(
      * stands in one.
      */
     val dailyPlanEnabled: Boolean = false,
+    /** Whether the activity radar is open. It starts closed: the list is what the screen is for. */
+    val radarExpanded: Boolean = false,
+    val radarPeriod: LabelUsagePeriod = LabelUsagePeriod.WEEK,
+    /**
+     * Where the finished work went, project by project; null while the radar is
+     * closed, and when too few projects finished anything to make a shape.
+     */
+    val radar: ProjectRadar? = null,
     val refreshing: Boolean = false,
 ) {
     /** True once the workspace is known to hold nothing matching, as opposed to not being known yet. */
@@ -53,6 +69,7 @@ data class ProjectsUiState(
  * memory as a standing query, and re-running a database query per keystroke
  * would tear that query down and set it up again for an answer it already holds.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ProjectsPresenter(
     private val scope: CoroutineScope,
     groups: Flow<List<ProjectGroup>>,
@@ -60,14 +77,30 @@ class ProjectsPresenter(
     dailyPlanEnabled: Flow<Boolean>,
     private val actions: ProjectActions,
     private val sync: SyncScheduler,
+    activity: Flow<List<ProjectActivity>> = flowOf(emptyList()),
 ) {
     private val filter = MutableStateFlow(ProjectFilter.ALL)
     private val query = MutableStateFlow("")
     private val refreshing = MutableStateFlow(false)
+    private val radarExpanded = MutableStateFlow(false)
+    private val radarPeriod = MutableStateFlow(LabelUsagePeriod.WEEK)
     private val outgoing = MutableSharedFlow<ProjectMessage>(extraBufferCapacity = 1)
 
     /** The workspace and the one preference that changes how it is drawn, read together. */
     private val workspace = combine(groups, contexts, dailyPlanEnabled, ::Triple)
+
+    /**
+     * The radar, once it is open. While it is closed the counting query is not
+     * collected at all: it scans every finished task, and nobody is looking.
+     */
+    private val radar: Flow<ProjectRadar?> =
+        combine(radarExpanded, radarPeriod, ::Pair).flatMapLatest { (open, period) ->
+            if (open) {
+                activity.map { rows -> projectRadar(rows, period) }
+            } else {
+                flowOf(null)
+            }
+        }
 
     /** What the screen renders. */
     val state: StateFlow<ProjectsUiState> =
@@ -75,8 +108,8 @@ class ProjectsPresenter(
             workspace,
             filter,
             query,
-            refreshing,
-        ) { (all, knownContexts, planEnabled), chosen, typed, isRefreshing ->
+            combine(refreshing, radarExpanded, radarPeriod, radar, ::RadarState),
+        ) { (all, knownContexts, planEnabled), chosen, typed, extras ->
             ProjectsUiState(
                 loading = false,
                 filter = chosen,
@@ -86,7 +119,10 @@ class ProjectsPresenter(
                 counts = ProjectFilter.entries.associateWith { candidate -> count(all, candidate) },
                 contexts = knownContexts,
                 dailyPlanEnabled = planEnabled,
-                refreshing = isRefreshing,
+                radarExpanded = extras.expanded,
+                radarPeriod = extras.period,
+                radar = extras.radar,
+                refreshing = extras.refreshing,
             )
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), ProjectsUiState())
 
@@ -96,6 +132,16 @@ class ProjectsPresenter(
     /** The user chose which slice of the workspace to look at. */
     fun narrowTo(chosen: ProjectFilter) {
         filter.value = chosen
+    }
+
+    /** The user opened or closed the activity radar. */
+    fun toggleRadar() {
+        radarExpanded.value = !radarExpanded.value
+    }
+
+    /** The user chose how far back the radar looks. */
+    fun chooseRadarPeriod(chosen: LabelUsagePeriod) {
+        radarPeriod.value = chosen
     }
 
     /** The user typed into the search field. */
@@ -166,6 +212,14 @@ class ProjectsPresenter(
         all: List<ProjectGroup>,
         candidate: ProjectFilter,
     ): Int = all.sumOf { group -> group.projects.count(candidate::matches) }
+
+    /** The pieces of the state that are not about the list, read together. */
+    private data class RadarState(
+        val refreshing: Boolean,
+        val expanded: Boolean,
+        val period: LabelUsagePeriod,
+        val radar: ProjectRadar?,
+    )
 
     private companion object {
         /**

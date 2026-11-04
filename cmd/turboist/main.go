@@ -279,7 +279,7 @@ func main() {
 		Labels:        handlers.NewLabelHandler(labelRepo, projectRepo, taskRepo, cfg, env.BaseURL),
 		Templates:     handlers.NewTemplateHandler(templateRepo, templateSvc, env.BaseURL),
 		Sections:      handlers.NewSectionHandler(sectionRepo, projectRepo, taskRepo, taskSvc, env.BaseURL),
-		Projects:      handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL),
+		Projects:      handlers.NewProjectHandler(projectRepo, sectionRepo, taskRepo, taskSvc, labelRepo, ctxRepo, pinSvc, env.BaseURL).WithLocation(cfg.Location),
 		Inbox:         handlers.NewInboxHandler(taskRepo, taskSvc, cfg, env.BaseURL),
 		TaskBulk:      handlers.NewTaskBulkHandler(completeSvc, moveSvc, groupSvc, taskSvc, env.BaseURL),
 		TaskViews:     handlers.NewTaskViewHandler(taskRepo, userRepo, troikiSvc, cfg, env.BaseURL),
