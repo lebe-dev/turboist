@@ -59,6 +59,18 @@ data class ProjectsUiState(
 }
 
 /**
+ * The standing reads the projects screen is drawn from: the workspace, the one
+ * preference that changes how it is drawn, and the finished work the activity
+ * radar counts (only collected while the radar is open).
+ */
+class ProjectsSources(
+    val groups: Flow<List<ProjectGroup>>,
+    val contexts: Flow<List<Context>>,
+    val dailyPlanEnabled: Flow<Boolean>,
+    val activity: Flow<List<ProjectActivity>> = flowOf(emptyList()),
+)
+
+/**
  * The behaviour of the projects screen.
  *
  * A plain object driven by a scope rather than a view model, so all of it can be
@@ -72,12 +84,9 @@ data class ProjectsUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProjectsPresenter(
     private val scope: CoroutineScope,
-    groups: Flow<List<ProjectGroup>>,
-    contexts: Flow<List<Context>>,
-    dailyPlanEnabled: Flow<Boolean>,
+    sources: ProjectsSources,
     private val actions: ProjectActions,
     private val sync: SyncScheduler,
-    activity: Flow<List<ProjectActivity>> = flowOf(emptyList()),
 ) {
     private val filter = MutableStateFlow(ProjectFilter.ALL)
     private val query = MutableStateFlow("")
@@ -87,7 +96,7 @@ class ProjectsPresenter(
     private val outgoing = MutableSharedFlow<ProjectMessage>(extraBufferCapacity = 1)
 
     /** The workspace and the one preference that changes how it is drawn, read together. */
-    private val workspace = combine(groups, contexts, dailyPlanEnabled, ::Triple)
+    private val workspace = combine(sources.groups, sources.contexts, sources.dailyPlanEnabled, ::Triple)
 
     /**
      * The radar, once it is open. While it is closed the counting query is not
@@ -96,7 +105,7 @@ class ProjectsPresenter(
     private val radar: Flow<ProjectRadar?> =
         combine(radarExpanded, radarPeriod, ::Pair).flatMapLatest { (open, period) ->
             if (open) {
-                activity.map { rows -> projectRadar(rows, period) }
+                sources.activity.map { rows -> projectRadar(rows, period) }
             } else {
                 flowOf(null)
             }

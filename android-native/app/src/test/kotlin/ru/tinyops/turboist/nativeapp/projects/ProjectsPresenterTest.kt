@@ -36,14 +36,17 @@ class ProjectsPresenterTest {
     private var activitySubscriptions = 0
 
     private fun kotlinx.coroutines.test.TestScope.presenter(): ProjectsPresenter {
-        val presenter = ProjectsPresenter(
+        val presenter =
+            ProjectsPresenter(
                 backgroundScope,
-                groups,
-                contexts,
-                dailyPlanEnabled,
+                ProjectsSources(
+                    groups,
+                    contexts,
+                    dailyPlanEnabled,
+                    activity = activity.onStart { activitySubscriptions++ },
+                ),
                 actions,
                 sync,
-                activity = activity.onStart { activitySubscriptions++ },
             )
         backgroundScope.launch { presenter.state.collect {} }
         return presenter

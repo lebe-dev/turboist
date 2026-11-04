@@ -54,12 +54,15 @@ class ProjectsViewModel
         val presenter =
             ProjectsPresenter(
                 scope = viewModelScope,
-                groups = repository.observeGroups(),
-                contexts = repository.observeContexts(),
-                dailyPlanEnabled = settings.dailyPlanEnabled(),
+                sources =
+                    ProjectsSources(
+                        groups = repository.observeGroups(),
+                        contexts = repository.observeContexts(),
+                        dailyPlanEnabled = settings.dailyPlanEnabled(),
+                        activity = repository.observeActivity(clock.reportDays(), clock.zone),
+                    ),
                 actions = actions,
                 sync = sync,
-                activity = repository.observeActivity(clock.reportDays(), clock.zone),
             )
     }
 

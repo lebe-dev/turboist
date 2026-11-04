@@ -280,54 +280,56 @@ private fun ActivityRadar(
         stringResource(
             if (state.radarExpanded) R.string.page_projects_radar_collapse else R.string.page_projects_radar_expand,
         )
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClickLabel = toggle, onClick = callbacks.onToggleRadar)
-                .semantics { stateDescription = toggle }
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        Icon(
-            imageVector = if (state.radarExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    if (state.radarExpanded) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClickLabel = toggle, onClick = callbacks.onToggleRadar)
+                    .semantics { stateDescription = toggle }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         ) {
-            for (period in LabelUsagePeriod.entries) {
-                FilterChip(
-                    selected = period == state.radarPeriod,
-                    onClick = { callbacks.onChooseRadarPeriod(period) },
-                    label = { Text(stringResource(periodLabel(period))) },
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (state.radarExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (state.radarExpanded) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            ) {
+                for (period in LabelUsagePeriod.entries) {
+                    FilterChip(
+                        selected = period == state.radarPeriod,
+                        onClick = { callbacks.onChooseRadarPeriod(period) },
+                        label = { Text(stringResource(periodLabel(period))) },
+                    )
+                }
+            }
+            val radar = state.radar
+            if (radar != null) {
+                ProjectRadarChart(radar)
+            } else {
+                Text(
+                    text = stringResource(R.string.page_projects_radar_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
         }
-        val radar = state.radar
-        if (radar != null) {
-            ProjectRadarChart(radar)
-        } else {
-            Text(
-                text = stringResource(R.string.page_projects_radar_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            )
-        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 @Composable
