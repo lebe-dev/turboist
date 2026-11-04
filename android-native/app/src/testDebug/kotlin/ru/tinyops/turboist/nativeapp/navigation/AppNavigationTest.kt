@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -37,7 +38,10 @@ import ru.tinyops.turboist.nativeapp.shell.AppShell
 import ru.tinyops.turboist.nativeapp.shell.BOTTOM_BAR_TAG
 import ru.tinyops.turboist.nativeapp.shell.BottomBarDestinations
 import ru.tinyops.turboist.nativeapp.shell.DrawerCounts
+import ru.tinyops.turboist.nativeapp.shell.QUICK_SWITCHER_BUTTON_TAG
 import ru.tinyops.turboist.nativeapp.shell.StubScreen
+import ru.tinyops.turboist.nativeapp.switcher.RecentRef
+import ru.tinyops.turboist.nativeapp.switcher.SwitcherKind
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
 import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
 import kotlin.reflect.KClass
@@ -79,6 +83,9 @@ class AppNavigationTest {
 
     private lateinit var navController: NavHostController
 
+    /** What the shell last handed the quick switcher. */
+    private var switcherSlot: QuickSwitcherSlot? = null
+
     /**
      * Stand-ins for the screens that read the replica.
      *
@@ -113,6 +120,9 @@ class AppNavigationTest {
             // The capture surface reads the replica for the places a task can go,
             // so it stands in for itself here. Nothing in this walk opens it.
             quickAdd = { _, _ -> },
+            // The quick switcher reads the replica too; the walk only records what
+            // the shell hands it — whether it is up, and what is on screen.
+            quickSwitcher = { slot -> switcherSlot = slot },
             // Settings is drawn as its real navigation rows and nothing else.
             // Those rows are the only way to three destinations, so substituting
             // them would remove the very wiring the walk is here to check; the
@@ -497,5 +507,23 @@ class AppNavigationTest {
             "a task link did not reach the task destination",
         )
         compose.onAllNodesWithText(text(R.string.native_stub_argument, 4242L)).onFirst().assertIsDisplayed()
+    }
+
+    @Test
+    fun `the top bar button opens the quick switcher, and a result leads to its project`() {
+        launchShell()
+        assertEquals(false, switcherSlot?.open)
+
+        compose.onNodeWithTag(QUICK_SWITCHER_BUTTON_TAG).performClick()
+        compose.waitForIdle()
+        assertEquals(true, switcherSlot?.open)
+
+        compose.runOnIdle {
+            switcherSlot!!.onDismiss()
+            switcherSlot!!.openProject(7)
+        }
+        compose.waitForIdle()
+        assertEquals(false, switcherSlot?.open)
+        assertEquals(RecentRef(SwitcherKind.PROJECT, 7), switcherSlot?.visiting)
     }
 }

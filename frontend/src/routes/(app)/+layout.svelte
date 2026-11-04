@@ -6,6 +6,7 @@
 	import OfflineBanner from '$lib/components/app/OfflineBanner.svelte';
 	import TodayBanner from '$lib/components/app/TodayBanner.svelte';
 	import QuickAddDialog from '$lib/components/task/QuickAddDialog.svelte';
+	import QuickSwitcher from '$lib/components/app/QuickSwitcher.svelte';
 	import SelectionActionBar from '$lib/components/task/SelectionActionBar.svelte';
 	import { taskSelectionStore } from '$lib/stores/taskSelection.svelte';
 	import type { DayPart, Priority, Task } from '$lib/api/types';
@@ -732,7 +733,16 @@
 		onQuickAdd();
 	}
 
+	let quickSwitcherOpen = $state(false);
+
 	function onKeydown(e: KeyboardEvent): void {
+		// ⌘/Ctrl+P opens the quick switcher from anywhere, inputs included, and
+		// takes the shortcut away from the browser's print dialog.
+		if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+			e.preventDefault();
+			quickSwitcherOpen = !quickSwitcherOpen;
+			return;
+		}
 		if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'j' || e.key === 'J')) {
 			e.preventDefault();
 			sidebarStore.toggle();
@@ -779,6 +789,7 @@
 		<div class="flex min-w-0 flex-1 flex-col">
 			<Topbar
 				onQuickAdd={quickAddHidden ? undefined : onQuickAdd}
+				onQuickSwitcher={() => (quickSwitcherOpen = true)}
 				onPickTemplate={quickAddHidden ? undefined : onPickTemplate}
 				onMenuClick={() => (mobileSidebarOpen = true)}
 			/>
@@ -816,6 +827,7 @@
 			<Sidebar />
 		</Sheet.Content>
 	</Sheet.Root>
+	<QuickSwitcher bind:open={quickSwitcherOpen} />
 	<QuickAddDialog
 		bind:open={quickOpen}
 		defaultTitle={quickAddPrefill?.title ?? ''}

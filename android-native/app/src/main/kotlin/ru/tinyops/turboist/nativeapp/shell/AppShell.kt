@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,14 +34,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -60,12 +65,15 @@ import ru.tinyops.turboist.nativeapp.navigation.DrawerDestination
 import ru.tinyops.turboist.nativeapp.navigation.LabelsRoute
 import ru.tinyops.turboist.nativeapp.navigation.PendingTaskLinks
 import ru.tinyops.turboist.nativeapp.navigation.ProjectRoute
+import ru.tinyops.turboist.nativeapp.navigation.QuickSwitcherSlot
 import ru.tinyops.turboist.nativeapp.navigation.RouteTitles
 import ru.tinyops.turboist.nativeapp.navigation.SettingsChildRoutes
 import ru.tinyops.turboist.nativeapp.navigation.SettingsRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskLinkRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskRoute
 import ru.tinyops.turboist.nativeapp.navigation.TemplatesRoute
+import ru.tinyops.turboist.nativeapp.switcher.RecentRef
+import ru.tinyops.turboist.nativeapp.switcher.SwitcherKind
 import ru.tinyops.turboist.nativeapp.sync.SyncStatus
 
 /**
@@ -333,6 +341,8 @@ private fun ShellScaffold(
     // The title shrinks into the bar as a list scrolls under it and comes back
     // at the top, which is what keeps a large title from costing a list its rows.
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var switcherOpen by rememberSaveable { mutableStateOf(false) }
+    val currentEntry by navController.currentBackStackEntryAsState()
     // A screen with a create button of its own in the bottom corner keeps that
     // corner: the capture button would be drawn over it and hide it.
     val screenOwnsCorner =
@@ -370,6 +380,17 @@ private fun ShellScaffold(
                     }
                 }
                 val actions: @Composable RowScope.() -> Unit = {
+                    // There are no hotkeys on a phone, so the quick switcher has a
+                    // button of its own in every screen's bar.
+                    IconButton(
+                        onClick = { switcherOpen = true },
+                        modifier = Modifier.testTag(QUICK_SWITCHER_BUTTON_TAG),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ManageSearch,
+                            contentDescription = stringResource(R.string.quickSwitcher_title),
+                        )
+                    }
                     // How current the screen is sits with the screen's own
                     // controls: it is a fact about what is on screen, and
                     // drawing it in the bar means it never pushes the list.
@@ -427,6 +448,15 @@ private fun ShellScaffold(
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             AppNavHost(navController = navController, screens = screens)
             screens.quickAdd(!screenOwnsChrome && !screenOwnsCorner && !chrome.selectionActive, openProject)
+            screens.quickSwitcher(
+                QuickSwitcherSlot(
+                    open = switcherOpen,
+                    onDismiss = { switcherOpen = false },
+                    visiting = visitingRef(currentDestination, currentEntry),
+                    openTask = { localId -> navController.navigate(TaskRoute(localId)) },
+                    openProject = { localId -> navController.navigate(ProjectRoute(localId)) },
+                ),
+            )
         }
     }
 }
@@ -462,6 +492,22 @@ private fun BottomBar(
         }
     }
 }
+
+/** Tag of the quick switcher's button in the top bar. */
+const val QUICK_SWITCHER_BUTTON_TAG: String = "quick-switcher-button"
+
+/** The task or project on screen, as the quick switcher remembers it; `null` for anything else. */
+private fun visitingRef(
+    destination: NavDestination?,
+    entry: NavBackStackEntry?,
+): RecentRef? =
+    when {
+        entry == null || destination == null -> null
+        destination.hasRoute(TaskRoute::class) -> RecentRef(SwitcherKind.TASK, entry.toRoute<TaskRoute>().taskLocalId)
+        destination.hasRoute(ProjectRoute::class) ->
+            RecentRef(SwitcherKind.PROJECT, entry.toRoute<ProjectRoute>().projectLocalId)
+        else -> null
+    }
 
 /** True for a destination reached only through settings. */
 private fun NavDestination?.isUnderSettings(): Boolean = this != null && SettingsChildRoutes.any { hasRoute(it) }

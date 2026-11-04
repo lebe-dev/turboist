@@ -50,6 +50,7 @@
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { currentTaskStore } from '$lib/stores/currentTask.svelte';
+	import { recentItemsStore } from '$lib/stores/recentItems.svelte';
 	import { t, locale } from '$lib/i18n';
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import MarkdownRich from '$lib/components/MarkdownRich.svelte';
@@ -458,6 +459,13 @@
 			if (!isValid()) return;
 			hydrate(t);
 			subtasks.setFromServer(t.subtasks?.items ?? []);
+			// Opening a task is what the quick switcher's "recent" row remembers.
+			recentItemsStore.visit({
+				kind: 'task',
+				id: t.id,
+				title: t.title,
+				labels: t.labels.map((l) => l.name)
+			});
 		},
 		{
 			autoLoad: false,
@@ -466,6 +474,7 @@
 			onError(err) {
 				if (err instanceof ApiError && err.code === 'not_found') {
 					notFound = true;
+					recentItemsStore.forget('task', taskId);
 					return;
 				}
 				toast.error(describeError(err, $t('page.task.errorLoading')));

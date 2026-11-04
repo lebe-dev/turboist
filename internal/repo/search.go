@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lebe-dev/turboist/internal/db"
 	"github.com/lebe-dev/turboist/internal/logging"
 	"github.com/lebe-dev/turboist/internal/model"
 )
@@ -18,8 +19,38 @@ func NewSearchRepo(tasks *TaskRepo, projects *ProjectRepo) *SearchRepo {
 	return &SearchRepo{tasks: tasks, projects: projects}
 }
 
-// SearchTasks runs a LIKE search over title/description. The caller must
-// validate q (min 2 chars) — repo treats empty q as no-op.
+// Search matches a substring of the title, of a label name or of the
+// description, compared through the casefold SQL function so the match ignores
+// case in every script (SQLite's LIKE only folds ASCII). Results are ranked by
+// where the words hit — title first, then a label, then the description — then
+// open work ahead of finished work, then the shared list sort.
+
+// searchPattern turns a query into a LIKE pattern for casefold(column).
+func searchPattern(q string) string {
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(db.Casefold(q))
+	return "%" + escaped + "%"
+}
+
+const (
+	taskTitleHit       = `casefold(t.title) LIKE ? ESCAPE '\'`
+	taskDescriptionHit = `casefold(t.description) LIKE ? ESCAPE '\'`
+	taskLabelHit       = `EXISTS (SELECT 1 FROM task_labels tl JOIN labels l ON l.id = tl.label_id
+		WHERE tl.task_id = t.id AND casefold(l.name) LIKE ? ESCAPE '\')`
+	taskSearchWhere = `(` + taskTitleHit + ` OR ` + taskLabelHit + ` OR ` + taskDescriptionHit + `)`
+	taskSearchRank  = `CASE WHEN ` + taskTitleHit + ` THEN 0 WHEN ` + taskLabelHit + ` THEN 1 ELSE 2 END,
+		(t.status = 'open') DESC`
+
+	projectTitleHit       = `casefold(p.title) LIKE ? ESCAPE '\'`
+	projectDescriptionHit = `casefold(p.description) LIKE ? ESCAPE '\'`
+	projectLabelHit       = `EXISTS (SELECT 1 FROM project_labels pl JOIN labels l ON l.id = pl.label_id
+		WHERE pl.project_id = p.id AND casefold(l.name) LIKE ? ESCAPE '\')`
+	projectSearchWhere = `(` + projectTitleHit + ` OR ` + projectLabelHit + ` OR ` + projectDescriptionHit + `)`
+	projectSearchRank  = `CASE WHEN ` + projectTitleHit + ` THEN 0 WHEN ` + projectLabelHit + ` THEN 1 ELSE 2 END,
+		(p.status = 'open') DESC`
+)
+
+// SearchTasks searches tasks (see Search above). The caller must validate q
+// (min 2 chars) — repo treats empty q as no-op.
 func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]model.Task, int, error) {
 	const op = "repo.search.SearchTasks"
 	logQuery(ctx, op, len(q), page)
@@ -28,21 +59,18 @@ func (r *SearchRepo) SearchTasks(ctx context.Context, q string, page Page) ([]mo
 		return []model.Task{}, 0, nil
 	}
 	page = page.Normalize()
-	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q)
-	like := "%" + escaped + "%"
-	args := []any{like, like}
+	like := searchPattern(q)
 
 	var total int
 	if err := r.tasks.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM tasks t WHERE t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\'`, args...).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM tasks t WHERE `+taskSearchWhere, like, like, like).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count search tasks: %w", err))
 	}
-	listArgs := append([]any{}, args...)
-	listArgs = append(listArgs, page.Limit, page.Offset)
 	rows, err := r.tasks.db.QueryContext(ctx,
 		`SELECT `+taskColumns+
-			` FROM tasks t WHERE t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\'
-			  ORDER BY `+taskOrderBy+` LIMIT ? OFFSET ?`, listArgs...)
+			` FROM tasks t WHERE `+taskSearchWhere+`
+			  ORDER BY `+taskSearchRank+`, `+taskOrderBy+` LIMIT ? OFFSET ?`,
+		like, like, like, like, like, page.Limit, page.Offset)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("search tasks: %w", err))
 	}
@@ -81,19 +109,18 @@ func (r *SearchRepo) SearchProjects(ctx context.Context, q string, page Page) ([
 		return []model.Project{}, 0, nil
 	}
 	page = page.Normalize()
-	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q)
-	like := "%" + escaped + "%"
+	like := searchPattern(q)
 
 	var total int
 	if err := r.projects.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM projects WHERE title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'`, like, like).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM projects p WHERE `+projectSearchWhere, like, like, like).Scan(&total); err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("count search projects: %w", err))
 	}
 	rows, err := r.projects.db.QueryContext(ctx,
-		`SELECT `+projectColumns+` FROM projects
-		 WHERE title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'
-		 ORDER BY is_pinned DESC, pinned_at DESC, created_at DESC LIMIT ? OFFSET ?`,
-		like, like, page.Limit, page.Offset)
+		`SELECT `+projectColumns+` FROM projects p
+		 WHERE `+projectSearchWhere+`
+		 ORDER BY `+projectSearchRank+`, p.is_pinned DESC, p.pinned_at DESC, p.created_at DESC LIMIT ? OFFSET ?`,
+		like, like, like, like, like, page.Limit, page.Offset)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("search projects: %w", err))
 	}

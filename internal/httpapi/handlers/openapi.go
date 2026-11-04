@@ -294,7 +294,10 @@ func Operations() []openapi.Operation {
 		{Method: post, Path: "/api/v1/tasks/bulk/move", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Move several tasks", Request: BulkMoveRequest{}, Response: bulkResponse{}},
 		{Method: post, Path: "/api/v1/tasks/bulk/priority", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Set the priority of several tasks", Request: BulkPriorityRequest{}, Response: bulkResponse{}},
 		{Method: post, Path: "/api/v1/tasks/group", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Group tasks under a new parent", Request: dto.GroupTasksRequest{}, Response: GroupTasksResponse{}, Status: http.StatusCreated},
-		{Method: get, Path: "/api/v1/search", Tag: tagTasks, Auth: api, Scopes: scopes(auth.ScopeSearchRead), Summary: "Search tasks and projects", Query: searchQuery{}, Response: searchResponse{}},
+		{Method: get, Path: "/api/v1/search", Tag: tagTasks, Auth: api, Scopes: scopes(auth.ScopeSearchRead), Summary: "Search tasks and projects", Query: searchQuery{}, Response: searchResponse{},
+			Description: "Case-insensitive substring match (every script, not just ASCII) on the title, a label name " +
+				"or the description. Results are ranked title hits first, then label hits, then description hits; " +
+				"open before finished within a rank."},
 
 		// --- views
 		{Method: get, Path: "/api/v1/tasks/today", Tag: tagViews, Auth: api, Scopes: scopes(tr), Summary: "Today", Query: pagedViewQuery{}, Response: todayBundleResponse{}},

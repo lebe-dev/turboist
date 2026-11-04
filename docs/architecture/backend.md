@@ -316,6 +316,21 @@ The two refusals a client meets are the same two states from the other side: a
 cursor carrying a pre-restore epoch, and a cursor older than everything the log
 still holds. Either way the remedy is a fresh snapshot.
 
+## Search
+
+`GET /api/v1/search` (`repo.SearchRepo`) matches a substring of a task's or project's
+title, of a label name it carries, or of its description. Matching goes through
+`casefold(...)`, a deterministic SQL function `internal/db/casefold.go` registers with the
+SQLite driver: SQLite's own `LIKE`/`lower()` fold ASCII only, so without it `отп` would
+never find `Отпуск`. The pattern is folded in Go the same way (`db.Casefold`). The `q`
+filter of the list views uses the same predicate.
+
+Results are ranked by where the words hit — title, then a label, then the description —
+then open before finished, then the shared list sort. The web quick switcher, the offline
+fallback in `frontend/src/lib/offline/searchFallback.ts` and the Android replica search
+(`SearchDao.switcherTasks`/`switcherProjects`) all rank the same way. See
+[../quick-switcher.md](../quick-switcher.md).
+
 ## List view contract
 
 The list views in `internal/repo/views.go` are re-implemented as local queries by

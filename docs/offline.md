@@ -24,6 +24,11 @@ installed web-PWA, and the native iOS/Android apps.
    write-throughs into the same cache on every boot. A non-pinned project
    still only opens offline once you have visited it online; an unvisited one shows a clear
    "no connection" message rather than a raw fetch error.
+   **Search** (`GET /api/v1/search`, used by the search page and the quick switcher) is
+   the one read that is answered for queries never seen online: with no exact cache hit,
+   `lib/offline/searchFallback.ts` searches every task and project the cache holds,
+   ranked like the server (title → label → description, open first). It is partial by
+   nature — only what some screen already loaded — see [quick-switcher.md](quick-switcher.md).
 2. **A small whitelist of writes** — queued locally and replayed when the network returns:
    - `task.complete` — complete a task (refused for a task the cache reports as blocked, see below),
    - `task.uncomplete` — undo a completion,

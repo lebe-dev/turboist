@@ -1850,11 +1850,10 @@ client applies.
 relevance score: a title hit before a body hit, open work before finished work,
 recently touched before old, and the row's own id as the last word so the order is
 total. The limit is applied after the ordering, so a capped search drops the worst
-matches rather than an arbitrary slice. This is deliberately *not* the server's
-ordering — `GET /api/v1/search` ranks a substring scan by the shared list sort
-(pinned, then priority) because that is the sort all of its list endpoints use.
-The device has the whole workspace in hand and can answer the search question
-instead: best match first.
+matches rather than an arbitrary slice. The server's `GET /api/v1/search` ranks by
+where the words hit too (title, label, description; open first) and only then by
+the shared list sort; the device answers the same question from the whole
+workspace in hand: best match first.
 
 **The filters are the web client's, widened by one.** The web search offers a
 single choice — read the task matches or the project ones — and its endpoint takes
@@ -1888,6 +1887,33 @@ that had been emptied behind the tables' back. The screen's own decisions — wh
 query is worth running, when it is worth waiting, what counts as a search worth
 remembering — are plain JVM tests with no database behind them.
 
+### Quick switcher (`app/.../switcher`)
+
+The web client's ⌘/Ctrl+P panel, reached here from a button in the top bar of
+every list screen (there are no hotkeys on a phone). See
+[quick-switcher.md](quick-switcher.md) for what it shows; on the device it is
+answered entirely from the replica, so it works with no connection.
+
+**Search** is two queries in `SearchDao` (`switcherTasks`/`switcherProjects`): a
+row matches by its own full-text index *or* by a label it carries (the label index
+joined through `task_labels`/`project_labels`), and each hit comes back with its
+rank — 0 title, 1 label, 2 description — because the panel interleaves tasks and
+projects by it. Within a kind the order is open first, then most recently touched.
+`switcherRows` (pure) puts the recently opened matches first and the rest by rank,
+projects ahead of tasks within one rank.
+
+**Recently opened** is `RecentItems`, a DataStore file of its own holding
+`(kind, local id)` pairs, most recent first and capped. The shell reports the task
+or project on screen to the switcher host, which records it — so a row counts as
+opened however the user got there. Titles are never stored; they are read live
+from the replica, so a rename never shows stale. Sign-out clears it with the
+replica, since local ids are reused by the next one.
+
+**Adding** goes through the same write path as capture (`QuickAddActions`, so
+auto-labels apply and the write is queued in the outbox): "Add to Inbox" files an
+undated task; "Add for today" files a task due at the start of today (in
+`DayClock`'s zone) into the most recently *opened* open project, or into the inbox
+when there is none — the panel names the target before the user picks it.
 ### Templates, and turning one task into several (`app/.../templates`)
 
 A template is a task and the checklist that comes with it, kept so the same piece

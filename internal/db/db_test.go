@@ -197,3 +197,21 @@ func TestWithTxRollback(t *testing.T) {
 		t.Fatalf("expected rollback, got %d rows", n)
 	}
 }
+
+func TestCasefoldFunctionFoldsEveryScript(t *testing.T) {
+	d := mustOpenMigrated(t)
+	var got string
+	if err := d.QueryRow(`SELECT casefold('ОТПУСК Straße')`).Scan(&got); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if got != "отпуск straße" {
+		t.Errorf("casefold = %q", got)
+	}
+	var match int
+	if err := d.QueryRow(`SELECT casefold('Отпуск в горах') LIKE ?`, "%"+Casefold("ОТП")+"%").Scan(&match); err != nil {
+		t.Fatalf("like: %v", err)
+	}
+	if match != 1 {
+		t.Errorf("expected a case-insensitive Cyrillic match")
+	}
+}

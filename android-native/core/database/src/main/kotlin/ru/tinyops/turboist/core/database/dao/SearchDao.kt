@@ -60,10 +60,44 @@ internal object SearchSql {
         "SELECT * FROM labels WHERE localId IN (SELECT rowid FROM labels_fts WHERE labels_fts MATCH :query) " +
             "ORDER BY isFavourite DESC, updatedAt DESC, localId DESC LIMIT :limit"
 
+    private const val LABEL_MATCH = "SELECT rowid FROM labels_fts WHERE labels_fts MATCH :labelQuery"
+
+    private const val TASK_LABEL_HIT =
+        "localId IN (SELECT taskLocalId FROM task_labels WHERE labelLocalId IN ($LABEL_MATCH))"
+
+    private const val PROJECT_LABEL_HIT =
+        "localId IN (SELECT projectLocalId FROM project_labels WHERE labelLocalId IN ($LABEL_MATCH))"
+
+    // The quick switcher ranks by where the words hit — the title, then a label
+    // the row carries, then the description — which is the order the server's
+    // search answers in, so the two clients put the same thing first. The rank is
+    // returned rather than only applied, because the switcher interleaves tasks
+    // and projects by it.
+    const val SWITCHER_TASKS =
+        "SELECT localId, CASE WHEN localId IN ($TASK_MATCH:titleQuery) THEN 0 " +
+            "WHEN $TASK_LABEL_HIT THEN 1 ELSE 2 END AS hitRank FROM tasks " +
+            "WHERE localId IN ($TASK_MATCH:query) OR $TASK_LABEL_HIT " +
+            "ORDER BY hitRank, (status = 'open') DESC, updatedAt DESC, localId DESC LIMIT :limit"
+
+    const val SWITCHER_PROJECTS =
+        "SELECT localId, CASE WHEN localId IN ($PROJECT_MATCH:titleQuery) THEN 0 " +
+            "WHEN $PROJECT_LABEL_HIT THEN 1 ELSE 2 END AS hitRank FROM projects " +
+            "WHERE localId IN ($PROJECT_MATCH:query) OR $PROJECT_LABEL_HIT " +
+            "ORDER BY hitRank, (status = 'open') DESC, isPinned DESC, updatedAt DESC, localId DESC LIMIT :limit"
+
     const val CONTEXTS =
         "SELECT * FROM contexts WHERE localId IN (SELECT rowid FROM contexts_fts WHERE contexts_fts MATCH :query) " +
             "ORDER BY isFavourite DESC, updatedAt DESC, localId DESC LIMIT :limit"
 }
+
+/**
+ * One quick-switcher match: the row, and where the words hit it — 0 for the
+ * title, 1 for a label it carries, 2 for its description.
+ */
+data class SwitcherHit(
+    val localId: Long,
+    val hitRank: Int,
+)
 
 /**
  * Search, as four queries against the replica.
@@ -118,4 +152,33 @@ interface SearchDao {
         query: String,
         limit: Int,
     ): List<ContextRow>
+
+    /**
+     * Tasks for the quick switcher, best first, with the rank each was found at.
+     * `labelQuery` is the terms over the label index, which has one column.
+     */
+    @Query(SearchSql.SWITCHER_TASKS)
+    suspend fun switcherTasks(
+        query: String,
+        titleQuery: String,
+        labelQuery: String,
+        limit: Int,
+    ): List<SwitcherHit>
+
+    /** Projects for the quick switcher, best first, with the rank each was found at. */
+    @Query(SearchSql.SWITCHER_PROJECTS)
+    suspend fun switcherProjects(
+        query: String,
+        titleQuery: String,
+        labelQuery: String,
+        limit: Int,
+    ): List<SwitcherHit>
+
+    /** The task rows named, in no particular order; ids with no row are skipped. */
+    @Query("SELECT * FROM tasks WHERE localId IN (:localIds)")
+    suspend fun tasksByLocalIds(localIds: List<Long>): List<TaskRow>
+
+    /** The project rows named, in no particular order; ids with no row are skipped. */
+    @Query("SELECT * FROM projects WHERE localId IN (:localIds)")
+    suspend fun projectsByLocalIds(localIds: List<Long>): List<ProjectRow>
 }

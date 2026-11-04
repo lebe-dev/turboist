@@ -15,6 +15,7 @@
 	import type { TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
+	import { recentItemsStore } from '$lib/stores/recentItems.svelte';
 	import type { Project, ProjectSection, Task, TroikiCategory } from '$lib/api/types';
 	import ProjectHeader from '$lib/components/project/ProjectHeader.svelte';
 	import SectionList from '$lib/components/project/SectionList.svelte';
@@ -214,6 +215,12 @@
 		notFound = false;
 		// Opening a project is the only "recently used" signal the pickers get.
 		recentProjectsStore.visit(data.project.id);
+		recentItemsStore.visit({
+			kind: 'project',
+			id: data.project.id,
+			title: data.project.title,
+			labels: data.project.labels.map((l) => l.name)
+		});
 		// Reconcile by version so background revalidations (SSE catch-up,
 		// reconnect) reuse unchanged object references and don't re-render the
 		// whole tree. Refetch on navigation shows a spinner (loading=true), so we
@@ -239,7 +246,10 @@
 		initialLoading: true,
 		epoch: () => taskList.epoch,
 		onError(err) {
-			if (err instanceof ApiError && err.code === 'not_found') notFound = true;
+			if (err instanceof ApiError && err.code === 'not_found') {
+				notFound = true;
+				recentItemsStore.forget('project', projectId);
+			}
 		}
 	});
 

@@ -2181,6 +2181,10 @@ paths:
       - account
   /api/v1/search:
     get:
+      description: Case-insensitive substring match (every script, not just ASCII)
+        on the title, a label name or the description. Results are ranked title hits
+        first, then label hits, then description hits; open before finished within
+        a rank.
       operationId: getSearch
       parameters:
       - description: Page size; defaults to 50, capped at 200.

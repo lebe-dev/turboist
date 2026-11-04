@@ -23,6 +23,8 @@ import ru.tinyops.turboist.nativeapp.settings.SettingsSection
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsDestinations
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsScreen
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsSectionScreen
+import ru.tinyops.turboist.nativeapp.switcher.RecentRef
+import ru.tinyops.turboist.nativeapp.switcher.ui.QuickSwitcherHost
 import ru.tinyops.turboist.nativeapp.tasks.TaskAddress
 import ru.tinyops.turboist.nativeapp.tasks.ui.CompletedScreen
 import ru.tinyops.turboist.nativeapp.tasks.ui.InboxScreen
@@ -197,6 +199,32 @@ class AppScreens(
     val quickAdd: @Composable (Boolean, Long?) -> Unit = { showButton, projectLocalId ->
         QuickAddHost(showButton = showButton, projectLocalId = projectLocalId)
     },
+    /**
+     * The quick switcher — find a task or project, or file what was typed — drawn
+     * over whichever screen is on top. Composed always, because it also remembers
+     * every task and project the user opens, whichever way they got there.
+     */
+    val quickSwitcher: @Composable (QuickSwitcherSlot) -> Unit = { slot ->
+        QuickSwitcherHost(
+            open = slot.open,
+            onDismiss = slot.onDismiss,
+            visiting = slot.visiting,
+            onOpenTask = slot.openTask,
+            onOpenProject = slot.openProject,
+        )
+    },
+)
+
+/**
+ * What the shell hands the quick switcher: whether it is up, how to put it away,
+ * what is on screen (to remember as recently opened), and where a result leads.
+ */
+data class QuickSwitcherSlot(
+    val open: Boolean,
+    val onDismiss: () -> Unit,
+    val visiting: RecentRef?,
+    val openTask: (Long) -> Unit,
+    val openProject: (Long) -> Unit,
 )
 
 /**

@@ -12,6 +12,7 @@ import {
 } from './outbox';
 import { matchOp } from './ops/registry';
 import { createReadCache, matchTaskDetailPath, type ReadCache } from './readCache';
+import { matchSearchPath, searchFromCache, type SearchFallbackQuery } from './searchFallback';
 import { statusStore } from './status.svelte';
 
 export { statusStore, createStatusStore } from './status.svelte';
@@ -57,6 +58,24 @@ async function taskDetailFallback(
 	if (id === null) return null;
 	const wantsSubtasks = (query as { subtasks?: unknown } | undefined)?.subtasks === 'true';
 	return cache.findTaskDetail(id, wantsSubtasks);
+}
+
+/**
+ * Last resort for `GET /api/v1/search` while offline: the cache only holds the
+ * exact queries searched before, so answer any query from every task and project
+ * the cache holds (the quick switcher and the search page then work offline).
+ */
+async function searchFallback(
+	cache: ReadCache,
+	path: string,
+	query: unknown
+): Promise<{ payload: unknown; storedAt: string } | null> {
+	if (!matchSearchPath(path)) return null;
+	const entries = await cache.getAll();
+	if (entries.length === 0) return null;
+	const payload = searchFromCache(entries, (query ?? {}) as SearchFallbackQuery);
+	const storedAt = entries.reduce((max, e) => (e.storedAt > max ? e.storedAt : max), '');
+	return { payload, storedAt };
 }
 
 /**
@@ -114,7 +133,10 @@ export function createOfflineBridge(options: OfflineBridgeOptions): OfflineBridg
 		},
 		async cacheGet(path, query) {
 			const cache = await cachePromise;
-			const hit = (await cache.get(path, query)) ?? (await taskDetailFallback(cache, path, query));
+			const hit =
+				(await cache.get(path, query)) ??
+				(await taskDetailFallback(cache, path, query)) ??
+				(await searchFallback(cache, path, query));
 			if (!hit) return null;
 			// A cache hit is only ever consulted when live data could not be served
 			// (cache-first while offline, or a network-error fallback), so the view

@@ -1312,5 +1312,33 @@
 		"unsentRemove": "Remove",
 		"unsentBody": "You have {count} unsent changes. Sign out and discard them?",
 		"unsentDiscard": "Sign out & discard"
+	},
+	"quickSwitcher": {
+		"title": "Quick switcher",
+		"description": "Find a task or project, or add a task",
+		"placeholder": "Find a task or project, or add a task…",
+		"clear": "Clear",
+		"recent": "Recent",
+		"recentBadge": "Recently opened",
+		"searching": "Searching…",
+		"empty": "Type to search tasks and projects",
+		"kind": {
+			"project": "Project"
+		},
+		"create": {
+			"inbox": "Add to Inbox: {title}",
+			"today": "Add for today to {project}: {title}",
+			"todayInbox": "Add for today to Inbox: {title}"
+		},
+		"toast": {
+			"addedToday": "Task added for today to {project}",
+			"addedTodayInbox": "Task added for today to Inbox"
+		},
+		"hint": {
+			"navigate": "navigate",
+			"open": "open",
+			"close": "close"
+		},
+		"open": "Quick switcher ({shortcut})"
 	}
 }

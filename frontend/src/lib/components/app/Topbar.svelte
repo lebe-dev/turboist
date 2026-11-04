@@ -11,6 +11,7 @@
 	import PencilIcon from 'phosphor-svelte/lib/Pencil';
 	import TrashIcon from 'phosphor-svelte/lib/Trash';
 	import CardsIcon from 'phosphor-svelte/lib/Cards';
+	import CommandIcon from 'phosphor-svelte/lib/Command';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -41,13 +42,16 @@
 	};
 
 	const toggleShortcut = modShortcut('j');
+	const switcherShortcut = modShortcut('p');
 
 	let {
 		onQuickAdd,
+		onQuickSwitcher,
 		onPickTemplate,
 		onMenuClick
 	}: {
 		onQuickAdd?: () => void;
+		onQuickSwitcher?: () => void;
 		onPickTemplate?: (templateId: number) => void;
 		onMenuClick?: () => void;
 	} = $props();
@@ -263,6 +267,17 @@
 		</div>
 	</div>
 	<div class="flex shrink-0 items-center gap-1 sm:gap-1.5">
+		{#if onQuickSwitcher && !mobileSearchOpen}
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				onclick={() => onQuickSwitcher?.()}
+				aria-label={$t('quickSwitcher.open', { values: { shortcut: switcherShortcut } })}
+				title={$t('quickSwitcher.open', { values: { shortcut: switcherShortcut } })}
+			>
+				<CommandIcon class="size-4" />
+			</Button>
+		{/if}
 		<!-- Mobile search icon -->
 		{#if !mobileSearchOpen}
 			<Button
