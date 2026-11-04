@@ -18,6 +18,7 @@ type Label struct {
 	ID          int64
 	Name        string
 	Color       string
+	Description string
 	IsFavourite bool
 	IsPrivate   bool
 	CreatedAt   time.Time

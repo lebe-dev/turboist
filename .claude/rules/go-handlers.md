@@ -39,15 +39,17 @@ paths:
 
 The order is load-bearing: idempotency needs the resolved user id from auth, and must sit *before* publish so a replay short-circuits without re-emitting SSE. It returns the group (rather than registering handlers itself) to avoid an import cycle between `httpapi` and `httpapi/handlers`.
 
-`cmd/turboist/main.go` then calls `Register` on each handler, passing either the bare group or a sub-group:
+`handlers.Mount` (`handlers/mount.go`) then calls `Register` on each handler, passing either the bare group or a sub-group; `cmd/turboist/main.go` only constructs the handlers and hands them over in a `handlers.Handlers` struct:
 
 ```go
-handlers.NewTaskHandler(...).Register(api)
-handlers.NewLabelHandler(...).Register(api.Group("/labels"))
-handlers.NewSessionHandler(...).Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
+h.Tasks.Register(api)
+h.Labels.Register(api.Group("/labels"))
+h.Sessions.Register(api.Group("/sessions", httpapi.RequireJWTAuth()))
 ```
 
-- Static routes before parameterized ones (`/tasks/bulk/complete` before `/tasks/:id`) — within a single `Register` and across handlers, so registration order in `main.go` matters
+- Every route needs an entry in `handlers.Operations()` (`handlers/openapi.go`) with the exact request/response types the handler binds and sends — a test fails when a mounted route is missing from the table or the table names a route that is not mounted. Respond with named structs, not `fiber.Map`, so the schema can be reflected. Then run `just openapi` to regenerate `api/openapi.yaml`
+- The document itself is served at `GET /api/v1/openapi.json` inside the authenticated group — a session or any valid API token (no scope needed) may read it; anonymous callers get 401
+- Static routes before parameterized ones (`/tasks/bulk/complete` before `/tasks/:id`) — within a single `Register` and across handlers, so registration order in `mount.go` matters
 - Per-route authorization is declarative: `httpapi.RequireScope(auth.ScopeTasksRead)` for API-token scopes, `httpapi.RequireJWTAuth()` (group level) for endpoints an API token must never reach — sessions, api-tokens, backup
 - Tests wire the same way via `setupAPIEnv(t)` (`handlers/testhelper_test.go`)
 

@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:ApiException.kt$ApiException.Companion$fun from( status: Int, body: ApiErrorBody?, ): ApiException</ID>
+    <ID>LoopWithTooManyJumpStatements:EventStream.kt$EventStream$while</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.Companion$401</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.Companion$403</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.Companion$429</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.Companion$500</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.RateLimited$429</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.SetupRequired$503</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.SyncCursorExpired$410</ID>
+    <ID>MagicNumber:ApiException.kt$ApiException.SyncEpochMismatch$409</ID>
+    <ID>MagicNumber:EventStream.kt$EventStream$1_000_000</ID>
+    <ID>ReturnCount:AuthInterceptor.kt$AuthInterceptor$override fun intercept(chain: Interceptor.Chain): Response</ID>
+    <ID>ReturnCount:ServerUrl.kt$ServerUrl.Companion$fun normalize(raw: String): HttpUrl?</ID>
+    <ID>TooManyFunctions:TaskApi.kt$TaskApi</ID>
+    <ID>TooManyFunctions:WorkspaceApi.kt$ProjectApi</ID>
+    <ID>UseCheckOrError:ApiResponses.kt$throw IllegalStateException("the server answered ${code()} with an empty body")</ID>
+    <ID>UseCheckOrError:Clearable.kt$ClearableSerializer$throw IllegalStateException("a clearable field can only be read from JSON")</ID>
+    <ID>UseCheckOrError:Clearable.kt$ClearableSerializer$throw IllegalStateException("a clearable field can only be written to JSON")</ID>
+  </CurrentIssues>
+</SmellBaseline>

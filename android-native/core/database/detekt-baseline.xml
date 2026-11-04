@@ -1,0 +1,28 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:ViewContractFixture.kt$(parentKey != null &amp;&amp; parentKey !in tasks) || (sourceKey != null &amp;&amp; sourceKey !in tasks)</ID>
+    <ID>CyclomaticComplexMethod:ViewContractFixture.kt$internal suspend fun loadContractFixture(db: TurboistDatabase): LoadedFixture</ID>
+    <ID>CyclomaticComplexMethod:ViewContractTest.kt$ViewContractTest$private suspend fun render( view: String, fixture: LoadedFixture, ): RenderedView</ID>
+    <ID>ImplicitDefaultLocale:WorkspaceScaleTest.kt$WorkspaceScaleTest$String.format( " %-24s %8.3f ms %6d rows %8s of a full read", it.name, it.nanos / 1_000_000.0, it.rows, it.share(baseline), )</ID>
+    <ID>ImplicitDefaultLocale:WorkspaceScaleTest.kt$WorkspaceScaleTest.Measurement$String.format("%.2f%%", 100.0 * nanos.toDouble() / max(1L, baseline.nanos).toDouble())</ID>
+    <ID>LongMethod:ViewContractFixture.kt$internal suspend fun loadContractFixture(db: TurboistDatabase): LoadedFixture</ID>
+    <ID>LongParameterList:OutboxDao.kt$OutboxDao$( op: OutboxOpRow, errorCode: String, errorMessage: String, httpStatus: Int?, quarantinedAt: Long, blockedBy: List&lt;Long&gt; = emptyList(), )</ID>
+    <ID>LongParameterList:ReplicaTest.kt$ReplicaTest$( title: String = "Write it down", serverId: Long? = null, contextLocalId: Long? = null, projectLocalId: Long? = null, sectionLocalId: Long? = null, parentLocalId: Long? = null, sourceTaskLocalId: Long? = null, )</ID>
+    <ID>LongParameterList:ViewContractFixture.kt$LoadedFixture$( val clock: Map&lt;String, Long&gt;, val contexts: Map&lt;String, Long&gt;, val projects: Map&lt;String, Long&gt;, val sections: Map&lt;String, Long&gt;, val labels: Map&lt;String, Long&gt;, val tasks: Map&lt;String, Long&gt;, val declaredViews: List&lt;String&gt;, )</ID>
+    <ID>LoopWithTooManyJumpStatements:ViewContractTest.kt$ViewContractTest$for</ID>
+    <ID>TooManyFunctions:ContextDao.kt$ContextDao</ID>
+    <ID>TooManyFunctions:LabelDao.kt$LabelDao</ID>
+    <ID>TooManyFunctions:OutboxDao.kt$OutboxDao</ID>
+    <ID>TooManyFunctions:ProjectDao.kt$ProjectDao</ID>
+    <ID>TooManyFunctions:ProjectSectionDao.kt$ProjectSectionDao</ID>
+    <ID>TooManyFunctions:ReplicaConverters.kt$ReplicaConverters</ID>
+    <ID>TooManyFunctions:RowMapping.kt$ru.tinyops.turboist.core.database.entity.RowMapping.kt</ID>
+    <ID>TooManyFunctions:TaskDao.kt$TaskDao</ID>
+    <ID>TooManyFunctions:TaskRelationDao.kt$TaskRelationDao</ID>
+    <ID>TooManyFunctions:TaskTemplateDao.kt$TaskTemplateDao</ID>
+    <ID>TooManyFunctions:TaskViewDao.kt$TaskViewDao</ID>
+    <ID>TooManyFunctions:TurboistDatabase.kt$TurboistDatabase : RoomDatabase</ID>
+  </CurrentIssues>
+</SmellBaseline>

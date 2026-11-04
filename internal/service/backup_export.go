@@ -33,7 +33,7 @@ func (s *BackupService) readContexts(ctx context.Context) ([]BackupContext, erro
 
 func (s *BackupService) readLabels(ctx context.Context) ([]BackupLabel, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels ORDER BY id`)
+		`SELECT id, name, color, description, is_favourite, is_private, created_at, updated_at FROM labels ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (s *BackupService) readLabels(ctx context.Context) ([]BackupLabel, error) {
 	for rows.Next() {
 		var l BackupLabel
 		var fav, priv int
-		if err := rows.Scan(&l.ID, &l.Name, &l.Color, &fav, &priv, &l.CreatedAt, &l.UpdatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.Name, &l.Color, &l.Description, &fav, &priv, &l.CreatedAt, &l.UpdatedAt); err != nil {
 			return nil, err
 		}
 		l.IsFavourite = fav == 1

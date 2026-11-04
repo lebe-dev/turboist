@@ -35,8 +35,9 @@
 	import MarkdownText from '$lib/components/MarkdownText.svelte';
 	import { stripMarkdownSyntax } from '$lib/utils/markdown';
 	import { SUBTASK_COLLAPSE_KEY, type SubtaskCollapseCtx } from '$lib/context/subtaskCollapse';
-	import { DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
+	import { DAY_PART_DRAG_KEY, DEPENDENCY_DRAG_KEY } from '$lib/context/dependencyDrag';
 	import type { DependencyDrag } from '$lib/hooks/useDependencyDrag.svelte';
+	import type { DayPartDrag } from '$lib/hooks/useDayPartDrag.svelte';
 	import { dropModeForOffset } from '$lib/utils/dependencyDrop';
 	import {
 		setTaskDrag,
@@ -116,6 +117,10 @@
 	);
 	const subtaskDropNests = $derived(subtaskDropHovered && subtaskDropMode === 'nest');
 	const dependencySource = $derived(dependencyDrag?.draggedId === task.id);
+	// On Today a row can also be carried to another phase of the day; the page
+	// decides which rows that applies to (see useDayPartDrag).
+	const dayPartDrag = getContext<DayPartDrag | undefined>(DAY_PART_DRAG_KEY);
+	const dayPartSource = $derived(dayPartDrag?.draggedId === task.id);
 
 	const selected = $derived(taskSelectionStore.has(task.id));
 
@@ -132,6 +137,7 @@
 	function onTaskDragStart(e: DragEvent) {
 		setTaskDrag(e, task.id);
 		dependencyDrag?.begin(task.id);
+		dayPartDrag?.begin(task.id);
 	}
 
 	function onTaskDragEnd() {
@@ -139,6 +145,7 @@
 		dropAsChildActive = false;
 		// A drop has already ended the gesture; this covers a release anywhere else.
 		dependencyDrag?.cancel();
+		dayPartDrag?.cancel();
 	}
 
 	// Which of the two gestures the pointer is currently over this row for, from
@@ -303,8 +310,12 @@
 			(!settingsStore.troikiEnabled || !project?.troikiCategory) &&
 			!task.labels.some((l) => settingsStore.weeklyUnplannedExcludedLabelIds.includes(l.id))
 	);
+	// An open task without labels is called out where its labels would be: labels say
+	// where the work is heading, and the Inbox processor and other agents read them.
+	const showNoLabels = $derived(!checked && task.labels.length === 0);
 	const hasMeta = $derived(
 		description.length > 0 ||
+			showNoLabels ||
 			(!hideDue && !!task.dueAt) ||
 			(showProject && !!project) ||
 			task.labels.length > 0 ||
@@ -367,7 +378,7 @@
 	class:ring-primary={dropAsChildActive || (subtaskDropHovered && !subtaskDropRefused && !subtaskDropNests)}
 	class:ring-violet-500={subtaskDropHovered && !subtaskDropRefused && subtaskDropNests}
 	class:ring-destructive={subtaskDropRefused}
-	class:opacity-40={dependencySource}
+	class:opacity-40={dependencySource || dayPartSource}
 	style:padding-left={onToggleCollapse ? `${depth * 1.5 + 0.25}rem` : `${depth * 1.5 + 0.75}rem`}
 	data-task-id={task.id}
 	draggable={dragSource}
@@ -481,7 +492,7 @@
 			>{descriptionPreview}</p>
 		{/if}
 
-		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || task.postponeCount >= 2 || relationCount > 0 || showCalendarSlash || showWeekBadge || showBacklogBadge}
+		{#if isRecurring || (!hideDue && task.dueAt) || (showProject && project) || task.labels.length > 0 || showNoLabels || task.postponeCount >= 2 || relationCount > 0 || showCalendarSlash || showWeekBadge || showBacklogBadge}
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
 				{#if isRecurring}
 					<span
@@ -523,6 +534,14 @@
 				{/if}
 				{#if task.labels.length > 0}
 					<LabelChips labels={task.labels} />
+				{:else if showNoLabels}
+					<span
+						class="cursor-help text-red-500"
+						title={$t('task.noLabelsTooltip')}
+						data-testid="task-no-labels"
+					>
+						{$t('task.noLabels')}
+					</span>
 				{/if}
 				{#if showCalendarSlash}
 					<span

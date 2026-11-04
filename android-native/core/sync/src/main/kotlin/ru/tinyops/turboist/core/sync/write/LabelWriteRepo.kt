@@ -6,6 +6,15 @@ import ru.tinyops.turboist.core.database.sync.ReplicaEntityKind
 import ru.tinyops.turboist.core.network.dto.CreateLabelRequest
 import ru.tinyops.turboist.core.network.dto.PatchLabelRequest
 
+/** An edit to a label. Absent means untouched, exactly as it does for a task. */
+data class LabelPatch(
+    val name: String? = null,
+    val color: String? = null,
+    val description: String? = null,
+    val isFavourite: Boolean? = null,
+    val isPrivate: Boolean? = null,
+)
+
 /**
  * Writes to the labels.
  *
@@ -24,6 +33,7 @@ class LabelWriteRepo(
         name: String,
         color: String = "",
         isFavourite: Boolean = false,
+        description: String = "",
     ): QueuedWrite =
         writer.transaction {
             val at = writer.now()
@@ -32,6 +42,7 @@ class LabelWriteRepo(
                     LabelRow(
                         name = name,
                         color = color,
+                        description = description,
                         isFavourite = isFavourite,
                         createdAt = at,
                         updatedAt = at,
@@ -45,6 +56,7 @@ class LabelWriteRepo(
                             CreateLabelRequest(
                                 name = name,
                                 color = color.ifEmpty { null },
+                                description = description.ifEmpty { null },
                                 isFavourite = isFavourite.takeIf { it },
                             ),
                     ),
@@ -56,20 +68,18 @@ class LabelWriteRepo(
 
     suspend fun patch(
         labelLocalId: Long,
-        name: String? = null,
-        color: String? = null,
-        isFavourite: Boolean? = null,
-        isPrivate: Boolean? = null,
+        edit: LabelPatch,
     ): QueuedWrite =
         writer.transaction {
             val at = writer.now()
             val row = requireLabel(labelLocalId)
             db.labels().update(
                 row.copy(
-                    name = name ?: row.name,
-                    color = color ?: row.color,
-                    isFavourite = isFavourite ?: row.isFavourite,
-                    isPrivate = isPrivate ?: row.isPrivate,
+                    name = edit.name ?: row.name,
+                    color = edit.color ?: row.color,
+                    description = edit.description ?: row.description,
+                    isFavourite = edit.isFavourite ?: row.isFavourite,
+                    isPrivate = edit.isPrivate ?: row.isPrivate,
                     updatedAt = at,
                 ),
             )
@@ -79,10 +89,11 @@ class LabelWriteRepo(
                         labelLocalId = labelLocalId,
                         body =
                             PatchLabelRequest(
-                                name = name,
-                                color = color,
-                                isFavourite = isFavourite,
-                                isPrivate = isPrivate,
+                                name = edit.name,
+                                color = edit.color,
+                                description = edit.description,
+                                isFavourite = edit.isFavourite,
+                                isPrivate = edit.isPrivate,
                             ),
                     ),
                     ReplicaEntityKind.LABEL,

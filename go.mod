@@ -11,6 +11,8 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/pquerna/otp v1.5.0
 	github.com/pressly/goose/v3 v3.29.0
+	github.com/swaggest/jsonschema-go v0.3.78
+	github.com/swaggest/openapi-go v0.2.61
 	github.com/teambition/rrule-go v1.8.2
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.37.0
@@ -50,6 +52,7 @@ require (
 	github.com/philhofer/fwd v1.2.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sethvargo/go-retry v0.5.0 // indirect
+	github.com/swaggest/refl v1.4.0 // indirect
 	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.77.0 // indirect
@@ -67,6 +70,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
 	google.golang.org/grpc v1.85.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	modernc.org/libc v1.79.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect

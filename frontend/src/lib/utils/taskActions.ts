@@ -1,4 +1,4 @@
-import type { Task, TaskInput, TaskMoveInput } from '$lib/api/types';
+import type { Label, Task, TaskInput, TaskMoveInput } from '$lib/api/types';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
@@ -7,6 +7,7 @@ import { pinnedTasksStore } from '$lib/stores/pinnedTasks.svelte';
 import { followUpStore } from '$lib/stores/followUp.svelte';
 import { configStore } from '$lib/stores/config.svelte';
 import { soundStore } from '$lib/stores/sound.svelte';
+import { labelsStore } from '$lib/stores/labels.svelte';
 import { isOverdue, dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
 import { nowStore } from '$lib/stores/now.svelte';
 import { toast } from 'svelte-sonner';
@@ -431,23 +432,67 @@ export async function copyTaskTitle(task: Task): Promise<void> {
 export interface TaskJson {
 	title: string;
 	description: string;
+	/** Names of the labels on this task; their meaning lives in the root glossary. */
+	labels: string[];
 	subtasks?: TaskJson[];
 }
 
-export function taskToJson(task: Task, descendants: Task[]): TaskJson {
+export interface LabelGlossaryEntry {
+	name: string;
+	description: string;
+}
+
+/** The copied tree plus one glossary entry per label used anywhere in it. */
+export interface RootTaskJson extends TaskJson {
+	labelGlossary: LabelGlossaryEntry[];
+}
+
+/**
+ * Serialises a task and its subtree for the clipboard. Each task names its
+ * labels; the root carries a glossary describing every label once, so a reader
+ * such as an AI agent learns what a label means without repeated text.
+ * `knownLabels` supplies fresher label descriptions than the ones embedded in
+ * the tasks, e.g. right after a label was edited.
+ */
+export function taskToJson(task: Task, descendants: Task[], knownLabels: Label[] = []): RootTaskJson {
 	const root = buildTree([task, ...descendants]).find((node) => node.task.id === task.id)!;
-	const serialize = (node: TaskNode): TaskJson => ({
-		title: node.task.title,
-		description: node.task.description,
-		...(node.children.length > 0 ? { subtasks: node.children.map(serialize) } : {})
-	});
-	return serialize(root);
+	const known = new Map(knownLabels.map((label) => [label.id, label]));
+	const glossary = new Map<string, string>();
+	const serialize = (node: TaskNode): TaskJson => {
+		const labels = node.task.labels ?? [];
+		for (const label of labels) {
+			glossary.set(label.name, known.get(label.id)?.description ?? label.description ?? '');
+		}
+		return {
+			title: node.task.title,
+			description: node.task.description,
+			labels: labels.map((label) => label.name),
+			...(node.children.length > 0 ? { subtasks: node.children.map(serialize) } : {})
+		};
+	};
+	const tree = serialize(root);
+	const labelGlossary = [...glossary]
+		.sort(([a], [b]) => compareNames(a, b))
+		.map(([name, description]) => ({ name, description }));
+	return { ...tree, labelGlossary };
+}
+
+/** Case-insensitive name order, the same order the Android copy uses. */
+function compareNames(a: string, b: string): number {
+	const la = a.toLowerCase();
+	const lb = b.toLowerCase();
+	if (la !== lb) return la < lb ? -1 : 1;
+	return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export async function copyTaskJson(task: Task): Promise<void> {
 	try {
 		const text = tasksApi.get(getApiClient(), task.id, { includeSubtasks: true }).then((current) =>
-			JSON.stringify(taskToJson(current, current.subtasks?.items ?? []), null, 2)
+			JSON.stringify(
+				taskToJson(current, current.subtasks?.items ?? [], labelsStore.items),
+				null,
+				2
+			)
 		);
 		if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
 			await navigator.clipboard.write([

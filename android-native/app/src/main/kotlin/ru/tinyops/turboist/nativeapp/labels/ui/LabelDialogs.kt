@@ -38,7 +38,11 @@ import ru.tinyops.turboist.nativeapp.projects.ui.projectTint
 data class LabelDraft(
     val name: String,
     val color: String,
+    val description: String = "",
 )
+
+/** Longest label description the server accepts, counted in characters. */
+const val LABEL_DESCRIPTION_MAX = 500
 
 /**
  * Names and colours a label.
@@ -73,8 +77,12 @@ fun LabelEditorSheet(
 }
 
 /**
- * What the editor holds: what the label is called, and what colour it is drawn
- * in.
+ * What the editor holds: what the label is called, what it means, and what
+ * colour it is drawn in.
+ *
+ * The meaning is optional plain text. It explains the label to people and to AI
+ * agents reading a task's JSON copy, so it is capped at the length the server
+ * keeps rather than refused on save.
  *
  * The name is the only required part — a colour is decoration, and a label with
  * none is drawn in the theme's own ink — so the confirm button stays out of
@@ -89,7 +97,9 @@ fun LabelEditorContent(
 ) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var color by remember { mutableStateOf(initial?.color.orEmpty()) }
+    var description by remember { mutableStateOf(initial?.description.orEmpty()) }
     val nameLabel = stringResource(R.string.common_name)
+    val descriptionLabel = stringResource(R.string.common_description)
 
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -118,6 +128,16 @@ fun LabelEditorContent(
             // would otherwise be asked to fill in an unnamed box.
             modifier = Modifier.fillMaxWidth().semantics { contentDescription = nameLabel },
         )
+        OutlinedTextField(
+            value = description,
+            onValueChange = { description = it.take(LABEL_DESCRIPTION_MAX) },
+            label = { Text(descriptionLabel) },
+            placeholder = { Text(stringResource(R.string.dialog_label_descriptionPlaceholder)) },
+            supportingText = { Text(stringResource(R.string.dialog_label_descriptionHint)) },
+            minLines = 2,
+            maxLines = DESCRIPTION_MAX_LINES,
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = descriptionLabel },
+        )
         Text(
             text = stringResource(R.string.common_color),
             style = MaterialTheme.typography.labelMedium,
@@ -131,7 +151,7 @@ fun LabelEditorContent(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             TextButton(
                 enabled = name.isNotBlank(),
-                onClick = { onConfirm(LabelDraft(name.trim(), color)) },
+                onClick = { onConfirm(LabelDraft(name.trim(), color, description.trim())) },
             ) {
                 Text(stringResource(if (initial == null) R.string.common_create else R.string.common_save))
             }
@@ -185,6 +205,7 @@ private fun Swatch(
     ) {}
 }
 
+private const val DESCRIPTION_MAX_LINES = 6
 private val SWATCH_SIZE = 24.dp
 private val SWATCH_RING = 2.dp
 

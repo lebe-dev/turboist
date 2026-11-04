@@ -12,6 +12,7 @@
 	import type { LabelStatsPeriod, LabelStatsResponse } from '$lib/api/types';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
+	import LabelRadarChart from '$lib/components/label/LabelRadarChart.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
@@ -19,6 +20,7 @@
 	import { nowStore } from '$lib/stores/now.svelte';
 	import { isLabelVisible } from '$lib/utils/visibility';
 	import {
+		buildLabelRadar,
 		buildLabelStatsRows,
 		labelStatsTotals,
 		lastUsedDaysAgo,
@@ -66,13 +68,9 @@
 	const split = $derived(splitLabelStatsRows(rows));
 	const activeRows = $derived(split.active);
 	const idleRows = $derived(split.idle);
-	const maxApplied = $derived(Math.max(1, ...activeRows.map((r) => r.applied)));
+	const radar = $derived(buildLabelRadar(rows));
 
 	const totals = $derived(labelStatsTotals(rows));
-
-	function barWidth(applied: number): number {
-		return Math.max(2, Math.round((applied / maxApplied) * 100));
-	}
 
 	// Age of the most recent application: today / yesterday / N days ago / never.
 	function lastUsedLabel(lastUsedAt: string | null): string {
@@ -100,7 +98,7 @@
 
 <ViewHeader stackOnMobile>
 	{#snippet meta()}
-		<p class="text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
+		<p class="text-xl leading-tight font-semibold tracking-tight text-foreground sm:text-2xl">
 			{$t('page.labels.title')}
 		</p>
 		<p class="mt-1 text-sm text-muted-foreground">
@@ -145,14 +143,14 @@
 				<div class="flex items-center gap-3 rounded-lg border bg-card p-4">
 					<ChartBarIcon class="size-8 shrink-0 text-sky-500" weight="fill" />
 					<div class="min-w-0">
-						<p class="text-2xl font-semibold tabular-nums text-foreground">{totals.applied}</p>
+						<p class="text-2xl font-semibold text-foreground tabular-nums">{totals.applied}</p>
 						<p class="text-sm text-muted-foreground">{$t('page.labels.stats.applied')}</p>
 					</div>
 				</div>
 				<div class="flex items-center gap-3 rounded-lg border bg-card p-4">
 					<TagIcon class="size-8 shrink-0 text-violet-500" weight="fill" />
 					<div class="min-w-0">
-						<p class="text-2xl font-semibold tabular-nums text-foreground">
+						<p class="text-2xl font-semibold text-foreground tabular-nums">
 							{activeRows.length}<span class="text-base font-normal text-muted-foreground"
 								>/{rows.length}</span
 							>
@@ -163,23 +161,36 @@
 				<div class="flex items-center gap-3 rounded-lg border bg-card p-4">
 					<CheckCircleIcon class="size-8 shrink-0 text-emerald-500" weight="fill" />
 					<div class="min-w-0">
-						<p class="text-2xl font-semibold tabular-nums text-foreground">{totals.completed}</p>
+						<p class="text-2xl font-semibold text-foreground tabular-nums">{totals.completed}</p>
 						<p class="text-sm text-muted-foreground">{$t('page.labels.stats.completed')}</p>
 					</div>
 				</div>
 				<div class="flex items-center gap-3 rounded-lg border bg-card p-4">
 					<WarningIcon class="size-8 shrink-0 text-amber-500" weight="fill" />
 					<div class="min-w-0">
-						<p class="text-2xl font-semibold tabular-nums text-foreground">{totals.overdue}</p>
+						<p class="text-2xl font-semibold text-foreground tabular-nums">{totals.overdue}</p>
 						<p class="text-sm text-muted-foreground">{$t('page.labels.stats.overdue')}</p>
 					</div>
 				</div>
 			</div>
 
+			<!-- Where the work pulls: one spoke per label, this window against the one before -->
+			{#if radar}
+				<section class="rounded-lg border bg-card p-4">
+					<div class="mb-2 flex items-baseline justify-between gap-3">
+						<h2 class="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+							{$t('page.labels.radar.title')}
+						</h2>
+						<span class="text-xs text-muted-foreground">{$t('page.labels.appliedHint')}</span>
+					</div>
+					<LabelRadarChart {radar} />
+				</section>
+			{/if}
+
 			<!-- Frequency ranking: most-used label first -->
 			<section class="rounded-lg border bg-card p-4">
 				<div class="mb-1 flex items-baseline justify-between gap-3">
-					<h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+					<h2 class="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
 						{$t('page.labels.rankingTitle')}
 					</h2>
 					<span class="text-xs text-muted-foreground">{$t('page.labels.appliedHint')}</span>
@@ -225,24 +236,26 @@
 										{/if}
 									</span>
 								</div>
-								<div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-									<div
-										class="h-full rounded-full bg-primary/70"
-										style="width: {barWidth(row.applied)}%"
-									></div>
-								</div>
 								<div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-									<span>{$t('page.labels.row.completed', { values: { count: row.completed } })}</span>
-									<span>{$t('page.labels.row.open', { values: { count: row.item.openTasks } })}</span>
+									<span
+										>{$t('page.labels.row.completed', { values: { count: row.completed } })}</span
+									>
+									<span
+										>{$t('page.labels.row.open', { values: { count: row.item.openTasks } })}</span
+									>
 									{#if row.item.overdue > 0}
 										<span class="text-amber-600 dark:text-amber-400">
 											{$t('page.labels.row.overdue', { values: { count: row.item.overdue } })}
 										</span>
 									{/if}
-									<span>{$t('page.labels.row.total', { values: { count: row.item.totalTasks } })}</span>
+									<span
+										>{$t('page.labels.row.total', { values: { count: row.item.totalTasks } })}</span
+									>
 									{#if row.item.projects > 0}
 										<span
-											>{$t('page.labels.row.projects', { values: { count: row.item.projects } })}</span
+											>{$t('page.labels.row.projects', {
+												values: { count: row.item.projects }
+											})}</span
 										>
 									{/if}
 								</div>
@@ -257,7 +270,7 @@
 				<section class="rounded-lg border bg-card p-4">
 					<div class="mb-1 flex items-center gap-2">
 						<BroomIcon class="size-4 shrink-0 text-muted-foreground" />
-						<h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+						<h2 class="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
 							{$t('page.labels.idleTitle', { values: { count: idleRows.length } })}
 						</h2>
 					</div>

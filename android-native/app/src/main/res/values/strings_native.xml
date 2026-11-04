@@ -147,6 +147,10 @@
          native client's own because the web client leads its pickers with an
          unlabelled group. -->
     <string name="native_quickAdd_recentProjects">Recent projects</string>
+    <string name="native_quickAdd_discardTitle">Discard this task?</string>
+    <string name="native_quickAdd_discardBody">What you have filled in will be lost.</string>
+    <string name="native_quickAdd_discardConfirm">Discard</string>
+    <string name="native_quickAdd_discardKeep">Keep editing</string>
 
     <!-- Projects and their boards. The web client rearranges a board by dragging,
          which a touch screen cannot offer unambiguously, so the wording here is
@@ -292,6 +296,60 @@
     <string name="native_settings_saved">Saved</string>
     <string name="native_settings_saveFailed">That change could not be saved.</string>
 
+    <!-- The settings sections. The top level is a map of them, each one a
+         screen of its own; the summary under a section's name says what is in it. -->
+    <string name="native_settings_group_work">Work</string>
+    <string name="native_settings_group_account">Account</string>
+    <string name="native_settings_group_system">System</string>
+    <string name="native_settings_section_general">General</string>
+    <string name="native_settings_section_workspace">Workspace</string>
+    <string name="native_settings_section_rules">Rules and labels</string>
+    <string name="native_settings_section_security">Security and sign-in</string>
+    <!-- %1$s is the language, %2$s the theme. -->
+    <string name="native_settings_section_generalSummary">%1$s · Theme: %2$s</string>
+    <string name="native_settings_section_workspaceSummary">Today banner, menu, Troiki, calendar</string>
+    <string name="native_settings_section_rulesSummary">Auto-labels, project suggestions, exclusions</string>
+    <string name="native_settings_section_securitySummary">Passkey, 2FA, sessions, API tokens</string>
+    <string name="native_settings_section_deviceSummary">Sync, server, the copy on this device</string>
+    <!-- %1$s is the version of this build. -->
+    <string name="native_settings_section_aboutSummary">Version %1$s · Terms and privacy</string>
+    <string name="native_settings_templatesSummary">Tasks with subtasks, ready to reuse</string>
+    <string name="native_settings_searchHint">Search settings</string>
+    <string name="native_settings_searchClear">Clear search</string>
+    <string name="native_settings_searchEmpty">Nothing found.</string>
+    <!-- Announces the pile of changes the server refused, at the top of settings; %1$d is how many. -->
+    <plurals name="native_settings_refusedBanner">
+        <item quantity="one">%1$d change was not sent</item>
+        <item quantity="other">%1$d changes were not sent</item>
+    </plurals>
+    <string name="native_settings_refusedBannerBody">The server refused them. Review them and send again.</string>
+    <!-- Marks a setting that is kept on this phone rather than in the account. -->
+    <string name="native_settings_scopeDevice">Only on this device</string>
+    <string name="native_settings_privacyGroup">Privacy</string>
+    <string name="native_settings_syncHeading">Sync</string>
+    <string name="native_settings_resetHeading">Reset</string>
+    <string name="native_settings_copyServer">Copy the server address</string>
+    <string name="native_settings_serverCopied">Address copied</string>
+    <string name="native_settings_signInHeading">Ways to sign in</string>
+    <string name="native_settings_accessHeading">Access</string>
+    <string name="native_settings_securityOnlineNote">These screens work only while connected to the server.</string>
+    <string name="native_settings_bannerPreview">Preview</string>
+    <string name="native_settings_bannerEmpty">The banner is empty</string>
+    <string name="native_settings_pinnedTasksLess">Fewer pinned tasks</string>
+    <string name="native_settings_pinnedTasksMore">More pinned tasks</string>
+    <string name="native_settings_pinnedProjectsLess">Fewer pinned projects</string>
+    <string name="native_settings_pinnedProjectsMore">More pinned projects</string>
+    <!-- After a rule is deleted; %1$s is its mask. -->
+    <string name="native_settings_ruleDeleted">Rule “%1$s” deleted</string>
+    <string name="native_settings_ruleUndo">Undo</string>
+    <!-- Beside a rule that ignores case; the same in every language. -->
+    <string name="native_settings_ruleIgnoreCaseMark" translatable="false">Aa</string>
+    <string name="native_settings_ruleNew">New rule</string>
+    <string name="native_settings_ruleEdit">Edit rule</string>
+    <string name="native_settings_ruleProbe">Try it on a task title</string>
+    <string name="native_settings_ruleProbeMatch">Matches</string>
+    <string name="native_settings_ruleProbeNoMatch">Does not match</string>
+
     <!-- The account's administrative screens: sessions, API tokens and the
          second factor. They are read from the server as the user looks at them
          and nothing about them is kept on the device, so they need a sentence
@@ -319,4 +377,8 @@
     <string name="native_task_whenCollapse">Hide date fields</string>
     <!-- What a long press on the jump pair control offers: the list of things to jump to. -->
     <string name="native_harpoon_jumps">Show jumps</string>
+    <!-- Over the list while a task is carried between the parts of a day. -->
+    <string name="native_dayPartDrag_hint">Drop on a part of the day</string>
+    <!-- Beside the finger while a carried task is over another part of the day; the value is that part's name. -->
+    <string name="native_dayPartDrag_willMove">Move to %1$s</string>
 </resources>

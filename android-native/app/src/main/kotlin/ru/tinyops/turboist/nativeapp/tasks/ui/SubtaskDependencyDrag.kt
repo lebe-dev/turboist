@@ -294,7 +294,7 @@ fun Modifier.subtaskDragSource(
  * the row's own long-click handling consumes the rest of the gesture first and
  * the drag is cancelled the moment the finger moves.
  */
-private suspend fun PointerInputScope.detectLongPressDrag(
+internal suspend fun PointerInputScope.detectLongPressDrag(
     onStart: (Offset) -> Unit,
     onMove: (Offset) -> Unit,
     onEnd: () -> Unit,
@@ -564,7 +564,7 @@ private fun tooltipText(
     }
 
 /** Centres the tooltip above a point in root coordinates, kept inside the window. */
-private class AboveFinger(
+internal class AboveFinger(
     private val pointer: Offset,
     private val lift: Int,
     private val edge: Int,

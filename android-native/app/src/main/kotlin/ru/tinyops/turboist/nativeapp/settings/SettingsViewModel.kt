@@ -3,6 +3,8 @@ package ru.tinyops.turboist.nativeapp.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.map
+import ru.tinyops.turboist.nativeapp.sync.SyncStatusSource
 import javax.inject.Inject
 
 /** The three stores a settings screen sits over, kept apart. */
@@ -16,6 +18,7 @@ class SettingsViewModel
         device: DeviceOptionActions,
         connection: ServerConnection,
         release: AppRelease,
+        syncStatus: SyncStatusSource,
     ) : ViewModel() {
         val presenter =
             SettingsPresenter(
@@ -29,5 +32,8 @@ class SettingsViewModel
                 device = device,
                 connection = connection,
                 release = release,
+                // The same pile the drawer counts, so the warning on settings and
+                // the badge beside its entry never disagree.
+                refusedChanges = syncStatus.status.map { it.setAside },
             )
     }

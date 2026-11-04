@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.ktlint) apply false
+    alias(libs.plugins.detekt) apply false
 }
 
 subprojects {
@@ -20,5 +21,23 @@ subprojects {
         filter {
             exclude { it.file.path.contains("/build/") }
         }
+    }
+    // ktlint owns formatting, Android Lint owns the platform; detekt looks for
+    // code smells and likely bugs, and the Compose rules for misuse of the UI
+    // toolkit. Findings that predate it are listed per module in a baseline, so
+    // it fails on new code without first demanding a rewrite of the old.
+    apply(plugin = "io.gitlab.arturbosch.detekt")
+
+    extensions.configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
+        buildUponDefaultConfig = true
+        config.setFrom(rootProject.layout.projectDirectory.file("detekt.yml"))
+        baseline = layout.projectDirectory.file("detekt-baseline.xml").asFile
+        parallel = true
+        // The default leaves the on-device suite out.
+        source.from("src/androidTest/kotlin", "src/androidTest/java")
+    }
+
+    dependencies {
+        add("detektPlugins", rootProject.libs.compose.rules.detekt)
     }
 }

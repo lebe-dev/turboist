@@ -1,0 +1,245 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComposableParamOrder:TurboistRoot.kt$TurboistRoot</ID>
+    <ID>CompositionLocalAllowlist:Accents.kt$LocalTurboistAccents</ID>
+    <ID>CompositionLocalAllowlist:ShellChrome.kt$LocalShellChrome</ID>
+    <ID>CyclomaticComplexMethod:PasskeyProblem.kt$fun passkeyProblemOf(error: Throwable): PasskeyProblem</ID>
+    <ID>CyclomaticComplexMethod:RecurrenceWording.kt$@Suppress("ReturnCount") fun recurrenceWording(rule: String?): RecurrenceWording</ID>
+    <ID>CyclomaticComplexMethod:SubtaskDependencyDrag.kt$@Composable fun SubtaskDragTooltip( drag: SubtaskDragState, rows: List&lt;TaskListRow&gt;, dependencies: SubtaskDependencies, )</ID>
+    <ID>CyclomaticComplexMethod:TaskDetailScreen.kt$@Composable private fun WhenCard( task: Task, zone: ZoneId, today: LocalDate, onOpen: (TaskField) -&gt; Unit, onDayPart: (DayPart) -&gt; Unit, onDueDate: (LocalDate?) -&gt; Unit, headingTop: Dp, )</ID>
+    <ID>CyclomaticComplexMethod:TaskEdits.kt$fun TaskEdit.touchedFields(): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:TaskList.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TaskList( state: TaskListUiState, zone: ZoneId, today: LocalDate, empty: EmptyListText?, callbacks: TaskListCallbacks, modifier: Modifier = Modifier, )</ID>
+    <ID>CyclomaticComplexMethod:TaskRow.kt$@Composable private fun MetaLine( task: Task, projectTitle: String?, zone: ZoneId, today: LocalDate, completed: Boolean, selectionMode: Boolean, )</ID>
+    <ID>CyclomaticComplexMethod:UnsentWording.kt$@StringRes fun labelFor(kind: OutboxOpKind?): Int</ID>
+    <ID>InstanceOfCheckForException:TaskListPresenter.kt$TaskListPresenter$refusal is WriteRefused.TaskBlocked</ID>
+    <ID>LambdaParameterInRestartableEffect:CompletedScreen.kt$onShowMore</ID>
+    <ID>LambdaParameterInRestartableEffect:SettingsSectionScreen.kt$onRestoreRule</ID>
+    <ID>LambdaParameterInRestartableEffect:TaskDetailScreen.kt$onBack</ID>
+    <ID>LambdaParameterInRestartableEffect:TemplatesScreen.kt$onOpenTask</ID>
+    <ID>LargeClass:TaskDetailPresenterTest.kt$TaskDetailPresenterTest</ID>
+    <ID>LongMethod:AirplaneModeRoundTripTest.kt$AirplaneModeRoundTripTest$@Test fun workDoneWithNoNetworkReachesTheServerOnceAndInOrder()</ID>
+    <ID>LongParameterList:AppScreens.kt$AppScreens$( val today: @Composable ((Task) -&gt; Unit) -&gt; Unit = { open -&gt; TodayScreen(onOpenTask = open) }, val tomorrow: @Composable ((Task) -&gt; Unit) -&gt; Unit = { open -&gt; TomorrowScreen(onOpenTask = open) }, val week: @Composable ((Task) -&gt; Unit) -&gt; Unit = { open -&gt; WeekScreen(onOpenTask = open) }, val nextWeek: @Composable ((Task) -&gt; Unit) -&gt; Unit = { open -&gt; NextWeekScreen(onOpenTask = open) }, val inbox: @Composable ((Task) -&gt; Unit) -&gt; Unit = { open -&gt; InboxScreen(onOpenTask = open) }, /** * The completion history. It takes the same one thing every list does — how * to open a task from a row — even though part of what it shows was read from * the server rather than from the replica: a line with no device id yet opens * nothing, exactly as a row waiting to be sent does. */ val completed: @Composable ((Task) -&gt; Unit) -&gt; Unit = { open -&gt; CompletedScreen(onOpenTask = open) }, /** * Takes the one thing the graph owns: where each settings row leads. A row * whose destination the screen navigated to itself would tie the settings * surface to the route names. */ val settings: @Composable (SettingsDestinations) -&gt; Unit = { destinations -&gt; SettingsScreen(destinations = destinations) }, /** * One section of settings, one step below it. Takes the same destinations * the top level does: a section's rows lead to the account's screens too. */ val settingsSection: @Composable (SettingsSection, SettingsDestinations) -&gt; Unit = { section, destinations -&gt; SettingsSectionScreen(section = section, destinations = destinations) }, /** * The reusable blueprints. Takes how to open a task, because using a template * makes work in a project the user is not looking at and the screen goes * there — a destination, and so the graph's. */ val templates: @Composable ((Long) -&gt; Unit) -&gt; Unit = { openTask -&gt; TemplatesScreen(onOpenTask = openTask) }, /** * Takes how to open each of the four kinds a search can find. A result is a * record rather than an id, because only the graph knows a destination is * addressed by a server id and that a record made offline has none yet. */ val search: @Composable (SearchNavigation) -&gt; Unit = { navigation -&gt; SearchScreen(navigation = navigation) }, /** * One whole task, opened at whichever address brought the user here. Takes * where the screen can lead — another task, the project or context the task * lives in, and back — and the jump-pair control. Both belong to the graph * rather than the screen: the first are destinations, and the second is a * control that navigates to one. The screen draws its own top bar, which is * where that control has to sit. */ val task: @Composable (TaskAddress, TaskNavigation, @Composable () -&gt; Unit) -&gt; Unit = { address, navigation, harpoon -&gt; TaskDetailScreen( address = address, onOpenTask = navigation.openTask, onBack = navigation.back, onOpenProject = navigation.openProject, onOpenContext = navigation.openContext, harpoon = harpoon, ) }, /** * The workspace, browsed. Takes how to open a project and how to open the * context a heading names — both destinations, and so both the graph's. */ val projects: @Composable ((Project) -&gt; Unit, (Context) -&gt; Unit) -&gt; Unit = { openProject, openContext -&gt; ProjectsScreen(onOpenProject = openProject, onOpenContext = openContext) }, /** * One project and its board. Takes the project to show, how to open a task * from a row, and how to leave — the last of which the screen needs because * deleting a project takes the screen with it. */ val project: @Composable (Long, (Task) -&gt; Unit, () -&gt; Unit) -&gt; Unit = { projectLocalId, openTask, leave -&gt; ProjectScreen(projectLocalId = projectLocalId, onOpenTask = openTask, onLeave = leave) }, /** * How often each label is being reached for. Takes how to open a label — a * destination, and so the graph's — because every row on the report leads to * the work carrying that label. */ val labels: @Composable ((Label) -&gt; Unit) -&gt; Unit = { openLabel -&gt; LabelsScreen(onOpenLabel = openLabel) }, /** * One label and the work carrying it. Takes the label to show, how to open a * task from a row, and how to leave — the last of which the screen needs * because deleting a label takes the screen with it. */ val label: @Composable (Long, (Task) -&gt; Unit, () -&gt; Unit) -&gt; Unit = { labelLocalId, openTask, leave -&gt; LabelTasksScreen(labelLocalId = labelLocalId, onOpenTask = openTask, onLeave = leave) }, /** One context: its projects, and the work in the whole branch under it. */ val context: @Composable (Long, (Project) -&gt; Unit, (Task) -&gt; Unit, () -&gt; Unit) -&gt; Unit = { contextLocalId, openProject, openTask, leave -&gt; ContextScreen( contextLocalId = contextLocalId, onOpenProject = openProject, onOpenTask = openTask, onLeave = leave, ) }, /** * The daily plan. Takes how to open a task from a row and how to open one of * the projects standing in it — both destinations, and so both the graph's. */ val troiki: @Composable ((Task) -&gt; Unit, (Project) -&gt; Unit) -&gt; Unit = { openTask, openProject -&gt; TroikiScreen(onOpenTask = openTask, onOpenProject = openProject) }, /** Takes nothing from the graph: a credential belongs to the account, not to a row. */ val passkeys: @Composable () -&gt; Unit = { PasskeysScreen() }, /** * The three administrative surfaces, each taking nothing from the graph: * nothing on them is a place, and every action they offer is about the * account rather than about the work. */ val sessions: @Composable () -&gt; Unit = { SessionsScreen() }, val apiTokens: @Composable () -&gt; Unit = { ApiTokensScreen() }, val twoFactor: @Composable () -&gt; Unit = { TwoFactorScreen() }, /** * What the server has not been told. Takes nothing from the graph: every row * on it is a change rather than a place, and the only actions it offers act * on the queue itself. */ val unsentChanges: @Composable () -&gt; Unit = { UnsentChangesScreen() }, /** * The jump pair, in the top bar: the two things the user is hopping between, * and the way the thing on screen is hooked onto the pair or taken off it. * Takes what is on screen, when that is a task or a project, and how to open * an end of the pair — a destination, and so the graph's. */ val harpoon: @Composable (HarpoonEntry?, (HarpoonEntry) -&gt; Unit) -&gt; Unit = { current, open -&gt; HarpoonAction(current = current, onOpen = open) }, /** * The capture surface — the button that opens it and the sheet it opens — * drawn over whichever screen is on top. It is an entry here rather than a * fixture of the shell so a check about navigation can compose the shell * without a database and a sync engine behind it. * * It is told whether to draw its button and which project is on screen, so * a task captured from a project's page lands in that project rather than * in the inbox. It stays composed either way: a share from another app * opens the sheet without anyone touching the button, so a screen that does * not want the button — one that has a control of its own in the same * corner — must not take the sheet down with it. */ val quickAdd: @Composable (Boolean, Long?) -&gt; Unit = { showButton, projectLocalId -&gt; QuickAddHost(showButton = showButton, projectLocalId = projectLocalId) }, )</ID>
+    <ID>LongParameterList:BoardColumn.kt$( key: String, sectionLocalId: Long?, title: String?, position: Int?, tasks: List&lt;Task&gt;, canMoveEarlier: Boolean = false, canMoveLater: Boolean = false, )</ID>
+    <ID>LongParameterList:CompletedHistoryPresenter.kt$CompletedHistoryPresenter$( private val scope: CoroutineScope, private val history: CompletedHistorySource, private val older: OlderCompletions, private val actions: CompletedHistoryActions, private val sync: SyncScheduler, private val zone: ZoneId, today: Flow&lt;LocalDate&gt;, )</ID>
+    <ID>LongParameterList:LabelFakes.kt$( labelLocalId: Long, taggedAt: Long? = null, status: TaskStatus = TaskStatus.OPEN, dueAt: Long? = null, completedAt: Long? = null, projectLocalId: Long? = null, )</ID>
+    <ID>LongParameterList:ProjectFakes.kt$( localId: Long, title: String = "project $localId", contextLocalId: Long = 1L, status: ProjectStatus = ProjectStatus.OPEN, type: ProjectType = ProjectType.GENERIC, isPinned: Boolean = false, pinnedAt: Long? = null, troikiCategory: TroikiCategory? = null, color: String = "", )</ID>
+    <ID>LongParameterList:QuickAddPresenter.kt$QuickAddPresenter$( private val scope: CoroutineScope, workspace: Flow&lt;QuickAddWorkspace&gt;, private val recent: RecentProjects, private val actions: QuickAddActions, private val zone: ZoneId, private val recentLabels: RecentLabels = RecentLabels.None, private val now: () -&gt; Instant = Instant::now, private val schedule: DayPartSchedule = DayPartSchedule.Default, )</ID>
+    <ID>LongParameterList:SessionManagerTest.kt$SessionManagerTest$( gateway: FakeAuthGateway = FakeAuthGateway(), tokens: FakeRefreshTokenStore = FakeRefreshTokenStore(), addresses: FakeServerAddressStore = FakeServerAddressStore(), replica: FakeLocalReplica = FakeLocalReplica(), serverUrl: ServerUrl = ServerUrl(), networks: FakeNetworkAvailability = FakeNetworkAvailability(), accessTokens: SessionTokens = SessionTokens(), cleartext: CleartextPolicy = CleartextPolicy(allowed = false), )</ID>
+    <ID>LongParameterList:SettingsPresenter.kt$SettingsPresenter$( private val scope: CoroutineScope, userSettings: Flow&lt;UserSettings&gt;, appSettings: Flow&lt;AppSettings&gt;, labels: Flow&lt;List&lt;Label&gt;&gt;, projects: Flow&lt;List&lt;Project&gt;&gt;, deviceOptions: Flow&lt;DeviceOptions&gt;, private val actions: SettingsActions, private val device: DeviceOptionActions, private val connection: ServerConnection, private val release: AppRelease, refusedChanges: Flow&lt;Int&gt; = flowOf(0), )</ID>
+    <ID>LongParameterList:SubtaskDependencyDrag.kt$SubtaskDependencies$( val enabled: Boolean, val dependencyRefusal: (draggedLocalId: Long, targetLocalId: Long) -&gt; DependencyDropRefusal?, val nestRefusal: (draggedLocalId: Long, targetLocalId: Long) -&gt; NestDropRefusal?, val nestNoop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Boolean, val onDependencyDrop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Unit, val onNestDrop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Unit, /** Lifts the dropped row out to the top level; `null` where the screen offers no detach zone. */ val onDetachDrop: ((draggedLocalId: Long) -&gt; Unit)? = null, )</ID>
+    <ID>LongParameterList:SyncModule.kt$SyncModule$( stream: ChangeStream, network: NetworkAvailability, schedule: BackgroundSyncSchedule, scheduler: SyncScheduler, @SignedInState signedIn: Flow&lt;Boolean&gt;, @ForegroundState foreground: Flow&lt;Boolean&gt;, writer: OutboxWriter, database: TurboistDatabase, )</ID>
+    <ID>LongParameterList:TaskDetailPresenter.kt$TaskDetailPresenter$( private val scope: CoroutineScope, content: Flow&lt;TaskDetailContent?&gt;, private val actions: TaskDetailActions, private val sync: SyncScheduler, private val relationSearch: TaskRelationSearch = TaskRelationSearch.None, private val templates: TemplateCapture = TemplateCapture.Unavailable, private val recentLabels: RecentLabels = RecentLabels.None, )</ID>
+    <ID>LongParameterList:TaskDetailPresenterTest.kt$TaskDetailPresenterTest$( task: Task, subtasks: List&lt;Task&gt; = emptyList(), blockers: List&lt;BlockerRef&gt; = emptyList(), relations: List&lt;TaskRelationRef&gt; = emptyList(), placement: TaskPlacement = TaskPlacement(), knownLabels: List&lt;Label&gt; = emptyList(), priorityLockedByTroiki: Boolean = false, blockEdges: List&lt;BlockEdge&gt; = emptyList(), )</ID>
+    <ID>LongParameterList:TaskDetailPresenterTest.kt$TaskDetailPresenterTest$( task: Task, subtasks: List&lt;Task&gt; = emptyList(), blockers: List&lt;BlockerRef&gt; = emptyList(), relations: List&lt;TaskRelationRef&gt; = emptyList(), priorityLockedByTroiki: Boolean = false, blockEdges: List&lt;BlockEdge&gt; = emptyList(), )</ID>
+    <ID>LongParameterList:TaskFixtures.kt$( localId: Long, title: String = "task $localId", serverId: Long? = localId, description: String = "", parentLocalId: Long? = null, contextLocalId: Long? = null, projectLocalId: Long? = null, sectionLocalId: Long? = null, inboxId: Long? = null, dayPart: DayPart = DayPart.NONE, planState: PlanState = PlanState.NONE, priority: Priority = Priority.NONE, status: TaskStatus = TaskStatus.OPEN, dueAt: Long? = null, dueHasTime: Boolean = false, deadlineAt: Long? = null, deadlineHasTime: Boolean = false, completedAt: Long? = null, labels: List&lt;Label&gt; = emptyList(), isPinned: Boolean = false, isPrivate: Boolean = false, isComplex: Boolean = false, postponeCount: Int = 0, recurrenceRule: String? = null, relationSummary: TaskRelationSummary = TaskRelationSummary.NONE, )</ID>
+    <ID>LongParameterList:TaskListPresenter.kt$TaskListPresenter$( private val scope: CoroutineScope, sections: Flow&lt;List&lt;TaskListSection&gt;&gt;, private val actions: TaskListActions, private val sync: SyncScheduler, announcement: Flow&lt;String?&gt; = flowOf(null), calendarAsOf: Flow&lt;Long?&gt; = flowOf(null), private val bulk: BulkTaskActions? = null, moveOptions: Flow&lt;List&lt;MoveProject&gt;&gt; = flowOf(emptyList()), recentProjects: Flow&lt;List&lt;Long&gt;&gt; = flowOf(emptyList()), planStats: Flow&lt;PlanStatsHeader?&gt; = flowOf(null), )</ID>
+    <ID>LongParameterList:TemplatesPresenterTest.kt$TemplatesPresenterTest$( localId: Long, name: String, lines: List&lt;String&gt; = emptyList(), priority: Priority = Priority.NONE, dayPart: DayPart = DayPart.NONE, labels: List&lt;Label&gt; = emptyList(), )</ID>
+    <ID>LongParameterList:TroikiScreen.kt$( card: TroikiProjectCard, zone: ZoneId, today: LocalDate, collapsed: Boolean, onToggleCollapsed: () -&gt; Unit, onAdd: () -&gt; Unit, callbacks: TroikiCallbacks, )</ID>
+    <ID>LoopWithTooManyJumpStatements:MaskRules.kt$for</ID>
+    <ID>LoopWithTooManyJumpStatements:RecentProjects.kt$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SubtaskDependencyDrag.kt$while</ID>
+    <ID>MagicNumber:Accents.kt$0xFF009966</ID>
+    <ID>MagicNumber:Accents.kt$0xFF00D492</ID>
+    <ID>MagicNumber:Accents.kt$0xFF2B7FFF</ID>
+    <ID>MagicNumber:Accents.kt$0xFF7C86FF</ID>
+    <ID>MagicNumber:Accents.kt$0xFFBB4D00</ID>
+    <ID>MagicNumber:Accents.kt$0xFFE17100</ID>
+    <ID>MagicNumber:Accents.kt$0xFFE7000B</ID>
+    <ID>MagicNumber:Accents.kt$0xFFFB2C36</ID>
+    <ID>MagicNumber:Accents.kt$0xFFFDC700</ID>
+    <ID>MagicNumber:Accents.kt$0xFFFE9A00</ID>
+    <ID>MagicNumber:Accents.kt$0xFFFF8904</ID>
+    <ID>MagicNumber:Accents.kt$0xFFFFD230</ID>
+    <ID>MagicNumber:AnnouncementBanner.kt$1.5f</ID>
+    <ID>MagicNumber:AnnouncementBanner.kt$5f</ID>
+    <ID>MagicNumber:CalendarEvents.kt$0xFF000000L</ID>
+    <ID>MagicNumber:CalendarEvents.kt$6</ID>
+    <ID>MagicNumber:CalendarEvents.kt$8</ID>
+    <ID>MagicNumber:Color.kt$0xFF0A0806</ID>
+    <ID>MagicNumber:Color.kt$0xFF100E0C</ID>
+    <ID>MagicNumber:Color.kt$0xFF16100C</ID>
+    <ID>MagicNumber:Color.kt$0xFF191714</ID>
+    <ID>MagicNumber:Color.kt$0xFF1A1816</ID>
+    <ID>MagicNumber:Color.kt$0xFF1F1915</ID>
+    <ID>MagicNumber:Color.kt$0xFF231E1B</ID>
+    <ID>MagicNumber:Color.kt$0xFF23201E</ID>
+    <ID>MagicNumber:Color.kt$0xFF25211D</ID>
+    <ID>MagicNumber:Color.kt$0xFF252220</ID>
+    <ID>MagicNumber:Color.kt$0xFF292624</ID>
+    <ID>MagicNumber:Color.kt$0xFF36322F</ID>
+    <ID>MagicNumber:Color.kt$0xFF3D0001</ID>
+    <ID>MagicNumber:Color.kt$0xFF450F00</ID>
+    <ID>MagicNumber:Color.kt$0xFF541600</ID>
+    <ID>MagicNumber:Color.kt$0xFF65000A</ID>
+    <ID>MagicNumber:Color.kt$0xFF69625D</ID>
+    <ID>MagicNumber:Color.kt$0xFF762F06</ID>
+    <ID>MagicNumber:Color.kt$0xFF77706B</ID>
+    <ID>MagicNumber:Color.kt$0xFF79191B</ID>
+    <ID>MagicNumber:Color.kt$0xFF7B6F66</ID>
+    <ID>MagicNumber:Color.kt$0xFF8C857F</ID>
+    <ID>MagicNumber:Color.kt$0xFF9C9793</ID>
+    <ID>MagicNumber:Color.kt$0xFFADA397</ID>
+    <ID>MagicNumber:Color.kt$0xFFC24700</ID>
+    <ID>MagicNumber:Color.kt$0xFFE2580E</ID>
+    <ID>MagicNumber:Color.kt$0xFFE4E1DD</ID>
+    <ID>MagicNumber:Color.kt$0xFFE8E4E0</ID>
+    <ID>MagicNumber:Color.kt$0xFFEA1F2F</ID>
+    <ID>MagicNumber:Color.kt$0xFFEBE7E2</ID>
+    <ID>MagicNumber:Color.kt$0xFFEE343B</ID>
+    <ID>MagicNumber:Color.kt$0xFFF2EEE9</ID>
+    <ID>MagicNumber:Color.kt$0xFFF3EFEC</ID>
+    <ID>MagicNumber:Color.kt$0xFFF3F1EE</ID>
+    <ID>MagicNumber:Color.kt$0xFFF4F1ED</ID>
+    <ID>MagicNumber:Color.kt$0xFFF4F1EE</ID>
+    <ID>MagicNumber:Color.kt$0xFFF7A062</ID>
+    <ID>MagicNumber:Color.kt$0xFFF7F5F1</ID>
+    <ID>MagicNumber:Color.kt$0xFFFAFAFA</ID>
+    <ID>MagicNumber:Color.kt$0xFFFBFAF7</ID>
+    <ID>MagicNumber:Color.kt$0xFFFC4447</ID>
+    <ID>MagicNumber:Color.kt$0xFFFCFCFC</ID>
+    <ID>MagicNumber:Color.kt$0xFFFDD5B7</ID>
+    <ID>MagicNumber:Color.kt$0xFFFF5957</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFCFCA</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFD9D4</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFDBBF</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFFFFF</ID>
+    <ID>MagicNumber:ProjectFilters.kt$3</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFF0091FF</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFF12A594</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFF30A46C</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFF8B8D98</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFF8E4EC6</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFFAD7F58</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFFD6409F</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFFE5484D</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFFF76B15</ID>
+    <ID>MagicNumber:ProjectVisuals.kt$0xFFFFB224</ID>
+    <ID>MagicNumber:SubtaskDependencyDrag.kt$0xFF8B5CF6</ID>
+    <ID>MatchingDeclarationName:ApiTokensScreen.kt$ApiTokenCallbacks</ID>
+    <ID>MatchingDeclarationName:CompletedScreen.kt$CompletedCallbacks</ID>
+    <ID>MatchingDeclarationName:ConnectedChoiceGroup.kt$ChoiceColors</ID>
+    <ID>MatchingDeclarationName:ContextScreen.kt$ContextCallbacks</ID>
+    <ID>MatchingDeclarationName:LabelDialogs.kt$LabelDraft</ID>
+    <ID>MatchingDeclarationName:LabelTasksScreen.kt$LabelDetailCallbacks</ID>
+    <ID>MatchingDeclarationName:LabelsScreen.kt$LabelsCallbacks</ID>
+    <ID>MatchingDeclarationName:PostponeBadge.kt$PostponeTone</ID>
+    <ID>MatchingDeclarationName:ProjectFilters.kt$ProjectFilter</ID>
+    <ID>MatchingDeclarationName:ProjectScreen.kt$ProjectBoardCallbacks</ID>
+    <ID>MatchingDeclarationName:ProjectsScreen.kt$ProjectsCallbacks</ID>
+    <ID>MatchingDeclarationName:QuickAddSheet.kt$QuickAddCallbacks</ID>
+    <ID>MatchingDeclarationName:SearchScreen.kt$SearchCallbacks</ID>
+    <ID>MatchingDeclarationName:TaskDetailScreen.kt$TaskDetailCallbacks</ID>
+    <ID>MatchingDeclarationName:TemplatesScreen.kt$TemplatesCallbacks</ID>
+    <ID>MatchingDeclarationName:TroikiScreen.kt$TroikiCallbacks</ID>
+    <ID>MatchingDeclarationName:TwoFactorScreen.kt$TwoFactorCallbacks</ID>
+    <ID>MatchingDeclarationName:UnsentChangesScreen.kt$UnsentChangesCallbacks</ID>
+    <ID>ModifierMissing:CalendarSettingsNote.kt$CalendarSettingsNote</ID>
+    <ID>ModifierMissing:HarpoonAction.kt$HarpoonAction</ID>
+    <ID>ModifierMissing:RecurrenceSheet.kt$RecurrenceSheet</ID>
+    <ID>ModifierMissing:SubtaskDependencyDrag.kt$SubtaskDragMarks</ID>
+    <ID>MultipleEmitters:PasskeysScreen.kt$AddPasskey</ID>
+    <ID>MultipleEmitters:QuickAddSheet.kt$DueDateChips</ID>
+    <ID>MultipleEmitters:SignInScreen.kt$PasskeySignIn</ID>
+    <ID>MultipleEmitters:TaskDetailFields.kt$LabelSelector</ID>
+    <ID>MultipleEmitters:TwoFactorScreen.kt$DisableForm</ID>
+    <ID>MultipleEmitters:TwoFactorScreen.kt$Enrolment</ID>
+    <ID>MultipleEmitters:TwoFactorScreen.kt$RecoveryCodes</ID>
+    <ID>MultipleEmitters:TwoFactorScreen.kt$Status</ID>
+    <ID>ParameterNaming:TaskListScreen.kt$onGroupRequested</ID>
+    <ID>ParameterNaming:TaskListScreen.kt$onMoveRequested</ID>
+    <ID>ParameterNaming:TaskListScreen.kt$onTitleChosen</ID>
+    <ID>ParameterNaming:TroikiScreen.kt$onToggleCollapsed</ID>
+    <ID>ReturnCount:Markdown.kt$Markdown$private fun readEmphasis( input: String, at: Int, ): Consumed?</ID>
+    <ID>ReturnCount:ProjectVisuals.kt$fun projectTint(color: String): Color?</ID>
+    <ID>ReturnCount:SessionManager.kt$SessionManager$suspend fun connect(raw: String): AuthResult</ID>
+    <ID>ReturnCount:TaskDetailPresenter.kt$TaskDetailPresenter$fun nestUnder( draggedLocalId: Long, targetLocalId: Long, )</ID>
+    <ID>ReturnCount:TaskEdits.kt$fun deadlineDateEdit( task: Task, date: LocalDate?, zone: ZoneId, ): TaskEdit</ID>
+    <ID>ReturnCount:TaskEdits.kt$fun dueDateEdit( task: Task, date: LocalDate?, zone: ZoneId, ): TaskEdit</ID>
+    <ID>SpreadOperator:Markdown.kt$Markdown$(*TRAILING_PUNCTUATION)</ID>
+    <ID>SwallowedException:CompletedHistoryPresenter.kt$CompletedHistoryPresenter$failure: RuntimeException</ID>
+    <ID>SwallowedException:CompletedHistoryPresenter.kt$CompletedHistoryPresenter$refusal: WriteRefused</ID>
+    <ID>SwallowedException:LabelActions.kt$failure: RuntimeException</ID>
+    <ID>SwallowedException:LabelActions.kt$refusal: WriteRefused</ID>
+    <ID>SwallowedException:ProjectMessage.kt$failure: RuntimeException</ID>
+    <ID>SwallowedException:QuickAddPresenter.kt$QuickAddPresenter$failure: RuntimeException</ID>
+    <ID>SwallowedException:QuickAddPresenter.kt$QuickAddPresenter$refusal: WriteRefused</ID>
+    <ID>SwallowedException:SettingsPresenter.kt$SettingsPresenter$failure: RuntimeException</ID>
+    <ID>SwallowedException:SettingsPresenter.kt$SettingsPresenter$refusal: WriteRefused</ID>
+    <ID>SwallowedException:TaskDetailPresenter.kt$TaskDetailPresenter$failure: RuntimeException</ID>
+    <ID>SwallowedException:TaskListPresenter.kt$TaskListPresenter$failure: RuntimeException</ID>
+    <ID>SwallowedException:TemplatesPresenter.kt$TemplatesPresenter$failure: RuntimeException</ID>
+    <ID>SwallowedException:TemplatesPresenter.kt$TemplatesPresenter$refusal: WriteRefused</ID>
+    <ID>SwallowedException:WriteRepoBulkTaskActions.kt$WriteRepoBulkTaskActions$missing: WriteRefused.RowMissing</ID>
+    <ID>TooGenericExceptionCaught:ApiTokensViewModel.kt$ApiTokensViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CalendarRepository.kt$CalendarRepository$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CompletedHistoryPresenter.kt$CompletedHistoryPresenter$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:HarpoonViewModel.kt$HarpoonViewModel$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:LabelActions.kt$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:PasskeysViewModel.kt$PasskeysViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProjectMessage.kt$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:QuickAddPresenter.kt$QuickAddPresenter$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:SearchPresenter.kt$SearchPresenter$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:SessionManager.kt$SessionManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SessionsViewModel.kt$SessionsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SettingsPresenter.kt$SettingsPresenter$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:SyncActivity.kt$SyncActivity$fault: Exception</ID>
+    <ID>TooGenericExceptionCaught:TaskDetailPresenter.kt$TaskDetailPresenter$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:TaskListPresenter.kt$TaskListPresenter$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:TemplatesPresenter.kt$TemplatesPresenter$failure: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:TwoFactorViewModel.kt$TwoFactorViewModel$e: Exception</ID>
+    <ID>TooManyFunctions:ApiTokensViewModel.kt$ApiTokensViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:AuthGateway.kt$AuthGateway</ID>
+    <ID>TooManyFunctions:AuthGateway.kt$HttpAuthGateway : AuthGateway</ID>
+    <ID>TooManyFunctions:DatabaseModule.kt$DatabaseModule</ID>
+    <ID>TooManyFunctions:LabelsScreen.kt$ru.tinyops.turboist.nativeapp.labels.ui.LabelsScreen.kt</ID>
+    <ID>TooManyFunctions:NetworkModule.kt$NetworkModule</ID>
+    <ID>TooManyFunctions:ProjectActions.kt$ProjectActions</ID>
+    <ID>TooManyFunctions:ProjectBoardPresenter.kt$ProjectBoardPresenter</ID>
+    <ID>TooManyFunctions:QuickAddPresenter.kt$QuickAddPresenter</ID>
+    <ID>TooManyFunctions:QuickAddSheet.kt$ru.tinyops.turboist.nativeapp.quickadd.ui.QuickAddSheet.kt</ID>
+    <ID>TooManyFunctions:SearchScreen.kt$ru.tinyops.turboist.nativeapp.search.ui.SearchScreen.kt</ID>
+    <ID>TooManyFunctions:SelectionActions.kt$ru.tinyops.turboist.nativeapp.tasks.ui.SelectionActions.kt</ID>
+    <ID>TooManyFunctions:SessionManager.kt$SessionManager : SessionStateSourceOfflineSessionSource</ID>
+    <ID>TooManyFunctions:SettingsPieces.kt$ru.tinyops.turboist.nativeapp.settings.ui.SettingsPieces.kt</ID>
+    <ID>TooManyFunctions:SettingsPresenter.kt$SettingsPresenter</ID>
+    <ID>TooManyFunctions:SyncModule.kt$SyncModule</ID>
+    <ID>TooManyFunctions:TaskDetailFields.kt$ru.tinyops.turboist.nativeapp.tasks.ui.TaskDetailFields.kt</ID>
+    <ID>TooManyFunctions:TaskDetailPresenter.kt$TaskDetailActions : TaskListActions</ID>
+    <ID>TooManyFunctions:TaskDetailPresenter.kt$TaskDetailPresenter</ID>
+    <ID>TooManyFunctions:TaskDetailScreen.kt$ru.tinyops.turboist.nativeapp.tasks.ui.TaskDetailScreen.kt</ID>
+    <ID>TooManyFunctions:TaskList.kt$ru.tinyops.turboist.nativeapp.tasks.ui.TaskList.kt</ID>
+    <ID>TooManyFunctions:TaskListPresenter.kt$TaskListPresenter</ID>
+    <ID>TooManyFunctions:TaskListRepository.kt$TaskListRepository</ID>
+    <ID>TooManyFunctions:TaskRow.kt$ru.tinyops.turboist.nativeapp.tasks.ui.TaskRow.kt</ID>
+    <ID>TooManyFunctions:TemplatesPresenter.kt$TemplatesPresenter</ID>
+    <ID>TooManyFunctions:TroikiScreen.kt$ru.tinyops.turboist.nativeapp.troiki.ui.TroikiScreen.kt</ID>
+    <ID>TooManyFunctions:TwoFactorViewModel.kt$TwoFactorViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:WriteRepoProjectActions.kt$WriteRepoProjectActions : ProjectActions</ID>
+    <ID>TooManyFunctions:WriteRepoTaskDetailActions.kt$WriteRepoTaskDetailActions : TaskDetailActions</ID>
+    <ID>UnusedPrivateMember:ApiTokensScreen.kt$@Preview(showBackground = true) @Composable private fun ApiTokensScreenPreview()</ID>
+    <ID>UnusedPrivateMember:AppDrawer.kt$@Preview(showBackground = true) @Composable private fun AppDrawerContentPreview()</ID>
+    <ID>UnusedPrivateMember:ConnectScreen.kt$@Preview(showBackground = true) @Composable private fun ConnectScreenPreview()</ID>
+    <ID>UnusedPrivateMember:PasskeysScreen.kt$@Preview(showBackground = true) @Composable private fun PasskeysScreenPreview()</ID>
+    <ID>UnusedPrivateMember:SessionsScreen.kt$@Preview(showBackground = true) @Composable private fun SessionsScreenPreview()</ID>
+    <ID>UnusedPrivateMember:SettingsScreen.kt$@Preview(showBackground = true) @Composable private fun SettingsScreenPreview()</ID>
+    <ID>UnusedPrivateMember:SetupScreen.kt$@Preview(showBackground = true) @Composable private fun SetupScreenPreview()</ID>
+    <ID>UnusedPrivateMember:SignInScreen.kt$@Preview(showBackground = true) @Composable private fun OtpStepPreview()</ID>
+    <ID>UnusedPrivateMember:SignInScreen.kt$@Preview(showBackground = true) @Composable private fun SignInScreenPreview()</ID>
+    <ID>UnusedPrivateMember:StubScreen.kt$@Preview(showBackground = true) @Composable private fun SplashScreenPreview()</ID>
+    <ID>UnusedPrivateMember:StubScreen.kt$@Preview(showBackground = true) @Composable private fun StubScreenPreview()</ID>
+    <ID>UnusedPrivateMember:SyncIndicator.kt$@Preview(showBackground = true) @Composable private fun SyncIndicatorPreview()</ID>
+    <ID>UnusedPrivateMember:TwoFactorScreen.kt$@Preview(showBackground = true) @Composable private fun TwoFactorScreenPreview()</ID>
+    <ID>UnusedPrivateMember:UnsentChangesScreen.kt$@Preview(showBackground = true) @Composable private fun UnsentChangesScreenPreview()</ID>
+    <ID>UseCheckOrError:LabelFakes.kt$RecordingLabelActions$throw IllegalStateException("the write path refused this one")</ID>
+    <ID>UseCheckOrError:QuickAddFakes.kt$RecordingQuickAddActions$throw IllegalStateException("the write path is unavailable")</ID>
+    <ID>UseCheckOrError:SettingsFakes.kt$RecordingSettingsActions$throw IllegalStateException("the server refused this write")</ID>
+    <ID>ViewModelForwarding:DatedTaskScreens.kt$TaskListScreen( viewModel = viewModel, empty = EmptyListText( title = stringResource(R.string.page_today_emptyTitle), description = stringResource(R.string.page_today_emptyDescription), ), onOpenTask = onOpenTask, modifier = modifier, )</ID>
+    <ID>ViewModelForwarding:DatedTaskScreens.kt$TaskListScreen( viewModel = viewModel, empty = EmptyListText( title = stringResource(R.string.page_tomorrow_emptyTitle), description = stringResource(R.string.page_tomorrow_emptyDescription), ), onOpenTask = onOpenTask, modifier = modifier, )</ID>
+    <ID>ViewModelForwarding:DatedTaskScreens.kt$TaskListScreen( viewModel = viewModel, empty = EmptyListText( title = stringResource(R.string.page_week_emptyTitle), description = stringResource(R.string.page_week_emptyDescription), ), onOpenTask = onOpenTask, modifier = modifier, )</ID>
+    <ID>ViewModelForwarding:DatedTaskScreens.kt$TaskListScreen( viewModel = viewModel, empty = null, onOpenTask = onOpenTask, modifier = modifier, )</ID>
+    <ID>ViewModelForwarding:InboxScreen.kt$TaskListScreen( viewModel = viewModel, empty = EmptyListText( title = stringResource(R.string.page_inbox_emptyTitle), description = stringResource(R.string.page_inbox_subtitle), ), onOpenTask = onOpenTask, modifier = modifier, )</ID>
+    <ID>ViewModelForwarding:LabelTasksScreen.kt$TaskListScreen( viewModel = viewModel, empty = EmptyListText( title = stringResource(R.string.page_label_emptyTitle), description = stringResource(R.string.page_label_emptyDescription), ), onOpenTask = onOpenTask, )</ID>
+  </CurrentIssues>
+</SmellBaseline>

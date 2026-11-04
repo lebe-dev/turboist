@@ -18,6 +18,9 @@
 	import LimitReachedBanner from '$lib/components/view/LimitReachedBanner.svelte';
 	import GroupHeader from '$lib/components/view/GroupHeader.svelte';
 	import CompletedThisWeekFooter from '$lib/components/view/CompletedThisWeekFooter.svelte';
+	import WeekPlanStats from '$lib/components/view/WeekPlanStats.svelte';
+	import { weekPlanStats } from '$lib/utils/weekPlanStats';
+	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { groupTreeByDay } from '$lib/utils/viewGroup';
 	import { buildTree, flattenTree, matchesSelfOrAncestor } from '$lib/utils/taskTree';
 	import { calendarEventsOrEmpty, groupCalendarEventsByDay, isPastCalendarEvent } from '$lib/utils/calendar';
@@ -60,7 +63,16 @@
 	const list = useListMutator<Task>();
 	const { mutator } = list;
 	const plannedTotal = $derived(
-		list.items.filter((t) => t.planState === 'week' && t.status === 'open').length
+		list.items.filter((t) => t.planState === 'week' && t.status === 'open' && !t.parentId).length
+	);
+
+	// Only what was planned for the week: tasks that are here merely because they
+	// fall due inside it say nothing about what the week was planned around.
+	const planStats = $derived(
+		weekPlanStats(
+			list.items.filter((t) => t.planState === 'week'),
+			projectsStore.items
+		)
 	);
 
 	const tz = $derived(configStore.value?.timezone ?? null);
@@ -219,6 +231,7 @@
 				{$t('page.week.daysLeft', { values: { count: daysLeftCount } })}
 			</p>
 		{/if}
+		<WeekPlanStats stats={planStats} showTroiki={settingsStore.troikiEnabled} />
 	{/snippet}
 	{#snippet actions()}
 		<Button href="/week/summary" variant="outline" size="sm" title={$t('page.weekSummary.open')}>

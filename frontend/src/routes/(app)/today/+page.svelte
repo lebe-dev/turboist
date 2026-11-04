@@ -25,7 +25,11 @@
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
-	import { untrack } from 'svelte';
+	import { setContext, untrack } from 'svelte';
+	import DayPartDropBar from '$lib/components/view/DayPartDropBar.svelte';
+	import { useDayPartDrag } from '$lib/hooks/useDayPartDrag.svelte';
+	import { DAY_PART_DRAG_KEY } from '$lib/context/dependencyDrag';
+	import { setTouchDayPartDragListener } from '$lib/utils/dnd';
 
 	let total = $state(0);
 	let completedCount = $state(0);
@@ -90,6 +94,28 @@
 	);
 
 	const active = $derived(activeDayPart(nowStore.now, dayParts, tz));
+
+	// Carrying a task from one phase of the day to another. Only a task filed
+	// under a phase can be picked up — an overdue one stays put, since a new
+	// phase would leave it overdue all the same.
+	const dayPartDrag = useDayPartDrag({
+		originOf: (id) => {
+			const task = todayTasks.find((x) => x.id === id);
+			return task && task.status === 'open' ? (task.dayPart ?? 'none') : null;
+		},
+		onMove: (id, part) => {
+			const task = todayTasks.find((x) => x.id === id);
+			if (task) void updateTaskFields(task, mutator, { dayPart: part });
+		}
+	});
+	setContext(DAY_PART_DRAG_KEY, dayPartDrag);
+	$effect(() =>
+		setTouchDayPartDragListener({
+			begin: (id) => dayPartDrag.begin(id),
+			over: (part) => dayPartDrag.over(part),
+			drop: (part) => dayPartDrag.drop(part)
+		})
+	);
 
 	let completeDialogOpen = $state(false);
 	let pendingCompleteTask = $state<Task | null>(null);
@@ -260,6 +286,7 @@
 						tasks={group.tasks}
 						hideTodayBadge
 						showUnplannedBadge
+						draggable
 						{mutator}
 						{belongs}
 						onToggle={handleToggle}
@@ -276,6 +303,10 @@
 		</div>
 	</ViewContent>
 </div>
+
+{#if dayPartDrag.draggedId !== null}
+	<DayPartDropBar drag={dayPartDrag} parts={dayPartGroupMeta(dayParts)} />
+{/if}
 
 <CompleteOverdueDialog
 	bind:open={completeDialogOpen}

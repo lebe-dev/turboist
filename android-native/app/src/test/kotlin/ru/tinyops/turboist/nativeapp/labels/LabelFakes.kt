@@ -61,15 +61,16 @@ class RecordingLabelActions(
         name: String,
         color: String,
         isFavourite: Boolean,
+        description: String,
     ) {
-        record("create($name,$color,$isFavourite)")
+        record("create($name,$color,$isFavourite,$description)")
     }
 
     override suspend fun editLabel(
         labelLocalId: Long,
         edit: LabelEdit,
     ) {
-        record("edit($labelLocalId,${edit.name},${edit.color},${edit.isFavourite},${edit.isPrivate})")
+        with(edit) { record("edit($labelLocalId,$name,$color,$isFavourite,$isPrivate,$description)") }
     }
 
     override suspend fun deleteLabel(labelLocalId: Long) {

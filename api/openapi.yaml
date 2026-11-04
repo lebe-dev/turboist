@@ -1,0 +1,6437 @@
+openapi: 3.1.0
+info:
+  description: 'HTTP API of the Turboist task manager. Every failed request answers
+    with an error envelope `{error: {code, message, details}}`.'
+  title: Turboist API
+  version: "1"
+paths:
+  /api/config:
+    get:
+      operationId: getApiConfig
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiPublicConfigResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Public client bootstrap config
+      tags:
+      - system
+  /api/v1/api-tokens:
+    get:
+      description: Requires a session access token; API tokens are refused.
+      operationId: getApiTokens
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/HandlersApiTokenResp'
+                type: array
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: List API tokens
+      tags:
+      - account
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postApiTokens
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersApiTokenCreateReq'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersApiTokenCreateResp'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Issue an API token
+      tags:
+      - account
+  /api/v1/api-tokens/{id}:
+    delete:
+      description: Requires a session access token; API tokens are refused.
+      operationId: deleteApiTokensId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Revoke an API token
+      tags:
+      - account
+  /api/v1/app-settings:
+    get:
+      operationId: getAppSettings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersAppSettingsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+      summary: Installation settings
+      tags:
+      - settings
+  /api/v1/app-settings/auto-labels:
+    put:
+      operationId: putAppSettingsAutoLabels
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersAutoLabelsPutReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersAppSettingsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Replace auto-label rules
+      tags:
+      - settings
+  /api/v1/app-settings/inbox-processing:
+    put:
+      operationId: putAppSettingsInboxProcessing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersInboxSettingsPutReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersAppSettingsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Update inbox processing settings
+      tags:
+      - settings
+  /api/v1/app-settings/project-suggestions:
+    put:
+      operationId: putAppSettingsProjectSuggestions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersProjectSuggestionsPutReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersAppSettingsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Replace project suggestion rules
+      tags:
+      - settings
+  /api/v1/backup:
+    get:
+      description: |-
+        A gzip-encoded JSON file (Content-Encoding: gzip).
+
+        Requires a session access token; API tokens are refused.
+      operationId: getBackup
+      parameters:
+      - description: Include user settings in the export.
+        in: query
+        name: settings
+        schema:
+          description: Include user settings in the export.
+          type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersBackupFile'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Export a backup
+      tags:
+      - account
+  /api/v1/calendars:
+    get:
+      operationId: getCalendars
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersCalendarListResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - calendars:read
+      summary: Connected calendars
+      tags:
+      - calendars
+  /api/v1/calendars/accounts/{id}:
+    delete:
+      description: Requires a session access token; API tokens are refused.
+      operationId: deleteCalendarsAccountsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Disconnect a calendar account
+      tags:
+      - calendars
+  /api/v1/calendars/events:
+    get:
+      operationId: getCalendarsEvents
+      parameters:
+      - in: query
+        name: start
+        required: true
+        schema:
+          format: date-time
+          type: string
+      - in: query
+        name: end
+        required: true
+        schema:
+          format: date-time
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersCalendarEventsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - calendars:read
+      summary: Calendar events in a range
+      tags:
+      - calendars
+  /api/v1/calendars/google/callback:
+    get:
+      description: Redirects the browser back to the settings page.
+      operationId: getCalendarsGoogleCallback
+      parameters:
+      - in: query
+        name: state
+        schema:
+          type: string
+      - in: query
+        name: code
+        schema:
+          type: string
+      - in: query
+        name: error
+        schema:
+          type: string
+      responses:
+        "302":
+          description: Found
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Google OAuth redirect target
+      tags:
+      - calendars
+  /api/v1/calendars/google/config:
+    delete:
+      description: Requires a session access token; API tokens are refused.
+      operationId: deleteCalendarsGoogleConfig
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersCalendarListResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Remove Google OAuth credentials and disconnect
+      tags:
+      - calendars
+    patch:
+      description: Requires a session access token; API tokens are refused.
+      operationId: patchCalendarsGoogleConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersGoogleCalendarConfigPatchReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersCalendarListResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Set Google OAuth credentials
+      tags:
+      - calendars
+  /api/v1/calendars/google/start:
+    get:
+      operationId: getCalendarsGoogleStart
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersGoogleStartResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - calendars:read
+      summary: Start connecting Google Calendar
+      tags:
+      - calendars
+  /api/v1/calendars/google/sync:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postCalendarsGoogleSync
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersCalendarListResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Refresh the list of Google calendars
+      tags:
+      - calendars
+  /api/v1/calendars/settings:
+    patch:
+      description: Requires a session access token; API tokens are refused.
+      operationId: patchCalendarsSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersCalendarSettingsPatchReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersCalendarListResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Update calendar settings
+      tags:
+      - calendars
+  /api/v1/calendars/sources/{id}:
+    patch:
+      description: Requires a session access token; API tokens are refused.
+      operationId: patchCalendarsSourcesId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersCalendarSourcePatchReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersCalendarSourceResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Select or deselect a calendar
+      tags:
+      - calendars
+  /api/v1/config:
+    get:
+      description: Answers 304 when If-None-Match carries the current ETag.
+      operationId: getConfig
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersConfigResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+        - tasks:read
+        - projects:read
+        - labels:read
+        - contexts:read
+        - troiki:read
+        - templates:read
+      summary: Everything the client shell needs at start
+      tags:
+      - system
+  /api/v1/contexts:
+    get:
+      operationId: getContexts
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseContextDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - contexts:read
+      summary: List contexts
+      tags:
+      - contexts
+    post:
+      operationId: postContexts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateContextRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoContextDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - contexts:write
+      summary: Create a context
+      tags:
+      - contexts
+  /api/v1/contexts/{id}:
+    delete:
+      operationId: deleteContextsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - contexts:write
+      summary: Delete a context
+      tags:
+      - contexts
+    get:
+      operationId: getContextsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoContextDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - contexts:read
+      summary: Get a context
+      tags:
+      - contexts
+    patch:
+      operationId: patchContextsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPatchContextRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoContextDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - contexts:write
+      summary: Update a context
+      tags:
+      - contexts
+  /api/v1/contexts/{id}/projects:
+    get:
+      operationId: getContextsIdProjects
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:read
+      summary: List projects of a context
+      tags:
+      - contexts
+    post:
+      operationId: postContextsIdProjects
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateProjectRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Create a project in a context
+      tags:
+      - contexts
+  /api/v1/contexts/{id}/tasks:
+    get:
+      operationId: getContextsIdTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: status
+        schema:
+          enum:
+          - open
+          - completed
+          - cancelled
+          type: string
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - description: Substring of the title.
+        in: query
+        name: q
+        schema:
+          description: Substring of the title.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: List tasks of a context
+      tags:
+      - contexts
+    post:
+      operationId: postContextsIdTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateTaskRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Create a task in a context
+      tags:
+      - contexts
+  /api/v1/events:
+    get:
+      description: A text/event-stream; authenticated by the ticket query parameter
+        rather than a header.
+      operationId: getEvents
+      parameters:
+      - description: Single-use ticket from POST /api/v1/events/ticket.
+        in: query
+        name: ticket
+        required: true
+        schema:
+          description: Single-use ticket from POST /api/v1/events/ticket.
+          type: string
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Server-sent refetch hints
+      tags:
+      - events
+  /api/v1/events/ticket:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postEventsTicket
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersTicketRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersTicketResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Issue a single-use ticket for the event stream
+      tags:
+      - events
+  /api/v1/harpoon:
+    get:
+      operationId: getHarpoon
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersHarpoonResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+      summary: Jump pair
+      tags:
+      - settings
+  /api/v1/harpoon/attach:
+    post:
+      operationId: postHarpoonAttach
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersHarpoonRefReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersHarpoonResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Put an item into the jump pair
+      tags:
+      - settings
+  /api/v1/harpoon/detach:
+    post:
+      operationId: postHarpoonDetach
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersHarpoonRefReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersHarpoonResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Remove an item from the jump pair
+      tags:
+      - settings
+  /api/v1/inbox:
+    get:
+      operationId: getInbox
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersInboxResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Inbox
+      tags:
+      - inbox
+  /api/v1/inbox/processing:
+    get:
+      operationId: getInboxProcessing
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersInboxProcessingStatusDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+      summary: Automatic inbox processing status
+      tags:
+      - inbox
+  /api/v1/inbox/processing/log:
+    get:
+      operationId: getInboxProcessingLog
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseInboxProcessingLogDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Processing log
+      tags:
+      - inbox
+  /api/v1/inbox/processing/log/{id}/revert:
+    post:
+      operationId: postInboxProcessingLogIdRevert
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Undo one processing decision
+      tags:
+      - inbox
+  /api/v1/inbox/processing/preview:
+    post:
+      operationId: postInboxProcessingPreview
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersInboxPromptReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersInboxPreviewResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+      summary: Render the processing prompt
+      tags:
+      - inbox
+  /api/v1/inbox/processing/run:
+    post:
+      operationId: postInboxProcessingRun
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersInboxRunResp'
+          description: Accepted
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Process the inbox now
+      tags:
+      - inbox
+  /api/v1/inbox/tasks:
+    post:
+      operationId: postInboxTasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateTaskRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Capture a task into the inbox
+      tags:
+      - inbox
+  /api/v1/labels:
+    get:
+      operationId: getLabels
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - description: Substring of the label name.
+        in: query
+        name: q
+        schema:
+          description: Substring of the label name.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseLabelDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - labels:read
+      summary: List labels
+      tags:
+      - labels
+    post:
+      operationId: postLabels
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateLabelRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoLabelDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - labels:write
+      summary: Create a label
+      tags:
+      - labels
+  /api/v1/labels/{id}:
+    delete:
+      operationId: deleteLabelsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - labels:write
+      summary: Delete a label
+      tags:
+      - labels
+    get:
+      operationId: getLabelsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoLabelDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - labels:read
+      summary: Get a label
+      tags:
+      - labels
+    patch:
+      operationId: patchLabelsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPatchLabelRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoLabelDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - labels:write
+      summary: Update a label
+      tags:
+      - labels
+  /api/v1/labels/{id}/projects:
+    get:
+      operationId: getLabelsIdProjects
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:read
+      summary: List projects with a label
+      tags:
+      - labels
+  /api/v1/labels/{id}/tasks:
+    get:
+      operationId: getLabelsIdTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: List tasks with a label
+      tags:
+      - labels
+  /api/v1/labels/stats:
+    get:
+      operationId: getLabelsStats
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersLabelStatsResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - labels:read
+      summary: Label usage statistics
+      tags:
+      - labels
+  /api/v1/openapi.json:
+    get:
+      operationId: getOpenapiJson
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: {}
+                type: object
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: This OpenAPI document
+      tags:
+      - system
+  /api/v1/passkeys:
+    get:
+      description: Requires a session access token; API tokens are refused.
+      operationId: getPasskeys
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DtoPasskeyDTO'
+                type: array
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: List passkeys
+      tags:
+      - account
+  /api/v1/passkeys/{id}:
+    delete:
+      description: Requires a session access token; API tokens are refused.
+      operationId: deletePasskeysId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Remove a passkey
+      tags:
+      - account
+    patch:
+      description: Requires a session access token; API tokens are refused.
+      operationId: patchPasskeysId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPasskeyRenameRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPasskeyDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Rename a passkey
+      tags:
+      - account
+  /api/v1/passkeys/register/begin:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postPasskeysRegisterBegin
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPasskeyCeremonyResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Start a passkey registration ceremony
+      tags:
+      - account
+  /api/v1/passkeys/register/finish:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postPasskeysRegisterFinish
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPasskeyRegisterFinishRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPasskeyDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Finish a passkey registration ceremony
+      tags:
+      - account
+  /api/v1/projects:
+    get:
+      operationId: getProjects
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: status
+        schema:
+          enum:
+          - open
+          - completed
+          - archived
+          - cancelled
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:read
+      summary: List projects
+      tags:
+      - projects
+  /api/v1/projects/{id}:
+    delete:
+      operationId: deleteProjectsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Delete a project
+      tags:
+      - projects
+    get:
+      operationId: getProjectsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:read
+      summary: Get a project
+      tags:
+      - projects
+    patch:
+      operationId: patchProjectsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPatchProjectRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Update a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/archive:
+    post:
+      operationId: postProjectsIdArchive
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Archive a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/bundle:
+    get:
+      operationId: getProjectsIdBundle
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersProjectBundleResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:read
+        - sections:read
+        - tasks:read
+      summary: A project with its sections and tasks
+      tags:
+      - projects
+  /api/v1/projects/{id}/cancel:
+    post:
+      operationId: postProjectsIdCancel
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Cancel a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/complete:
+    post:
+      operationId: postProjectsIdComplete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Complete a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/pin:
+    post:
+      operationId: postProjectsIdPin
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Pin a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/sections:
+    get:
+      operationId: getProjectsIdSections
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseSectionDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - sections:read
+      summary: List sections of a project
+      tags:
+      - projects
+    post:
+      operationId: postProjectsIdSections
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateSectionRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoSectionDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - sections:write
+      summary: Create a section
+      tags:
+      - projects
+  /api/v1/projects/{id}/tasks:
+    get:
+      operationId: getProjectsIdTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: status
+        schema:
+          enum:
+          - open
+          - completed
+          - cancelled
+          type: string
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: List tasks of a project
+      tags:
+      - projects
+    post:
+      operationId: postProjectsIdTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateTaskRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Create a task in a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/troiki:
+    post:
+      operationId: postProjectsIdTroiki
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersSetTroikiCategoryRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Put a project into a troiki bucket
+      tags:
+      - troiki
+  /api/v1/projects/{id}/unarchive:
+    post:
+      operationId: postProjectsIdUnarchive
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Unarchive a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/uncomplete:
+    post:
+      operationId: postProjectsIdUncomplete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Reopen a project
+      tags:
+      - projects
+  /api/v1/projects/{id}/unpin:
+    post:
+      operationId: postProjectsIdUnpin
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProjectDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - projects:write
+      summary: Unpin a project
+      tags:
+      - projects
+  /api/v1/restore:
+    post:
+      description: |-
+        Accepts the file GET /api/v1/backup produced, plain or gzip-compressed.
+
+        Requires a session access token; API tokens are refused.
+      operationId: postRestore
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersBackupFile'
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Restore from a backup, replacing all data
+      tags:
+      - account
+  /api/v1/search:
+    get:
+      operationId: getSearch
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: q
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          default: all
+          enum:
+          - all
+          - tasks
+          - projects
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersSearchResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - search:read
+      summary: Search tasks and projects
+      tags:
+      - tasks
+  /api/v1/sections/{id}:
+    delete:
+      operationId: deleteSectionsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - sections:write
+      summary: Delete a section
+      tags:
+      - sections
+    get:
+      operationId: getSectionsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoSectionDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - sections:read
+      summary: Get a section
+      tags:
+      - sections
+    patch:
+      operationId: patchSectionsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPatchSectionRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoSectionDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - sections:write
+      summary: Update a section
+      tags:
+      - sections
+  /api/v1/sections/{id}/reorder:
+    post:
+      operationId: postSectionsIdReorder
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoReorderSectionRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoSectionDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - sections:write
+      summary: Move a section within its project
+      tags:
+      - sections
+  /api/v1/sections/{id}/tasks:
+    get:
+      operationId: getSectionsIdTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: List tasks of a section
+      tags:
+      - sections
+    post:
+      operationId: postSectionsIdTasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateTaskRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Create a task in a section
+      tags:
+      - sections
+  /api/v1/sessions:
+    get:
+      description: Requires a session access token; API tokens are refused.
+      operationId: getSessions
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DtoSessionDTO'
+                type: array
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: List sessions
+      tags:
+      - account
+  /api/v1/sessions/{id}:
+    delete:
+      description: Requires a session access token; API tokens are refused.
+      operationId: deleteSessionsId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Revoke a session
+      tags:
+      - account
+  /api/v1/settings:
+    get:
+      operationId: getSettings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersSettingsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+      summary: User settings
+      tags:
+      - settings
+    patch:
+      operationId: patchSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersSettingsPatchReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersSettingsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Update user settings
+      tags:
+      - settings
+  /api/v1/state:
+    get:
+      operationId: getState
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersUserState'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+      summary: Client UI state
+      tags:
+      - settings
+    patch:
+      operationId: patchState
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersUserState'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersUserState'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Merge keys into the client UI state
+      tags:
+      - settings
+  /api/v1/stats/sidebar:
+    get:
+      operationId: getStatsSidebar
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersSidebarStatsResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Sidebar counters
+      tags:
+      - views
+  /api/v1/stats/week-summary:
+    get:
+      operationId: getStatsWeekSummary
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersWeekSummaryResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Week summary
+      tags:
+      - views
+  /api/v1/sync/changes:
+    get:
+      operationId: getSyncChanges
+      parameters:
+      - description: Cursor returned by the previous page.
+        in: query
+        name: since
+        schema:
+          description: Cursor returned by the previous page.
+          format: int64
+          type: integer
+      - in: query
+        name: limit
+        schema:
+          format: int64
+          type: integer
+      - description: Epoch the cursor belongs to; a mismatch asks for a fresh snapshot.
+        in: query
+        name: epoch
+        schema:
+          description: Epoch the cursor belongs to; a mismatch asks for a fresh snapshot.
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersSyncChangesResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+        - projects:read
+        - sections:read
+        - contexts:read
+        - labels:read
+        - templates:read
+        - settings:read
+      summary: Page of the change log after a cursor
+      tags:
+      - sync
+  /api/v1/sync/snapshot:
+    get:
+      operationId: getSyncSnapshot
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersSyncSnapshotResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+        - projects:read
+        - sections:read
+        - contexts:read
+        - labels:read
+        - templates:read
+        - settings:read
+      summary: Full snapshot to seed a replica
+      tags:
+      - sync
+  /api/v1/task-templates:
+    get:
+      operationId: getTaskTemplates
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskTemplateDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - templates:read
+      summary: List task templates
+      tags:
+      - templates
+    post:
+      operationId: postTaskTemplates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoTaskTemplateRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskTemplateDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - templates:write
+      summary: Create a task template
+      tags:
+      - templates
+  /api/v1/task-templates/{id}:
+    delete:
+      operationId: deleteTaskTemplatesId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - templates:write
+      summary: Delete a task template
+      tags:
+      - templates
+    get:
+      operationId: getTaskTemplatesId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskTemplateDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - templates:read
+      summary: Get a task template
+      tags:
+      - templates
+    patch:
+      operationId: patchTaskTemplatesId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoTaskTemplateRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskTemplateDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - templates:write
+      summary: Update a task template
+      tags:
+      - templates
+  /api/v1/task-templates/{id}/instantiate:
+    post:
+      operationId: postTaskTemplatesIdInstantiate
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoInstantiateTemplateRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoInstantiateTemplateResponse'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Create tasks from a template
+      tags:
+      - templates
+  /api/v1/tasks/{id}:
+    delete:
+      operationId: deleteTasksId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Delete a task and its subtasks
+      tags:
+      - tasks
+    get:
+      operationId: getTasksId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Embed the subtask tree.
+        in: query
+        name: subtasks
+        schema:
+          description: Embed the subtask tree.
+          type: boolean
+      - description: Embed task relations.
+        in: query
+        name: relations
+        schema:
+          description: Embed task relations.
+          type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Get a task
+      tags:
+      - tasks
+    patch:
+      operationId: patchTasksId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPatchTaskRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Update a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/cancel:
+    post:
+      operationId: postTasksIdCancel
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Cancel a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/complete:
+    post:
+      description: A recurring task advances to its next occurrence instead.
+      operationId: postTasksIdComplete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersCompleteRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Complete a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/decompose:
+    post:
+      operationId: postTasksIdDecompose
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoDecomposeTaskRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoDecomposeTaskResponse'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Split a task into several
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/duplicate:
+    post:
+      operationId: postTasksIdDuplicate
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Duplicate a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/move:
+    post:
+      operationId: postTasksIdMove
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersMoveRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Move a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/pin:
+    post:
+      operationId: postTasksIdPin
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Pin a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/plan:
+    post:
+      operationId: postTasksIdPlan
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersPlanRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Plan a task for a day, the week or the backlog
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/relations:
+    post:
+      operationId: postTasksIdRelations
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateTaskRelationRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Relate two tasks
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/relations/{relationId}:
+    delete:
+      operationId: deleteTasksIdRelationsRelationId
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - in: path
+        name: relationId
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Remove a relation
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/relations/blocker-check:
+    get:
+      operationId: getTasksIdRelationsBlockerCheck
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      - description: Comma-separated task ids.
+        in: query
+        name: candidates
+        required: true
+        schema:
+          description: Comma-separated task ids.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoBlockerCheckResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Check which candidates cannot block a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/subtasks:
+    get:
+      operationId: getTasksIdSubtasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: List direct subtasks
+      tags:
+      - tasks
+    post:
+      operationId: postTasksIdSubtasks
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateTaskRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Create a subtask
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/template-draft:
+    get:
+      operationId: getTasksIdTemplateDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskTemplateDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Draft a template from a task subtree
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/uncomplete:
+    post:
+      operationId: postTasksIdUncomplete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Reopen a task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/unpin:
+    post:
+      operationId: postTasksIdUnpin
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: int64
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Unpin a task
+      tags:
+      - tasks
+  /api/v1/tasks/backlog:
+    get:
+      operationId: getTasksBacklog
+      parameters:
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: projectId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersViewResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Backlog
+      tags:
+      - views
+  /api/v1/tasks/bulk/complete:
+    post:
+      operationId: postTasksBulkComplete
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersBulkIDsRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersBulkResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Complete several tasks
+      tags:
+      - tasks
+  /api/v1/tasks/bulk/move:
+    post:
+      operationId: postTasksBulkMove
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersBulkMoveRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersBulkResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Move several tasks
+      tags:
+      - tasks
+  /api/v1/tasks/bulk/priority:
+    post:
+      operationId: postTasksBulkPriority
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersBulkPriorityRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersBulkResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Set the priority of several tasks
+      tags:
+      - tasks
+  /api/v1/tasks/completed:
+    get:
+      operationId: getTasksCompleted
+      parameters:
+      - description: Page size; defaults to 50, capped at 1000.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 1000.
+          type: integer
+      - in: query
+        name: offset
+        schema:
+          type: integer
+      - description: How many days back to look.
+        in: query
+        name: days
+        schema:
+          description: How many days back to look.
+          type: integer
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: projectId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Completion history
+      tags:
+      - views
+  /api/v1/tasks/group:
+    post:
+      operationId: postTasksGroup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoGroupTasksRequest'
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersGroupTasksResponse'
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:write
+      summary: Group tasks under a new parent
+      tags:
+      - tasks
+  /api/v1/tasks/overdue:
+    get:
+      operationId: getTasksOverdue
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: projectId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Overdue
+      tags:
+      - views
+  /api/v1/tasks/pinned:
+    get:
+      operationId: getTasksPinned
+      parameters:
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: projectId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersViewResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Pinned
+      tags:
+      - views
+  /api/v1/tasks/today:
+    get:
+      operationId: getTasksToday
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: projectId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersTodayBundleResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Today
+      tags:
+      - views
+  /api/v1/tasks/tomorrow:
+    get:
+      operationId: getTasksTomorrow
+      parameters:
+      - description: Page size; defaults to 50, capped at 200.
+        in: query
+        name: limit
+        schema:
+          description: Page size; defaults to 50, capped at 200.
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          description: Number of items to skip.
+          type: integer
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: projectId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: Tomorrow
+      tags:
+      - views
+  /api/v1/tasks/week:
+    get:
+      operationId: getTasksWeek
+      parameters:
+      - in: query
+        name: contextId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: projectId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: labelId
+        schema:
+          format: int64
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          enum:
+          - high
+          - medium
+          - low
+          - no-priority
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersViewResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - tasks:read
+      summary: This week
+      tags:
+      - views
+  /api/v1/troiki:
+    get:
+      operationId: getTroiki
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersTroikiViewDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - troiki:read
+      summary: Daily plan by troiki buckets
+      tags:
+      - troiki
+  /api/v1/troiki/reset:
+    post:
+      operationId: postTroikiReset
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersTroikiViewDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - troiki:write
+      summary: Reset the troiki cycle
+      tags:
+      - troiki
+  /api/v1/troiki/start:
+    post:
+      operationId: postTroikiStart
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersTroikiViewDTO'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - troiki:write
+      summary: Start a troiki cycle
+      tags:
+      - troiki
+  /auth/login:
+    post:
+      description: Answers with an OTP challenge instead of tokens when TOTP is enabled.
+      operationId: postAuthLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoLoginRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/DtoAuthResponse'
+                - $ref: '#/components/schemas/DtoOTPChallengeResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Sign in with username and password
+      tags:
+      - auth
+  /auth/login/otp:
+    post:
+      operationId: postAuthLoginOtp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoOTPLoginRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoAuthResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Finish sign-in with a TOTP or recovery code
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postAuthLogout
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: End the current session
+      tags:
+      - auth
+  /auth/logout-all:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postAuthLogoutAll
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: End every session
+      tags:
+      - auth
+  /auth/logout-others:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postAuthLogoutOthers
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: End every session but the current one
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Requires a session access token; API tokens are refused.
+      operationId: getAuthMe
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoMeResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Current user
+      tags:
+      - auth
+  /auth/passkey/login/begin:
+    post:
+      operationId: postAuthPasskeyLoginBegin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPasskeyLoginBeginRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoPasskeyCeremonyResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Start a passkey sign-in ceremony
+      tags:
+      - auth
+  /auth/passkey/login/finish:
+    post:
+      operationId: postAuthPasskeyLoginFinish
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoPasskeyLoginFinishRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoAuthResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Finish a passkey sign-in ceremony
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      description: The web client sends the refresh token as an HttpOnly cookie; native
+        clients send it in the body.
+      operationId: postAuthRefresh
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoRefreshRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoRefreshResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Rotate the refresh token
+      tags:
+      - auth
+  /auth/setup:
+    post:
+      operationId: postAuthSetup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoLoginRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoAuthResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Create the single user (first run only)
+      tags:
+      - auth
+  /auth/totp/confirm:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postAuthTotpConfirm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoTOTPCodeRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTOTPConfirmResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Enable TOTP
+      tags:
+      - auth
+  /auth/totp/disable:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postAuthTotpDisable
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoTOTPCodeRequest'
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Disable TOTP
+      tags:
+      - auth
+  /auth/totp/setup:
+    post:
+      description: Requires a session access token; API tokens are refused.
+      operationId: postAuthTotpSetup
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTOTPSetupResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth: []
+      summary: Generate a TOTP secret
+      tags:
+      - auth
+  /healthz:
+    get:
+      operationId: getHealthz
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiHealthResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Liveness probe
+      tags:
+      - system
+  /version:
+    get:
+      operationId: getVersion
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiVersionResponse'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      summary: Server version
+      tags:
+      - system
+components:
+  schemas:
+    DtoAuthResponse:
+      properties:
+        access:
+          type: string
+        refresh:
+          type: string
+        user:
+          $ref: '#/components/schemas/DtoUserDTO'
+      type: object
+    DtoBlockerCheckResponse:
+      properties:
+        refused:
+          items:
+            $ref: '#/components/schemas/DtoBlockerRefusalDTO'
+          type:
+          - array
+          - "null"
+      type: object
+    DtoBlockerRefusalDTO:
+      properties:
+        reason:
+          type: string
+        taskId:
+          format: int64
+          type: integer
+      type: object
+    DtoContextDTO:
+      properties:
+        color:
+          type: string
+        createdAt:
+          type: string
+        id:
+          format: int64
+          type: integer
+        isFavourite:
+          type: boolean
+        name:
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    DtoCreateContextRequest:
+      properties:
+        color:
+          type: string
+        isFavourite:
+          type: boolean
+        name:
+          type: string
+      type: object
+    DtoCreateLabelRequest:
+      properties:
+        color:
+          type: string
+        description:
+          type: string
+        isFavourite:
+          type: boolean
+        name:
+          type: string
+      type: object
+    DtoCreateProjectRequest:
+      properties:
+        color:
+          type: string
+        description:
+          type: string
+        labels:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+        projectType:
+          type: string
+        title:
+          type: string
+      type: object
+    DtoCreateSectionRequest:
+      properties:
+        title:
+          type: string
+      type: object
+    DtoCreateTaskRelationRequest:
+      properties:
+        direction:
+          type: string
+        targetTaskId:
+          format: int64
+          type: integer
+        type:
+          type: string
+      type: object
+    DtoCreateTaskRequest:
+      properties:
+        dayPart:
+          type: string
+        deadlineAt:
+          type:
+          - "null"
+          - string
+        deadlineHasTime:
+          type: boolean
+        description:
+          type: string
+        dueAt:
+          type:
+          - "null"
+          - string
+        dueHasTime:
+          type: boolean
+        labels:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+        planState:
+          type: string
+        priority:
+          type: string
+        recurrenceRule:
+          type:
+          - "null"
+          - string
+        removedAutoLabels:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+        title:
+          type: string
+      type: object
+    DtoDecomposeTaskRequest:
+      properties:
+        titles:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+      type: object
+    DtoDecomposeTaskResponse:
+      properties:
+        created:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+      type: object
+    DtoGroupTasksRequest:
+      properties:
+        childIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        contextId:
+          type:
+          - "null"
+          - integer
+        dayPart:
+          type: string
+        deadlineAt:
+          type:
+          - "null"
+          - string
+        deadlineHasTime:
+          type: boolean
+        description:
+          type: string
+        dueAt:
+          type:
+          - "null"
+          - string
+        dueHasTime:
+          type: boolean
+        labels:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+        planState:
+          type: string
+        priority:
+          type: string
+        projectId:
+          type:
+          - "null"
+          - integer
+        recurrenceRule:
+          type:
+          - "null"
+          - string
+        removedAutoLabels:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+        sectionId:
+          type:
+          - "null"
+          - integer
+        title:
+          type: string
+      type: object
+    DtoInstantiateTemplateRequest:
+      properties:
+        projectId:
+          format: int64
+          type: integer
+      type: object
+    DtoInstantiateTemplateResponse:
+      properties:
+        root:
+          $ref: '#/components/schemas/DtoTaskDTO'
+        subtasks:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+      type: object
+    DtoLabelDTO:
+      properties:
+        color:
+          type: string
+        createdAt:
+          type: string
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        isFavourite:
+          type: boolean
+        isPrivate:
+          type: boolean
+        name:
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    DtoLoginRequest:
+      properties:
+        clientKind:
+          type: string
+        password:
+          type: string
+        username:
+          type: string
+      type: object
+    DtoMeResponse:
+      properties:
+        user:
+          $ref: '#/components/schemas/DtoUserDTO'
+      type: object
+    DtoOTPChallengeResponse:
+      properties:
+        otpRequired:
+          type: boolean
+        ticket:
+          type: string
+      type: object
+    DtoOTPLoginRequest:
+      properties:
+        code:
+          type: string
+        ticket:
+          type: string
+      type: object
+    DtoPagedResponseContextDTO:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DtoContextDTO'
+          type:
+          - array
+          - "null"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoPagedResponseInboxProcessingLogDTO:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/HandlersInboxProcessingLogDTO'
+          type:
+          - array
+          - "null"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoPagedResponseLabelDTO:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoPagedResponseProjectDTO:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DtoProjectDTO'
+          type:
+          - array
+          - "null"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoPagedResponseSectionDTO:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DtoSectionDTO'
+          type:
+          - array
+          - "null"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoPagedResponseTaskDTO:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoPagedResponseTaskTemplateDTO:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DtoTaskTemplateDTO'
+          type:
+          - array
+          - "null"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoPasskeyCeremonyResponse:
+      properties:
+        ceremonyId:
+          type: string
+        options: {}
+      type: object
+    DtoPasskeyDTO:
+      properties:
+        createdAt:
+          type: string
+        id:
+          format: int64
+          type: integer
+        lastUsedAt:
+          type:
+          - "null"
+          - string
+        name:
+          type: string
+      type: object
+    DtoPasskeyLoginBeginRequest:
+      properties:
+        clientKind:
+          type: string
+      type: object
+    DtoPasskeyLoginFinishRequest:
+      properties:
+        ceremonyId:
+          type: string
+        clientKind:
+          type: string
+        credential: {}
+      type: object
+    DtoPasskeyRegisterFinishRequest:
+      properties:
+        ceremonyId:
+          type: string
+        credential: {}
+        name:
+          type: string
+      type: object
+    DtoPasskeyRenameRequest:
+      properties:
+        name:
+          type: string
+      type: object
+    DtoPatchContextRequest:
+      properties:
+        color:
+          type:
+          - "null"
+          - string
+        isFavourite:
+          type:
+          - "null"
+          - boolean
+        name:
+          type:
+          - "null"
+          - string
+      type: object
+    DtoPatchLabelRequest:
+      properties:
+        color:
+          type:
+          - "null"
+          - string
+        description:
+          type:
+          - "null"
+          - string
+        isFavourite:
+          type:
+          - "null"
+          - boolean
+        isPrivate:
+          type:
+          - "null"
+          - boolean
+        name:
+          type:
+          - "null"
+          - string
+      type: object
+    DtoPatchProjectRequest:
+      properties:
+        color:
+          type:
+          - "null"
+          - string
+        contextId:
+          type:
+          - "null"
+          - integer
+        description:
+          type:
+          - "null"
+          - string
+        isPrivate:
+          type:
+          - "null"
+          - boolean
+        labels:
+          items:
+            type: string
+          type:
+          - "null"
+          - array
+        projectType:
+          type:
+          - "null"
+          - string
+        title:
+          type:
+          - "null"
+          - string
+      type: object
+    DtoPatchSectionRequest:
+      properties:
+        title:
+          type:
+          - "null"
+          - string
+      type: object
+    DtoPatchTaskRequest:
+      properties:
+        dayPart:
+          type:
+          - "null"
+          - string
+        deadlineAt:
+          type:
+          - string
+          - "null"
+        deadlineHasTime:
+          type:
+          - "null"
+          - boolean
+        description:
+          type:
+          - "null"
+          - string
+        dueAt:
+          type:
+          - string
+          - "null"
+        dueHasTime:
+          type:
+          - "null"
+          - boolean
+        isComplex:
+          type:
+          - "null"
+          - boolean
+        isPrivate:
+          type:
+          - "null"
+          - boolean
+        labels:
+          items:
+            type: string
+          type:
+          - "null"
+          - array
+        planState:
+          type:
+          - "null"
+          - string
+        priority:
+          type:
+          - "null"
+          - string
+        recurrenceRule:
+          type:
+          - string
+          - "null"
+        removedAutoLabels:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+        title:
+          type:
+          - "null"
+          - string
+      type: object
+    DtoProjectDTO:
+      properties:
+        color:
+          type: string
+        contextId:
+          format: int64
+          type: integer
+        createdAt:
+          type: string
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        isPinned:
+          type: boolean
+        isPrivate:
+          type: boolean
+        labels:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        pinnedAt:
+          type:
+          - "null"
+          - string
+        projectType:
+          type: string
+        status:
+          type: string
+        title:
+          type: string
+        troikiCategory:
+          type:
+          - "null"
+          - string
+        updatedAt:
+          type: string
+      type: object
+    DtoRefreshRequest:
+      properties:
+        refresh:
+          type: string
+      type: object
+    DtoRefreshResponse:
+      properties:
+        access:
+          type: string
+        refresh:
+          type: string
+        user:
+          $ref: '#/components/schemas/DtoUserDTO'
+      type: object
+    DtoReorderSectionRequest:
+      properties:
+        position:
+          type: integer
+      type: object
+    DtoSectionDTO:
+      properties:
+        createdAt:
+          type: string
+        id:
+          format: int64
+          type: integer
+        position:
+          type: integer
+        projectId:
+          format: int64
+          type: integer
+        title:
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    DtoSessionDTO:
+      properties:
+        clientKind:
+          type: string
+        createdAt:
+          type: string
+        displayName:
+          type: string
+        id:
+          format: int64
+          type: integer
+        ipAddress:
+          type: string
+        isCurrent:
+          type: boolean
+        lastUsedAt:
+          type: string
+        userAgent:
+          type: string
+      type: object
+    DtoTOTPCodeRequest:
+      properties:
+        code:
+          type: string
+      type: object
+    DtoTOTPConfirmResponse:
+      properties:
+        recoveryCodes:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+      type: object
+    DtoTOTPSetupResponse:
+      properties:
+        otpauthUrl:
+          type: string
+        qrPngBase64:
+          type: string
+        secret:
+          type: string
+      type: object
+    DtoTaskDTO:
+      properties:
+        autoSortUndecidedAt:
+          type:
+          - "null"
+          - string
+        autoSortedAt:
+          type:
+          - "null"
+          - string
+        blockedByCount:
+          type: integer
+        completedAt:
+          type:
+          - "null"
+          - string
+        contextId:
+          type:
+          - "null"
+          - integer
+        createdAt:
+          type: string
+        dayPart:
+          type: string
+        deadlineAt:
+          type:
+          - "null"
+          - string
+        deadlineHasTime:
+          type: boolean
+        description:
+          type: string
+        dueAt:
+          type:
+          - "null"
+          - string
+        dueHasTime:
+          type: boolean
+        id:
+          format: int64
+          type: integer
+        inboxId:
+          type:
+          - "null"
+          - integer
+        isComplex:
+          type: boolean
+        isPinned:
+          type: boolean
+        isPrivate:
+          type: boolean
+        labels:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        parentId:
+          type:
+          - "null"
+          - integer
+        parentTitle:
+          type:
+          - "null"
+          - string
+        pinnedAt:
+          type:
+          - "null"
+          - string
+        planState:
+          type: string
+        postponeCount:
+          type: integer
+        priority:
+          type: string
+        projectId:
+          type:
+          - "null"
+          - integer
+        recurrenceRule:
+          type:
+          - "null"
+          - string
+        relationCount:
+          type: integer
+        relations:
+          items:
+            $ref: '#/components/schemas/DtoTaskRelationDTO'
+          type: array
+        sectionId:
+          type:
+          - "null"
+          - integer
+        sourceTaskId:
+          type:
+          - "null"
+          - integer
+        status:
+          type: string
+        subtasks:
+          $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+        title:
+          type: string
+        updatedAt:
+          type: string
+        url:
+          type: string
+      type: object
+    DtoTaskRelationDTO:
+      properties:
+        createdAt:
+          type: string
+        direction:
+          type: string
+        id:
+          format: int64
+          type: integer
+        task:
+          $ref: '#/components/schemas/DtoTaskDTO'
+        type:
+          type: string
+      type: object
+    DtoTaskRelationEdgeDTO:
+      properties:
+        createdAt:
+          type: string
+        id:
+          format: int64
+          type: integer
+        sourceTaskId:
+          format: int64
+          type: integer
+        targetTaskId:
+          format: int64
+          type: integer
+        type:
+          type: string
+      type: object
+    DtoTaskTemplateDTO:
+      properties:
+        createdAt:
+          type: string
+        dayPart:
+          type: string
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        labels:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        name:
+          type: string
+        position:
+          type: integer
+        priority:
+          type: string
+        subtasks:
+          items:
+            $ref: '#/components/schemas/DtoTaskTemplateSubtaskDTO'
+          type:
+          - array
+          - "null"
+        updatedAt:
+          type: string
+      type: object
+    DtoTaskTemplateRequest:
+      properties:
+        dayPart:
+          type: string
+        description:
+          type: string
+        labelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        name:
+          type: string
+        priority:
+          type: string
+        subtasks:
+          items:
+            $ref: '#/components/schemas/DtoTemplateSubtaskRequest'
+          type:
+          - array
+          - "null"
+      type: object
+    DtoTaskTemplateSubtaskDTO:
+      properties:
+        dayPart:
+          type: string
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        labels:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        priority:
+          type: string
+        title:
+          type: string
+      type: object
+    DtoTemplateSubtaskRequest:
+      properties:
+        dayPart:
+          type: string
+        description:
+          type: string
+        labelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        priority:
+          type: string
+        title:
+          type: string
+      type: object
+    DtoUserDTO:
+      properties:
+        id:
+          format: int64
+          type: integer
+        totpEnabled:
+          type: boolean
+        username:
+          type: string
+      type: object
+    HandlersApiTokenCreateReq:
+      properties:
+        name:
+          type: string
+        scopes:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersApiTokenCreateResp:
+      properties:
+        createdAt:
+          type: string
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        scopes:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+        token:
+          type: string
+      type: object
+    HandlersApiTokenResp:
+      properties:
+        createdAt:
+          type: string
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        scopes:
+          items:
+            type: string
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersAppSettingsResp:
+      properties:
+        autoLabels:
+          items:
+            $ref: '#/components/schemas/HandlersAutoLabelDTO'
+          type:
+          - array
+          - "null"
+        inboxProcessing:
+          $ref: '#/components/schemas/HandlersInboxProcessingSettingsDTO'
+        projectSuggestions:
+          items:
+            $ref: '#/components/schemas/HandlersProjectSuggestionDTO'
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersAutoLabelDTO:
+      properties:
+        ignoreCase:
+          type: boolean
+        labelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        mask:
+          type: string
+      type: object
+    HandlersAutoLabelsPutReq:
+      properties:
+        autoLabels:
+          items:
+            $ref: '#/components/schemas/HandlersAutoLabelDTO'
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersBackupFile:
+      additionalProperties: {}
+      type: object
+    HandlersBulkErrDetail:
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      type: object
+    HandlersBulkFailedItem:
+      properties:
+        error:
+          $ref: '#/components/schemas/HandlersBulkErrDetail'
+        id:
+          format: int64
+          type: integer
+      type: object
+    HandlersBulkIDsRequest:
+      properties:
+        ids:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersBulkMoveRequest:
+      properties:
+        contextId:
+          type:
+          - "null"
+          - integer
+        ids:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        inboxId:
+          type:
+          - "null"
+          - integer
+        parentId:
+          type:
+          - "null"
+          - integer
+        projectId:
+          type:
+          - "null"
+          - integer
+        sectionId:
+          type:
+          - "null"
+          - integer
+      type: object
+    HandlersBulkPriorityRequest:
+      properties:
+        ids:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        priority:
+          type: string
+      type: object
+    HandlersBulkResponse:
+      properties:
+        failed:
+          items:
+            $ref: '#/components/schemas/HandlersBulkFailedItem'
+          type:
+          - array
+          - "null"
+        succeeded:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersCalendarAccountResp:
+      properties:
+        createdAt:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        id:
+          format: int64
+          type: integer
+        provider:
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    HandlersCalendarEventResp:
+      properties:
+        allDay:
+          type: boolean
+        description:
+          type: string
+        end:
+          type: string
+        endDate:
+          type: string
+        externalId:
+          type: string
+        htmlLink:
+          type: string
+        id:
+          type: string
+        location:
+          type: string
+        provider:
+          type: string
+        sourceColor:
+          type: string
+        sourceId:
+          format: int64
+          type: integer
+        sourceName:
+          type: string
+        start:
+          type: string
+        startDate:
+          type: string
+        title:
+          type: string
+      type: object
+    HandlersCalendarEventsResp:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/HandlersCalendarEventResp'
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersCalendarListResp:
+      properties:
+        accounts:
+          items:
+            $ref: '#/components/schemas/HandlersCalendarAccountResp'
+          type:
+          - array
+          - "null"
+        enabled:
+          type: boolean
+        googleClientIdConfigured:
+          type: boolean
+        googleClientSecretConfigured:
+          type: boolean
+        googleConfigured:
+          type: boolean
+        sources:
+          items:
+            $ref: '#/components/schemas/HandlersCalendarSourceResp'
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersCalendarSettingsPatchReq:
+      properties:
+        enabled:
+          type:
+          - "null"
+          - boolean
+      type: object
+    HandlersCalendarSourcePatchReq:
+      properties:
+        selected:
+          type:
+          - "null"
+          - boolean
+      type: object
+    HandlersCalendarSourceResp:
+      properties:
+        accountId:
+          format: int64
+          type: integer
+        color:
+          type: string
+        externalId:
+          type: string
+        id:
+          format: int64
+          type: integer
+        isPrimary:
+          type: boolean
+        provider:
+          type: string
+        selected:
+          type: boolean
+        summary:
+          type: string
+      type: object
+    HandlersCompleteRequest:
+      properties:
+        completedAt:
+          type:
+          - "null"
+          - string
+      type: object
+    HandlersConfigResp:
+      properties:
+        appSettings:
+          $ref: '#/components/schemas/HandlersAppSettingsResp'
+        backlog:
+          $ref: '#/components/schemas/HandlersLimitResp'
+        contexts:
+          items:
+            $ref: '#/components/schemas/DtoContextDTO'
+          type:
+          - array
+          - "null"
+        dayParts:
+          additionalProperties:
+            $ref: '#/components/schemas/HandlersDayPartResp'
+          type:
+          - object
+          - "null"
+        harpoon:
+          $ref: '#/components/schemas/HandlersHarpoonResp'
+        inbox:
+          $ref: '#/components/schemas/HandlersInboxResp'
+        inboxStats:
+          $ref: '#/components/schemas/HandlersInboxStatsResp'
+        labels:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        pinnedTasks:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+        planStats:
+          $ref: '#/components/schemas/HandlersStatsPlanResponse'
+        projects:
+          items:
+            $ref: '#/components/schemas/DtoProjectDTO'
+          type:
+          - array
+          - "null"
+        settings:
+          $ref: '#/components/schemas/HandlersSettingsResp'
+        taskTemplates:
+          items:
+            $ref: '#/components/schemas/DtoTaskTemplateDTO'
+          type:
+          - array
+          - "null"
+        timezone:
+          type: string
+        totpAvailable:
+          type: boolean
+        troiki: {}
+        userState: {}
+        weekly:
+          $ref: '#/components/schemas/HandlersLimitResp'
+      type: object
+    HandlersDayPartResp:
+      properties:
+        end:
+          type: integer
+        start:
+          type: integer
+      type: object
+    HandlersGoogleCalendarConfigPatchReq:
+      properties:
+        clientId:
+          type:
+          - "null"
+          - string
+        clientSecret:
+          type:
+          - "null"
+          - string
+      type: object
+    HandlersGoogleStartResp:
+      properties:
+        url:
+          type: string
+      type: object
+    HandlersGroupTasksResponse:
+      properties:
+        failed:
+          items:
+            $ref: '#/components/schemas/HandlersBulkFailedItem'
+          type:
+          - array
+          - "null"
+        parent:
+          $ref: '#/components/schemas/DtoTaskDTO'
+        succeeded:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersHarpoonRefReq:
+      properties:
+        id:
+          format: int64
+          type: integer
+        kind:
+          type: string
+      type: object
+    HandlersHarpoonResp:
+      properties:
+        slots:
+          items:
+            $ref: '#/components/schemas/HandlersHarpoonSlotResp'
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersHarpoonSlotResp:
+      properties:
+        id:
+          format: int64
+          type: integer
+        kind:
+          type: string
+        title:
+          type: string
+      type: object
+    HandlersInboxPreviewResp:
+      properties:
+        rendered:
+          type: string
+      type: object
+    HandlersInboxProcessingLogDTO:
+      properties:
+        after:
+          $ref: '#/components/schemas/HandlersInboxTaskAfterDTO'
+        before:
+          $ref: '#/components/schemas/HandlersInboxTaskBeforeDTO'
+        completionTokens:
+          type:
+          - "null"
+          - integer
+        confidence:
+          type:
+          - "null"
+          - number
+        createdAt:
+          type: string
+        error:
+          type:
+          - "null"
+          - string
+        id:
+          format: int64
+          type: integer
+        model:
+          type: string
+        outcome:
+          type: string
+        promptTokens:
+          type:
+          - "null"
+          - integer
+        reason:
+          type: string
+        revertedAt:
+          type:
+          - "null"
+          - string
+        taskId:
+          type:
+          - "null"
+          - integer
+        taskTitle:
+          type: string
+      type: object
+    HandlersInboxProcessingSettingsDTO:
+      properties:
+        paused:
+          type: boolean
+        prompt:
+          type: string
+      type: object
+    HandlersInboxProcessingStatusDTO:
+      properties:
+        apiHost:
+          type: string
+        backoffUntil:
+          type:
+          - "null"
+          - string
+        batchLimit:
+          type: integer
+        defaultPrompt:
+          type: string
+        enabled:
+          type: boolean
+        interval:
+          type: string
+        lastError:
+          type:
+          - "null"
+          - string
+        lastRunAt:
+          type:
+          - "null"
+          - string
+        lastRunSummary:
+          $ref: '#/components/schemas/HandlersInboxRunSummaryDTO'
+        model:
+          type: string
+        paused:
+          type: boolean
+        pendingCount:
+          type: integer
+        running:
+          type: boolean
+        undecidedCount:
+          type: integer
+      type: object
+    HandlersInboxPromptReq:
+      properties:
+        prompt:
+          type:
+          - "null"
+          - string
+      type: object
+    HandlersInboxResp:
+      properties:
+        overflowTask:
+          $ref: '#/components/schemas/HandlersOverflowTaskResp'
+        processingEnabled:
+          type: boolean
+        warnThreshold:
+          type: integer
+      type: object
+    HandlersInboxResponse:
+      properties:
+        count:
+          type: integer
+        tasks:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+        warnThresholdExceeded:
+          type: boolean
+      type: object
+    HandlersInboxRunResp:
+      properties:
+        running:
+          type: boolean
+      type: object
+    HandlersInboxRunSummaryDTO:
+      properties:
+        failed:
+          type: integer
+        kept:
+          type: integer
+        sorted:
+          type: integer
+      type: object
+    HandlersInboxSettingsPutReq:
+      properties:
+        paused:
+          type:
+          - "null"
+          - boolean
+        prompt:
+          type:
+          - "null"
+          - string
+      type: object
+    HandlersInboxStatsResp:
+      properties:
+        count:
+          type: integer
+        warnThresholdExceeded:
+          type: boolean
+      type: object
+    HandlersInboxTaskAfterDTO:
+      properties:
+        contextId:
+          format: int64
+          type: integer
+        dueAt:
+          type:
+          - "null"
+          - string
+        labelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        priority:
+          type: string
+        projectId:
+          format: int64
+          type: integer
+      type: object
+    HandlersInboxTaskBeforeDTO:
+      properties:
+        dueAt:
+          type:
+          - "null"
+          - string
+        dueHasTime:
+          type: boolean
+        labelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        priority:
+          type: string
+      type: object
+    HandlersLabelStatsItemDTO:
+      properties:
+        label:
+          $ref: '#/components/schemas/DtoLabelDTO'
+        lastUsedAt:
+          type:
+          - "null"
+          - string
+        openTasks:
+          type: integer
+        overdue:
+          type: integer
+        periods:
+          additionalProperties:
+            $ref: '#/components/schemas/HandlersLabelStatsPeriodDTO'
+          type:
+          - object
+          - "null"
+        projects:
+          type: integer
+        totalTasks:
+          type: integer
+      type: object
+    HandlersLabelStatsPeriodDTO:
+      properties:
+        applied:
+          type: integer
+        completed:
+          type: integer
+        previousApplied:
+          type: integer
+      type: object
+    HandlersLabelStatsRangeDTO:
+      properties:
+        days:
+          type: integer
+        end:
+          type: string
+        start:
+          type: string
+      type: object
+    HandlersLabelStatsResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/HandlersLabelStatsItemDTO'
+          type:
+          - array
+          - "null"
+        ranges:
+          additionalProperties:
+            $ref: '#/components/schemas/HandlersLabelStatsRangeDTO'
+          type:
+          - object
+          - "null"
+      type: object
+    HandlersLimitResp:
+      properties:
+        limit:
+          type: integer
+      type: object
+    HandlersMoveRequest:
+      properties:
+        contextId:
+          type:
+          - "null"
+          - integer
+        inboxId:
+          type:
+          - "null"
+          - integer
+        parentId:
+          type:
+          - "null"
+          - integer
+        projectId:
+          type:
+          - "null"
+          - integer
+        sectionId:
+          type:
+          - "null"
+          - integer
+      type: object
+    HandlersOverflowTaskResp:
+      properties:
+        priority:
+          type: string
+        title:
+          type: string
+      type: object
+    HandlersPlanRequest:
+      properties:
+        state:
+          type: string
+      type: object
+    HandlersProjectBundleResponse:
+      properties:
+        project:
+          $ref: '#/components/schemas/DtoProjectDTO'
+        sections:
+          $ref: '#/components/schemas/DtoPagedResponseSectionDTO'
+        tasks:
+          $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+      type: object
+    HandlersProjectSuggestionDTO:
+      properties:
+        ignoreCase:
+          type: boolean
+        mask:
+          type: string
+        projectIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersProjectSuggestionsPutReq:
+      properties:
+        projectSuggestions:
+          items:
+            $ref: '#/components/schemas/HandlersProjectSuggestionDTO'
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersSearchResponse:
+      properties:
+        projects:
+          $ref: '#/components/schemas/DtoPagedResponseProjectDTO'
+        tasks:
+          $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+      type: object
+    HandlersSetTroikiCategoryRequest:
+      properties:
+        category:
+          type:
+          - "null"
+          - string
+      type: object
+    HandlersSettingsPatchReq:
+      properties:
+        bannerDayPart:
+          type:
+          - "null"
+          - string
+        bannerPublished:
+          type:
+          - "null"
+          - boolean
+        bannerText:
+          type:
+          - "null"
+          - string
+        bugLabelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - "null"
+          - array
+        calendarEnabled:
+          type:
+          - "null"
+          - boolean
+        calendarHidePastEvents:
+          type:
+          - "null"
+          - boolean
+        locale:
+          type:
+          - "null"
+          - string
+        maxPinnedProjects:
+          type:
+          - "null"
+          - integer
+        maxPinnedTasks:
+          type:
+          - "null"
+          - integer
+        publicView:
+          type:
+          - "null"
+          - boolean
+        troikiEnabled:
+          type:
+          - "null"
+          - boolean
+        weeklyUnplannedExcludedLabelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - "null"
+          - array
+      type: object
+    HandlersSettingsResp:
+      properties:
+        bannerDayPart:
+          type: string
+        bannerPublished:
+          type: boolean
+        bannerText:
+          type: string
+        bugLabelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+        calendarEnabled:
+          type: boolean
+        calendarHidePastEvents:
+          type: boolean
+        locale:
+          type: string
+        maxPinnedProjects:
+          type: integer
+        maxPinnedTasks:
+          type: integer
+        publicView:
+          type: boolean
+        troikiEnabled:
+          type: boolean
+        weeklyUnplannedExcludedLabelIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersSidebarInboxStats:
+      properties:
+        count:
+          type: integer
+        warnThresholdExceeded:
+          type: boolean
+      type: object
+    HandlersSidebarStatsResponse:
+      properties:
+        inboxStats:
+          $ref: '#/components/schemas/HandlersSidebarInboxStats'
+        pinned:
+          $ref: '#/components/schemas/HandlersViewResponse'
+        planStats:
+          $ref: '#/components/schemas/HandlersStatsPlanResponse'
+      type: object
+    HandlersStatsPlanResponse:
+      properties:
+        backlog:
+          type: integer
+        week:
+          type: integer
+      type: object
+    HandlersSyncChangeResp:
+      properties:
+        data: {}
+        entity:
+          type: string
+        id:
+          format: int64
+          type: integer
+        op:
+          type: string
+        seq:
+          format: int64
+          type: integer
+      type: object
+    HandlersSyncChangesResp:
+      properties:
+        changes:
+          items:
+            $ref: '#/components/schemas/HandlersSyncChangeResp'
+          type:
+          - array
+          - "null"
+        cursor:
+          format: int64
+          type: integer
+        epoch:
+          format: int64
+          type: integer
+        hasMore:
+          type: boolean
+      type: object
+    HandlersSyncSnapshotResp:
+      properties:
+        appSettings:
+          $ref: '#/components/schemas/HandlersAppSettingsResp'
+        completedSince:
+          type: string
+        contexts:
+          items:
+            $ref: '#/components/schemas/DtoContextDTO'
+          type:
+          - array
+          - "null"
+        cursor:
+          format: int64
+          type: integer
+        epoch:
+          format: int64
+          type: integer
+        labels:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        projects:
+          items:
+            $ref: '#/components/schemas/DtoProjectDTO'
+          type:
+          - array
+          - "null"
+        sections:
+          items:
+            $ref: '#/components/schemas/DtoSectionDTO'
+          type:
+          - array
+          - "null"
+        taskRelations:
+          items:
+            $ref: '#/components/schemas/DtoTaskRelationEdgeDTO'
+          type:
+          - array
+          - "null"
+        taskTemplates:
+          items:
+            $ref: '#/components/schemas/DtoTaskTemplateDTO'
+          type:
+          - array
+          - "null"
+        tasks:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+        userSettings:
+          $ref: '#/components/schemas/HandlersSettingsResp'
+        userState: {}
+      type: object
+    HandlersTicketRequest:
+      properties:
+        origin:
+          type: string
+      type: object
+    HandlersTicketResponse:
+      properties:
+        expiresIn:
+          type: integer
+        ticket:
+          type: string
+      type: object
+    HandlersTodayBundleResponse:
+      properties:
+        completedToday:
+          $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+        overdue:
+          $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+        today:
+          $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+      type: object
+    HandlersTroikiProjectDTO:
+      properties:
+        color:
+          type: string
+        contextId:
+          format: int64
+          type: integer
+        createdAt:
+          type: string
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        isPinned:
+          type: boolean
+        isPrivate:
+          type: boolean
+        labels:
+          items:
+            $ref: '#/components/schemas/DtoLabelDTO'
+          type:
+          - array
+          - "null"
+        pinnedAt:
+          type:
+          - "null"
+          - string
+        projectType:
+          type: string
+        status:
+          type: string
+        tasks:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+        title:
+          type: string
+        troikiCategory:
+          type:
+          - "null"
+          - string
+        updatedAt:
+          type: string
+      type: object
+    HandlersTroikiSlotDTO:
+      properties:
+        capacity:
+          type: integer
+        projects:
+          items:
+            $ref: '#/components/schemas/HandlersTroikiProjectDTO'
+          type:
+          - array
+          - "null"
+      type: object
+    HandlersTroikiViewDTO:
+      properties:
+        important:
+          $ref: '#/components/schemas/HandlersTroikiSlotDTO'
+        medium:
+          $ref: '#/components/schemas/HandlersTroikiSlotDTO'
+        rest:
+          $ref: '#/components/schemas/HandlersTroikiSlotDTO'
+        started:
+          type: boolean
+      type: object
+    HandlersUserState:
+      additionalProperties: {}
+      type: object
+    HandlersViewResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+        total:
+          type: integer
+      type: object
+    HandlersWeekSummaryRange:
+      properties:
+        end:
+          type: string
+        start:
+          type: string
+      type: object
+    HandlersWeekSummaryResponse:
+      properties:
+        completed:
+          items:
+            $ref: '#/components/schemas/DtoTaskDTO'
+          type:
+          - array
+          - "null"
+        range:
+          $ref: '#/components/schemas/HandlersWeekSummaryRange'
+        stats:
+          $ref: '#/components/schemas/HandlersWeekSummaryStats'
+        troiki:
+          $ref: '#/components/schemas/HandlersWeekSummaryTroiki'
+      type: object
+    HandlersWeekSummaryStats:
+      properties:
+        completedCount:
+          type: integer
+        overdue:
+          type: integer
+        plannedOpen:
+          type: integer
+      type: object
+    HandlersWeekSummaryTroiki:
+      properties:
+        slots:
+          items:
+            $ref: '#/components/schemas/HandlersWeekSummaryTroikiSlot'
+          type:
+          - array
+          - "null"
+        started:
+          type: boolean
+      type: object
+    HandlersWeekSummaryTroikiSlot:
+      properties:
+        capacity:
+          type: integer
+        category:
+          type: string
+        completed:
+          type: integer
+        open:
+          type: integer
+        projects:
+          type: integer
+      type: object
+    HttpapiErrorDetail:
+      properties:
+        code:
+          type: string
+        details: {}
+        message:
+          type: string
+      type: object
+    HttpapiErrorEnvelope:
+      properties:
+        error:
+          $ref: '#/components/schemas/HttpapiErrorDetail'
+      type: object
+    HttpapiHealthResponse:
+      properties:
+        status:
+          type: string
+      type: object
+    HttpapiPublicConfigResponse:
+      properties:
+        passkeys:
+          $ref: '#/components/schemas/HttpapiPublicPasskeysConfig'
+        sentry:
+          $ref: '#/components/schemas/HttpapiPublicSentryConfig'
+      type: object
+    HttpapiPublicPasskeysConfig:
+      properties:
+        available:
+          type: boolean
+        enabled:
+          type: boolean
+      type: object
+    HttpapiPublicSentryConfig:
+      properties:
+        dsn:
+          type: string
+        environment:
+          type: string
+      type: object
+    HttpapiVersionResponse:
+      properties:
+        buildTime:
+          type: string
+        commit:
+          type: string
+        version:
+          type: string
+      type: object
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT or API token
+      description: A session access token, or a personal API token limited to the
+        scopes it was issued with.
+      scheme: bearer
+      type: http

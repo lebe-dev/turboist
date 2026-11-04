@@ -6,6 +6,7 @@ type LabelDTO struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Color       string `json:"color"`
+	Description string `json:"description"`
 	IsFavourite bool   `json:"isFavourite"`
 	IsPrivate   bool   `json:"isPrivate"`
 	CreatedAt   string `json:"createdAt"`
@@ -17,6 +18,7 @@ func LabelFromModel(l model.Label) LabelDTO {
 		ID:          l.ID,
 		Name:        l.Name,
 		Color:       l.Color,
+		Description: l.Description,
 		IsFavourite: l.IsFavourite,
 		IsPrivate:   l.IsPrivate,
 		CreatedAt:   FormatTime(l.CreatedAt),
@@ -27,12 +29,14 @@ func LabelFromModel(l model.Label) LabelDTO {
 type CreateLabelRequest struct {
 	Name        string `json:"name"`
 	Color       string `json:"color"`
+	Description string `json:"description"`
 	IsFavourite bool   `json:"isFavourite"`
 }
 
 type PatchLabelRequest struct {
 	Name        *string `json:"name"`
 	Color       *string `json:"color"`
+	Description *string `json:"description"`
 	IsFavourite *bool   `json:"isFavourite"`
 	IsPrivate   *bool   `json:"isPrivate"`
 }

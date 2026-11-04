@@ -1,6 +1,5 @@
 package ru.tinyops.turboist.nativeapp.labels.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -57,7 +54,7 @@ import ru.tinyops.turboist.nativeapp.projects.ui.projectTint
 data class LabelsCallbacks(
     val onChoosePeriod: (LabelUsagePeriod) -> Unit,
     val onRefresh: () -> Unit,
-    val onCreateLabel: (name: String, color: String) -> Unit,
+    val onCreateLabel: (name: String, color: String, description: String) -> Unit,
     val onOpenLabel: (Label) -> Unit,
 )
 
@@ -121,7 +118,7 @@ fun LabelsScreen(
     if (creating) {
         LabelEditorSheet(
             initial = null,
-            onConfirm = { draft -> callbacks.onCreateLabel(draft.name, draft.color) },
+            onConfirm = { draft -> callbacks.onCreateLabel(draft.name, draft.color, draft.description) },
             onDismiss = { creating = false },
         )
     }
@@ -134,6 +131,15 @@ private fun LabelReport(
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item(key = "totals") { Totals(state) }
+        state.radar?.let { radar ->
+            item(key = "radar") {
+                SectionHeading(
+                    title = stringResource(R.string.page_labels_radar_title),
+                    hint = stringResource(R.string.page_labels_appliedHint),
+                )
+                LabelRadarChart(radar)
+            }
+        }
         item(key = "ranking-heading") {
             SectionHeading(
                 title = stringResource(R.string.page_labels_rankingTitle),
@@ -151,7 +157,7 @@ private fun LabelReport(
             }
         }
         items(state.active, key = { "active-" + it.usage.label.localId }) { row ->
-            RankedLabelRow(row, state.period, state.mostApplied, onOpenLabel)
+            RankedLabelRow(row, state.period, onOpenLabel)
         }
         if (state.idle.isNotEmpty()) {
             item(key = "idle-heading") {
@@ -247,15 +253,13 @@ private fun SectionHeading(
  * One label in use: what it is called, how often it was reached for, how that
  * compares with the window before, and what state its work is in.
  *
- * The bar is drawn against the busiest label rather than against a fixed scale,
- * so the shape of the list is readable whether the user applied four labels this
- * week or four hundred.
+ * How the labels compare with one another is the radar's job above the list, so
+ * a row carries its numbers and no bar of its own.
  */
 @Composable
 private fun RankedLabelRow(
     row: LabelStatsRow,
     period: LabelUsagePeriod,
-    mostApplied: Int,
     onOpenLabel: (Label) -> Unit,
 ) {
     val counters = row.usage.period(period)
@@ -275,7 +279,6 @@ private fun RankedLabelRow(
             LabelName(row.usage.label, modifier = Modifier.weight(1f, fill = false))
             Text(text = counters.applied.toString(), style = MaterialTheme.typography.titleSmall)
         }
-        AppliedBar(applied = counters.applied, mostApplied = mostApplied)
         Text(
             text = rowFacts(row, period),
             style = MaterialTheme.typography.bodySmall,
@@ -316,36 +319,6 @@ private fun rowFacts(
 }
 
 private const val FACT_SEPARATOR = " · "
-
-@Composable
-private fun AppliedBar(
-    applied: Int,
-    mostApplied: Int,
-) {
-    val fraction = if (mostApplied <= 0) 0f else applied.toFloat() / mostApplied.toFloat()
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(BAR_HEIGHT)
-                .clip(MaterialTheme.shapes.extraSmall)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth(fraction.coerceIn(MIN_BAR_FRACTION, 1f))
-                    .height(BAR_HEIGHT)
-                    .clip(MaterialTheme.shapes.extraSmall)
-                    .background(MaterialTheme.colorScheme.primary),
-        )
-    }
-}
-
-private val BAR_HEIGHT = 4.dp
-
-/** A bar for a label that was used at all is never invisible, however small its share. */
-private const val MIN_BAR_FRACTION = 0.02f
 
 /** One unused label: its name, and how long ago it was last reached for. */
 @Composable

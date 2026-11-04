@@ -85,6 +85,7 @@ function makeLabel(over: Partial<Label> = {}): Label {
 		id: 1,
 		name: 'work',
 		color: '#fff',
+		description: '',
 		isFavourite: false,
 		isPrivate: false,
 		createdAt: '',

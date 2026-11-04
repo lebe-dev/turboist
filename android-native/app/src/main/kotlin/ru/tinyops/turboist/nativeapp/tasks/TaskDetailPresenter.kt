@@ -672,26 +672,53 @@ class TaskDetailPresenter(
     // --- copying -------------------------------------------------------
 
     /**
-     * The task and everything under it as JSON — the title, the description and
-     * the subtasks, nested — for pasting into whatever the user plans with
-     * outside the app. Read from what the screen holds, so it needs no network.
+     * The task and everything under it as JSON — the title, the description, the
+     * label names and the subtasks, nested — for pasting into whatever the user
+     * plans with outside the app. The root also carries a glossary describing
+     * every label used anywhere in the tree once, so a reader such as an AI agent
+     * learns what a label means without the text repeated on every task. Read
+     * from what the screen holds, so it needs no network.
      */
     fun taskJson(): String? {
         val current = state.value
         val task = current.task ?: return null
         val subtree = (current.openSubtasks + current.doneSubtasks).map { it.task }
         val root = buildTaskTree(listOf(task) + subtree).firstOrNull { it.task.localId == task.localId } ?: return null
-        return TASK_JSON.encodeToString(JsonObject.serializer(), jsonOf(root))
+        val glossary = LinkedHashMap<String, String>()
+        val tree = jsonOf(root, glossary)
+        val document =
+            buildJsonObject {
+                tree.forEach { (key, value) -> put(key, value) }
+                put("labelGlossary", glossaryJson(glossary))
+            }
+        return TASK_JSON.encodeToString(JsonObject.serializer(), document)
     }
 
-    private fun jsonOf(node: TaskNode): JsonObject =
+    private fun jsonOf(
+        node: TaskNode,
+        glossary: MutableMap<String, String>,
+    ): JsonObject =
         buildJsonObject {
             put("title", JsonPrimitive(node.task.title))
             put("description", JsonPrimitive(node.task.description))
+            node.task.labels.forEach { glossary[it.name] = it.description }
+            put("labels", JsonArray(node.task.labels.map { JsonPrimitive(it.name) }))
             if (node.children.isNotEmpty()) {
-                put("subtasks", JsonArray(node.children.map(::jsonOf)))
+                put("subtasks", JsonArray(node.children.map { jsonOf(it, glossary) }))
             }
         }
+
+    private fun glossaryJson(glossary: Map<String, String>): JsonArray =
+        JsonArray(
+            glossary.entries
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.key })
+                .map { (name, description) ->
+                    buildJsonObject {
+                        put("name", JsonPrimitive(name))
+                        put("description", JsonPrimitive(description))
+                    }
+                },
+        )
 
     // --- internals -----------------------------------------------------
 

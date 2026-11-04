@@ -33,6 +33,7 @@ function makeLabel(id: number, name: string, over: Partial<Label> = {}): Label {
 		id,
 		name,
 		color: 'blue',
+		description: '',
 		isFavourite: false,
 		isPrivate: false,
 		createdAt: '2026-01-01T00:00:00.000Z',
@@ -104,7 +105,8 @@ describe('Labels stats page', () => {
 		);
 		render(LabelsPage);
 
-		expect(await screen.findByText('frequent')).toBeTruthy();
+		// The name also labels a radar spoke, so the list row is found as a link.
+		expect(await screen.findByRole('link', { name: 'frequent' })).toBeTruthy();
 		expect(renderedLabelNames()).toEqual(['frequent', 'medium', 'rare']);
 	});
 
@@ -129,7 +131,11 @@ describe('Labels stats page', () => {
 	it('shows the headline counters for the selected period', async () => {
 		statsMock.mockResolvedValue(
 			makeResponse([
-				makeItem(makeLabel(1, 'alpha'), { week: period(3, 0, 2), month: period(30) }, { overdue: 1 }),
+				makeItem(
+					makeLabel(1, 'alpha'),
+					{ week: period(3, 0, 2), month: period(30) },
+					{ overdue: 1 }
+				),
 				makeItem(makeLabel(2, 'beta'), { week: period(4, 0, 5) }, { overdue: 2 }),
 				makeItem(makeLabel(3, 'idle'), {}, { overdue: 4 })
 			])
@@ -232,6 +238,40 @@ describe('Labels stats page', () => {
 		expect(await screen.findByText('No label was used in this period.')).toBeTruthy();
 		// It is still reachable — listed as a cleanup candidate, not hidden.
 		expect(screen.getByText('dormant')).toBeTruthy();
+	});
+
+	it('draws the radar only when three labels pulled in either window', async () => {
+		statsMock.mockResolvedValue(
+			makeResponse([
+				makeItem(makeLabel(1, 'work'), { week: period(5, 1) }),
+				makeItem(makeLabel(2, 'money'), { week: period(2) }),
+				makeItem(makeLabel(3, 'faded'), { week: period(0, 4) })
+			])
+		);
+		render(LabelsPage);
+
+		expect(await screen.findByText('Where labels pull')).toBeTruthy();
+		expect(screen.getByRole('img', { name: /Radar of label usage/ })).toBeTruthy();
+		const spokes = [...document.querySelectorAll('[data-radar-axis]')].map(
+			(el) => el.firstChild?.textContent
+		);
+		// Spokes go by name, a label applied only in the previous window included.
+		expect(spokes).toEqual(['faded', 'money', 'work']);
+		// The radar's names are not extra links: the list order is unchanged.
+		expect(renderedLabelNames()).toEqual(['work', 'money', 'faded']);
+	});
+
+	it('skips the radar when too few labels pulled to make a shape', async () => {
+		statsMock.mockResolvedValue(
+			makeResponse([
+				makeItem(makeLabel(1, 'work'), { week: period(5) }),
+				makeItem(makeLabel(2, 'money'), { week: period(2) })
+			])
+		);
+		render(LabelsPage);
+
+		expect(await screen.findByText('work')).toBeTruthy();
+		expect(screen.queryByText('Where labels pull')).toBeNull();
 	});
 
 	it('links each label to its task list', async () => {

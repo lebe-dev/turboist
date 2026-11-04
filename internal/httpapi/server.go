@@ -57,14 +57,47 @@ type Deps struct {
 	SentryEnvironment string
 }
 
-type errorEnvelope struct {
-	Error errorDetail `json:"error"`
+// ErrorEnvelope is the body of every failed request.
+type ErrorEnvelope struct {
+	Error ErrorDetail `json:"error"`
 }
 
-type errorDetail struct {
+// ErrorDetail carries a machine-readable code and a human-readable message.
+type ErrorDetail struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Details any    `json:"details,omitempty"`
+}
+
+// HealthResponse is the body of GET /healthz.
+type HealthResponse struct {
+	Status string `json:"status"`
+}
+
+// VersionResponse is the body of GET /version.
+type VersionResponse struct {
+	Version   string `json:"version"`
+	Commit    string `json:"commit"`
+	BuildTime string `json:"buildTime"`
+}
+
+// PublicConfigResponse is the body of GET /api/config: what the SPA needs
+// before anybody has signed in.
+type PublicConfigResponse struct {
+	Sentry   PublicSentryConfig   `json:"sentry"`
+	Passkeys PublicPasskeysConfig `json:"passkeys"`
+}
+
+// PublicSentryConfig tells the SPA how to start Sentry; a blank DSN leaves it off.
+type PublicSentryConfig struct {
+	DSN         string `json:"dsn"`
+	Environment string `json:"environment"`
+}
+
+// PublicPasskeysConfig tells the login page whether to offer passkey sign-in.
+type PublicPasskeysConfig struct {
+	Enabled   bool `json:"enabled"`
+	Available bool `json:"available"`
 }
 
 // NewApp creates a Fiber app with the custom error handler and standard middleware.
@@ -92,14 +125,14 @@ func NewApp(deps Deps) *fiber.App {
 // creating a circular import between httpapi and httpapi/handlers.
 func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 	app.Get("/healthz", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
+		return c.JSON(HealthResponse{Status: "ok"})
 	})
 	app.Get("/version", func(c fiber.Ctx) error {
 		v := deps.Version
 		if v == "" {
 			v = "dev"
 		}
-		return c.JSON(fiber.Map{"version": v, "commit": "", "buildTime": ""})
+		return c.JSON(VersionResponse{Version: v})
 	})
 	// Public runtime config for the SPA — must stay unauthenticated so the
 	// browser can initialise Sentry before login. A blank dsn means the
@@ -113,14 +146,14 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 			}
 			passkeysAvailable = n > 0
 		}
-		return c.JSON(fiber.Map{
-			"sentry": fiber.Map{
-				"dsn":         deps.SentryFrontendDSN,
-				"environment": deps.SentryEnvironment,
+		return c.JSON(PublicConfigResponse{
+			Sentry: PublicSentryConfig{
+				DSN:         deps.SentryFrontendDSN,
+				Environment: deps.SentryEnvironment,
 			},
-			"passkeys": fiber.Map{
-				"enabled":   deps.PasskeyRepo != nil,
-				"available": passkeysAvailable,
+			Passkeys: PublicPasskeysConfig{
+				Enabled:   deps.PasskeyRepo != nil,
+				Available: passkeysAvailable,
 			},
 		})
 	})
@@ -182,8 +215,8 @@ func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 			}
 			reqLog.DebugContext(ctx, "client error", attrs...)
 		}
-		return c.Status(appErr.HTTPStatus).JSON(errorEnvelope{
-			Error: errorDetail{
+		return c.Status(appErr.HTTPStatus).JSON(ErrorEnvelope{
+			Error: ErrorDetail{
 				Code:    appErr.Code,
 				Message: appErr.Message,
 				Details: appErr.Details,

@@ -46,6 +46,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [API reference](API.md)
 - [Passkeys](docs/passkey.md) — WebAuthn sign-in, and the native app setup it needs
 - [Task relations](docs/task-relations.md) — `related` / `blocks`, and how blocking works
+- [Labels](docs/labels.md) — label descriptions and how labels appear in a task's JSON copy
 - [Troiki System](docs/troiki-system.md)
 - [Localization](docs/locales.md)
 - [Public mode](docs/public-mode.md)

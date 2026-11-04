@@ -1059,20 +1059,73 @@ class TaskDetailPresenterTest {
                 {
                   "title": "Trip",
                   "description": "Summer",
+                  "labels": [],
                   "subtasks": [
                     {
                       "title": "Order the parts",
-                      "description": ""
+                      "description": "",
+                      "labels": []
                     },
                     {
                       "title": "Assemble",
                       "description": "",
+                      "labels": [],
                       "subtasks": [
                         {
                           "title": "Unpack",
-                          "description": ""
+                          "description": "",
+                          "labels": []
                         }
                       ]
+                    }
+                  ],
+                  "labelGlossary": []
+                }
+                """.trimIndent(),
+                json,
+            )
+        }
+
+    @Test
+    fun `the JSON names each task's labels and describes every label once at the root`() =
+        runTest {
+            val urgent =
+                Label(localId = 10, name = "urgent", description = "Must ship today", createdAt = 0, updatedAt = 0)
+            val backend = Label(localId = 11, name = "Backend", createdAt = 0, updatedAt = 0)
+            val presenter =
+                open(
+                    task(1, title = "Fix", labels = listOf(urgent)),
+                    subtasks = listOf(task(2, title = "Repro", parentLocalId = 1, labels = listOf(backend, urgent))),
+                )
+
+            val json = presenter.taskJson()
+
+            assertEquals(
+                """
+                {
+                  "title": "Fix",
+                  "description": "",
+                  "labels": [
+                    "urgent"
+                  ],
+                  "subtasks": [
+                    {
+                      "title": "Repro",
+                      "description": "",
+                      "labels": [
+                        "Backend",
+                        "urgent"
+                      ]
+                    }
+                  ],
+                  "labelGlossary": [
+                    {
+                      "name": "Backend",
+                      "description": ""
+                    },
+                    {
+                      "name": "urgent",
+                      "description": "Must ship today"
                     }
                   ]
                 }

@@ -1,0 +1,84 @@
+# Only what differs from detekt's defaults; `buildUponDefaultConfig` supplies the rest.
+
+Compose:
+  ComposableAnnotationNaming:
+    active: true
+  ComposableNaming:
+    active: true
+  ComposableParamOrder:
+    active: true
+  CompositionLocalAllowlist:
+    active: true
+  CompositionLocalNaming:
+    active: true
+  ContentEmitterReturningValues:
+    active: true
+  ContentSlotReused:
+    active: true
+  ContentTrailingLambda:
+    active: true
+  DefaultsVisibility:
+    active: true
+  LambdaParameterEventTrailing:
+    active: true
+  LambdaParameterInRestartableEffect:
+    active: true
+  ModifierClickableOrder:
+    active: true
+  ModifierComposed:
+    active: true
+  ModifierMissing:
+    active: true
+  ModifierNaming:
+    active: true
+  ModifierNotUsedAtRoot:
+    active: true
+  ModifierReused:
+    active: true
+  ModifierWithoutDefault:
+    active: true
+  MultipleEmitters:
+    active: true
+  MutableParams:
+    active: true
+  MutableStateAutoboxing:
+    active: true
+  MutableStateParam:
+    active: true
+  ParameterNaming:
+    active: true
+  PreviewAnnotationNaming:
+    active: true
+  PreviewPublic:
+    active: true
+  RememberContentMissing:
+    active: true
+  RememberMissing:
+    active: true
+  ViewModelForwarding:
+    active: true
+  ViewModelInjection:
+    active: true
+
+complexity:
+  # A screen is one long declarative tree whose parameters are its state and its
+  # callbacks, so size says little about a composable.
+  LongMethod:
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    ignoreAnnotated: ['Composable', 'Inject']
+
+style:
+  MagicNumber:
+    ignoreAnnotated: ['Composable']
+  # Guard clauses are how this code is meant to read; only count the other returns.
+  ReturnCount:
+    max: 3
+    excludeGuardClauses: true
+
+naming:
+  # Composables are PascalCase by convention, as in .editorconfig for ktlint.
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][A-Za-z0-9_]*'

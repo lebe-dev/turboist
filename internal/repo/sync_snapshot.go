@@ -289,7 +289,7 @@ func txSnapshotContexts(ctx context.Context, src queryer) ([]*model.Context, err
 
 func txSnapshotLabels(ctx context.Context, src queryer) ([]*model.Label, error) {
 	rows, err := src.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at
+		`SELECT `+labelCols+`
 		   FROM labels ORDER BY id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("list snapshot labels: %w", err)

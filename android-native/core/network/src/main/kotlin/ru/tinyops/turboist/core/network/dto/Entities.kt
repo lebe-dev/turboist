@@ -19,6 +19,7 @@ data class LabelDto(
     val id: Long = 0,
     val name: String = "",
     val color: String = "",
+    val description: String = "",
     val isFavourite: Boolean = false,
     val isPrivate: Boolean = false,
     val createdAt: String? = null,

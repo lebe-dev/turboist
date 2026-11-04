@@ -60,7 +60,7 @@ func (r *LabelRepo) UsageStats(ctx context.Context, ranges []LabelUsageRange, to
 	logQuery(ctx, op, len(ranges), limit)
 
 	var sb strings.Builder
-	sb.WriteString(`SELECT l.id, l.name, l.color, l.is_favourite, l.is_private, l.created_at, l.updated_at,
+	sb.WriteString(`SELECT l.id, l.name, l.color, l.description, l.is_favourite, l.is_private, l.created_at, l.updated_at,
 	       COUNT(tl.task_id),
 	       COALESCE(SUM(CASE WHEN t.status = 'open' THEN 1 ELSE 0 END), 0),
 	       COALESCE(SUM(CASE WHEN t.status = 'open' AND t.due_at IS NOT NULL AND t.due_at < ? THEN 1 ELSE 0 END), 0),
@@ -113,7 +113,7 @@ func scanLabelUsage(row interface{ Scan(...any) error }, periods int) (LabelUsag
 		lastUsedAt           sql.NullString
 	)
 	dest := []any{
-		&u.Label.ID, &u.Label.Name, &u.Label.Color, &fav, &priv, &createdAt, &updatedAt,
+		&u.Label.ID, &u.Label.Name, &u.Label.Color, &u.Label.Description, &fav, &priv, &createdAt, &updatedAt,
 		&u.TotalTasks, &u.OpenTasks, &u.Overdue, &u.Projects, &lastUsedAt,
 	}
 	u.Periods = make([]LabelUsagePeriod, periods)

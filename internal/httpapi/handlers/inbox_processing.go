@@ -138,7 +138,15 @@ func (h *InboxProcessingHandler) run(c fiber.Ctx) error {
 		return httpapi.ErrInboxProcessingDisabled()
 	}
 	logMutation(c, opInboxProcessingRun)
-	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"running": true})
+	return c.Status(fiber.StatusAccepted).JSON(inboxRunResp{Running: true})
+}
+
+type inboxRunResp struct {
+	Running bool `json:"running"`
+}
+
+type inboxPreviewResp struct {
+	Rendered string `json:"rendered"`
 }
 
 type inboxPromptReq struct {
@@ -158,7 +166,7 @@ func (h *InboxProcessingHandler) preview(c fiber.Ctx) error {
 	if err != nil {
 		return templateErr(c, opInboxProcessingPreview, err, "render prompt preview")
 	}
-	return c.JSON(fiber.Map{"rendered": rendered})
+	return c.JSON(inboxPreviewResp{Rendered: rendered})
 }
 
 type inboxSettingsPutReq struct {

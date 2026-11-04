@@ -45,6 +45,7 @@ data class LabelRow(
     override val serverId: Long? = null,
     val name: String,
     val color: String = "",
+    @ColumnInfo(defaultValue = "") val description: String = "",
     val isFavourite: Boolean = false,
     val isPrivate: Boolean = false,
     val createdAt: Long,

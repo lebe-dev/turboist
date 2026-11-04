@@ -25,5 +25,6 @@ fun CalendarSettingsNote() {
         headlineContent = { Text(stringResource(R.string.settings_calendars_heading)) },
         supportingContent = { Text(stringResource(R.string.native_calendar_managed_on_web)) },
         leadingContent = { Icon(imageVector = Icons.Outlined.Event, contentDescription = null) },
+        colors = groupRowColors(),
     )
 }

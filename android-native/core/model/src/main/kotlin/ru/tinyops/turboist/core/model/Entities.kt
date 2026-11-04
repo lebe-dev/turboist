@@ -18,6 +18,9 @@ data class Context(
 /**
  * A tag attachable to tasks and projects.
  *
+ * @property description what the label means, in plain text; empty when not set.
+ *   It travels with a task's JSON copy so a reader such as an AI agent knows why
+ *   the task carries the label.
  * @property isPrivate hides the label, and anything carrying it, from the public view.
  */
 data class Label(
@@ -25,6 +28,7 @@ data class Label(
     override val serverId: Long? = null,
     val name: String,
     val color: String = "",
+    val description: String = "",
     val isFavourite: Boolean = false,
     val isPrivate: Boolean = false,
     val createdAt: Long,

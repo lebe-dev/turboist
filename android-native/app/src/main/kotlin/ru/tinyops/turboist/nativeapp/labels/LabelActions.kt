@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.labels
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import ru.tinyops.turboist.core.sync.write.LabelPatch
 import ru.tinyops.turboist.core.sync.write.LabelWriteRepo
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import javax.inject.Inject
@@ -18,6 +19,7 @@ data class LabelEdit(
     val color: String? = null,
     val isFavourite: Boolean? = null,
     val isPrivate: Boolean? = null,
+    val description: String? = null,
 )
 
 /**
@@ -37,6 +39,7 @@ interface LabelActions {
         name: String,
         color: String,
         isFavourite: Boolean,
+        description: String,
     )
 
     suspend fun editLabel(
@@ -95,8 +98,9 @@ class WriteRepoLabelActions
             name: String,
             color: String,
             isFavourite: Boolean,
+            description: String,
         ) {
-            labels.create(name = name, color = color, isFavourite = isFavourite)
+            labels.create(name = name, color = color, isFavourite = isFavourite, description = description)
         }
 
         override suspend fun editLabel(
@@ -105,10 +109,14 @@ class WriteRepoLabelActions
         ) {
             labels.patch(
                 labelLocalId = labelLocalId,
-                name = edit.name,
-                color = edit.color,
-                isFavourite = edit.isFavourite,
-                isPrivate = edit.isPrivate,
+                edit =
+                    LabelPatch(
+                        name = edit.name,
+                        color = edit.color,
+                        description = edit.description,
+                        isFavourite = edit.isFavourite,
+                        isPrivate = edit.isPrivate,
+                    ),
             )
         }
 

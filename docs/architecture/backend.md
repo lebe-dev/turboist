@@ -32,7 +32,7 @@ The server runs migrations from `internal/db/migrations` on every start. The sch
 
 All `/api/v1/*` endpoints require `Authorization: Bearer <token>`. The token can be a 15-minute JWT access token or a long-lived API token (generated in Settings → API). Web clients also receive a 30-day refresh token in an HttpOnly cookie scoped to `/auth/refresh`. API tokens are accepted on every `/api/v1/*` route except `/api/v1/api-tokens/*`, which requires a JWT session.
 
-See [API.md](../../API.md) for the full reference.
+See [API.md](../../API.md) for the OpenAPI spec.
 
 ## Authentication
 
@@ -94,13 +94,13 @@ Each browser tab generates a per-tab origin id and:
 
 `Hub.Publish` skips any subscriber whose origin matches the mutation's `X-Client-Origin`. The tab that made a change therefore never receives the echo of its own mutation — it already applied the change from the mutation's own response, so re-fetching would only cost a round-trip and cause a visible re-render. Other tabs and devices still receive the event. An empty origin (older clients, server-side) disables suppression. To refresh data it can no longer derive from the echo, the originating client refetches the [`GET /api/v1/stats/sidebar`](../../API.md) bundle once after its own mutation.
 
-Inbound events are coalesced client-side over a 200 ms window before anything is refetched (`lib/realtime/scopeCoalescer.ts`). One remote change usually fans out to several scopes — a bulk move emits `tasks` + `plan` + `inbox` + `projects` — and the shell used to issue one GET per scope handler. The coalesced burst now resolves to a single aggregate request: [`GET /api/v1/config`](../../API.md#get-apiv1config) when entity lists may have moved, or the smaller `/stats/sidebar` bundle when only counters did. The same `/config` refetch backs the catch-up after an SSE reconnect and after the offline outbox drains, replacing six per-store GETs. It is a conditional request, so an unchanged workspace costs a `304` with no body — which matters on mobile, where every unlock reconnects the stream.
+Inbound events are coalesced client-side over a 200 ms window before anything is refetched (`lib/realtime/scopeCoalescer.ts`). One remote change usually fans out to several scopes — a bulk move emits `tasks` + `plan` + `inbox` + `projects` — and the shell used to issue one GET per scope handler. The coalesced burst now resolves to a single aggregate request: [`GET /api/v1/config`](../../API.md) when entity lists may have moved, or the smaller `/stats/sidebar` bundle when only counters did. The same `/config` refetch backs the catch-up after an SSE reconnect and after the offline outbox drains, replacing six per-store GETs. It is a conditional request, so an unchanged workspace costs a `304` with no body — which matters on mobile, where every unlock reconnects the stream.
 
 ## Idempotency
 
 `IdempotencyMiddleware` (`internal/httpapi/idempotency_middleware.go`) makes mutating `/api/v1/*` requests safe to retry. When a request carries an `Idempotency-Key` header, the middleware reserves the key, runs the handler once, and stores the `2xx` response; a later request with the same key replays the stored response (`X-Idempotent-Replay: true`) without re-running the handler. A concurrent duplicate (the first request still in flight) is rejected with `409 idempotency_in_flight`; non-2xx responses are released so a corrected retry re-runs the handler.
 
-The middleware sits **after** `APIAuthMiddleware` (it needs the resolved user id) and **before** `PublishMiddleware` in the `/api/v1` group, so a replay short-circuits before Publish and never re-emits an SSE invalidation. A nil `IdempotencyRepo` disables it (used in tests). Client-facing behaviour is documented in [API.md → Idempotency](../../API.md#idempotency).
+The middleware sits **after** `APIAuthMiddleware` (it needs the resolved user id) and **before** `PublishMiddleware` in the `/api/v1` group, so a replay short-circuits before Publish and never re-emits an SSE invalidation. A nil `IdempotencyRepo` disables it (used in tests). Client-facing behaviour is documented in [API.md → Idempotency](../../API.md).
 
 Keys are persisted in the `idempotency_keys` table (migration `044_idempotency_keys.sql`: `key` PK, `user_id` FK, `method`, `path`, `status`, `response`, `created_at`; `status = 0` marks a reservation still in flight). A background prune runs in `cmd/turboist` — once at startup and then every 12 hours on the shared cleanup context — deleting rows older than 48 hours via `IdempotencyRepo.DeleteOlderThan`.
 
@@ -111,6 +111,16 @@ Keys are persisted in the `idempotency_keys` table (migration `044_idempotency_k
 `related` is symmetric and normalised on write (lower id first), which lets the `UNIQUE (source, target, type)` constraint dedupe A↔B added from either side. `blocks` is directed and enforced: `CompleteService.completeAt` refuses a task with any `open` blocker, returning `service.TaskBlockedError` → `409 task_blocked` with the blocker ids in `details`. The guard sits at that one choke point deliberately — single complete, `bulk/complete` and the Troiki board all funnel through it. Blockers are inherited down the subtask tree: `TaskRelationsRepo.OpenBlockerIDs` walks the task's ancestor chain, so a subtask of a blocked parent is refused too (an inherited blocker sitting inside the task's own subtree is dropped — "child blocks parent" must not leave the child waiting for itself). Completed *and cancelled* blockers stop blocking, otherwise cancelling a task would deadlock its dependents forever. A cycle check (recursive CTE over `blocks` edges) rejects a pair that would leave both tasks permanently uncompletable.
 
 Reads are shaped by the "one aggregate" rule: there is no relations endpoint. `TaskDTO` always carries `blockedByCount` / `relationCount`, hydrated by one batch query (`TaskRelationsRepo.SummaryByTaskIDs`) in `TaskRepo.Get` and in the single list funnel `listWithBaseArgsOrdered` — `blockedByCount` counts inherited blockers too, so the padlock in the lists agrees with the guard, while `relationCount` stays the task's own relations because those are what the detail page lists — so every list view, `GET /api/v1/config`'s `pinnedTasks` and `/stats/sidebar`'s `pinned` get them without a per-task query. The full relation list is opt-in via `GET /api/v1/tasks/:id?relations=true`, and both mutations answer with the updated task so no follow-up read is needed.
+
+## Label descriptions
+
+`labels.description` (migration `053_labels_description.sql`, `TEXT NOT NULL DEFAULT ''`)
+is plain text up to 500 characters, trimmed and length-checked in the label handler.
+Every label read goes through `repo.labelCols` / `scanLabel` (or the `task_labels` /
+`project_labels` hydration queries), so the field rides along wherever a `LabelDTO`
+is served — including sync snapshots and change batches, which the existing
+`trg_changelog_labels_upd` trigger already covers. See [Labels](../labels.md) for
+the user-facing behaviour and the task JSON copy format.
 
 ## Label usage stats
 
@@ -236,7 +246,7 @@ Two endpoints serve the log to clients that keep a full local copy of the
 workspace (`internal/httpapi/handlers/sync.go`, `sync_snapshot.go` over
 `internal/repo/changelog.go`, `sync_snapshot.go`). The wire contract — parameters,
 payloads, error bodies, the loop a client runs — is in
-[API.md](../../API.md#sync); what follows is why the server side looks the way it
+[API.md](../../API.md); what follows is why the server side looks the way it
 does.
 
 `GET /api/v1/sync/changes` reads one page inside a single read transaction: the

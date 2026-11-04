@@ -20,11 +20,20 @@ func NewLabelRepo(db *sql.DB) *LabelRepo {
 	return &LabelRepo{db: db}
 }
 
+// labelCols is the column list scanLabel reads, in order.
+const labelCols = `id, name, color, description, is_favourite, is_private, created_at, updated_at`
+
+// labelColsAs is labelCols qualified with a table alias, for joins.
+func labelColsAs(alias string) string {
+	return alias + ".id, " + alias + ".name, " + alias + ".color, " + alias + ".description, " +
+		alias + ".is_favourite, " + alias + ".is_private, " + alias + ".created_at, " + alias + ".updated_at"
+}
+
 func scanLabel(row interface{ Scan(...any) error }) (*model.Label, error) {
 	var l model.Label
 	var fav, priv int
 	var createdAt, updatedAt string
-	if err := row.Scan(&l.ID, &l.Name, &l.Color, &fav, &priv, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&l.ID, &l.Name, &l.Color, &l.Description, &fav, &priv, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	l.IsFavourite = fav == 1
@@ -43,6 +52,11 @@ func scanLabel(row interface{ Scan(...any) error }) (*model.Label, error) {
 }
 
 func (r *LabelRepo) Create(ctx context.Context, name, color string, isFavourite bool) (*model.Label, error) {
+	return r.CreateDescribed(ctx, name, color, "", isFavourite)
+}
+
+// CreateDescribed inserts a label together with its description.
+func (r *LabelRepo) CreateDescribed(ctx context.Context, name, color, description string, isFavourite bool) (*model.Label, error) {
 	const op = "repo.labels.Create"
 	logQuery(ctx, op, color, isFavourite)
 	now := model.FormatUTC(time.Now())
@@ -51,8 +65,8 @@ func (r *LabelRepo) Create(ctx context.Context, name, color string, isFavourite 
 		favInt = 1
 	}
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO labels (name, color, is_favourite, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		name, color, favInt, now, now)
+		`INSERT INTO labels (name, color, description, is_favourite, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		name, color, description, favInt, now, now)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, logErr(ctx, op, ErrConflict)
@@ -70,7 +84,7 @@ func (r *LabelRepo) Get(ctx context.Context, id int64) (*model.Label, error) {
 	const op = "repo.labels.Get"
 	logQuery(ctx, op, id)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE id = ?`, id)
+		`SELECT `+labelCols+` FROM labels WHERE id = ?`, id)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -85,7 +99,7 @@ func (r *LabelRepo) GetByName(ctx context.Context, name string) (*model.Label, e
 	const op = "repo.labels.GetByName"
 	logQuery(ctx, op)
 	row := r.db.QueryRowContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE name = ?`, name)
+		`SELECT `+labelCols+` FROM labels WHERE name = ?`, name)
 	l, err := scanLabel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, logErr(ctx, op, ErrNotFound)
@@ -118,7 +132,7 @@ func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page)
 
 	args = append(args, page.Limit, page.Offset)
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels`+where+
+		`SELECT `+labelCols+` FROM labels`+where+
 			` ORDER BY is_favourite DESC, name ASC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, 0, logErr(ctx, op, fmt.Errorf("list labels: %w", err))
@@ -139,6 +153,7 @@ func (r *LabelRepo) List(ctx context.Context, filter LabelListFilter, page Page)
 type LabelUpdate struct {
 	Name        *string
 	Color       *string
+	Description *string
 	IsFavourite *bool
 	IsPrivate   *bool
 }
@@ -155,6 +170,10 @@ func (r *LabelRepo) Update(ctx context.Context, id int64, u LabelUpdate) (*model
 	if u.Color != nil {
 		sets = append(sets, "color = ?")
 		args = append(args, *u.Color)
+	}
+	if u.Description != nil {
+		sets = append(sets, "description = ?")
+		args = append(args, *u.Description)
 	}
 	if u.IsFavourite != nil {
 		sets = append(sets, "is_favourite = ?")
@@ -225,7 +244,7 @@ func (r *LabelRepo) GetByIDs(ctx context.Context, ids []int64) ([]model.Label, e
 		placeholders[i] = "?"
 		args[i] = id
 	}
-	q := `SELECT id, name, color, is_favourite, is_private, created_at, updated_at FROM labels WHERE id IN (` +
+	q := `SELECT ` + labelCols + ` FROM labels WHERE id IN (` +
 		strings.Join(placeholders, ",") + `)`
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

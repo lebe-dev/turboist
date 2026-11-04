@@ -78,7 +78,7 @@ func labelsByTaskIDs(ctx context.Context, src queryer, taskIDs []int64) (map[int
 		placeholders[i] = "?"
 		args[i] = id
 	}
-	q := `SELECT tl.task_id, l.id, l.name, l.color, l.is_favourite, l.created_at, l.updated_at
+	q := `SELECT tl.task_id, l.id, l.name, l.color, l.description, l.is_favourite, l.created_at, l.updated_at
 	      FROM task_labels tl
 	      JOIN labels l ON l.id = tl.label_id
 	      WHERE tl.task_id IN (` + strings.Join(placeholders, ",") + `)
@@ -95,7 +95,7 @@ func labelsByTaskIDs(ctx context.Context, src queryer, taskIDs []int64) (map[int
 		var l model.Label
 		var fav int
 		var createdAt, updatedAt string
-		if err := rows.Scan(&taskID, &l.ID, &l.Name, &l.Color, &fav, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&taskID, &l.ID, &l.Name, &l.Color, &l.Description, &fav, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
 		l.IsFavourite = fav == 1

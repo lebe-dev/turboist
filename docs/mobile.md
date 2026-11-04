@@ -460,8 +460,8 @@ by when work finished, because it is read as days.
 The week list is the one place where the list and its badge answer different
 questions. The list holds what the user planned for the week, what falls due
 inside it, and the whole open subtree beneath each of those, so a parent is never
-shown without the work it is made of. The badge counts only the tasks the user
-chose: planning a task cascades down its open subtasks, and counting those would
+shown without the work it is made of. The badge counts only parent
+(top-level) tasks: subtasks travel with their parent, and counting them would
 let one decision eat several slots of the weekly limit.
 
 Every list is required to be answered through an index rather than by reading
@@ -1259,7 +1259,7 @@ account with a second factor configured. The sign-in screen offers the passkey
 button only when the instance reports both that the feature is configured and
 that something is enrolled, since a button that can only end in an explanation is
 worse than no button. Enrolment and the credential list live behind **Settings →
-Passkeys**, which never caches: a stale answer to "which devices can sign in to
+Security and sign-in → Passkey**, which never caches: a stale answer to "which devices can sign in to
 this account" is worse than no answer. The ceremony options travel to the
 platform and its answer travels back as the JSON the server wrote and verifies,
 untouched — decoding and re-encoding base64url is how the URL alphabet gets lost
@@ -1348,6 +1348,19 @@ is tapped or swiped shut. Acting on release made it too easy to park a task by
 accident while scrolling. Neither swipe dismisses the row, which leaves the list
 only if the change took it out of the query. The swipes are unreachable to an
 assistive reader, so the same actions are also named actions on the row.
+
+**Carrying a task between phases.** On Today a long press on an open task in one
+of the day's phases picks it up; dropped on another phase's heading or rows it
+moves there, which is a write of the phase alone. Since the list leaves out a
+phase with nothing in it and a long day pushes most of them off screen, a bar
+naming all four phases floats over the top of the list while a task is carried —
+at the top, because the bottom edge belongs to the capture button, and over the
+list rather than in it, so appearing never shifts the rows under the finger.
+Released without moving, the long press starts a selection exactly as before.
+Overdue tasks are not carried: a new phase would leave them overdue all the
+same. An assistive reader gets each other phase as a named action on the row.
+The web client's Today page offers the same gesture and the same bar, with the
+mouse (HTML5 drag) and with a long press on touch screens.
 
 **Acting on a selection.** A long press starts selection mode; tapping rows adds
 and removes them, a heading offers its whole block at once, and un-picking the
@@ -1689,6 +1702,16 @@ the write path refuses partway through, the lines that landed stay landed and th
 sheet is left holding only the ones that did not, so saving again cannot write
 anything twice.
 
+Dots and spaces at the end of a title line are not part of the title. A dot there
+disappears from the field as it is typed and is left off what is saved. It is
+hidden rather than deleted, because the next keystroke may turn it into "3.5" or
+"example.com", which come out whole.
+
+A sheet holding something asks before it closes, whichever way it was asked to:
+a swipe, a tap outside, the back gesture or the cancel button. Text that arrived
+in a share counts, the project the sheet opened on does not, and an empty sheet
+just closes.
+
 **Two title rules, and the difference between them is the point.** The
 installation's rules document carries both, and the device reads it from the
 replica. *Auto-labels are applied*: a rule whose mask occurs in the title attaches
@@ -1962,7 +1985,7 @@ the device holds and lets the server cap it, so the client never has the server'
 current limit written into it; that endpoint deliberately serves a window much
 wider than a replica is seeded with, because reading what has aged out of a
 replica is what it is for (see
-[API.md](../API.md#get-apiv1taskscompleted)). Writing them into the replica would
+[API.md](../API.md)). Writing them into the replica would
 put rows there that the very next tidy-up removes again, so reading back through
 a year of history would rewrite the database on every pass. The first request
 starts at the offset where the device's own copy ends, which keeps the common
@@ -2071,8 +2094,36 @@ write exists that could send one.
 
 ### Settings (`app/.../settings`)
 
-One screen over **three stores that are never merged**, and keeping them apart is
-the whole design:
+**The top level is a map, not a list of controls.** It holds a search field, a
+warning card when the server has refused changes (the same count the drawer
+badges, so the two never disagree), and one row per section, grouped by what the
+user came to do: *General* (language, theme, Public view), *Workspace* (the Today
+banner, the pinning caps, the daily plan, calendars), *Rules and labels*, the
+templates, *Security and sign-in* (passkeys, the second factor, sessions, API
+tokens), *This device* (mobile data, the refused pile, the server, the two reset
+actions) and *About*. Each row's summary says what is inside — the General row
+says the current language and theme — so a section rarely has to be opened just
+to check it.
+
+**Every section is a destination of its own**, one step below settings, and so
+is every screen settings leads to. The shell's bar over any of them shows a back
+arrow rather than the drawer button: the drawer moves between places, and these
+are not places. The system back gesture does the same.
+
+**Search matches words the user can see**: a setting's name, its section's name
+and the sentence that describes it, every typed word required. A result opens the
+section the setting lives in.
+
+**A deleted rule can be taken back.** The deletion is written at once; the
+snackbar that says so carries an undo that writes the rule back at the place it
+stood, or at the end of a list that has shrunk since.
+
+**The rule editor is a bottom sheet with a rehearsal field**: a task title typed
+there is checked against the mask by the same test quick add applies, so the user
+sees whether the rule fires before saving it. Nothing typed there is kept.
+
+Underneath, settings sits over **three stores that are never merged**, and keeping
+them apart is the whole design:
 
 - the **account's own preferences** — one document on the server that follows the
   user to every device: language, public view, the Today banner and its optional
@@ -2084,6 +2135,10 @@ the whole design:
   may spend mobile data. They are stored in a small key-value file, never sent
   anywhere and never carried to a second device: a tablet on wi-fi and a phone on
   a metered plan want opposite answers to the same question.
+
+The sections group by purpose rather than by store, so a row that belongs to a
+different store from its neighbours says so: the theme sits beside the language
+and carries an *Only on this device* mark.
 
 **Every server-side edit says only what changed.** A switch writes one key; a
 list writes that one list. Sending a full snapshot instead would hand the server
@@ -2152,9 +2207,14 @@ leave what was typed on screen, and neither destructive action happens until it
 has been confirmed. The same separation is asserted again against a real database
 on the write path, where it is a claim about which table a write lands in and
 which document keeps the keys this build cannot read. The screen is composed for
-real off-device: that the two rule lists say which one acts, that the device's own
-choices say they stay on the phone, and that changing servers asks first and says
-how much work would be lost.
+real off-device: that the top level leads to every section and announces the
+refused pile, that a search result opens its section, that the two rule lists say
+which one acts, that a deleted rule can be taken back, that the theme and the
+device's own choices say they stay on the phone, that a pinning cap is stepped,
+that hiding past events waits for calendars to be on, and that changing servers
+asks first and says how much work would be lost. The navigation walk opens every
+section from settings and asserts that the bar over a section, and over a screen
+reached from one, leads back up rather than into the drawer.
 
 ### The account's own screens (`app/.../account`)
 
@@ -2279,13 +2339,13 @@ just android-native-build    # debug APK
 just android-native-run      # build, install and launch on a device/emulator
 just android-native-deploy   # install an APK on a connected device, without launching it
 just android-native-test     # JVM unit tests
-just android-native-lint     # ktlint + Android Lint
+just android-lint            # ktlint + detekt (with the Compose rules) + Android Lint
 just android-native-format   # rewrite sources to the ktlint style
 just android-native-e2e      # on-device round trip against a real backend (needs a running emulator)
 just android-native-release  # signed release bundle for the store
 ```
 
-`android-native-test` and `android-native-lint` are part of `just test-all` and
+`android-native-test` and `android-lint` are part of `just test-all` and
 `just lint`, so both aggregates — and `just build-image`, which is gated on them
 — now need a JDK and an Android SDK on the machine running them.
 

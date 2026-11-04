@@ -70,6 +70,7 @@ function label(id: number, isPrivate = false): Label {
 		id,
 		name: `l${id}`,
 		color: '#fff',
+		description: '',
 		isFavourite: false,
 		isPrivate,
 		createdAt: '',

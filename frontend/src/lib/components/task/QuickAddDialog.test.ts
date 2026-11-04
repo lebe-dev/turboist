@@ -40,6 +40,7 @@ describe('QuickAddDialog subtask labels', () => {
 				id: 3,
 				name: 'work',
 				color: 'blue',
+				description: '',
 				isFavourite: false,
 				isPrivate: false,
 				createdAt: '2026-01-01T00:00:00Z',

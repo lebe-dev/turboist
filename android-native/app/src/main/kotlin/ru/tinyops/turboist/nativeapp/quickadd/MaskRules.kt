@@ -30,7 +30,7 @@ const val MAX_PROJECT_SUGGESTIONS: Int = 3
  * title, including the empty one, which is never what half-finished settings
  * mean.
  */
-private fun ruleMatches(
+internal fun ruleMatches(
     mask: String,
     ignoreCase: Boolean,
     title: String,

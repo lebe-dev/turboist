@@ -462,7 +462,7 @@ func txLoadContexts(ctx context.Context, src queryer, ids []int64) (map[int64]an
 func txLoadLabels(ctx context.Context, src queryer, ids []int64) (map[int64]any, error) {
 	marks, args := idPlaceholders(ids)
 	rows, err := src.QueryContext(ctx,
-		`SELECT id, name, color, is_favourite, is_private, created_at, updated_at
+		`SELECT `+labelCols+`
 		   FROM labels WHERE id IN (`+marks+`)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("load sync labels: %w", err)

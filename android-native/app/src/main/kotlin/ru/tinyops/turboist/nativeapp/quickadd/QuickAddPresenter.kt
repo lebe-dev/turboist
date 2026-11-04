@@ -60,6 +60,10 @@ data class QuickAddUiState(
     val recentLabelOrder: List<Long> = emptyList(),
     /** The chosen project's title, or `null` while the draft is headed for the inbox. */
     val projectTitle: String? = null,
+    /** True when closing the sheet would lose something the user put here. */
+    val holdsInput: Boolean = false,
+    /** True while the sheet is asking whether what it holds may be thrown away. */
+    val confirmingDiscard: Boolean = false,
 )
 
 /**
@@ -126,7 +130,27 @@ class QuickAddPresenter(
      * still open.
      */
     fun open(request: QuickAddRequest = QuickAddRequest()) {
-        editing.value = Editing(visible = true, draft = QuickAddDraft.from(request)).withDayPartGuess()
+        val draft = QuickAddDraft.from(request)
+        editing.value = Editing(visible = true, draft = draft, opened = draft).withDayPartGuess()
+    }
+
+    /**
+     * Answers every way of closing the sheet by accident — a swipe, a tap outside,
+     * the back gesture, the cancel button: an empty sheet just closes, one holding
+     * something asks first.
+     */
+    fun requestDismiss() {
+        val current = editing.value
+        if (current.draft.holdsInput(current.opened)) {
+            editing.value = current.copy(confirmingDiscard = true)
+            return
+        }
+        dismiss()
+    }
+
+    /** Goes back to the draft from the question [requestDismiss] asked. */
+    fun keepEditing() {
+        editing.update { it.copy(confirmingDiscard = false) }
     }
 
     /** Closes the sheet and forgets the draft. */
@@ -244,7 +268,7 @@ class QuickAddPresenter(
         written: Int,
     ) {
         val remaining = pending.drop(written).joinToString("\n") { it.title }
-        editing.value = Editing(visible = true, draft = draft.copy(titles = remaining))
+        editing.value = Editing(visible = true, draft = draft.copy(titles = remaining), opened = draft)
         outgoing.emit(QuickAddMessage.FAILED)
     }
 
@@ -308,6 +332,8 @@ class QuickAddPresenter(
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
             knownLabels = space.labels,
             projectTitle = space.projects.firstOrNull { it.localId == chosen }?.title,
+            holdsInput = edit.draft.holdsInput(edit.opened),
+            confirmingDiscard = edit.confirmingDiscard,
         )
     }
 
@@ -315,6 +341,9 @@ class QuickAddPresenter(
     private data class Editing(
         val visible: Boolean = false,
         val draft: QuickAddDraft = QuickAddDraft(),
+        /** The draft as the sheet opened on it, before the user touched anything. */
+        val opened: QuickAddDraft = QuickAddDraft(),
+        val confirmingDiscard: Boolean = false,
         val submitting: Boolean = false,
         val pickingProject: Boolean = false,
         val projectQuery: String = "",

@@ -1048,7 +1048,7 @@ func collectDescendants(ctx context.Context, tx *sql.Tx, root int64) ([]int64, e
 // --- counters (limit checks) ---
 
 func (r *TaskRepo) CountWeek(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks t WHERE t.plan_state = 'week' AND t.status = 'open'`+notCascadedIntoWeek)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks t WHERE t.plan_state = 'week' AND t.status = 'open'`+topLevelOnly)
 }
 
 func (r *TaskRepo) CountBacklog(ctx context.Context) (int, error) {

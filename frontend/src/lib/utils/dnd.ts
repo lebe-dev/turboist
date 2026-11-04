@@ -1,3 +1,4 @@
+import type { DayPart } from '$lib/api/types';
 import { dropModeForOffset, type DropMode } from './dependencyDrop';
 
 export const SECTION_MIME = 'application/x-turboist-section';
@@ -81,6 +82,33 @@ export interface TouchTaskDragListener {
 
 let touchTaskListener: TouchTaskDragListener | null = null;
 
+/**
+ * The Today page observes a carried row for the phase of the day under the
+ * finger. Phases are marked with `data-day-part-drop`: the section of each
+ * phase and every phase of the drop bar floating over the list.
+ */
+export interface TouchDayPartDragListener {
+	begin(taskId: number): void;
+	over(part: DayPart | null): void;
+	drop(part: DayPart | null): void;
+}
+
+let touchDayPartListener: TouchDayPartDragListener | null = null;
+
+export function setTouchDayPartDragListener(listener: TouchDayPartDragListener): () => void {
+	touchDayPartListener = listener;
+	return () => {
+		if (touchDayPartListener === listener) touchDayPartListener = null;
+	};
+}
+
+const DAY_PARTS: readonly DayPart[] = ['morning', 'afternoon', 'evening', 'none'];
+
+function dayPartAt(el: Element | null): DayPart | null {
+	const raw = el?.closest('[data-day-part-drop]')?.getAttribute('data-day-part-drop');
+	return DAY_PARTS.find((p) => p === raw) ?? null;
+}
+
 export function setTouchTaskDragListener(listener: TouchTaskDragListener): () => void {
 	touchTaskListener = listener;
 	return () => {
@@ -158,6 +186,7 @@ function armDrag(): void {
 	sourceEl.style.opacity = '0.3';
 	window.addEventListener('touchmove', blockScroll, { passive: false });
 	touchTaskListener?.begin(activeTouchDrag.taskId);
+	touchDayPartListener?.begin(activeTouchDrag.taskId);
 }
 
 // Undoes everything a touch drag may have set up: hold timer, ghost, faded
@@ -180,7 +209,9 @@ function teardownTouchDrag(): TouchDragState | null {
 // stale gesture). Lets the page drop its own drag highlight too.
 export function cancelTouchDrag(): void {
 	const state = teardownTouchDrag();
-	if (state?.started) touchTaskListener?.drop(null, null);
+	if (!state?.started) return;
+	touchTaskListener?.drop(null, null);
+	touchDayPartListener?.drop(null);
 }
 
 // The row's own touchend/touchcancel handlers are not enough on their own:
@@ -256,6 +287,7 @@ export function updateTouchDrag(e: TouchEvent): boolean {
 
 	clearHighlight();
 	const sectionEl = el?.closest('[data-task-detach]') ??
+		(touchDayPartListener ? el?.closest('[data-day-part-drop]') : null) ??
 		(!taskRowHitAt(el, touch.clientY) || !touchTaskListener
 			? el?.closest('[data-section-id]') ?? el?.closest('[data-section-root]')
 			: null);
@@ -265,6 +297,7 @@ export function updateTouchDrag(e: TouchEvent): boolean {
 	}
 	const hit = taskRowHitAt(el, touch.clientY);
 	touchTaskListener?.over(hit?.targetId ?? null, hit?.mode ?? null, touch.clientX, touch.clientY);
+	touchDayPartListener?.over(dayPartAt(el));
 
 	return true;
 }
@@ -278,9 +311,14 @@ export function endTouchDrag(e: TouchEvent): { taskId: number; sectionId: number
 	const touch = e.changedTouches[0];
 	if (!touch) {
 		touchTaskListener?.drop(null, null);
+		touchDayPartListener?.drop(null);
 		return null;
 	}
 	const el = document.elementFromPoint(touch.clientX, touch.clientY);
+	if (touchDayPartListener) {
+		touchDayPartListener.drop(dayPartAt(el));
+		return null;
+	}
 
 	const hit = taskRowHitAt(el, touch.clientY);
 	touchTaskListener?.drop(hit?.targetId ?? null, hit?.mode ?? null);

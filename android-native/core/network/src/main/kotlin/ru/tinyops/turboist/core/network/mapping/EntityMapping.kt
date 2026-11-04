@@ -53,6 +53,7 @@ fun LabelDto.toLabel(ids: ReplicaIds = ReplicaIds.Identity): Label =
         serverId = id,
         name = name,
         color = color,
+        description = description,
         isFavourite = isFavourite,
         isPrivate = isPrivate,
         createdAt = time(createdAt),

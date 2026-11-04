@@ -38,8 +38,9 @@ func TestRouteGuard_AllAPIRoutesProtected(t *testing.T) {
 		"/api/v1/calendars/google/callback": true,
 	}
 	// Paths the guard token can legitimately access — excluded so the test does
-	// not flag a 200 that reflects real entitlement rather than fail-open.
-	allowedPrefixes := []string{"/api/v1/search"}
+	// not flag a 200 that reflects real entitlement rather than fail-open. The
+	// OpenAPI document needs authentication but no scope, so any token reads it.
+	allowedPrefixes := []string{"/api/v1/search", "/api/v1/openapi.json"}
 
 	routes := env.app.GetRoutes(true)
 	if len(routes) == 0 {

@@ -123,6 +123,7 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 	eventsHandler.RegisterPublic(app)
 
 	api := httpapi.RegisterRoutes(app, deps)
+	handlers.RegisterOpenAPI(api, "")
 	eventsHandler.Register(api)
 
 	pinSvc := service.NewPinService(tasks, projs, users)

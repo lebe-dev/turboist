@@ -118,6 +118,10 @@
     <string name="native_search_clearRecent">Очистить недавние запросы</string>
     <string name="native_search_taskFinished">Выполнена</string>
     <string name="native_quickAdd_recentProjects">Недавние проекты</string>
+    <string name="native_quickAdd_discardTitle">Отменить создание задачи?</string>
+    <string name="native_quickAdd_discardBody">Всё, что вы заполнили, будет потеряно.</string>
+    <string name="native_quickAdd_discardConfirm">Не сохранять</string>
+    <string name="native_quickAdd_discardKeep">Продолжить</string>
     <string name="native_project_statusUnknown">Неизвестный статус</string>
     <string name="native_project_pinLimit">Можно закрепить не больше %1$d проектов. Сначала открепите один.</string>
     <string name="native_project_troikiFull">В этой части плана на день уже %1$d проектов.</string>
@@ -232,6 +236,56 @@
     <string name="native_settings_noProjectsYet">На это устройство ещё не загружено ни одного проекта.</string>
     <string name="native_settings_saved">Сохранено</string>
     <string name="native_settings_saveFailed">Не удалось сохранить изменение.</string>
+    <string name="native_settings_group_work">Работа</string>
+    <string name="native_settings_group_account">Аккаунт</string>
+    <string name="native_settings_group_system">Система</string>
+    <string name="native_settings_section_general">Общие</string>
+    <string name="native_settings_section_workspace">Рабочее пространство</string>
+    <string name="native_settings_section_rules">Правила и метки</string>
+    <string name="native_settings_section_security">Безопасность и вход</string>
+    <string name="native_settings_section_generalSummary">%1$s · Тема: %2$s</string>
+    <string name="native_settings_section_workspaceSummary">Баннер «Сегодня», меню, Тройки, календарь</string>
+    <string name="native_settings_section_rulesSummary">Авто-метки, подсказки проектов, исключения</string>
+    <string name="native_settings_section_securitySummary">Passkey, 2FA, сессии, API-токены</string>
+    <string name="native_settings_section_deviceSummary">Синхронизация, сервер, копия на устройстве</string>
+    <string name="native_settings_section_aboutSummary">Версия %1$s · Условия и конфиденциальность</string>
+    <string name="native_settings_templatesSummary">Задачи с подзадачами, готовые к повторному использованию</string>
+    <string name="native_settings_searchHint">Поиск в настройках</string>
+    <string name="native_settings_searchClear">Очистить поиск</string>
+    <string name="native_settings_searchEmpty">Ничего не нашлось.</string>
+    <plurals name="native_settings_refusedBanner">
+        <item quantity="one">%1$d изменение не отправлено</item>
+        <item quantity="few">%1$d изменения не отправлены</item>
+        <item quantity="many">%1$d изменений не отправлено</item>
+        <item quantity="other">%1$d изменения не отправлены</item>
+    </plurals>
+    <string name="native_settings_refusedBannerBody">Сервер их не принял. Проверьте и отправьте снова.</string>
+    <string name="native_settings_scopeDevice">Только на этом устройстве</string>
+    <string name="native_settings_privacyGroup">Приватность</string>
+    <string name="native_settings_syncHeading">Синхронизация</string>
+    <string name="native_settings_resetHeading">Сброс</string>
+    <string name="native_settings_copyServer">Скопировать адрес сервера</string>
+    <string name="native_settings_serverCopied">Адрес скопирован</string>
+    <string name="native_settings_signInHeading">Способы входа</string>
+    <string name="native_settings_accessHeading">Доступ</string>
+    <string name="native_settings_securityOnlineNote">Эти разделы работают только при подключении к серверу.</string>
+    <string name="native_settings_bannerPreview">Превью</string>
+    <string name="native_settings_bannerEmpty">Баннер пуст</string>
+    <string name="native_settings_pinnedTasksLess">Меньше закреплённых задач</string>
+    <string name="native_settings_pinnedTasksMore">Больше закреплённых задач</string>
+    <string name="native_settings_pinnedProjectsLess">Меньше закреплённых проектов</string>
+    <string name="native_settings_pinnedProjectsMore">Больше закреплённых проектов</string>
+    <string name="native_settings_ruleDeleted">Правило «%1$s» удалено</string>
+    <string name="native_settings_ruleUndo">Отменить</string>
+    <string name="native_settings_ruleNew">Новое правило</string>
+    <string name="native_settings_ruleEdit">Изменить правило</string>
+    <string name="native_settings_ruleProbe">Проверить на заголовке задачи</string>
+    <string name="native_settings_ruleProbeMatch">Совпадает</string>
+    <string name="native_settings_ruleProbeNoMatch">Не совпадает</string>
     <string name="native_account_needsConnection">Эти данные читаются с сервера при просмотре и не хранятся на устройстве, поэтому нужно подключение.</string>
     <string name="native_account_clientUnknown">Другое</string>
+    <!-- Over the list while a task is carried between the parts of a day. -->
+    <string name="native_dayPartDrag_hint">Перетащите в часть дня</string>
+    <!-- Beside the finger while a carried task is over another part of the day; the value is that part's name. -->
+    <string name="native_dayPartDrag_willMove">Перенести: %1$s</string>
 </resources>

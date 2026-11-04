@@ -13,9 +13,13 @@
 	import ViewContent from '$lib/components/view/ViewContent.svelte';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
 	import PlanSectionHeader from '$lib/components/view/PlanSectionHeader.svelte';
+	import WeekPlanStats from '$lib/components/view/WeekPlanStats.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { planStatsStore } from '$lib/stores/planStats.svelte';
+	import { projectsStore } from '$lib/stores/projects.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
+	import { weekPlanStats } from '$lib/utils/weekPlanStats';
 	import { refreshSidebarBundle } from '$lib/realtime/refresh';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
@@ -39,6 +43,8 @@
 
 	const backlogTree = $derived(buildTree(backlog.items));
 	const weekTree = $derived(buildTree(week.items));
+	// The planned column only: what is parked in the backlog is not part of the week.
+	const planStats = $derived(weekPlanStats(week.items, projectsStore.items));
 
 	const weeklyLimit = $derived(configStore.value?.weekly.limit ?? null);
 	const backlogLimit = $derived(configStore.value?.backlog.limit ?? null);
@@ -113,7 +119,11 @@
 
 	async function planForWeek(task: Task): Promise<void> {
 		if (weekFull) {
-			toast.error($t('page.nextWeek.weeklyLimitReached', { values: { weekCount, weeklyLimit: weeklyLimit ?? 0 } }));
+			toast.error(
+				$t('page.nextWeek.weeklyLimitReached', {
+					values: { weekCount, weeklyLimit: weeklyLimit ?? 0 }
+				})
+			);
 			return;
 		}
 		try {
@@ -127,7 +137,11 @@
 
 	async function returnToBacklog(task: Task): Promise<void> {
 		if (backlogFull) {
-			toast.error($t('page.nextWeek.backlogLimitReached', { values: { backlogCount, backlogLimit: backlogLimit ?? 0 } }));
+			toast.error(
+				$t('page.nextWeek.backlogLimitReached', {
+					values: { backlogCount, backlogLimit: backlogLimit ?? 0 }
+				})
+			);
 			return;
 		}
 		try {
@@ -140,7 +154,12 @@
 	}
 </script>
 
-<ViewHeader subtitle={headerSubtitle} />
+<ViewHeader>
+	{#snippet meta()}
+		<p class="text-sm text-muted-foreground">{headerSubtitle}</p>
+		<WeekPlanStats stats={planStats} showTroiki={settingsStore.troikiEnabled} />
+	{/snippet}
+</ViewHeader>
 
 <div class="grid grid-cols-1 gap-4 px-2 py-3 sm:grid-cols-2 sm:px-4">
 	<section class="flex flex-col rounded-md border border-border/60 bg-background">
@@ -176,7 +195,9 @@
 									disabled={weekFull}
 									aria-label={$t('page.nextWeek.planForWeek')}
 									title={weekFull
-										? $t('page.nextWeek.weeklyLimitReachedShort', { values: { limit: weeklyLimit ?? 0 } })
+										? $t('page.nextWeek.weeklyLimitReachedShort', {
+												values: { limit: weeklyLimit ?? 0 }
+											})
 										: $t('page.nextWeek.planForWeek')}
 									class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 								>
@@ -229,7 +250,9 @@
 									disabled={backlogFull}
 									aria-label={$t('page.nextWeek.returnToBacklog')}
 									title={backlogFull
-										? $t('page.nextWeek.backlogLimitReachedShort', { values: { limit: backlogLimit ?? 0 } })
+										? $t('page.nextWeek.backlogLimitReachedShort', {
+												values: { limit: backlogLimit ?? 0 }
+											})
 										: $t('page.nextWeek.returnToBacklog')}
 									class="flex w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
 								>

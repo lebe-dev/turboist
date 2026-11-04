@@ -17,6 +17,7 @@ import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -79,7 +80,7 @@ class LabelStatsPresenterTest {
             assertEquals(listOf("hot", "warm"), state.active.map { it.usage.label.name })
             assertEquals(listOf("cold"), state.idle.map { it.usage.label.name })
             assertEquals(3, state.labelCount)
-            assertEquals(2, state.mostApplied, "the bars are drawn against the busiest label")
+            assertNull(state.radar, "two labels pulling make no radar shape")
         }
 
     @Test
@@ -161,10 +162,10 @@ class LabelStatsPresenterTest {
         runTest {
             val presenter = presenter()
 
-            presenter.createLabel("  urgent  ", "red")
+            presenter.createLabel("  urgent  ", "red", "  Must ship today \n")
             runCurrent()
 
-            assertEquals(listOf("create(urgent,red,false)"), actions.calls)
+            assertEquals(listOf("create(urgent,red,false,Must ship today)"), actions.calls)
         }
 
     @Test
@@ -172,7 +173,7 @@ class LabelStatsPresenterTest {
         runTest {
             val presenter = presenter()
 
-            presenter.createLabel("   ", "red")
+            presenter.createLabel("   ", "red", "")
             runCurrent()
 
             assertEquals(emptyList(), actions.calls)
@@ -187,7 +188,7 @@ class LabelStatsPresenterTest {
             backgroundScope.launch { presenter.messages.collect { said += it } }
             runCurrent()
 
-            presenter.createLabel("urgent", "")
+            presenter.createLabel("urgent", "", "")
             runCurrent()
 
             assertEquals(listOf(LabelMessage.FAILED), said)
