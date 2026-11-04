@@ -87,6 +87,23 @@ class SettingsWriteTest : WriteTest() {
         }
 
     @Test
+    fun `a link-title edit merges into the stored object and queues only what changed`() =
+        runTest {
+            givenAppSettings(
+                """{"autoLabels":[],"linkTitles":{"enabled":false,"template":"Read {title}","rules":[],"newer":1}}""",
+            )
+
+            settings.putLinkTitles(enabled = true)
+
+            val stored = assertNotNull(db.settings().appSettings()).payload
+            assertTrue("\"enabled\":true" in stored, "the switch was not applied to the replica")
+            assertTrue("Read {title}" in stored, "flipping the switch dropped the stored template")
+            assertTrue("\"newer\"" in stored, "a key from a newer server was destroyed")
+            assertEquals(ReplicaEntityKind.APP_SETTINGS, queue().single().entity)
+            assertEquals(PutLinkTitlesOp(enabled = true), queuedOps().single())
+        }
+
+    @Test
     fun `each write is queued against the document it belongs to`() =
         runTest {
             settings.patchUserSettings(PatchUserSettingsRequest(locale = "ru"))

@@ -16,11 +16,14 @@ import ru.tinyops.turboist.core.model.AppSettings
 import ru.tinyops.turboist.core.model.AutoLabelRule
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
+import ru.tinyops.turboist.core.model.LinkTitleRule
 import ru.tinyops.turboist.core.model.MAX_MAX_PINNED
 import ru.tinyops.turboist.core.model.MIN_MAX_PINNED
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.model.UserSettings
+import ru.tinyops.turboist.core.model.isValidLinkTitleTemplate
+import ru.tinyops.turboist.core.model.normalizeLinkTitleDomain
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 
@@ -35,6 +38,9 @@ sealed interface SettingsMessage {
 
     /** A rule with no mask or nothing to apply, which the server would refuse. */
     data object RuleIncomplete : SettingsMessage
+
+    /** A link-title template without {title}, or a rule without a domain. */
+    data object LinkTitleIncomplete : SettingsMessage
 
     /** The on-device copy was emptied and asked for again. */
     data object LocalDataCleared : SettingsMessage
@@ -62,6 +68,11 @@ sealed interface DeletedRule {
     data class ProjectSuggestion(
         override val index: Int,
         val rule: ProjectSuggestionRule,
+    ) : DeletedRule
+
+    data class LinkTitle(
+        override val index: Int,
+        val rule: LinkTitleRule,
     ) : DeletedRule
 }
 
@@ -101,6 +112,19 @@ data class RuleEditor(
     val canSave: Boolean get() = mask.isNotBlank() && targetServerIds.isNotEmpty()
 }
 
+/**
+ * A link-title domain rule being written.
+ *
+ * @property index the rule being changed, or `null` for a new one.
+ */
+data class LinkRuleEditor(
+    val index: Int? = null,
+    val domain: String = "",
+    val template: String = "",
+) {
+    val canSave: Boolean get() = normalizeLinkTitleDomain(domain).contains('.') && isValidLinkTitleTemplate(template)
+}
+
 /** A destructive action waiting to be confirmed. */
 enum class SettingsConfirmation {
     /** Points the app at a different installation, which empties this one's copy. */
@@ -122,6 +146,9 @@ data class SettingsUiState(
     val knownLabels: List<Label> = emptyList(),
     val knownProjects: List<Project> = emptyList(),
     val editor: RuleEditor? = null,
+    val linkRuleEditor: LinkRuleEditor? = null,
+    /** What is being typed into the default link-title template, or `null` while nothing is. */
+    val linkTemplateDraft: String? = null,
     val confirming: SettingsConfirmation? = null,
     /** How many changes the server has not accepted, shown before anything that would discard them. */
     val unsentChangeCount: Int = 0,
@@ -140,6 +167,13 @@ data class SettingsUiState(
     val maxPinnedTasks: String get() = pinnedTasksDraft ?: user.maxPinnedTasks.toString()
 
     val maxPinnedProjects: String get() = pinnedProjectsDraft ?: user.maxPinnedProjects.toString()
+
+    /** What the default link-title template field shows. */
+    val linkTemplateText: String get() = linkTemplateDraft ?: app.linkTitles.template
+
+    /** True while the template field holds something other than what is stored. */
+    val linkTemplateEdited: Boolean
+        get() = linkTemplateDraft != null && linkTemplateDraft.trim() != app.linkTitles.template
 
     /** True while the banner field holds something other than what is stored. */
     val bannerEdited: Boolean get() = bannerDraft != null && bannerDraft != user.bannerText
@@ -210,6 +244,8 @@ class SettingsPresenter(
         val pinnedTasksDraft: String? = null,
         val pinnedProjectsDraft: String? = null,
         val editor: RuleEditor? = null,
+        val linkRuleEditor: LinkRuleEditor? = null,
+        val linkTemplateDraft: String? = null,
         val confirming: SettingsConfirmation? = null,
         val unsentChangeCount: Int = 0,
         val serverAddress: String = "",
@@ -237,6 +273,8 @@ class SettingsPresenter(
             rendered.copy(
                 refusedChangeCount = refused,
                 editor = own.editor,
+                linkRuleEditor = own.linkRuleEditor,
+                linkTemplateDraft = own.linkTemplateDraft,
                 confirming = own.confirming,
                 unsentChangeCount = own.unsentChangeCount,
                 serverAddress = own.serverAddress,
@@ -462,10 +500,94 @@ class SettingsPresenter(
                             actions.putProjectSuggestions(
                                 inserted(state.value.app.projectSuggestions, deleted.index, deleted.rule),
                             )
+
+                        is DeletedRule.LinkTitle ->
+                            actions.putLinkTitles(
+                                rules = inserted(state.value.app.linkTitles.rules, deleted.index, deleted.rule),
+                            )
                     }
                 }
             if (written) outgoing.emit(SettingsMessage.Saved)
         }
+    }
+
+    // --- link titles ---------------------------------------------------------
+
+    /** Turns the server's link-title job on or off; nothing else in its settings is sent. */
+    fun setLinkTitlesEnabled(on: Boolean) = writeLinkTitles { actions.putLinkTitles(enabled = on) }
+
+    fun editLinkTemplate(text: String) {
+        local.value = local.value.copy(linkTemplateDraft = text)
+    }
+
+    /**
+     * Saves the default template. Empty is allowed and means the server's
+     * built-in one; anything else must name the page title.
+     */
+    fun saveLinkTemplate() {
+        val typed = local.value.linkTemplateDraft?.trim() ?: return
+        if (typed.isNotEmpty() && !isValidLinkTitleTemplate(typed)) {
+            scope.launch { outgoing.emit(SettingsMessage.LinkTitleIncomplete) }
+            return
+        }
+        writeLinkTitles(onWritten = { local.value = local.value.copy(linkTemplateDraft = null) }) {
+            actions.putLinkTitles(template = typed)
+        }
+    }
+
+    fun startNewLinkRule() {
+        local.value = local.value.copy(linkRuleEditor = LinkRuleEditor())
+    }
+
+    fun editLinkRule(index: Int) {
+        val rule = state.value.app.linkTitles.rules.getOrNull(index) ?: return
+        local.value = local.value.copy(linkRuleEditor = LinkRuleEditor(index, rule.domain, rule.template))
+    }
+
+    fun setLinkRuleDomain(domain: String) = editLinkRuleEditor { it.copy(domain = domain) }
+
+    fun setLinkRuleTemplate(template: String) = editLinkRuleEditor { it.copy(template = template) }
+
+    fun cancelLinkRule() {
+        local.value = local.value.copy(linkRuleEditor = null)
+    }
+
+    /** Saves the domain rule being written; the whole rule list goes to the server. */
+    fun saveLinkRule() {
+        val editor = local.value.linkRuleEditor ?: return
+        if (!editor.canSave) {
+            scope.launch { outgoing.emit(SettingsMessage.LinkTitleIncomplete) }
+            return
+        }
+        val rule = LinkTitleRule(normalizeLinkTitleDomain(editor.domain), editor.template.trim())
+        val rules = replaced(state.value.app.linkTitles.rules, editor.index, rule)
+        writeLinkTitles(onWritten = { local.value = local.value.copy(linkRuleEditor = null) }) {
+            actions.putLinkTitles(rules = rules)
+        }
+    }
+
+    fun deleteLinkRule(index: Int) {
+        val rules = state.value.app.linkTitles.rules
+        val deleted = rules.getOrNull(index)?.let { DeletedRule.LinkTitle(index, it) } ?: return
+        scope.launch {
+            val written = report { actions.putLinkTitles(rules = rules.filterIndexed { at, _ -> at != index }) }
+            if (written) outgoing.emit(SettingsMessage.RuleDeleted(deleted))
+        }
+    }
+
+    private fun writeLinkTitles(
+        onWritten: () -> Unit = {},
+        write: suspend () -> Unit,
+    ) {
+        scope.launch {
+            if (!report(write)) return@launch
+            onWritten()
+            outgoing.emit(SettingsMessage.Saved)
+        }
+    }
+
+    private fun editLinkRuleEditor(change: (LinkRuleEditor) -> LinkRuleEditor) {
+        local.value = local.value.copy(linkRuleEditor = local.value.linkRuleEditor?.let(change))
     }
 
     // --- this device --------------------------------------------------------

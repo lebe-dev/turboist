@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.settings
 
 import ru.tinyops.turboist.core.model.AutoLabelRule
+import ru.tinyops.turboist.core.model.LinkTitleRule
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
 
@@ -17,6 +18,7 @@ class RecordingSettingsActions(
     val userPatches = mutableListOf<PatchUserSettingsRequest>()
     val autoLabelWrites = mutableListOf<List<AutoLabelRule>>()
     val suggestionWrites = mutableListOf<List<ProjectSuggestionRule>>()
+    val linkTitleWrites = mutableListOf<LinkTitlesWrite>()
 
     override suspend fun patchUserSettings(edit: PatchUserSettingsRequest) {
         refuseIfAsked()
@@ -33,10 +35,26 @@ class RecordingSettingsActions(
         suggestionWrites += rules
     }
 
+    override suspend fun putLinkTitles(
+        enabled: Boolean?,
+        template: String?,
+        rules: List<LinkTitleRule>?,
+    ) {
+        refuseIfAsked()
+        linkTitleWrites += LinkTitlesWrite(enabled, template, rules)
+    }
+
     private fun refuseIfAsked() {
         if (refuse) throw IllegalStateException("the server refused this write")
     }
 }
+
+/** One link-title write as it was asked for, nulls meaning "left alone". */
+data class LinkTitlesWrite(
+    val enabled: Boolean?,
+    val template: String?,
+    val rules: List<LinkTitleRule>?,
+)
 
 /** The device's own choices, recorded instead of stored. */
 class RecordingDeviceOptionActions : DeviceOptionActions {

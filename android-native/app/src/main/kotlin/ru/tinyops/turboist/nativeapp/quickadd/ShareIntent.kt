@@ -81,7 +81,34 @@ fun quickAddRequest(shared: SharedText): QuickAddRequest {
     return QuickAddRequest(
         title = title.take(cut).trim(),
         description = listOf(title.drop(cut).trim(), rest).filter(String::isNotEmpty).joinToString("\n\n"),
+        linkFirst = linkFirstRequest(subject, body),
     )
+}
+
+/** An https link inside shared text; the server names only https links. */
+private val HTTPS_LINK = Regex("""https://[^\s<>"']+""", RegexOption.IGNORE_CASE)
+
+/** Punctuation that ends a sentence around a link rather than belonging to it. */
+private val LINK_TAIL = Regex("""[.,;:!?)\]}»”'"]+$""")
+
+/**
+ * The share with its first https link as the whole title, and every other word
+ * that arrived — usually the page name the sharing app added — kept in the
+ * description, so the server's link titles can name the task. `null` when no
+ * https link was shared.
+ */
+internal fun linkFirstRequest(
+    subject: String,
+    body: String,
+): QuickAddRequest? {
+    val link =
+        (HTTPS_LINK.find(body) ?: HTTPS_LINK.find(subject))?.value?.replace(LINK_TAIL, "") ?: return null
+    val leftovers =
+        listOf(subject, body)
+            .map { it.replace(link, "").replace(Regex("""\s+[.,;:!?]+$"""), "").trim() }
+            .filter(String::isNotEmpty)
+            .distinct()
+    return QuickAddRequest(title = link, description = leftovers.joinToString("\n\n"))
 }
 
 /**

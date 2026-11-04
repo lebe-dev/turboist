@@ -65,6 +65,7 @@ fun labelFor(kind: OutboxOpKind?): Int =
         OutboxOpKind.SETTINGS_PATCH -> R.string.native_unsent_op_settingsPatch
         OutboxOpKind.APP_SETTINGS_AUTO_LABELS -> R.string.native_unsent_op_autoLabelRules
         OutboxOpKind.APP_SETTINGS_PROJECT_SUGGESTIONS -> R.string.native_unsent_op_projectSuggestionRules
+        OutboxOpKind.APP_SETTINGS_LINK_TITLES -> R.string.native_unsent_op_linkTitles
         OutboxOpKind.STATE_PATCH -> R.string.native_unsent_op_statePatch
         OutboxOpKind.TROIKI_START -> R.string.native_unsent_op_troikiStart
         OutboxOpKind.TROIKI_RESET -> R.string.native_unsent_op_troikiReset

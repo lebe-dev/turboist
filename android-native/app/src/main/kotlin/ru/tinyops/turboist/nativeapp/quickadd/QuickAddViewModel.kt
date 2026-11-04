@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
@@ -56,7 +57,11 @@ class QuickAddViewModel
             // one to open.
             viewModelScope.launch {
                 requests.pending().collect { request ->
-                    presenter.open(request)
+                    // A shared link opens as the bare link when the server will
+                    // name it, and as the page name the sharing app sent otherwise.
+                    val linkTitles =
+                        request.linkFirst != null && repository.observeLinkTitlesEnabled().first()
+                    presenter.open(request.forLinkTitles(linkTitles))
                     requests.consumed()
                 }
             }

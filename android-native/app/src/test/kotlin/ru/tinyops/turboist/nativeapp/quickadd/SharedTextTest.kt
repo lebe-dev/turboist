@@ -87,4 +87,32 @@ class SharedTextTest {
         assertEquals(QuickAddRequest(), shared(text = "   \n  "))
         assertEquals(QuickAddRequest(), shared())
     }
+
+    @Test
+    fun `a shared page also offers itself with the link as the title, for the server to name`() {
+        val request = shared(subject = "Kotlin coroutines guide", text = "https://example.test/guide")
+
+        assertEquals(
+            QuickAddRequest(title = "https://example.test/guide", description = "Kotlin coroutines guide"),
+            request.linkFirst,
+        )
+        assertEquals("https://example.test/guide", request.forLinkTitles(enabled = true).title)
+        assertEquals("Kotlin coroutines guide", request.forLinkTitles(enabled = false).title)
+    }
+
+    @Test
+    fun `a link inside a sentence is pulled out without the full stop after it`() {
+        val request = shared(text = "Worth reading: https://habr.com/ru/articles/1/.")
+
+        assertEquals(
+            QuickAddRequest(title = "https://habr.com/ru/articles/1/", description = "Worth reading:"),
+            request.linkFirst,
+        )
+    }
+
+    @Test
+    fun `nothing but plain text, or a plain http link, has no link-first form`() {
+        assertEquals(null, shared(text = "Renew the passport").linkFirst)
+        assertEquals(null, shared(text = "http://example.test/insecure").linkFirst)
+    }
 }

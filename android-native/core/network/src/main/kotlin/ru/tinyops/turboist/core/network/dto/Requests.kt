@@ -313,6 +313,17 @@ data class ProjectSuggestionsRequest(
     val projectSuggestions: List<ProjectSuggestionRuleDto> = emptyList(),
 )
 
+/**
+ * A change to the link-title settings. Only the keys that changed are sent (a
+ * null is left out of the body), and [rules], when present, replaces the list.
+ */
+@Serializable
+data class LinkTitlesRequest(
+    val enabled: Boolean? = null,
+    val template: String? = null,
+    val rules: List<LinkTitleRuleDto>? = null,
+)
+
 @Serializable
 data class HarpoonRefRequest(
     val kind: String,

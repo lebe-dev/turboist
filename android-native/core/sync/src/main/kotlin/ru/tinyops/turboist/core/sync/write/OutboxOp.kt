@@ -161,6 +161,7 @@ enum class OutboxOpKind(val stored: String) {
     SETTINGS_PATCH(OpNames.SETTINGS_PATCH),
     APP_SETTINGS_AUTO_LABELS(OpNames.APP_SETTINGS_AUTO_LABELS),
     APP_SETTINGS_PROJECT_SUGGESTIONS(OpNames.APP_SETTINGS_PROJECT_SUGGESTIONS),
+    APP_SETTINGS_LINK_TITLES(OpNames.APP_SETTINGS_LINK_TITLES),
     STATE_PATCH(OpNames.STATE_PATCH),
     TROIKI_START(OpNames.TROIKI_START),
     TROIKI_RESET(OpNames.TROIKI_RESET),
@@ -241,6 +242,7 @@ object OpNames {
     const val SETTINGS_PATCH = "settings.patch"
     const val APP_SETTINGS_AUTO_LABELS = "appSettings.autoLabels"
     const val APP_SETTINGS_PROJECT_SUGGESTIONS = "appSettings.projectSuggestions"
+    const val APP_SETTINGS_LINK_TITLES = "appSettings.linkTitles"
     const val STATE_PATCH = "state.patch"
     const val TROIKI_START = "troiki.start"
     const val TROIKI_RESET = "troiki.reset"
@@ -913,6 +915,27 @@ data class PutProjectSuggestionsOp(val rules: List<ProjectSuggestionRulePayload>
     override val kind: OutboxOpKind get() = OutboxOpKind.APP_SETTINGS_PROJECT_SUGGESTIONS
 }
 
+/**
+ * A change to the link-title settings: only the keys that changed, so a switch
+ * flipped here never resends templates this build last read. [rules], when
+ * present, is the whole list, like the other rule endpoints take it.
+ */
+@Serializable
+@SerialName(OpNames.APP_SETTINGS_LINK_TITLES)
+data class PutLinkTitlesOp(
+    val enabled: Boolean? = null,
+    val template: String? = null,
+    val rules: List<LinkTitleRulePayload>? = null,
+) : OutboxOp {
+    override val kind: OutboxOpKind get() = OutboxOpKind.APP_SETTINGS_LINK_TITLES
+}
+
+@Serializable
+data class LinkTitleRulePayload(
+    val domain: String,
+    val template: String,
+)
+
 /** A rule's ids are server ids, for the same reason the preference document's are. */
 @Serializable
 data class AutoLabelRulePayload(
@@ -1056,6 +1079,7 @@ fun OutboxOp.endpoint(): OpEndpoint =
         is PatchUserSettingsOp -> OpEndpoint(OpMethod.PATCH, "api/v1/settings")
         is PutAutoLabelsOp -> OpEndpoint(OpMethod.PUT, "api/v1/app-settings/auto-labels")
         is PutProjectSuggestionsOp -> OpEndpoint(OpMethod.PUT, "api/v1/app-settings/project-suggestions")
+        is PutLinkTitlesOp -> OpEndpoint(OpMethod.PUT, "api/v1/app-settings/link-titles")
         is PatchUserStateOp -> OpEndpoint(OpMethod.PATCH, "api/v1/state")
         StartTroikiOp -> OpEndpoint(OpMethod.POST, "api/v1/troiki/start")
         ResetTroikiOp -> OpEndpoint(OpMethod.POST, "api/v1/troiki/reset")

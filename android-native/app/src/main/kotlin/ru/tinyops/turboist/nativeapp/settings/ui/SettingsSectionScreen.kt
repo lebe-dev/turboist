@@ -30,6 +30,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import ru.tinyops.turboist.core.model.LINK_TITLE_PLACEHOLDER
 import ru.tinyops.turboist.core.model.MAX_MAX_PINNED
 import ru.tinyops.turboist.core.model.MIN_MAX_PINNED
 import ru.tinyops.turboist.nativeapp.R
@@ -78,6 +79,16 @@ fun SettingsSectionScreen(
                 onToggleRuleTarget = presenter::toggleRuleTarget,
                 onSaveRule = presenter::saveRule,
                 onCancelRule = presenter::cancelRule,
+                onSetLinkTitlesEnabled = presenter::setLinkTitlesEnabled,
+                onEditLinkTemplate = presenter::editLinkTemplate,
+                onSaveLinkTemplate = presenter::saveLinkTemplate,
+                onStartNewLinkRule = presenter::startNewLinkRule,
+                onEditLinkRule = presenter::editLinkRule,
+                onDeleteLinkRule = presenter::deleteLinkRule,
+                onSetLinkRuleDomain = presenter::setLinkRuleDomain,
+                onSetLinkRuleTemplate = presenter::setLinkRuleTemplate,
+                onSaveLinkRule = presenter::saveLinkRule,
+                onCancelLinkRule = presenter::cancelLinkRule,
                 onSetTheme = presenter::setTheme,
                 onSetSyncOnMetered = presenter::setSyncOnMetered,
                 onAsk = presenter::ask,
@@ -125,6 +136,9 @@ fun SettingsSectionScreen(
 
     state.editor?.let { editor ->
         RuleEditorSheet(editor = editor, state = state, callbacks = callbacks)
+    }
+    state.linkRuleEditor?.let { editor ->
+        LinkRuleEditorSheet(editor = editor, callbacks = callbacks)
     }
     state.confirming?.let { pending ->
         DestructiveConfirmationDialog(
@@ -273,6 +287,8 @@ private fun settingsMessageText(message: SettingsMessage): String =
             )
 
         SettingsMessage.RuleIncomplete -> stringResource(R.string.native_settings_ruleMaskEmpty)
+        SettingsMessage.LinkTitleIncomplete ->
+            stringResource(R.string.settings_linkTitles_toastInvalid, LINK_TITLE_PLACEHOLDER)
         SettingsMessage.LocalDataCleared -> stringResource(R.string.native_settings_localDataCleared)
         is SettingsMessage.RuleDeleted ->
             stringResource(
@@ -280,6 +296,7 @@ private fun settingsMessageText(message: SettingsMessage): String =
                 when (val deleted = message.deleted) {
                     is DeletedRule.AutoLabel -> deleted.rule.mask
                     is DeletedRule.ProjectSuggestion -> deleted.rule.mask
+                    is DeletedRule.LinkTitle -> deleted.rule.domain
                 },
             )
     }

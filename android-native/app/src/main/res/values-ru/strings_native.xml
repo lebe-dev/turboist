@@ -198,6 +198,7 @@
     <string name="native_unsent_op_settingsPatch">Изменение настроек</string>
     <string name="native_unsent_op_autoLabelRules">Правила автометок</string>
     <string name="native_unsent_op_projectSuggestionRules">Правила подсказки проектов</string>
+    <string name="native_unsent_op_linkTitles">Настройки заголовков ссылок</string>
     <string name="native_unsent_op_statePatch">Изменение состояния интерфейса</string>
     <string name="native_unsent_op_troikiStart">Запуск плана на день</string>
     <string name="native_unsent_op_troikiReset">Сброс плана на день</string>

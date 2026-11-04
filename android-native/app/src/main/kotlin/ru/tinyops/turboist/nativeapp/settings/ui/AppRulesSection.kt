@@ -117,6 +117,8 @@ internal fun RulesSection(
         }
     }
 
+    LinkTitlesSettings(state, callbacks)
+
     LabelListSettings(state, callbacks)
 }
 

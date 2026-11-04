@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.settings
 
 import ru.tinyops.turboist.core.model.AutoLabelRule
+import ru.tinyops.turboist.core.model.LinkTitleRule
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
 
@@ -35,6 +36,17 @@ interface SettingsActions {
 
     /** Replaces the installation's project suggestions, whole, for the same reason. */
     suspend fun putProjectSuggestions(rules: List<ProjectSuggestionRule>)
+
+    /**
+     * Changes the link-title settings. Each argument left `null` is left alone,
+     * so flipping the switch never resends templates this screen last read;
+     * [rules], when given, replaces the whole list.
+     */
+    suspend fun putLinkTitles(
+        enabled: Boolean? = null,
+        template: String? = null,
+        rules: List<LinkTitleRule>? = null,
+    )
 }
 
 /** The device's own choices, changed. */

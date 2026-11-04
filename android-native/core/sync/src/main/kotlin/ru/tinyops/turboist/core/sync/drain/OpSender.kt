@@ -27,6 +27,8 @@ import ru.tinyops.turboist.core.network.dto.DecomposeTaskRequest
 import ru.tinyops.turboist.core.network.dto.GroupTasksRequest
 import ru.tinyops.turboist.core.network.dto.HarpoonRefRequest
 import ru.tinyops.turboist.core.network.dto.InstantiateTemplateRequest
+import ru.tinyops.turboist.core.network.dto.LinkTitleRuleDto
+import ru.tinyops.turboist.core.network.dto.LinkTitlesRequest
 import ru.tinyops.turboist.core.network.dto.MoveTaskRequest
 import ru.tinyops.turboist.core.network.dto.PatchProjectRequest
 import ru.tinyops.turboist.core.network.dto.PlanTaskRequest
@@ -78,6 +80,7 @@ import ru.tinyops.turboist.core.sync.write.PlanTaskOp
 import ru.tinyops.turboist.core.sync.write.ProjectStatusAction
 import ru.tinyops.turboist.core.sync.write.ProjectStatusOp
 import ru.tinyops.turboist.core.sync.write.PutAutoLabelsOp
+import ru.tinyops.turboist.core.sync.write.PutLinkTitlesOp
 import ru.tinyops.turboist.core.sync.write.PutProjectSuggestionsOp
 import ru.tinyops.turboist.core.sync.write.RemoveTaskRelationOp
 import ru.tinyops.turboist.core.sync.write.ReorderSectionOp
@@ -261,6 +264,17 @@ class OpSender(
             is PutAutoLabelsOp -> settings.putAutoLabels(AutoLabelsRequest(autoLabelRules(op)), key).outcome()
             is PutProjectSuggestionsOp ->
                 settings.putProjectSuggestions(ProjectSuggestionsRequest(suggestionRules(op)), key).outcome()
+
+            is PutLinkTitlesOp ->
+                settings
+                    .putLinkTitles(
+                        LinkTitlesRequest(
+                            enabled = op.enabled,
+                            template = op.template,
+                            rules = op.rules?.map { LinkTitleRuleDto(it.domain, it.template) },
+                        ),
+                        key,
+                    ).outcome()
 
             is PatchUserStateOp -> settings.patchState(userState(op), key).outcome()
             StartTroikiOp -> troiki.start(key).outcome()
