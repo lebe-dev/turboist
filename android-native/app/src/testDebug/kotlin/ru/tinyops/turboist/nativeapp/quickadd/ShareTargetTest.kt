@@ -40,7 +40,15 @@ class ShareTargetTest {
             }
 
         assertEquals(
-            QuickAddRequest(title = "Kotlin coroutines guide", description = "https://example.test/guide"),
+            QuickAddRequest(
+                title = "Kotlin coroutines guide",
+                description = "https://example.test/guide",
+                linkFirst =
+                    QuickAddRequest(
+                        title = "https://example.test/guide",
+                        description = "Kotlin coroutines guide",
+                    ),
+            ),
             intent.quickAddRequest(),
         )
     }

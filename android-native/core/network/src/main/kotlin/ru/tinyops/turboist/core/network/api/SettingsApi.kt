@@ -25,7 +25,11 @@ import ru.tinyops.turboist.core.network.dto.UserSettingsDto
  * owners and different write paths and must never be merged; the interface state
  * is a third thing again — an opaque blob the server merges key by key, so a key
  * this build does not know about survives a write from this build untouched.
+ *
+ * One Retrofit method per server route, so the count follows the API surface
+ * rather than any design choice of this interface.
  */
+@Suppress("TooManyFunctions")
 interface SettingsApi {
     @GET("api/v1/settings")
     suspend fun userSettings(): UserSettingsDto
