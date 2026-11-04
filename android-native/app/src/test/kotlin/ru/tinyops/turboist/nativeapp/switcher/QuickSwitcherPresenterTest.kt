@@ -8,11 +8,14 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.quickadd.RecordingQuickAddActions
+import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import ru.tinyops.turboist.nativeapp.tasks.task
+import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertEquals
@@ -24,6 +27,9 @@ import kotlin.test.assertTrue
 class QuickSwitcherPresenterTest {
     private val zone = ZoneId.of("Europe/Moscow")
     private val today = LocalDate.of(2026, 11, 4)
+
+    /** 19:30 in Moscow: the evening, by the product's default phases. */
+    private val clock = DayClock(Clock.fixed(today.atTime(19, 30).atZone(zone).toInstant(), zone))
     private val actions = RecordingQuickAddActions()
 
     private fun project(
@@ -44,8 +50,7 @@ class QuickSwitcherPresenterTest {
         repository = repository,
         recentItems = recent,
         actions = actions,
-        zone = zone,
-        today = { today },
+        clock = clock,
     )
 
     @Test
@@ -84,42 +89,45 @@ class QuickSwitcherPresenterTest {
         }
 
     @Test
-    fun `for today files into the most recently opened open project, due at the start of today`() =
+    fun `for today is offered for the two most recently opened open projects, filed due today in the current phase`() =
         runTest {
-            val recent = FakeRecentItems(listOf(archived.ref, passport.ref, dacha.ref))
-            val presenter = presenterWith(FakeQuickSwitcherRepository(rows = listOf(archived, passport, dacha)), recent)
+            val garden = SwitcherRow.ProjectRow(project(7, "Garden"))
+            val third = SwitcherRow.ProjectRow(project(8, "Third"))
+            val recent = FakeRecentItems(listOf(archived.ref, passport.ref, dacha.ref, garden.ref, third.ref))
+            val presenter =
+                presenterWith(
+                    FakeQuickSwitcherRepository(rows = listOf(archived, passport, dacha, garden, third)),
+                    recent,
+                )
 
             presenter.open()
             presenter.type("  Buy   seeds ")
             advanceUntilIdle()
-            assertEquals("Dacha", presenter.state.value.todayProject?.title)
+            assertEquals(listOf("Dacha", "Garden"), presenter.state.value.todayProjects.map { it.title })
+            assertEquals(DayPart.EVENING, presenter.state.value.todayPart)
 
-            presenter.create(SwitcherTarget.TODAY)
+            presenter.create(SwitcherTarget.Today(garden.project))
             advanceUntilIdle()
 
             val call = actions.calls.single()
-            assertEquals(TaskDestination.InProject(5), call.destination)
+            assertEquals(TaskDestination.InProject(7), call.destination)
             assertEquals("Buy seeds", call.task.title)
             assertEquals(today.atStartOfDay(zone).toInstant().toEpochMilli(), call.task.dueAt)
-            assertEquals(QuickSwitcherMessage.AddedForToday("Dacha"), presenter.messages.first())
+            assertEquals(DayPart.EVENING, call.task.dayPart)
+            assertEquals(QuickSwitcherMessage.AddedForToday("Garden"), presenter.messages.first())
             assertFalse(presenter.state.value.visible)
         }
 
     @Test
-    fun `for today with no recent project goes to the inbox, still dated`() =
+    fun `with no recently opened project there is no for today target - the inbox is never one`() =
         runTest {
             val presenter = presenterWith(FakeQuickSwitcherRepository(), FakeRecentItems())
 
             presenter.open()
             presenter.type("Buy seeds")
             advanceUntilIdle()
-            assertNull(presenter.state.value.todayProject)
-            presenter.create(SwitcherTarget.TODAY)
-            advanceUntilIdle()
 
-            val call = actions.calls.single()
-            assertEquals(TaskDestination.Inbox, call.destination)
-            assertEquals(today.atStartOfDay(zone).toInstant().toEpochMilli(), call.task.dueAt)
+            assertTrue(presenter.state.value.todayProjects.isEmpty())
         }
 
     @Test
@@ -129,12 +137,13 @@ class QuickSwitcherPresenterTest {
 
             presenter.open()
             presenter.type("Call mom")
-            presenter.create(SwitcherTarget.INBOX)
+            presenter.create(SwitcherTarget.Inbox)
             advanceUntilIdle()
 
             val call = actions.calls.single()
             assertEquals(TaskDestination.Inbox, call.destination)
             assertNull(call.task.dueAt)
+            assertEquals(DayPart.NONE, call.task.dayPart)
             assertEquals(QuickSwitcherMessage.AddedToInbox, presenter.messages.first())
         }
 
@@ -146,7 +155,7 @@ class QuickSwitcherPresenterTest {
 
             presenter.open()
             presenter.type("Call mom")
-            presenter.create(SwitcherTarget.INBOX)
+            presenter.create(SwitcherTarget.Inbox)
             advanceUntilIdle()
 
             assertEquals(QuickSwitcherMessage.Failed, presenter.messages.first())

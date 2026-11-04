@@ -23,7 +23,6 @@ class QuickSwitcherViewModel
                 repository = repository,
                 recentItems = recentItems,
                 actions = actions,
-                zone = clock.zone,
-                today = clock::today,
+                clock = clock,
             )
     }

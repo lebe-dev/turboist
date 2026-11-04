@@ -81,6 +81,25 @@ export function activeDayPart(
 	return null;
 }
 
+// nearestDayPart is the phase a task written down at `now` for today belongs to:
+// the active one, the day's first before it has started, and its last once it
+// is over. Null only when the phases are unknown. The native client's
+// DayPartSchedule.nearestAt answers the same way.
+export function nearestDayPart(
+	now: Date,
+	dayParts: ConfigResponse['dayParts'] | undefined,
+	tz?: string | null
+): DayPart | null {
+	if (!dayParts) return null;
+	const active = activeDayPart(now, dayParts, tz);
+	if (active) return active;
+	const hour = hourInTz(now, tz);
+	const parts = ['morning', 'afternoon', 'evening'] as const;
+	const first = parts.reduce((a, b) => (dayParts[b].start < dayParts[a].start ? b : a));
+	if (hour < dayParts[first].start) return first;
+	return parts.reduce((a, b) => (dayParts[b].end > dayParts[a].end ? b : a));
+}
+
 function hourInTz(date: Date, tz?: string | null): number {
 	if (!tz) return date.getHours();
 	const parts = new Intl.DateTimeFormat('en-US', {

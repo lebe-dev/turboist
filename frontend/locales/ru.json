@@ -1344,12 +1344,10 @@
 		},
 		"create": {
 			"inbox": "Во «Входящие»: {title}",
-			"today": "На сегодня в «{project}»: {title}",
-			"todayInbox": "На сегодня во «Входящие»: {title}"
+			"today": "На сегодня в «{project}»: {title}"
 		},
 		"toast": {
-			"addedToday": "Задача добавлена на сегодня в «{project}»",
-			"addedTodayInbox": "Задача добавлена на сегодня во «Входящие»"
+			"addedToday": "Задача добавлена на сегодня в «{project}»"
 		},
 		"hint": {
 			"navigate": "выбор",

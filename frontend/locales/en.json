@@ -1344,12 +1344,10 @@
 		},
 		"create": {
 			"inbox": "Add to Inbox: {title}",
-			"today": "Add for today to {project}: {title}",
-			"todayInbox": "Add for today to Inbox: {title}"
+			"today": "Add for today to {project}: {title}"
 		},
 		"toast": {
-			"addedToday": "Task added for today to {project}",
-			"addedTodayInbox": "Task added for today to Inbox"
+			"addedToday": "Task added for today to {project}"
 		},
 		"hint": {
 			"navigate": "navigate",

@@ -13,11 +13,10 @@
 	import CalendarCheckIcon from 'phosphor-svelte/lib/CalendarCheck';
 	import * as Kbd from '$lib/components/ui/kbd';
 	import { getApiClient } from '$lib/api/client';
-	import { ApiError } from '$lib/api/errors';
 	import { views as viewsApi } from '$lib/api/endpoints/views';
 	import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 	import { projects as projectsApi } from '$lib/api/endpoints/projects';
-	import type { Project, Task, TaskInput } from '$lib/api/types';
+	import type { DayPart, Project, Task, TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { recentItemsStore, RECENT_ITEMS_SHOWN } from '$lib/stores/recentItems.svelte';
 	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
@@ -27,9 +26,10 @@
 	import {
 		matchRank,
 		switcherResults,
-		todayTargetProject,
+		todayTargetProjects,
 		type SwitcherResult
 	} from '$lib/utils/quickSwitcher';
+	import { nearestDayPart } from '$lib/utils/viewGroup';
 	import { dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
 	import { describeError } from '$lib/utils/taskActions';
 	import { isMacOS } from '$lib/utils/platform';
@@ -88,16 +88,35 @@
 	);
 
 	const title = $derived(query.trim().replace(/\s+/g, ' '));
-	const todayProject = $derived(todayTargetProject(recentProjectsStore.ids, projectsStore.items));
+	// "For today" goes only into a project: the Inbox holds undated capture.
+	const todayProjects = $derived(todayTargetProjects(recentProjectsStore.ids, projectsStore.items));
+	// The phase a task written down now for today belongs to, so it does not land
+	// in "anytime". Read from the wall clock (the shared now-store only ticks at
+	// midnight), re-read as the panel opens and as the user types.
+	function currentDayPart(): DayPart | null {
+		return nearestDayPart(
+			new Date(),
+			configStore.value?.dayParts,
+			configStore.value?.timezone ?? null
+		);
+	}
+	const todayPart = $derived.by(() => {
+		void open;
+		void query;
+		return currentDayPart();
+	});
 
-	type Row =
-		| { type: 'result'; result: SwitcherResult }
-		| { type: 'create'; target: 'inbox' | 'today' };
+	type CreateTarget = { kind: 'inbox' } | { kind: 'today'; project: Project };
+
+	type Row = { type: 'result'; result: SwitcherResult } | { type: 'create'; target: CreateTarget };
 
 	const rows = $derived.by((): Row[] => {
 		const out: Row[] = results.map((result) => ({ type: 'result', result }));
 		if (title) {
-			out.push({ type: 'create', target: 'inbox' }, { type: 'create', target: 'today' });
+			out.push({ type: 'create', target: { kind: 'inbox' } });
+			for (const project of todayProjects) {
+				out.push({ type: 'create', target: { kind: 'today', project } });
+			}
 		}
 		return out;
 	});
@@ -180,37 +199,28 @@
 		return toIsoUtc(dayStartUtcInTz(nowStore.todayKey, configStore.value?.timezone ?? null));
 	}
 
-	async function create(target: 'inbox' | 'today'): Promise<void> {
-		if (!title || creating) return;
+	async function create(target: CreateTarget | undefined): Promise<void> {
+		if (!target || !title || creating) return;
 		creating = true;
 		const client = getApiClient();
-		const base: TaskInput = { title };
 		try {
-			if (target === 'inbox') {
-				announce(await tasksApi.createInbox(client, base));
+			if (target.kind === 'inbox') {
+				// The Inbox holds raw capture: no date, no phase.
+				announce(await tasksApi.createInbox(client, { title }));
 				toast.success($t('task.toast.addedToInbox'));
 				void inboxStatsStore.load().catch(() => {});
 			} else {
-				const dated: TaskInput = { ...base, dueAt: todayDueAt(), dueHasTime: false };
-				const project = todayProject;
-				let created: Task | null = null;
-				if (project) {
-					try {
-						created = await projectsApi.createTask(client, project.id, dated);
-					} catch (err) {
-						// Offline only an Inbox capture can be queued; keep the date so the
-						// task still shows up on Today.
-						if (!(err instanceof ApiError && err.code === 'offline_unsupported')) throw err;
-					}
-				}
-				if (created) {
-					toast.success($t('quickSwitcher.toast.addedToday', { values: { project: project!.title } }));
-				} else {
-					created = await tasksApi.createInbox(client, dated);
-					toast.success($t('quickSwitcher.toast.addedTodayInbox'));
-					void inboxStatsStore.load().catch(() => {});
-				}
-				announce(created);
+				const part = currentDayPart();
+				const input: TaskInput = {
+					title,
+					dueAt: todayDueAt(),
+					dueHasTime: false,
+					...(part ? { dayPart: part } : {})
+				};
+				announce(await projectsApi.createTask(client, target.project.id, input));
+				toast.success(
+					$t('quickSwitcher.toast.addedToday', { values: { project: target.project.title } })
+				);
 			}
 			open = false;
 		} catch (err) {
@@ -218,6 +228,10 @@
 		} finally {
 			creating = false;
 		}
+	}
+
+	function dayPartLabel(part: DayPart): string {
+		return part === 'none' ? '' : $t(`task.dayPart.${part}`);
 	}
 
 	function activate(row: Row | undefined): void {
@@ -244,8 +258,10 @@
 			scrollActiveIntoView();
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
-			if (e.shiftKey && (e.metaKey || e.ctrlKey)) void create('today');
-			else if (e.shiftKey) void create('inbox');
+			if (e.shiftKey && (e.metaKey || e.ctrlKey)) {
+				const first = todayProjects[0];
+				void create(first ? { kind: 'today', project: first } : undefined);
+			} else if (e.shiftKey) void create({ kind: 'inbox' });
 			else activate(rows[active]);
 		}
 	}
@@ -314,8 +330,12 @@
 						{$t('quickSwitcher.recent')}
 					</div>
 				{/if}
-				{#each rows as row, i (row.type === 'result' ? `${row.result.kind}:${row.result.id}` : `create:${row.target}`)}
-					{#if row.type === 'create' && row.target === 'inbox' && results.length > 0}
+				{#each rows as row, i (row.type === 'result'
+					? `${row.result.kind}:${row.result.id}`
+					: row.target.kind === 'inbox'
+						? 'create:inbox'
+						: `create:today:${row.target.project.id}`)}
+					{#if row.type === 'create' && row.target.kind === 'inbox' && results.length > 0}
 						<div class="my-1 border-t border-border/60" role="separator" aria-hidden="true"></div>
 					{/if}
 					<button
@@ -357,7 +377,7 @@
 									aria-label={$t('quickSwitcher.recentBadge')}
 								/>
 							{/if}
-						{:else if row.target === 'inbox'}
+						{:else if row.target.kind === 'inbox'}
 							<TrayIcon class="size-4 shrink-0 text-muted-foreground" />
 							<span class="min-w-0 flex-1 truncate">
 								{$t('quickSwitcher.create.inbox', { values: { title } })}
@@ -366,15 +386,19 @@
 								<Kbd.Kbd>⇧</Kbd.Kbd><Kbd.Kbd>↵</Kbd.Kbd>
 							</span>
 						{:else}
+							{@const target = row.target}
 							<CalendarCheckIcon class="size-4 shrink-0 text-muted-foreground" />
 							<span class="min-w-0 flex-1 truncate">
-								{todayProject
-									? $t('quickSwitcher.create.today', { values: { title, project: todayProject.title } })
-									: $t('quickSwitcher.create.todayInbox', { values: { title } })}
+								{$t('quickSwitcher.create.today', { values: { title, project: target.project.title } })}
 							</span>
-							<span class="hidden shrink-0 items-center gap-1 sm:inline-flex">
-								<Kbd.Kbd>{mod}</Kbd.Kbd><Kbd.Kbd>⇧</Kbd.Kbd><Kbd.Kbd>↵</Kbd.Kbd>
-							</span>
+							{#if todayPart}
+								<span class="shrink-0 text-xs text-muted-foreground">{dayPartLabel(todayPart)}</span>
+							{/if}
+							{#if target.project.id === todayProjects[0]?.id}
+								<span class="hidden shrink-0 items-center gap-1 sm:inline-flex">
+									<Kbd.Kbd>{mod}</Kbd.Kbd><Kbd.Kbd>⇧</Kbd.Kbd><Kbd.Kbd>↵</Kbd.Kbd>
+								</span>
+							{/if}
 						{/if}
 					</button>
 				{/each}

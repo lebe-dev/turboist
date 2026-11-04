@@ -3,7 +3,7 @@ import {
 	foldCase,
 	matchRank,
 	switcherResults,
-	todayTargetProject,
+	todayTargetProjects,
 	type RecentEntry
 } from './quickSwitcher';
 import type { Label, Project, Task } from '$lib/api/types';
@@ -89,15 +89,20 @@ describe('switcherResults', () => {
 	});
 });
 
-describe('todayTargetProject', () => {
-	it('picks the most recent open project that still exists', () => {
-		const projects = [
-			{ id: 1, status: 'open' },
-			{ id: 2, status: 'completed' },
-			{ id: 3, status: 'open' }
-		];
-		expect(todayTargetProject([9, 2, 3, 1], projects)?.id).toBe(3);
-		expect(todayTargetProject([9, 2], projects)).toBeNull();
-		expect(todayTargetProject([], projects)).toBeNull();
+describe('todayTargetProjects', () => {
+	const projects = [
+		{ id: 1, status: 'open' },
+		{ id: 2, status: 'completed' },
+		{ id: 3, status: 'open' },
+		{ id: 4, status: 'open' }
+	];
+
+	it('picks the two most recent open projects that still exist', () => {
+		expect(todayTargetProjects([9, 2, 3, 1, 4], projects).map((p) => p.id)).toEqual([3, 1]);
+	});
+
+	it('returns fewer, or none, when fewer qualify', () => {
+		expect(todayTargetProjects([2, 4], projects).map((p) => p.id)).toEqual([4]);
+		expect(todayTargetProjects([9, 2], projects)).toEqual([]);
 	});
 });

@@ -10,7 +10,7 @@ Turboist is a task management app for the rest of us.
 - Label usage stats — frequency per rolling week / month / quarter, trend against the previous window, and unused-label cleanup hints
 - Mask-based project suggestions on task creation (up to 3, A-Z)
 - Inbox with overflow handling
-- Quick switcher (`⌘/Ctrl+P` or a top-bar button) — jump to a recent or matching task/project, or add a task to the Inbox or for today; works offline on Android — [docs/quick-switcher.md](docs/quick-switcher.md)
+- Quick switcher (`⌘/Ctrl+P` or a top-bar button) — jump to a recent or matching task/project, or add a task to the Inbox or for today (in the current part of the day) into one of the two last opened projects; works offline on Android — [docs/quick-switcher.md](docs/quick-switcher.md)
 - Optional AI Inbox processing — an OpenAI-compatible model (OpenRouter by default) files Inbox tasks into projects and labels them, with an editable prompt, a decision journal and one-click revert
 - Day phases (morning / day / evening / anytime)
 - Weekly / backlog planning with per-bucket caps

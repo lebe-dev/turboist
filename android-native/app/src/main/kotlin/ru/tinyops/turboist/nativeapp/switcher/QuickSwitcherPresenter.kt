@@ -12,31 +12,42 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddActions
-import java.time.LocalDate
-import java.time.ZoneId
+import ru.tinyops.turboist.nativeapp.tasks.DayClock
+import ru.tinyops.turboist.nativeapp.tasks.DayPartSchedule
 
 /** Where a task typed into the quick switcher is filed. */
-enum class SwitcherTarget {
-    /** The inbox, undated. */
-    INBOX,
+sealed interface SwitcherTarget {
+    /** The inbox: raw capture, with no date and no part of the day. */
+    data object Inbox : SwitcherTarget
 
-    /** Due today, in the project opened most recently — or the inbox when there is none. */
-    TODAY,
+    /** Due today in [project], in the part of the day it is written down in. */
+    data class Today(
+        val project: Project,
+    ) : SwitcherTarget
 }
+
+/** How many "for today" rows the switcher offers: the projects opened most recently. */
+const val TODAY_TARGETS: Int = 2
 
 /** What the quick switcher renders. */
 data class QuickSwitcherUiState(
     val visible: Boolean = false,
     val typed: String = "",
     val rows: List<SwitcherRow> = emptyList(),
-    /** The project "for today" files into; `null` means the inbox. */
-    val todayProject: Project? = null,
+    /**
+     * The projects "for today" can file into, most recently opened first. Empty
+     * means no such row: the inbox is never a "today" target.
+     */
+    val todayProjects: List<Project> = emptyList(),
+    /** The part of the day a task written now for today gets; `null` when unknown. */
+    val todayPart: DayPart? = null,
     val creating: Boolean = false,
 ) {
     /** The title a created task would get: what was typed, with its spacing tidied. */
@@ -51,7 +62,7 @@ sealed interface QuickSwitcherMessage {
     data object AddedToInbox : QuickSwitcherMessage
 
     data class AddedForToday(
-        val projectTitle: String?,
+        val projectTitle: String,
     ) : QuickSwitcherMessage
 
     data object Failed : QuickSwitcherMessage
@@ -70,8 +81,8 @@ class QuickSwitcherPresenter(
     private val repository: QuickSwitcherRepository,
     private val recentItems: RecentItems,
     private val actions: QuickAddActions,
-    private val zone: ZoneId,
-    private val today: () -> LocalDate,
+    private val clock: DayClock,
+    private val schedule: DayPartSchedule = DayPartSchedule.Default,
 ) {
     private val internal = MutableStateFlow(QuickSwitcherUiState())
     private val outbound = Channel<QuickSwitcherMessage>(Channel.BUFFERED)
@@ -124,7 +135,7 @@ class QuickSwitcherPresenter(
         if (title.isEmpty() || asked.creating) return
         internal.update { it.copy(creating = true) }
         scope.launch {
-            val message = write(target, title, asked.todayProject)
+            val message = write(target, title)
             if (message is QuickSwitcherMessage.Failed) {
                 internal.update { it.copy(creating = false) }
             } else {
@@ -140,19 +151,22 @@ class QuickSwitcherPresenter(
     private suspend fun write(
         target: SwitcherTarget,
         title: String,
-        project: Project?,
     ): QuickSwitcherMessage =
         try {
             when (target) {
-                SwitcherTarget.INBOX -> {
+                SwitcherTarget.Inbox -> {
                     actions.create(TaskDestination.Inbox, NewTask(title = title))
                     QuickSwitcherMessage.AddedToInbox
                 }
-                SwitcherTarget.TODAY -> {
-                    val dueAt = today().atStartOfDay(zone).toInstant().toEpochMilli()
-                    val destination = project?.let { TaskDestination.InProject(it.localId) } ?: TaskDestination.Inbox
-                    actions.create(destination, NewTask(title = title, dueAt = dueAt, dueHasTime = false))
-                    QuickSwitcherMessage.AddedForToday(project?.title)
+                is SwitcherTarget.Today -> {
+                    val now = clock.now()
+                    val dueAt = now.atZone(clock.zone).toLocalDate().atStartOfDay(clock.zone).toInstant().toEpochMilli()
+                    val part = schedule.nearestAt(now, clock.zone) ?: DayPart.NONE
+                    actions.create(
+                        TaskDestination.InProject(target.project.localId),
+                        NewTask(title = title, dueAt = dueAt, dueHasTime = false, dayPart = part),
+                    )
+                    QuickSwitcherMessage.AddedForToday(target.project.title)
                 }
             }
         } catch (refusal: WriteRefused) {
@@ -192,18 +206,20 @@ class QuickSwitcherPresenter(
                     } else {
                         readOrElse("the local index", SwitcherMatches()) { repository.search(typed) }
                     }
-                val todayProject =
+                val todayProjects =
                     resolved
                         .filterIsInstance<SwitcherRow.ProjectRow>()
-                        .firstOrNull { it.project.status == ProjectStatus.OPEN }
-                        ?.project
+                        .map { it.project }
+                        .filter { it.status == ProjectStatus.OPEN }
+                        .take(TODAY_TARGETS)
                 internal.update {
                     if (it.typed != typed) {
                         it
                     } else {
                         it.copy(
                             rows = switcherRows(typed, resolved, matches.tasks, matches.projects),
-                            todayProject = todayProject,
+                            todayProjects = todayProjects,
+                            todayPart = schedule.nearestAt(clock.now(), clock.zone),
                         )
                     }
                 }

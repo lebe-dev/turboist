@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { activeDayPart, groupByCompletedDay, groupByDay, groupByDayPart, groupTreeByDay } from './viewGroup';
+import {
+	activeDayPart,
+	nearestDayPart,
+	groupByCompletedDay, groupByDay, groupByDayPart, groupTreeByDay } from './viewGroup';
 import { buildTree } from './taskTree';
 import type { ConfigResponse, Task } from '../api/types';
 
@@ -197,5 +200,32 @@ describe('activeDayPart', () => {
 		const instant = new Date('2026-04-28T04:00:00.000Z');
 		expect(activeDayPart(instant, dayParts, 'Asia/Tbilisi')).toBe('morning');
 		expect(activeDayPart(instant, dayParts, 'UTC')).toBeNull();
+	});
+});
+
+describe('nearestDayPart', () => {
+	const dayParts: ConfigResponse['dayParts'] = {
+		morning: { start: 9, end: 13 },
+		afternoon: { start: 13, end: 17 },
+		evening: { start: 17, end: 22 }
+	};
+
+	it('is the active phase while one is running', () => {
+		expect(nearestDayPart(new Date('2026-04-28T14:00:00.000Z'), dayParts, 'UTC')).toBe('afternoon');
+	});
+
+	it('is the first phase before the day starts and the last after it ends', () => {
+		expect(nearestDayPart(new Date('2026-04-28T05:00:00.000Z'), dayParts, 'UTC')).toBe('morning');
+		expect(nearestDayPart(new Date('2026-04-28T23:00:00.000Z'), dayParts, 'UTC')).toBe('evening');
+	});
+
+	it('reads the hour in the given timezone', () => {
+		// 06:30 UTC is 09:30 in Moscow.
+		expect(nearestDayPart(new Date('2026-04-28T06:30:00.000Z'), dayParts, 'Europe/Moscow')).toBe('morning');
+		expect(nearestDayPart(new Date('2026-04-28T15:00:00.000Z'), dayParts, 'Europe/Moscow')).toBe('evening');
+	});
+
+	it('is null without a schedule', () => {
+		expect(nearestDayPart(new Date(), undefined, 'UTC')).toBeNull();
 	});
 });

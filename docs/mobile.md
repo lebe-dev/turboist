@@ -1910,10 +1910,12 @@ from the replica, so a rename never shows stale. Sign-out clears it with the
 replica, since local ids are reused by the next one.
 
 **Adding** goes through the same write path as capture (`QuickAddActions`, so
-auto-labels apply and the write is queued in the outbox): "Add to Inbox" files an
-undated task; "Add for today" files a task due at the start of today (in
-`DayClock`'s zone) into the most recently *opened* open project, or into the inbox
-when there is none — the panel names the target before the user picks it.
+auto-labels apply and the write is queued in the outbox): "Add to Inbox" files a
+task with no date and no part of the day; "Add for today" is one row per each of the
+two most recently *opened* open projects (`TODAY_TARGETS`), filing a task due at the
+start of today in `DayClock`'s zone with the part of the day
+`DayPartSchedule.nearestAt` gives for now. The inbox is never a "today" target, so
+with no recently opened project there is no such row.
 ### Templates, and turning one task into several (`app/.../templates`)
 
 A template is a task and the checklist that comes with it, kept so the same piece

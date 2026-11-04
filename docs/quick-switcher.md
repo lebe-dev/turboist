@@ -24,11 +24,15 @@ the switcher is for reaching one thing quickly, the search page is for browsing 
   matches come first, newest first; everything else follows by where the words hit:
   title, then a label, then the description. Within one rank projects come before tasks,
   and open work before finished work.
-- **Two "add" rows** at the bottom, whenever something is typed:
-  - **Add to Inbox** — an undated task in the Inbox.
-  - **Add for today** — a task due today, filed into the project you opened most recently.
-    If you have not opened a project on this device yet, it goes to the Inbox, still due
-    today. The row names the target before you choose it.
+- **"Add" rows** at the bottom, whenever something is typed:
+  - **Add to Inbox** — the Inbox holds raw capture, so the task gets no date and no
+    part of the day.
+  - **Add for today to «P»** — one row for each of the two projects you opened most
+    recently (open ones only). The task is due today and gets the current part of the
+    day — the phase running now, the day's first before it starts, its last once it is
+    over — so it lands in the right block of Today rather than in "anytime". The row
+    shows that phase. With no recently opened project there is no "for today" row: the
+    Inbox is never a "today" target.
 
   Auto-label rules apply exactly as they do for any other new task.
 
@@ -39,7 +43,7 @@ the switcher is for reaching one thing quickly, the search page is for browsing 
 | `↑` / `↓` | move the highlight |
 | `Enter` | open the highlighted row (or run the highlighted "add" row) |
 | `Shift+Enter` | add to Inbox |
-| `⌘/Ctrl+Shift+Enter` | add for today |
+| `⌘/Ctrl+Shift+Enter` | add for today to the most recent project |
 | `Esc` (or `⌘/Ctrl+P` again) | close |
 
 On Android the keyboard's action key opens the first row, or adds to the Inbox when
@@ -62,9 +66,9 @@ replica.
   `GET /api/v1/search`; when the network is down, that request is answered from every
   task already in the offline cache, ranked by the same rules (see
   [offline.md](offline.md)). Recently opened rows are shown and filtered from their stored
-  snapshot. "Add to Inbox" is queued in the offline outbox; "Add for today" into a
-  project is not an offline-capable write, so offline it falls back to the Inbox with
-  today's due date (also queued).
+  snapshot. "Add to Inbox" is queued in the offline outbox; "Add for today" creates a
+  task in a project, which is not an offline-capable write on the web, so offline it
+  answers "unavailable offline" like any other such action.
 
 ## Server side
 

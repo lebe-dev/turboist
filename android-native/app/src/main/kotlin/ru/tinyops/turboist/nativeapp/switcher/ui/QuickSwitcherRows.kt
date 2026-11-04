@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.switcher.SwitcherRow
@@ -103,6 +104,7 @@ internal fun CreateRow(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    trailing: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -114,6 +116,28 @@ internal fun CreateRow(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-        Text(text = text, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
+
+/** The label of a part of the day, as the task screens name it. */
+internal fun dayPartLabel(part: DayPart): Int =
+    when (part) {
+        DayPart.MORNING -> R.string.task_dayPart_morning
+        DayPart.AFTERNOON -> R.string.task_dayPart_afternoon
+        DayPart.EVENING -> R.string.task_dayPart_evening
+        else -> R.string.task_dayPart_anytime
+    }

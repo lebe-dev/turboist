@@ -126,7 +126,6 @@ fun QuickSwitcherHost(
 ) {
     val snackbars = remember { SnackbarHostState() }
     val addedToInbox = stringResource(R.string.task_toast_addedToInbox)
-    val addedTodayInbox = stringResource(R.string.quickSwitcher_toast_addedTodayInbox)
     val addedTodayTemplate = stringResource(R.string.quickSwitcher_toast_addedToday)
     val failed = stringResource(R.string.task_toast_failedAdd)
     val dismiss by rememberUpdatedState(callbacks.onDismiss)
@@ -137,8 +136,7 @@ fun QuickSwitcherHost(
             snackbars.showSnackbar(
                 when (message) {
                     QuickSwitcherMessage.AddedToInbox -> addedToInbox
-                    is QuickSwitcherMessage.AddedForToday ->
-                        message.projectTitle?.let { String.format(addedTodayTemplate, it) } ?: addedTodayInbox
+                    is QuickSwitcherMessage.AddedForToday -> String.format(addedTodayTemplate, message.projectTitle)
                     QuickSwitcherMessage.Failed -> failed
                 },
             )
@@ -187,7 +185,7 @@ private fun QuickSwitcherPanel(
                                 val first = state.rows.firstOrNull()
                                 when {
                                     first != null -> open(first, callbacks)
-                                    state.title.isNotEmpty() -> callbacks.onCreate(SwitcherTarget.INBOX)
+                                    state.title.isNotEmpty() -> callbacks.onCreate(SwitcherTarget.Inbox)
                                 }
                             },
                         ),
@@ -233,22 +231,20 @@ private fun QuickSwitcherPanel(
                             icon = Icons.Outlined.Inbox,
                             text = stringResource(R.string.quickSwitcher_create_inbox, state.title),
                             enabled = !state.creating,
-                            onClick = { callbacks.onCreate(SwitcherTarget.INBOX) },
+                            onClick = { callbacks.onCreate(SwitcherTarget.Inbox) },
                             modifier = Modifier.testTag(QUICK_SWITCHER_ADD_INBOX_TAG),
                         )
-                        val project = state.todayProject
-                        CreateRow(
-                            icon = Icons.Outlined.EventAvailable,
-                            text =
-                                if (project != null) {
-                                    stringResource(R.string.quickSwitcher_create_today, project.title, state.title)
-                                } else {
-                                    stringResource(R.string.quickSwitcher_create_todayInbox, state.title)
-                                },
-                            enabled = !state.creating,
-                            onClick = { callbacks.onCreate(SwitcherTarget.TODAY) },
-                            modifier = Modifier.testTag(QUICK_SWITCHER_ADD_TODAY_TAG),
-                        )
+                        val part = state.todayPart?.let { stringResource(dayPartLabel(it)) }
+                        state.todayProjects.forEachIndexed { index, project ->
+                            CreateRow(
+                                icon = Icons.Outlined.EventAvailable,
+                                text = stringResource(R.string.quickSwitcher_create_today, project.title, state.title),
+                                trailing = part,
+                                enabled = !state.creating,
+                                onClick = { callbacks.onCreate(SwitcherTarget.Today(project)) },
+                                modifier = Modifier.testTag("$QUICK_SWITCHER_ADD_TODAY_TAG-$index"),
+                            )
+                        }
                     }
                 }
                 if (state.rows.isEmpty() && state.title.isEmpty()) {

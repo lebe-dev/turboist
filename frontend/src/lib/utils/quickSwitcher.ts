@@ -137,19 +137,25 @@ export function switcherResults(
 	return [...head, ...tail.map(({ rank: _rank, order: _order, ...row }) => row)];
 }
 
+/** How many "add for today" rows the switcher offers. */
+export const TODAY_TARGETS = 2;
+
 /**
- * Where "add for today" files a task: the most recently opened project that still
- * exists and is open. Null means none qualifies — the task then goes to the
- * Inbox with today's due date.
+ * Where "add for today" can file a task: the most recently opened projects that
+ * still exist and are open, most recent first. Empty means no "for today" row at
+ * all — the Inbox holds undated capture only, so it is never a "today" target.
  */
-export function todayTargetProject<P extends { id: number; status: string }>(
+export function todayTargetProjects<P extends { id: number; status: string }>(
 	recentProjectIds: readonly number[],
-	projects: readonly P[]
-): P | null {
+	projects: readonly P[],
+	limit: number = TODAY_TARGETS
+): P[] {
 	const byId = new Map(projects.map((p) => [p.id, p]));
+	const out: P[] = [];
 	for (const id of recentProjectIds) {
+		if (out.length >= limit) break;
 		const p = byId.get(id);
-		if (p && p.status === 'open') return p;
+		if (p && p.status === 'open') out.push(p);
 	}
-	return null;
+	return out;
 }
