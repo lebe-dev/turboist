@@ -9,11 +9,13 @@ import (
 	"github.com/lebe-dev/turboist/internal/httpapi"
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
+	"github.com/lebe-dev/turboist/internal/service/linktitle"
 )
 
 const (
 	opAppSettingsPutAutoLabels         = "handler.AppSettings.PutAutoLabels"
 	opAppSettingsPutProjectSuggestions = "handler.AppSettings.PutProjectSuggestions"
+	opAppSettingsPutLinkTitles         = "handler.AppSettings.PutLinkTitles"
 )
 
 // AppSettingsHandler exposes global application settings.
@@ -21,6 +23,7 @@ const (
 //	GET /api/v1/app-settings                      -> returns AppSettings
 //	PUT /api/v1/app-settings/auto-labels          -> replaces the auto-label rules list
 //	PUT /api/v1/app-settings/project-suggestions  -> replaces the project-suggestion rules list
+//	PUT /api/v1/app-settings/link-titles          -> link titles: toggle, default template, domain rules
 type AppSettingsHandler struct {
 	repo     *repo.AppSettingsRepo
 	labels   *repo.LabelRepo
@@ -35,6 +38,7 @@ func (h *AppSettingsHandler) Register(r fiber.Router) {
 	r.Get("/app-settings", httpapi.RequireScope("settings:read"), h.get)
 	r.Put("/app-settings/auto-labels", httpapi.RequireScope("settings:write"), h.putAutoLabels)
 	r.Put("/app-settings/project-suggestions", httpapi.RequireScope("settings:write"), h.putProjectSuggestions)
+	r.Put("/app-settings/link-titles", httpapi.RequireScope("settings:write"), h.putLinkTitles)
 }
 
 type autoLabelDTO struct {
@@ -54,10 +58,32 @@ type inboxProcessingSettingsDTO struct {
 	Paused bool   `json:"paused"`
 }
 
+type linkTitleRuleDTO struct {
+	Domain   string `json:"domain"`
+	Template string `json:"template"`
+}
+
+type linkTitlesSettingsDTO struct {
+	Enabled bool `json:"enabled"`
+	// Template is the default title template; empty = built-in default for the
+	// user's language.
+	Template string             `json:"template"`
+	Rules    []linkTitleRuleDTO `json:"rules"`
+}
+
 type appSettingsResp struct {
 	AutoLabels         []autoLabelDTO             `json:"autoLabels"`
 	ProjectSuggestions []projectSuggestionDTO     `json:"projectSuggestions"`
 	InboxProcessing    inboxProcessingSettingsDTO `json:"inboxProcessing"`
+	LinkTitles         linkTitlesSettingsDTO      `json:"linkTitles"`
+}
+
+// linkTitlesPutReq updates any subset of the link-title settings; a field left
+// out is kept as stored. Rules, when present, replace the whole list.
+type linkTitlesPutReq struct {
+	Enabled  *bool               `json:"enabled"`
+	Template *string             `json:"template"`
+	Rules    *[]linkTitleRuleDTO `json:"rules"`
 }
 
 type autoLabelsPutReq struct {
@@ -85,10 +111,19 @@ func toAppSettingsResp(s *model.AppSettings) appSettingsResp {
 		}
 		suggestions[i] = projectSuggestionDTO{Mask: r.Mask, ProjectIDs: ids, IgnoreCase: r.IgnoreCase}
 	}
+	linkRules := make([]linkTitleRuleDTO, len(s.LinkTitles.Rules))
+	for i, r := range s.LinkTitles.Rules {
+		linkRules[i] = linkTitleRuleDTO{Domain: r.Domain, Template: r.Template}
+	}
 	return appSettingsResp{
 		AutoLabels:         rules,
 		ProjectSuggestions: suggestions,
 		InboxProcessing:    inboxProcessingSettingsDTO{Prompt: s.InboxProcessing.Prompt, Paused: s.InboxProcessing.Paused},
+		LinkTitles: linkTitlesSettingsDTO{
+			Enabled:  s.LinkTitles.Enabled,
+			Template: s.LinkTitles.Template,
+			Rules:    linkRules,
+		},
 	}
 }
 
@@ -185,6 +220,60 @@ func (h *AppSettingsHandler) putProjectSuggestions(c fiber.Ctx) error {
 		return httpapi.ErrInternal("save app settings").WithCause(err)
 	}
 	logMutation(c, opAppSettingsPutProjectSuggestions, slog.Int("rules", len(rules)))
+	return c.JSON(toAppSettingsResp(current))
+}
+
+func (h *AppSettingsHandler) putLinkTitles(c fiber.Ctx) error {
+	logEntry(c, opAppSettingsPutLinkTitles)
+	var req linkTitlesPutReq
+	if err := c.Bind().JSON(&req); err != nil || (req.Enabled == nil && req.Template == nil && req.Rules == nil) {
+		logValidation(c, opAppSettingsPutLinkTitles, msgInvalidBody)
+		return httpapi.ErrValidation(msgInvalidRequestBody)
+	}
+	var template string
+	if req.Template != nil {
+		t, err := linktitle.NormalizeTemplate(*req.Template)
+		if err != nil {
+			logValidation(c, opAppSettingsPutLinkTitles, "invalid template")
+			return httpapi.ErrValidation(err.Error(), map[string]any{"field": "template"})
+		}
+		template = t
+	}
+	var rules []model.LinkTitleRule
+	if req.Rules != nil {
+		in := make([]model.LinkTitleRule, len(*req.Rules))
+		for i, r := range *req.Rules {
+			in[i] = model.LinkTitleRule{Domain: r.Domain, Template: r.Template}
+		}
+		out, idx, err := linktitle.NormalizeRules(in)
+		if err != nil {
+			logValidation(c, opAppSettingsPutLinkTitles, "invalid rule", slog.Int("index", idx))
+			details := map[string]any{"field": "rules"}
+			if idx >= 0 {
+				details["index"] = idx
+			}
+			return httpapi.ErrValidation(err.Error(), details)
+		}
+		rules = out
+	}
+	current, err := h.repo.Get(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("load app settings").WithCause(err)
+	}
+	if req.Enabled != nil {
+		current.LinkTitles.Enabled = *req.Enabled
+	}
+	if req.Template != nil {
+		current.LinkTitles.Template = template
+	}
+	if req.Rules != nil {
+		current.LinkTitles.Rules = rules
+	}
+	if err := h.repo.Set(c.Context(), current); err != nil {
+		return httpapi.ErrInternal("save app settings").WithCause(err)
+	}
+	logMutation(c, opAppSettingsPutLinkTitles, slog.Bool("enabled", current.LinkTitles.Enabled),
+		slog.Int("rules", len(current.LinkTitles.Rules)))
 	return c.JSON(toAppSettingsResp(current))
 }
 

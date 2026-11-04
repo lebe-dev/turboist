@@ -27,4 +27,25 @@ type AppSettings struct {
 	AutoLabels         []AutoLabelRule         `json:"autoLabels"`
 	ProjectSuggestions []ProjectSuggestionRule `json:"projectSuggestions"`
 	InboxProcessing    InboxProcessingSettings `json:"inboxProcessing"`
+	LinkTitles         LinkTitlesSettings      `json:"linkTitles"`
+}
+
+// LinkTitleRule overrides the title template for one domain: a task whose URL
+// host is Domain or any of its subdomains is titled with Template instead of
+// the default one. Templates carry a {title} placeholder.
+type LinkTitleRule struct {
+	Domain   string `json:"domain"`
+	Template string `json:"template"`
+}
+
+// LinkTitlesSettings configures the link-title job: a task created with a bare
+// https:// URL as its title gets the page's title and the URL moves into the
+// description. Off by default.
+type LinkTitlesSettings struct {
+	Enabled bool `json:"enabled"`
+	// Template is the default title template. Empty means "use the built-in
+	// default for the user's language", so an untouched setting keeps following
+	// the default across releases.
+	Template string          `json:"template"`
+	Rules    []LinkTitleRule `json:"rules"`
 }

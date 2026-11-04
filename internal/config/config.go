@@ -179,7 +179,23 @@ type Env struct {
 	// InboxProcessing configures the background job that files Inbox tasks into
 	// projects through an OpenAI-compatible LLM. Off unless explicitly enabled.
 	InboxProcessing InboxProcessing
+
+	// LinkTitles configures the link-title job's optional rendering fallback.
+	// The feature itself is switched on in the settings UI.
+	LinkTitles LinkTitles
 }
+
+// LinkTitles is the env-sourced part of the link-title job: an external
+// "URL → Markdown" service asked for pages the server cannot read itself.
+type LinkTitles struct {
+	// RendererURL is a URL template; {url} is replaced by the link, and when the
+	// placeholder is absent the link is appended (https://markdown.new/).
+	// Empty disables the fallback.
+	RendererURL     string
+	RendererTimeout time.Duration
+}
+
+const defaultLinkTitlesRendererTimeout = 30 * time.Second
 
 // InboxProcessing is the env-sourced configuration of the LLM Inbox triage job.
 // The API key never leaves the server: it is neither logged nor returned by any
@@ -268,7 +284,35 @@ func LoadEnv() (*Env, error) {
 	}
 	e.InboxProcessing = inboxProcessing
 
+	linkTitles, err := loadLinkTitles()
+	if err != nil {
+		return nil, err
+	}
+	e.LinkTitles = linkTitles
+
 	return e, nil
+}
+
+// loadLinkTitles reads the LINK_TITLES_* variables.
+func loadLinkTitles() (LinkTitles, error) {
+	lt := LinkTitles{
+		RendererURL:     strings.TrimSpace(os.Getenv("LINK_TITLES_RENDERER_URL")),
+		RendererTimeout: defaultLinkTitlesRendererTimeout,
+	}
+	if lt.RendererURL != "" {
+		u, err := url.Parse(strings.ReplaceAll(lt.RendererURL, "{url}", ""))
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+			return lt, fmt.Errorf("env: LINK_TITLES_RENDERER_URL must be an http(s) URL, e.g. \"https://markdown.new/\"")
+		}
+	}
+	if v := os.Getenv("LINK_TITLES_RENDERER_TIMEOUT"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d <= 0 {
+			return lt, fmt.Errorf("env: LINK_TITLES_RENDERER_TIMEOUT must be a positive duration (e.g. \"30s\")")
+		}
+		lt.RendererTimeout = d
+	}
+	return lt, nil
 }
 
 // loadInboxProcessing reads the INBOX_PROCESSING_* variables. Enabling the job

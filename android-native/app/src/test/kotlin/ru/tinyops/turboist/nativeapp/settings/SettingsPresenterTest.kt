@@ -13,6 +13,8 @@ import ru.tinyops.turboist.core.model.AutoLabelRule
 import ru.tinyops.turboist.core.model.DEFAULT_MAX_PINNED
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
+import ru.tinyops.turboist.core.model.LinkTitleRule
+import ru.tinyops.turboist.core.model.LinkTitlesSettings
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.model.UserSettings
@@ -491,6 +493,104 @@ class SettingsPresenterTest {
             )
         }
 
+    // --- link titles ---------------------------------------------------------
+
+    @Test
+    fun `flipping link titles sends only the switch`() =
+        runTest {
+            appSettings.value =
+                AppSettings(linkTitles = LinkTitlesSettings(template = "Read {title}", rules = listOf(youtube)))
+            val presenter = presenter()
+            runCurrent()
+
+            presenter.setLinkTitlesEnabled(true)
+            runCurrent()
+
+            assertEquals(
+                LinkTitlesWrite(enabled = true, template = null, rules = null),
+                actions.linkTitleWrites.single(),
+            )
+        }
+
+    @Test
+    fun `a default template without the page title is refused, an empty one restores the default`() =
+        runTest {
+            val presenter = presenter()
+            val said = mutableListOf<SettingsMessage>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            runCurrent()
+
+            presenter.editLinkTemplate("Article")
+            presenter.saveLinkTemplate()
+            runCurrent()
+            assertTrue(actions.linkTitleWrites.isEmpty())
+            assertEquals(SettingsMessage.LinkTitleIncomplete, said.single())
+
+            presenter.editLinkTemplate("  ")
+            presenter.saveLinkTemplate()
+            runCurrent()
+            assertEquals(LinkTitlesWrite(enabled = null, template = "", rules = null), actions.linkTitleWrites.single())
+            assertNull(presenter.state.value.linkTemplateDraft, "a saved template kept its draft")
+        }
+
+    @Test
+    fun `a domain rule is normalised and written as the whole list`() =
+        runTest {
+            appSettings.value = AppSettings(linkTitles = LinkTitlesSettings(enabled = true, rules = listOf(youtube)))
+            val presenter = presenter()
+            runCurrent()
+
+            presenter.startNewLinkRule()
+            presenter.setLinkRuleDomain("https://www.GitHub.com/lebe-dev")
+            presenter.setLinkRuleTemplate(" Репо «{title}» ")
+            runCurrent()
+            assertTrue(assertNotNull(presenter.state.value.linkRuleEditor).canSave)
+            presenter.saveLinkRule()
+            runCurrent()
+
+            assertEquals(
+                listOf(youtube, LinkTitleRule("github.com", "Репо «{title}»")),
+                assertNotNull(actions.linkTitleWrites.single().rules),
+            )
+            assertNull(presenter.state.value.linkRuleEditor, "the editor stayed open after saving")
+        }
+
+    @Test
+    fun `a domain rule without the page title cannot be saved`() =
+        runTest {
+            val presenter = presenter()
+            runCurrent()
+
+            presenter.startNewLinkRule()
+            presenter.setLinkRuleDomain("youtube.com")
+            presenter.setLinkRuleTemplate("Watch")
+            runCurrent()
+            presenter.saveLinkRule()
+            runCurrent()
+
+            assertTrue(actions.linkTitleWrites.isEmpty())
+        }
+
+    @Test
+    fun `a deleted domain rule can be taken back`() =
+        runTest {
+            val github = LinkTitleRule("github.com", "Репо «{title}»")
+            appSettings.value =
+                AppSettings(linkTitles = LinkTitlesSettings(enabled = true, rules = listOf(youtube, github)))
+            val presenter = presenter()
+            runCurrent()
+
+            presenter.deleteLinkRule(0)
+            runCurrent()
+            assertEquals(listOf(github), actions.linkTitleWrites.single().rules)
+
+            appSettings.value = AppSettings(linkTitles = LinkTitlesSettings(enabled = true, rules = listOf(github)))
+            runCurrent()
+            presenter.restoreRule(DeletedRule.LinkTitle(0, youtube))
+            runCurrent()
+            assertEquals(listOf(youtube, github), actions.linkTitleWrites.last().rules)
+        }
+
     // --- what the server refused ---------------------------------------------
 
     @Test
@@ -506,6 +606,8 @@ class SettingsPresenterTest {
 
             assertEquals(3, presenter.state.value.refusedChangeCount)
         }
+
+    private val youtube = LinkTitleRule("youtube.com", "Посмотреть «{title}»")
 
     private fun encoded(edit: PatchUserSettingsRequest): String =
         TurboistJson.encodeToString(PatchUserSettingsRequest.serializer(), edit)

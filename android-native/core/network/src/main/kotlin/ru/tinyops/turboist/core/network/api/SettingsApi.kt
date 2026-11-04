@@ -13,6 +13,7 @@ import ru.tinyops.turboist.core.network.dto.AppSettingsDto
 import ru.tinyops.turboist.core.network.dto.AutoLabelsRequest
 import ru.tinyops.turboist.core.network.dto.HarpoonDto
 import ru.tinyops.turboist.core.network.dto.HarpoonRefRequest
+import ru.tinyops.turboist.core.network.dto.LinkTitlesRequest
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
 import ru.tinyops.turboist.core.network.dto.ProjectSuggestionsRequest
 import ru.tinyops.turboist.core.network.dto.UserSettingsDto
@@ -49,6 +50,13 @@ interface SettingsApi {
     @PUT("api/v1/app-settings/project-suggestions")
     suspend fun putProjectSuggestions(
         @Body body: ProjectSuggestionsRequest,
+        @Header(ApiHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
+    ): Response<AppSettingsDto>
+
+    /** Changes the link-title switch, default template and/or domain rules; omitted keys stay. */
+    @PUT("api/v1/app-settings/link-titles")
+    suspend fun putLinkTitles(
+        @Body body: LinkTitlesRequest,
         @Header(ApiHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
     ): Response<AppSettingsDto>
 

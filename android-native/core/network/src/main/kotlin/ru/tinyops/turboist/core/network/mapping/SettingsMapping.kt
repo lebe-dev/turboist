@@ -8,6 +8,8 @@ import ru.tinyops.turboist.core.model.AutoLabelRule
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.HarpoonKind
 import ru.tinyops.turboist.core.model.HarpoonRef
+import ru.tinyops.turboist.core.model.LinkTitleRule
+import ru.tinyops.turboist.core.model.LinkTitlesSettings
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.model.UserSettings
 import ru.tinyops.turboist.core.model.UserState
@@ -15,6 +17,7 @@ import ru.tinyops.turboist.core.model.normalizeMaxPinned
 import ru.tinyops.turboist.core.network.dto.AppSettingsDto
 import ru.tinyops.turboist.core.network.dto.AutoLabelRuleDto
 import ru.tinyops.turboist.core.network.dto.HarpoonDto
+import ru.tinyops.turboist.core.network.dto.LinkTitlesSettingsDto
 import ru.tinyops.turboist.core.network.dto.ProjectSuggestionRuleDto
 import ru.tinyops.turboist.core.network.dto.UserSettingsDto
 
@@ -59,10 +62,18 @@ fun AutoLabelRuleDto.toRule(): AutoLabelRule = AutoLabelRule(mask = mask, labelI
 fun ProjectSuggestionRuleDto.toRule(): ProjectSuggestionRule =
     ProjectSuggestionRule(mask = mask, projectIds = projectIds, ignoreCase = ignoreCase)
 
+fun LinkTitlesSettingsDto.toLinkTitles(): LinkTitlesSettings =
+    LinkTitlesSettings(
+        enabled = enabled,
+        template = template,
+        rules = rules.map { LinkTitleRule(domain = it.domain, template = it.template) },
+    )
+
 fun AppSettingsDto.toAppSettings(): AppSettings =
     AppSettings(
         autoLabels = autoLabels.map { it.toRule() },
         projectSuggestions = projectSuggestions.map { it.toRule() },
+        linkTitles = linkTitles.toLinkTitles(),
     )
 
 /**

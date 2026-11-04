@@ -175,6 +175,33 @@ paths:
       summary: Update inbox processing settings
       tags:
       - settings
+  /api/v1/app-settings/link-titles:
+    put:
+      operationId: putAppSettingsLinkTitles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandlersLinkTitlesPutReq'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersAppSettingsResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Update link title settings
+      tags:
+      - settings
   /api/v1/app-settings/project-suggestions:
     put:
       operationId: putAppSettingsProjectSuggestions
@@ -5336,6 +5363,8 @@ components:
           - "null"
         inboxProcessing:
           $ref: '#/components/schemas/HandlersInboxProcessingSettingsDTO'
+        linkTitles:
+          $ref: '#/components/schemas/HandlersLinkTitlesSettingsDTO'
         projectSuggestions:
           items:
             $ref: '#/components/schemas/HandlersProjectSuggestionDTO'
@@ -5959,6 +5988,43 @@ components:
       properties:
         limit:
           type: integer
+      type: object
+    HandlersLinkTitleRuleDTO:
+      properties:
+        domain:
+          type: string
+        template:
+          type: string
+      type: object
+    HandlersLinkTitlesPutReq:
+      properties:
+        enabled:
+          type:
+          - "null"
+          - boolean
+        rules:
+          items:
+            $ref: '#/components/schemas/HandlersLinkTitleRuleDTO'
+          type:
+          - "null"
+          - array
+        template:
+          type:
+          - "null"
+          - string
+      type: object
+    HandlersLinkTitlesSettingsDTO:
+      properties:
+        enabled:
+          type: boolean
+        rules:
+          items:
+            $ref: '#/components/schemas/HandlersLinkTitleRuleDTO'
+          type:
+          - array
+          - "null"
+        template:
+          type: string
       type: object
     HandlersMoveRequest:
       properties:

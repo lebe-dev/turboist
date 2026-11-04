@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import ru.tinyops.turboist.core.model.AutoLabelRule
+import ru.tinyops.turboist.core.model.LinkTitleRule
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.network.ServerUrl
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
@@ -38,6 +39,14 @@ class WriteRepoSettingsActions
 
         override suspend fun putProjectSuggestions(rules: List<ProjectSuggestionRule>) {
             settings.putProjectSuggestions(rules)
+        }
+
+        override suspend fun putLinkTitles(
+            enabled: Boolean?,
+            template: String?,
+            rules: List<LinkTitleRule>?,
+        ) {
+            settings.putLinkTitles(enabled = enabled, template = template, rules = rules)
         }
     }
 

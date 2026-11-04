@@ -60,6 +60,9 @@ class QuickAddRepository
                 )
             }
 
+        /** Whether the server names tasks created as a bare https link, as last replicated. */
+        fun observeLinkTitlesEnabled(): Flow<Boolean> = observeAppSettings().map { it.linkTitles.enabled }
+
         /**
          * The installation's title rules as last replicated.
          *

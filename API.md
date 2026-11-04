@@ -309,6 +309,14 @@ Global, server-wide rules. The same payload is embedded as `appSettings` in
 
 `ignoreCase: true` makes the mask match case-insensitively.
 
+- **Link titles** (`linkTitles`) — `{enabled, template, rules: [{domain, template}]}`.
+  When enabled, a task created with a bare `https://` URL as its title is renamed
+  in the background from the page's title, and the URL moves into the
+  description. `PUT /api/v1/app-settings/link-titles` takes any subset of the
+  three keys; `rules` replaces the list. Templates must contain `{title}`;
+  domains are normalised (`https://www.youtube.com/` → `youtube.com`). See
+  [docs/link-titles.md](docs/link-titles.md).
+
 ### Harpoon
 
 A per-user "jump pair": at most **two** task/project references. Slot 0 is the

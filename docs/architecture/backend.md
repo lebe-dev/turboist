@@ -207,6 +207,40 @@ server-side bookkeeping with **no** change-log triggers and are not part of back
 `startInboxProcessingPrune` in `cmd/turboist` deletes journal rows older than 90 days and state rows
 of tasks that left the Inbox, at startup and daily.
 
+## Link titles
+
+`internal/service/linktitle` renames a task created with a bare public `https://`
+URL as its title (see [Link titles](../link-titles.md) for the behaviour). It is
+always wired; `app_settings.linkTitles.enabled` decides whether it acts.
+
+`TaskService.Create` calls a `TaskCreatedHook` after every create; the
+link-title service is that hook. It checks the title (`DetectURL`), reads the
+settings and inserts a row into `link_title_queue` (migration `054`), then wakes
+the worker through a buffered channel. The row exists only while the task waits:
+the worker deletes it once the task was rewritten, given up on, edited or
+deleted (`ON DELETE CASCADE`). Like `inbox_processing_state` it is server-side
+bookkeeping without change-log triggers; replicas see the outcome through the
+ordinary task upsert. `InboxProcessingRepo.pending` skips queued tasks.
+
+The worker (`Service.Run`) makes a pass on start, on every wake-up and when the
+earliest `next_attempt_at` falls due (sleeping at most 5 minutes otherwise). A
+pass with the feature switched off clears the queue. Each job is checked twice
+against the live task — before the fetch and right before the write — and is
+dropped when the title is no longer the queued link, so an edit made while the
+page loads always wins. Writes go through `TaskRepo.Update` (title +
+description); after a pass that changed something the worker publishes `tasks`,
+`inbox` and `plan` with no origin, like the Inbox processor.
+
+Fetching is `ChainFetcher{DirectFetcher, Renderer}`. `DirectFetcher` uses its
+own `http.Transport` with `Proxy: nil` and a `net.Dialer.Control` hook
+(`guardDial`) that refuses any non-public resolved address, so DNS rebinding is
+covered; `CheckRedirect` re-validates every hop. It streams the body through
+`x/net/html/charset` into an `x/net/html` tokenizer and stops at `</head>`.
+`Renderer` (from `LINK_TITLES_RENDERER_URL`) is asked only when the page gave
+no title and the failure was not a blocked address. Transient failures (network,
+timeout, 429, 5xx — `FetchError.Transient`) are retried with a 1 m / 5 m backoff
+up to three attempts; everything else falls back to `host/path` at once.
+
 ## Change log
 
 `change_log` (migration `050_change_log.sql`) is an append-only record of every

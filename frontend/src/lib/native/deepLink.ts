@@ -18,7 +18,14 @@ import { isNativePlatform } from './platform';
 const QUICK_ADD_HOST = 'quick-add';
 
 let pendingQuickAdd = false;
+let pendingPrefill: QuickAddPrefill | null = null;
 let appLayoutReady = false;
+
+/** What a share (PWA share target, Android share sheet) puts into QuickAdd. */
+export interface QuickAddPrefill {
+	title: string;
+	description: string;
+}
 
 function isQuickAddUrl(url: string): boolean {
 	try {
@@ -48,6 +55,24 @@ export function markAppLayoutReady(): void {
 
 export function markAppLayoutGone(): void {
 	appLayoutReady = false;
+}
+
+// Opens QuickAdd prefilled — right away when the (app) layout is mounted, or once
+// it mounts (a share that cold-started the app arrives before it).
+export function requestQuickAdd(prefill: QuickAddPrefill): void {
+	if (appLayoutReady) {
+		window.dispatchEvent(new CustomEvent('turboist:quick-add', { detail: prefill }));
+		return;
+	}
+	pendingPrefill = prefill;
+}
+
+// Returns the prefill a share stashed before the layout was ready, clearing it
+// so it is applied exactly once.
+export function consumePendingQuickAddPrefill(): QuickAddPrefill | null {
+	const p = pendingPrefill;
+	pendingPrefill = null;
+	return p;
 }
 
 // Returns whether a deep link asked for QuickAdd before the layout was ready,

@@ -191,6 +191,7 @@ class OpCatalogTest {
                 PatchUserSettingsOp(PatchUserSettingsRequest(locale = "en")),
                 PutAutoLabelsOp(listOf(AutoLabelRulePayload("fix", listOf(3)))),
                 PutProjectSuggestionsOp(listOf(ProjectSuggestionRulePayload("site", listOf(4)))),
+                PutLinkTitlesOp(enabled = true, rules = listOf(LinkTitleRulePayload("youtube.com", "Watch {title}"))),
                 PatchUserStateOp(activeContextId = 2),
                 StartTroikiOp,
                 ResetTroikiOp,

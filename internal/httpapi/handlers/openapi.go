@@ -392,6 +392,7 @@ func Operations() []openapi.Operation {
 		{Method: get, Path: "/api/v1/app-settings", Tag: tagSettings, Auth: api, Scopes: scopes(setr), Summary: "Installation settings", Response: appSettingsResp{}},
 		{Method: put, Path: "/api/v1/app-settings/auto-labels", Tag: tagSettings, Auth: api, Scopes: scopes(setw), Summary: "Replace auto-label rules", Request: autoLabelsPutReq{}, Response: appSettingsResp{}},
 		{Method: put, Path: "/api/v1/app-settings/project-suggestions", Tag: tagSettings, Auth: api, Scopes: scopes(setw), Summary: "Replace project suggestion rules", Request: projectSuggestionsPutReq{}, Response: appSettingsResp{}},
+		{Method: put, Path: "/api/v1/app-settings/link-titles", Tag: tagSettings, Auth: api, Scopes: scopes(setw), Summary: "Update link title settings", Request: linkTitlesPutReq{}, Response: appSettingsResp{}},
 		{Method: put, Path: "/api/v1/app-settings/inbox-processing", Tag: tagSettings, Auth: api, Scopes: scopes(setw), Summary: "Update inbox processing settings", Request: inboxSettingsPutReq{}, Response: appSettingsResp{}},
 
 		// --- calendars

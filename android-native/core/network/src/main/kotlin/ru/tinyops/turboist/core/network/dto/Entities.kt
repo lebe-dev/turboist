@@ -199,11 +199,26 @@ data class ProjectSuggestionRuleDto(
     val ignoreCase: Boolean = false,
 )
 
+@Serializable
+data class LinkTitleRuleDto(
+    val domain: String = "",
+    val template: String = "",
+)
+
+/** Absent from a server older than the feature, which reads as "off". */
+@Serializable
+data class LinkTitlesSettingsDto(
+    val enabled: Boolean = false,
+    val template: String = "",
+    val rules: List<LinkTitleRuleDto> = emptyList(),
+)
+
 /** Installation-wide rules, distinct from the per-user preferences above. */
 @Serializable
 data class AppSettingsDto(
     val autoLabels: List<AutoLabelRuleDto> = emptyList(),
     val projectSuggestions: List<ProjectSuggestionRuleDto> = emptyList(),
+    val linkTitles: LinkTitlesSettingsDto = LinkTitlesSettingsDto(),
 )
 
 /** One entity of the two-slot jump pair, hydrated with the title for display. */

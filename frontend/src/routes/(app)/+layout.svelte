@@ -43,7 +43,12 @@
 	import { createScopeCoalescer } from '$lib/realtime/scopeCoalescer';
 	import { cacheWarmer, kickReplay, wireReplayTriggers, statusStore } from '$lib/offline';
 	import { useCatchupRefetch } from '$lib/hooks';
-	import { markAppLayoutReady, markAppLayoutGone, consumePendingQuickAdd } from '$lib/native/deepLink';
+	import {
+		markAppLayoutReady,
+		markAppLayoutGone,
+		consumePendingQuickAdd,
+		consumePendingQuickAddPrefill
+	} from '$lib/native/deepLink';
 	import { isNativePlatform } from '$lib/native/platform';
 	import PullToRefresh from '$lib/components/app/PullToRefresh.svelte';
 
@@ -353,7 +358,10 @@
 		// was mounted stashes a pending flag instead of dispatching; drain it now
 		// that the listener is live, and let warm deep links dispatch normally.
 		markAppLayoutReady();
-		if (consumePendingQuickAdd()) onQuickAdd();
+		const sharedPrefill = consumePendingQuickAddPrefill();
+		if (sharedPrefill) {
+			handler(new CustomEvent('turboist:quick-add', { detail: sharedPrefill }));
+		} else if (consumePendingQuickAdd()) onQuickAdd();
 
 		return () => {
 			markAppLayoutGone();

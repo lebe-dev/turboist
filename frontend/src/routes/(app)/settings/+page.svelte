@@ -15,6 +15,7 @@
 	import PinnedLimitsSection from '$lib/components/settings/PinnedLimitsSection.svelte';
 	import ProjectSuggestionsSection from '$lib/components/settings/ProjectSuggestionsSection.svelte';
 	import InboxProcessingSection from '$lib/components/settings/InboxProcessingSection.svelte';
+	import LinkTitlesSection from '$lib/components/settings/LinkTitlesSection.svelte';
 	import SessionsSection from '$lib/components/settings/SessionsSection.svelte';
 	import TemplatesSection from '$lib/components/settings/TemplatesSection.svelte';
 	import TwoFactorSection from '$lib/components/settings/TwoFactorSection.svelte';
@@ -585,6 +586,7 @@
 		</Tabs.Content>
 
 		<Tabs.Content value="inbox" class="flex flex-col gap-4">
+			<LinkTitlesSection />
 			<InboxProcessingSection />
 		</Tabs.Content>
 

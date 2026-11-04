@@ -12,6 +12,7 @@ Turboist is a task management app for the rest of us.
 - Inbox with overflow handling
 - Quick switcher (`⌘/Ctrl+P` or a top-bar button) — jump to a recent or matching task/project, or add a task to the Inbox or for today (in the current part of the day) into one of the two last opened projects; works offline on Android — [docs/quick-switcher.md](docs/quick-switcher.md)
 - Optional AI Inbox processing — an OpenAI-compatible model (OpenRouter by default) files Inbox tasks into projects and labels them, with an editable prompt, a decision journal and one-click revert
+- Link titles — paste an `https://` link as a task title and the server names the task after the page (`Статья «…»`, per-domain templates such as `Посмотреть «…»` for YouTube), also from the Android / PWA share sheet — [docs/link-titles.md](docs/link-titles.md)
 - Day phases (morning / day / evening / anytime)
 - Weekly / backlog planning with per-bucket caps
 - Pinned tasks and pinned projects (separate caps, configurable in Settings → Menu)
@@ -49,6 +50,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [Task relations](docs/task-relations.md) — `related` / `blocks`, and how blocking works
 - [Quick switcher](docs/quick-switcher.md) — ⌘/Ctrl+P: jump to a task or project, or add a task
 - [Labels](docs/labels.md) — label descriptions and how labels appear in a task's JSON copy
+- [Link titles](docs/link-titles.md) — naming tasks created from a bare link, templates, renderer fallback, security
 - [Troiki System](docs/troiki-system.md)
 - [Localization](docs/locales.md)
 - [Public mode](docs/public-mode.md)

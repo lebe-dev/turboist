@@ -11,9 +11,11 @@ import ru.tinyops.turboist.core.database.entity.UserSettingsRow
 import ru.tinyops.turboist.core.database.entity.UserStateRow
 import ru.tinyops.turboist.core.database.sync.ReplicaEntityKind
 import ru.tinyops.turboist.core.model.AutoLabelRule
+import ru.tinyops.turboist.core.model.LinkTitleRule
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.network.TurboistJson
 import ru.tinyops.turboist.core.network.dto.AutoLabelRuleDto
+import ru.tinyops.turboist.core.network.dto.LinkTitleRuleDto
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
 import ru.tinyops.turboist.core.network.dto.ProjectSuggestionRuleDto
 
@@ -96,6 +98,53 @@ class SettingsWriteRepo(
                 writer.enqueue(
                     PutProjectSuggestionsOp(
                         rules.map { ProjectSuggestionRulePayload(it.mask, it.projectIds, it.ignoreCase) },
+                    ),
+                    ReplicaEntityKind.APP_SETTINGS,
+                )
+            QueuedWrite(opId, NO_TARGET_ROW)
+        }
+
+    /**
+     * Changes the link-title settings: the switch, the default template, the
+     * domain rules — any of them, and only those given.
+     *
+     * The keys are merged into the stored `linkTitles` object rather than over
+     * it, so a key a newer server added there survives this build's edit.
+     */
+    suspend fun putLinkTitles(
+        enabled: Boolean? = null,
+        template: String? = null,
+        rules: List<LinkTitleRule>? = null,
+    ): QueuedWrite =
+        writer.transaction {
+            val at = writer.now()
+            val stored =
+                db.settings().appSettings()?.payload
+                    ?.let { runCatching { TurboistJson.parseToJsonElement(it).jsonObject }.getOrNull() }
+            val current = (stored?.get("linkTitles") as? JsonObject) ?: JsonObject(emptyMap())
+            val changed =
+                buildMap<String, JsonElement> {
+                    enabled?.let { put("enabled", JsonPrimitive(it)) }
+                    template?.let { put("template", JsonPrimitive(it)) }
+                    rules?.let {
+                        put(
+                            "rules",
+                            TurboistJson.encodeToJsonElement(
+                                kotlinx.serialization.builtins.ListSerializer(LinkTitleRuleDto.serializer()),
+                                it.map { rule -> LinkTitleRuleDto(rule.domain, rule.template) },
+                            ),
+                        )
+                    }
+                }
+            val linkTitles = JsonObject(current + changed)
+            val merged = merge(db.settings().appSettings()?.payload, JsonObject(mapOf("linkTitles" to linkTitles)))
+            db.settings().saveAppSettings(AppSettingsRow(payload = merged, updatedAt = at))
+            val opId =
+                writer.enqueue(
+                    PutLinkTitlesOp(
+                        enabled = enabled,
+                        template = template,
+                        rules = rules?.map { LinkTitleRulePayload(it.domain, it.template) },
                     ),
                     ReplicaEntityKind.APP_SETTINGS,
                 )

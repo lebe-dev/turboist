@@ -251,6 +251,7 @@
     <string name="native_unsent_op_settingsPatch">Settings change</string>
     <string name="native_unsent_op_autoLabelRules">Automatic label rules</string>
     <string name="native_unsent_op_projectSuggestionRules">Project suggestion rules</string>
+    <string name="native_unsent_op_linkTitles">Link title settings</string>
     <string name="native_unsent_op_statePatch">Interface state change</string>
     <string name="native_unsent_op_troikiStart">Start the daily plan</string>
     <string name="native_unsent_op_troikiReset">Reset the daily plan</string>
