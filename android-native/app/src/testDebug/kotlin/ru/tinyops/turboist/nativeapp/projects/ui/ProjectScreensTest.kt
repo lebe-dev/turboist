@@ -1,10 +1,14 @@
 package ru.tinyops.turboist.nativeapp.projects.ui
 
 import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -25,6 +29,11 @@ import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.ProjectType
 import ru.tinyops.turboist.core.model.Task
+import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
+import ru.tinyops.turboist.core.model.view.ProjectActivity
+import ru.tinyops.turboist.core.model.view.ProjectPeriodActivity
+import ru.tinyops.turboist.core.model.view.ProjectRadar
+import ru.tinyops.turboist.core.model.view.projectRadar
 import ru.tinyops.turboist.core.sync.write.ProjectStatusAction
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.projects.BoardColumn
@@ -138,6 +147,50 @@ class ProjectScreensTest {
 
         assertEquals(listOf("openProject 10"), done)
     }
+
+    @Test
+    fun `the activity radar is shut until asked for and then shows where the work went`() {
+        val done = mutableListOf<String>()
+        var state by mutableStateOf(
+            ProjectsUiState(loading = false, groups = listOf(ProjectGroup(context(1, "Work"), emptyList()))),
+        )
+        compose.setContent {
+            TurboistTheme {
+                ProjectsScreen(
+                    state = state,
+                    messages = emptyFlow(),
+                    callbacks =
+                        projectsCallbacks { done += it }.copy(
+                            onToggleRadar = {
+                                done += "toggleRadar"
+                                state = state.copy(radarExpanded = true, radar = radar())
+                            },
+                        ),
+                )
+            }
+        }
+
+        compose.onNodeWithText(text(R.string.page_projects_radar_title)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.page_projects_radar_aria)).assertDoesNotExist()
+
+        compose.onNodeWithText(text(R.string.page_projects_radar_title)).performClick()
+
+        assertEquals(listOf("toggleRadar"), done)
+        compose.onNodeWithContentDescription(text(R.string.page_projects_radar_aria)).assertIsDisplayed()
+    }
+
+    private fun radar(): ProjectRadar =
+        requireNotNull(
+            projectRadar(
+                listOf("alpha" to 5, "bravo" to 2, "charlie" to 1).mapIndexed { index, (title, completed) ->
+                    ProjectActivity(
+                        project(index + 1L, title),
+                        mapOf(LabelUsagePeriod.WEEK to ProjectPeriodActivity(completed = completed)),
+                    )
+                },
+                LabelUsagePeriod.WEEK,
+            ),
+        )
 
     @Test
     fun `a context heading leads to the context itself`() {

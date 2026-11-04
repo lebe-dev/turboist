@@ -1,7 +1,9 @@
 package ru.tinyops.turboist.nativeapp.projects
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import ru.tinyops.turboist.core.database.dao.ContextDao
 import ru.tinyops.turboist.core.database.dao.ProjectDao
@@ -14,7 +16,12 @@ import ru.tinyops.turboist.core.model.ProjectSection
 import ru.tinyops.turboist.core.model.RelationType
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.view.BlockEdge
+import ru.tinyops.turboist.core.model.view.ProjectActivity
+import ru.tinyops.turboist.core.model.view.ProjectCompletion
+import ru.tinyops.turboist.core.model.view.projectActivity
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRepository
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -89,6 +96,25 @@ class ProjectsRepository
                     )
                 }
             }
+
+        /**
+         * What every project got done, as of [today].
+         *
+         * [today] arrives from the caller rather than from a clock read in here,
+         * so a screen left open over midnight is handed the next day's windows.
+         */
+        fun observeActivity(
+            today: Flow<Instant>,
+            zone: ZoneId,
+        ): Flow<List<ProjectActivity>> =
+            combine(projects.observeAll(), projects.observeCompletions(), today) { rows, completions, at ->
+                projectActivity(
+                    rows.map { it.toDomain() },
+                    completions.map { ProjectCompletion(it.projectLocalId, it.completedAt) },
+                    at,
+                    zone,
+                )
+            }.flowOn(Dispatchers.Default)
 
         /** The contexts a new project can be filed under. */
         fun observeContexts(): Flow<List<Context>> = contexts.observeAll().map { rows -> rows.map { it.toDomain() } }

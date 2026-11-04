@@ -143,6 +143,19 @@ task's creation time). `TaskLabelsRepo.SetForTask` is therefore a diff, not a
 delete-and-reinsert: surviving rows keep their timestamp, so editing an unrelated
 field on a task does not move all of its tagging events into the current week.
 
+## Project activity stats
+
+`GET /api/v1/projects/stats` powers the collapsed activity radar on the
+Projects page. `ProjectRepo.ActivityStats` is one `GROUP BY project_id` over
+completed tasks (cancelled ones do not count) and returns, per project, how many
+tasks were finished in each of the same rolling 7 / 30 / 90-day windows the label
+stats use, plus the equally long preceding window for the comparison outline.
+Only projects with a completion in the widest window pair are present; the
+client joins them to the project list it already holds. The route is registered
+before `/projects/:id`, and the page only requests it when the radar is first
+expanded. The Android client counts the same windows from its replica instead of
+fetching.
+
 ## Inbox processing
 
 `internal/service/inboxproc` is an optional background job that files open Inbox tasks into projects

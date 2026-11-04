@@ -32,7 +32,7 @@ import javax.inject.Inject
  * single boundary — and pinning it to midnight means the numbers change when the
  * day changes and at no other time, instead of on every tick of the clock.
  */
-private fun DayClock.reportDays(): Flow<Instant> =
+internal fun DayClock.reportDays(): Flow<Instant> =
     days().distinctUntilChanged().map { it.atStartOfDay(zone).toInstant() }
 
 /**

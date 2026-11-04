@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"golang.org/x/sync/errgroup"
@@ -40,6 +41,7 @@ type ProjectHandler struct {
 	contexts *repo.ContextRepo
 	pinSvc   *service.PinService
 	baseURL  string
+	location *time.Location
 }
 
 func NewProjectHandler(
@@ -68,6 +70,8 @@ func NewProjectHandler(
 func (h *ProjectHandler) Register(r fiber.Router) {
 	p := r.Group("/projects")
 	p.Get("/", httpapi.RequireScope(auth.ScopeProjectsRead), h.list)
+	// Static before parameterized: /stats must not be swallowed by /:id.
+	p.Get("/stats", httpapi.RequireScope(auth.ScopeProjectsRead), h.stats)
 	p.Get("/:id", httpapi.RequireScope(auth.ScopeProjectsRead), h.get)
 	p.Get("/:id/bundle", httpapi.RequireAllScopes(auth.ScopeProjectsRead, auth.ScopeSectionsRead, auth.ScopeTasksRead), h.bundle)
 	p.Patch("/:id", httpapi.RequireScope(auth.ScopeProjectsWrite), h.patch)

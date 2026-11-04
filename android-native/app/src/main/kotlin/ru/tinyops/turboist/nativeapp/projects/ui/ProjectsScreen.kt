@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.ViewColumn
@@ -39,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,7 +52,9 @@ import kotlinx.coroutines.flow.Flow
 import ru.tinyops.turboist.core.model.Context
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
+import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labels.ui.periodLabel
 import ru.tinyops.turboist.nativeapp.projects.ProjectFilter
 import ru.tinyops.turboist.nativeapp.projects.ProjectMessage
 import ru.tinyops.turboist.nativeapp.projects.ProjectsUiState
@@ -62,6 +68,8 @@ data class ProjectsCallbacks(
     val onCreateProject: (contextLocalId: Long, title: String) -> Unit,
     val onOpenProject: (Project) -> Unit,
     val onOpenContext: (Context) -> Unit,
+    val onToggleRadar: () -> Unit = {},
+    val onChooseRadarPeriod: (LabelUsagePeriod) -> Unit = {},
 )
 
 /**
@@ -117,6 +125,7 @@ fun ProjectsScreen(
                     return@PullToRefreshBox
                 }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item(key = "radar") { ActivityRadar(state, callbacks) }
                     if (state.pinned.isNotEmpty()) {
                         item(key = "pinned-heading") { GroupHeading(stringResource(R.string.nav_pinned)) }
                         items(state.pinned, key = { "pinned-" + it.localId }) { project ->
@@ -189,6 +198,8 @@ fun ProjectsScreen(
                     onCreateProject = presenter::createProject,
                     onOpenProject = onOpenProject,
                     onOpenContext = onOpenContext,
+                    onToggleRadar = presenter::toggleRadar,
+                    onChooseRadarPeriod = presenter::chooseRadarPeriod,
                 )
             },
         modifier = modifier,
@@ -247,6 +258,72 @@ private fun ContextHeading(
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = stringResource(R.string.sidebar_addToAriaLabel, name),
+            )
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+/**
+ * Where the finished work went, project by project.
+ *
+ * Closed until asked for: the list below is what the screen is for, and the
+ * radar's counting query is not even running while it is shut.
+ */
+@Composable
+private fun ActivityRadar(
+    state: ProjectsUiState,
+    callbacks: ProjectsCallbacks,
+) {
+    val title = stringResource(R.string.page_projects_radar_title)
+    val toggle =
+        stringResource(
+            if (state.radarExpanded) R.string.page_projects_radar_collapse else R.string.page_projects_radar_expand,
+        )
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = toggle, onClick = callbacks.onToggleRadar)
+                .semantics { stateDescription = toggle }
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = if (state.radarExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (state.radarExpanded) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        ) {
+            for (period in LabelUsagePeriod.entries) {
+                FilterChip(
+                    selected = period == state.radarPeriod,
+                    onClick = { callbacks.onChooseRadarPeriod(period) },
+                    label = { Text(stringResource(periodLabel(period))) },
+                )
+            }
+        }
+        val radar = state.radar
+        if (radar != null) {
+            ProjectRadarChart(radar)
+        } else {
+            Text(
+                text = stringResource(R.string.page_projects_radar_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
         }
     }

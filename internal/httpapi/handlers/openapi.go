@@ -321,6 +321,7 @@ func Operations() []openapi.Operation {
 
 		// --- projects
 		{Method: get, Path: "/api/v1/projects", Tag: tagProjects, Auth: api, Scopes: scopes(pr), Summary: "List projects", Query: projectListQuery{}, Response: pagedProjects{}},
+		{Method: get, Path: "/api/v1/projects/stats", Tag: tagProjects, Auth: api, Scopes: scopes(pr), Summary: "Project activity statistics", Response: projectStatsResponse{}},
 		{Method: get, Path: "/api/v1/projects/:id", Tag: tagProjects, Auth: api, Scopes: scopes(pr), Summary: "Get a project", Response: dto.ProjectDTO{}},
 		{Method: patch, Path: "/api/v1/projects/:id", Tag: tagProjects, Auth: api, Scopes: scopes(pw), Summary: "Update a project", Request: dto.PatchProjectRequest{}, Response: dto.ProjectDTO{}},
 		{Method: del, Path: "/api/v1/projects/:id", Tag: tagProjects, Auth: api, Scopes: scopes(pw), Summary: "Delete a project"},

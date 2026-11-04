@@ -3,6 +3,13 @@
 	import FolderIcon from 'phosphor-svelte/lib/Folder';
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
+	import CaretRightIcon from 'phosphor-svelte/lib/CaretRight';
+	import { getApiClient } from '$lib/api/client';
+	import { projects as projectsApi } from '$lib/api/endpoints/projects';
+	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
+	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
+	import ProjectRadarChart from '$lib/components/project/ProjectRadarChart.svelte';
+	import { buildProjectRadar } from '$lib/utils/projectStats';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import ViewHeader from '$lib/components/view/ViewHeader.svelte';
@@ -12,7 +19,12 @@
 	import { contextsStore } from '$lib/stores/contexts.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { isProjectVisible } from '$lib/utils/visibility';
-	import type { Project, ProjectStatus } from '$lib/api/types';
+	import type {
+		LabelStatsPeriod,
+		Project,
+		ProjectStatsResponse,
+		ProjectStatus
+	} from '$lib/api/types';
 	import { t } from '$lib/i18n';
 
 	type Filter = 'all' | 'archived' | 'cancelled' | 'completed' | 'generic' | 'software';
@@ -37,6 +49,13 @@
 		important: 0,
 		medium: 1,
 		rest: 2
+	};
+
+	const PERIODS: LabelStatsPeriod[] = ['week', 'month', 'quarter'];
+	const PERIOD_LABEL: Record<LabelStatsPeriod, string> = {
+		week: 'page.projects.radar.period.week',
+		month: 'page.projects.radar.period.month',
+		quarter: 'page.projects.radar.period.quarter'
 	};
 
 	let activeFilter = $state<Filter>('all');
@@ -83,6 +102,34 @@
 		});
 	});
 
+	// The activity radar is collapsed until asked for: it costs a request nobody
+	// who only wants the list should pay, so the report loads on first expand.
+	let radarOpen = $state(false);
+	let radarPeriod = $state<LabelStatsPeriod>('week');
+	let stats = $state<ProjectStatsResponse | null>(null);
+
+	const radar = $derived(stats ? buildProjectRadar(visible, stats.items, radarPeriod) : null);
+
+	const radarLoader = usePageLoad(
+		async (isValid) => {
+			const res = await projectsApi.stats(getApiClient());
+			if (!isValid()) return;
+			stats = res;
+		},
+		{ autoLoad: false, errorMessage: $t('page.projects.radar.errorLoading') }
+	);
+
+	function toggleRadar() {
+		radarOpen = !radarOpen;
+		if (radarOpen && stats === null) void radarLoader.refetch();
+	}
+
+	// Finishing a task moves the numbers; refresh in place, but only while the
+	// radar is open — a collapsed one has nothing on screen to keep current.
+	useInvalidation(['tasks', 'projects'], () => {
+		if (radarOpen) void radarLoader.revalidate();
+	});
+
 	const searched = $derived.by<Project[]>(() => {
 		const q = searchQuery.trim().toLowerCase();
 		if (!q) return filtered;
@@ -108,12 +155,14 @@
 				{/each}
 			</div>
 			<div class="relative">
-				<MagnifyingGlassIcon class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+				<MagnifyingGlassIcon
+					class="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+				/>
 				<input
 					type="text"
 					bind:value={searchQuery}
 					placeholder={$t('page.projects.searchPlaceholder')}
-					class="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
+					class="h-8 w-full rounded-md border border-border bg-background pr-3 pl-8 text-xs outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/50"
 				/>
 			</div>
 		</div>
@@ -121,6 +170,67 @@
 </ViewHeader>
 
 <div class="px-2 py-2 sm:px-6">
+	<section class="mb-3 rounded-md border border-border/60 bg-card" data-testid="projects-radar">
+		<button
+			type="button"
+			onclick={toggleRadar}
+			aria-expanded={radarOpen}
+			aria-controls="projects-radar-body"
+			class="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+		>
+			<CaretRightIcon
+				class="size-3.5 shrink-0 text-muted-foreground transition-transform {radarOpen
+					? 'rotate-90'
+					: ''}"
+				weight="bold"
+			/>
+			<span class="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+				{$t('page.projects.radar.title')}
+			</span>
+			<span class="sr-only">
+				{radarOpen ? $t('page.projects.radar.collapse') : $t('page.projects.radar.expand')}
+			</span>
+		</button>
+		{#if radarOpen}
+			<div id="projects-radar-body" class="flex flex-col gap-3 border-t border-border/60 p-4">
+				<div class="flex flex-wrap items-center justify-between gap-2">
+					<div
+						class="flex items-center gap-1 rounded-md border border-border bg-card p-0.5"
+						role="radiogroup"
+						aria-label={$t('page.projects.radar.periodAria')}
+					>
+						{#each PERIODS as value (value)}
+							{@const active = radarPeriod === value}
+							<button
+								type="button"
+								role="radio"
+								aria-checked={active}
+								onclick={() => (radarPeriod = value)}
+								class="rounded px-2.5 py-1 text-[13px] transition-colors {active
+									? 'bg-muted font-medium text-foreground'
+									: 'text-muted-foreground hover:text-foreground'}"
+							>
+								{$t(PERIOD_LABEL[value])}
+							</button>
+						{/each}
+					</div>
+					<span class="text-xs text-muted-foreground">{$t('page.projects.radar.hint')}</span>
+				</div>
+				{#if radar}
+					<ProjectRadarChart {radar} />
+				{:else if radarLoader.error}
+					<p class="py-6 text-center text-sm text-muted-foreground">{radarLoader.error}</p>
+				{:else if stats === null}
+					<p class="py-6 text-center text-sm text-muted-foreground">…</p>
+				{:else}
+					<p class="py-6 text-center text-sm text-muted-foreground">
+						{$t('page.projects.radar.empty')}
+					</p>
+				{/if}
+			</div>
+		{/if}
+	</section>
+
 	<ViewContent
 		loading={!projectsStore.loaded}
 		isEmpty={searched.length === 0}
@@ -128,7 +238,9 @@
 		emptyTitle={$t('page.projects.emptyTitle')}
 		emptyDescription={$t('page.projects.emptyDescription')}
 	>
-		<ul class="flex flex-col divide-y divide-border/50 overflow-hidden rounded-md border border-border/60 bg-card">
+		<ul
+			class="flex flex-col divide-y divide-border/50 overflow-hidden rounded-md border border-border/60 bg-card"
+		>
 			{#each searched as project (project.id)}
 				{@const href = resolve('/(app)/project/[id]', { id: String(project.id) })}
 				{@const ctxName = contextsById[project.contextId]}

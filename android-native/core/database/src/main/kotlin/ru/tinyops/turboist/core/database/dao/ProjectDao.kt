@@ -12,6 +12,15 @@ import ru.tinyops.turboist.core.database.entity.ProjectLabelRow
 import ru.tinyops.turboist.core.database.entity.ProjectRow
 import ru.tinyops.turboist.core.model.TroikiCategory
 
+/**
+ * One finished task and the project it was finished in: the two facts the
+ * project activity radar is counted from, and not the task row around them.
+ */
+data class ProjectCompletionFacts(
+    val projectLocalId: Long,
+    val completedAt: Long,
+)
+
 @Dao
 abstract class ProjectDao {
     @Insert
@@ -118,4 +127,18 @@ abstract class ProjectDao {
         clearLabels(projectLocalId)
         insertLabels(labelLocalIds.distinct().map { ProjectLabelRow(projectLocalId, it) })
     }
+
+    /**
+     * Every finished task that belongs to a project, with the moment it was
+     * finished.
+     *
+     * Counted on the device like the label report, so the radar is there with no
+     * connection. A cancelled task is not here: abandoning work is not finishing
+     * it, and the cancel can leave a stale completion moment behind.
+     */
+    @Query(
+        "SELECT projectLocalId AS projectLocalId, completedAt AS completedAt FROM tasks " +
+            "WHERE projectLocalId IS NOT NULL AND status = 'completed' AND completedAt IS NOT NULL",
+    )
+    abstract fun observeCompletions(): Flow<List<ProjectCompletionFacts>>
 }

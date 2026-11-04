@@ -39,6 +39,11 @@ describe('isCacheable', () => {
 	it('caches the label usage report', () => {
 		expect(isCacheable('/api/v1/labels/stats')).toBe(true);
 	});
+
+	// Same for the project activity radar: collapsed pages must still open it offline.
+	it('caches the project activity report', () => {
+		expect(isCacheable('/api/v1/projects/stats')).toBe(true);
+	});
 });
 
 describe('createReadCache', () => {

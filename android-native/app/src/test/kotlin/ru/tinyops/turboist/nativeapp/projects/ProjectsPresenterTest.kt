@@ -2,15 +2,20 @@ package ru.tinyops.turboist.nativeapp.projects
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.ProjectType
 import ru.tinyops.turboist.core.model.TroikiCategory
+import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
+import ru.tinyops.turboist.core.model.view.ProjectActivity
+import ru.tinyops.turboist.core.model.view.ProjectPeriodActivity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -27,9 +32,19 @@ class ProjectsPresenterTest {
     private val dailyPlanEnabled = MutableStateFlow(true)
     private val actions = RecordingProjectActions()
     private val sync = CountingScheduler()
+    private val activity = MutableStateFlow<List<ProjectActivity>>(emptyList())
+    private var activitySubscriptions = 0
 
     private fun kotlinx.coroutines.test.TestScope.presenter(): ProjectsPresenter {
-        val presenter = ProjectsPresenter(backgroundScope, groups, contexts, dailyPlanEnabled, actions, sync)
+        val presenter = ProjectsPresenter(
+                backgroundScope,
+                groups,
+                contexts,
+                dailyPlanEnabled,
+                actions,
+                sync,
+                activity = activity.onStart { activitySubscriptions++ },
+            )
         backgroundScope.launch { presenter.state.collect {} }
         return presenter
     }
@@ -207,5 +222,77 @@ class ProjectsPresenterTest {
 
             assertEquals(1, sync.requests)
             assertFalse(presenter.state.value.refreshing, "the cycle is over, so the spinner is down")
+        }
+
+    private fun active(
+        localId: Long,
+        title: String,
+        completed: Int,
+    ) = ProjectActivity(
+        project(localId, title),
+        mapOf(LabelUsagePeriod.WEEK to ProjectPeriodActivity(completed = completed)),
+    )
+
+    @Test
+    fun `the activity radar starts closed and its counting is not even read`() =
+        runTest {
+            val presenter = presenter()
+            activity.value = listOf(active(1, "a", 3), active(2, "b", 2), active(3, "c", 1))
+            runCurrent()
+
+            assertFalse(presenter.state.value.radarExpanded)
+            assertNull(presenter.state.value.radar)
+            assertEquals(0, activitySubscriptions, "a closed radar must not run the counting query")
+        }
+
+    @Test
+    fun `opening the radar draws the shape and closing it takes it away again`() =
+        runTest {
+            val presenter = presenter()
+            activity.value = listOf(active(1, "a", 3), active(2, "b", 2), active(3, "c", 1))
+
+            presenter.toggleRadar()
+            runCurrent()
+            assertTrue(presenter.state.value.radarExpanded)
+            assertEquals(listOf("a", "b", "c"), presenter.state.value.radar?.axes?.map { it.activity.project.title })
+
+            presenter.toggleRadar()
+            runCurrent()
+            assertNull(presenter.state.value.radar)
+        }
+
+    @Test
+    fun `an open radar with too few active projects has no shape to draw`() =
+        runTest {
+            val presenter = presenter()
+            activity.value = listOf(active(1, "a", 3), active(2, "b", 2))
+
+            presenter.toggleRadar()
+            runCurrent()
+
+            assertTrue(presenter.state.value.radarExpanded)
+            assertNull(presenter.state.value.radar)
+        }
+
+    @Test
+    fun `choosing the period reads that window`() =
+        runTest {
+            val presenter = presenter()
+            activity.value =
+                listOf(1L, 2L, 3L).map {
+                    ProjectActivity(
+                        project(it),
+                        mapOf(LabelUsagePeriod.MONTH to ProjectPeriodActivity(completed = it.toInt())),
+                    )
+                }
+            presenter.toggleRadar()
+            runCurrent()
+            assertNull(presenter.state.value.radar, "nothing was finished this week")
+
+            presenter.chooseRadarPeriod(LabelUsagePeriod.MONTH)
+            runCurrent()
+
+            assertEquals(LabelUsagePeriod.MONTH, presenter.state.value.radarPeriod)
+            assertEquals(3, presenter.state.value.radar?.axes?.size)
         }
 }

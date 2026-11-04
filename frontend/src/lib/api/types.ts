@@ -208,7 +208,8 @@ export interface TaskRelation {
 }
 
 /** Why a task cannot be made a blocker of another (GET …/relations/blocker-check). */
-export type BlockerRefusalReason = 'relation_self' | 'not_found' | 'relation_exists' | 'relation_cycle';
+export type BlockerRefusalReason =
+	'relation_self' | 'not_found' | 'relation_exists' | 'relation_cycle';
 
 export interface BlockerCheckResult {
 	refused: { taskId: number; reason: BlockerRefusalReason }[];
@@ -304,6 +305,27 @@ export interface LabelStatsItem {
 export interface LabelStatsResponse {
 	ranges: Record<LabelStatsPeriod, LabelStatsRange>;
 	items: LabelStatsItem[];
+}
+
+// ProjectStatsPeriodStats holds one window's counters for a single project:
+// tasks completed inside the window and inside the equally long window right
+// before it (the comparison outline on the radar).
+export interface ProjectStatsPeriodStats {
+	completed: number;
+	previousCompleted: number;
+}
+
+export interface ProjectStatsItem {
+	projectId: number;
+	periods: Record<LabelStatsPeriod, ProjectStatsPeriodStats>;
+}
+
+// ProjectStatsResponse backs the activity radar on the /projects page. Only
+// projects with a completion in the widest window pair are present; the client
+// joins them to the project list it already holds.
+export interface ProjectStatsResponse {
+	ranges: Record<LabelStatsPeriod, LabelStatsRange>;
+	items: ProjectStatsItem[];
 }
 
 // WeekSummaryResponse backs the /week/summary review page. `completed` carries

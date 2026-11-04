@@ -1061,7 +1061,24 @@
 			"emptyDescription": "Projects matching the selected filter will appear here.",
 			"filterGeneric": "Generic",
 			"filterSoftware": "Software",
-			"searchPlaceholder": "Search projects…"
+			"searchPlaceholder": "Search projects…",
+			"radar": {
+				"title": "Activity radar",
+				"hint": "tasks completed in the period",
+				"aria": "Radar of project activity: tasks completed in each project in this period and in the previous one",
+				"hidden": "{count} less active projects are only in the list",
+				"trendTooltip": "{previous} in the previous period",
+				"expand": "Show activity radar",
+				"collapse": "Hide activity radar",
+				"errorLoading": "Failed to load project activity",
+				"empty": "No project completed a task in this period (at least 3 projects are needed to draw a radar).",
+				"periodAria": "Stats period",
+				"period": {
+					"week": "Week",
+					"month": "Month",
+					"quarter": "Quarter"
+				}
+			}
 		},
 		"labels": {
 			"title": "Labels",
