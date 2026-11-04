@@ -31,6 +31,8 @@ Load from `.env` if present (copy `.env.example` to get started):
 | `INBOX_PROCESSING_MODEL` | with `INBOX_PROCESSING_ENABLED=true` | Model id at the provider, e.g. `openai/gpt-4.1-mini`. |
 | `INBOX_PROCESSING_BATCH_LIMIT` | — | Maximum tasks sent to the model per run, `1..100`. Default `10`. |
 | `INBOX_PROCESSING_TIMEOUT` | — | Timeout of a single model request, Go duration. Default `60s`. |
+| `LINK_TITLES_RENDERER_URL` | — | Optional "URL → Markdown" service asked for a page title when the page itself has none (see [Link titles](link-titles.md)). The link is appended, or substituted for `{url}`. Example: `https://markdown.new/`. Empty disables the fallback. The feature itself is switched on in Settings. |
+| `LINK_TITLES_RENDERER_TIMEOUT` | — | Timeout of one renderer request, Go duration. Default `30s`. |
 
 ### Sentry error reporting
 

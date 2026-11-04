@@ -11,6 +11,7 @@ Turboist is a task management app for the rest of us.
 - Mask-based project suggestions on task creation (up to 3, A-Z)
 - Inbox with overflow handling
 - Optional AI Inbox processing — an OpenAI-compatible model (OpenRouter by default) files Inbox tasks into projects and labels them, with an editable prompt, a decision journal and one-click revert
+- Link titles — paste an `https://` link as a task title and the server names the task after the page (`Статья «…»`, per-domain templates such as `Посмотреть «…»` for YouTube), also from the Android / PWA share sheet — [docs/link-titles.md](docs/link-titles.md)
 - Day phases (morning / day / evening / anytime)
 - Weekly / backlog planning with per-bucket caps
 - Pinned tasks and pinned projects (separate caps, configurable in Settings → Menu)
@@ -47,6 +48,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [Passkeys](docs/passkey.md) — WebAuthn sign-in, and the native app setup it needs
 - [Task relations](docs/task-relations.md) — `related` / `blocks`, and how blocking works
 - [Labels](docs/labels.md) — label descriptions and how labels appear in a task's JSON copy
+- [Link titles](docs/link-titles.md) — naming tasks created from a bare link, templates, renderer fallback, security
 - [Troiki System](docs/troiki-system.md)
 - [Localization](docs/locales.md)
 - [Public mode](docs/public-mode.md)
