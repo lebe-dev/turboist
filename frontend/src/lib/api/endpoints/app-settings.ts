@@ -1,5 +1,10 @@
 import type { ApiClient } from '../client';
-import type { AppSettings, AutoLabelRule, ProjectSuggestionRule } from '../types';
+import type {
+	AppSettings,
+	AutoLabelRule,
+	LinkTitlesSettings,
+	ProjectSuggestionRule
+} from '../types';
 
 export const appSettings = {
 	setAutoLabels(client: ApiClient, rules: AutoLabelRule[]): Promise<AppSettings> {
@@ -27,6 +32,13 @@ export const appSettings = {
 		return client.fetch('/api/v1/app-settings/inbox-processing', {
 			method: 'PUT',
 			body: { paused }
+		});
+	},
+
+	setLinkTitles(client: ApiClient, patch: Partial<LinkTitlesSettings>): Promise<AppSettings> {
+		return client.fetch('/api/v1/app-settings/link-titles', {
+			method: 'PUT',
+			body: patch
 		});
 	}
 };

@@ -4,6 +4,7 @@ import type {
 	AppSettings,
 	AutoLabelRule,
 	InboxProcessingSettings,
+	LinkTitlesSettings,
 	ProjectSuggestionRule
 } from '../api/types';
 
@@ -15,6 +16,15 @@ function emptyAppSettings(): AppSettings {
 function inboxOf(v: AppSettings): InboxProcessingSettings {
 	const stored: Partial<InboxProcessingSettings> = v.inboxProcessing ?? {};
 	return { prompt: stored.prompt ?? '', paused: stored.paused ?? false };
+}
+
+function linkTitlesOf(v: AppSettings): LinkTitlesSettings {
+	const stored: Partial<LinkTitlesSettings> = v.linkTitles ?? {};
+	return {
+		enabled: stored.enabled ?? false,
+		template: stored.template ?? '',
+		rules: stored.rules ?? []
+	};
 }
 
 function createAppSettingsStore() {
@@ -32,6 +42,9 @@ function createAppSettingsStore() {
 		},
 		get inboxProcessing(): InboxProcessingSettings {
 			return inboxOf(value);
+		},
+		get linkTitles(): LinkTitlesSettings {
+			return linkTitlesOf(value);
 		},
 		setValue(v: AppSettings): void {
 			value = v;
@@ -74,6 +87,17 @@ function createAppSettingsStore() {
 			value = { ...value, inboxProcessing: { ...inboxOf(value), paused } };
 			try {
 				const updated = await appSettingsApi.setInboxProcessingPaused(getApiClient(), paused);
+				value = updated;
+			} catch (err) {
+				value = prev;
+				throw err;
+			}
+		},
+		async setLinkTitles(patch: Partial<LinkTitlesSettings>): Promise<void> {
+			const prev = value;
+			value = { ...value, linkTitles: { ...linkTitlesOf(value), ...patch } };
+			try {
+				const updated = await appSettingsApi.setLinkTitles(getApiClient(), patch);
 				value = updated;
 			} catch (err) {
 				value = prev;

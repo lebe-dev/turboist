@@ -567,6 +567,28 @@
 			"unsupported": "This browser cannot use passkeys.",
 			"limitReached": "You have reached the passkey limit.",
 			"duplicate": "That device already has a passkey for this account."
+		},
+		"linkTitles": {
+			"heading": "Link titles",
+			"description": "When a new task's title is nothing but an https:// link, the server opens the page, takes its title and rewrites the task through the template, moving the link and the page summary into the description. Tasks created offline are handled once they sync.",
+			"enabled": "Fetch link titles",
+			"template": "Default template",
+			"templateHint": "{titleToken} is the page title, {domainToken} the domain. Empty means “{fallback}”.",
+			"rulesHeading": "Domain rules",
+			"rulesDescription": "A domain also matches its subdomains: youtube.com covers www.youtube.com and m.youtube.com. The most specific match wins.",
+			"empty": "No rules yet.",
+			"domain": "Domain",
+			"domainPlaceholder": "youtube.com",
+			"ruleTemplate": "Template",
+			"ruleTemplatePlaceholder": "Watch “{titleToken}”",
+			"add": "Add rule",
+			"remove": "Remove rule",
+			"save": "Save",
+			"toastSaved": "Link title settings saved",
+			"toastFailed": "Could not save the settings",
+			"toastToggledOn": "Link titles enabled",
+			"toastToggledOff": "Link titles disabled",
+			"toastInvalid": "Every rule needs a domain and a template containing {titleToken}"
 		}
 	},
 	"connect": {

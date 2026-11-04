@@ -548,10 +548,26 @@ export interface InboxProcessingSettings {
 	paused: boolean;
 }
 
+export interface LinkTitleRule {
+	// Bare domain; matches itself and every subdomain (youtube.com → m.youtube.com).
+	domain: string;
+	// Must contain {title}; {domain} is optional.
+	template: string;
+}
+
+export interface LinkTitlesSettings {
+	enabled: boolean;
+	// Empty string = the built-in default for the user's language.
+	template: string;
+	rules: LinkTitleRule[];
+}
+
 export interface AppSettings {
 	autoLabels: AutoLabelRule[];
 	projectSuggestions: ProjectSuggestionRule[];
 	inboxProcessing: InboxProcessingSettings;
+	// Absent in payloads from servers older than the feature.
+	linkTitles?: LinkTitlesSettings;
 }
 
 export interface InboxProcessingRunSummary {
