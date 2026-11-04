@@ -29,6 +29,9 @@ func normalizeAppSettings(s *model.AppSettings) *model.AppSettings {
 	if s.ProjectSuggestions == nil {
 		s.ProjectSuggestions = []model.ProjectSuggestionRule{}
 	}
+	if s.LinkTitles.Rules == nil {
+		s.LinkTitles.Rules = []model.LinkTitleRule{}
+	}
 	return s
 }
 

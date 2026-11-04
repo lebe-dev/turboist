@@ -96,8 +96,9 @@ func scopesForPath(p string) []events.Scope {
 	case "troiki":
 		return []events.Scope{events.ScopeTasks, events.ScopePlan}
 	case "app-settings":
-		if rest == "app-settings/inbox-processing" {
-			// The Inbox processing prompt changes no data any view shows.
+		if rest == "app-settings/inbox-processing" || rest == "app-settings/link-titles" {
+			// The Inbox processing prompt and the link-title settings change no
+			// data any view shows.
 			return nil
 		}
 		// Auto-label rules etc. affect how tasks are presented.

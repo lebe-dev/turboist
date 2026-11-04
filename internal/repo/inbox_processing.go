@@ -103,9 +103,16 @@ func (r *InboxProcessingRepo) pending(ctx context.Context, now time.Time) ([]Pen
 	if err != nil {
 		return nil, err
 	}
+	awaitingTitle, err := queuedLinkTitleTaskIDs(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]PendingInboxTask, 0, len(tasks))
 	for _, t := range tasks {
 		if t.AutoSortUndecidedAt != nil {
+			continue
+		}
+		if _, waiting := awaitingTitle[t.ID]; waiting {
 			continue
 		}
 		st, ok := states[t.ID]

@@ -15,6 +15,26 @@ type TaskService struct {
 	projects   *repo.ProjectRepo
 	taskLabels *repo.TaskLabelsRepo
 	autoLabels *AutoLabelsService
+	created    TaskCreatedHook
+}
+
+// TaskCreatedHook is told about every task TaskService.Create made. It must not
+// fail the create: implementations log their own errors.
+type TaskCreatedHook interface {
+	TaskCreated(ctx context.Context, t *model.Task)
+}
+
+// WithCreatedHook attaches a hook run after every successful create (the
+// link-title queue). Returns the service for chaining.
+func (s *TaskService) WithCreatedHook(h TaskCreatedHook) *TaskService {
+	s.created = h
+	return s
+}
+
+func (s *TaskService) notifyCreated(ctx context.Context, t *model.Task) {
+	if s.created != nil {
+		s.created.TaskCreated(ctx, t)
+	}
 }
 
 // NewTaskService constructs a TaskService.
@@ -67,9 +87,11 @@ func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLa
 			return nil, err
 		}
 		log.InfoContext(ctx, "task created", slog.String("op", op), slog.Int64("task_id", t.ID))
+		s.notifyCreated(ctx, out)
 		return out, nil
 	}
 	log.InfoContext(ctx, "task created", slog.String("op", op), slog.Int64("task_id", t.ID))
+	s.notifyCreated(ctx, t)
 	return t, nil
 }
 

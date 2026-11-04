@@ -24,6 +24,7 @@ import (
 	calendarsvc "github.com/lebe-dev/turboist/internal/service/calendar"
 	"github.com/lebe-dev/turboist/internal/service/events"
 	"github.com/lebe-dev/turboist/internal/service/inboxproc"
+	"github.com/lebe-dev/turboist/internal/service/linktitle"
 	passkeysvc "github.com/lebe-dev/turboist/internal/service/passkey"
 	totpsvc "github.com/lebe-dev/turboist/internal/service/totp"
 	"golang.org/x/time/rate"
@@ -110,6 +111,7 @@ func main() {
 	webauthnRepo := repo.NewWebAuthnRepo(sqlDB)
 	changeLogRepo := repo.NewChangeLogRepo(sqlDB)
 	inboxProcRepo := repo.NewInboxProcessingRepo(sqlDB, tlabels)
+	linkTitleQueue := repo.NewLinkTitleQueueRepo(sqlDB)
 
 	// auth
 	jwtIssuer := auth.NewJWTIssuer([]byte(env.JWTSecret))
@@ -213,6 +215,24 @@ func main() {
 	} else {
 		log.Info("inbox processing disabled (INBOX_PROCESSING_ENABLED not set)")
 	}
+
+	// Link titles: a task created with a bare https:// link as its title gets
+	// the page's title. Always wired; the settings toggle decides whether it acts.
+	var linkRenderer linktitle.PageFetcher
+	if r := linktitle.NewRenderer(env.LinkTitles.RendererURL, env.LinkTitles.RendererTimeout); r != nil {
+		linkRenderer = r
+	}
+	linkTitles := linktitle.NewService(linktitle.Deps{
+		Queue:       linkTitleQueue,
+		Tasks:       taskRepo,
+		AppSettings: appSettingsRepo,
+		Users:       userRepo,
+		Hub:         eventsHub,
+		Log:         log,
+	}, linktitle.ChainFetcher{Direct: linktitle.NewDirectFetcher(), Renderer: linkRenderer})
+	taskSvc.WithCreatedHook(linkTitles)
+	go linkTitles.Run(cleanupCtx)
+	log.Info("link titles worker started", "renderer", linkRenderer != nil)
 
 	// HTTP app
 	deps := httpapi.Deps{
