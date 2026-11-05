@@ -50,6 +50,7 @@ dependencies {
     api(libs.retrofit)
     api(libs.okhttp)
     api(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.serialization.json.okio)
     api(libs.kotlinx.coroutines.core)
     implementation(libs.retrofit.serialization)
     // The change stream is read as it arrives, which the generated endpoints cannot do.

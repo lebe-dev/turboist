@@ -4,7 +4,6 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import ru.tinyops.turboist.core.network.api.ApiTokenApi
 import ru.tinyops.turboist.core.network.api.AuthApi
 import ru.tinyops.turboist.core.network.api.CalendarApi
@@ -136,7 +135,7 @@ class TurboistNetwork private constructor(
                     // the user configured before it leaves.
                     .baseUrl(ServerUrlInterceptor.PLACEHOLDER_BASE_URL)
                     .client(client)
-                    .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+                    .addConverterFactory(StreamingJsonConverterFactory(json, "application/json".toMediaType()))
                     .build()
             return TurboistNetwork(serverUrl, client, retrofit)
         }
