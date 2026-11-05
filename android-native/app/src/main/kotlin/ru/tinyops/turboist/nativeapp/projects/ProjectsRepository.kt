@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.map
 import ru.tinyops.turboist.core.database.dao.ContextDao
 import ru.tinyops.turboist.core.database.dao.ProjectDao
 import ru.tinyops.turboist.core.database.dao.ProjectSectionDao
-import ru.tinyops.turboist.core.database.dao.TaskHydrationDao
 import ru.tinyops.turboist.core.database.entity.toDomain
 import ru.tinyops.turboist.core.model.Context
 import ru.tinyops.turboist.core.model.Project
@@ -20,6 +19,7 @@ import ru.tinyops.turboist.core.model.view.ProjectActivity
 import ru.tinyops.turboist.core.model.view.ProjectCompletion
 import ru.tinyops.turboist.core.model.view.projectActivity
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRepository
+import ru.tinyops.turboist.nativeapp.tasks.WorkspaceTaskFacts
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -75,7 +75,7 @@ class ProjectsRepository
         private val projects: ProjectDao,
         private val sections: ProjectSectionDao,
         private val tasks: TaskListRepository,
-        private val hydration: TaskHydrationDao,
+        private val facts: WorkspaceTaskFacts,
     ) {
         /**
          * Every project, under the context it belongs to.
@@ -126,7 +126,7 @@ class ProjectsRepository
                 sections.observeForProject(projectLocalId),
                 tasks.observeProject(projectLocalId),
                 contexts.observeAll(),
-                hydration.observeRelationEdges(),
+                facts.relationEdges,
             ) { projectRow, sectionRows, taskRows, contextRows, edges ->
                 val project = projectRow?.toDomain() ?: return@combine null
                 ProjectBoardContent(

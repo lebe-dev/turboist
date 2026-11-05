@@ -1,27 +1,18 @@
 package ru.tinyops.turboist.nativeapp.tasks
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import ru.tinyops.turboist.core.database.dao.ProjectDao
 import ru.tinyops.turboist.core.database.dao.ProjectSectionDao
 import ru.tinyops.turboist.core.database.dao.SettingsDao
-import ru.tinyops.turboist.core.database.dao.TaskHydrationDao
-import ru.tinyops.turboist.core.database.dao.TaskLabelJoin
-import ru.tinyops.turboist.core.database.dao.TaskParentLink
-import ru.tinyops.turboist.core.database.dao.TaskRelationEdge
 import ru.tinyops.turboist.core.database.dao.TaskViewDao
 import ru.tinyops.turboist.core.database.entity.TaskRow
-import ru.tinyops.turboist.core.database.entity.toDomain
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
-import ru.tinyops.turboist.core.model.TaskRelationSummary
 import ru.tinyops.turboist.core.model.UserSettings
 import ru.tinyops.turboist.core.model.view.TimeWindow
-import ru.tinyops.turboist.core.model.view.taskRelationSummaries
 import ru.tinyops.turboist.core.network.TurboistJson
 import ru.tinyops.turboist.core.network.dto.UserSettingsDto
 import ru.tinyops.turboist.core.network.mapping.toUserSettings
@@ -47,7 +38,7 @@ class TaskListRepository
     @Inject
     constructor(
         private val views: TaskViewDao,
-        private val hydration: TaskHydrationDao,
+        private val facts: WorkspaceTaskFacts,
         private val projects: ProjectDao,
         private val sections: ProjectSectionDao,
         private val settings: SettingsDao,
@@ -203,50 +194,12 @@ class TaskListRepository
             }
 
         /**
-         * Joins the labels, the relation rollup and nothing else onto a list's rows.
+         * Joins the labels and the relation rollup onto a list's rows.
          *
-         * The three standing queries are combined with the list rather than
-         * rebuilt for the rows it happens to contain, so tagging a task or
-         * finishing a blocker redraws the list without the queries behind it
-         * being torn down and set up again.
-         *
-         * The join runs away from the main thread, and that is a requirement
-         * rather than tidiness. Each of the three queries answers for the whole
-         * workspace, so on a well-used one the join indexes several thousand
-         * taggings and edges — and it runs again on every write the replica
-         * takes, including each page a sync applies. Left on the thread that
-         * draws, that is a dropped frame every time anything changes; the screens
-         * are standing queries, so there is no moment when it would not be.
+         * The facts are one shared reading of the whole workspace rather than
+         * something rebuilt for the rows a list happens to contain, so tagging a
+         * task or finishing a blocker redraws the list without the queries behind
+         * it being torn down and set up again.
          */
-        private fun hydrated(rows: Flow<List<TaskRow>>): Flow<List<Task>> =
-            combine(
-                rows,
-                hydration.observeTaskLabels(),
-                hydration.observeRelationEdges(),
-                hydration.observeParentLinks(),
-            ) { tasks, labels, edges, parents -> hydrate(tasks, labels, edges, parents) }
-                .flowOn(Dispatchers.Default)
-
-        private fun hydrate(
-            rows: List<TaskRow>,
-            labels: List<TaskLabelJoin>,
-            edges: List<TaskRelationEdge>,
-            parents: List<TaskParentLink>,
-        ): List<Task> {
-            if (rows.isEmpty()) return emptyList()
-            val labelsByTask = labels.groupBy({ it.taskLocalId }, { it.label.toDomain() })
-            val summaries =
-                taskRelationSummaries(
-                    taskLocalIds = rows.map { it.localId },
-                    openBlockEdges = openBlockEdgesOf(edges),
-                    relationCounts = relationCountsOf(edges),
-                    parentOf = parents.associate { it.taskLocalId to it.parentLocalId },
-                )
-            return rows.map { row ->
-                row.toDomain().copy(
-                    labels = labelsByTask[row.localId].orEmpty(),
-                    relationSummary = summaries[row.localId] ?: TaskRelationSummary.NONE,
-                )
-            }
-        }
+        private fun hydrated(rows: Flow<List<TaskRow>>): Flow<List<Task>> = hydratedTasks(rows, facts.current)
     }

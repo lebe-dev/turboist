@@ -52,6 +52,7 @@ class TaskDetailRepository
         private val tasks: TaskDao,
         private val views: TaskViewDao,
         private val hydration: TaskHydrationDao,
+        private val facts: WorkspaceTaskFacts,
         private val taskRelations: TaskRelationDao,
         private val projects: ProjectDao,
         private val sections: ProjectSectionDao,
@@ -88,7 +89,7 @@ class TaskDetailRepository
             combine(
                 tasks.observeByLocalId(taskLocalId),
                 views.querySubtree(taskLocalId),
-                hydration.observeTaskLabels(),
+                facts.taskLabels,
                 relationFacts(taskLocalId),
                 workspace(),
             ) { row, subtree, labelJoins, facts, workspace ->
@@ -124,8 +125,8 @@ class TaskDetailRepository
          */
         private fun relationFacts(taskLocalId: Long): Flow<RelationFacts> =
             combine(
-                hydration.observeRelationEdges(),
-                hydration.observeParentLinks(),
+                facts.relationEdges,
+                facts.parentLinks,
                 hydration.observeOpenBlockers(),
                 taskRelations.observePeersForTask(taskLocalId),
             ) { edges, parents, blockers, peers -> RelationFacts(edges, parents, blockers, peers) }
