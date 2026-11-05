@@ -391,6 +391,19 @@ android-detekt-baseline:
 android-native-format:
     cd android-native && ./gradlew --console=plain ktlintFormat
 
+# Needs an attached device or emulator on API 33+, a Go toolchain and python3. It
+# drives a suffixed build against a throwaway local server, so the app already on
+# the device is left alone. The result is committed.
+# Regenerate the native Android client's baseline and startup profiles.
+android-native-baseline-profile:
+    scripts/android-native-macro.sh profile
+
+# Only a physical device gives numbers worth comparing; ANDROID_DEVICE_ID picks one
+# when several are attached.
+# Measure the native Android client's cold start, memory and scrolling.
+android-native-benchmark:
+    scripts/android-native-macro.sh benchmark
+
 # The bundle carries the repository VERSION as its version name plus the commit
 # it was built from, so a report from a tester names the exact code that produced
 # what they are running. It is minified, which is what makes the shrinker rules

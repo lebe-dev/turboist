@@ -1,3 +1,5 @@
+import com.android.build.api.variant.HasHostTestsBuilder
+import com.android.build.api.variant.HostTestBuilder
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import turboist.AppVersion
 import turboist.ReleaseSigning
@@ -11,6 +13,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.baselineprofile)
 }
 
 // One version for the whole repository: the app reads the same file the backend
@@ -84,6 +87,31 @@ android {
             // built unsigned rather than the build failing.
             signingConfig = signingConfigs.findByName("release")
         }
+        // The two builds the baseline profile is generated from and measured on.
+        // Declared here rather than left to the profile plugin for the sake of
+        // the suffix: the measuring harness installs and later uninstalls its
+        // target, and under the shipping id that would take the phone's real copy
+        // of the workspace, its unsent writes and its sign-in along with it. They
+        // are signed with the debug key so a machine without the upload key can
+        // run them, and they may talk plain HTTP because what they talk to is a
+        // throwaway local server.
+        val profiledBuilds =
+            mapOf(
+                "nonMinifiedRelease" to false,
+                "benchmarkRelease" to true,
+            )
+        profiledBuilds.forEach { (name, minified) ->
+            create(name) {
+                initWith(getByName("release"))
+                applicationIdSuffix = ".benchmark"
+                matchingFallbacks += "release"
+                isMinifyEnabled = minified
+                isShrinkResources = minified
+                isDebuggable = false
+                isProfileable = true
+                signingConfig = signingConfigs.getByName("debug")
+            }
+        }
     }
 
     buildFeatures {
@@ -152,10 +180,32 @@ composeCompiler {
     }
 }
 
+// The profile is generated on demand and committed: generating it needs a device
+// and a server, which is not something an ordinary build can ask for.
+baselineProfile {
+    automaticGenerationDuringBuild = false
+    saveInSrc = true
+}
+
 // Product wording is written once, in the locale files the web client is
 // translated from, and projected onto Android resources on every build. Editing
 // the generated files is pointless; change the locale file instead.
 androidComponents {
+    // These two exist to be installed and measured. Their sources are the release
+    // build's, so running the JVM suite against them again would only repeat it.
+    listOf("nonMinifiedRelease", "benchmarkRelease").forEach { buildType ->
+        beforeVariants(selector().withBuildType(buildType)) { variant ->
+            (variant as HasHostTestsBuilder).hostTests.getValue(HostTestBuilder.UNIT_TEST_TYPE).enable = false
+        }
+    }
+    // Added here rather than found by its directory name, because the profile plugin
+    // points both build types' source sets back at the release build's manifest.
+    listOf("nonMinifiedRelease", "benchmarkRelease").forEach { buildType ->
+        onVariants(selector().withBuildType(buildType)) { variant ->
+            variant.sources.manifests.addStaticManifestFile("src/profiled/AndroidManifest.xml")
+        }
+    }
+
     onVariants { variant ->
         val taskName = "generate${variant.name.replaceFirstChar { it.uppercase() }}LocaleStrings"
         val handWritten = project.fileTree("src/main/res") { include("values*/*.xml") }
@@ -191,6 +241,10 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.androidx.core.ktx)
+    // Writes the shipped profile where the runtime looks for it on first launch,
+    // which is what a sideloaded install has instead of the store's cloud profiles.
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(projects.baselineprofile)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

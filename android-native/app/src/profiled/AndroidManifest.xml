@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      This build is only ever pointed at the throwaway local server the profile
+      and benchmark recipes start, over the debug bridge. It carries a suffixed
+      application id and the debug key, so it can never be mistaken for or replace
+      the app that ships, whose manifest keeps cleartext off.
+    -->
+    <application
+        android:usesCleartextTraffic="true"
+        tools:replace="android:usesCleartextTraffic" />
+
+</manifest>

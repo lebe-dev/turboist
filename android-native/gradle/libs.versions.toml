@@ -25,6 +25,9 @@ work = "2.10.5"
 datastore = "1.1.7"
 credentials = "1.5.0"
 libRecur = "0.17.1"
+benchmark = "1.5.0"
+profileinstaller = "1.4.1"
+uiautomator = "2.3.0"
 junit = "4.13.2"
 robolectric = "4.15.1"
 androidxTestRunner = "1.6.2"
@@ -90,6 +93,11 @@ kotlinx-serialization-json-okio = { group = "org.jetbrains.kotlinx", name = "kot
 # --- Recurrence (mirrors the server's RRULE advance) ---
 lib-recur = { group = "org.dmfs", name = "lib-recur", version.ref = "libRecur" }
 
+# --- Startup and scrolling (the profile shipped with the app, and what measures it) ---
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark" }
+androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+
 # --- Static analysis (rule sets loaded by detekt) ---
 compose-rules-detekt = { group = "io.nlopez.compose.rules", name = "detekt", version.ref = "composeRules" }
 
@@ -104,6 +112,8 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+baselineprofile = { id = "androidx.baselineprofile", version.ref = "benchmark" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
