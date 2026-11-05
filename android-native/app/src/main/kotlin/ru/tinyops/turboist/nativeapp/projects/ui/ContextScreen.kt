@@ -42,6 +42,7 @@ import ru.tinyops.turboist.nativeapp.projects.ContextUiState
 import ru.tinyops.turboist.nativeapp.projects.ContextViewModel
 import ru.tinyops.turboist.nativeapp.projects.ProjectMessage
 import ru.tinyops.turboist.nativeapp.tasks.ui.TaskRow
+import ru.tinyops.turboist.nativeapp.ui.ListRowType
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -109,8 +110,14 @@ fun ContextScreen(
                         }
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             if (state.projects.isNotEmpty()) {
-                                item(key = "projects-heading") { Heading(stringResource(R.string.nav_projects)) }
-                                items(state.projects, key = { "project-" + it.localId }) { project ->
+                                item(key = "projects-heading", contentType = ListRowType.HEADING) {
+                                    Heading(stringResource(R.string.nav_projects))
+                                }
+                                items(
+                                    state.projects,
+                                    key = { "project-" + it.localId },
+                                    contentType = { ListRowType.PROJECT },
+                                ) { project ->
                                     ProjectRow(
                                         project,
                                         onOpen = { callbacks.onOpenProject(project) },
@@ -119,10 +126,14 @@ fun ContextScreen(
                                 }
                             }
                             if (state.rows.isNotEmpty()) {
-                                item(key = "tasks-heading") {
+                                item(key = "tasks-heading", contentType = ListRowType.HEADING) {
                                     Heading(stringResource(R.string.native_context_tasks))
                                 }
-                                items(state.rows, key = { "task-" + it.task.localId }) { row ->
+                                items(
+                                    state.rows,
+                                    key = { "task-" + it.task.localId },
+                                    contentType = { ListRowType.TASK },
+                                ) { row ->
                                     TaskRow(
                                         row = row,
                                         zone = zone,

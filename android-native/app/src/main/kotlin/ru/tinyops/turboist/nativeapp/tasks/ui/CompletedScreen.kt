@@ -44,6 +44,7 @@ import ru.tinyops.turboist.nativeapp.tasks.CompletedViewModel
 import ru.tinyops.turboist.nativeapp.tasks.OlderHistory
 import ru.tinyops.turboist.nativeapp.tasks.TaskListMessage
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
+import ru.tinyops.turboist.nativeapp.ui.ListRowType
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -98,8 +99,10 @@ fun CompletedScreen(
             }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 for (section in state.sections) {
-                    item(key = "heading-" + section.key) { CompletedDayHeader(section) }
-                    items(section.rows, key = { it.key }) { row ->
+                    item(key = "heading-" + section.key, contentType = ListRowType.HEADING) {
+                        CompletedDayHeader(section)
+                    }
+                    items(section.rows, key = { it.key }, contentType = { ListRowType.TASK }) { row ->
                         TaskRow(
                             row = TaskListRow(row.task, depth = 0, projectTitle = row.projectTitle),
                             zone = zone,
@@ -113,7 +116,7 @@ fun CompletedScreen(
                         )
                     }
                 }
-                item(key = "older") {
+                item(key = "older", contentType = ListRowType.FOOTER) {
                     OlderHistoryFooter(
                         state = state.older,
                         drawn = state.sections.sumOf { it.rows.size },

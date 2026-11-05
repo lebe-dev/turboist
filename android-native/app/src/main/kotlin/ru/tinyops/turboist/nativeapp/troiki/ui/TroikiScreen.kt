@@ -65,6 +65,7 @@ import ru.tinyops.turboist.nativeapp.troiki.TroikiProjectCard
 import ru.tinyops.turboist.nativeapp.troiki.TroikiSlot
 import ru.tinyops.turboist.nativeapp.troiki.TroikiUiState
 import ru.tinyops.turboist.nativeapp.troiki.TroikiViewModel
+import ru.tinyops.turboist.nativeapp.ui.ListRowType
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -133,7 +134,10 @@ fun TroikiScreen(
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     for (slot in state.slots) {
-                        item(key = "heading-" + slot.category.wire) { SlotHeading(slot) }
+                        item(
+                            key = "heading-" + slot.category.wire,
+                            contentType = ListRowType.HEADING,
+                        ) { SlotHeading(slot) }
                         for (card in slot.projects) {
                             projectCard(
                                 card = card,
@@ -155,6 +159,7 @@ fun TroikiScreen(
                         items(
                             count = slot.freeSlots,
                             key = { index -> "free-" + slot.category.wire + "-" + index },
+                            contentType = { ListRowType.EMPTY_SLOT },
                         ) {
                             EmptySlot(onClick = { filling = slot.category })
                         }
@@ -333,7 +338,7 @@ private fun LazyListScope.projectCard(
     callbacks: TroikiCallbacks,
 ) {
     val project = card.project
-    item(key = "project-" + project.localId) {
+    item(key = "project-" + project.localId, contentType = ListRowType.PROJECT) {
         ProjectHeading(
             card = card,
             collapsed = collapsed,
@@ -345,16 +350,18 @@ private fun LazyListScope.projectCard(
     }
     if (collapsed) return
     if (card.isEmpty) {
-        item(key = "no-tasks-" + project.localId) { Note(stringResource(R.string.troiki_noTasks), inset = true) }
+        item(key = "no-tasks-" + project.localId, contentType = ListRowType.NOTE) {
+            Note(stringResource(R.string.troiki_noTasks), inset = true)
+        }
     }
-    items(card.open, key = { "task-" + it.task.localId }) { row ->
+    items(card.open, key = { "task-" + it.task.localId }, contentType = { ListRowType.TASK }) { row ->
         PlanTaskRow(row, zone, today, callbacks)
     }
     if (card.done.isNotEmpty()) {
-        item(key = "done-" + project.localId) {
+        item(key = "done-" + project.localId, contentType = ListRowType.NOTE) {
             Note(stringResource(R.string.native_project_finished), inset = true)
         }
-        items(card.done, key = { "done-task-" + it.task.localId }) { row ->
+        items(card.done, key = { "done-task-" + it.task.localId }, contentType = { ListRowType.TASK }) { row ->
             PlanTaskRow(row, zone, today, callbacks)
         }
     }

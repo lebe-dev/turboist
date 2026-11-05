@@ -73,6 +73,7 @@ import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 import ru.tinyops.turboist.nativeapp.tasks.TaskListSection
 import ru.tinyops.turboist.nativeapp.tasks.TaskListUiState
 import ru.tinyops.turboist.nativeapp.tasks.dueDate
+import ru.tinyops.turboist.nativeapp.ui.ListRowType
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.roundToInt
@@ -189,7 +190,7 @@ fun TaskList(
                         val folded = section.foldedByDefault && unfolded[section.key] != true
                         // Only a phase's block takes a carried row, and only its rows can be carried.
                         val part = (section.heading as? SectionHeading.Phase)?.part
-                        item(key = "heading-" + section.key) {
+                        item(key = "heading-" + section.key, contentType = ListRowType.HEADING) {
                             SectionHeader(
                                 section = section,
                                 selectionMode = state.selectionMode,
@@ -204,16 +205,22 @@ fun TaskList(
                         }
                         if (folded) continue
                         if (section.events.isNotEmpty()) {
-                            item(key = "events-" + section.key) {
+                            item(key = "events-" + section.key, contentType = ListRowType.EVENTS) {
                                 Box(modifier = Modifier.dayPartDropTarget("events-" + section.key, part, drag)) {
                                     CalendarEventBand(section.events, zone)
                                 }
                             }
                         }
                         if (section.rows.isEmpty() && section.emptyRes != null) {
-                            item(key = "empty-" + section.key) { EmptySection(section.emptyRes) }
+                            item(key = "empty-" + section.key, contentType = ListRowType.NOTE) {
+                                EmptySection(section.emptyRes)
+                            }
                         }
-                        itemsIndexed(section.rows, key = { _, row -> "task-" + row.task.localId }) { index, row ->
+                        itemsIndexed(
+                            section.rows,
+                            key = { _, row -> "task-" + row.task.localId },
+                            contentType = { _, _ -> ListRowType.TASK },
+                        ) { index, row ->
                             SwipeableTaskRow(
                                 row = row,
                                 zone = zone,

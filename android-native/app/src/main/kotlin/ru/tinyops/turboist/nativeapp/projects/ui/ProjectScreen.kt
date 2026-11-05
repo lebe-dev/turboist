@@ -74,6 +74,7 @@ import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragTooltip
 import ru.tinyops.turboist.nativeapp.tasks.ui.TaskRow
 import ru.tinyops.turboist.nativeapp.tasks.ui.subtaskDragFade
 import ru.tinyops.turboist.nativeapp.tasks.ui.subtaskDragSource
+import ru.tinyops.turboist.nativeapp.ui.ListRowType
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -474,7 +475,7 @@ private fun BoardBody(
     ) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             for (column in state.columns) {
-                item(key = "heading-" + column.key) {
+                item(key = "heading-" + column.key, contentType = ListRowType.HEADING) {
                     ColumnHeading(
                         column = column,
                         onAdd = { onAddTo(column) },
@@ -485,14 +486,16 @@ private fun BoardBody(
                     )
                 }
                 if (column.isEmpty) {
-                    item(key = "empty-" + column.key) { ColumnNote(stringResource(R.string.section_noTasks)) }
+                    item(key = "empty-" + column.key, contentType = ListRowType.NOTE) {
+                        ColumnNote(stringResource(R.string.section_noTasks))
+                    }
                 }
-                items(column.open, key = { "task-" + it.task.localId }) { row ->
+                items(column.open, key = { "task-" + it.task.localId }, contentType = { ListRowType.TASK }) { row ->
                     BoardTaskRow(row, zone, today, callbacks, onMoveTask, drag, dependencies)
                 }
                 if (column.done.isNotEmpty()) {
                     val expanded = shownDone[column.key] == true
-                    item(key = "done-" + column.key) {
+                    item(key = "done-" + column.key, contentType = ListRowType.TOGGLE) {
                         CompletedToggle(
                             text = stringResource(R.string.native_project_finished),
                             count = column.done.size,
@@ -501,7 +504,11 @@ private fun BoardBody(
                         )
                     }
                     if (expanded) {
-                        items(column.done, key = { "done-task-" + it.task.localId }) { row ->
+                        items(
+                            column.done,
+                            key = { "done-task-" + it.task.localId },
+                            contentType = { ListRowType.TASK },
+                        ) { row ->
                             BoardTaskRow(row, zone, today, callbacks, onMoveTask, drag, dependencies)
                         }
                     }
