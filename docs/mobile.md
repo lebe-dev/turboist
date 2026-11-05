@@ -533,6 +533,12 @@ before touching it:
   `Response<T>` so the caller can read the marker the server sets on a response
   it replayed rather than produced.
 
+Responses are decoded as they arrive (`StreamingJsonConverterFactory`) rather than
+read into one string first, because a complete copy of the workspace is a single
+unpaged document and the string is the largest contiguous allocation it would
+otherwise cost. A connection lost part way through still surfaces as an
+`IOException`, which is how the sync engine tells a lost network from a bad answer.
+
 Wire DTOs are a faithful transcript of the payload — server ids, wire strings,
 timestamps as text — and the `mapping/` functions turn them into domain types.
 That is where timestamps become epoch milliseconds, enums decode tolerantly, and
@@ -1297,6 +1303,22 @@ tagging a task or finishing a blocker redraws the list without the queries behin
 it being torn down. A screen therefore has no loading state and no refetch: a
 change made here and a change that arrived from another device reach it by the
 same route, the moment the rows change.
+
+**Every write wakes those queries, so what they cost is held down in three
+places.** `WorkspaceTaskFacts` runs each workspace-wide query once however many
+lists are open, indexes the answers once, and drops an answer identical to the
+last one; it stops about ten seconds after the last reader goes, so an app put
+away reads nothing, and replays nothing when a reader comes back. `joinedLatest`
+drops unchanged rows before the join, and anything arriving during a join replaces
+what was waiting, so a burst of commits costs a join for the first and one for the
+last, with no delay added to a lone change such as a tick. A list whose result is
+unchanged — a label added to a task it does not hold — does not emit at all, so
+the screen does not redraw for it. `WorkspaceTaskFactsTest` counts all of this,
+because the screen looks the same without it.
+
+Every lazy list that mixes kinds of row passes a `contentType` (`ListRowType`), so
+a task row scrolled away is kept for the next task row rather than thrown away
+because a heading came in first.
 
 **Sections are decided before anything is drawn.** `TaskListSections.kt` flattens
 tasks into rows — nesting a subtask under the parent it was listed with, drawing
@@ -2370,6 +2392,8 @@ just android-native-test     # JVM unit tests
 just android-lint            # ktlint + detekt (with the Compose rules) + Android Lint
 just android-native-format   # rewrite sources to the ktlint style
 just android-native-e2e      # on-device round trip against a real backend (needs a running emulator)
+just android-native-baseline-profile  # regenerate the committed startup and baseline profiles
+just android-native-benchmark         # measure cold start, memory and scrolling
 just android-native-release  # signed release bundle for the store
 ```
 
@@ -2389,6 +2413,39 @@ signatures, so one cannot replace the other in place. The recipe says so and
 stops, because removing the installed app takes the device's copy of the
 workspace, anything queued but not yet sent, and the sign-in with it — that is a
 decision for whoever is holding the phone.
+
+### Baseline profile and benchmarks (`baselineprofile/`)
+
+A list of the code a person actually runs is committed under
+`app/src/release/generated/baselineProfiles/` and shipped inside the app, where the
+runtime compiles it ahead of time instead of interpreting it on first use. This is
+the main defence against a slow first launch and a stuttering first scroll in a
+Compose app, and `profileinstaller` is what applies it on a sideloaded install,
+which never gets the store's cloud profiles.
+
+`baselineprofile/` is a test-only module that records it and measures it. It seeds
+a throwaway server over the ordinary API, signs in through the real screens, and
+walks the lists, a project board and a task's detail screen. There are two
+recordings: launching alone, which also decides how the code is laid out on disk,
+and the walk.
+
+```sh
+just android-native-baseline-profile  # API 33+, emulator or device; commit the result
+just android-native-benchmark         # numbers are only worth comparing on a physical device
+```
+
+Regenerate the profile after a change to what launching or the main screens
+execute; a stale one still works, it just covers less. `StartupBenchmark` and
+`ScrollBenchmark` each run with the shipped profile and without it, and the
+difference between the two is the evidence that the profile still does something.
+
+**A phone's real installation is safe from both recipes.** The harness uninstalls
+its target when it finishes, which under the shipping id would take the replica,
+the unsent writes and the sign-in with it. That is why `nonMinifiedRelease` and
+`benchmarkRelease` are declared by hand in `app/build.gradle.kts` with a `.benchmark`
+application id suffix. Both are signed with the debug key and allow plain HTTP
+through `app/src/profiled/AndroidManifest.xml`, since all they talk to is the local
+server, forwarded over the debug bridge. Nothing that ships is built from them.
 
 ### Continuous integration
 
