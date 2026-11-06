@@ -138,7 +138,7 @@ enum class RelationDirection(override val wire: String) : WireEnum {
 
 /**
  * Which client a session belongs to. Sessions are capped per kind, and this
- * native client shares the [ANDROID] budget with the WebView shell.
+ * native client is the [ANDROID] kind.
  */
 enum class ClientKind(override val wire: String) : WireEnum {
     WEB("web"),

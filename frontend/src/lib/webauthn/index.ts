@@ -15,11 +15,11 @@ import { base64UrlToBytes, bytesToBase64Url } from './encoding';
  *  - web: `navigator.credentials`, which speaks ArrayBuffers, so the options are
  *    decoded on the way in and the response re-encoded on the way out;
  *  - native (Capacitor): the platform passkey APIs via `@capgo/capacitor-passkey`,
- *    which already take and return the JSON form. The iOS/Android WebView cannot
- *    run a browser ceremony for a remote relying party — the app's origin is
- *    `capacitor://localhost` / `https://localhost`, not the server's — so the
- *    native bridge is the only path there, and it needs the association files
- *    (`apple-app-site-association`, `assetlinks.json`) served by the same domain.
+ *    which already take and return the JSON form. The iOS WebView cannot run a
+ *    browser ceremony for a remote relying party — the app's origin is
+ *    `capacitor://localhost`, not the server's — so the native bridge is the only
+ *    path there, and it needs `apple-app-site-association` served by the same
+ *    domain.
  *    The plugin is imported lazily so the web bundle never pulls it in.
  */
 
@@ -111,16 +111,15 @@ export function isPasskeyCancellation(err: unknown): boolean {
  *
  * Passing it explicitly matters on iOS 17.4+, which encodes the origin into
  * `clientDataJSON`: left to itself the plugin falls back to `location.origin`,
- * which inside the WebView is `capacitor://localhost` / `https://localhost` —
- * an origin the server rightly refuses. (Android reports
- * `android:apk-key-hash:…` regardless, so this is a no-op there.)
+ * which inside the WebView is `capacitor://localhost` — an origin the server
+ * rightly refuses.
  */
 async function nativeOrigin(): Promise<string | undefined> {
 	const { CapacitorPasskey } = await import('@capgo/capacitor-passkey');
 	try {
 		return (await CapacitorPasskey.getConfiguration()).origin;
 	} catch {
-		// An unconfigured build still works on Android; let the plugin fall back.
+		// Let the plugin fall back on an unconfigured build.
 		return undefined;
 	}
 }

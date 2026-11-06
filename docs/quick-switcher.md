@@ -1,7 +1,7 @@
 # Quick switcher
 
 One panel to jump to any task or project, or to write a new task down, without leaving the
-current screen. Available in the web app (desktop and the Capacitor shells) and in the
+current screen. Available in the web app (desktop and the iOS shell) and in the
 native Android client.
 
 ## Opening it
@@ -9,7 +9,7 @@ native Android client.
 | Client | How |
 |---|---|
 | Web, desktop | `⌘P` on macOS, `Ctrl+P` elsewhere (it replaces the browser's print shortcut inside the app), or the ⌘ button in the top bar |
-| Web on a phone / Capacitor shells | the ⌘ button in the top bar |
+| Web on a phone / iOS shell | the ⌘ button in the top bar |
 | Native Android | the search-list button in the top bar of every list screen |
 
 `/` still opens the full search page, and the Android search screen stays as it was:
@@ -62,7 +62,7 @@ replica.
 - **Android** answers entirely from the on-device replica (full-text index plus the
   label tables), and creating a task goes through the outbox, so the switcher works the
   same with no connection.
-- **Web / Capacitor:** projects are matched locally from memory. Tasks come from
+- **Web / iOS:** projects are matched locally from memory. Tasks come from
   `GET /api/v1/search`; when the network is down, that request is answered from every
   task already in the offline cache, ranked by the same rules (see
   [offline.md](offline.md)). Recently opened rows are shown and filtered from their stored

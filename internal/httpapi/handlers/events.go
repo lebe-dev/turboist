@@ -45,16 +45,16 @@ func (h *EventsHandler) Register(r fiber.Router) {
 // RegisterPublic wires the streaming endpoint onto app (no auth middleware).
 // Ticket-based auth happens inside the handler.
 //
-// CORS is attached ONLY to this route because the native (Capacitor) app opens
-// the SSE stream with a real cross-origin EventSource from the WebView origin
-// (capacitor://localhost on iOS, https://localhost on Android). CapacitorHttp
+// CORS is attached ONLY to this route because the iOS (Capacitor) app opens the
+// SSE stream with a real cross-origin EventSource from the WebView origin
+// (capacitor://localhost). CapacitorHttp
 // patches fetch/XHR to go through the native bridge — bypassing CORS — but it
 // does NOT patch EventSource, so this one endpoint needs the allow-list. The
 // stream authenticates via a ticket in the query string (no cookie, no
 // Authorization header), so credentials/allow-headers stay off.
 func (h *EventsHandler) RegisterPublic(app *fiber.App) {
 	app.Get("/api/v1/events", cors.New(cors.Config{
-		AllowOrigins:     []string{"capacitor://localhost", "https://localhost", "http://localhost"},
+		AllowOrigins:     []string{"capacitor://localhost", "http://localhost"},
 		AllowMethods:     []string{fiber.MethodGet},
 		AllowCredentials: false,
 	}), h.stream)

@@ -12,15 +12,13 @@ and looks for a `delegate_permission/common.get_login_creds` entry naming this
 package and the certificate that signed the **installed** APK. Without it the
 passkey sheet fails with *"RP ID not found"*.
 
-There are **two** Android packages, and both are listed here. `ru.tinyops.turboist`
-is the WebView app; `ru.tinyops.turboist.native` is the native client, which uses a
-package id of its own so the two can be installed side by side. The entry is keyed
-by package name, so an app missing from this file gets the passkey sheet and then a
-failure, however correct its fingerprint is.
+The Android package is `ru.tinyops.turboist.native`. The entry is keyed by package
+name, so an app missing from this file gets the passkey sheet and then a failure,
+however correct its fingerprint is.
 
 `sha256_cert_fingerprints` must list every signing certificate in use:
 
-- `just deploy-android` builds `assembleDebug`, so the fingerprint is your local
+- `just android-native-deploy` builds the debug APK, so the fingerprint is your local
   debug keystore's:
 
   ```sh
@@ -36,10 +34,8 @@ failure, however correct its fingerprint is.
 The same fingerprint also has to reach the server as an allowed WebAuthn origin,
 because Android reports `android:apk-key-hash:<base64url-sha256>` in
 `clientDataJSON` instead of an HTTPS origin. That value is derived from the signing
-certificate and not from the package name, so two apps signed by the same key — the
-usual case for local debug builds of both — report the same origin and need only one
-entry; a build signed by a different key (a Play-signed release, another developer's
-machine) needs its own.
+certificate, so a build signed by a different key (a Play-signed release, another
+developer's machine) needs its own entry.
 
 ```sh
 # hex fingerprint -> the WEBAUTHN_ORIGINS value
@@ -58,7 +54,7 @@ the team id from the Apple Developer account.
 
 `just android-native-passkey-preflight` starts a server with this directory
 published under `/.well-known/` and asserts that `assetlinks.json` comes back as
-`application/json`, names both Android packages, and gives each a fingerprint.
+`application/json`, names the Android package, and gives it a fingerprint.
 Worth running after every edit here: a web app answers any unknown path with
 `200` and its `index.html`, so a file that is not served at all still looks fine
 to anything that only reads the status code.

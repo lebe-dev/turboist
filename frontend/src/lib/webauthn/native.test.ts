@@ -8,7 +8,7 @@ const isNativePlatform = vi.fn();
 vi.mock('@capacitor/core', () => ({
 	Capacitor: {
 		isNativePlatform: () => isNativePlatform(),
-		getPlatform: () => 'android'
+		getPlatform: () => 'ios'
 	}
 }));
 
@@ -63,7 +63,11 @@ describe('native passkey ceremonies', () => {
 	it('claims the configured origin, not the WebView one', async () => {
 		await getPasskeyAssertion({ publicKey: { challenge: 'AQ' } });
 		await createPasskeyCredential({
-			publicKey: { challenge: 'AQ', rp: { id: 'x', name: 'x' }, user: { id: 'AQ', name: 'a', displayName: 'a' } }
+			publicKey: {
+				challenge: 'AQ',
+				rp: { id: 'x', name: 'x' },
+				user: { id: 'AQ', name: 'a', displayName: 'a' }
+			}
 		});
 
 		expect((getCredential.mock.calls[0][0] as { origin?: string }).origin).toBe(

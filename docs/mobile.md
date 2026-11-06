@@ -1,14 +1,13 @@
 # Mobile apps (iOS & Android)
 
-Turboist ships native iOS and Android apps built with [Capacitor](https://capacitorjs.com/). The same SvelteKit bundle serves three targets:
+Turboist has an iOS app built with [Capacitor](https://capacitorjs.com/) and a fully native Android client, [described below](#the-native-android-client-android-native). The same SvelteKit bundle serves two targets:
 
 - the **web** app (embedded in the Go binary),
-- the **iOS** app (WebView shell + native bridge),
-- the **Android** app (WebView shell + native bridge).
+- the **iOS** app (WebView shell + native bridge).
 
-There is **one** build. The app detects its platform at runtime (`Capacitor.isNativePlatform()`); it does not need separate web/native bundles. Like the web app they read through the REST API and stay fresh over SSE, and they share the same **offline** read cache + write outbox — see [docs/offline.md](offline.md).
+There is **one** build. The app detects its platform at runtime (`Capacitor.isNativePlatform()`); it does not need separate web/native bundles. Like the web app it reads through the REST API and stay fresh over SSE, and it shares the same **offline** read cache + write outbox — see [docs/offline.md](offline.md).
 
-The Capacitor project lives under `frontend/` (that is where `package.json` is): `frontend/capacitor.config.ts`, `frontend/ios/`, `frontend/android/`.
+The Capacitor project lives under `frontend/` (that is where `package.json` is): `frontend/capacitor.config.ts`, `frontend/ios/`. Everything up to the native client's section is about this iOS shell unless it says otherwise.
 
 ## How it talks to your server
 
@@ -17,20 +16,20 @@ Because the app is a bundled shell, it needs to know **which server** to talk to
 Networking specifics:
 
 - **REST** goes through `CapacitorHttp` (`window.fetch`/`XHR` are routed to the native HTTP stack), which **bypasses CORS**.
-- **SSE** (`EventSource`, `/api/v1/events`) is *not* patched by CapacitorHttp, so it is a genuine cross-origin request from the WebView origin (`capacitor://localhost` on iOS, `https://localhost` on Android). The backend allows those origins with a CORS middleware scoped to that one route (`internal/httpapi/handlers/events.go`).
+- **SSE** (`EventSource`, `/api/v1/events`) is *not* patched by CapacitorHttp, so it is a genuine cross-origin request from the WebView origin (`capacitor://localhost`). The backend allows that origin with a CORS middleware scoped to that one route (`internal/httpapi/handlers/events.go`).
 
-> **Use HTTPS.** The server URL is entered at runtime, so transport rules cannot be domain-scoped at build time. A plain-HTTP server requires extra opt-in (iOS `NSAppTransportSecurity`, Android cleartext/network-security-config) — treat that as a separate task.
+> **Use HTTPS.** The server URL is entered at runtime, so transport rules cannot be domain-scoped at build time. A plain-HTTP server requires extra opt-in (`NSAppTransportSecurity`) — treat that as a separate task.
 
 ## Auth on native
 
-- `clientKind` is `ios` or `android` (web is `web`).
-- The rotating **refresh token** is stored in the iOS Keychain / Android Keystore (`@aparajita/capacitor-secure-storage`) and sent in the `POST /auth/refresh` **body** (the backend reads body-first). There is no HttpOnly cookie on native — the backend sets that only for `web`.
+- `clientKind` is `ios` (web is `web`; the native Android client sends `android`).
+- The rotating **refresh token** is stored in the iOS Keychain (`@aparajita/capacitor-secure-storage`) and sent in the `POST /auth/refresh` **body** (the backend reads body-first). There is no HttpOnly cookie on native — the backend sets that only for `web`.
 - Logout clears the stored refresh token; the server URL is kept (it is configuration, not a credential).
 
 ### Passkeys on native
 
 The WebView cannot run a browser WebAuthn ceremony for your server: its origin is
-`capacitor://localhost` (iOS) / `https://localhost` (Android), not your domain. So
+`capacitor://localhost`, not your domain. So
 `frontend/src/lib/webauthn/` routes native ceremonies through the platform passkey
 APIs via `@capgo/capacitor-passkey`, while the web build keeps using
 `navigator.credentials` (the plugin is imported lazily, so it never enters the web
@@ -50,30 +49,24 @@ targets one instance domain:
 2. **Serve the association files** from that same domain — set `WELL_KNOWN_PATH`
    (see [configuration.md](configuration.md); `docker-compose.yml` already mounts
    `deploy/well-known/` at `/app/well-known`) or let your reverse proxy answer:
-   - `/.well-known/apple-app-site-association` →
-     `{"webcredentials":{"apps":["<TEAM_ID>.ru.tinyops.turboist"]}}`, served as
-     JSON with no file extension;
-   - `/.well-known/assetlinks.json` → a Digital Asset Links entry for
-     `ru.tinyops.turboist` listing every signing certificate fingerprint you use,
-     debug builds included.
-3. **Allow the Android origin.** Android Credential Manager reports
-   `android:apk-key-hash:<sha256>` in `clientDataJSON`, not your HTTPS origin, so
-   add it to the server's `WEBAUTHN_ORIGINS`. iOS 17.4+ reports the configured
-   HTTPS origin and needs nothing extra.
+   `/.well-known/apple-app-site-association` →
+   `{"webcredentials":{"apps":["<TEAM_ID>.ru.tinyops.turboist"]}}`, served as
+   JSON with no file extension. iOS 17.4+ reports the configured HTTPS origin,
+   so `WEBAUTHN_ORIGINS` needs nothing extra.
 
-Skip all of this and the native apps simply sign in with a password as before;
+The native Android client needs no build-time domain, but its instance must serve
+`assetlinks.json` and allow its `android:apk-key-hash:` origin; see
+[passkey.md](passkey.md#the-native-android-client).
+
+Skip all of this and the apps simply sign in with a password as before;
 web passkeys are unaffected.
 
-**Symptom → cause.** The platform sheet opening and then failing with *"RP ID not
-found"* means Credential Manager could not verify the domain against the app:
-either the served `assetlinks.json` is missing/wrong (a SPA install answers `200`
-with `index.html`, which looks fine to `curl -o /dev/null` — check the body), the
-signing fingerprint in it is not the one that signed the installed APK, or the
-native plugin is missing from the build so the call fell back to the WebView,
-whose origin is `https://localhost` and never matches the RP ID. Verify the last
-one with `npx cap sync android` — `@capgo/capacitor-passkey` must appear in the
-plugin list and `android/app/src/main/res/values/capacitor-passkey.xml` must
-point at your domain.
+**Symptom → cause.** On the native Android client, the platform sheet opening and
+then failing with *"RP ID not found"* means Credential Manager could not verify the
+domain against the app: either the served `assetlinks.json` is missing/wrong (a SPA
+install answers `200` with `index.html`, which looks fine to `curl -o /dev/null` —
+check the body), or the signing fingerprint in it is not the one that signed the
+installed APK.
 
 **`Cannot read properties of undefined (reading 'id')` on login** was this same
 seam: `@capgo/capacitor-passkey` distinguishes an assertion from a registration
@@ -101,9 +94,7 @@ Common: **Node 22+**, **yarn 1**.
   ```
 - CocoaPods is only a fallback for the SPM plugin-exposure bug ([capacitor#8325](https://github.com/ionic-team/capacitor/issues/8325)); if you hit it, `brew install cocoapods` and `yarn cap add ios --packagemanager CocoaPods`.
 
-### Android
-
-Scaffolding works without the SDK; **building** needs it.
+### Android (the native client)
 
 ```sh
 brew install --cask android-studio   # launch once; install SDK Platform 36 + Build-Tools + an emulator
@@ -113,9 +104,7 @@ export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 ```
 
-Android Studio must be **Otter (2025.2.1)+** for Capacitor 8.
-
-For a **headless** setup (no Android Studio) — enough to build and deploy with `just deploy-android`:
+For a **headless** setup (no Android Studio) — enough to build and deploy with `just android-native-deploy`:
 
 ```sh
 brew install --cask android-commandlinetools android-platform-tools
@@ -128,18 +117,16 @@ The first Gradle build may auto-pull an extra Build-Tools revision a plugin pins
 
 ## Build & run
 
-All recipes rebuild the web bundle and sync it into the native projects first.
+All recipes rebuild the web bundle and sync it into the iOS project first.
 
 ```sh
-just cap-sync        # yarn build + cap sync (both platforms)
+just cap-sync        # yarn build + cap sync ios
 just ios-run         # build, sync iOS, run on a simulator/device
-just android-run     # build, sync Android, run on an emulator/device
 just ios-build       # build, sync, open Xcode
-just android-build   # build, sync, open Android Studio
 just build-ipa       # build, sync, package an unsigned .ipa into dist/ (AltStore)
 ```
 
-Re-run `just cap-sync` after **every** web change — the native projects hold a *copy* of `frontend/build`.
+Re-run `just cap-sync` after **every** web change — the iOS project holds a *copy* of `frontend/build`.
 
 ### Deploy a signed Debug build to a physical iPhone
 
@@ -176,7 +163,7 @@ Notes for a **free** Apple ID: the app expires after **7 days** — keep AltServ
 
 ### Deploy a Debug APK to a physical Android device
 
-`just deploy-android` rebuilds the web bundle, syncs it, assembles a **Debug** APK (`./gradlew assembleDebug`, auto-signed with Gradle's debug keystore — no dev team or keystore needed), then installs and launches it over `adb`.
+`just android-native-deploy` assembles the native client's **Debug** APK (auto-signed with Gradle's debug keystore — no dev team or keystore needed) and installs it over `adb`; `just android-native-run` also launches it.
 
 The SDK is located from `ANDROID_SDK_ROOT`/`ANDROID_HOME`, else common install paths (Homebrew `android-commandlinetools`, `~/Library/Android/sdk`). With several devices attached, pick one with `ANDROID_DEVICE_ID=<serial>` (from `adb devices`).
 
@@ -184,13 +171,13 @@ On the phone, **enable USB debugging** first (Settings → About → tap *Build 
 
 ### Local build version stamp
 
-`just deploy-ios` and `just deploy-android` build through `cap-sync-versioned` instead of plain `cap-sync`: it stamps `frontend/package.json`'s `version` field with `VERSION` + the short git commit hash (e.g. `1.14.0-dev+a1b2c3d`) before running `yarn build`, then restores the file afterwards (`git checkout -- package.json`), so the stamp never shows up as a working-tree diff. That value is what renders in the app's **Settings → Version** row, so a locally sideloaded Debug build tells you exactly which commit it was built from. `just ios-run`/`just android-run`/`just ios-build`/`just android-build` still use plain `cap-sync` and show the untouched `package.json` version (normally `0.0.0` outside of the Docker build, which does the same substitution without the commit hash — see `Dockerfile`).
+`just deploy-ios` builds through `cap-sync-versioned` instead of plain `cap-sync`: it stamps `frontend/package.json`'s `version` field with `VERSION` + the short git commit hash (e.g. `1.14.0-dev+a1b2c3d`) before running `yarn build`, then restores the file afterwards (`git checkout -- package.json`), so the stamp never shows up as a working-tree diff. That value is what renders in the app's **Settings → Version** row, so a locally sideloaded Debug build tells you exactly which commit it was built from. `just ios-run`/`just android-run`/`just ios-build`/`just android-build` still use plain `cap-sync` and show the untouched `package.json` version (normally `0.0.0` outside of the Docker build, which does the same substitution without the commit hash — see `Dockerfile`).
 
 ### App icon
 
-The icon is the same mark on every platform: a white lightning bolt cut by two speed slits on the primary colour (`#ee343b`, the light theme's `--primary`), and nothing else — no gradient, no third colour. The source is `frontend/static/icons/icon.svg`. The bolt is 60% of the tile's height everywhere except the favicon (`frontend/src/lib/assets/favicon.svg`), where it is 84% because a smaller one turns into a blob at 16 px. The splash screens (iOS asset catalog, `drawable*/splash.png`) are the same two colours.
+The icon is the same mark on every platform: a white lightning bolt cut by two speed slits on the primary colour (`#ee343b`, the light theme's `--primary`), and nothing else — no gradient, no third colour. The source is `frontend/static/icons/icon.svg`. The bolt is 60% of the tile's height everywhere except the favicon (`frontend/src/lib/assets/favicon.svg`), where it is 84% because a smaller one turns into a blob at 16 px. The iOS splash screen in the asset catalog is the same two colours.
 
-- **Android**: an adaptive icon in both clients — background `ic_launcher_background` set to the same `#ee343b`, foreground a white bolt on transparency (`mipmap-*/ic_launcher_foreground.png` in `frontend/android/`, the vector `drawable/ic_launcher_foreground.xml` in `android-native/`, where it also serves as the themed monochrome layer). The layer is 108dp and the mask shows the middle 72dp, so one tile equals 72dp.
+- **Android**: an adaptive icon in `android-native/` — background `ic_launcher_background` set to the same `#ee343b`, foreground the white vector `drawable/ic_launcher_foreground.xml`, which also serves as the themed monochrome layer. The layer is 108dp and the mask shows the middle 72dp, so one tile equals 72dp.
 - **iOS**: a single 1024×1024 `AppIcon-512@2x.png` in the Xcode asset catalog (`frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/`). It is a **full-bleed square** — no rounded corners and **no alpha channel** (iOS rejects transparency in app icons and masks the corners itself), so it drops the `rx=96` rounding the web SVG uses.
 - Regenerate it from `frontend/static/icons/icon-maskable.svg`, which is the same tile without the corner radius (needs `rsvg-convert`, from `librsvg`; flatten the alpha channel afterwards if the tool keeps one):
   ```sh
@@ -278,17 +265,14 @@ notes — see [docs/offline.md](offline.md) for the full model:
 - **Live updates don't arrive** — SSE CORS: confirm the server is on this build (the `/api/v1/events` CORS allow-list) and that the URL is reachable.
 - **Android build can't find the SDK** — `ANDROID_HOME`/`ANDROID_SDK_ROOT` is unset; see Prerequisites.
 - **`adb devices` is empty** — USB debugging is off or unauthorized: enable it, set the USB mode to *File transfer* (not charge-only), and accept the on-device "Allow USB debugging?" prompt. A charge-only cable also shows nothing — try another cable/port.
-- **`deploy-android` fails with `mapfile: command not found`** — shouldn't happen (the recipe is bash-3.2 safe); if you forked it, avoid `mapfile` on macOS's system bash.
 - **iOS plugin not found after adding one** — re-run `yarn cap sync`; if it persists, use the CocoaPods fallback (`#8325`).
 - **iOS signing fails with "requires a development team"** — `IOS_DEV_TEAM_ID` is not in `.env`; set it in `.env.dev` and run `just init-dev` (see *Deploy a signed Debug build*).
 - **Old app icon still shows after redeploy** — SpringBoard caches icons; delete the app and reinstall, or reboot the device.
 
 ## The native Android client (`android-native/`)
 
-Alongside the Capacitor shells there is a second, fully native Android client
-under `android-native/`. It is a **separate Gradle build** with its own
-application id (`ru.tinyops.turboist.native`), so it installs side by side with
-the Capacitor app (`ru.tinyops.turboist`) instead of replacing it. Nothing in
+The Android app is a fully native client under `android-native/`, a **separate
+Gradle build** with the application id `ru.tinyops.turboist.native`. Nothing in
 `frontend/` is involved: no web bundle, no WebView.
 
 Layout:
@@ -2129,7 +2113,7 @@ calendar, and making them look like tasks would promise otherwise.
 **Connecting a calendar is done in the web app.** Authorising a Google account
 ends with a redirect back to the server, and choosing which calendars are shown
 is part of the same surface, so neither is implemented here — the same deferral
-the Capacitor shells make. Settings says so in a row that leads nowhere, rather
+the iOS shell makes. Settings says so in a row that leads nowhere, rather
 than leaving the user hunting for a switch that is not there.
 
 **What is checked.** The two reads are exercised over the real HTTP stack,
@@ -2382,7 +2366,7 @@ A run takes under two minutes on a warm build. On failure it leaves the server
 log and a logcat capture in `android-native/build/e2e/` and prints the path to
 the instrumentation report.
 
-Prerequisites are the same as for `deploy-android`: a JDK, an Android SDK found
+Prerequisites: a JDK, an Android SDK found
 via `ANDROID_SDK_ROOT`/`ANDROID_HOME` (or a standard install path), and `adb`.
 
 ```sh
@@ -2547,13 +2531,9 @@ language fails rather than being passed over.
 Before the app leaves the internal track for any wider audience:
 
 - **Application id.** The native client is published as
-  `ru.tinyops.turboist.native`, deliberately distinct from the WebView shell's
-  `ru.tinyops.turboist` so both install side by side. An id is permanent once a
-  build is uploaded under it — the store has no rename — so if the native client
-  is ever meant to *replace* the shell rather than sit beside it, that has to
-  happen before the first upload on any public track, and it means uploading the
-  native build under the shell's id with a higher version code and signing it
-  with the shell's key.
+  `ru.tinyops.turboist.native`. An id is permanent once a build is uploaded under
+  it — the store has no rename — so any change has to happen before the first
+  upload on any public track.
 - **Privacy policy.** The listing needs a public URL. Every instance serves the
   policy at `<base URL>/privacy-policy`; point the listing at a public one.
 - **Data safety.** What the app holds and where it sends it: a full replica of

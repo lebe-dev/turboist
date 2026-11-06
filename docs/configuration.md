@@ -50,8 +50,8 @@ passkey is an additional login method, never a replacement: the password stays
 as the recovery path, and a passkey login skips the TOTP step because the
 authenticator already verified the user.
 
-For the native apps, also set `plugins.CapacitorPasskey.origin`/`domains` in
-`frontend/capacitor.config.ts` and serve the two association files. Full setup
+For the iOS app, also set `plugins.CapacitorPasskey.origin`/`domains` in
+`frontend/capacitor.config.ts`, and for both native apps serve the association files. Full setup
 and troubleshooting: [passkey.md](passkey.md).
 
 ### Log levels

@@ -3,7 +3,7 @@
  *
  * The tones are generated instead of shipped as audio assets: two short sine
  * notes cost a few lines here, whereas files in `static/` would have to be
- * cached by the service worker and bundled into the iOS/Android builds.
+ * cached by the service worker and bundled into the iOS build.
  *
  * A single AudioContext is created lazily on the first play — always from a
  * click handler, which is what iOS requires for playback to be allowed at all.

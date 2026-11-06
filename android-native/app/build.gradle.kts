@@ -47,7 +47,6 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // Distinct from the WebView shell's id so both can be installed side by side.
         applicationId = "ru.tinyops.turboist.native"
         minSdk = 28
         targetSdk = 36

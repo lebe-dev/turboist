@@ -57,7 +57,6 @@
 	},
 	"dependencies": {
 		"@aparajita/capacitor-secure-storage": "^8",
-		"@capacitor/android": "^8",
 		"@capacitor/app": "^8",
 		"@capacitor/core": "^8",
 		"@capacitor/ios": "^8",

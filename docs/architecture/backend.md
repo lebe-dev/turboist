@@ -68,10 +68,10 @@ the credentials in `webauthn_credentials` (migration `049`).
 - **JWT only.** `/api/v1/passkeys/*` sits behind `RequireJWTAuth`: enrolling a
   passkey mints a password-equivalent credential, so an API token must not reach
   it. Up to 20 passkeys per account.
-- **Native apps** run the ceremony through platform APIs (`@capgo/capacitor-passkey`),
-  since the WebView's origin is not the server's; that path needs the association
-  files served under `/.well-known/` (`WELL_KNOWN_PATH`) and the Android app's
-  `android:apk-key-hash:` origin in `WEBAUTHN_ORIGINS`. See `docs/mobile.md`.
+- **Native apps** run the ceremony through platform APIs (iOS: `@capgo/capacitor-passkey`,
+  since the WebView's origin is not the server's; Android: Credential Manager); that
+  path needs the association files served under `/.well-known/` (`WELL_KNOWN_PATH`) and
+  the Android app's `android:apk-key-hash:` origin in `WEBAUTHN_ORIGINS`. See `docs/mobile.md`.
 
 ## Real-time invalidation (SSE)
 

@@ -44,7 +44,7 @@ type Config struct {
 	// RPDisplayName is shown by the platform's passkey prompt.
 	RPDisplayName string
 	// Origins lists every origin allowed to run a ceremony — the web origin
-	// plus, for the Capacitor apps, their native origins.
+	// plus, for the native apps, their own origins.
 	Origins []string
 }
 

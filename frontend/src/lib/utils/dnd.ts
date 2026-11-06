@@ -215,7 +215,7 @@ export function cancelTouchDrag(): void {
 }
 
 // The row's own touchend/touchcancel handlers are not enough on their own:
-// Android (Capacitor WebView) sends touchcancel when a system gesture or the
+// Android browsers send touchcancel when a system gesture or the
 // long-press itself steals the touch, and when the row re-renders mid-drag
 // (SSE update, list reorder) the remaining events go to the detached node and
 // never reach any handler. Either way the armed drag used to stay alive — the

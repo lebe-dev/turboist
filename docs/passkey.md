@@ -80,10 +80,9 @@ that holds the credential).
 
 ## Native app setup (iOS / Android)
 
-Unlike everything else on native, this is **build-time** configuration: iOS bakes
-the associated-domains entitlement in at sign time, and Android needs
-asset-statements metadata in the manifest. A native build therefore targets one
-instance domain. Skip this section entirely and the apps sign in with a password
+For iOS, unlike everything else on native, this is **build-time** configuration:
+iOS bakes the associated-domains entitlement in at sign time, so an iOS build
+targets one instance domain. The native Android client skips step 1. Skip this section entirely and the apps sign in with a password
 as before.
 
 ### 1. Point the build at your domain
@@ -98,11 +97,9 @@ CapacitorPasskey: {
 }
 ```
 
-Then `just mobile`. The plugin's sync hook writes the iOS entitlement and the
-Android asset-statements metadata into the generated host projects. Confirm it
-ran — `npx cap sync android` must list `@capgo/capacitor-passkey` among the
-plugins, and `frontend/android/app/src/main/res/values/capacitor-passkey.xml`
-must point at your domain.
+Then `just mobile`. The plugin's sync hook writes the iOS entitlement into the
+generated host project. Confirm it ran — `npx cap sync ios` must list
+`@capgo/capacitor-passkey` among the plugins.
 
 ### 2. Serve the association files
 
@@ -114,25 +111,12 @@ just as well.
 
 **`/.well-known/assetlinks.json`** (Android) — needs the
 `delegate_permission/common.get_login_creds` relation and the SHA-256 fingerprint
-of the certificate that signed the **installed** APK. There are two Android
-packages and each needs its own entry: `ru.tinyops.turboist` is the WebView app,
-`ru.tinyops.turboist.native` the native client, which carries a package id of its
-own so both can be installed side by side. An app that is not named here gets the
-passkey sheet and then a failure, however correct its fingerprint is.
+of the certificate that signed the **installed** APK, under the package
+`ru.tinyops.turboist.native`. An app that is not named here gets the passkey sheet
+and then a failure, however correct its fingerprint is.
 
 ```json
 [
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls",
-      "delegate_permission/common.get_login_creds"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "ru.tinyops.turboist",
-      "sha256_cert_fingerprints": ["91:99:F3:…"]
-    }
-  },
   {
     "relation": [
       "delegate_permission/common.handle_all_urls",
@@ -150,7 +134,7 @@ passkey sheet and then a failure, however correct its fingerprint is.
 Where the fingerprint comes from:
 
 ```sh
-# just deploy-android builds assembleDebug -> the local debug keystore signs it
+# just android-native-deploy builds the debug APK -> the local debug keystore signs it
 keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore \
     -storepass android | grep SHA256
 ```
@@ -199,10 +183,8 @@ python3 -c 'import base64,sys; print("android:apk-key-hash:"+base64.urlsafe_b64e
 WEBAUTHN_ORIGINS=android:apk-key-hash:kZnz5woESO8kA7iFlIjUCXVvfA_Nw1LbKOfUfX0w0PA
 ```
 
-The value comes from the signing certificate, not from the package name, so two
-apps signed by the same key report the same origin and need one entry between
-them — which is what a machine's debug keystore gives both Android builds. A
-build signed by a different key (Play App Signing, another developer's machine)
+The value comes from the signing certificate, not from the package name. A build
+signed by a different key (Play App Signing, another developer's machine)
 reports a different origin and needs its own entry.
 
 Without it the ceremony runs to completion on the device and then fails at
@@ -211,16 +193,13 @@ configured in step 1 and needs nothing extra.
 
 ### The native Android client
 
-`android-native/` is a second Android app — Compose rather than a WebView — and
-it signs in with passkeys through Credential Manager. It needs steps 2 and 3, not
+`android-native/` is the Android app — Compose rather than a WebView — and it
+signs in with passkeys through Credential Manager. It needs steps 2 and 3, not
 step 1: there is no domain to bake in, because the server is typed in by the user
 at first launch and the relying party follows whatever instance the app is
 connected to. So the association file has to be served **by that instance**, and
 its `WEBAUTHN_ORIGINS` has to allow the origin of the certificate that signed the
 installed APK.
-
-Its package id is `ru.tinyops.turboist.native`, which is why `assetlinks.json`
-lists two targets. Everything else is the same file and the same origin value.
 
 Everything on the server side of that can be checked without a phone:
 

@@ -1,7 +1,6 @@
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 
-// Persists the rotating refresh token in the iOS Keychain / Android Keystore-
-// backed store. Web never uses this (its refresh token lives in an HttpOnly
+// Persists the rotating refresh token in the iOS Keychain. Web never uses this (its refresh token lives in an HttpOnly
 // cookie) — AuthStore only wires a token store in when running natively.
 
 export interface RefreshTokenStore {

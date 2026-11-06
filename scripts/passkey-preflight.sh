@@ -118,7 +118,7 @@ config = load(f"{out}/config.json")
 check(config.get("passkeys", {}).get("enabled") is True,
       "the instance does not report passkeys as enabled")
 
-# 2. The association file is served, as JSON, and names both apps. The platform
+# 2. The association file is served, as JSON, and names the app. The platform
 #    refuses the file outright on the wrong content type, and an app the file
 #    does not name is an app the domain does not vouch for.
 headers = open(f"{out}/assetlinks.headers").read().lower()
@@ -126,8 +126,8 @@ check("content-type: application/json" in headers,
       "/.well-known/assetlinks.json is not served as application/json")
 assetlinks = load(f"{out}/assetlinks.json")
 packages = {t.get("target", {}).get("package_name") for t in assetlinks}
-for name in ("ru.tinyops.turboist", "ru.tinyops.turboist.native"):
-    check(name in packages, f"the association file does not name {name}")
+name = "ru.tinyops.turboist.native"
+check(name in packages, f"the association file does not name {name}")
 for target in assetlinks:
     check(bool(target.get("target", {}).get("sha256_cert_fingerprints")),
           f"{target.get('target', {}).get('package_name')} has no signing fingerprint")
@@ -185,7 +185,7 @@ if failures:
 
 print("passkey preflight OK:")
 print("  - the instance reports passkeys as enabled")
-print("  - the association file is served as JSON and names both apps, each with a fingerprint")
+print("  - the association file is served as JSON and names the app, with a fingerprint")
 print("  - enrolment asks for a discoverable credential, login names no account")
 print("  - both recorded ceremonies still match the shape the server sends")
 PY

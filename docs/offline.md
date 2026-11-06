@@ -4,7 +4,7 @@ Turboist keeps working when the network drops. This is **Strategy 1** — a read
 cache plus a small semantic outbox layered around the `ApiClient` — not a full offline
 database. It ships in one place (`frontend/src/lib/offline/`) and, because that code sits
 in the shared JS layer, it works identically on all three shells: the web app, the
-installed web-PWA, and the native iOS/Android apps.
+installed web-PWA, and the iOS app. The native Android client has its own offline model, see [mobile.md](mobile.md).
 
 > The idempotency guarantees the outbox relies on are documented on the backend side:
 > see [API.md](../API.md) and
@@ -108,7 +108,7 @@ promise rejection reported to Sentry.
 
 ## Native shells
 
-`CapacitorHttp` routes `fetch`/XHR through the native HTTP stack, so on iOS/Android
+`CapacitorHttp` routes `fetch`/XHR through the native HTTP stack, so on iOS
 requests **do not pass through the service worker**. That is why the cache and outbox live
 in the JS layer — they work on native automatically. The service worker is used **only** to
 deliver the web shell and never touches `/api/*`. See [docs/mobile.md](mobile.md) for the
@@ -140,10 +140,10 @@ Automated unit/integration tests cover the internals of every scenario below
 (`frontend/src/lib/offline/*.test.ts`, `frontend/src/lib/api/client.test.ts`,
 `internal/httpapi/handlers/idempotency_test.go`). This checklist is the manual
 end-to-end pass across the real UI and the three shells (web browser, installed
-web-PWA, native iOS/Android). There is no Playwright/E2E harness — run this by hand.
+web-PWA, native iOS). There is no Playwright/E2E harness — run this by hand.
 
 Legend: **Web** = desktop/mobile browser · **PWA** = installed web app (home screen) ·
-**Native** = iOS/Android Capacitor build (airplane mode).
+**Native** = iOS Capacitor build (airplane mode).
 
 Toggling "offline":
 - Web/PWA: DevTools → Network → **Offline**, or the OS network toggle.
@@ -255,7 +255,7 @@ Before each run: be logged in and online once so the cache is warm.
 
 ---
 
-### Native iOS / Android — airplane-mode pass
+### Native iOS — airplane-mode pass
 
 Run scenarios 1, 2, 4, 5, 7 on a device/simulator in **airplane mode**. Native shells
 differ from web in two ways worth checking explicitly:

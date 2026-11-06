@@ -138,10 +138,10 @@ init-dev:
     fi
 
 # --- Mobile (Capacitor) ---
-# Rebuild the SPA bundle and copy it into the native iOS + Android projects.
+# Rebuild the SPA bundle and copy it into the iOS project.
 # Run after every web change before building a native app.
 cap-sync:
-    cd frontend && yarn build && yarn cap sync
+    cd frontend && yarn build && yarn cap sync ios
 
 # Same as cap-sync, but stamps frontend/package.json's version with the current
 # VERSION + short git commit hash (e.g. "1.14.0-dev+a1b2c3d") before building, so
@@ -163,9 +163,9 @@ cap-sync-versioned:
     trap 'mv -f package.json.stamp-backup package.json' EXIT
     perl -pi -e 's/"version": "[^"]*"/"version": "{{ mobileVersion }}"/' package.json
     yarn build
-    yarn cap sync
+    yarn cap sync ios
 
-# Full mobile refresh (web bundle + native sync of both platforms).
+# Full mobile refresh (web bundle + iOS sync).
 mobile: cap-sync
 
 # iOS: rebuild web, sync, open the project in Xcode. Capacitor 8 uses Swift
@@ -277,87 +277,16 @@ build-ipa: cap-sync-versioned
     (cd "$STAGE" && zip -qry "$IPA" Payload)
     echo "==> done: $IPA ($(du -h "$IPA" | cut -f1))"
 
-# Android: rebuild web, sync, open the project in Android Studio. Requires
-# ANDROID_HOME + an installed SDK to build.
-android-build: cap-sync
-    cd frontend && yarn cap open android
-
-# Android: rebuild web, sync Android, run on an emulator/device.
-android-run:
-    cd frontend && yarn build && yarn cap sync android && yarn cap run android
-
-# Android: build a Debug APK and deploy it onto a connected device.
-# Rebuilds the web bundle, syncs it into the native project, assembles a Debug APK
-# (auto-signed with Gradle's debug keystore — no dev team/keystore needed), then
-# installs and launches it over adb.
-#
-# The SDK is found via ANDROID_SDK_ROOT/ANDROID_HOME, else common install paths
-# (Homebrew android-commandlinetools, ~/Library/Android/sdk). The target device is
-# picked with fzf (showing manufacturer/model/Android version, not just the serial);
-# override with ANDROID_DEVICE_ID=<serial> (from `adb devices`) to skip the picker.
-androidDeviceId := env_var_or_default("ANDROID_DEVICE_ID", "")
-deploy-android: cap-sync-versioned
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # Locate the Android SDK.
-    SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-    if [ -z "$SDK" ]; then
-        for c in /opt/homebrew/share/android-commandlinetools "$HOME/Library/Android/sdk"; do
-            [ -d "$c/platform-tools" ] && { SDK="$c"; break; }
-        done
-    fi
-    if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
-        echo "error: Android SDK not found. Set ANDROID_SDK_ROOT, or install the SDK." >&2
-        echo "  brew install --cask android-commandlinetools android-platform-tools" >&2
-        exit 1
-    fi
-    export ANDROID_SDK_ROOT="$SDK" ANDROID_HOME="$SDK"
-    ADB="$(command -v adb || echo "$SDK/platform-tools/adb")"
-    # Pick the target device.
-    DEVICE="{{ androidDeviceId }}"
-    if [ -z "$DEVICE" ]; then
-        # Portable (bash 3.2, no mapfile): collect authorized serials into a string.
-        devs=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}')
-        count=$(printf '%s\n' "$devs" | grep -c . || true)
-        if [ "$count" -eq 0 ]; then
-            echo "error: no authorized Android device found." >&2
-            echo "  Enable USB debugging and accept the 'Allow USB debugging?' prompt, then: adb devices" >&2
-            exit 1
-        fi
-        if ! command -v fzf >/dev/null 2>&1; then
-            echo "error: fzf is required to pick a device (brew install fzf), or set ANDROID_DEVICE_ID to one of:" >&2
-            printf '%s\n' "$devs" | sed 's/^/  /' >&2
-            exit 1
-        fi
-        # Build "serial<TAB>manufacturer model (Android version, device|emulator)" rows,
-        # then show only the label column in fzf while keeping the serial to extract.
-        rows=""
-        while IFS= read -r s; do
-            [ -z "$s" ] && continue
-            model=$("$ADB" -s "$s" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
-            manuf=$("$ADB" -s "$s" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
-            ver=$("$ADB" -s "$s" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
-            kind="device"
-            case "$s" in emulator-*) kind="emulator" ;; esac
-            rows="${rows}${s}\t${manuf} ${model} (Android ${ver}, ${kind}) [${s}]\n"
-        done <<< "$devs"
-        sel=$(printf '%b' "$rows" | fzf --with-nth=2 --delimiter='\t' --select-1 \
-            --prompt="Android device> " --height=~40% --reverse)
-        [ -z "$sel" ] && { echo "error: no device selected" >&2; exit 1; }
-        DEVICE=$(printf '%s' "$sel" | cut -f1)
-    fi
-    echo "==> deploying to device $DEVICE (sdk $SDK)"
-    cd frontend/android
-    ./gradlew assembleDebug
-    APK="app/build/outputs/apk/debug/app-debug.apk"
-    echo "==> installing $APK"
-    "$ADB" -s "$DEVICE" install -r "$APK"
-    echo "==> launching"
-    "$ADB" -s "$DEVICE" shell am start -n ru.tinyops.turboist/.MainActivity
-
 # --- Native Android client ---
-# `android-native/` is a Gradle build of its own, entirely separate from the
-# Capacitor shell in `frontend/android/`. It shares the repo-root VERSION file.
+# `android-native/` is a Gradle build of its own, with nothing from the web bundle
+# in it. It shares the repo-root VERSION file.
+#
+# The Android recipes find the SDK via ANDROID_SDK_ROOT/ANDROID_HOME, else common
+# install paths (Homebrew android-commandlinetools, ~/Library/Android/sdk), and pick
+# the target device with fzf; ANDROID_DEVICE_ID=<serial> (from `adb devices`) skips
+# the picker.
+androidDeviceId := env_var_or_default("ANDROID_DEVICE_ID", "")
+
 #
 # `android-native-test` and `android-lint` are part of `test-all` and
 # `lint`, so an Android SDK (found via ANDROID_SDK_ROOT/ANDROID_HOME, or a
@@ -476,8 +405,6 @@ android-native-release:
 android-native-passkey-preflight port="18099":
     ./scripts/passkey-preflight.sh {{ port }}
 
-# The SDK is located exactly like deploy-android does; the target device is
-# picked with fzf, or set ANDROID_DEVICE_ID=<serial> to skip the picker.
 # Build, install and launch the native Android client on a device or emulator.
 android-native-run:
     #!/usr/bin/env bash

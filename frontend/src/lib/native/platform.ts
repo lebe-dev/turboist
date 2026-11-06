@@ -3,7 +3,7 @@ import type { ClientKind } from '$lib/api/types';
 
 // Runtime platform detection. On the web build Capacitor's shim reports
 // isNativePlatform() === false and getPlatform() === 'web', so the same bundle
-// serves the Go-embedded web app and the native shells unchanged. Never call
+// serves the Go-embedded web app and the iOS shell unchanged. Never call
 // these at module top level — only inside functions, so tests that construct
 // ApiClient/AuthStore directly never touch the Capacitor bridge.
 
@@ -12,6 +12,5 @@ export function isNativePlatform(): boolean {
 }
 
 export function resolveClientKind(): ClientKind {
-	if (!Capacitor.isNativePlatform()) return 'web';
-	return Capacitor.getPlatform() === 'ios' ? 'ios' : 'android';
+	return Capacitor.isNativePlatform() ? 'ios' : 'web';
 }

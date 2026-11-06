@@ -21,7 +21,7 @@ let pendingQuickAdd = false;
 let pendingPrefill: QuickAddPrefill | null = null;
 let appLayoutReady = false;
 
-/** What a share (PWA share target, Android share sheet) puts into QuickAdd. */
+/** What a share (PWA share target) puts into QuickAdd. */
 export interface QuickAddPrefill {
 	title: string;
 	description: string;
