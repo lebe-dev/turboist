@@ -10,14 +10,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import ru.tinyops.turboist.core.model.diagnostics.FaultSeverity
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.ApiException
 import ru.tinyops.turboist.core.network.ServerUrl
 import ru.tinyops.turboist.core.network.dto.LoginOutcome
 import ru.tinyops.turboist.core.network.dto.SessionDto
 import ru.tinyops.turboist.core.network.dto.optionsJson
 import ru.tinyops.turboist.core.network.dto.passkeyCredentialOf
+import ru.tinyops.turboist.core.network.isRoutineFailure
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyAuthenticator
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyOutcome
+import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyProblem
 import ru.tinyops.turboist.nativeapp.auth.passkey.passkeyProblemOf
 import ru.tinyops.turboist.nativeapp.di.ApplicationScope
 import ru.tinyops.turboist.nativeapp.session.OfflineSessionSource
@@ -237,7 +241,9 @@ class SessionManager
                 throw e
             } catch (e: Exception) {
                 Log.i(TAG, "A passkey sign-in did not complete", e)
-                PasskeyOutcome.Failed(passkeyProblemOf(e))
+                val problem = passkeyProblemOf(e)
+                if (problem == PasskeyProblem.Failed) Faults.report("auth", "A passkey sign-in failed unexpectedly", e)
+                PasskeyOutcome.Failed(problem)
             }
 
         /** Abandons a two-step sign-in and goes back to the username and password. */
@@ -437,6 +443,15 @@ class SessionManager
                     RenewOutcome.RENEWED
                 } catch (e: ApiException.Auth) {
                     Log.i(TAG, "The stored session was refused by the server; signing out", e)
+                    // Worth hearing about: a session that was fine yesterday, or a
+                    // rotated token presented twice, which the server reads as theft.
+                    Faults.report(
+                        "auth",
+                        "The stored session was refused by the server",
+                        e,
+                        FaultSeverity.WARNING,
+                        mapOf("code" to e.code),
+                    )
                     forgetRejectedSession()
                     RenewOutcome.REJECTED
                 } catch (e: CancellationException) {
@@ -445,6 +460,7 @@ class SessionManager
                     // Anything that is not an outright refusal — no network, a
                     // gateway error, a throttled attempt — leaves the session alone.
                     Log.i(TAG, "The stored session could not be checked; continuing without a fresh token", e)
+                    if (!e.isRoutineFailure) Faults.report("auth", "The stored session could not be checked", e)
                     RenewOutcome.UNREACHABLE
                 }
             }
@@ -479,6 +495,7 @@ class SessionManager
                 true
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "The stored server address is unusable; asking for it again", e)
+                Faults.report("auth", "The stored server address is unusable", e, FaultSeverity.WARNING)
                 serverAddresses.clear()
                 false
             }
@@ -527,6 +544,7 @@ class SessionManager
                 throw e
             } catch (e: Exception) {
                 Log.i(TAG, "A sign-in attempt was refused", e)
+                if (!e.isRoutineFailure) Faults.report("auth", "A sign-in attempt failed unexpectedly", e)
                 AuthResult.Failed(authFailureOf(e))
             }
 

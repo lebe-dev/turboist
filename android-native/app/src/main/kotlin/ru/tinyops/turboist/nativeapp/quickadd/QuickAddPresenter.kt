@@ -16,6 +16,7 @@ import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
@@ -246,6 +247,7 @@ class QuickAddPresenter(
                 stopAfter(draft, pending, written)
                 return@launch
             } catch (failure: RuntimeException) {
+                Faults.report("quickadd", "Adding a task from the capture sheet failed", failure)
                 stopAfter(draft, pending, written)
                 return@launch
             }

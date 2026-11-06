@@ -69,6 +69,10 @@ class StoredDeviceOptionActions
             // leave a scheduled job obeying a choice nothing remembers.
             metered.apply(allowed)
         }
+
+        override suspend fun setSendErrorReports(allowed: Boolean) {
+            store.setSendErrorReports(allowed)
+        }
     }
 
 /** The connection as the session layer and the replica actually hold it. */

@@ -8,8 +8,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.dto.ApiTokenDto
 import ru.tinyops.turboist.core.network.dto.CreatedApiTokenDto
+import ru.tinyops.turboist.core.network.isRoutineFailure
 import javax.inject.Inject
 
 /** The three ready-made permission sets the form offers before the checkboxes. */
@@ -83,6 +85,7 @@ class ApiTokensViewModel
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        if (!e.isRoutineFailure) Faults.report("account", "A token request failed unexpectedly", e)
                         mutable.value.copy(loading = false, unreachable = true, problem = accountProblemOf(e))
                     }
             }
@@ -207,6 +210,7 @@ class ApiTokensViewModel
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (!e.isRoutineFailure) Faults.report("account", "A token request failed unexpectedly", e)
                     mutable.value = mutable.value.copy(problem = accountProblemOf(e))
                 } finally {
                     mutable.value = mutable.value.copy(busy = false)

@@ -9,8 +9,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import ru.tinyops.turboist.nativeapp.diagnostics.ErrorReporting
+import ru.tinyops.turboist.nativeapp.diagnostics.ErrorReportingConsent
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,10 +49,16 @@ enum class ThemeChoice {
  * @property syncOnMetered whether the background catch-up may run on a metered
  *   connection. Turning it off never blocks the user: a refresh they asked for
  *   is still made, because that is a person waiting rather than a timer firing.
+ * @property sendErrorReports whether crashes and failures are sent to the
+ *   developer. Off until the user turns it on.
+ * @property errorReportingAvailable whether this build has anywhere to send them;
+ *   a build without one does not offer the choice.
  */
 data class DeviceOptions(
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
     val syncOnMetered: Boolean = true,
+    val sendErrorReports: Boolean = false,
+    val errorReportingAvailable: Boolean = false,
 )
 
 /** Where the device's own choices are kept. */
@@ -63,6 +72,8 @@ interface DeviceOptionsStore {
     suspend fun setTheme(theme: ThemeChoice)
 
     suspend fun setSyncOnMetered(allowed: Boolean)
+
+    suspend fun setSendErrorReports(allowed: Boolean)
 }
 
 /**
@@ -83,8 +94,12 @@ class DataStoreDeviceOptions
     @Inject
     constructor(
         @param:ApplicationContext private val context: Context,
+        private val consent: ErrorReportingConsent,
     ) : DeviceOptionsStore {
-        override fun observe(): Flow<DeviceOptions> = context.deviceOptions.data.map(::optionsOf)
+        override fun observe(): Flow<DeviceOptions> =
+            combine(context.deviceOptions.data.map(::optionsOf), consent.allowed) { options, allowed ->
+                options.copy(sendErrorReports = allowed, errorReportingAvailable = ErrorReporting.available)
+            }
 
         override suspend fun read(): DeviceOptions = observe().first()
 
@@ -94,6 +109,11 @@ class DataStoreDeviceOptions
 
         override suspend fun setSyncOnMetered(allowed: Boolean) {
             context.deviceOptions.edit { it[SYNC_ON_METERED] = allowed }
+        }
+
+        override suspend fun setSendErrorReports(allowed: Boolean) {
+            consent.set(allowed)
+            ErrorReporting.apply(context, allowed)
         }
 
         private fun optionsOf(stored: Preferences): DeviceOptions =

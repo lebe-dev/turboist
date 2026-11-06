@@ -25,6 +25,8 @@ work = "2.10.5"
 datastore = "1.1.7"
 credentials = "1.5.0"
 libRecur = "0.17.1"
+sentry = "8.63.0"
+sentryPlugin = "6.26.0"
 benchmark = "1.5.0"
 profileinstaller = "1.4.1"
 uiautomator = "2.3.0"
@@ -83,6 +85,10 @@ work-testing = { group = "androidx.work", name = "work-testing", version.ref = "
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 
+# --- Error reporting (only ever started once the user has opted in) ---
+sentry-android-core = { group = "io.sentry", name = "sentry-android-core", version.ref = "sentry" }
+sentry-android-ndk = { group = "io.sentry", name = "sentry-android-ndk", version.ref = "sentry" }
+
 # --- Kotlin runtime ---
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
@@ -122,3 +128,4 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+sentry = { id = "io.sentry.android.gradle", version.ref = "sentryPlugin" }

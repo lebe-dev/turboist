@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.sentry) apply false
 }
 
 subprojects {

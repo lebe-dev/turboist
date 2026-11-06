@@ -60,6 +60,7 @@ data class LinkTitlesWrite(
 class RecordingDeviceOptionActions : DeviceOptionActions {
     var theme: ThemeChoice? = null
     var syncOnMetered: Boolean? = null
+    var sendErrorReports: Boolean? = null
 
     override suspend fun setTheme(theme: ThemeChoice) {
         this.theme = theme
@@ -67,6 +68,10 @@ class RecordingDeviceOptionActions : DeviceOptionActions {
 
     override suspend fun setSyncOnMetered(allowed: Boolean) {
         syncOnMetered = allowed
+    }
+
+    override suspend fun setSendErrorReports(allowed: Boolean) {
+        sendErrorReports = allowed
     }
 }
 

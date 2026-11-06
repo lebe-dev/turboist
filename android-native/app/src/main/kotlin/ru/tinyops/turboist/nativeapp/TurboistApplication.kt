@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import ru.tinyops.turboist.nativeapp.auth.SessionManager
+import ru.tinyops.turboist.nativeapp.diagnostics.ErrorReporting
 import ru.tinyops.turboist.nativeapp.sync.SyncStartup
 import ru.tinyops.turboist.nativeapp.sync.SyncWorkerFactory
 import javax.inject.Inject
@@ -44,6 +45,10 @@ class TurboistApplication :
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
     override fun onCreate() {
+        // Ahead of everything, including the injection that happens inside
+        // super.onCreate(): a crash while the graph is being built is exactly the
+        // kind that nothing else would ever tell anyone about.
+        ErrorReporting.start(this)
         super.onCreate()
         // Resolving the stored session decides what the first screen *is*, so it
         // cannot be started by a screen. It runs in the background and publishes

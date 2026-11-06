@@ -3,7 +3,7 @@
 **Turboist**
 
 **Effective date:** May 24, 2026
-**Last updated:** May 24, 2026
+**Last updated:** November 6, 2026
 
 ## 1. Overview
 
@@ -42,7 +42,7 @@ Turboist processes the following categories of data, all of which are stored loc
 
 **Application logs.** Standard server logs (request identifiers, log levels, anonymized fields) written to the Operator's infrastructure. Logs do not contain Google Calendar event content. Logs remain on the instance and are governed by the Operator's own retention practices.
 
-Turboist does **not** include any analytics, telemetry, advertising trackers, error-reporting services, or third-party SDKs that transmit data outside the instance.
+Turboist does **not** include any analytics, telemetry, or advertising trackers. The only exception to data staying on the instance is optional error reporting through Sentry, described in Section 6.
 
 ## 5. Google Calendar integration
 
@@ -86,7 +86,11 @@ The Google Calendar integration runs entirely between your instance and Google's
 
 ## 6. Data we (the maintainers) do not collect
 
-The maintainers do not operate any backend, analytics endpoint, license server, update server, or telemetry endpoint that the Software contacts. Running Turboist does not result in any data being transmitted to the maintainers under any circumstance.
+The maintainers do not operate any backend, analytics endpoint, license server, update server, or telemetry endpoint that the Software contacts. Running the server and the web client does not transmit data to the maintainers. An Operator may separately configure the server and web client to report errors to a Sentry project of the Operator's own.
+
+**Optional error reporting in the native Android app.** The native Android app can send error reports to the maintainers through Sentry (Functional Software, Inc.), a third-party error-monitoring service. This is **off by default** and happens only if you turn on "Send error reports to the developer" in the app's settings. Turning it off stops reporting at once and deletes reports not yet sent. Android builds that were not configured with a Sentry project do not offer the setting.
+
+When it is on, a report contains the type of the error, where in the code it happened, a fixed description of what failed, and technical context: the device model, the Android and app versions, and the error code returned by the server. It does **not** contain your task, project or label names, descriptions, account details, tokens, or your server's address, and exception messages are removed before a report is sent. Reports are used only to find and fix defects.
 
 If you contact us by email at **eugene.0x90@gmail.com**, we will receive whatever information you choose to send us (e.g., your email address, the contents of your message, attached logs). We use this information only to respond to your inquiry and we do not share it with third parties.
 

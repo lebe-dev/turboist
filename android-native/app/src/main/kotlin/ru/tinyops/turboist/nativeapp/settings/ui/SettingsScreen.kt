@@ -47,6 +47,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.diagnostics.ErrorReporting
 import ru.tinyops.turboist.nativeapp.settings.DeletedRule
 import ru.tinyops.turboist.nativeapp.settings.RuleKind
 import ru.tinyops.turboist.nativeapp.settings.SettingsConfirmation
@@ -95,6 +96,7 @@ data class SettingsCallbacks(
     val onCancelLinkRule: () -> Unit = {},
     val onSetTheme: (ThemeChoice) -> Unit = {},
     val onSetSyncOnMetered: (Boolean) -> Unit = {},
+    val onSetSendErrorReports: (Boolean) -> Unit = {},
     val onAsk: (SettingsConfirmation) -> Unit = {},
     val onCancelConfirmation: () -> Unit = {},
     val onConfirm: () -> Unit = {},
@@ -455,7 +457,18 @@ private fun settingsSearchEntries(): List<SettingsSearchEntry> {
             Triple(R.string.legal_tos_title, SettingsSection.ABOUT, null),
             Triple(R.string.legal_privacy_title, SettingsSection.ABOUT, null),
         )
-    return catalog.map { (titleRes, section, descriptionRes) ->
+    val offered =
+        if (ErrorReporting.available) {
+            catalog +
+                Triple(
+                    R.string.native_settings_sendErrorReports,
+                    SettingsSection.DEVICE,
+                    R.string.native_settings_sendErrorReportsDescription,
+                )
+        } else {
+            catalog
+        }
+    return offered.map { (titleRes, section, descriptionRes) ->
         SettingsSearchEntry(
             title = stringResource(titleRes),
             section = section,

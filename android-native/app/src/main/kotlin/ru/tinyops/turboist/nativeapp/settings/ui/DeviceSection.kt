@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Dns
@@ -39,7 +40,7 @@ import ru.tinyops.turboist.nativeapp.settings.SettingsUiState
 /**
  * The choices that stay on this phone, and the server it talks to.
  *
- * None of it is sent anywhere, and that is the point of drawing it apart from
+ * None of it reaches the server, and that is the point of drawing it apart from
  * the account's settings: whether a radio may spend a data allowance is a fact
  * about a device, and a tablet on wi-fi wants a different answer from a phone on
  * a metered plan.
@@ -81,6 +82,21 @@ internal fun DeviceSection(
             )
         }
         row { UnsentChangesRow(state.refusedChangeCount, destinations.openUnsentChanges) }
+    }
+
+    if (state.device.errorReportingAvailable) {
+        SettingsGroupLabel(stringResource(R.string.native_settings_diagnosticsHeading))
+        SettingsGroup {
+            row {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.native_settings_sendErrorReports),
+                    checked = state.device.sendErrorReports,
+                    onCheckedChange = callbacks.onSetSendErrorReports,
+                    description = stringResource(R.string.native_settings_sendErrorReportsDescription),
+                    icon = Icons.Outlined.BugReport,
+                )
+            }
+        }
     }
 
     SettingsGroupLabel(stringResource(R.string.native_settings_serverHeading))

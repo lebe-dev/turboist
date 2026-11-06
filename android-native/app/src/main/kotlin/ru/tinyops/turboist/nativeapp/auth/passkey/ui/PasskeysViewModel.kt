@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.dto.PasskeyDto
+import ru.tinyops.turboist.core.network.isRoutineFailure
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyAuthenticator
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyProblem
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyRegistry
@@ -71,6 +73,7 @@ class PasskeysViewModel
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        if (!e.isRoutineFailure) Faults.report("account", "Listing passkeys failed unexpectedly", e)
                         mutable.value.copy(loading = false, unreachable = true, problem = passkeyProblemOf(e))
                     }
             }
@@ -139,7 +142,11 @@ class PasskeysViewModel
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    mutable.value = mutable.value.copy(problem = passkeyProblemOf(e))
+                    val problem = passkeyProblemOf(e)
+                    if (problem == PasskeyProblem.Failed) {
+                        Faults.report("account", "A passkey ceremony failed unexpectedly", e)
+                    }
+                    mutable.value = mutable.value.copy(problem = problem)
                 } finally {
                     mutable.value = mutable.value.copy(busy = false, awaitingDevice = false)
                 }

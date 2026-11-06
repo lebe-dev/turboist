@@ -185,3 +185,14 @@ private fun JsonObject?.longList(name: String): List<Long> {
     val array = this?.get(name) as? JsonArray ?: return emptyList()
     return array.mapNotNull { (it as? JsonPrimitive)?.longOrNull }
 }
+
+/**
+ * Whether a failure is an ordinary part of talking to a server rather than a
+ * defect: no connection, or a refusal the server stated on purpose.
+ *
+ * Everything an account screen or a sign-in can catch falls on one side of this
+ * line. A server that broke, and anything that is not an I/O failure at all, is
+ * worth a developer's attention; a phone in a tunnel is not.
+ */
+val Throwable.isRoutineFailure: Boolean
+    get() = this is IOException && this !is ApiException.Server

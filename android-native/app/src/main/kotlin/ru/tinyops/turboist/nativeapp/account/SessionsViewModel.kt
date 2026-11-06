@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.dto.ActiveSessionDto
+import ru.tinyops.turboist.core.network.isRoutineFailure
 import javax.inject.Inject
 
 /** The three ways of closing a session, each asked about before it happens. */
@@ -90,6 +92,7 @@ class SessionsViewModel
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        if (!e.isRoutineFailure) Faults.report("account", "A sessions request failed unexpectedly", e)
                         mutable.value.copy(loading = false, unreachable = true, problem = accountProblemOf(e))
                     }
             }
@@ -187,6 +190,7 @@ class SessionsViewModel
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (!e.isRoutineFailure) Faults.report("account", "A sessions request failed unexpectedly", e)
                     mutable.value = mutable.value.copy(problem = accountProblemOf(e))
                 } finally {
                     mutable.value = mutable.value.copy(busy = false)

@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.labels
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.LabelPatch
 import ru.tinyops.turboist.core.sync.write.LabelWriteRepo
 import ru.tinyops.turboist.core.sync.write.WriteRefused
@@ -77,6 +78,7 @@ internal suspend fun MutableSharedFlow<LabelMessage>.reporting(write: suspend ()
     } catch (refusal: WriteRefused) {
         emit(LabelMessage.FAILED)
     } catch (failure: RuntimeException) {
+        Faults.report("labels", "A change to a label failed", failure)
         emit(LabelMessage.FAILED)
     }
 }

@@ -2,6 +2,7 @@ import com.android.build.api.variant.HasHostTestsBuilder
 import com.android.build.api.variant.HostTestBuilder
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import turboist.AppVersion
+import turboist.DotEnv
 import turboist.ReleaseSigning
 import turboist.buildVersionName
 import turboist.i18n.GenerateLocaleStringsTask
@@ -14,6 +15,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.baselineprofile)
+    alias(libs.plugins.sentry)
 }
 
 // One version for the whole repository: the app reads the same file the backend
@@ -42,6 +44,26 @@ val releaseSigning =
         providers.gradleProperty(name).orNull ?: providers.environmentVariable(name).orNull
     }
 
+// Error reporting is configured by whoever builds the artifact. The values come
+// from the environment and then from the repository's .env, which a build started
+// outside the Justfile would otherwise never see. The DSN and the environment name
+// are written into the build; a build given no DSN cannot report anything and does
+// not offer the setting. The DSN has a variable of its own because SENTRY_DSN is
+// the backend's, and the Justfile loads both into every build.
+val buildMachineValue: (String) -> String? =
+    DotEnv.lookup(
+        environment = { name -> providers.environmentVariable(name).orNull },
+        file =
+            providers
+                .fileContents(rootProject.layout.projectDirectory.file("../.env"))
+                .asText
+                .map(DotEnv::parse)
+                .getOrElse(emptyMap()),
+    )
+
+fun buildConfigString(value: String?): String =
+    "\"" + value.orEmpty().trim().replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
     namespace = "ru.tinyops.turboist.nativeapp"
     compileSdk = 36
@@ -53,6 +75,8 @@ android {
         versionCode = AppVersion.versionCode(versionNameFromRepo)
         versionName = AppVersion.buildVersionName(versionNameFromRepo, buildStamp)
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "SENTRY_DSN", buildConfigString(buildMachineValue("SENTRY_ANDROID_DSN")))
+        buildConfigField("String", "SENTRY_ENVIRONMENT", buildConfigString(buildMachineValue("SENTRY_ENVIRONMENT")))
     }
 
     signingConfigs {
@@ -109,11 +133,14 @@ android {
                 isDebuggable = false
                 isProfileable = true
                 signingConfig = signingConfigs.getByName("debug")
+                // What is measured here is not a device anyone should hear about.
+                buildConfigField("String", "SENTRY_DSN", buildConfigString(null))
             }
         }
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 
@@ -184,6 +211,31 @@ composeCompiler {
 baselineProfile {
     automaticGenerationDuringBuild = false
     saveInSrc = true
+}
+
+// The plugin is here for one job: giving Sentry the mapping that turns a minified
+// stack trace back into names. Everything else it can do to a build stays off,
+// including its own telemetry. The upload needs a token, an organisation and a
+// project; a machine without all three still builds, and only loses the upload.
+val sentryOrg = buildMachineValue("SENTRY_ORG")
+val sentryProject = buildMachineValue("SENTRY_PROJECT")
+val sentryAuthToken = buildMachineValue("SENTRY_AUTH_TOKEN")
+
+sentry {
+    sentryOrg?.let(org::set)
+    sentryProject?.let(projectName::set)
+    sentryAuthToken?.let(authToken::set)
+    buildMachineValue("SENTRY_URL")?.let(url::set)
+    includeProguardMapping.set(true)
+    autoUploadProguardMapping.set(sentryOrg != null && sentryProject != null && sentryAuthToken != null)
+    ignoredBuildTypes.set(setOf("debug", "nonMinifiedRelease", "benchmarkRelease"))
+    uploadNativeSymbols.set(false)
+    includeNativeSources.set(false)
+    includeSourceContext.set(false)
+    includeDependenciesReport.set(false)
+    telemetry.set(false)
+    autoInstallation { enabled.set(false) }
+    tracingInstrumentation { enabled.set(false) }
 }
 
 // Product wording is written once, in the locale files the web client is
@@ -263,6 +315,11 @@ dependencies {
     // backs it on a device with Google Password Manager.
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services)
+
+    // Both only ever run after the user has opted in: the SDK's automatic start-up
+    // entries are removed in the manifest and the app starts it by hand.
+    implementation(libs.sentry.android.core)
+    implementation(libs.sentry.android.ndk)
 
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)

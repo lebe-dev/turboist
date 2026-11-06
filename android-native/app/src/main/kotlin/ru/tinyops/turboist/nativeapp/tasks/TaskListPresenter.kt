@@ -17,6 +17,7 @@ import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.model.view.WeekPlanStats
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -422,6 +423,7 @@ class TaskListPresenter(
                 if (refusal is WriteRefused.TaskBlocked) TaskListMessage.BLOCKED else TaskListMessage.FAILED,
             )
         } catch (failure: RuntimeException) {
+            Faults.report("tasks", "A change to a task list failed", failure)
             outgoing.emit(TaskListMessage.FAILED)
         }
     }

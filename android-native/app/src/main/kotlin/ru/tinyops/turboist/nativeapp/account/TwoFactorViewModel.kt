@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.dto.TotpEnrolmentDto
+import ru.tinyops.turboist.core.network.isRoutineFailure
 import javax.inject.Inject
 
 /** What the second-factor screen has to say once an action has finished. */
@@ -97,6 +99,7 @@ class TwoFactorViewModel
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        if (!e.isRoutineFailure) Faults.report("account", "A two-factor request failed unexpectedly", e)
                         mutable.value.copy(loading = false, unreachable = true, problem = accountProblemOf(e))
                     }
             }
@@ -209,6 +212,7 @@ class TwoFactorViewModel
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (!e.isRoutineFailure) Faults.report("account", "A two-factor request failed unexpectedly", e)
                     mutable.value =
                         if (endpointIsAbsent(e)) {
                             mutable.value.copy(

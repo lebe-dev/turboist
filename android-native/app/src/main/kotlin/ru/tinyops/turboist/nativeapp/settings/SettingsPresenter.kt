@@ -22,6 +22,7 @@ import ru.tinyops.turboist.core.model.MIN_MAX_PINNED
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.model.UserSettings
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.model.isValidLinkTitleTemplate
 import ru.tinyops.turboist.core.model.normalizeLinkTitleDomain
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
@@ -600,6 +601,10 @@ class SettingsPresenter(
         scope.launch { device.setSyncOnMetered(allowed) }
     }
 
+    fun setSendErrorReports(allowed: Boolean) {
+        scope.launch { device.setSendErrorReports(allowed) }
+    }
+
     /**
      * Asks before anything that empties the device.
      *
@@ -675,6 +680,7 @@ class SettingsPresenter(
         } catch (refusal: WriteRefused) {
             outgoing.emit(SettingsMessage.SaveFailed)
         } catch (failure: RuntimeException) {
+            Faults.report("settings", "Saving a setting failed", failure)
             outgoing.emit(SettingsMessage.SaveFailed)
         }
         return false

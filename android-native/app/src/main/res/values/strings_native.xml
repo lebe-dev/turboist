@@ -266,6 +266,9 @@
     <string name="native_settings_languageDeviceNote">This app follows your phone\'s language. On Android 13 and later you can pick a language for the app alone in the system settings. The choice above is what the web app uses.</string>
     <string name="native_settings_syncOnMetered">Sync on mobile data</string>
     <string name="native_settings_syncOnMeteredDescription">When this is off, background catch-ups wait for Wi-Fi. A refresh you ask for still runs on any connection.</string>
+    <string name="native_settings_diagnosticsHeading">Diagnostics</string>
+    <string name="native_settings_sendErrorReports">Send error reports to the developer</string>
+    <string name="native_settings_sendErrorReportsDescription">Crashes and failures are sent to the developer through Sentry, with the device model, the Android and app versions, and where in the code it happened. Task names, descriptions and your server address are never included.</string>
     <string name="native_settings_serverHeading">Server</string>
     <string name="native_settings_serverUnset">No server yet</string>
     <string name="native_settings_changeServer">Use a different server</string>

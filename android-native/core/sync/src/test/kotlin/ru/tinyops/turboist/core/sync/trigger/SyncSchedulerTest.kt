@@ -7,13 +7,18 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import ru.tinyops.turboist.core.model.diagnostics.Fault
+import ru.tinyops.turboist.core.model.diagnostics.Faults
+import ru.tinyops.turboist.core.network.ApiException
 import ru.tinyops.turboist.core.sync.SyncCycle
 import ru.tinyops.turboist.core.sync.SyncCycleResult
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -27,6 +32,42 @@ import kotlin.test.assertTrue
 @RunWith(RobolectricTestRunner::class)
 class SyncSchedulerTest {
     private val cycles = AtomicInteger()
+    private val faults = mutableListOf<Fault>()
+
+    @After
+    fun removeFaultSink() = Faults.install(null)
+
+    @Test
+    fun `a cycle that throws is reported`() =
+        runTest {
+            Faults.install(faults::add)
+            val fault = IllegalStateException("defect")
+
+            SyncScheduler(cycle = { throw fault }, scope = backgroundScope, windowMillis = WINDOW)
+                .requestSyncNow(SyncReason.SERVER_EVENT)
+
+            assertSame(fault, faults.single().cause)
+        }
+
+    @Test
+    fun `credentials that aged out and a retried server are not reported`() =
+        runTest {
+            Faults.install(faults::add)
+            val answers =
+                ArrayDeque(
+                    listOf(
+                        SyncCycleResult.Refused(ApiException.Auth("auth_expired", 401, null, "expired")),
+                        SyncCycleResult.Refused(IllegalStateException("unwell"), retryAfterMillis = RETRY),
+                    ),
+                )
+            val scheduler =
+                SyncScheduler(cycle = { answers.removeFirst() }, scope = backgroundScope, windowMillis = WINDOW)
+
+            scheduler.requestSyncNow(SyncReason.SERVER_EVENT)
+            scheduler.requestSyncNow(SyncReason.SERVER_EVENT)
+
+            assertTrue(faults.isEmpty())
+        }
 
     @Test
     fun `a burst of requests costs one cycle`() =

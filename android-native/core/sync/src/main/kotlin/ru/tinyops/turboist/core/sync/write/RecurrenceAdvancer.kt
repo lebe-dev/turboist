@@ -4,6 +4,8 @@ import android.util.Log
 import org.dmfs.rfc5545.DateTime
 import org.dmfs.rfc5545.recur.InvalidRecurrenceRuleException
 import org.dmfs.rfc5545.recur.RecurrenceRule
+import ru.tinyops.turboist.core.model.diagnostics.FaultSeverity
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import java.time.ZoneId
 import java.util.TimeZone
 
@@ -47,6 +49,11 @@ class RecurrenceAdvancer(
         val parsed =
             readRule(rule) ?: run {
                 Log.w(RECURRENCE_LOG_TAG, "A task repeats by a rule this app cannot read; leaving it to the server")
+                Faults.report(
+                    "sync",
+                    "A task repeats by a rule this app cannot read",
+                    severity = FaultSeverity.WARNING,
+                )
                 return RecurrenceOutcome.Unknown
             }
         val anchor = anchorFor(currentDueAt, completedAt)

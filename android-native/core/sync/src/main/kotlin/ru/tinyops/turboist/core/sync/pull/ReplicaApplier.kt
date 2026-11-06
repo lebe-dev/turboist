@@ -14,6 +14,8 @@ import ru.tinyops.turboist.core.database.search.rebuildSearchIndex
 import ru.tinyops.turboist.core.database.sync.ReplicaEntityKind
 import ru.tinyops.turboist.core.model.NO_LOCAL_ID
 import ru.tinyops.turboist.core.model.WireTime
+import ru.tinyops.turboist.core.model.diagnostics.FaultSeverity
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.ApiErrorCodes
 import ru.tinyops.turboist.core.network.dto.ContextDto
 import ru.tinyops.turboist.core.network.dto.LabelDto
@@ -101,6 +103,7 @@ class ReplicaApplier(
             val stranded = write(index, batch)
             if (stranded > 0) {
                 Log.w(PULL_LOG_TAG, "A complete copy left $stranded records unplaced and they were dropped")
+                Faults.report("sync", "A complete copy left records unplaced and they were dropped")
             }
             sweep(index, batch)
             // A complete copy rewrites whole tables rather than editing rows one
@@ -140,6 +143,11 @@ class ReplicaApplier(
                 PULL_LOG_TAG,
                 "A page of changes named ${unplaceable.records} rows this device does not hold; " +
                     "asking for a complete copy instead",
+            )
+            Faults.report(
+                "sync",
+                "A page of changes named rows this device does not hold",
+                severity = FaultSeverity.WARNING,
             )
             PageOutcome.Unresolvable
         }

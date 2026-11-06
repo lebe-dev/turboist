@@ -24,6 +24,7 @@ import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.model.view.BlockEdge
 import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.NestDropRefusal
@@ -820,6 +821,7 @@ class TaskDetailPresenter(
                 },
             )
         } catch (failure: RuntimeException) {
+            Faults.report("tasks", "A change to a task failed", failure)
             outgoing.emit(onFailure)
         }
         return false

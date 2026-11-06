@@ -23,7 +23,8 @@ Load from `.env` if present (copy `.env.example` to get started):
 | `WELL_KNOWN_PATH` | — | Directory served under `/.well-known/`. Used to publish `apple-app-site-association` and `assetlinks.json`, which iOS/Android require before the native apps may use this domain's passkeys. Leave empty when a reverse proxy already serves those paths. |
 | `SENTRY_DSN` | — | Backend Sentry DSN. When set, the server reports recovered panics, every 5xx response, and 400 Bad Request (with the underlying cause) to Sentry. Expected client errors (401/403/404/409/429/…) are not reported. Empty disables backend reporting. |
 | `SENTRY_FRONTEND_DSN` | — | Browser Sentry DSN. Served to the SPA at runtime via `GET /api/config` (never baked into the static bundle), so toggling it needs no frontend rebuild. Use a separate Sentry project from the backend. |
-| `SENTRY_ENVIRONMENT` | — | Environment label applied to both backend and frontend events (e.g. `production`, `staging`). |
+| `SENTRY_ANDROID_DSN` | — | Native Android Sentry DSN, read at build time and written into the app. Use a separate Sentry project. Empty builds an app with no reporting. |
+| `SENTRY_ENVIRONMENT` | — | Environment label applied to backend, frontend and native Android events (e.g. `production`, `staging`). |
 | `INBOX_PROCESSING_ENABLED` | — | `true` turns on the LLM job that files open Inbox tasks into projects. Default `false`. Requires `INBOX_PROCESSING_API_KEY` and `INBOX_PROCESSING_MODEL`; enabling it without them is a startup error. Task titles, descriptions and project/label names are sent to the provider. |
 | `INBOX_PROCESSING_INTERVAL` | — | How often the Inbox is checked, Go duration. Default `3m`, minimum `30s`. |
 | `INBOX_PROCESSING_API_URL` | — | Base URL of an OpenAI-compatible API; `/chat/completions` is appended. Default `https://openrouter.ai/api/v1`. |
@@ -37,6 +38,10 @@ Load from `.env` if present (copy `.env.example` to get started):
 ### Sentry error reporting
 
 Both planes are errors-only (no performance tracing) and fully optional — leave a DSN blank to disable that side. The backend captures recovered panics and any request resolving to HTTP ≥ 400, plus background-goroutine and startup failures. The frontend captures uncaught browser errors, unhandled promise rejections, and errors surfaced through SvelteKit's client pipeline; it fetches its DSN from the public `GET /api/config` endpoint on startup.
+
+The native Android client differs: it has no server to ask, so its DSN is written into the build. Gradle reads `SENTRY_ANDROID_DSN` and `SENTRY_ENVIRONMENT` from the environment, then from the repository's `.env`, and writes them into the app. A build with no DSN has no reporting and does not offer the setting. Reporting stays off until the user turns on **Settings → This device → Send error reports to the developer**; see `docs/mobile.md`.
+
+For release builds, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` (plus `SENTRY_URL` for a self-hosted Sentry) enable the upload of the ProGuard mapping that makes minified stack traces readable. Without all three the build still runs and skips the upload. They are build-time only and never reach the app.
 
 ### Passkeys (WebAuthn)
 

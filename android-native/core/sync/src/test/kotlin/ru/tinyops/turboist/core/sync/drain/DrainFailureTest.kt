@@ -1,9 +1,12 @@
 package ru.tinyops.turboist.core.sync.drain
 
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Test
 import ru.tinyops.turboist.core.database.entity.blockerServerIds
 import ru.tinyops.turboist.core.database.sync.OutboxState
+import ru.tinyops.turboist.core.model.diagnostics.Fault
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.ApiErrorCodes
 import ru.tinyops.turboist.core.network.ApiException
 import ru.tinyops.turboist.core.sync.write.NewTask
@@ -25,6 +28,56 @@ import kotlin.test.assertTrue
  * it would otherwise wait forever on an answer that will not change.
  */
 class DrainFailureTest : DrainTest() {
+    private val faults = mutableListOf<Fault>()
+
+    @After
+    fun removeFaultSink() = Faults.install(null)
+
+    @Test
+    fun `a refused write is reported by its kind and code and nothing it contained`() =
+        runReplicaTest {
+            Faults.install(faults::add)
+            val task = givenSyncedTask(serverId = 5)
+            scripted.givenTask(5)
+            scripted.faults += ScriptedServer.Fault.Refuse(422, ApiErrorCodes.VALIDATION_FAILED)
+            tasks.patch(task, TaskEdit(title = "See the doctor"))
+
+            drainer.drain()
+
+            val fault = faults.single()
+            assertEquals(ApiErrorCodes.VALIDATION_FAILED, fault.tags["code"])
+            assertEquals("422", fault.tags["status"])
+            assertTrue(fault.tags.values.none { "doctor" in it } && "doctor" !in fault.message)
+        }
+
+    @Test
+    fun `a task something still blocks is a conversation rather than a fault`() =
+        runReplicaTest {
+            Faults.install(faults::add)
+            val task = givenSyncedTask(serverId = 5)
+            scripted.givenTask(5)
+            scripted.faults += ScriptedServer.Fault.Refuse(409, ApiErrorCodes.TASK_BLOCKED)
+            tasks.patch(task, TaskEdit(title = "Renamed"))
+
+            drainer.drain()
+
+            assertTrue(setAside().isNotEmpty())
+            assertTrue(faults.isEmpty())
+        }
+
+    @Test
+    fun `a queue waiting for a network reports nothing`() =
+        runReplicaTest {
+            Faults.install(faults::add)
+            val task = givenSyncedTask(serverId = 5)
+            scripted.givenTask(5)
+            tasks.complete(task)
+
+            withServerUnreachable { runBlocking { drainer.drain() } }
+
+            assertTrue(faults.isEmpty())
+        }
+
     @Test
     fun `a queue that cannot reach the server keeps its place and waits`() =
         runReplicaTest {

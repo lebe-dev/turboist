@@ -345,10 +345,12 @@ class SettingsPresenterTest {
 
             presenter.setTheme(ThemeChoice.DARK)
             presenter.setSyncOnMetered(false)
+            presenter.setSendErrorReports(true)
             runCurrent()
 
             assertEquals(ThemeChoice.DARK, deviceActions.theme)
             assertEquals(false, deviceActions.syncOnMetered)
+            assertEquals(true, deviceActions.sendErrorReports)
             assertTrue(
                 actions.userPatches.isEmpty() && actions.autoLabelWrites.isEmpty(),
                 "a device choice was sent to the server",

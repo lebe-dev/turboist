@@ -41,6 +41,25 @@
                 tools:node="remove" />
         </provider>
 
+        <!--
+          Error reporting is off until the user turns it on, so the SDK must not
+          be able to start itself. Removing its automatic start-up
+          entries is what guarantees that: the app starts it by hand, and only
+          after reading the user's answer.
+        -->
+        <provider
+            android:name="io.sentry.android.core.SentryInitProvider"
+            android:authorities="${applicationId}.SentryInitProvider"
+            tools:node="remove" />
+        <provider
+            android:name="io.sentry.android.core.SentryPerformanceProvider"
+            android:authorities="${applicationId}.SentryPerformanceProvider"
+            tools:node="remove" />
+        <provider
+            android:name="io.sentry.ndk.SentryNdkPreloadProvider"
+            android:authorities="${applicationId}.SentryNdkPreloadProvider"
+            tools:node="remove" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

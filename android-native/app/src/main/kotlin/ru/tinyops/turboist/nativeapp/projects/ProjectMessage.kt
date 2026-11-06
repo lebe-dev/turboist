@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.projects
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 
 /**
@@ -56,6 +57,7 @@ internal suspend fun MutableSharedFlow<ProjectMessage>.reporting(write: suspend 
             },
         )
     } catch (failure: RuntimeException) {
+        Faults.report("projects", "A change to a project failed", failure)
         emit(ProjectMessage.Failed)
     }
 }

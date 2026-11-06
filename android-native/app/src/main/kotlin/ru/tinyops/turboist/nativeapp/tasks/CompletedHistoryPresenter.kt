@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.Task
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import java.time.LocalDate
@@ -194,6 +195,7 @@ class CompletedHistoryPresenter(
                 outgoing.emit(TaskListMessage.FAILED)
                 return@launch
             } catch (failure: RuntimeException) {
+                Faults.report("tasks", "Reopening a completed task failed", failure)
                 outgoing.emit(TaskListMessage.FAILED)
                 return@launch
             }

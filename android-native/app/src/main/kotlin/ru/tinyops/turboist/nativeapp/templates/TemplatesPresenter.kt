@@ -16,6 +16,7 @@ import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.TaskTemplate
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.TemplateDraft
 import ru.tinyops.turboist.core.sync.write.TemplateSubtaskDraft
 import ru.tinyops.turboist.core.sync.write.WriteRefused
@@ -206,6 +207,7 @@ class TemplatesPresenter(
                     outgoing.emit(TemplateMessage.SaveFailed)
                     return@launch
                 } catch (failure: RuntimeException) {
+                    Faults.report("templates", "Drafting a template from a task failed", failure)
                     outgoing.emit(TemplateMessage.SaveFailed)
                     return@launch
                 }
@@ -353,6 +355,7 @@ class TemplatesPresenter(
         } catch (refusal: WriteRefused) {
             outgoing.emit(onFailure)
         } catch (failure: RuntimeException) {
+            Faults.report("templates", "A change to a template failed", failure)
             outgoing.emit(onFailure)
         }
         return false

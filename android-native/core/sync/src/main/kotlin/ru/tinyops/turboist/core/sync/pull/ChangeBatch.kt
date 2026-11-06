@@ -5,6 +5,8 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import ru.tinyops.turboist.core.database.sync.ReplicaEntityKind
+import ru.tinyops.turboist.core.model.diagnostics.FaultSeverity
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.TurboistJson
 import ru.tinyops.turboist.core.network.dto.AppSettingsDto
 import ru.tinyops.turboist.core.network.dto.ContextDto
@@ -127,6 +129,12 @@ private fun ChangeBatch.addUpsert(change: SyncChangeDto) {
     val data = change.data
     if (data == null) {
         Log.w(PULL_LOG_TAG, "Skipping an upsert that carried no payload for ${change.entity} ${change.id}")
+        Faults.report(
+            "sync",
+            "The server sent an upsert with no payload",
+            severity = FaultSeverity.WARNING,
+            tags = mapOf("entity" to change.entity),
+        )
         return
     }
     runCatching {

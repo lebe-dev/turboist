@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
@@ -174,6 +175,7 @@ class QuickSwitcherPresenter(
             QuickSwitcherMessage.Failed
         } catch (failure: RuntimeException) {
             Log.w(LOG_TAG, "Adding a task from the quick switcher failed", failure)
+            Faults.report("switcher", "Adding a task from the quick switcher failed", failure)
             QuickSwitcherMessage.Failed
         }
 
@@ -189,6 +191,7 @@ class QuickSwitcherPresenter(
             read()
         } catch (failure: RuntimeException) {
             Log.w(LOG_TAG, "Reading $what for the quick switcher failed", failure)
+            Faults.report("switcher", "Reading data for the quick switcher failed", failure)
             fallback
         }
 

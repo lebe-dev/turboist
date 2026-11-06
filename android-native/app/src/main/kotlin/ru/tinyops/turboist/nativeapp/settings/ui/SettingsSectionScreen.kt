@@ -91,6 +91,7 @@ fun SettingsSectionScreen(
                 onCancelLinkRule = presenter::cancelLinkRule,
                 onSetTheme = presenter::setTheme,
                 onSetSyncOnMetered = presenter::setSyncOnMetered,
+                onSetSendErrorReports = presenter::setSendErrorReports,
                 onAsk = presenter::ask,
                 onCancelConfirmation = presenter::cancelConfirmation,
                 onConfirm = presenter::confirm,

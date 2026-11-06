@@ -209,6 +209,9 @@
     <string name="native_settings_languageDeviceNote">Приложение использует язык телефона. На Android 13 и новее язык приложения можно выбрать отдельно в системных настройках. Выбор выше относится к веб-версии.</string>
     <string name="native_settings_syncOnMetered">Синхронизация по мобильной сети</string>
     <string name="native_settings_syncOnMeteredDescription">Когда выключено, фоновая синхронизация ждёт Wi-Fi. Обновление вручную работает при любом подключении.</string>
+    <string name="native_settings_diagnosticsHeading">Диагностика</string>
+    <string name="native_settings_sendErrorReports">Отправлять отчёты об ошибках разработчику</string>
+    <string name="native_settings_sendErrorReportsDescription">Сбои и ошибки отправляются разработчику через Sentry вместе с моделью устройства, версиями Android и приложения и местом в коде, где это произошло. Названия и описания задач и адрес вашего сервера не передаются.</string>
     <string name="native_settings_serverHeading">Сервер</string>
     <string name="native_settings_serverUnset">Сервер ещё не задан</string>
     <string name="native_settings_changeServer">Другой сервер</string>

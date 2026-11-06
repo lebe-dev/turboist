@@ -6,6 +6,7 @@ import kotlinx.coroutines.CancellationException
 import ru.tinyops.turboist.core.database.TurboistDatabase
 import ru.tinyops.turboist.core.database.entity.OutboxOpRow
 import ru.tinyops.turboist.core.database.sync.OutboxState
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.ApiErrorCodes
 import ru.tinyops.turboist.core.network.ApiException
 import ru.tinyops.turboist.core.sync.SyncMutex
@@ -111,6 +112,7 @@ class OutboxDrainer(
             val op = readable(row)
             if (op == null) {
                 setAside(row, ApiErrorCodes.WRITE_UNSENDABLE, UNREADABLE_MESSAGE, status = null)
+                reportSetAside(row, ApiErrorCodes.WRITE_UNSENDABLE, status = null, cause = null)
                 quarantined++
                 continue
             }
@@ -123,6 +125,7 @@ class OutboxDrainer(
             } catch (unnamed: UnsentReference) {
                 Log.w(DRAIN_LOG_TAG, "A queued change names a row the server was never told about", unnamed)
                 setAside(row, ApiErrorCodes.WRITE_UNSENDABLE, unnamed.messageOrType(), status = null)
+                reportSetAside(row, ApiErrorCodes.WRITE_UNSENDABLE, status = null, cause = unnamed)
                 quarantined++
             } catch (unreachable: ApiException.Network) {
                 return stall(row, unreachable, sent, quarantined)
@@ -137,6 +140,7 @@ class OutboxDrainer(
                 if (attempts < serverErrorLimit) return stall(row, broke, sent, quarantined, attempts)
                 Log.w(DRAIN_LOG_TAG, "The server failed $attempts time(s) on the same change; setting it aside", broke)
                 setAside(row.copy(attempts = attempts), broke.code, broke.messageOrType(), broke.status)
+                reportSetAside(row, broke.code, broke.status, broke)
                 quarantined++
             } catch (refused: ApiException) {
                 // An earlier attempt at this very write is still running on the
@@ -145,6 +149,7 @@ class OutboxDrainer(
                 if (refused.code == ApiErrorCodes.IDEMPOTENCY_IN_FLIGHT) return stall(row, refused, sent, quarantined)
                 Log.w(DRAIN_LOG_TAG, "The server refused a queued change: ${refused.code}", refused)
                 setAside(row, quarantineCode(refused), refused.messageOrType(), refused.status, refused.blockerIds)
+                reportSetAside(row, quarantineCode(refused), refused.status, refused)
                 quarantined++
             } catch (transport: IOException) {
                 val unreachable =
@@ -165,6 +170,7 @@ class OutboxDrainer(
                 Log.w(DRAIN_LOG_TAG, "The answer to a queued change could not be read (attempt $attempts)", unreadable)
                 if (attempts < serverErrorLimit) return stall(row, broke, sent, quarantined, attempts)
                 setAside(row.copy(attempts = attempts), broke.code, broke.messageOrType(), status = null)
+                reportSetAside(row, broke.code, status = null, cause = unreadable)
                 quarantined++
             }
         }
@@ -314,6 +320,25 @@ class OutboxDrainer(
         private const val UNREADABLE_MESSAGE: String =
             "this version of the app cannot read the change that was saved"
     }
+}
+
+/**
+ * Tells a developer a write did not make it, since this is the one place work
+ * the user did is at stake.
+ *
+ * Two outcomes are left out because they are conversations rather than faults:
+ * a task something still blocks, and a row deleted elsewhere. The report names
+ * the kind of write and the answer it got, never what the write contained.
+ */
+private fun reportSetAside(
+    row: OutboxOpRow,
+    code: String,
+    status: Int?,
+    cause: Throwable?,
+) {
+    if (code == ApiErrorCodes.TASK_BLOCKED || code == ApiErrorCodes.TARGET_GONE) return
+    val tags = mapOf("op" to row.op, "code" to code, "status" to status?.toString().orEmpty())
+    Faults.report("sync", "A queued change was refused and set aside", cause, tags = tags)
 }
 
 /** An exception's own words, or the name of its type when it had none. */

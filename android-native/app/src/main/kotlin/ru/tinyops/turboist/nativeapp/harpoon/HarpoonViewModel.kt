@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import javax.inject.Inject
 
@@ -52,6 +53,7 @@ class HarpoonViewModel
                 } catch (refusal: WriteRefused) {
                     Log.i(TAG, "The jump pair was left unchanged: the write was refused", refusal)
                 } catch (failure: RuntimeException) {
+                    Faults.report("harpoon", "The jump pair could not be changed", failure)
                     Log.i(TAG, "The jump pair could not be changed", failure)
                 }
             }

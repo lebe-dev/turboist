@@ -2543,3 +2543,22 @@ Before the app leaves the internal track for any wider audience:
   no third party; there is no analytics or advertising SDK in the build. Data is
   encrypted in transit, and the user can delete it by deleting their account on
   their own server or by uninstalling the app, which takes the replica with it.
+
+### Error reporting (Sentry)
+
+The native client can send crashes and handled failures to Sentry. It is opt-in: **Settings → This device → Send error reports to the developer**, off by default, kept on the device and never synced. Turning it off stops the SDK at once and deletes reports not yet sent. A build with no DSN does not offer the switch.
+
+**Build configuration.** `:app` reads these from the environment, then from the repository's `.env`, so a build started outside the Justfile sees the same values:
+
+| Variable | Purpose |
+| --- | --- |
+| `SENTRY_ANDROID_DSN` | Written into the build. Separate from the backend's `SENTRY_DSN` and the web client's `SENTRY_FRONTEND_DSN`, so use a Sentry project of its own. |
+| `SENTRY_ENVIRONMENT` | Written into the build; Sentry's default when empty. |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | All three enable the mapping upload on minified release builds. Without them the build still runs, and its stack traces stay minified in Sentry. |
+| `SENTRY_URL` | A self-hosted Sentry's address, for that upload. |
+
+The two profiled build types never get a DSN.
+
+**What is sent.** Uncaught exceptions, native crashes and ANRs, plus handled failures through `Faults.report` (`core/model`): the sync cycle failing, a queued write being set aside, a catch-up that cannot place its records, an unreadable stored sign-in token, a stored session being refused, and any write or account request failing unexpectedly. Routine failures are left out: no connection, expired credentials, and refusals the server means, such as a task that is still blocked. Only errors are sent: no traces, sessions, replay or screenshots.
+
+**What is never sent.** A report's message is a fixed sentence from the code, and its tags are values the code enumerates. `scrubbed` (`app/.../diagnostics`) removes every exception message before an event leaves, because those can hold the server address or fragments of task JSON; types and stack frames stay. Native crash reports do not pass through that step, but they carry no exception messages from Kotlin.

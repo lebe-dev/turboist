@@ -35,4 +35,9 @@ class DeviceOptionsTest {
         assertEquals(ThemeChoice.SYSTEM, untouched.theme)
         assertEquals(true, untouched.syncOnMetered)
     }
+
+    @Test
+    fun `nothing is reported from a device whose owner has not said so`() {
+        assertEquals(false, DeviceOptions().sendErrorReports)
+    }
 }

@@ -60,6 +60,9 @@ interface DeviceOptionActions {
      * the next sign-in.
      */
     suspend fun setSyncOnMetered(allowed: Boolean)
+
+    /** Records whether errors are sent to the developer, and starts or stops sending them at once. */
+    suspend fun setSendErrorReports(allowed: Boolean)
 }
 
 /**

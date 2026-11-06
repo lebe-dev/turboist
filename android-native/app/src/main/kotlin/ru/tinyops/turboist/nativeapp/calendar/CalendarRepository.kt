@@ -16,8 +16,11 @@ import kotlinx.coroutines.sync.withLock
 import ru.tinyops.turboist.core.model.WireTime
 import ru.tinyops.turboist.core.model.calendar.CalendarEvent
 import ru.tinyops.turboist.core.model.calendar.sortCalendarEvents
+import ru.tinyops.turboist.core.model.diagnostics.FaultSeverity
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.model.view.TimeWindow
 import ru.tinyops.turboist.core.network.api.CalendarApi
+import ru.tinyops.turboist.core.network.isRoutineFailure
 import ru.tinyops.turboist.core.network.mapping.toCalendarConnection
 import ru.tinyops.turboist.core.network.mapping.toCalendarEvent
 import java.time.Clock
@@ -149,6 +152,9 @@ class CalendarRepository
                     // something unreadable call for the same thing: show what is
                     // already here, say when it was read, try again later.
                     Log.i(TAG, "Calendar entries could not be refreshed; showing the copy already on the device", e)
+                    if (!e.isRoutineFailure) {
+                        Faults.report("calendar", "Calendar entries could not be refreshed", e, FaultSeverity.WARNING)
+                    }
                     staleSince.value = stored.value?.fetchedAt
                 }
             }

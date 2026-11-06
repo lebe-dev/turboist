@@ -3,9 +3,11 @@ package ru.tinyops.turboist.nativeapp.tasks
 import android.util.Log
 import ru.tinyops.turboist.core.database.dao.ProjectDao
 import ru.tinyops.turboist.core.model.Task
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.network.ApiException
 import ru.tinyops.turboist.core.network.api.TaskApi
 import ru.tinyops.turboist.core.network.dto.TaskDto
+import ru.tinyops.turboist.core.network.isRoutineFailure
 import ru.tinyops.turboist.core.network.mapping.ReplicaIds
 import ru.tinyops.turboist.core.network.mapping.toTask
 import java.io.IOException
@@ -87,6 +89,9 @@ class ApiOlderCompletions
                 OlderCompletionsResult.Offline
             } catch (refused: ApiException) {
                 Log.w(COMPLETED_LOG_TAG, "The server would not serve older completion history", refused)
+                if (!refused.isRoutineFailure) {
+                    Faults.report("tasks", "The server would not serve older completion history", refused)
+                }
                 OlderCompletionsResult.Failed
             } catch (transport: IOException) {
                 Log.i(COMPLETED_LOG_TAG, "Older completion history did not reach the server", transport)

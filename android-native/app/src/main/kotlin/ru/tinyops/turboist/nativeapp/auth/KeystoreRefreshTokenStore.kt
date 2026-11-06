@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 import java.security.GeneralSecurityException
 import java.security.KeyStore
 import java.util.Base64
@@ -48,10 +49,12 @@ class KeystoreRefreshTokenStore
                 open(sealed)
             } catch (e: GeneralSecurityException) {
                 Log.w(TAG, "The stored sign-in token could not be opened; asking for a fresh sign-in", e)
+                Faults.report("auth", "The stored sign-in token could not be opened", e)
                 clear()
                 null
             } catch (e: IllegalArgumentException) {
                 Log.w(TAG, "The stored sign-in token is not readable; asking for a fresh sign-in", e)
+                Faults.report("auth", "The stored sign-in token is not readable", e)
                 clear()
                 null
             }

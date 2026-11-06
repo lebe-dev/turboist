@@ -7,6 +7,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.tinyops.turboist.core.model.diagnostics.Faults
+import ru.tinyops.turboist.core.network.ApiException
 import ru.tinyops.turboist.core.sync.SyncCycle
 import ru.tinyops.turboist.core.sync.SyncCycleResult
 import java.util.concurrent.atomic.AtomicLong
@@ -150,10 +152,30 @@ class SyncScheduler(
             // Covers both answers a reached server can give that are not a sync:
             // a refusal it stated, and a failure on this side of the wire. The
             // cause carries which of the two it was.
-            is SyncCycleResult.Refused ->
+            is SyncCycleResult.Refused -> {
                 Log.w(LOG_TAG, "The sync cycle did not complete; asked because ${reason.phrase}", result.cause)
+                reportRefusal(result)
+            }
         }
         return result
+    }
+
+    /**
+     * Tells a developer about a turn that ended in something other than the
+     * ordinary life of a sync.
+     *
+     * Credentials that aged out are the user's next sign-in, and a server that will
+     * probably take the write later is still being retried: if it never does, the
+     * drain reports that write when it gives up on it, so one bad afternoon on the
+     * server is one report rather than one per attempt.
+     */
+    private fun reportRefusal(result: SyncCycleResult.Refused) {
+        val cause = result.cause
+        if (result.retryAfterMillis != null) return
+        if (cause is ApiException.Auth || cause is ApiException.SetupRequired) return
+        if (cause is ApiException.RateLimited) return
+        val tags = (cause as? ApiException)?.let { mapOf("code" to it.code) }.orEmpty()
+        Faults.report("sync", "The sync cycle did not complete", cause, tags = tags)
     }
 
     /**

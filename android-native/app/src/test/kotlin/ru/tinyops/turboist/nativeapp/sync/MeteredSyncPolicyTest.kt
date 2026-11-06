@@ -86,5 +86,9 @@ class MeteredSyncPolicyTest {
         override suspend fun setSyncOnMetered(allowed: Boolean) {
             value = value.copy(syncOnMetered = allowed)
         }
+
+        override suspend fun setSendErrorReports(allowed: Boolean) {
+            value = value.copy(sendErrorReports = allowed)
+        }
     }
 }

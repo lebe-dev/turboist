@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.database.search.FtsQuery
+import ru.tinyops.turboist.core.model.diagnostics.Faults
 
 /** Everything the search screen renders. */
 data class SearchUiState(
@@ -130,6 +131,7 @@ class SearchPresenter(
                     try {
                         repository.search(asked.typed, asked.filters)
                     } catch (failure: RuntimeException) {
+                        Faults.report("search", "Searching the local index failed", failure)
                         // The index lives on this device, so a failure here is a
                         // defect rather than a condition the user can act on:
                         // report it where a developer will see it and leave the
