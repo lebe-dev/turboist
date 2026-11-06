@@ -101,7 +101,7 @@ Anything outside the whitelist returns
 Run focused tests:
 
 ```sh
-just test SettingsHandler
+just test-backend SettingsHandler
 ```
 
 ## Frontend
@@ -224,7 +224,7 @@ In the locale JSON: `"unpinAria": "Unpin {name}"`.
 2. Add the English copy to `frontend/locales/en.json`.
 3. (Optional but encouraged) add a translation to `frontend/locales/ru.json`.
 4. Use it as `$t('your.new.key')` (or `{$t('…')}` in markup).
-5. Run `just lint` and `just test-all`.
+5. Run `just lint` and `just test`.
 
 `$t` is reactive — the same component re-renders automatically when
 `setLocale(...)` is called, so you don't need any extra wiring.
@@ -271,7 +271,7 @@ hardcoded English. To migrate one:
 1. `import { t } from '$lib/i18n';`
 2. Replace each user-visible string with `{$t('…')}` (or `$t('…')` in script).
 3. Add the new keys to **both** `en.json` and `ru.json` (English at minimum).
-4. `just lint && just test-all` to verify no regressions.
+4. `just lint && just test` to verify no regressions.
 
 There is no compile-time check that a key exists — typos surface as the raw
 key in the UI. When in doubt, search for the key in `en.json` after wiring it

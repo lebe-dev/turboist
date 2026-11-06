@@ -61,7 +61,14 @@ lint: format
 ensure-frontend-build:
     @[ -d frontend/build ] || { mkdir -p frontend/build && touch frontend/build/.placeholder; }
 
-test name="": ensure-frontend-build
+# Every automated test suite: the web client (backend + frontend) and the native Android client.
+test: test-web test-android
+
+# Web client: Go tests and Vitest.
+test-web: test-backend test-frontend
+
+# Focused Go tests with `just test-backend <name>`; no name runs them all.
+test-backend name="": ensure-frontend-build
     go test -run "{{ name }}" ./...
 
 test-frontend name="":
@@ -70,7 +77,8 @@ test-frontend name="":
 frontend-test-watch:
     cd frontend && yarn vitest
 
-test-all: test && test-frontend android-native-test
+# Kept as an alias of `test`, which already runs every suite.
+test-all: test
 
 # --- Coverage ---
 coverage: ensure-frontend-build
@@ -288,8 +296,7 @@ build-ipa: cap-sync-versioned
 androidDeviceId := env_var_or_default("ANDROID_DEVICE_ID", "")
 
 #
-# `android-native-test` and `android-lint` are part of `test-all` and
-# `lint`, so an Android SDK (found via ANDROID_SDK_ROOT/ANDROID_HOME, or a
+# `test-android` and `android-lint` are part of `test` and `lint`, so an Android SDK (found via ANDROID_SDK_ROOT/ANDROID_HOME, or a
 # standard install path) and a JDK are needed to run either of those aggregates
 # — and therefore to run `build-image`, which is gated on them.
 
@@ -300,7 +307,7 @@ android-native-build:
 # The build-logic tests run first: they pin the rules that turn the repo-root
 # VERSION into the app's versionName and versionCode.
 # Run the native Android client's JVM unit tests.
-android-native-test:
+test-android:
     cd android-native && ./gradlew --console=plain -p buildSrc test
     cd android-native && ./gradlew --console=plain test
 

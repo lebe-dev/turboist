@@ -1,6 +1,6 @@
 # Backend Architecture
 
-Go 1.26 service built on Fiber v3 with an embedded SQLite store (`modernc.org/sqlite`, no CGO) and goose-managed migrations. Raw SQL throughout — no ORM.
+Go 1.27 service built on Fiber v3 with an embedded SQLite store (`modernc.org/sqlite`, no CGO) and goose-managed migrations. Raw SQL throughout — no ORM.
 
 ## CLI flags
 
@@ -412,14 +412,14 @@ All data lives in the SQLite file pointed to by `-db`. WAL mode is enabled — b
 
 ### Requirements
 
-- Go 1.26+
+- Go 1.27+
 - `golangci-lint` (for `just lint-backend`)
 - `just` task runner
 
 ### Commands
 
 ```sh
-just test           # go test ./...
+just test-backend   # go test ./...
 just lint-backend   # golangci-lint run ./...
 just coverage       # writes coverage.out and coverage.html
 just build          # builds ./turboist

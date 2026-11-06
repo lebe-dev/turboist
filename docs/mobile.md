@@ -322,7 +322,7 @@ backend does not know about. `versionName` is that file with any pre-release or
 build suffix removed (`1.17.0-dev` → `1.17.0`), and `versionCode` packs the three
 components into one ascending integer (`major·1000000 + minor·1000 + patch`,
 each component capped at 999). Those rules are covered by unit tests that
-`just android-native-test` runs first.
+`just test-android` runs first.
 
 ### The replica (`core/database`)
 
@@ -2373,7 +2373,7 @@ via `ANDROID_SDK_ROOT`/`ANDROID_HOME` (or a standard install path), and `adb`.
 just android-native-build    # debug APK
 just android-native-run      # build, install and launch on a device/emulator
 just android-native-deploy   # install an APK on a connected device, without launching it
-just android-native-test     # JVM unit tests
+just test-android     # JVM unit tests
 just android-lint            # ktlint + detekt (with the Compose rules) + Android Lint
 just android-native-format   # rewrite sources to the ktlint style
 just android-native-e2e      # on-device round trip against a real backend (needs a running emulator)
@@ -2382,7 +2382,7 @@ just android-native-benchmark         # measure cold start, memory and scrolling
 just android-native-release  # signed release bundle for the store
 ```
 
-`android-native-test` and `android-lint` are part of `just test-all` and
+`test-android` and `android-lint` are part of `just test` and
 `just lint`, so both aggregates — and `just build-image`, which is gated on them
 — now need a JDK and an Android SDK on the machine running them.
 
@@ -2516,7 +2516,7 @@ the union of them.
 Nobody has to remember to add one. The build logic enumerates those surfaces
 from the sources on every run and holds them against the rules, so adding a wire
 type, an endpoint interface or a database without a rule for it fails
-`just android-native-test` with the class names and the module each belongs to.
+`just test-android` with the class names and the module each belongs to.
 A rule that only keeps *members* does not count: it says what happens to them if
 the class survives, which is not a reason for the class to survive.
 

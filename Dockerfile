@@ -11,7 +11,7 @@ RUN APP_VERSION=$(cat /build/VERSION) && \
     yarn --frozen-lockfile && \
     yarn build
 
-FROM golang:1.26-alpine3.24 AS app-build
+FROM golang:1.27-alpine3.24 AS app-build
 
 WORKDIR /build
 
