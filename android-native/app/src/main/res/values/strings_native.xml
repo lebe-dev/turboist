@@ -7,7 +7,7 @@
   prefixed `native_`, which no generated name can take.
 -->
 <resources>
-    <string name="native_app_name" translatable="false">Turboist (Beta)</string>
+    <string name="native_app_name" translatable="false">Turboist</string>
 
     <!-- Shell chrome -->
     <string name="native_connecting">Connecting…</string>
