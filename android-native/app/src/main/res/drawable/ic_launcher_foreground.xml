@@ -3,8 +3,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- A check mark inside the adaptive-icon safe zone (the middle 72dp). -->
+    <!-- The lightning bolt, 60% of the visible 72dp tile, inside the adaptive-icon safe zone. -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M44.5,66.9L34.1,56.5l-4.6,4.6l15,15l32.2,-32.2l-4.6,-4.6z" />
+        android:pathData="M63.26,32.4L49.35,45.77L58.54,45.77ZM46.68,48.34L36.51,58.11L50.91,58.11L50.37,59.66L61.32,59.66L71.49,49.89L57.09,49.89L57.63,48.34ZM49.46,62.23L44.74,75.6L58.65,62.23Z" />
 </vector>

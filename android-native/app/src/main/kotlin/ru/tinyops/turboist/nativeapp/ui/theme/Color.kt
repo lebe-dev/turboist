@@ -6,10 +6,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
 /**
- * The product's brand orange: the colour of the launcher icon and of the browser
- * chrome the web client asks for. It is not the accent the screens are drawn
- * with — that is [WebPrimary] below — but it is what the product looks like from
- * the outside, so it stays named and stays exact.
+ * The product's former brand orange, kept as Material's third accent. It is not
+ * the accent the screens are drawn with — that is [WebPrimary] below — and it no
+ * longer colours the launcher icon or the browser chrome, which use the primary.
  */
 val BrandOrange: Color = Color(0xFFE2580E)
 

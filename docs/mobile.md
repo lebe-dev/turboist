@@ -188,12 +188,13 @@ On the phone, **enable USB debugging** first (Settings → About → tap *Build 
 
 ### App icon
 
-The icon is the same mark as the web app — the orange (`#e2580e`) tile with the white lightning bolt from `frontend/static/icons/icon.svg`.
+The icon is the same mark on every platform: a white lightning bolt cut by two speed slits on the primary colour (`#ee343b`, the light theme's `--primary`), and nothing else — no gradient, no third colour. The source is `frontend/static/icons/icon.svg`. The bolt is 60% of the tile's height everywhere except the favicon (`frontend/src/lib/assets/favicon.svg`), where it is 84% because a smaller one turns into a blob at 16 px. The splash screens (iOS asset catalog, `drawable*/splash.png`) are the same two colours.
 
+- **Android**: an adaptive icon in both clients — background `ic_launcher_background` set to the same `#ee343b`, foreground a white bolt on transparency (`mipmap-*/ic_launcher_foreground.png` in `frontend/android/`, the vector `drawable/ic_launcher_foreground.xml` in `android-native/`, where it also serves as the themed monochrome layer). The layer is 108dp and the mask shows the middle 72dp, so one tile equals 72dp.
 - **iOS**: a single 1024×1024 `AppIcon-512@2x.png` in the Xcode asset catalog (`frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/`). It is a **full-bleed square** — no rounded corners and **no alpha channel** (iOS rejects transparency in app icons and masks the corners itself), so it drops the `rx=96` rounding the web SVG uses.
-- Regenerate it from the web SVG (needs `rsvg-convert`, from `librsvg`) — start from a square variant of the SVG with the `<rect>` corner radius removed:
+- Regenerate it from `frontend/static/icons/icon-maskable.svg`, which is the same tile without the corner radius (needs `rsvg-convert`, from `librsvg`; flatten the alpha channel afterwards if the tool keeps one):
   ```sh
-  rsvg-convert -w 1024 -h 1024 icon-square.svg \
+  rsvg-convert -w 1024 -h 1024 frontend/static/icons/icon-maskable.svg \
     -o frontend/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
   ```
   Xcode derives every smaller size at build time; rebuild (`just deploy-ios`) to apply.
@@ -1083,8 +1084,8 @@ hue so nothing beside it reads as blue. Android's wallpaper-derived scheme is
 deliberately **not** taken: a system-themed app feels native, but a phone whose
 wallpaper is a grey photograph turns the same lists that are warm and red on a
 laptop into a grey-on-grey page, and Turboist is one product with two front ends.
-The product's orange (`#e2580e` — the launcher icon and the web client's
-`theme-color`) stays in the scheme as Material's third accent, and the window
+The orange the launcher icon and the web client's `theme-color` used to wear
+(`#e2580e`) stays in the scheme as Material's third accent, and the window
 background is painted with the same page colour in `res/values*/colors.xml` so a
 cold start does not flash the platform's white first.
 
