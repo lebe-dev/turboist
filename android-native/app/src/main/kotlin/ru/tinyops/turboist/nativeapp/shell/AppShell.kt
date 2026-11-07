@@ -343,11 +343,7 @@ private fun ShellScaffold(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var switcherOpen by rememberSaveable { mutableStateOf(false) }
     val currentEntry by navController.currentBackStackEntryAsState()
-    // A screen with a create button of its own in the bottom corner keeps that
-    // corner: the capture button would be drawn over it and hide it.
-    val screenOwnsCorner =
-        currentDestination?.hasRoute(LabelsRoute::class) == true ||
-            currentDestination?.hasRoute(TemplatesRoute::class) == true
+    val captureButton = currentDestination.allowsCaptureButton() && !screenOwnsChrome && !chrome.selectionActive
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         // A screen that draws its own bar insets it from the status bar itself;
@@ -447,7 +443,7 @@ private fun ShellScaffold(
         // sheet it raises has to survive moving between destinations.
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             AppNavHost(navController = navController, screens = screens)
-            screens.quickAdd(!screenOwnsChrome && !screenOwnsCorner && !chrome.selectionActive, openProject)
+            screens.quickAdd(captureButton, openProject)
             screens.quickSwitcher(
                 QuickSwitcherSlot(
                     open = switcherOpen,
@@ -508,6 +504,17 @@ private fun visitingRef(
             RecentRef(SwitcherKind.PROJECT, entry.toRoute<ProjectRoute>().projectLocalId)
         else -> null
     }
+
+/**
+ * Whether the capture button may be drawn over this destination. A screen with a
+ * create button of its own in the bottom corner keeps that corner, and settings
+ * is not a place for capturing tasks.
+ */
+private fun NavDestination?.allowsCaptureButton(): Boolean {
+    if (this == null) return true
+    val ownsCorner = hasRoute(LabelsRoute::class) || hasRoute(TemplatesRoute::class)
+    return !ownsCorner && !hasRoute(SettingsRoute::class) && !isUnderSettings()
+}
 
 /** True for a destination reached only through settings. */
 private fun NavDestination?.isUnderSettings(): Boolean = this != null && SettingsChildRoutes.any { hasRoute(it) }
