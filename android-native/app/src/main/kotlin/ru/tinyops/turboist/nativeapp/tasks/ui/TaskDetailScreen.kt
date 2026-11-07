@@ -1082,6 +1082,9 @@ private fun WhenCard(
             else -> null
         }
 
+    val clearDateLabel = stringResource(R.string.task_actions_clearDate)
+    val clearDate = { onDueDate(null) }.takeIf { due != null }
+
     SectionHeading(stringResource(R.string.native_task_sectionWhen), top = headingTop) {
         IconButton(onClick = { expanded = !expanded }) {
             Icon(
@@ -1115,6 +1118,8 @@ private fun WhenCard(
                 leadingTint = dateTint.takeIf { overdue } ?: repeatTint.takeIf { repeating },
                 supporting = facts.joinToString(WHEN_FACT_SEPARATOR).ifEmpty { null },
                 trailing = Icons.Filled.ExpandMore,
+                clearLabel = clearDateLabel,
+                onClear = clearDate,
                 onClick = { expanded = true },
             )
             QuickDueDays(
@@ -1134,6 +1139,8 @@ private fun WhenCard(
             value = dateValue,
             leading = Icons.Outlined.CalendarMonth,
             valueTint = dateTint,
+            clearLabel = clearDateLabel,
+            onClear = clearDate,
             onClick = { onOpen(TaskField.DATE) },
         )
         DayPartIconRow(task.dayPart, onDayPart)

@@ -17,9 +17,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -122,6 +124,9 @@ fun SectionHeading(
  * cannot say about itself: when the next repeat falls, say. [trailing] is what
  * that promise looks like — a chevron to the side for a row that opens a sheet,
  * and one pointing down for a row that unfolds in place.
+ *
+ * [onClear] adds a cross that empties the field without opening anything; it is
+ * offered only while there is something to empty, and [clearLabel] names it.
  */
 @Composable
 fun DetailRow(
@@ -133,6 +138,8 @@ fun DetailRow(
     supporting: String? = null,
     valueTint: Color? = null,
     trailing: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+    clearLabel: String? = null,
+    onClear: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
 ) {
     Row(
@@ -174,6 +181,16 @@ fun DetailRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (onClear != null) {
+            IconButton(onClick = onClear, modifier = Modifier.size(CLEAR_BUTTON_DP.dp)) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = clearLabel,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         if (onClick != null) {
             Icon(
                 imageVector = trailing,
@@ -523,6 +540,9 @@ internal const val CARD_CORNER_DP = 24
 
 /** The height every row inside a card is at least, which is also its hit target. */
 internal const val ROW_HEIGHT_DP = 56
+
+/** A clear cross is a full touch target even though the row around it is compact. */
+private const val CLEAR_BUTTON_DP = 40
 
 /** The most a row's label may take, so the value beside it has the rest of the row. */
 private const val LABEL_MAX_WIDTH_DP = 160

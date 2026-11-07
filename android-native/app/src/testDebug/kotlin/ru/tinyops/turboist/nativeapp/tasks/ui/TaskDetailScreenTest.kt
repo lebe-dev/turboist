@@ -451,6 +451,34 @@ class TaskDetailScreenTest {
     }
 
     @Test
+    fun `the folded when card clears the date with one tap`() {
+        val due = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        show(stateOf(task(1, dueAt = due)))
+
+        compose.onNodeWithContentDescription(text(R.string.task_actions_clearDate)).performScrollTo().performClick()
+
+        assertEquals(listOf("dueDate null"), performed)
+    }
+
+    @Test
+    fun `the unfolded when card clears the date with one tap`() {
+        val due = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        show(stateOf(task(1, dueAt = due)))
+
+        compose.onNodeWithContentDescription(text(R.string.native_task_whenExpand)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.task_actions_clearDate)).performScrollTo().performClick()
+
+        assertEquals(listOf("dueDate null"), performed)
+    }
+
+    @Test
+    fun `a task with no date offers nothing to clear`() {
+        show(stateOf(task(1)))
+
+        compose.onAllNodesWithContentDescription(text(R.string.task_actions_clearDate)).assertCountEquals(0)
+    }
+
+    @Test
     fun `the folded when card picks a part of the day beside the quick days`() {
         show(stateOf(task(1)))
 
