@@ -26,21 +26,30 @@ class DrawerBadgeTest {
     }
 
     @Test
-    fun `the week views show the plan against its cap`() {
-        val counts = DrawerCounts(weekPlanned = 0, weekLimit = 12)
-        assertEquals(DrawerBadge.Ratio(0, 12), counts.badgeFor(DrawerDestination.Week))
-        assertEquals(DrawerBadge.Ratio(0, 12), counts.badgeFor(DrawerDestination.NextWeek))
+    fun `the week shows how much of it is done`() {
+        val counts = DrawerCounts(weekDone = 0, weekTotal = 12)
+        assertEquals(DrawerBadge.Progress(0, 12), counts.badgeFor(DrawerDestination.Week))
     }
 
     @Test
-    fun `a plan count without a cap is not shown as a ratio`() {
-        assertNull(DrawerCounts(weekPlanned = 4).badgeFor(DrawerDestination.Week))
-        assertNull(DrawerCounts(weekLimit = 12).badgeFor(DrawerDestination.Week))
+    fun `a week with nothing in it stays silent`() {
+        assertNull(DrawerCounts(weekDone = 0, weekTotal = 0).badgeFor(DrawerDestination.Week))
+    }
+
+    @Test
+    fun `the planning view does not repeat the week's progress`() {
+        assertNull(DrawerCounts(weekDone = 3, weekTotal = 12).badgeFor(DrawerDestination.NextWeek))
+    }
+
+    @Test
+    fun `half of the week's numbers is not shown as progress`() {
+        assertNull(DrawerCounts(weekDone = 4).badgeFor(DrawerDestination.Week))
+        assertNull(DrawerCounts(weekTotal = 12).badgeFor(DrawerDestination.Week))
     }
 
     @Test
     fun `destinations without a counter never carry one`() {
-        val counts = DrawerCounts(inbox = 3, weekPlanned = 4, weekLimit = 12)
+        val counts = DrawerCounts(inbox = 3, weekDone = 4, weekTotal = 12)
         listOf(
             DrawerDestination.Today,
             DrawerDestination.Tomorrow,
@@ -65,10 +74,5 @@ class DrawerBadgeTest {
     @Test
     fun `a device with nothing refused marks nothing`() {
         assertNull(DrawerCounts(unsentChanges = 0).badgeFor(DrawerDestination.Settings))
-    }
-
-    @Test
-    fun `the stand-in source publishes nothing rather than invented numbers`() {
-        assertEquals(DrawerCounts(), EmptyDrawerCountsSource().counts.value)
     }
 }

@@ -1,9 +1,18 @@
 package ru.tinyops.turboist.nativeapp.shell
 
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import ru.tinyops.turboist.core.database.dao.TaskViewDao
+import ru.tinyops.turboist.core.model.view.ViewWindows
+import ru.tinyops.turboist.nativeapp.di.ApplicationScope
 import ru.tinyops.turboist.nativeapp.navigation.DrawerDestination
+import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,8 +25,8 @@ import javax.inject.Singleton
  */
 data class DrawerCounts(
     val inbox: Int? = null,
-    val weekPlanned: Int? = null,
-    val weekLimit: Int? = null,
+    val weekDone: Int? = null,
+    val weekTotal: Int? = null,
     /**
      * How many changes the server refused and nobody has cleared yet.
      *
@@ -34,8 +43,8 @@ sealed interface DrawerBadge {
     /** A bare number, e.g. how many tasks sit in the inbox. */
     data class Count(val value: Int) : DrawerBadge
 
-    /** Usage against a cap, e.g. how much of the weekly plan is spent. */
-    data class Ratio(val current: Int, val limit: Int) : DrawerBadge
+    /** Finished work out of all of it, e.g. how far through the week the user is. */
+    data class Progress(val done: Int, val total: Int) : DrawerBadge
 }
 
 /**
@@ -43,42 +52,49 @@ sealed interface DrawerBadge {
  *
  * An inbox count of zero is deliberately silent: an empty inbox is the desired
  * state and does not need a marker, and so is a settings entry with nothing set
- * aside behind it. A plan ratio is shown as soon as both the
- * planned count and the cap are known, including at zero, because "0/12" is the
- * useful reading of an untouched week.
+ * aside behind it. Week progress is shown once the week has anything in it,
+ * including at no work done, because "0/12" is the useful reading of an untouched
+ * week while "0/0" says nothing at all.
  */
 fun DrawerCounts.badgeFor(destination: DrawerDestination): DrawerBadge? =
     when (destination) {
         DrawerDestination.Inbox -> inbox?.takeIf { it > 0 }?.let(DrawerBadge::Count)
         DrawerDestination.Settings -> unsentChanges?.takeIf { it > 0 }?.let(DrawerBadge::Count)
-        DrawerDestination.Week, DrawerDestination.NextWeek -> {
-            val planned = weekPlanned
-            val limit = weekLimit
-            if (planned != null && limit != null) DrawerBadge.Ratio(planned, limit) else null
+        DrawerDestination.Week -> {
+            val done = weekDone
+            val total = weekTotal
+            if (done != null && total != null && total > 0) DrawerBadge.Progress(done, total) else null
         }
 
         else -> null
     }
 
-/**
- * Where the drawer's counters come from.
- *
- * A seam, exactly like the session one: today a stand-in publishes nothing, and
- * the implementation that observes the on-device replica replaces the binding
- * without the drawer changing.
- */
+/** Where the drawer's counters come from. */
 interface DrawerCountsSource {
     val counts: StateFlow<DrawerCounts>
 }
 
 /**
- * Stand-in [DrawerCountsSource] used until the replica can be queried. It
- * publishes an empty [DrawerCounts] forever, which renders a drawer with no
- * badges rather than one with invented numbers.
+ * The counters read off the replica.
+ *
+ * The query is a standing one, so completing a task anywhere moves the number
+ * without the drawer asking; the clock is only there to move on to the next week
+ * when Monday comes, which no change to the replica would announce.
  */
 @Singleton
-class EmptyDrawerCountsSource
+class ReplicaDrawerCountsSource
     @Inject
-    constructor() : DrawerCountsSource {
-        override val counts: StateFlow<DrawerCounts> = MutableStateFlow(DrawerCounts()).asStateFlow()
+    constructor(
+        views: TaskViewDao,
+        clock: DayClock,
+        @param:ApplicationScope scope: CoroutineScope,
+    ) : DrawerCountsSource {
+        @OptIn(ExperimentalCoroutinesApi::class)
+        override val counts: StateFlow<DrawerCounts> =
+            clock.ticks()
+                .map { ViewWindows.week(it, clock.zone) }
+                .distinctUntilChanged()
+                .flatMapLatest { views.observeWeekProgress(it.from, it.untilExclusive) }
+                .map { DrawerCounts(weekDone = it.done, weekTotal = it.total) }
+                .stateIn(scope, SharingStarted.WhileSubscribed(), DrawerCounts())
     }

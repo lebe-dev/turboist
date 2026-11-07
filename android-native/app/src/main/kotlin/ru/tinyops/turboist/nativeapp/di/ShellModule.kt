@@ -9,7 +9,7 @@ import ru.tinyops.turboist.nativeapp.session.OfflineSessionSource
 import ru.tinyops.turboist.nativeapp.session.SessionStateSource
 import ru.tinyops.turboist.nativeapp.shell.DrawerCountsSource
 import ru.tinyops.turboist.nativeapp.shell.DrawerPinnedSource
-import ru.tinyops.turboist.nativeapp.shell.EmptyDrawerCountsSource
+import ru.tinyops.turboist.nativeapp.shell.ReplicaDrawerCountsSource
 import ru.tinyops.turboist.nativeapp.shell.ReplicaDrawerPinnedSource
 import ru.tinyops.turboist.nativeapp.sync.ReplicaSyncStatusSource
 import ru.tinyops.turboist.nativeapp.sync.SyncStatusSource
@@ -37,7 +37,7 @@ abstract class ShellModule {
 
     @Binds
     @Singleton
-    abstract fun bindDrawerCountsSource(source: EmptyDrawerCountsSource): DrawerCountsSource
+    abstract fun bindDrawerCountsSource(source: ReplicaDrawerCountsSource): DrawerCountsSource
 
     @Binds
     @Singleton

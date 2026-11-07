@@ -327,6 +327,12 @@ class ViewContractTest : ReplicaTest() {
                         "index_tasks_parentLocalId",
                     ),
                 "WEEK_PLANNED_COUNT" to listOf("index_tasks_planState"),
+                "WEEK_PROGRESS" to
+                    listOf(
+                        "index_tasks_planState",
+                        "index_tasks_dueAt_status",
+                        "index_tasks_completedAt_status",
+                    ),
                 "BACKLOG" to listOf("index_tasks_planState"),
                 "BACKLOG_COUNT" to listOf("index_tasks_planState"),
                 "PINNED" to listOf("index_tasks_isPinned"),

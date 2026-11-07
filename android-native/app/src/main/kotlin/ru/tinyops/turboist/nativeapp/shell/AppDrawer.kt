@@ -156,7 +156,7 @@ private fun BadgeLabel(badge: DrawerBadge?) {
     when (badge) {
         null -> Unit
         is DrawerBadge.Count -> BadgeText(badge.value.toString())
-        is DrawerBadge.Ratio -> BadgeText(stringResource(R.string.native_count_ratio, badge.current, badge.limit))
+        is DrawerBadge.Progress -> BadgeText(stringResource(R.string.native_count_ratio, badge.done, badge.total))
     }
 }
 
@@ -174,7 +174,7 @@ private fun BadgeText(text: String) {
 private fun AppDrawerContentPreview() {
     TurboistTheme {
         AppDrawerContent(
-            counts = DrawerCounts(inbox = 3, weekPlanned = 5, weekLimit = 12),
+            counts = DrawerCounts(inbox = 3, weekDone = 5, weekTotal = 12),
             selected = { it == DrawerDestination.Today },
             onSelect = {},
             onSignOut = {},
