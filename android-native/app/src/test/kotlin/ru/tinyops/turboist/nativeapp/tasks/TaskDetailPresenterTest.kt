@@ -449,6 +449,30 @@ class TaskDetailPresenterTest {
         }
 
     @Test
+    fun `a new subtask loses the spaces and dots its title ends with`() =
+        runTest {
+            val presenter = open(task(1))
+
+            presenter.addSubtask("Buy milk.")
+            presenter.addSubtask("Wait... ")
+            presenter.addSubtask("Read v1.2 notes . .")
+            runCurrent()
+
+            assertEquals(listOf("subtask 1 Buy milk", "subtask 1 Wait", "subtask 1 Read v1.2 notes"), actions.calls)
+        }
+
+    @Test
+    fun `a subtask title made only of dots is not written down`() =
+        runTest {
+            val presenter = open(task(1))
+
+            presenter.addSubtask(" ... ")
+            runCurrent()
+
+            assertEquals(emptyList(), actions.calls)
+        }
+
+    @Test
     fun `finished subtasks are kept apart from the open ones`() =
         runTest {
             val presenter =

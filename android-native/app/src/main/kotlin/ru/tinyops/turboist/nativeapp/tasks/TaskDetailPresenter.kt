@@ -515,9 +515,9 @@ class TaskDetailPresenter(
 
     fun addSubtask(title: String) {
         val parent = state.value.task ?: return
-        val trimmed = title.trim()
-        if (trimmed.isEmpty()) return
-        scope.launch { report { actions.createSubtask(parent.localId, trimmed) } }
+        val cleaned = subtaskTitle(title)
+        if (cleaned.isEmpty()) return
+        scope.launch { report { actions.createSubtask(parent.localId, cleaned) } }
     }
 
     fun toggleSubtaskComplete(task: Task) {
@@ -840,3 +840,10 @@ class TaskDetailPresenter(
             }
     }
 }
+
+/**
+ * The title a new subtask is written down under: a line typed into a checklist
+ * often ends like a sentence, and the spaces and dots it ends with are not part
+ * of the name.
+ */
+private fun subtaskTitle(typed: String): String = typed.trimEnd { it.isWhitespace() || it == '.' }.trimStart()
