@@ -12,9 +12,9 @@ import kotlin.test.assertEquals
 /**
  * The drawer's "done out of all" for the week.
  *
- * The total has to be the work the week screen is made of plus what has already
- * left it by being finished, or the number would shrink as the user gets through
- * the week instead of the first half of it growing.
+ * Only top-level tasks planned for the week count, and the finished ones stay in
+ * the total, or the number would shrink as the user gets through the week instead
+ * of the first half of it growing.
  */
 class WeekProgressQueryTest : ReplicaTest() {
     private val from = NOW
@@ -36,14 +36,22 @@ class WeekProgressQueryTest : ReplicaTest() {
         }
 
     @Test
-    fun `planned and due work both count, finished or not`() =
+    fun `planned work counts, finished or not`() =
         runTest {
             db.tasks().insert(planned())
-            db.tasks().insert(task().copy(dueAt = inside))
+            db.tasks().insert(planned())
             db.tasks().insert(done(planned()))
+
+            assertEquals(WeekProgressRow(done = 1, total = 3), progress())
+        }
+
+    @Test
+    fun `work merely due inside the week was not planned for it`() =
+        runTest {
+            db.tasks().insert(task().copy(dueAt = inside))
             db.tasks().insert(done(task().copy(dueAt = inside)))
 
-            assertEquals(WeekProgressRow(done = 2, total = 4), progress())
+            assertEquals(WeekProgressRow(done = 0, total = 0), progress())
         }
 
     @Test
@@ -55,7 +63,7 @@ class WeekProgressQueryTest : ReplicaTest() {
         }
 
     @Test
-    fun `work finished this week without belonging to it is not counted`() =
+    fun `work finished this week without being planned is not counted`() =
         runTest {
             db.tasks().insert(done())
 
@@ -63,31 +71,32 @@ class WeekProgressQueryTest : ReplicaTest() {
         }
 
     @Test
-    fun `a finished run of a repeating task counts although its plan and date are gone`() =
+    fun `a planned subtask is left out, whatever its parent is`() =
         runTest {
-            val source = db.tasks().insert(task().copy(dueAt = inside, recurrenceRule = "FREQ=DAILY"))
-            db.tasks().insert(done(task(sourceTaskLocalId = source)))
+            val plannedParent = db.tasks().insert(planned())
+            val otherParent = db.tasks().insert(task())
+            db.tasks().insert(task(parentLocalId = plannedParent).copy(planState = PlanState.WEEK))
+            db.tasks().insert(task(parentLocalId = otherParent).copy(planState = PlanState.WEEK))
+            db.tasks().insert(done(task(parentLocalId = plannedParent).copy(planState = PlanState.WEEK)))
 
-            assertEquals(WeekProgressRow(done = 1, total = 2), progress())
+            assertEquals(WeekProgressRow(done = 0, total = 1), progress())
         }
 
     @Test
-    fun `subtasks travel with their parent and cancelled work counts for nothing`() =
+    fun `cancelled work counts for nothing`() =
         runTest {
-            val parent = db.tasks().insert(planned())
-            db.tasks().insert(task(parentLocalId = parent).copy(planState = PlanState.WEEK))
             db.tasks().insert(planned().copy(status = TaskStatus.CANCELLED))
 
-            assertEquals(WeekProgressRow(done = 0, total = 1), progress())
+            assertEquals(WeekProgressRow(done = 0, total = 0), progress())
         }
 
     @Test
     fun `the week is half open`() =
         runTest {
-            db.tasks().insert(task().copy(dueAt = from))
-            db.tasks().insert(task().copy(dueAt = until))
+            db.tasks().insert(done(planned()).copy(completedAt = from))
+            db.tasks().insert(done(planned()).copy(completedAt = until))
 
-            assertEquals(WeekProgressRow(done = 0, total = 1), progress())
+            assertEquals(WeekProgressRow(done = 1, total = 1), progress())
         }
 
     private companion object {

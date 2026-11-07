@@ -87,7 +87,7 @@ class ReplicaDrawerCountsSource
     constructor(
         views: TaskViewDao,
         clock: DayClock,
-        @param:ApplicationScope scope: CoroutineScope,
+        @ApplicationScope scope: CoroutineScope,
     ) : DrawerCountsSource {
         @OptIn(ExperimentalCoroutinesApi::class)
         override val counts: StateFlow<DrawerCounts> =

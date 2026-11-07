@@ -43,11 +43,6 @@ internal const val TASK_ORDER =
  */
 internal const val PRIORITY_FILTER = " AND (:priority IS NULL OR priority = :priority)"
 
-/** What keeps a week-list row counted: top-level, and open or finished inside the week. */
-private const val WEEK_MEMBER_STATE =
-    "AND +parentLocalId IS NULL " +
-        "AND (status = 'open' OR (status = 'completed' AND completedAt >= :from AND completedAt < :until))"
-
 /**
  * Every statement the view queries run, named.
  *
@@ -93,19 +88,10 @@ internal object TaskViewSql {
         "SELECT COUNT(*) FROM tasks t WHERE t.status = 'open' AND t.planState = 'week' " +
             "AND t.parentLocalId IS NULL"
 
-    // One branch per way of belonging to the week, so each is answered through its
-    // own index: "is it top-level" is true of nearly every task, and letting it
-    // drive the query would read all of them, which is what the unary plus on that
-    // column rules out. The union keeps a task reached by two branches as one row.
     const val WEEK_PROGRESS =
-        "SELECT COALESCE(SUM(status = 'completed'), 0) AS done, COUNT(*) AS total FROM (" +
-            "SELECT localId, status FROM tasks WHERE planState = 'week' " + WEEK_MEMBER_STATE +
-            " UNION " +
-            "SELECT localId, status FROM tasks WHERE dueAt >= :from AND dueAt < :until " + WEEK_MEMBER_STATE +
-            " UNION " +
-            "SELECT localId, status FROM tasks WHERE completedAt >= :from AND completedAt < :until " +
-            "AND status = 'completed' AND sourceTaskLocalId IS NOT NULL AND +parentLocalId IS NULL" +
-            ")"
+        "SELECT COALESCE(SUM(status = 'completed'), 0) AS done, COUNT(*) AS total FROM tasks " +
+            "WHERE planState = 'week' AND parentLocalId IS NULL " +
+            "AND (status = 'open' OR (status = 'completed' AND completedAt >= :from AND completedAt < :until))"
 
     const val BACKLOG =
         "SELECT * FROM tasks WHERE planState = 'backlog' AND status = 'open'" + PRIORITY_FILTER + TASK_ORDER
@@ -309,10 +295,10 @@ abstract class TaskViewDao {
     /**
      * How far through the week the user is, for the drawer.
      *
-     * The total is the top-level work of the week list plus what has left that
-     * list by being finished inside the week, so it does not shrink as work gets
-     * done. A finished run of a repeating task counts although the server strips
-     * its plan and date: it is the only record left of that occurrence.
+     * Only top-level tasks planned for the week count: a subtask travels with its
+     * parent and a task merely due inside the week was never chosen for it. Tasks
+     * finished inside the week stay in the total, so it does not shrink as work
+     * gets done.
      */
     @Query(TaskViewSql.WEEK_PROGRESS)
     abstract fun observeWeekProgress(

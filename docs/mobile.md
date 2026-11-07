@@ -1025,10 +1025,9 @@ rendered as-is, so adding a destination to the catalog makes it appear; only
 argument-free destinations belong there, since a project or a label is reached
 from its list rather than from a static menu that would have to invent an id.
 Counters come from a `DrawerCountsSource` and are nullable: unknown means "draw
-no badge" rather than zero. The week entry reads `done/total` off the replica: the
-top-level tasks planned for this week or due inside it, plus those finished since
-Monday (runs of repeating tasks included), and it stays silent while the week is
-empty. Below 840 dp the drawer is a modal overlay; above it
+no badge" rather than zero. The week entry reads `done/total` off the replica: only
+top-level tasks planned for the week count, open ones and those finished since
+Monday, and it stays silent while the week is empty. Below 840 dp the drawer is a modal overlay; above it
 the drawer becomes part of the layout and the menu button disappears.
 
 **Navigation bar.** Below 840 dp the shell also draws a navigation bar with four
