@@ -72,6 +72,7 @@
     <string name="native_selection_plan">План</string>
     <string name="native_selection_more">Ещё</string>
     <string name="native_swipe_backlog">В бэклог</string>
+    <string name="native_swipe_duplicateTomorrow">Дублировать на завтра</string>
     <string name="native_selection_begin">Выбрать задачи</string>
     <string name="native_labels_showAll">Ещё %1$d</string>
     <string name="native_labels_showFewer">Свернуть</string>

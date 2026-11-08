@@ -24,6 +24,7 @@ import ru.tinyops.turboist.core.network.dto.BulkResultDto
 import ru.tinyops.turboist.core.network.dto.CompleteTaskRequest
 import ru.tinyops.turboist.core.network.dto.CreateTaskRelationRequest
 import ru.tinyops.turboist.core.network.dto.DecomposeTaskRequest
+import ru.tinyops.turboist.core.network.dto.DuplicateTaskRequest
 import ru.tinyops.turboist.core.network.dto.GroupTasksRequest
 import ru.tinyops.turboist.core.network.dto.HarpoonRefRequest
 import ru.tinyops.turboist.core.network.dto.InstantiateTemplateRequest
@@ -207,7 +208,7 @@ class OpSender(
             is PlanTaskOp -> tasks.plan(taskId(op.taskLocalId), PlanTaskRequest(op.state), key).outcome()
             is PinTaskOp -> tasks.pin(taskId(op.taskLocalId), key).outcome()
             is UnpinTaskOp -> tasks.unpin(taskId(op.taskLocalId), key).outcome()
-            is DuplicateTaskOp -> tasks.duplicate(taskId(op.taskLocalId), key).outcome()
+            is DuplicateTaskOp -> duplicate(op, key)
             is DecomposeTaskOp -> decompose(op, key)
 
             is AddTaskRelationOp -> addRelation(op, key)
@@ -348,6 +349,15 @@ class OpSender(
         return answer.creating(ReplicaEntityKind.TASK_TEMPLATE, op.templateLocalId, answer.requireBody().id)
     }
 
+    /** A duplicate, asking for the copy's own due date when the op carries one. */
+    private suspend fun duplicate(
+        op: DuplicateTaskOp,
+        key: String,
+    ): SendOutcome {
+        val dueAt = op.dueAt ?: return tasks.duplicate(taskId(op.taskLocalId), key).outcome()
+        return tasks.duplicateDue(taskId(op.taskLocalId), DuplicateTaskRequest(dueAt, op.dueHasTime), key).outcome()
+    }
+
     /**
      * Splits a task, and names the pieces this device already drew.
      *
@@ -357,6 +367,7 @@ class OpSender(
      * odd ones nameless rather than guessing; the catch-up that follows the drain
      * carries the server's own copy either way.
      */
+
     private suspend fun decompose(
         op: DecomposeTaskOp,
         key: String,

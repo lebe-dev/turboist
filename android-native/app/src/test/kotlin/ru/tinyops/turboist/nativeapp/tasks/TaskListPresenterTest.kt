@@ -57,6 +57,12 @@ class TaskListPresenterTest {
             taskLocalId: Long,
             edit: TaskEdit,
         ) = record("edit $taskLocalId $edit")
+
+        override suspend fun duplicateTo(
+            taskLocalId: Long,
+            dueAt: Long,
+            dueHasTime: Boolean,
+        ) = record("duplicateTo $taskLocalId $dueAt $dueHasTime")
     }
 
     /** A sync engine that counts requests and can be held open mid-cycle. */
@@ -171,6 +177,27 @@ class TaskListPresenterTest {
             val tomorrowEvening = tomorrow.atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
             val expected = TaskEdit(dueAt = Clearable.Set(tomorrowEvening))
             assertContentEquals(listOf("edit 1 $expected"), actions.calls)
+        }
+
+    @Test
+    fun `duplicating to a day copies the task onto it, keeping the time of day`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            val zone = ZoneId.of("Europe/Moscow")
+            val today = LocalDate.of(2026, 3, 12)
+            val dueToday = today.atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
+            val tomorrow = today.plusDays(1)
+
+            presenter.duplicateToDay(task(1, dueAt = dueToday, dueHasTime = true), tomorrow, zone)
+            presenter.duplicateToDay(task(2), tomorrow, zone)
+            runCurrent()
+
+            val evening = tomorrow.atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
+            val midnight = tomorrow.atStartOfDay(zone).toInstant().toEpochMilli()
+            assertContentEquals(
+                listOf("duplicateTo 1 $evening true", "duplicateTo 2 $midnight false"),
+                actions.calls,
+            )
         }
 
     @Test

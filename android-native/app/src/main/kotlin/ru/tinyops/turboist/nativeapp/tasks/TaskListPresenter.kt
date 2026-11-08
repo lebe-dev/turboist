@@ -25,6 +25,7 @@ import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.quickadd.pickRecent
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 /** Everything a task list screen renders. */
@@ -146,6 +147,16 @@ interface TaskListActions {
 
     /** Commits a task to the current week. */
     suspend fun planForWeek(taskLocalId: Long)
+
+    /**
+     * Copies a task and gives the copy its own due date; the source keeps its
+     * own. Only a list that offers the swipe action calls it.
+     */
+    suspend fun duplicateTo(
+        taskLocalId: Long,
+        dueAt: Long,
+        dueHasTime: Boolean,
+    ) = Unit
 
     /** Applies a field edit. The edit carries only the fields that changed. */
     suspend fun edit(
@@ -288,6 +299,19 @@ class TaskListPresenter(
         scope.launch { report { actions.edit(task.localId, edit) } }
     }
 
+    /**
+     * Copies a task onto the given day, keeping its time of day. The source stays
+     * where it is, so an undated task gets a dated copy.
+     */
+    fun duplicateToDay(
+        task: Task,
+        day: LocalDate,
+        zone: ZoneId,
+    ) {
+        val at = day.atTime(task.dueTime(zone) ?: LocalTime.MIDNIGHT).atZone(zone).toInstant().toEpochMilli()
+        scope.launch { report { actions.duplicateTo(task.localId, at, task.dueHasTime) } }
+    }
+
     /** Moves a task to another phase of the day — what a row carried onto another phase's block asks for. */
     fun moveToDayPart(
         task: Task,
@@ -298,14 +322,14 @@ class TaskListPresenter(
         scope.launch { report { actions.edit(task.localId, edit) } }
     }
 
-    /** Enters selection mode with nothing picked yet — the top bar's "select" button. */
-    fun beginSelection() {
-        selection.value = Selection(active = true)
-    }
-
     /** Starts picking tasks, with the one that was long-pressed already picked. */
     fun startSelection(taskLocalId: Long) {
         selection.value = Selection(active = true, ids = setOf(taskLocalId))
+    }
+
+    /** Enters selection mode with nothing picked yet — the top bar's "select" button. */
+    fun beginSelection() {
+        selection.value = Selection(active = true)
     }
 
     /**

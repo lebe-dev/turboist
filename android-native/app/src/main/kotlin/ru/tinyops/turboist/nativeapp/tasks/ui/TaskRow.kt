@@ -366,7 +366,13 @@ private fun MetaLine(
         }
         Tags(task.labels, completed = completed, explainable = !selectionMode)
         if (plan == PlanState.WEEK) MarkerIcon(Icons.Outlined.EventAvailable, R.string.task_weekPlannedLabel)
-        if (plan == PlanState.BACKLOG) MarkerIcon(Icons.Outlined.Inventory2, R.string.task_backlogLabel)
+        if (plan == PlanState.BACKLOG) {
+            MarkerIcon(
+                Icons.Outlined.Inventory2,
+                R.string.task_backlogLabel,
+                tint = if (completed) MaterialTheme.colorScheme.onSurfaceVariant else TurboistTheme.accents.backlog,
+            )
+        }
     }
 }
 

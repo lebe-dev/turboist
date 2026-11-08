@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -331,8 +332,17 @@ private fun QuickAddFields(
     val titleLabel = stringResource(R.string.dialog_quickAdd_titleAriaLabel)
     val descriptionLabel = stringResource(R.string.dialog_quickAdd_descriptionAriaLabel)
 
+    // The sheet is anchored to the bottom, so any change in its content height moves
+    // its top edge. Chips that appear while typing (auto labels, project
+    // suggestions) would make the whole sheet jump up and down, so the content
+    // always takes the full height it is offered and grows inside it instead.
     Column(
-        modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         // The title is the one thing the sheet is opened for, so it is written

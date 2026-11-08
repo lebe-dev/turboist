@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.CopyAll
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,14 +43,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -60,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
@@ -103,6 +110,11 @@ data class TaskListCallbacks(
     val onPark: (Task) -> Unit,
     /** Puts a task on the given day — the swiped row's "tomorrow". */
     val onMoveToDay: (Task, LocalDate) -> Unit,
+    /**
+     * Copies a task onto the given day. `null` on a list that does not offer
+     * "duplicate to tomorrow" among the swipe actions.
+     */
+    val onDuplicateToDay: ((Task, LocalDate) -> Unit)? = null,
     val onStartSelection: (Task) -> Unit,
     /** Enters selection mode with nothing picked; `null` on a list that offers no bulk actions. */
     val onBeginSelection: (() -> Unit)? = null,
@@ -159,6 +171,8 @@ fun TaskList(
     // The row being carried between phases, on a list that offers that at all.
     val dragState = remember { DayPartDragState() }
     val drag = dragState.takeIf { callbacks.onMoveToDayPart != null }
+    // Where the list sits on screen, so the island can open beside the carried row.
+    var listBounds by remember { mutableStateOf(Rect.Zero) }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -175,7 +189,10 @@ fun TaskList(
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
                 onRefresh = callbacks.onRefresh,
-                modifier = Modifier.fillMaxSize(),
+                modifier =
+                    Modifier.fillMaxSize().onGloballyPositioned {
+                        listBounds = Rect(it.positionInRoot(), it.size.toSize())
+                    },
             ) {
                 if (state.isEmpty && empty != null) {
                     EmptyList(empty)
@@ -248,15 +265,13 @@ fun TaskList(
                 if (drag?.dragged != null) {
                     DayPartDropBar(
                         drag = drag,
-                        modifier =
-                            Modifier.align(
-                                Alignment.TopCenter,
-                            ).padding(horizontal = LIST_GUTTER, vertical = 8.dp),
+                        container = listBounds,
+                        modifier = Modifier.padding(horizontal = LIST_GUTTER),
                     )
                 }
             }
         }
-        if (drag != null) DayPartDragTooltip(drag)
+        if (drag != null) DayPartDragTooltip(drag, islandAbove = drag.islandIsAbove(listBounds))
         if (toolbarShown && actions != null) {
             SelectionToolbar(
                 count = state.selected.size,
@@ -310,6 +325,14 @@ private fun rowActions(
                     Icons.Outlined.EventAvailable,
                     R.string.common_tomorrow,
                 ) { callbacks.onMoveToDay(task, tomorrow) },
+            )
+        }
+        callbacks.onDuplicateToDay?.let { duplicate ->
+            add(
+                RowAction(
+                    Icons.Outlined.CopyAll,
+                    R.string.native_swipe_duplicateTomorrow,
+                ) { duplicate(task, tomorrow) },
             )
         }
         if (task.planState != PlanState.BACKLOG) {

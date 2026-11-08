@@ -57,6 +57,9 @@ abstract class TaskListViewModel(
      */
     open val offersDayPartDrops: Boolean = false
 
+    /** Whether a swiped row offers a copy of the task dated tomorrow. */
+    open val offersDuplicateToTomorrow: Boolean = false
+
     protected companion object {
         /** Matches the presenter's own grace period, so both stop watching together. */
         const val STOP_TIMEOUT_MILLIS = 5_000L
@@ -142,6 +145,7 @@ class TodayViewModel
             )
 
         override val offersDayPartDrops: Boolean = true
+        override val offersDuplicateToTomorrow: Boolean = true
     }
 
 /** Tomorrow: the next day, phase by phase. Nothing is overdue in the future. */

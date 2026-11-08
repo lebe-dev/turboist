@@ -71,6 +71,13 @@ data class MoveTaskRequest(
     val parentId: Long? = null,
 )
 
+/** Optional body of a duplicate: the copy, not its subtasks, is due at this moment instead of the source's. */
+@Serializable
+data class DuplicateTaskRequest(
+    val dueAt: String,
+    val dueHasTime: Boolean,
+)
+
 /** Commits a task to the current week or parks it in the backlog; the server cascades to open subtasks. */
 @Serializable
 data class PlanTaskRequest(

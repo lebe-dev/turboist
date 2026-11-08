@@ -19,6 +19,7 @@ import ru.tinyops.turboist.core.network.dto.CreateTaskRelationRequest
 import ru.tinyops.turboist.core.network.dto.CreateTaskRequest
 import ru.tinyops.turboist.core.network.dto.DecomposeTaskRequest
 import ru.tinyops.turboist.core.network.dto.DecomposeTaskResponse
+import ru.tinyops.turboist.core.network.dto.DuplicateTaskRequest
 import ru.tinyops.turboist.core.network.dto.GroupTasksRequest
 import ru.tinyops.turboist.core.network.dto.GroupTasksResponse
 import ru.tinyops.turboist.core.network.dto.MoveTaskRequest
@@ -177,6 +178,14 @@ interface TaskApi {
     @POST("api/v1/tasks/{id}/duplicate")
     suspend fun duplicate(
         @Path("id") id: Long,
+        @Header(ApiHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
+    ): Response<TaskDto>
+
+    /** A duplicate whose copy is given its own due date. */
+    @POST("api/v1/tasks/{id}/duplicate")
+    suspend fun duplicateDue(
+        @Path("id") id: Long,
+        @Body body: DuplicateTaskRequest,
         @Header(ApiHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
     ): Response<TaskDto>
 

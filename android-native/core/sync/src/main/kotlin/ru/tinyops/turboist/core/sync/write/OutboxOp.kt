@@ -559,7 +559,12 @@ data class UnpinTaskOp(val taskLocalId: Long) : OutboxOp {
 
 @Serializable
 @SerialName(OpNames.TASK_DUPLICATE)
-data class DuplicateTaskOp(val taskLocalId: Long) : OutboxOp {
+data class DuplicateTaskOp(
+    val taskLocalId: Long,
+    /** Due date the copy takes instead of the source's, in wire form; `null` keeps the source's. */
+    val dueAt: String? = null,
+    val dueHasTime: Boolean = false,
+) : OutboxOp {
     override val kind: OutboxOpKind get() = OutboxOpKind.TASK_DUPLICATE
 }
 

@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -42,6 +43,7 @@ import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.nativeapp.R
+import kotlin.math.roundToInt
 
 /** The phases a row can be carried to, in the order the day reads. */
 internal val DROP_DAY_PARTS = listOf(DayPart.MORNING, DayPart.AFTERNOON, DayPart.EVENING, DayPart.NONE)
@@ -71,6 +73,10 @@ class DayPartDragState {
         private set
 
     var pointer by mutableStateOf(Offset.Zero)
+        private set
+
+    /** Where the carried row sat when it was picked up; the island opens next to it. */
+    var anchor by mutableStateOf<Rect?>(null)
         private set
 
     /** The phase under the finger, or `null` over nothing that takes a drop. */
@@ -131,6 +137,7 @@ class DayPartDragState {
         val row = rows[task.localId] ?: return
         dragged = task
         origin = part
+        anchor = row
         pointer = row.topLeft + offsetInRow
         hover = null
         overBar = false
@@ -170,9 +177,34 @@ class DayPartDragState {
     fun reset() {
         dragged = null
         origin = null
+        anchor = null
         hover = null
         overBar = false
     }
+}
+
+/** Where the drop island goes: the top edge in root coordinates, and which side of the row it took. */
+internal data class IslandPlacement(
+    val top: Float,
+    val above: Boolean,
+)
+
+/**
+ * Puts the island of phases right next to the carried row: under it when the
+ * list has room there, over it otherwise. When neither side fits it is pinned to
+ * the top of the list, which covers the row but keeps every phase reachable.
+ */
+internal fun islandPlacement(
+    anchor: Rect,
+    container: Rect,
+    islandHeight: Float,
+    gap: Float,
+): IslandPlacement {
+    val below = anchor.bottom + gap
+    if (below + islandHeight <= container.bottom) return IslandPlacement(below, above = false)
+    val over = anchor.top - gap - islandHeight
+    if (over >= container.top) return IslandPlacement(over, above = true)
+    return IslandPlacement(container.top + gap, above = false)
 }
 
 /**
@@ -257,25 +289,35 @@ internal fun DayPartDragState?.wouldLandIn(part: DayPart?): Boolean =
     this != null && part != null && dragged != null && hover == part && origin != part
 
 /**
- * Every phase of the day, laid over the top of the list while a row is carried.
+ * Every phase of the day, opened as an island beside the row being carried.
  *
- * The list leaves out a phase nothing falls into, so without the bar an empty
+ * The list leaves out a phase nothing falls into, so without the island an empty
  * evening could not be dropped onto at all; and a long day pushes most of its
- * phases off screen. It floats over the list rather than being laid out in it,
- * so appearing never pushes the rows out from under the finger, and it sits at
- * the top because the bottom edge belongs to the capture button.
+ * phases off screen, so the island travels with the row instead of waiting at
+ * the top of the list. It floats over the list rather than being laid out in it,
+ * so appearing never pushes the rows out from under the finger.
  */
 @Composable
 internal fun DayPartDropBar(
     drag: DayPartDragState,
+    container: Rect,
     modifier: Modifier = Modifier,
 ) {
     DisposableEffect(drag) { onDispose { DROP_DAY_PARTS.forEach { drag.placeBar(it, null) } } }
+    val anchor = drag.anchor ?: return
+    val gap = with(LocalDensity.current) { ISLAND_GAP.roundToPx() }.toFloat()
     Surface(
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 3.dp,
         shadowElevation = 6.dp,
-        modifier = modifier.fillMaxWidth(),
+        modifier =
+            modifier.fillMaxWidth().layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints.copy(minHeight = 0))
+                val placed = islandPlacement(anchor, container, placeable.height.toFloat(), gap)
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    placeable.place(0, (placed.top - container.top).roundToInt())
+                }
+            },
     ) {
         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
             Text(
@@ -291,6 +333,16 @@ internal fun DayPartDropBar(
             }
         }
     }
+}
+
+/** True when the island would open above the carried row, where the tooltip would cover it. */
+@Composable
+internal fun DayPartDragState.islandIsAbove(container: Rect): Boolean {
+    val anchor = anchor ?: return false
+    val density = LocalDensity.current
+    val height = with(density) { ISLAND_HEIGHT_ESTIMATE.toPx() }
+    val gap = with(density) { ISLAND_GAP.toPx() }
+    return islandPlacement(anchor, container, height, gap).above
 }
 
 @Composable
@@ -338,13 +390,17 @@ private fun DropBarPhase(
 /**
  * What the drop would do, said above the finger while it is still down: the
  * phase the row would move to, or — away from any — what is being carried, so
- * the drag is visibly alive. Over the bar it says nothing: the bar lights the
- * phase itself, and a tooltip pushed against the top edge would cover it.
+ * the drag is visibly alive. Over the island it says nothing, and neither does it
+ * while the island sits above the row: the island lights the phase itself, and a
+ * tooltip lifted above the finger would cover it.
  */
 @Composable
-internal fun DayPartDragTooltip(drag: DayPartDragState) {
+internal fun DayPartDragTooltip(
+    drag: DayPartDragState,
+    islandAbove: Boolean,
+) {
     val task = drag.dragged ?: return
-    if (drag.overBar) return
+    if (drag.overBar || islandAbove) return
     val target = drag.hover?.takeIf { drag.wouldLandIn(it) }
     val lift = with(LocalDensity.current) { TOOLTIP_LIFT.roundToPx() }
     val edge = with(LocalDensity.current) { TOOLTIP_EDGE.roundToPx() }
@@ -384,6 +440,8 @@ internal fun DayPartDragTooltip(drag: DayPartDragState) {
     }
 }
 
+private val ISLAND_GAP = 8.dp
+private val ISLAND_HEIGHT_ESTIMATE = 104.dp
 private const val DRAGGED_ALPHA = 0.4f
 private const val HOME_ALPHA = 0.45f
 private val TOOLTIP_LIFT = 24.dp

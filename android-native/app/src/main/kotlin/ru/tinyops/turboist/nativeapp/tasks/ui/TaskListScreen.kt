@@ -206,6 +206,7 @@ fun TaskListScreen(
                 presenter,
                 viewModel.zone,
                 viewModel.offersDayPartDrops,
+                viewModel.offersDuplicateToTomorrow,
                 onOpenTask,
                 onMoveRequested,
                 onGroupRequested,
@@ -288,16 +289,23 @@ private fun presenterCallbacks(
     presenter: TaskListPresenter,
     zone: ZoneId,
     dayPartDrops: Boolean,
+    duplicateToTomorrow: Boolean,
     onOpenTask: (Task) -> Unit,
     onMoveRequested: () -> Unit,
     onGroupRequested: () -> Unit,
 ): TaskListCallbacks =
-    remember(presenter, zone, dayPartDrops, onOpenTask, onMoveRequested, onGroupRequested) {
+    remember(presenter, zone, dayPartDrops, duplicateToTomorrow, onOpenTask, onMoveRequested, onGroupRequested) {
         TaskListCallbacks(
             onToggleComplete = presenter::toggleComplete,
             onOpen = onOpenTask,
             onPark = presenter::park,
             onMoveToDay = { task, day -> presenter.moveToDay(task, day, zone) },
+            onDuplicateToDay =
+                if (duplicateToTomorrow) {
+                    { task, day -> presenter.duplicateToDay(task, day, zone) }
+                } else {
+                    null
+                },
             onStartSelection = { presenter.startSelection(it.localId) },
             onBeginSelection = if (presenter.offersBulkActions) presenter::beginSelection else null,
             onSelectToggle = { presenter.toggleSelection(it.localId) },

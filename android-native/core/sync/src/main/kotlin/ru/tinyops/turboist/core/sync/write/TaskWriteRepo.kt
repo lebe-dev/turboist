@@ -429,12 +429,18 @@ class TaskWriteRepo(
      *
      * Nothing is added to the replica: the copy is the server's to make, and
      * inventing one here would leave a duplicate on screen when the real one
-     * arrived, since the two could never be recognised as the same row.
+     * arrived, since the two could never be recognised as the same row. A given
+     * [dueAt] is asked for as the copy's own due date; the source keeps its date.
      */
-    suspend fun duplicate(taskLocalId: Long): QueuedWrite =
+    suspend fun duplicate(
+        taskLocalId: Long,
+        dueAt: Long? = null,
+        dueHasTime: Boolean = false,
+    ): QueuedWrite =
         writer.transaction {
             requireTask(taskLocalId)
-            val opId = writer.enqueue(DuplicateTaskOp(taskLocalId), ReplicaEntityKind.TASK, taskLocalId)
+            val op = DuplicateTaskOp(taskLocalId, WireTime.formatOrNull(dueAt), dueHasTime)
+            val opId = writer.enqueue(op, ReplicaEntityKind.TASK, taskLocalId)
             QueuedWrite(opId, taskLocalId)
         }
 

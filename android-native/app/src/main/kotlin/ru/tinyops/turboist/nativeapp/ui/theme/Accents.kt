@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
  *   red as [priorityHigh] and separate from it on purpose — one is a level the
  *   user chose, the other a warning about the shape of the work.
  * @property recurring the mark on a task that comes back.
+ * @property backlog the mark on a task parked in the backlog.
  * @property pending text saying a write is still queued on this device.
  * @property morning the chosen morning icon in the day-part picker.
  * @property afternoon the chosen afternoon icon.
@@ -57,6 +58,7 @@ data class TurboistAccents(
     val evening: Color,
     val postponedTwice: Color,
     val postponedOften: Color,
+    val backlog: Color,
     val pending: Color,
     val pendingContainer: Color,
     val announcement: Color,
@@ -74,6 +76,7 @@ private val Amber300 = Color(0xFFFFD230)
 private val Orange400 = Color(0xFFFF8904)
 private val Yellow400 = Color(0xFFFDC700)
 private val Indigo400 = Color(0xFF7C86FF)
+private val Violet500 = Color(0xFF8E51FF)
 private val Blue500 = Color(0xFF2B7FFF)
 private val Emerald600 = Color(0xFF009966)
 private val Emerald400 = Color(0xFF00D492)
@@ -101,6 +104,7 @@ val TurboistLightAccents: TurboistAccents =
         evening = Indigo400,
         postponedTwice = Amber600,
         postponedOften = Red600,
+        backlog = Violet500,
         pending = Amber700,
         pendingContainer = Amber500.copy(alpha = PENDING_TINT_ALPHA),
         announcement = Red500,

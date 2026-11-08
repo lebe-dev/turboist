@@ -34,6 +34,14 @@ class WriteRepoTaskDetailActions
             tasks.uncomplete(taskLocalId)
         }
 
+        override suspend fun duplicateTo(
+            taskLocalId: Long,
+            dueAt: Long,
+            dueHasTime: Boolean,
+        ) {
+            tasks.duplicate(taskLocalId, dueAt, dueHasTime)
+        }
+
         override suspend fun edit(
             taskLocalId: Long,
             edit: TaskEdit,
