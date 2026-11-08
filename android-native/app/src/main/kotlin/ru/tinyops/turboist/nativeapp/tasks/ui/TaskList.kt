@@ -558,15 +558,6 @@ private fun RowActionPanel(
     }
 }
 
-/**
- * The heading above a block, or nothing at all for a list that has no blocks.
- *
- * While tasks are being picked the heading also offers the whole block at once.
- * Picking twenty rows one at a time is the gesture selection mode exists to
- * avoid, and the heading is the only place on screen that knows which rows make
- * up a block.
- */
-
 /** A rule across the list with a name on it, marking where a new stretch of the list begins. */
 @Composable
 private fun LabelledDivider(label: String) {
@@ -581,6 +572,14 @@ private fun LabelledDivider(label: String) {
     }
 }
 
+/**
+ * The heading above a block, or nothing at all for a list that has no blocks.
+ *
+ * While tasks are being picked the heading also offers the whole block at once.
+ * Picking twenty rows one at a time is the gesture selection mode exists to
+ * avoid, and the heading is the only place on screen that knows which rows make
+ * up a block.
+ */
 @Composable
 private fun SectionHeader(
     section: TaskListSection,
