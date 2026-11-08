@@ -59,6 +59,11 @@ data class QuickAddUiState(
     val knownLabels: List<Label> = emptyList(),
     /** The labels this device applied lately, most recent first — what the label row leads with. */
     val recentLabelOrder: List<Long> = emptyList(),
+    /**
+     * The project the previous capture was filed into, offered one tap away beside the
+     * destination. `null` when there is none, or when it is already the destination.
+     */
+    val lastProject: Project? = null,
     /** The chosen project's title, or `null` while the draft is headed for the inbox. */
     val projectTitle: String? = null,
     /** True when closing the sheet would lose something the user put here. */
@@ -333,6 +338,9 @@ class QuickAddPresenter(
                 space.appSettings.suggestedProjects(edit.draft.titles, space.projects, setOfNotNull(chosen)),
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
             knownLabels = space.labels,
+            lastProject =
+                order.firstNotNullOfOrNull { id -> space.projects.firstOrNull { it.localId == id } }
+                    ?.takeIf { it.localId != chosen },
             projectTitle = space.projects.firstOrNull { it.localId == chosen }?.title,
             holdsInput = edit.draft.holdsInput(edit.opened),
             confirmingDiscard = edit.confirmingDiscard,

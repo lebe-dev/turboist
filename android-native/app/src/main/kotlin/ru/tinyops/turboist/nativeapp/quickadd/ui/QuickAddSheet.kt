@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -375,6 +376,21 @@ private fun QuickAddFields(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             DestinationChip(projectTitle = state.projectTitle, onPick = { callbacks.onPickingProject(true) })
+            // The project the previous task went to: the next one usually follows it.
+            state.lastProject?.let { last ->
+                AssistChip(
+                    onClick = { callbacks.onChooseProject(last.localId) },
+                    label = { Text(last.title) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.History,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    modifier = Modifier.semantics { contentDescription = last.title },
+                )
+            }
             // A date is a plan, and the inbox holds what has not been planned
             // yet, so scheduling is offered only once the task has a home. The
             // same rule hides these controls in the web client.

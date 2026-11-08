@@ -405,6 +405,45 @@ class QuickAddPresenterTest {
         }
 
     @Test
+    fun `the project filed into last time is offered next to the destination`() =
+        runTest {
+            val presenter = presenter(recent = FakeRecentProjects(listOf(4L, 2L)))
+            watch(presenter)
+
+            presenter.open()
+            runCurrent()
+
+            assertEquals("Music", presenter.state.value.lastProject?.title)
+        }
+
+    @Test
+    fun `the last project is not offered while it is already the destination`() =
+        runTest {
+            val presenter = presenter(recent = FakeRecentProjects(listOf(4L, 2L)))
+            watch(presenter)
+
+            presenter.open(QuickAddRequest(projectLocalId = 4L))
+            runCurrent()
+            assertNull(presenter.state.value.lastProject)
+
+            presenter.chooseProject(null)
+            runCurrent()
+            assertEquals("Music", presenter.state.value.lastProject?.title)
+        }
+
+    @Test
+    fun `nothing is offered when no project was filed into before`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            runCurrent()
+
+            assertNull(presenter.state.value.lastProject)
+        }
+
+    @Test
     fun `searching narrows both the recent row and the list behind it`() =
         runTest {
             val presenter = presenter(recent = FakeRecentProjects(listOf(4L, 2L)))
