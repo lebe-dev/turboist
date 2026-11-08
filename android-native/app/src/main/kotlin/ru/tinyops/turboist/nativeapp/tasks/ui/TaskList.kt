@@ -28,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -105,6 +104,8 @@ data class TaskListCallbacks(
     /** Puts a task on the given day — the swiped row's "tomorrow". */
     val onMoveToDay: (Task, LocalDate) -> Unit,
     val onStartSelection: (Task) -> Unit,
+    /** Enters selection mode with nothing picked; `null` on a list that offers no bulk actions. */
+    val onBeginSelection: (() -> Unit)? = null,
     val onSelectToggle: (Task) -> Unit,
     val onClearSelection: () -> Unit,
     val onRefresh: () -> Unit,
@@ -144,6 +145,11 @@ fun TaskList(
         DisposableEffect(chrome, state.selectionMode) {
             chrome.selectionActive = state.selectionMode
             onDispose { chrome.selectionActive = false }
+        }
+        val begin = callbacks.onBeginSelection
+        DisposableEffect(chrome, begin) {
+            chrome.beginSelection = begin
+            onDispose { if (chrome.beginSelection === begin) chrome.beginSelection = null }
         }
     }
     val actions = callbacks.selectionActions
@@ -288,7 +294,7 @@ private fun isCarriable(
 
 /**
  * The actions a swiped row uncovers: tomorrow, unless the task is already on
- * it; the backlog, unless it is already parked; and picking it.
+ * it; the backlog, unless it is already parked.
  */
 private fun rowActions(
     task: Task,
@@ -309,7 +315,6 @@ private fun rowActions(
         if (task.planState != PlanState.BACKLOG) {
             add(RowAction(Icons.Outlined.Inventory2, R.string.native_swipe_backlog) { callbacks.onPark(task) })
         }
-        add(RowAction(Icons.Outlined.Checklist, R.string.native_swipe_select) { callbacks.onStartSelection(task) })
     }
 
 /** Where a row rests after it has been swiped. */
@@ -327,7 +332,7 @@ private data class RowAction(
  *
  * Swiping towards the end finishes the task. Swiping towards the start only
  * uncovers the actions behind the row — tomorrow, unless the task is already
- * on it; the backlog, unless it is already parked; and picking it — and the
+ * on it; the backlog, unless it is already parked — and the
  * row stays open until one of them is tapped or the row is swiped or tapped
  * shut. Taking the action on the
  * swipe itself made it far too easy to park a task by accident while scrolling.

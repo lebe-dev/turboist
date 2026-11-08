@@ -299,6 +299,7 @@ private fun presenterCallbacks(
             onPark = presenter::park,
             onMoveToDay = { task, day -> presenter.moveToDay(task, day, zone) },
             onStartSelection = { presenter.startSelection(it.localId) },
+            onBeginSelection = if (presenter.offersBulkActions) presenter::beginSelection else null,
             onSelectToggle = { presenter.toggleSelection(it.localId) },
             onClearSelection = presenter::clearSelection,
             onRefresh = presenter::refresh,

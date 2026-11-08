@@ -19,6 +19,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 class ShellChrome {
     /** True while a screen has tasks picked and its toolbar owns the bottom edge. */
     var selectionActive: Boolean by mutableStateOf(false)
+
+    /**
+     * Enters selection mode on the current list, or `null` when the screen has
+     * no list to pick from. The shell shows a button for it in the top bar.
+     */
+    var beginSelection: (() -> Unit)? by mutableStateOf(null)
 }
 
 /** The shell's chrome, or `null` when a screen is composed without a shell around it. */

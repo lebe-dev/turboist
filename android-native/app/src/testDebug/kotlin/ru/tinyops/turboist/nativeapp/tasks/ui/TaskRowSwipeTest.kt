@@ -98,7 +98,6 @@ class TaskRowSwipeTest {
 
         compose.onNodeWithText(text(R.string.native_swipe_backlog)).assertIsDisplayed()
         compose.onNodeWithText(text(R.string.common_tomorrow)).assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.native_swipe_select)).assertIsDisplayed()
         assertEquals(emptyList(), taken)
     }
 

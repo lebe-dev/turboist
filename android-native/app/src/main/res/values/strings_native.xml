@@ -368,7 +368,9 @@
 
     <!-- The actions a row uncovers when it is swiped towards the start: short labels under each icon. -->
     <string name="native_swipe_backlog">Backlog</string>
-    <string name="native_swipe_select">Select</string>
+
+    <!-- The top bar button that starts picking several tasks at once. -->
+    <string name="native_selection_begin">Select tasks</string>
 
     <!-- The label picker, folded down to the labels most likely to be wanted. -->
     <string name="native_labels_showAll">%1$d more</string>

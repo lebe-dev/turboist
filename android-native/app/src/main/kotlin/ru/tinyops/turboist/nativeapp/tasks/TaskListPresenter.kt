@@ -298,6 +298,11 @@ class TaskListPresenter(
         scope.launch { report { actions.edit(task.localId, edit) } }
     }
 
+    /** Enters selection mode with nothing picked yet — the top bar's "select" button. */
+    fun beginSelection() {
+        selection.value = Selection(active = true)
+    }
+
     /** Starts picking tasks, with the one that was long-pressed already picked. */
     fun startSelection(taskLocalId: Long) {
         selection.value = Selection(active = true, ids = setOf(taskLocalId))

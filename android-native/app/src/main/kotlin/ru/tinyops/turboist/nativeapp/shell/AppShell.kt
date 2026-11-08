@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -376,6 +377,20 @@ private fun ShellScaffold(
                     }
                 }
                 val actions: @Composable RowScope.() -> Unit = {
+                    // Picking several tasks used to hide behind a swipe on a row;
+                    // the bar is where it can be found without knowing the gesture.
+                    val beginSelection = chrome.beginSelection
+                    if (beginSelection != null && !chrome.selectionActive) {
+                        IconButton(
+                            onClick = beginSelection,
+                            modifier = Modifier.testTag(SELECT_TASKS_BUTTON_TAG),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Checklist,
+                                contentDescription = stringResource(R.string.native_selection_begin),
+                            )
+                        }
+                    }
                     // There are no hotkeys on a phone, so the quick switcher has a
                     // button of its own in every screen's bar.
                     IconButton(
@@ -491,6 +506,9 @@ private fun BottomBar(
 
 /** Tag of the quick switcher's button in the top bar. */
 const val QUICK_SWITCHER_BUTTON_TAG: String = "quick-switcher-button"
+
+/** Tags the top bar button that starts picking several tasks. */
+const val SELECT_TASKS_BUTTON_TAG: String = "select-tasks-button"
 
 /** The task or project on screen, as the quick switcher remembers it; `null` for anything else. */
 private fun visitingRef(

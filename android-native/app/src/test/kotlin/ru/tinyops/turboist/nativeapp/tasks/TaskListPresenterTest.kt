@@ -259,4 +259,23 @@ class TaskListPresenterTest {
             assertFalse(presenter.state.value.selectionMode)
             assertEquals(emptySet(), presenter.state.value.selected)
         }
+
+    @Test
+    fun `selection can start with nothing picked and fills as rows are tapped`() =
+        runTest {
+            val sections = MutableStateFlow(emptyList<TaskListSection>())
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            backgroundScope.launch { presenter.state.collect {} }
+            sections.value = listOf(plainSection("all", listOf(task(1), task(2)), emptyMap()))
+            runCurrent()
+
+            presenter.beginSelection()
+            runCurrent()
+            assertTrue(presenter.state.value.selectionMode)
+            assertEquals(emptySet(), presenter.state.value.selected)
+
+            presenter.toggleSelection(2)
+            runCurrent()
+            assertEquals(setOf(2L), presenter.state.value.selected)
+        }
 }
