@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '$lib/api/errors';
 import type { Label, Task } from '$lib/api/types';
-import { describeError, isBlocked, taskToJson } from './taskActions';
+import {
+	describeError,
+	hasTitleCounter,
+	isBlocked,
+	taskToJson,
+	tomorrowDuplicateDue
+} from './taskActions';
 
 describe('describeError', () => {
 	it('returns the ApiError message when present', () => {
@@ -34,10 +40,10 @@ describe('describeError', () => {
 		// WebKit surfaces a raw "Load failed"; the offline layer already tried (and
 		// missed) the cache, so the user should see a clear message, not that text.
 		expect(describeError(new ApiError('network_error', 'Load failed', 0), 'Fallback')).toBe(
-			'No connection — this page hasn\'t been opened online yet, so there\'s nothing cached to show.'
+			"No connection — this page hasn't been opened online yet, so there's nothing cached to show."
 		);
 		expect(describeError(new ApiError('timeout', 'request timed out', 0), 'Fallback')).toBe(
-			'No connection — this page hasn\'t been opened online yet, so there\'s nothing cached to show.'
+			"No connection — this page hasn't been opened online yet, so there's nothing cached to show."
 		);
 	});
 
@@ -137,7 +143,13 @@ describe('taskToJson', () => {
 			{ name: 'backend', description: '' },
 			{ name: 'urgent', description: 'Must ship today' }
 		]);
-		expect(Object.keys(json)).toEqual(['title', 'description', 'labels', 'subtasks', 'labelGlossary']);
+		expect(Object.keys(json)).toEqual([
+			'title',
+			'description',
+			'labels',
+			'subtasks',
+			'labelGlossary'
+		]);
 	});
 
 	it('prefers the freshest known description over the one embedded in the task', () => {
@@ -147,5 +159,45 @@ describe('taskToJson', () => {
 		expect(taskToJson(task(1, null, 'Root', '', [stale]), [], [fresh]).labelGlossary).toEqual([
 			{ name: 'urgent', description: 'new text' }
 		]);
+	});
+});
+
+describe('hasTitleCounter', () => {
+	it('detects a trailing number in parentheses', () => {
+		expect(hasTitleCounter('Read a chapter (3)')).toBe(true);
+		expect(hasTitleCounter('Run (12)')).toBe(true);
+	});
+
+	it('ignores titles without a trailing counter', () => {
+		expect(hasTitleCounter('Read a chapter')).toBe(false);
+		expect(hasTitleCounter('Read (3) chapters')).toBe(false);
+		expect(hasTitleCounter('(3)')).toBe(false);
+		expect(hasTitleCounter('Read (three)')).toBe(false);
+	});
+});
+
+describe('tomorrowDuplicateDue', () => {
+	const now = new Date('2026-11-08T10:00:00Z');
+
+	it('puts an undated task on the start of tomorrow', () => {
+		expect(tomorrowDuplicateDue(null, false, now, 'UTC')).toEqual({
+			dueAt: '2026-11-09T00:00:00.000Z',
+			dueHasTime: false
+		});
+	});
+
+	it('keeps the time of day of a timed task', () => {
+		expect(tomorrowDuplicateDue('2026-11-08T07:30:00.000Z', true, now, 'UTC')).toEqual({
+			dueAt: '2026-11-09T07:30:00.000Z',
+			dueHasTime: true
+		});
+	});
+
+	it('reads the time of day in the configured timezone', () => {
+		// 07:30 in Moscow (UTC+3) is 04:30 UTC; tomorrow Moscow day starts 2026-11-08T21:00Z.
+		expect(tomorrowDuplicateDue('2026-11-08T04:30:00.000Z', true, now, 'Europe/Moscow')).toEqual({
+			dueAt: '2026-11-09T04:30:00.000Z',
+			dueHasTime: true
+		});
 	});
 });

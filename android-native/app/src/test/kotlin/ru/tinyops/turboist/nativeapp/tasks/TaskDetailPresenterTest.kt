@@ -76,6 +76,12 @@ class TaskDetailPresenterTest {
 
         override suspend fun duplicate(taskLocalId: Long) = record("duplicate $taskLocalId")
 
+        override suspend fun duplicateTo(
+            taskLocalId: Long,
+            dueAt: Long,
+            dueHasTime: Boolean,
+        ) = record("duplicateTo $taskLocalId $dueAt $dueHasTime")
+
         override suspend fun decompose(
             taskLocalId: Long,
             titles: List<String>,
@@ -409,6 +415,44 @@ class TaskDetailPresenterTest {
         }
 
     @Test
+    fun `a task without a counter in its title is copied as it is`() =
+        runTest {
+            val presenter = open(task(1, title = "Read a chapter"))
+
+            presenter.duplicate(LocalDate.of(2026, 3, 11), zone)
+            runCurrent()
+
+            assertEquals(listOf("duplicate 1"), actions.calls)
+        }
+
+    @Test
+    fun `a task with a counter in its title is copied onto tomorrow at the same time`() =
+        runTest {
+            val today = LocalDate.of(2026, 3, 11)
+            val dueToday = today.atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
+            val presenter = open(task(1, title = "Read a chapter (3)", dueAt = dueToday, dueHasTime = true))
+
+            presenter.duplicate(today, zone)
+            runCurrent()
+
+            val evening = today.plusDays(1).atTime(18, 30).atZone(zone).toInstant().toEpochMilli()
+            assertEquals(listOf("duplicateTo 1 $evening true"), actions.calls)
+        }
+
+    @Test
+    fun `a counted task with no time is copied onto the start of tomorrow`() =
+        runTest {
+            val today = LocalDate.of(2026, 3, 11)
+            val presenter = open(task(1, title = "Run (12)"))
+
+            presenter.duplicate(today, zone)
+            runCurrent()
+
+            val midnight = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            assertEquals(listOf("duplicateTo 1 $midnight false"), actions.calls)
+        }
+
+    @Test
     fun `deleting the task tells the screen there is nothing left to show`() =
         runTest {
             val presenter = open(task(1))
@@ -508,7 +552,7 @@ class TaskDetailPresenterTest {
             presenter.rename("changed")
             presenter.setPriority(Priority.HIGH)
             presenter.toggleComplete()
-            presenter.duplicate()
+            presenter.duplicate(LocalDate.of(2026, 3, 11), zone)
             runCurrent()
 
             assertEquals(0, sync.requests, "the screen must work with no network at all")

@@ -25,7 +25,6 @@ import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.quickadd.pickRecent
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 
 /** Everything a task list screen renders. */
@@ -308,7 +307,7 @@ class TaskListPresenter(
         day: LocalDate,
         zone: ZoneId,
     ) {
-        val at = day.atTime(task.dueTime(zone) ?: LocalTime.MIDNIGHT).atZone(zone).toInstant().toEpochMilli()
+        val at = task.copyDueAt(day, zone)
         scope.launch { report { actions.duplicateTo(task.localId, at, task.dueHasTime) } }
     }
 

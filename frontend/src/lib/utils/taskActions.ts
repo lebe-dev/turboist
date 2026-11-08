@@ -8,7 +8,15 @@ import { followUpStore } from '$lib/stores/followUp.svelte';
 import { configStore } from '$lib/stores/config.svelte';
 import { soundStore } from '$lib/stores/sound.svelte';
 import { labelsStore } from '$lib/stores/labels.svelte';
-import { isOverdue, dayStartUtcInTz, toIsoUtc } from '$lib/utils/format';
+import {
+	isOverdue,
+	dayStartUtcInTz,
+	toIsoUtc,
+	dayKeyInTz,
+	shiftDayKey,
+	parseIso,
+	timeKeyInTz
+} from '$lib/utils/format';
 import { nowStore } from '$lib/stores/now.svelte';
 import { toast } from 'svelte-sonner';
 import { get } from 'svelte/store';
@@ -236,21 +244,66 @@ export async function removeFromBacklog(
 	}
 }
 
-export async function duplicateTask(task: Task, mutator: ListMutator): Promise<void> {
+const TITLE_COUNTER = /^.+ \(\d+\)$/;
+
+/** True when the title ends in a counter like `Read a chapter (3)`. */
+export function hasTitleCounter(title: string): boolean {
+	return TITLE_COUNTER.test(title);
+}
+
+/**
+ * Due date for a copy placed on tomorrow: the start of tomorrow, or the same
+ * time of day when the source is timed.
+ */
+export function tomorrowDuplicateDue(
+	dueAt: string | null,
+	dueHasTime: boolean,
+	now: Date,
+	tz: string | null
+): { dueAt: string; dueHasTime: boolean } {
+	const start = dayStartUtcInTz(shiftDayKey(dayKeyInTz(now, tz), 1), tz);
+	const source = dueHasTime ? parseIso(dueAt) : null;
+	if (!source) return { dueAt: toIsoUtc(start), dueHasTime: false };
+	const [hours, minutes] = timeKeyInTz(source, tz).split(':').map(Number);
+	return {
+		dueAt: toIsoUtc(new Date(start.getTime() + (hours * 60 + minutes) * 60000)),
+		dueHasTime: true
+	};
+}
+
+export async function duplicateTask(
+	task: Task,
+	mutator: ListMutator,
+	options: { toTomorrow?: boolean; belongs?: (t: Task) => boolean } = {}
+): Promise<void> {
 	const client = getApiClient();
 	try {
-		const created = await tasksApi.duplicate(client, task.id);
-		// Insert the clone plus its cloned subtasks as a flat run so the tree
-		// view can nest them by parentId without waiting for a reload. Chain off
-		// each inserted id to preserve subtask order.
-		let afterId = task.id;
-		mutator.insertAfter?.(afterId, created);
-		afterId = created.id;
-		for (const sub of created.subtasks?.items ?? []) {
-			mutator.insertAfter?.(afterId, sub);
-			afterId = sub.id;
+		const due = options.toTomorrow
+			? tomorrowDuplicateDue(
+					task.dueAt,
+					task.dueHasTime,
+					nowStore.now,
+					configStore.value?.timezone ?? null
+				)
+			: undefined;
+		const created = await tasksApi.duplicate(client, task.id, due);
+		// A copy dated tomorrow may not belong in the list on screen; it shows up
+		// where it belongs on the next load.
+		if (!options.belongs || options.belongs(created)) {
+			// Insert the clone plus its cloned subtasks as a flat run so the tree
+			// view can nest them by parentId without waiting for a reload. Chain off
+			// each inserted id to preserve subtask order.
+			let afterId = task.id;
+			mutator.insertAfter?.(afterId, created);
+			afterId = created.id;
+			for (const sub of created.subtasks?.items ?? []) {
+				mutator.insertAfter?.(afterId, sub);
+				afterId = sub.id;
+			}
 		}
-		toast.success(tr('task.toast.duplicated'));
+		toast.success(
+			tr(options.toTomorrow ? 'task.toast.duplicatedTomorrow' : 'task.toast.duplicated')
+		);
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedDuplicate')));
 	}
@@ -313,7 +366,11 @@ export async function moveTaskToProject(
 		sectionName?: string | null;
 	} = {}
 ): Promise<void> {
-	if (task.projectId === projectId && (options.sectionId === undefined || task.sectionId === (options.sectionId ?? null))) return;
+	if (
+		task.projectId === projectId &&
+		(options.sectionId === undefined || task.sectionId === (options.sectionId ?? null))
+	)
+		return;
 	const client = getApiClient();
 	const original = task;
 	try {
@@ -358,9 +415,7 @@ export async function moveTaskToSection(
 	const original = task;
 	try {
 		const moveInput =
-			sectionId !== null
-				? { contextId, projectId, sectionId }
-				: { contextId, projectId };
+			sectionId !== null ? { contextId, projectId, sectionId } : { contextId, projectId };
 		const updated = await tasksApi.move(client, task.id, moveInput);
 		applyUpdate(updated, mutator, options.belongs);
 		const destination = options.projectName
@@ -454,7 +509,11 @@ export interface RootTaskJson extends TaskJson {
  * `knownLabels` supplies fresher label descriptions than the ones embedded in
  * the tasks, e.g. right after a label was edited.
  */
-export function taskToJson(task: Task, descendants: Task[], knownLabels: Label[] = []): RootTaskJson {
+export function taskToJson(
+	task: Task,
+	descendants: Task[],
+	knownLabels: Label[] = []
+): RootTaskJson {
 	const root = buildTree([task, ...descendants]).find((node) => node.task.id === task.id)!;
 	const known = new Map(knownLabels.map((label) => [label.id, label]));
 	const glossary = new Map<string, string>();
@@ -487,13 +546,15 @@ function compareNames(a: string, b: string): number {
 
 export async function copyTaskJson(task: Task): Promise<void> {
 	try {
-		const text = tasksApi.get(getApiClient(), task.id, { includeSubtasks: true }).then((current) =>
-			JSON.stringify(
-				taskToJson(current, current.subtasks?.items ?? [], labelsStore.items),
-				null,
-				2
-			)
-		);
+		const text = tasksApi
+			.get(getApiClient(), task.id, { includeSubtasks: true })
+			.then((current) =>
+				JSON.stringify(
+					taskToJson(current, current.subtasks?.items ?? [], labelsStore.items),
+					null,
+					2
+				)
+			);
 		if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
 			await navigator.clipboard.write([
 				new ClipboardItem({

@@ -461,9 +461,21 @@ class TaskDetailPresenter(
         }
     }
 
-    fun duplicate() {
+    /**
+     * Copies the task. One whose title ends in a counter is a routine, so its copy
+     * goes to the day after [today]; any other copy stays where the original is.
+     */
+    fun duplicate(
+        today: LocalDate,
+        zone: ZoneId,
+    ) {
         val task = state.value.task ?: return
-        scope.launch { report { actions.duplicate(task.localId) } }
+        if (!task.hasTitleCounter()) {
+            scope.launch { report { actions.duplicate(task.localId) } }
+            return
+        }
+        val at = task.copyDueAt(today.plusDays(1), zone)
+        scope.launch { report { actions.duplicateTo(task.localId, at, task.dueHasTime) } }
     }
 
     /**

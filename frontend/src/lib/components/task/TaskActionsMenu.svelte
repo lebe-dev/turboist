@@ -32,6 +32,7 @@
 		deleteTask,
 		describeError,
 		duplicateTask,
+		hasTitleCounter,
 		moveToBacklog,
 		removeFromBacklog,
 		togglePin,
@@ -198,6 +199,10 @@
 		weight?: 'fill' | 'regular';
 	}
 
+	// A titled counter (`Run (3)`) means a repeating routine: offer the next copy
+	// for tomorrow instead of a plain one.
+	const toTomorrow = $derived(hasTitleCounter(task.title));
+
 	const primaryActions: MenuAction[] = $derived([
 		{
 			id: 'copy',
@@ -221,9 +226,9 @@
 		},
 		{
 			id: 'duplicate',
-			label: $t('task.actions.duplicate'),
+			label: toTomorrow ? $t('task.actions.duplicateTomorrow') : $t('task.actions.duplicate'),
 			icon: CopySimpleIcon,
-			run: () => duplicateTask(task, mutator)
+			run: () => duplicateTask(task, mutator, { toTomorrow, belongs })
 		},
 		...(!inInbox
 			? [
@@ -565,7 +570,7 @@
 							? $t('task.actions.more')
 							: $t('task.actions.ariaLabel')}</Sheet.Title
 					>
-					<Sheet.Description class="mt-1 line-clamp-2 break-words text-sm"
+					<Sheet.Description class="mt-1 line-clamp-2 text-sm break-words"
 						>{task.title}</Sheet.Description
 					>
 				</div>

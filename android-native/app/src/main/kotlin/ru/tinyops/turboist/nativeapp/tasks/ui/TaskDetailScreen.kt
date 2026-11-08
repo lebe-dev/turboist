@@ -1384,7 +1384,7 @@ private fun detailCallbacks(
             onPrivate = presenter::setPrivate,
             onTogglePin = presenter::togglePin,
             onCancelTask = presenter::cancel,
-            onDuplicate = presenter::duplicate,
+            onDuplicate = { presenter.duplicate(LocalDate.now(zone), zone) },
             onMove = presenter::move,
             onDelete = presenter::delete,
             onAddSubtask = presenter::addSubtask,

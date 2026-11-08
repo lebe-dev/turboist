@@ -82,6 +82,12 @@ afterEach(() => {
 });
 
 describe('TaskActionsMenu mobile sheet', () => {
+	it('offers a copy for tomorrow instead of a plain duplicate when the title has a counter', async () => {
+		const dialog = await openMobile({ title: 'Read a chapter (3)' });
+		expect(within(dialog).getByRole('button', { name: 'Duplicate for tomorrow' })).toBeVisible();
+		expect(within(dialog).queryByRole('button', { name: 'Duplicate' })).toBeNull();
+	});
+
 	it('opens a bottom sheet with planning controls and keeps rare actions on the More page', async () => {
 		const dialog = await openMobile();
 		expect(dialog).toHaveAttribute('data-side', 'bottom');

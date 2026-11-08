@@ -35,6 +35,7 @@ import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
+import ru.tinyops.turboist.nativeapp.tasks.hasTitleCounter
 
 /**
  * Everything that can be done to the task as a whole.
@@ -80,8 +81,10 @@ fun TaskActionsSheet(
                     onOpenMove()
                 },
             )
+            val duplicateLabel =
+                if (task.hasTitleCounter()) R.string.task_actions_duplicateTomorrow else R.string.task_actions_duplicate
             SheetActionRow(
-                text = stringResource(R.string.task_actions_duplicate),
+                text = stringResource(duplicateLabel),
                 leading = Icons.Outlined.ContentCopy,
                 onClick = {
                     onDismiss()
