@@ -59,6 +59,7 @@ class ProjectsViewModel
                         groups = repository.observeGroups(),
                         contexts = repository.observeContexts(),
                         dailyPlanEnabled = settings.dailyPlanEnabled(),
+                        labels = settings.observeLabels(),
                         activity = repository.observeActivity(clock.reportDays(), clock.zone),
                     ),
                 actions = actions,

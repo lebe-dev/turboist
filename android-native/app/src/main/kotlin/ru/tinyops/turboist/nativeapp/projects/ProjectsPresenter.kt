@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.Context
+import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
@@ -38,6 +39,8 @@ data class ProjectsUiState(
     val counts: Map<ProjectFilter, Int> = emptyMap(),
     /** The contexts a new project can be filed under. */
     val contexts: List<Context> = emptyList(),
+    /** The labels a new project can be given. */
+    val labels: List<Label> = emptyList(),
     /**
      * Whether the daily plan is part of this installation's product. With it off
      * the plan does not exist for this user, so nothing here says a project
@@ -67,6 +70,7 @@ class ProjectsSources(
     val groups: Flow<List<ProjectGroup>>,
     val contexts: Flow<List<Context>>,
     val dailyPlanEnabled: Flow<Boolean>,
+    val labels: Flow<List<Label>> = flowOf(emptyList()),
     val activity: Flow<List<ProjectActivity>> = flowOf(emptyList()),
 )
 
@@ -96,7 +100,15 @@ class ProjectsPresenter(
     private val outgoing = MutableSharedFlow<ProjectMessage>(extraBufferCapacity = 1)
 
     /** The workspace and the one preference that changes how it is drawn, read together. */
-    private val workspace = combine(sources.groups, sources.contexts, sources.dailyPlanEnabled, ::Triple)
+    private val workspace =
+        combine(
+            sources.groups,
+            sources.contexts,
+            sources.dailyPlanEnabled,
+            sources.labels,
+        ) { groups, contexts, plan, labels ->
+            Workspace(groups, contexts, plan, labels)
+        }
 
     /**
      * The radar, once it is open. While it is closed the counting query is not
@@ -118,7 +130,8 @@ class ProjectsPresenter(
             filter,
             query,
             combine(refreshing, radarExpanded, radarPeriod, radar, ::RadarState),
-        ) { (all, knownContexts, planEnabled), chosen, typed, extras ->
+        ) { known, chosen, typed, extras ->
+            val all = known.groups
             ProjectsUiState(
                 loading = false,
                 filter = chosen,
@@ -126,8 +139,9 @@ class ProjectsPresenter(
                 groups = narrow(all, chosen, typed),
                 pinned = pinned(all, chosen),
                 counts = ProjectFilter.entries.associateWith { candidate -> count(all, candidate) },
-                contexts = knownContexts,
-                dailyPlanEnabled = planEnabled,
+                contexts = known.contexts,
+                labels = known.labels,
+                dailyPlanEnabled = known.dailyPlanEnabled,
                 radarExpanded = extras.expanded,
                 radarPeriod = extras.period,
                 radar = extras.radar,
@@ -180,10 +194,13 @@ class ProjectsPresenter(
     fun createProject(
         contextLocalId: Long,
         title: String,
+        description: String = "",
+        labels: List<String> = emptyList(),
     ) {
         val named = title.trim()
         if (named.isEmpty()) return
-        scope.launch { outgoing.reporting { actions.createProject(contextLocalId, NewProject(title = named)) } }
+        val project = NewProject(title = named, description = description.trim(), labels = labels)
+        scope.launch { outgoing.reporting { actions.createProject(contextLocalId, project) } }
     }
 
     private fun narrow(
@@ -239,3 +256,11 @@ class ProjectsPresenter(
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
+
+/** The standing reads the screen is drawn from, taken together. */
+private data class Workspace(
+    val groups: List<ProjectGroup>,
+    val contexts: List<Context>,
+    val dailyPlanEnabled: Boolean,
+    val labels: List<Label>,
+)

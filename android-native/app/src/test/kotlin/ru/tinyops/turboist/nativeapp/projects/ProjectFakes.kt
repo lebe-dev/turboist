@@ -79,6 +79,7 @@ fun section(
  */
 class RecordingProjectActions : ProjectActions {
     val calls = mutableListOf<String>()
+    val created = mutableListOf<NewProject>()
     var refuseWith: WriteRefused? = null
 
     private fun record(call: String) {
@@ -89,7 +90,10 @@ class RecordingProjectActions : ProjectActions {
     override suspend fun createProject(
         contextLocalId: Long,
         project: NewProject,
-    ) = record("createProject $contextLocalId ${project.title}")
+    ) {
+        created += project
+        record("createProject $contextLocalId ${project.title}")
+    }
 
     override suspend fun editProject(
         projectLocalId: Long,

@@ -12,6 +12,7 @@ import ru.tinyops.turboist.core.model.TroikiCategory
 import ru.tinyops.turboist.core.model.view.LabelUsagePeriod
 import ru.tinyops.turboist.core.model.view.ProjectActivity
 import ru.tinyops.turboist.core.model.view.ProjectPeriodActivity
+import ru.tinyops.turboist.core.sync.write.NewProject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -202,6 +203,25 @@ class ProjectsPresenterTest {
             runCurrent()
 
             assertEquals(listOf("createProject 2 Website"), actions.calls)
+        }
+
+    @Test
+    fun `a project is started with its description and labels`() =
+        runTest {
+            val presenter = presenter()
+
+            presenter.createProject(
+                contextLocalId = 2,
+                title = "Website",
+                description = " Redesign ",
+                labels = listOf("work"),
+            )
+            runCurrent()
+
+            assertEquals(
+                listOf(NewProject(title = "Website", description = "Redesign", labels = listOf("work"))),
+                actions.created,
+            )
         }
 
     @Test

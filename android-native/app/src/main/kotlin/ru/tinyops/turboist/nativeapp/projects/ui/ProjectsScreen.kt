@@ -65,7 +65,7 @@ data class ProjectsCallbacks(
     val onNarrowTo: (ProjectFilter) -> Unit,
     val onSearch: (String) -> Unit,
     val onRefresh: () -> Unit,
-    val onCreateProject: (contextLocalId: Long, title: String) -> Unit,
+    val onCreateProject: (contextLocalId: Long, title: String, description: String, labels: List<String>) -> Unit,
     val onOpenProject: (Project) -> Unit,
     val onOpenContext: (Context) -> Unit,
     val onToggleRadar: () -> Unit = {},
@@ -160,12 +160,11 @@ fun ProjectsScreen(
 
     val target = addingTo
     if (target != null) {
-        NameDialog(
-            title = stringResource(R.string.dialog_project_newTitle),
-            label = stringResource(R.string.common_title),
-            initial = "",
-            confirmLabel = stringResource(R.string.common_create),
-            onConfirm = { title -> callbacks.onCreateProject(target.localId, title) },
+        NewProjectDialog(
+            knownLabels = state.labels,
+            onConfirm = { title, description, labels ->
+                callbacks.onCreateProject(target.localId, title, description, labels)
+            },
             onDismiss = { addingTo = null },
         )
     }

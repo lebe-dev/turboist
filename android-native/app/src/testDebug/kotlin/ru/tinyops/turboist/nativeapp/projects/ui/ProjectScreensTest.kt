@@ -98,7 +98,7 @@ class ProjectScreensTest {
             onNarrowTo = { record("narrow ${it.name}") },
             onSearch = { record("search $it") },
             onRefresh = { record("refresh") },
-            onCreateProject = { contextLocalId, title -> record("create $contextLocalId $title") },
+            onCreateProject = { contextLocalId, title, _, _ -> record("create $contextLocalId $title") },
             onOpenProject = { record("openProject ${it.localId}") },
             onOpenContext = { record("openContext ${it.localId}") },
         )
