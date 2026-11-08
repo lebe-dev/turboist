@@ -210,10 +210,16 @@ fun AppShell(
     val open: (DrawerDestination) -> Unit = { destination ->
         val start = navController.graph.findStartDestination()
         val isStart = start.hasRoute(destination.route::class)
-        navController.navigate(destination.route) {
-            popUpTo(start.id) { saveState = !isStart }
-            launchSingleTop = true
-            restoreState = !isStart
+        // The destination is already in the stack with a detail screen opened over it
+        // (a project from the Projects list): restoring the saved state would bring that
+        // very screen back, so the tap would do nothing. Return to the list instead.
+        val returned = !isStart && navController.popBackStack(destination.route::class, inclusive = false)
+        if (!returned) {
+            navController.navigate(destination.route) {
+                popUpTo(start.id) { saveState = !isStart }
+                launchSingleTop = true
+                restoreState = !isStart
+            }
         }
     }
 
