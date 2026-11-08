@@ -23,6 +23,7 @@ import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.calendar.CalendarRepository
 import ru.tinyops.turboist.nativeapp.quickadd.RecentProjects
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -211,7 +212,12 @@ class WeekViewModel
     ) : TaskListViewModel(clock) {
         private val moments =
             clock.ticks()
-                .map { WeekMoment(ViewWindows.dayStart(it, clock.zone), ViewWindows.week(it, clock.zone)) }
+                .map {
+                    WeekMoment(
+                        ViewWindows.dayStart(it, clock.zone),
+                        ViewWindows.weekWithSundayLookahead(it, clock.zone),
+                    )
+                }
                 .distinctUntilChanged()
 
         @OptIn(ExperimentalCoroutinesApi::class)
@@ -231,8 +237,18 @@ class WeekViewModel
                         calendar.observe(moment.window),
                     ) { tasks, titles, events ->
                         val today = dayOf(moment.dayStart)
-                        withTodayFolded(
-                            withDayEvents(dueDaySections(tasks, titles, clock.zone, today), events, clock.zone, today),
+                        // On Sunday the window reaches into the following week; mark where it starts.
+                        val nextMonday = today.plusDays(1).takeIf { today.dayOfWeek == DayOfWeek.SUNDAY }
+                        withNextWeekDivider(
+                            withTodayFolded(
+                                withDayEvents(
+                                    dueDaySections(tasks, titles, clock.zone, today),
+                                    events,
+                                    clock.zone,
+                                    today,
+                                ),
+                            ),
+                            nextMonday,
                         )
                     }
                 }

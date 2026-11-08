@@ -1,5 +1,6 @@
 package ru.tinyops.turboist.core.model.view
 
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
 
@@ -80,6 +81,22 @@ object ViewWindows {
             monday.atStartOfDay(zone).toInstant().toEpochMilli(),
             monday.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli(),
         )
+    }
+
+    /**
+     * The current week, reaching on through the following one when today is
+     * Sunday. On the last day of the week the plain week holds nothing but today,
+     * so a view that is read to look ahead would show nothing to look at.
+     */
+    fun weekWithSundayLookahead(
+        now: Instant,
+        zone: ZoneId,
+    ): TimeWindow {
+        val week = week(now, zone)
+        val today = now.atZone(zone).toLocalDate()
+        if (today.dayOfWeek != DayOfWeek.SUNDAY) return week
+        val following = week(today.plusDays(1).atStartOfDay(zone).toInstant(), zone)
+        return TimeWindow(week.from, following.untilExclusive)
     }
 
     /**

@@ -11,6 +11,7 @@ package ru.tinyops.turboist.nativeapp.ui
  */
 internal enum class ListRowType {
     HEADING,
+    DIVIDER,
     TASK,
     PROJECT,
     NOTE,

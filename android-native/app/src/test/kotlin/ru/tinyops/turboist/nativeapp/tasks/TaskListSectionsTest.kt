@@ -192,4 +192,36 @@ class TaskListSectionsTest {
 
         assertEquals(first.single().key, second.single().key)
     }
+
+    @Test
+    fun `the first day of the following week gets a divider and the days before it do not`() {
+        val nextMonday = LocalDate.of(2026, 3, 16)
+        val sections =
+            withNextWeekDivider(
+                dueDaySections(
+                    listOf(
+                        task(1, dueAt = noon(LocalDate.of(2026, 3, 15))),
+                        task(2, dueAt = noon(nextMonday)),
+                        task(3, dueAt = noon(nextMonday.plusDays(2))),
+                    ),
+                    titles,
+                    zone,
+                    LocalDate.of(2026, 3, 15),
+                ),
+                nextMonday,
+            )
+
+        assertEquals(listOf(null, R.string.page_nextWeek_nextWeekTitle, null), sections.map { it.dividerRes })
+    }
+
+    @Test
+    fun `no divider is added when nothing falls in the following week`() {
+        val sections =
+            withNextWeekDivider(
+                dueDaySections(listOf(task(1, dueAt = noon(today)), task(2)), titles, zone, today),
+                null,
+            )
+
+        assertTrue(sections.all { it.dividerRes == null })
+    }
 }

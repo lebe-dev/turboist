@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.CopyAll
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -213,6 +214,11 @@ fun TaskList(
                         val folded = section.foldedByDefault && unfolded[section.key] != true
                         // Only a phase's block takes a carried row, and only its rows can be carried.
                         val part = (section.heading as? SectionHeading.Phase)?.part
+                        section.dividerRes?.let { dividerRes ->
+                            item(key = "divider-" + section.key, contentType = ListRowType.DIVIDER) {
+                                LabelledDivider(stringResource(dividerRes))
+                            }
+                        }
                         item(key = "heading-" + section.key, contentType = ListRowType.HEADING) {
                             SectionHeader(
                                 section = section,
@@ -560,6 +566,21 @@ private fun RowActionPanel(
  * avoid, and the heading is the only place on screen that knows which rows make
  * up a block.
  */
+
+/** A rule across the list with a name on it, marking where a new stretch of the list begins. */
+@Composable
+private fun LabelledDivider(label: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
+        HorizontalDivider()
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp, top = 8.dp),
+        )
+    }
+}
+
 @Composable
 private fun SectionHeader(
     section: TaskListSection,

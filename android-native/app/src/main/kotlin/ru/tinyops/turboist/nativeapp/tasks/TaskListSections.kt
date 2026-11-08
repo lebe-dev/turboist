@@ -11,6 +11,7 @@ import ru.tinyops.turboist.core.model.view.groupByDayPart
 import ru.tinyops.turboist.core.model.view.groupTreeByDueDay
 import ru.tinyops.turboist.core.model.view.relativeDay
 import ru.tinyops.turboist.core.sync.write.TaskEdit
+import ru.tinyops.turboist.nativeapp.R
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -78,6 +79,9 @@ sealed interface SectionHeading {
  *
  * [foldedByDefault] starts the block folded down to its heading, which then
  * unfolds it with a tap. A block without it cannot be folded at all.
+ *
+ * [dividerRes] is the name of a rule drawn above the block, marking where a
+ * new stretch of the list begins (the following week, in the week view).
  */
 data class TaskListSection(
     val key: String,
@@ -86,6 +90,7 @@ data class TaskListSection(
     @param:StringRes val emptyRes: Int? = null,
     val events: List<CalendarEvent> = emptyList(),
     val foldedByDefault: Boolean = false,
+    @param:StringRes val dividerRes: Int? = null,
 )
 
 /**
@@ -202,6 +207,27 @@ fun withTodayFolded(sections: List<TaskListSection>): List<TaskListSection> =
             section
         }
     }
+
+/**
+ * Marks where the following week begins in a list of days: the first day on or
+ * after [nextMonday] gets a labelled divider above it. A `null` [nextMonday], or
+ * a list that never reaches that far, changes nothing.
+ */
+fun withNextWeekDivider(
+    sections: List<TaskListSection>,
+    nextMonday: LocalDate?,
+): List<TaskListSection> {
+    if (nextMonday == null) return sections
+    val first =
+        sections.indexOfFirst { section ->
+            val day = (section.heading as? SectionHeading.Day)?.day
+            day != null && !day.isBefore(nextMonday)
+        }
+    if (first < 0) return sections
+    return sections.mapIndexed { index, section ->
+        if (index == first) section.copy(dividerRes = R.string.page_nextWeek_nextWeekTitle) else section
+    }
+}
 
 /** A block with a fixed name. Returned even when empty, so its heading and its emptiness both show. */
 fun namedSection(

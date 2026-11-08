@@ -83,4 +83,21 @@ class ViewWindowsTest {
     fun `a window that ends before it starts is refused rather than silently empty`() {
         assertFailsWith<IllegalArgumentException> { TimeWindow(10L, 9L) }
     }
+
+    @Test
+    fun `a week with lookahead is the plain week on every day but Sunday`() {
+        val utc = ZoneId.of("UTC")
+        val saturday = at("2026-06-13T09:00:00Z")
+        assertEquals(ViewWindows.week(saturday, utc), ViewWindows.weekWithSundayLookahead(saturday, utc))
+    }
+
+    @Test
+    fun `on Sunday the week with lookahead also covers the whole following week`() {
+        val utc = ZoneId.of("UTC")
+        val sunday = at("2026-06-14T09:00:00Z")
+        val window = ViewWindows.weekWithSundayLookahead(sunday, utc)
+
+        assertEquals(ViewWindows.week(sunday, utc).from, window.from)
+        assertEquals(at("2026-06-22T00:00:00Z").toEpochMilli(), window.untilExclusive)
+    }
 }
