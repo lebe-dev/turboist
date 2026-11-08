@@ -966,6 +966,55 @@ func TestTaskDuplicate_AlreadyNumbered(t *testing.T) {
 	}
 }
 
+func TestTaskDuplicate_WithDueOverride(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, ctx.ID, "Source Task")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", task.ID),
+		map[string]any{"dueAt": "2030-01-02T09:30:00.000Z", "dueHasTime": true}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d, want 201; body: %s", resp.StatusCode, body)
+	}
+	var result dto.TaskDTO
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if result.DueAt == nil || *result.DueAt != "2030-01-02T09:30:00.000Z" {
+		t.Errorf("dueAt: got %v, want 2030-01-02T09:30:00.000Z", result.DueAt)
+	}
+	if !result.DueHasTime {
+		t.Error("dueHasTime: got false, want true")
+	}
+
+	// The source keeps its own date.
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet, fmt.Sprintf("/api/v1/tasks/%d", task.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("get source: got %d; body: %s", resp.StatusCode, body)
+	}
+	var src dto.TaskDTO
+	if err := json.Unmarshal(body, &src); err != nil {
+		t.Fatalf("parse source: %v", err)
+	}
+	if src.DueAt != nil {
+		t.Errorf("source dueAt: got %v, want nil", src.DueAt)
+	}
+}
+
+func TestTaskDuplicate_InvalidDueOverride(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	task := createTestTask(t, e, ctx.ID, "Source Task")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", task.ID),
+		map[string]any{"dueAt": "not-a-date"}))
+	if resp.StatusCode != 400 {
+		t.Fatalf("got %d, want 400; body: %s", resp.StatusCode, body)
+	}
+}
+
 func TestTaskDuplicate_NotFound(t *testing.T) {
 	e := setupAPIEnv(t)
 	resp, _ := doReq(t, e.app, e.authedReq(t, http.MethodPost, "/api/v1/tasks/9999/duplicate", nil))

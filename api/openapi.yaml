@@ -3114,6 +3114,11 @@ paths:
         schema:
           format: int64
           type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoDuplicateTaskRequest'
       responses:
         "201":
           content:
@@ -4528,6 +4533,15 @@ components:
           type:
           - array
           - "null"
+      type: object
+    DtoDuplicateTaskRequest:
+      properties:
+        dueAt:
+          type:
+          - "null"
+          - string
+        dueHasTime:
+          type: boolean
       type: object
     DtoGroupTasksRequest:
       properties:

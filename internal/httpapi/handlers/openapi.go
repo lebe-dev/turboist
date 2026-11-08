@@ -277,7 +277,7 @@ func Operations() []openapi.Operation {
 		{Method: get, Path: "/api/v1/tasks/:id/subtasks", Tag: tagTasks, Auth: api, Scopes: scopes(tr), Summary: "List direct subtasks", Response: pagedTasks{}},
 		{Method: post, Path: "/api/v1/tasks/:id/subtasks", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Create a subtask", Request: dto.CreateTaskRequest{}, Response: dto.TaskDTO{}, Status: http.StatusCreated},
 		{Method: get, Path: "/api/v1/tasks/:id/template-draft", Tag: tagTasks, Auth: api, Scopes: scopes(tr), Summary: "Draft a template from a task subtree", Response: dto.TaskTemplateDTO{}},
-		{Method: post, Path: "/api/v1/tasks/:id/duplicate", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Duplicate a task", Response: dto.TaskDTO{}, Status: http.StatusCreated},
+		{Method: post, Path: "/api/v1/tasks/:id/duplicate", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Duplicate a task", Request: dto.DuplicateTaskRequest{}, Response: dto.TaskDTO{}, Status: http.StatusCreated},
 		{Method: post, Path: "/api/v1/tasks/:id/decompose", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Split a task into several", Request: dto.DecomposeTaskRequest{}, Response: dto.DecomposeTaskResponse{}, Status: http.StatusCreated},
 		{Method: post, Path: "/api/v1/tasks/:id/complete", Tag: tagTasks, Auth: api, Scopes: scopes(tw), Summary: "Complete a task",
 			Description: "A recurring task advances to its next occurrence instead.", Request: CompleteRequest{}, Response: dto.TaskDTO{}},

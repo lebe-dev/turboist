@@ -38,6 +38,12 @@ func duplicateTitle(title string) string {
 	return title + " (2)"
 }
 
+// dueOverride replaces the source's due date on the top-level copy made by a duplicate.
+type dueOverride struct {
+	at      time.Time
+	hasTime bool
+}
+
 // TaskHandler implements GET/PATCH/DELETE /tasks/:id and POST /tasks/:id/subtasks.
 type TaskHandler struct {
 	tasks    *repo.TaskRepo
@@ -449,7 +455,23 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 		}
 		return httpapi.ErrInternal(msgGetTask).WithCause(err)
 	}
-	t, err := h.cloneTask(c.Context(), src, src.ParentID, duplicateTitle(src.Title))
+	var req dto.DuplicateTaskRequest
+	if len(c.Body()) > 0 {
+		if err := c.Bind().JSON(&req); err != nil {
+			logValidation(c, "handler.Task.Duplicate", "invalid body")
+			return httpapi.ErrValidation(msgInvalidRequestBody)
+		}
+	}
+	var due *dueOverride
+	if req.DueAt != nil {
+		at, perr := model.ParseUTC(*req.DueAt)
+		if perr != nil {
+			logValidation(c, "handler.Task.Duplicate", "invalid dueAt")
+			return httpapi.ErrValidation("invalid dueAt format")
+		}
+		due = &dueOverride{at: at, hasTime: req.DueHasTime}
+	}
+	t, err := h.cloneTask(c.Context(), src, src.ParentID, duplicateTitle(src.Title), due)
 	if err != nil {
 		return handleTaskCreateErr(c, err)
 	}
@@ -475,13 +497,17 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 // rest of the descriptive fields — it describes the work, not this instance of it.
 // Only the top-level clone is renamed; subtasks keep their original titles. Each subtask is re-fetched via Get so its labels
 // are hydrated (ListSubtasks does not hydrate labels).
-func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *int64, title string) (*model.Task, error) {
+func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *int64, title string, due *dueOverride) (*model.Task, error) {
 	// A completed task's due date is history, not a plan — carrying an already
 	// expired one onto the clone would just reproduce the stale label instead
 	// of letting the user set a fresh date.
 	dueAt, dueHasTime := src.DueAt, src.DueHasTime
 	if src.Status == model.TaskStatusCompleted && dueAt != nil && dueAt.Before(time.Now()) {
 		dueAt, dueHasTime = nil, false
+	}
+	if due != nil {
+		at := due.at
+		dueAt, dueHasTime = &at, due.hasTime
 	}
 	in := repo.CreateTask{
 		Placement: repo.Placement{
@@ -520,7 +546,7 @@ func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *
 		if err != nil {
 			return nil, err
 		}
-		if _, err := h.cloneTask(ctx, sub, &t.ID, sub.Title); err != nil {
+		if _, err := h.cloneTask(ctx, sub, &t.ID, sub.Title, nil); err != nil {
 			return nil, err
 		}
 	}

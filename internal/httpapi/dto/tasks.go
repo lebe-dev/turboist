@@ -131,6 +131,14 @@ type GroupTasksRequest struct {
 	ChildIDs  []int64 `json:"childIds"`
 }
 
+// DuplicateTaskRequest is the optional body for POST /tasks/:id/duplicate. When
+// dueAt is present the copy (not its subtasks) gets that due date instead of
+// the source's; an empty body keeps the source's date.
+type DuplicateTaskRequest struct {
+	DueAt      *string `json:"dueAt"`
+	DueHasTime bool    `json:"dueHasTime"`
+}
+
 // DecomposeTaskRequest is the body for POST /tasks/:id/decompose: replaces an
 // existing task with N sibling tasks created from the supplied titles. New
 // tasks inherit the original's placement, priority, due/deadline, labels,
