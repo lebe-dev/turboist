@@ -103,9 +103,10 @@ class TaskWriteRepo(
      */
     suspend fun create(
         destination: TaskDestination,
-        task: NewTask,
+        newTask: NewTask,
     ): QueuedWrite =
         writer.transaction {
+            val task = newTask.copy(title = withoutTrailingDots(newTask.title))
             val at = writer.now()
             val placement = placementFor(destination)
             // A project standing in the daily plan fixes the priority of the work
@@ -1048,3 +1049,12 @@ private fun Clearable<String>?.applyTo(current: String?): String? =
         Clearable.Clear -> null
         is Clearable.Set -> value
     }
+
+/**
+ * Drops the full stops a title is typed with at its end. A title made only of
+ * them is kept as typed, since stripping it would leave an untitled task.
+ */
+internal fun withoutTrailingDots(title: String): String {
+    val stripped = title.trimEnd { it == '.' || it.isWhitespace() }
+    return stripped.ifEmpty { title }
+}
