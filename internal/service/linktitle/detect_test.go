@@ -147,6 +147,23 @@ func TestResolveTemplate(t *testing.T) {
 	}
 }
 
+func TestResolveTemplate_GitHubIsBuiltIn(t *testing.T) {
+	parse := func(raw string) *url.URL { u, _ := url.Parse(raw); return u }
+	custom := model.LinkTitlesSettings{Template: "Read: {title}"}
+	for _, raw := range []string{"https://github.com/lebe-dev/turboist", "https://www.github.com/a/b", "https://gist.github.com/a/1"} {
+		if got := ResolveTemplate(custom, parse(raw), "ru"); got != "{title}" {
+			t.Errorf("%s: got %q, want the bare page title", raw, got)
+		}
+	}
+	if got := ResolveTemplate(custom, parse("https://notgithub.com/"), "ru"); got != "Read: {title}" {
+		t.Errorf("suffix must match on a label boundary: %q", got)
+	}
+	own := model.LinkTitlesSettings{Rules: []model.LinkTitleRule{{Domain: "github.com", Template: "Repo {title}"}}}
+	if got := ResolveTemplate(own, parse("https://github.com/a/b"), "en"); got != "Repo {title}" {
+		t.Errorf("a user rule must beat the built-in one: %q", got)
+	}
+}
+
 func TestFallbackTitle(t *testing.T) {
 	u, _ := url.Parse("https://www.example.com/blog/%D0%BF%D0%BE%D1%81%D1%82/")
 	if got := FallbackTitle(u); got != "example.com/blog/пост" {

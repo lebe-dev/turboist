@@ -40,6 +40,11 @@ optionally, `{domain}` for the link's host (without `www.`).
   `notyoutube.com`); the most specific match wins. Paste a URL into the domain
   field and it is reduced to the bare domain.
 
+- **Built-in rules** — `github.com` (and its subdomains) uses the bare `{title}`,
+  so a shared repository or issue is named exactly like its page. They apply
+  after your own rules and before the default template; add your own rule for
+  the same domain to change one.
+
 When no title can be found the template is filled with the host and path,
 e.g. `Статья «example.com/blog/post»`.
 

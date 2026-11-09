@@ -15,6 +15,13 @@ var defaultTemplates = map[string]string{
 	"en": "Article “{title}”",
 }
 
+// builtinRules are domain templates every installation starts with. They sit
+// between the user's own rules and the default template: a user rule for the
+// same domain wins, but a custom default template does not override them.
+var builtinRules = []model.LinkTitleRule{
+	{Domain: "github.com", Template: TitlePlaceholder},
+}
+
 // DefaultTemplate is the built-in template for a language, English when the
 // language has none.
 func DefaultTemplate(locale string) string {
@@ -40,6 +47,11 @@ func ResolveTemplate(s model.LinkTitlesSettings, u *url.URL, locale string) stri
 	}
 	if best != "" {
 		return best
+	}
+	for _, r := range builtinRules {
+		if host == r.Domain || strings.HasSuffix(host, "."+r.Domain) {
+			return r.Template
+		}
 	}
 	if strings.TrimSpace(s.Template) != "" {
 		return s.Template
