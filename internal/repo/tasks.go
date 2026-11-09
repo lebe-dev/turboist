@@ -647,6 +647,32 @@ func (r *TaskRepo) CascadeWeekToDescendants(ctx context.Context, parentID int64)
 	return nil
 }
 
+// CascadeUnparkToDescendants takes every open descendant of parentID, at any
+// depth, out of the backlog when the parent leaves it for the unplanned state. A
+// subtask left parked would keep showing up in the backlog as a separate row,
+// detached from work that is no longer postponed. Only backlog descendants are
+// touched — a subtask already in the week stays there — and due dates are left
+// alone: parking cleared them already. Completed/cancelled and inbox descendants
+// are skipped for the same reasons as in CascadeBacklogToDescendants.
+func (r *TaskRepo) CascadeUnparkToDescendants(ctx context.Context, parentID int64) error {
+	const op = "repo.tasks.CascadeUnparkToDescendants"
+	now := model.FormatUTC(time.Now())
+	_, err := r.db.ExecContext(ctx,
+		`WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id FROM tasks t JOIN descendants d ON t.parent_id = d.id
+		 )
+		 UPDATE tasks SET plan_state = 'none', updated_at = ?
+		 WHERE id IN (SELECT id FROM descendants) AND status = 'open' AND inbox_id IS NULL
+		   AND plan_state = 'backlog'`,
+		parentID, now)
+	if err != nil {
+		return logErr(ctx, op, fmt.Errorf("cascade unpark: %w", err))
+	}
+	return nil
+}
+
 // OpenChildIDs returns the IDs of parentID's open direct subtasks. Used by
 // CompleteService to cascade completion onto subtasks — one level at a time,
 // since each subtask's own completion (via CompleteService.completeAt) recurses

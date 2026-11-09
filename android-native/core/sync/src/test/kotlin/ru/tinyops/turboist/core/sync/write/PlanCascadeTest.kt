@@ -171,6 +171,62 @@ class PlanCascadeTest : WriteTest() {
         }
 
     @Test
+    fun `taking a task out of the backlog takes the parked work under it along`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val parent = givenTask(title = "Release", serverId = 11, projectLocalId = projectLocalId)
+            val child = scheduled("Tag it", parent, projectLocalId)
+            val grandchild = scheduled("Sign the tag", child, projectLocalId)
+            tasks.plan(parent, PlanState.BACKLOG)
+
+            tasks.plan(parent, PlanState.NONE)
+
+            for (localId in listOf(child, grandchild)) {
+                assertEquals(PlanState.NONE, assertNotNull(db.tasks().byLocalId(localId)).planState)
+            }
+        }
+
+    @Test
+    fun `taking a task out of the backlog leaves a subtask already in the week there`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val parent = givenTask(title = "Release", serverId = 11, projectLocalId = projectLocalId)
+            val child = scheduled("Tag it", parent, projectLocalId)
+            tasks.plan(parent, PlanState.BACKLOG)
+            db.tasks().update(assertNotNull(db.tasks().byLocalId(child)).copy(planState = PlanState.WEEK))
+
+            tasks.plan(parent, PlanState.NONE)
+
+            assertEquals(PlanState.WEEK, assertNotNull(db.tasks().byLocalId(child)).planState)
+        }
+
+    @Test
+    fun `giving a parked task a day takes its parked subtasks out of the backlog too`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val parent = givenTask(title = "Release", serverId = 11, projectLocalId = projectLocalId)
+            val child = scheduled("Tag it", parent, projectLocalId)
+            tasks.plan(parent, PlanState.BACKLOG)
+
+            tasks.patch(parent, TaskEdit(dueAt = Clearable.Set(NOW + 86_400_000L)))
+
+            assertEquals(PlanState.NONE, assertNotNull(db.tasks().byLocalId(child)).planState)
+        }
+
+    @Test
+    fun `unplanning a task through an edit takes its parked subtasks out of the backlog`() =
+        runTest {
+            val projectLocalId = givenProject(givenContext())
+            val parent = givenTask(title = "Release", serverId = 11, projectLocalId = projectLocalId)
+            val child = scheduled("Tag it", parent, projectLocalId)
+            tasks.plan(parent, PlanState.BACKLOG)
+
+            tasks.patch(parent, TaskEdit(planState = PlanState.NONE))
+
+            assertEquals(PlanState.NONE, assertNotNull(db.tasks().byLocalId(child)).planState)
+        }
+
+    @Test
     fun `planning queues one request and lets the server cascade on its side`() =
         runTest {
             val projectLocalId = givenProject(givenContext())

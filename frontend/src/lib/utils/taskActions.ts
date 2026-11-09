@@ -237,7 +237,10 @@ export async function removeFromBacklog(
 	const client = getApiClient();
 	try {
 		const updated = await tasksApi.plan(client, task.id, { state: 'none' });
-		applyUpdate(updated, mutator, options.belongs);
+		// Parked subtasks leave the backlog with their parent (service.PlanService.SetPlanState),
+		// so once the parent leaves this view its subtree leaves with it.
+		if (options.belongs && !options.belongs(updated)) removeWithSubtree(mutator, updated.id);
+		else mutator.replace(updated);
 		void refreshSidebarBundle().catch(() => {});
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedRemoveFromBacklog')));

@@ -277,6 +277,14 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		}
 	}
 
+	// And out of the backlog — by planState or by a due date — exactly as
+	// service.PlanService.SetPlanState does it.
+	if updated.PlanState == model.PlanStateNone && t.PlanState == model.PlanStateBacklog {
+		if err := h.taskSvc.CascadeUnpark(c.Context(), id); err != nil {
+			return httpapi.ErrInternal("cascade unpark").WithCause(err)
+		}
+	}
+
 	// Same for the week, exactly as service.PlanService.SetPlanState does it.
 	if updated.PlanState == model.PlanStateWeek && t.PlanState != model.PlanStateWeek {
 		if err := h.taskSvc.CascadeWeek(c.Context(), id); err != nil {

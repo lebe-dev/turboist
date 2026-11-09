@@ -127,7 +127,7 @@ class ReplicaRules(private val db: TurboistDatabase) {
         return out
     }
 
-    // --- the two planning cascades ------------------------------------------
+    // --- the planning cascades ------------------------------------------
 
     /**
      * Parks every open subtask alongside the task being parked, at any depth, and
@@ -171,6 +171,25 @@ class ReplicaRules(private val db: TurboistDatabase) {
         for (child in descendants(taskLocalId)) {
             if (!cascades(child) || child.planState == PlanState.WEEK) continue
             db.tasks().update(child.copy(planState = PlanState.WEEK, updatedAt = at))
+        }
+    }
+
+    /**
+     * Takes every open subtask out of the backlog when the task above it leaves
+     * the backlog for the unplanned state.
+     *
+     * A subtask left parked would keep showing up in the backlog as a separate
+     * row, detached from work that is no longer put off. Only parked subtasks are
+     * touched — one already committed to the week stays there — and no day is
+     * restored, since parking cleared it.
+     */
+    suspend fun cascadeUnpark(
+        taskLocalId: Long,
+        at: Long,
+    ) {
+        for (child in descendants(taskLocalId)) {
+            if (!cascades(child) || child.planState != PlanState.BACKLOG) continue
+            db.tasks().update(child.copy(planState = PlanState.NONE, updatedAt = at))
         }
     }
 

@@ -204,3 +204,56 @@ func TestTaskPatch_SetBacklogWithDue_KeepsDue(t *testing.T) {
 		t.Error("dueAt: got nil, want the date named in the request")
 	}
 }
+
+// assertSubtreeLeftBacklog fails unless every given task is out of the backlog.
+func assertSubtreeLeftBacklog(t *testing.T, e *apiEnv, ids ...int64) {
+	t.Helper()
+	for _, id := range ids {
+		got := fetchTask(t, e, id)
+		if got.PlanState != "none" {
+			t.Errorf("task %q planState: got %q, want %q", got.Title, got.PlanState, "none")
+		}
+	}
+}
+
+// Taking a parent out of the backlog through the plan endpoint takes its subtasks
+// out with it — they must not stay behind as stray backlog rows.
+func TestTaskPlan_RemoveFromBacklog_CascadesToSubtasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	child := createTestSubtask(t, e, parent.ID, "Child")
+	grandchild := createTestSubtask(t, e, child.ID, "Grandchild")
+	planTask(t, e, parent.ID, "backlog")
+
+	planTask(t, e, parent.ID, "none")
+
+	assertSubtreeLeftBacklog(t, e, child.ID, grandchild.ID)
+}
+
+// A PATCH that sets planState to none behaves like the plan endpoint.
+func TestTaskPatch_RemoveFromBacklog_CascadesToSubtasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	child := createTestSubtask(t, e, parent.ID, "Child")
+	planTask(t, e, parent.ID, "backlog")
+
+	patchTask(t, e, parent.ID, map[string]any{"planState": "none"})
+
+	assertSubtreeLeftBacklog(t, e, child.ID)
+}
+
+// Giving a parked parent a day takes it out of the backlog, and its subtasks too.
+func TestTaskPatch_SetDueOnBacklogParent_CascadesToSubtasks(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+	child := createTestSubtask(t, e, parent.ID, "Child")
+	planTask(t, e, parent.ID, "backlog")
+
+	tomorrow := time.Now().Add(24 * time.Hour)
+	patchTask(t, e, parent.ID, map[string]any{"dueAt": model.FormatUTC(tomorrow)})
+
+	assertSubtreeLeftBacklog(t, e, child.ID)
+}

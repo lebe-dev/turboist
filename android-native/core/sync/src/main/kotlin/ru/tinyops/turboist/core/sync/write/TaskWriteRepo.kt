@@ -229,9 +229,10 @@ class TaskWriteRepo(
             // A plan state set through an edit cascades exactly as one set
             // through the planning action does; the two are the same decision
             // made from two different screens.
-            when (edit.planState) {
+            when (edited.planState.takeIf { edit.planState != null || unparks }) {
                 PlanState.BACKLOG -> rules.cascadeBacklog(taskLocalId, at)
                 PlanState.WEEK -> rules.cascadeWeek(taskLocalId, at)
+                PlanState.NONE -> if (row.planState == PlanState.BACKLOG) rules.cascadeUnpark(taskLocalId, at)
                 else -> Unit
             }
             val opId =
@@ -398,6 +399,7 @@ class TaskWriteRepo(
             when (state) {
                 PlanState.BACKLOG -> rules.cascadeBacklog(taskLocalId, at)
                 PlanState.WEEK -> rules.cascadeWeek(taskLocalId, at)
+                PlanState.NONE -> if (row.planState == PlanState.BACKLOG) rules.cascadeUnpark(taskLocalId, at)
                 else -> Unit
             }
             val opId =

@@ -111,6 +111,14 @@ func (s *PlanService) SetPlanState(ctx context.Context, taskID int64, state mode
 			return nil, err
 		}
 	}
+	// And out of it: a parent taken out of the backlog takes its parked subtasks
+	// along, or they would stay behind there as stray rows.
+	if state == model.PlanStateNone && t.PlanState == model.PlanStateBacklog {
+		if err := s.tasks.CascadeUnparkToDescendants(ctx, taskID); err != nil {
+			logRepoErr(ctx, op+": cascade unpark to subtasks", err, slog.Int64("task_id", taskID))
+			return nil, err
+		}
+	}
 	log.InfoContext(ctx, "plan state changed", slog.String("op", op), slog.Int64("task_id", taskID), slog.String("state", string(state)))
 	return updated, nil
 }
