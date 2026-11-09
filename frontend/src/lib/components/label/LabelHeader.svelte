@@ -60,10 +60,11 @@
 					</Button>
 				{/snippet}
 			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="end">
+			<DropdownMenu.Content align="end" class="w-auto min-w-48">
 				{#if onEdit}
 					<DropdownMenu.Item onclick={onEdit}>
-						<PencilIcon class="size-4" /> {$t('common.edit')}
+						<PencilIcon class="size-4" />
+						{$t('common.edit')}
 					</DropdownMenu.Item>
 				{/if}
 				{#if onTogglePrivate}
@@ -78,7 +79,8 @@
 				{#if onDelete}
 					<DropdownMenu.Separator />
 					<DropdownMenu.Item variant="destructive" onclick={onDelete}>
-						<TrashIcon class="size-4" /> {$t('common.delete')}
+						<TrashIcon class="size-4" />
+						{$t('common.delete')}
 					</DropdownMenu.Item>
 				{/if}
 			</DropdownMenu.Content>
