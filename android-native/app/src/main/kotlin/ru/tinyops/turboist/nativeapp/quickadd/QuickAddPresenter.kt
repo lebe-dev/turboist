@@ -54,6 +54,8 @@ data class QuickAddUiState(
     val otherProjects: List<Project> = emptyList(),
     /** Offered for the typed title, never applied. */
     val suggestedProjects: List<Project> = emptyList(),
+    /** The projects holding today's tasks, offered above the destination when opened from Today. */
+    val todayProjects: List<Project> = emptyList(),
     /** Will be attached on save unless taken off. */
     val autoLabels: List<String> = emptyList(),
     val knownLabels: List<Label> = emptyList(),
@@ -137,7 +139,9 @@ class QuickAddPresenter(
      */
     fun open(request: QuickAddRequest = QuickAddRequest()) {
         val draft = QuickAddDraft.from(request)
-        editing.value = Editing(visible = true, draft = draft, opened = draft).withDayPartGuess()
+        editing.value =
+            Editing(visible = true, draft = draft, opened = draft, offerTodayProjects = request.todayProjects)
+                .withDayPartGuess()
     }
 
     /**
@@ -275,7 +279,13 @@ class QuickAddPresenter(
         written: Int,
     ) {
         val remaining = pending.drop(written).joinToString("\n") { it.title }
-        editing.value = Editing(visible = true, draft = draft.copy(titles = remaining), opened = draft)
+        editing.value =
+            Editing(
+                visible = true,
+                draft = draft.copy(titles = remaining),
+                opened = draft,
+                offerTodayProjects = editing.value.offerTodayProjects,
+            )
         outgoing.emit(QuickAddMessage.FAILED)
     }
 
@@ -336,6 +346,12 @@ class QuickAddPresenter(
             otherProjects = offered.filterNot { it.localId in lifted },
             suggestedProjects =
                 space.appSettings.suggestedProjects(edit.draft.titles, space.projects, setOfNotNull(chosen)),
+            todayProjects =
+                if (edit.offerTodayProjects) {
+                    space.todayProjectLocalIds.mapNotNull { id -> space.projects.firstOrNull { it.localId == id } }
+                } else {
+                    emptyList()
+                },
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
             knownLabels = space.labels,
             lastProject =
@@ -359,6 +375,8 @@ class QuickAddPresenter(
         val projectQuery: String = "",
         /** True while the draft's part of the day is the presenter's guess rather than the user's pick. */
         val dayPartGuessed: Boolean = false,
+        /** True when the sheet was opened from the Today screen. */
+        val offerTodayProjects: Boolean = false,
     )
 
     private companion object {

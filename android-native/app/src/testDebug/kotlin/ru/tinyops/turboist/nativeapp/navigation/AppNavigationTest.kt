@@ -119,7 +119,7 @@ class AppNavigationTest {
             harpoon = { _, _ -> },
             // The capture surface reads the replica for the places a task can go,
             // so it stands in for itself here. Nothing in this walk opens it.
-            quickAdd = { _, _ -> },
+            quickAdd = { _, _, _ -> },
             // The quick switcher reads the replica too; the walk only records what
             // the shell hands it — whether it is up, and what is on screen.
             quickSwitcher = { slot -> switcherSlot = slot },

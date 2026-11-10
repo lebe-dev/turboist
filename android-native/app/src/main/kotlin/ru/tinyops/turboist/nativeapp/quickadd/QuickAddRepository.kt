@@ -1,20 +1,25 @@
 package ru.tinyops.turboist.nativeapp.quickadd
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import ru.tinyops.turboist.core.database.dao.LabelDao
 import ru.tinyops.turboist.core.database.dao.ProjectDao
 import ru.tinyops.turboist.core.database.dao.SettingsDao
+import ru.tinyops.turboist.core.database.dao.TaskViewDao
 import ru.tinyops.turboist.core.database.entity.LabelRow
 import ru.tinyops.turboist.core.database.entity.toDomain
 import ru.tinyops.turboist.core.model.AppSettings
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
+import ru.tinyops.turboist.core.model.view.ViewWindows
 import ru.tinyops.turboist.core.network.TurboistJson
 import ru.tinyops.turboist.core.network.dto.AppSettingsDto
 import ru.tinyops.turboist.core.network.mapping.toAppSettings
+import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,6 +35,11 @@ data class QuickAddWorkspace(
     val projects: List<Project> = emptyList(),
     val labels: List<Label> = emptyList(),
     val appSettings: AppSettings = AppSettings(),
+    /**
+     * Local ids of the projects holding today's tasks (overdue ones included), in the order
+     * the Today list shows them, each once. Inbox tasks have no project and are left out.
+     */
+    val todayProjectLocalIds: List<Long> = emptyList(),
 )
 
 /**
@@ -46,18 +56,32 @@ class QuickAddRepository
         private val projects: ProjectDao,
         private val labels: LabelDao,
         private val settings: SettingsDao,
+        private val views: TaskViewDao,
+        private val clock: DayClock,
     ) {
         fun observeWorkspace(): Flow<QuickAddWorkspace> =
             combine(
                 projects.observeAll(),
                 labels.observeAll(),
                 observeAppSettings(),
-            ) { projectRows, labelRows, appSettings ->
+                observeTodayProjectIds(),
+            ) { projectRows, labelRows, appSettings, todayIds ->
                 QuickAddWorkspace(
                     projects = projectRows.map { it.toDomain() }.filter(::isOffered).sortedWith(PICKER_ORDER),
                     labels = labelRows.map(LabelRow::toDomain),
                     appSettings = appSettings,
+                    todayProjectLocalIds = todayIds,
                 )
+            }
+
+        /** The projects of everything on the Today list, overdue first, each once. */
+        @OptIn(ExperimentalCoroutinesApi::class)
+        private fun observeTodayProjectIds(): Flow<List<Long>> =
+            clock.days().flatMapLatest { day ->
+                val dayStart = ViewWindows.dayStart(day.atStartOfDay(clock.zone).toInstant(), clock.zone)
+                combine(views.queryOverdue(dayStart, null), views.queryToday(dayStart)) { overdue, today ->
+                    (overdue + today).mapNotNull { it.projectLocalId }.distinct()
+                }
             }
 
         /** Whether the server names tasks created as a bare https link, as last replicated. */

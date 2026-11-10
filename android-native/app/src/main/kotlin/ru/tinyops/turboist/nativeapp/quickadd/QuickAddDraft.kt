@@ -27,6 +27,8 @@ data class QuickAddRequest(
      * whose title is the bare link.
      */
     val linkFirst: QuickAddRequest? = null,
+    /** True when the sheet is opened from the Today screen, which then leads with its projects. */
+    val todayProjects: Boolean = false,
 ) {
     /** The request to open, given whether the server names link tasks. */
     fun forLinkTitles(enabled: Boolean): QuickAddRequest = if (enabled) linkFirst ?: this else this

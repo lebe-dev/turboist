@@ -405,6 +405,27 @@ class QuickAddPresenterTest {
         }
 
     @Test
+    fun `projects worked on today are offered only when the sheet was opened from today`() =
+        runTest {
+            workspace.value = workspace.value.copy(todayProjectLocalIds = listOf(3L, 99L, 2L))
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            runCurrent()
+            assertEquals(emptyList<String>(), presenter.state.value.todayProjects.map { it.title })
+
+            presenter.open(QuickAddRequest(todayProjects = true))
+            runCurrent()
+            assertEquals(listOf("Garden", "Work"), presenter.state.value.todayProjects.map { it.title })
+
+            presenter.chooseProject(3L)
+            runCurrent()
+            assertEquals(listOf("Garden", "Work"), presenter.state.value.todayProjects.map { it.title })
+            assertEquals(3L, presenter.state.value.draft.projectLocalId)
+        }
+
+    @Test
     fun `the project filed into last time is offered next to the destination`() =
         runTest {
             val presenter = presenter(recent = FakeRecentProjects(listOf(4L, 2L)))

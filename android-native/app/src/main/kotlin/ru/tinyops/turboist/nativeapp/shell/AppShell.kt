@@ -73,6 +73,7 @@ import ru.tinyops.turboist.nativeapp.navigation.SettingsRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskLinkRoute
 import ru.tinyops.turboist.nativeapp.navigation.TaskRoute
 import ru.tinyops.turboist.nativeapp.navigation.TemplatesRoute
+import ru.tinyops.turboist.nativeapp.navigation.TodayRoute
 import ru.tinyops.turboist.nativeapp.switcher.RecentRef
 import ru.tinyops.turboist.nativeapp.switcher.SwitcherKind
 import ru.tinyops.turboist.nativeapp.sync.SyncStatus
@@ -464,7 +465,7 @@ private fun ShellScaffold(
         // sheet it raises has to survive moving between destinations.
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             AppNavHost(navController = navController, screens = screens)
-            screens.quickAdd(captureButton, openProject)
+            screens.quickAdd(captureButton, openProject, currentDestination?.hasRoute(TodayRoute::class) == true)
             screens.quickSwitcher(
                 QuickSwitcherSlot(
                     open = switcherOpen,

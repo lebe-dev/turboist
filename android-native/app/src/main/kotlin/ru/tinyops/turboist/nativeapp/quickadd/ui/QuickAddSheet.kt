@@ -131,6 +131,7 @@ fun QuickAddHost(
     modifier: Modifier = Modifier,
     showButton: Boolean = true,
     projectLocalId: Long? = null,
+    onToday: Boolean = false,
     viewModel: QuickAddViewModel = hiltViewModel(),
 ) {
     val presenter = viewModel.presenter
@@ -144,7 +145,7 @@ fun QuickAddHost(
         callbacks = quickAddCallbacks(presenter),
         // The button opens on the project on screen, if any: a task written down
         // while looking at a project belongs to it far more often than to the inbox.
-        onOpen = { presenter.open(QuickAddRequest(projectLocalId = projectLocalId)) },
+        onOpen = { presenter.open(QuickAddRequest(projectLocalId = projectLocalId, todayProjects = onToday)) },
         modifier = modifier,
         showButton = showButton,
     )
@@ -379,6 +380,12 @@ private fun QuickAddFields(
         AutoLabelChips(names = state.autoLabels, onReject = callbacks.onRejectAutoLabel)
         SuggestedProjectChips(projects = state.suggestedProjects, onChoose = callbacks.onChooseProject)
 
+        TodayProjectChips(
+            projects = state.todayProjects,
+            chosen = state.draft.projectLocalId,
+            onChoose = callbacks.onChooseProject,
+        )
+
         // Where the task goes and when it is for are the two facts a capture
         // most often settles, so they sit together on one line under the text.
         FlowRow(
@@ -543,6 +550,37 @@ private fun SuggestedProjectChips(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (project in projects) {
                 AssistChip(
+                    onClick = { onChoose(project.localId) },
+                    label = { Text(project.title) },
+                    modifier = Modifier.semantics { contentDescription = project.title },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The projects holding today's tasks, one tap each, on the line above the destination.
+ * Shown only when the sheet was opened from the Today screen.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TodayProjectChips(
+    projects: List<Project>,
+    chosen: Long?,
+    onChoose: (Long?) -> Unit,
+) {
+    if (projects.isEmpty()) return
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text(
+            text = stringResource(R.string.dialog_quickAdd_todayProjectsHint),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (project in projects) {
+                FilterChip(
+                    selected = project.localId == chosen,
                     onClick = { onChoose(project.localId) },
                     label = { Text(project.title) },
                     modifier = Modifier.semantics { contentDescription = project.title },

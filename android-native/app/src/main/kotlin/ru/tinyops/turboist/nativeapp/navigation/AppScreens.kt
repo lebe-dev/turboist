@@ -189,15 +189,16 @@ class AppScreens(
      * fixture of the shell so a check about navigation can compose the shell
      * without a database and a sync engine behind it.
      *
-     * It is told whether to draw its button and which project is on screen, so
+     * It is told whether to draw its button, which project is on screen and whether the
+     * Today screen is (which then leads the sheet with its projects), so
      * a task captured from a project's page lands in that project rather than
      * in the inbox. It stays composed either way: a share from another app
      * opens the sheet without anyone touching the button, so a screen that does
      * not want the button — one that has a control of its own in the same
      * corner — must not take the sheet down with it.
      */
-    val quickAdd: @Composable (Boolean, Long?) -> Unit = { showButton, projectLocalId ->
-        QuickAddHost(showButton = showButton, projectLocalId = projectLocalId)
+    val quickAdd: @Composable (Boolean, Long?, Boolean) -> Unit = { showButton, projectLocalId, onToday ->
+        QuickAddHost(showButton = showButton, projectLocalId = projectLocalId, onToday = onToday)
     },
     /**
      * The quick switcher — find a task or project, or file what was typed — drawn
