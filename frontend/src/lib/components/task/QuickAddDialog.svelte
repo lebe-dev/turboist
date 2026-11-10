@@ -7,6 +7,7 @@
 	import type { DayPart, Priority, TaskInput } from '$lib/api/types';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
+	import { todayProjectsStore } from '$lib/stores/todayProjects.svelte';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
@@ -210,6 +211,16 @@
 		matchProjectSuggestions(appSettingsStore.projectSuggestions, titles, visibleProjects, {
 			excludeIds: projectId ? [Number(projectId)] : []
 		})
+	);
+	// Projects of the tasks on the Today screen, offered above the project row
+	// while the dialog is opened from there (the page publishes them only while
+	// mounted). Not for subtasks or grouping, where the project is already fixed.
+	const todayProjects = $derived(
+		isWrap || parentId !== null
+			? []
+			: todayProjectsStore.ids
+					.map((id) => visibleProjects.find((p) => p.id === id))
+					.filter((p): p is (typeof visibleProjects)[number] => !!p)
 	);
 	const projectName = $derived(
 		projectsStore.items.find((p) => String(p.id) === projectId)?.title ?? emptyProjectLabel
@@ -529,6 +540,31 @@
 
 						<DayPartPicker bind:value={dayPart} />
 					</div>
+					{/if}
+
+					{#if todayProjects.length > 0}
+						<div
+							class="mt-2 flex flex-wrap items-center gap-1.5"
+							role="group"
+							aria-label={$t('dialog.quickAdd.todayProjectsAriaLabel')}
+						>
+							<span class="text-[11px] text-muted-foreground">
+								{$t('dialog.quickAdd.todayProjectsHint')}
+							</span>
+							{#each todayProjects as project (project.id)}
+								{@const active = projectId === String(project.id)}
+								<button
+									type="button"
+									onclick={() => selectProject(String(project.id))}
+									aria-pressed={active}
+									class="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+									class:bg-accent={active}
+									class:text-accent-foreground={active}
+								>
+									<span class="max-w-[10rem] truncate">{project.title}</span>
+								</button>
+							{/each}
+						</div>
 					{/if}
 
 					<div class="mt-2 flex flex-wrap items-center gap-2">

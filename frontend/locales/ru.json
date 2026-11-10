@@ -856,6 +856,8 @@
 			"autoLabelHint": "Определено по заголовку — будет применено при сохранении",
 			"rejectAutoLabel": "Отклонить автометку {name}",
 			"projectSuggestionHint": "Предлагаемые проекты:",
+			"todayProjectsHint": "Проекты на сегодня:",
+			"todayProjectsAriaLabel": "Проекты на сегодня",
 			"dueDateAriaLabel": "Дата выполнения",
 			"customDateAriaLabel": "Произвольная дата",
 			"pickDateTitle": "Выберите дату",

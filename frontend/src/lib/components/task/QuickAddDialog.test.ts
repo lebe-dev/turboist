@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { labelsStore } from '$lib/stores/labels.svelte';
+import { projectsStore } from '$lib/stores/projects.svelte';
+import { todayProjectsStore } from '$lib/stores/todayProjects.svelte';
 import QuickAddDialog from './QuickAddDialog.svelte';
 
 afterEach(() => {
@@ -63,5 +65,47 @@ describe('QuickAddDialog subtask labels', () => {
 		await fireEvent.submit(dialog.querySelector('form')!);
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
 		expect(onSubmit.mock.calls[0][0].labels).toEqual([]);
+	});
+});
+
+describe('QuickAddDialog today projects', () => {
+	const project = (id: number, title: string) =>
+		({
+			id,
+			title,
+			status: 'active',
+			isPinned: false,
+			pinnedAt: null,
+			labels: []
+		}) as unknown as Parameters<typeof projectsStore.setItems>[0][number];
+
+	afterEach(() => {
+		todayProjectsStore.clear();
+		projectsStore.clear();
+	});
+
+	it('offers the projects published by the Today page and files into the tapped one', async () => {
+		projectsStore.setItems([project(1, 'Alpha'), project(2, 'Beta'), project(3, 'Gamma')]);
+		todayProjectsStore.set([2, 3]);
+		const onSubmit = vi.fn();
+		render(QuickAddDialog, { props: { open: true, defaultTitle: 'Task', onSubmit } });
+
+		const group = await screen.findByRole('group', { name: 'Today projects' });
+		expect(group.textContent).toContain('Beta');
+		expect(group.textContent).toContain('Gamma');
+		expect(group.textContent).not.toContain('Alpha');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Gamma' }));
+		const dialog = await screen.findByRole('dialog');
+		await fireEvent.submit(dialog.querySelector('form')!);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+		expect(onSubmit.mock.calls[0][1].projectId).toBe(3);
+	});
+
+	it('shows no row when nothing was published', async () => {
+		projectsStore.setItems([project(1, 'Alpha')]);
+		render(QuickAddDialog, { props: { open: true } });
+		await screen.findByRole('dialog');
+		expect(screen.queryByRole('group', { name: 'Today projects' })).toBeNull();
 	});
 });

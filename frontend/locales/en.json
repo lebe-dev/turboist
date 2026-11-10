@@ -856,6 +856,8 @@
 			"autoLabelHint": "Auto-detected from title — will be applied on save",
 			"rejectAutoLabel": "Reject auto-label {name}",
 			"projectSuggestionHint": "Suggested projects:",
+			"todayProjectsHint": "Projects for today:",
+			"todayProjectsAriaLabel": "Today projects",
 			"dueDateAriaLabel": "Due date",
 			"customDateAriaLabel": "Custom date",
 			"pickDateTitle": "Pick a date",

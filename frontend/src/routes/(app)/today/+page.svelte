@@ -17,6 +17,7 @@
 	import { calendarEventsOrEmpty, groupCalendarEventsByDayPart, isPastCalendarEvent } from '$lib/utils/calendar';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { nowStore } from '$lib/stores/now.svelte';
+	import { todayProjectsStore, distinctProjectIds } from '$lib/stores/todayProjects.svelte';
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { userStateStore } from '$lib/stores/userState.svelte';
 	import { toggleComplete, updateTaskFields } from '$lib/utils/taskActions';
@@ -68,6 +69,12 @@
 
 	const tz = $derived(configStore.value?.timezone ?? null);
 	const dayParts = $derived(configStore.value?.dayParts);
+
+	// Offer the projects worked on today in the quick-add dialog; gone with the page.
+	$effect(() => {
+		todayProjectsStore.set(distinctProjectIds(list.items));
+	});
+	$effect(() => () => todayProjectsStore.clear());
 
 	const overdueTasks = $derived(list.items.filter((t) => isOverdue(t.dueAt, tz)));
 	const todayTasks = $derived(list.items.filter((t) => !isOverdue(t.dueAt, tz)));
