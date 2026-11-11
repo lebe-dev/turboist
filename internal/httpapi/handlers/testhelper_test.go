@@ -129,9 +129,10 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 	pinSvc := service.NewPinService(tasks, projs, users)
 	appSettings := repo.NewAppSettingsRepo(d)
 	autoLabelsSvc := service.NewAutoLabelsService(lbls, appSettings)
-	taskSvc := service.NewTaskService(tasks, projs, tlabels, autoLabelsSvc)
-	completeSvc := service.NewCompleteService(tasks, projs, users, trelations)
-	moveSvc := service.NewMoveService(tasks, projs)
+	todayLockSvc := service.NewTodayLockService(users, tasks, cfg.Location)
+	taskSvc := service.NewTaskService(tasks, projs, tlabels, autoLabelsSvc).WithTodayLock(todayLockSvc)
+	completeSvc := service.NewCompleteService(tasks, projs, users, trelations).WithTodayLock(todayLockSvc)
+	moveSvc := service.NewMoveService(tasks, projs).WithTodayLock(todayLockSvc)
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, tasks, tlabels)
 	planSvc := service.NewPlanService(tasks, ctxs, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	searchRepo := repo.NewSearchRepo(tasks, projs)
@@ -154,6 +155,7 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 	handlers.NewMetaHandler(cfg, false, inboxLLM != nil, ctxs, projs, lbls, tasks, users, appSettings, templates, troikiSvc, harpoonSvc, testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
+	handlers.NewTodayLockHandler(todayLockSvc).Register(api)
 	handlers.NewAppSettingsHandler(appSettings, lbls, projs).Register(api)
 	inboxProc := repo.NewInboxProcessingRepo(d, tlabels)
 	processor := inboxproc.NewProcessor(inboxproc.Config{
@@ -165,7 +167,7 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 		Timeout:    time.Second,
 	}, inboxLLM, inboxproc.Deps{
 		Tasks: tasks, TaskLabels: tlabels, State: inboxProc, Contexts: ctxs, Projects: projs, Labels: lbls,
-		AppSettings: appSettings, Users: users, Move: moveSvc, Hub: hub, Location: cfg.Location, Log: slog.Default(),
+		AppSettings: appSettings, Users: users, Move: moveSvc, TodayLock: todayLockSvc, Hub: hub, Location: cfg.Location, Log: slog.Default(),
 	})
 	handlers.NewInboxProcessingHandler(processor, inboxProc, appSettings, testBaseURL).Register(api)
 	handlers.NewStateHandler(users).Register(api)

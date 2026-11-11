@@ -22,6 +22,8 @@ func TestScopesForPath(t *testing.T) {
 		{"/api/v1/sections", []events.Scope{events.ScopeSections, events.ScopeTasks}},
 		{"/api/v1/calendars/google/sync", []events.Scope{events.ScopeCalendar}},
 		{"/api/v1/troiki/start", []events.Scope{events.ScopeTasks, events.ScopePlan}},
+		// the focus lock changes no task, but other devices must hear of it
+		{"/api/v1/today/lock", []events.Scope{events.ScopeSettings}},
 		{"/api/v1/app-settings", []events.Scope{events.ScopeLabels, events.ScopeTasks}},
 		// inbox processing: run publishes from the processor, preview and the prompt change no data
 		{"/api/v1/inbox/processing/run", nil},

@@ -17,6 +17,7 @@ const (
 	CodeRecurrenceInvalid      = "recurrence_invalid"
 	CodeTroikiSlotFull         = "troiki_slot_full"
 	CodeTaskBlocked            = "task_blocked"
+	CodeTodayLocked            = "today_locked"
 	CodeTOTPInvalidCode        = "totp_invalid_code"
 	CodeTOTPAlreadyEnabled     = "totp_already_enabled"
 	CodeTOTPNotEnabled         = "totp_not_enabled"
@@ -128,6 +129,15 @@ func ErrTroikiSlotFull(msg string) *AppError {
 // the blockers instead of just saying "blocked".
 func ErrTaskBlocked(msg string, blockerIDs []int64) *AppError {
 	return newErr(409, CodeTaskBlocked, msg, map[string]any{"blockerIds": blockerIDs})
+}
+
+// ErrTodayLocked signals a write the Today focus lock refused: it would have put
+// a task on Today in a project that has no open task there. lockedUntil says
+// when the lock ends; projectId is the project the task would have landed in,
+// null for the inbox or a bare context.
+func ErrTodayLocked(lockedUntil string, projectID *int64) *AppError {
+	return newErr(409, CodeTodayLocked, "today is locked to the projects already planned for it",
+		map[string]any{"lockedUntil": lockedUntil, "projectId": projectID})
 }
 
 // ErrIdempotencyInFlight signals that a request carrying an Idempotency-Key

@@ -125,6 +125,9 @@ func (h *TaskActionHandler) uncomplete(c fiber.Ctx) error {
 		if errors.Is(err, service.ErrTroikiSlotFull) {
 			return httpapi.ErrTroikiSlotFull("troiki slot is full")
 		}
+		if locked := todayLockedErr(c, "handler.Task.Uncomplete", err); locked != nil {
+			return locked
+		}
 		return httpapi.ErrInternal("uncomplete task").WithCause(err)
 	}
 	logMutation(c, "handler.Task.Uncomplete", slog.Int64("task_id", t.ID))
@@ -183,6 +186,9 @@ func (h *TaskActionHandler) move(c fiber.Ctx) error {
 		if errors.Is(err, repo.ErrInvalidPlacement) || errors.Is(err, repo.ErrCycle) {
 			logValidation(c, opTaskMove, "invalid placement")
 			return httpapi.ErrForbiddenPlacement("invalid task placement")
+		}
+		if locked := todayLockedErr(c, opTaskMove, err); locked != nil {
+			return locked
 		}
 		return httpapi.ErrInternal("move task").WithCause(err)
 	}

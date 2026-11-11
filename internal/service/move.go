@@ -17,8 +17,17 @@ import (
 // to the derived priority to keep the slot invariant: "all tasks of a
 // categorised project share the category-derived priority".
 type MoveService struct {
-	tasks    *repo.TaskRepo
-	projects *repo.ProjectRepo
+	tasks     *repo.TaskRepo
+	projects  *repo.ProjectRepo
+	todayLock *TodayLockService
+}
+
+// WithTodayLock makes every move ask the Today focus lock first: moving a task
+// that stands on Today into a project with nothing else there takes that project
+// into the day. Returns the service for chaining.
+func (s *MoveService) WithTodayLock(l *TodayLockService) *MoveService {
+	s.todayLock = l
+	return s
 }
 
 func NewMoveService(tasks *repo.TaskRepo, projects *repo.ProjectRepo) *MoveService {
@@ -29,6 +38,18 @@ func (s *MoveService) Move(ctx context.Context, taskID int64, target repo.Placem
 	const op = "service.MoveService.Move"
 	log := logging.FromContext(ctx)
 	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
+	if s.todayLock != nil {
+		before, err := s.tasks.Get(ctx, taskID)
+		if err != nil {
+			logRepoErr(ctx, op+": get task", err, slog.Int64("task_id", taskID))
+			return nil, err
+		}
+		after := PlacementOf(before)
+		after.ProjectID = target.ProjectID
+		if err := s.todayLock.Check(ctx, before, after); err != nil {
+			return nil, err
+		}
+	}
 	if err := s.tasks.Move(ctx, taskID, target); err != nil {
 		if errors.Is(err, repo.ErrInvalidPlacement) {
 			log.WarnContext(ctx, op+": invalid placement", slog.Int64("task_id", taskID), slog.String("err", err.Error()))

@@ -162,6 +162,7 @@ Every failed request answers with the same envelope:
 | `conflict` | 409 |
 | `idempotency_in_flight` | 409 |
 | `task_blocked` | 409 (`details.blockerIds` lists the open blockers) |
+| `today_locked` | 409 (`details.lockedUntil`, `details.projectId`; see [Today focus lock](#today-focus-lock)) |
 | `troiki_slot_full` | 409 |
 | `totp_already_enabled` | 409 |
 | `totp_not_enabled` | 409 |
@@ -316,6 +317,16 @@ Global, server-wide rules. The same payload is embedded as `appSettings` in
   three keys; `rules` replaces the list. Templates must contain `{title}`;
   domains are normalised (`https://www.youtube.com/` → `youtube.com`). See
   [docs/link-titles.md](docs/link-titles.md).
+
+### Today focus lock
+
+`POST /api/v1/today/lock` (scope `settings:write`) locks Today to the projects already on
+it until the next midnight in the server timezone, and answers `{"lockedUntil": "…"}`.
+Locking again while a lock runs keeps it; there is no way to lift it early. While it runs,
+any write that would put an open task due today or earlier into a project with no other
+open work on Today — or into the inbox — is refused with `409 today_locked`. Work for
+other days is unaffected. The end is served as `todayLockUntil` in the user settings
+(read-only there). See [docs/today-lock.md](docs/today-lock.md).
 
 ### Harpoon
 

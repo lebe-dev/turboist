@@ -112,6 +112,26 @@ Keys are persisted in the `idempotency_keys` table (migration `044_idempotency_k
 
 Reads are shaped by the "one aggregate" rule: there is no relations endpoint. `TaskDTO` always carries `blockedByCount` / `relationCount`, hydrated by one batch query (`TaskRelationsRepo.SummaryByTaskIDs`) in `TaskRepo.Get` and in the single list funnel `listWithBaseArgsOrdered` — `blockedByCount` counts inherited blockers too, so the padlock in the lists agrees with the guard, while `relationCount` stays the task's own relations because those are what the detail page lists — so every list view, `GET /api/v1/config`'s `pinnedTasks` and `/stats/sidebar`'s `pinned` get them without a per-task query. The full relation list is opt-in via `GET /api/v1/tasks/:id?relations=true`, and both mutations answer with the updated task so no follow-up read is needed.
 
+## Today focus lock
+
+`service.TodayLockService` owns the lock. `POST /today/lock` writes `todayLockUntil` (the
+next midnight in `cfg.Location`) into the `users.settings` blob with one conditional
+`json_set` (`UserRepo.LockTodayUntil`), so a running lock is kept and a concurrent settings
+PATCH cannot be the read half of a read-modify-write that drops it; the key rides through
+`PATCH /settings` untouched because `settingsPatchReq` does not name it. Living in the
+settings blob is what replicates it: the `users` update trigger logs a `user_settings`
+upsert and the sync feed carries the new end to native clients.
+
+`Check(before, after)` is the one rule: while the lock runs, an open task due before its
+end may only land in a project returned by `TaskRepo.TodayProjectIDs` (open tasks due before
+the end, the task itself left out); a task that already stood on Today in the same project
+passes. It is asked by `TaskService.Create` (so subtasks, duplicates, splits, groups and
+templates), `MoveService.Move`, `CompleteService.Uncomplete`, the task PATCH handler and the
+inbox processor (which drops a refused due date instead of failing). Recurrence advance is
+not checked. A refusal is `service.TodayLockedError` → `409 today_locked`; the central error
+handler also maps one that a handler wrapped as an internal error, so a new caller cannot
+turn it into a `500`. The lock endpoint publishes the `settings` SSE scope.
+
 ## Label descriptions
 
 `labels.description` (migration `053_labels_description.sql`, `TEXT NOT NULL DEFAULT ''`)

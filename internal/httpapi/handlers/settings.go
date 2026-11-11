@@ -42,6 +42,10 @@ type settingsResp struct {
 	TroikiEnabled                   bool    `json:"troikiEnabled"`
 	MaxPinnedTasks                  int     `json:"maxPinnedTasks"`
 	MaxPinnedProjects               int     `json:"maxPinnedProjects"`
+	// TodayLockUntil is when the Today focus lock ends, or null if it was never
+	// turned on. A moment already past means no lock runs. Read-only here: it is
+	// set through POST /today/lock.
+	TodayLockUntil *string `json:"todayLockUntil"`
 }
 
 type settingsPatchReq struct {
@@ -88,6 +92,13 @@ func validateMaxPinned(c fiber.Ctx, field string, v int) error {
 	return nil
 }
 
+func todayLockUntilOrNil(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
 func toResp(s *model.UserSettings) settingsResp {
 	ids := s.WeeklyUnplannedExcludedLabelIDs
 	if ids == nil {
@@ -110,6 +121,7 @@ func toResp(s *model.UserSettings) settingsResp {
 		TroikiEnabled:                   s.TroikiEnabled,
 		MaxPinnedTasks:                  s.MaxPinnedTasks,
 		MaxPinnedProjects:               s.MaxPinnedProjects,
+		TodayLockUntil:                  todayLockUntilOrNil(s.TodayLockUntil),
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
+	"github.com/lebe-dev/turboist/internal/service"
 )
 
 // maxStoredError bounds the error text kept in the state row and the journal.
@@ -66,7 +67,7 @@ func (p *Processor) apply(ctx context.Context, now time.Time, catalogue *Catalog
 	if v.Priority != nil && current.Priority == model.PriorityNone {
 		update.Priority = v.Priority
 	}
-	if v.DueAt != nil && current.DueAt == nil {
+	if v.DueAt != nil && current.DueAt == nil && p.dueAllowed(ctx, current.ID, projectID, v.DueAt) {
 		hasTime := false
 		update.DueAt = v.DueAt
 		update.DueHasTime = &hasTime
@@ -370,4 +371,27 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// dueAllowed reports whether the Today focus lock lets the model's proposed due
+// date stand on a task just filed into projectID. A refused date is dropped
+// rather than failing the task: the filing itself is still right, and a task
+// with no date is what the user would have had to make of it anyway.
+func (p *Processor) dueAllowed(ctx context.Context, taskID, projectID int64, due *time.Time) bool {
+	const op = "inboxproc.Processor.dueAllowed"
+	err := p.d.TodayLock.Check(ctx, nil, service.TodayPlacement{
+		TaskID: taskID, ProjectID: &projectID, DueAt: due, Status: model.TaskStatusOpen,
+	})
+	if err == nil {
+		return true
+	}
+	var locked *service.TodayLockedError
+	if errors.As(err, &locked) {
+		p.log.InfoContext(ctx, "inbox processing left the proposed date off because today is locked",
+			slog.String("op", op), slog.Int64("task_id", taskID), slog.Int64("project_id", projectID))
+		return false
+	}
+	p.log.ErrorContext(ctx, "inbox processing could not check the today lock and left the date off",
+		slog.String("op", op), slog.Int64("task_id", taskID), slog.String("err", err.Error()))
+	return false
 }

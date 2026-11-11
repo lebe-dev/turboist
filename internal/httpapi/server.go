@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/config"
 	"github.com/lebe-dev/turboist/internal/logging"
+	"github.com/lebe-dev/turboist/internal/model"
 	"github.com/lebe-dev/turboist/internal/repo"
 	"github.com/lebe-dev/turboist/internal/service"
 	"github.com/lebe-dev/turboist/internal/service/events"
@@ -191,6 +193,13 @@ func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 		}
 		if appErr == nil {
 			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error"}
+		}
+		// The Today focus lock is asked deep inside services that many handlers
+		// call and wrap as an internal error. A refusal is never a server fault,
+		// so whichever path it came up through, it is answered as the lock's 409.
+		var locked *service.TodayLockedError
+		if appErr.HTTPStatus >= 500 && appErr.Internal != nil && errors.As(appErr.Internal, &locked) {
+			appErr = ErrTodayLocked(model.FormatUTC(locked.Until), locked.ProjectID)
 		}
 		ctx := c.Context()
 		reqLog := logging.FromContext(ctx)

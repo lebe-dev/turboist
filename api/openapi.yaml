@@ -3978,6 +3978,32 @@ paths:
       summary: This week
       tags:
       - views
+  /api/v1/today/lock:
+    post:
+      description: Until the next midnight in the server timezone, no task may be
+        put on Today (due today or earlier) in a project that has no open task there,
+        nor in the inbox; such writes answer 409 today_locked. Locking again while
+        a lock runs keeps it. The lock cannot be lifted early.
+      operationId: postTodayLock
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersTodayLockResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:write
+      summary: Lock Today to its planned projects
+      tags:
+      - settings
   /api/v1/troiki:
     get:
       operationId: getTroiki
@@ -6239,6 +6265,10 @@ components:
           type: integer
         publicView:
           type: boolean
+        todayLockUntil:
+          type:
+          - "null"
+          - string
         troikiEnabled:
           type: boolean
         weeklyUnplannedExcludedLabelIds:
@@ -6381,6 +6411,11 @@ components:
           $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
         today:
           $ref: '#/components/schemas/DtoPagedResponseTaskDTO'
+      type: object
+    HandlersTodayLockResp:
+      properties:
+        lockedUntil:
+          type: string
       type: object
     HandlersTroikiProjectDTO:
       properties:

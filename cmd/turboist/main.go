@@ -121,10 +121,12 @@ func main() {
 	// services
 	pinSvc := service.NewPinService(taskRepo, projectRepo, userRepo)
 	autoLabelsSvc := service.NewAutoLabelsService(labelRepo, appSettingsRepo)
-	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc)
-	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, projectRepo, userRepo, trelations, cfg.Location)
+	todayLockSvc := service.NewTodayLockService(userRepo, taskRepo, cfg.Location)
+	taskSvc := service.NewTaskService(taskRepo, projectRepo, tlabels, autoLabelsSvc).WithTodayLock(todayLockSvc)
+	completeSvc := service.NewCompleteServiceWithLoc(taskRepo, projectRepo, userRepo, trelations, cfg.Location).
+		WithTodayLock(todayLockSvc)
 	relationSvc := service.NewRelationService(taskRepo, trelations)
-	moveSvc := service.NewMoveService(taskRepo, projectRepo)
+	moveSvc := service.NewMoveService(taskRepo, projectRepo).WithTodayLock(todayLockSvc)
 	groupSvc := service.NewGroupService(taskSvc, moveSvc, taskRepo, tlabels)
 	planSvc := service.NewPlanService(taskRepo, ctxRepo, cfg.Weekly.Limit, cfg.Backlog.Limit)
 	troikiSvc := service.NewTroikiService(taskRepo, projectRepo, userRepo)
@@ -204,6 +206,7 @@ func main() {
 		AppSettings: appSettingsRepo,
 		Users:       userRepo,
 		Move:        moveSvc,
+		TodayLock:   todayLockSvc,
 		Hub:         eventsHub,
 		Location:    cfg.Location,
 		Log:         log,
@@ -313,6 +316,7 @@ func main() {
 		State:           handlers.NewStateHandler(userRepo),
 		Settings:        handlers.NewSettingsHandler(userRepo),
 		Harpoon:         handlers.NewHarpoonHandler(harpoonSvc),
+		TodayLock:       handlers.NewTodayLockHandler(todayLockSvc),
 		AppSettings:     handlers.NewAppSettingsHandler(appSettingsRepo, labelRepo, projectRepo),
 		InboxProcessing: handlers.NewInboxProcessingHandler(inboxProcessor, inboxProcRepo, appSettingsRepo, env.BaseURL),
 		Sync:            handlers.NewSyncHandler(changeLogRepo, env.BaseURL),

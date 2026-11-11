@@ -26,6 +26,9 @@ const (
 	ScopeContexts Scope = "contexts"
 	ScopeSections Scope = "sections"
 	ScopePlan     Scope = "plan"
+	// ScopeSettings is published when server-held user state that every device
+	// shows changes outside the settings page — the Today focus lock.
+	ScopeSettings Scope = "settings"
 )
 
 // Event is a single change notification. Payload is intentionally empty;

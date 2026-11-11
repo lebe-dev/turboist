@@ -95,6 +95,11 @@ func scopesForPath(p string) []events.Scope {
 		return []events.Scope{events.ScopeCalendar}
 	case "troiki":
 		return []events.Scope{events.ScopeTasks, events.ScopePlan}
+	case "today":
+		// The focus lock changes no task, but every other device has to learn
+		// it at once: a native replica pulls on any event, the web refetches the
+		// /config aggregate whose settings carry the lock's end.
+		return []events.Scope{events.ScopeSettings}
 	case "app-settings":
 		if rest == "app-settings/inbox-processing" || rest == "app-settings/link-titles" {
 			// The Inbox processing prompt and the link-title settings change no

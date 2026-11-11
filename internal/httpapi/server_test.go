@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/auth"
 	"github.com/lebe-dev/turboist/internal/httpapi"
+	"github.com/lebe-dev/turboist/internal/service"
 )
 
 var testSecret = []byte("test-secret-key-32-bytes-padding!")
@@ -272,5 +274,45 @@ func TestAuthMiddleware_BadScheme(t *testing.T) {
 
 	if resp.StatusCode != 401 {
 		t.Errorf("status = %d; want 401", resp.StatusCode)
+	}
+}
+
+// A Today-lock refusal raised deep inside a service and wrapped by a handler as
+// an internal error is still answered as the lock's 409, with its details.
+func TestErrorHandler_TodayLockedBehindInternalError(t *testing.T) {
+	app := httpapi.NewApp(httpapi.Deps{})
+	until := time.Date(2026, 11, 11, 21, 0, 0, 0, time.UTC)
+	projectID := int64(7)
+	locked := &service.TodayLockedError{Until: until, ProjectID: &projectID}
+	app.Get("/wrapped", func(c fiber.Ctx) error {
+		return httpapi.ErrInternal("create task").WithCause(fmt.Errorf("group: %w", locked))
+	})
+	app.Get("/bare", func(c fiber.Ctx) error {
+		return locked
+	})
+	for _, path := range []string{"/wrapped", "/bare"} {
+		resp := doRequest(t, app, httptest.NewRequest(http.MethodGet, path, nil))
+		body := readBody(t, resp)
+		if resp.StatusCode != http.StatusConflict {
+			t.Errorf("%s: status = %d; want 409 (body: %s)", path, resp.StatusCode, body)
+		}
+		var env struct {
+			Error struct {
+				Code    string `json:"code"`
+				Details struct {
+					LockedUntil string `json:"lockedUntil"`
+					ProjectID   int64  `json:"projectId"`
+				} `json:"details"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(body), &env); err != nil {
+			t.Fatalf("%s: parse: %v", path, err)
+		}
+		if env.Error.Code != httpapi.CodeTodayLocked {
+			t.Errorf("%s: code = %q; want %q", path, env.Error.Code, httpapi.CodeTodayLocked)
+		}
+		if env.Error.Details.LockedUntil != "2026-11-11T21:00:00.000Z" || env.Error.Details.ProjectID != 7 {
+			t.Errorf("%s: details = %+v; want the lock end and project 7", path, env.Error.Details)
+		}
 	}
 }

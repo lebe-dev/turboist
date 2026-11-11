@@ -29,6 +29,7 @@ type Handlers struct {
 	State           *StateHandler
 	Settings        *SettingsHandler
 	Harpoon         *HarpoonHandler
+	TodayLock       *TodayLockHandler
 	AppSettings     *AppSettingsHandler
 	InboxProcessing *InboxProcessingHandler
 	Sync            *SyncHandler
@@ -74,6 +75,7 @@ func Mount(app *fiber.App, deps httpapi.Deps, h Handlers) fiber.Router {
 	h.State.Register(api)
 	h.Settings.Register(api)
 	h.Harpoon.Register(api)
+	h.TodayLock.Register(api)
 	h.AppSettings.Register(api)
 	h.InboxProcessing.Register(api)
 	h.Sync.Register(api.Group("/sync"))

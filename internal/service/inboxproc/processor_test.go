@@ -782,3 +782,85 @@ func TestProcessor_PausedSkipsScheduledRunsButNotManualOnes(t *testing.T) {
 		t.Errorf("scheduled run after resume: got %+v, want one kept", summary)
 	}
 }
+
+// withTodayLock rebuilds the processor with the Today focus lock wired in and
+// turned on at the fixture's clock. Garden has nothing on Today, so the lock
+// keeps it out of the day.
+func (f *procFixture) withTodayLock(t *testing.T) {
+	t.Helper()
+	d := f.proc.d
+	lock := service.NewTodayLockService(d.Users, f.tasks, f.loc).WithClock(func() time.Time { return f.now })
+	if _, err := lock.Lock(context.Background()); err != nil {
+		t.Fatalf("lock: %v", err)
+	}
+	d.Move = service.NewMoveService(f.tasks, f.projects).WithTodayLock(lock)
+	d.TodayLock = lock
+	f.proc = NewProcessor(f.proc.cfg, f.llm, d)
+	f.proc.now = func() time.Time { return f.now }
+}
+
+func (f *procFixture) sortAnswerDue(due string) string {
+	return `{"action":"sort","projectId":` + itoa(f.garden.ID) + `,"labelIds":[],"priority":"high","dueDate":"` +
+		due + `","confidence":0.9,"reason":"garden work"}`
+}
+
+func TestProcessor_TodayLockDropsAProposedDateOnToday(t *testing.T) {
+	f := newProcFixture(t)
+	f.withTodayLock(t)
+	ctx := context.Background()
+	task := f.inboxTask(t, "Plant tulips")
+	f.llm.respond = answer(f.sortAnswerDue("2026-09-13"))
+
+	summary, ran := f.proc.RunOnce(ctx)
+	if !ran || summary.Sorted != 1 {
+		t.Fatalf("summary: got %+v ran=%v, want one sorted", summary, ran)
+	}
+	got, _ := f.tasks.Get(ctx, task.ID)
+	if got.ProjectID == nil || *got.ProjectID != f.garden.ID {
+		t.Errorf("project: got %v, want %d", got.ProjectID, f.garden.ID)
+	}
+	if got.DueAt != nil {
+		t.Errorf("due: got %v, want none while Today is locked", got.DueAt)
+	}
+	if got.Priority != model.PriorityHigh {
+		t.Errorf("priority: got %s, want high", got.Priority)
+	}
+}
+
+func TestProcessor_TodayLockKeepsAProposedDateForAnotherDay(t *testing.T) {
+	f := newProcFixture(t)
+	f.withTodayLock(t)
+	ctx := context.Background()
+	task := f.inboxTask(t, "Plant tulips")
+	f.llm.respond = answer(f.sortAnswerDue("2026-09-20"))
+
+	if summary, ran := f.proc.RunOnce(ctx); !ran || summary.Sorted != 1 {
+		t.Fatalf("summary: got %+v ran=%v, want one sorted", summary, ran)
+	}
+	got, _ := f.tasks.Get(ctx, task.ID)
+	wantDue := time.Date(2026, 9, 20, 0, 0, 0, 0, f.loc)
+	if got.DueAt == nil || !got.DueAt.Equal(wantDue) {
+		t.Errorf("due: got %v, want %v", got.DueAt, wantDue)
+	}
+}
+
+func TestProcessor_TodayLockKeepsATodayTaskInTheInbox(t *testing.T) {
+	f := newProcFixture(t)
+	ctx := context.Background()
+	task := f.inboxTask(t, "Plant tulips")
+	due := f.now.Add(-time.Hour)
+	if _, err := f.tasks.Update(ctx, task.ID, repo.TaskUpdate{DueAt: &due}); err != nil {
+		t.Fatalf("set due: %v", err)
+	}
+	f.withTodayLock(t)
+	f.llm.respond = answer(f.sortAnswer())
+
+	summary, ran := f.proc.RunOnce(ctx)
+	if !ran || summary.Sorted != 0 || summary.Failed != 1 {
+		t.Fatalf("summary: got %+v ran=%v, want the move refused", summary, ran)
+	}
+	got, _ := f.tasks.Get(ctx, task.ID)
+	if got.InboxID == nil {
+		t.Errorf("placement: got project %v, want still in the inbox", got.ProjectID)
+	}
+}

@@ -256,6 +256,11 @@ func toErrDetail(err error) bulkErrDetail {
 	if blocked := taskBlockedErr(err); blocked != nil {
 		return bulkErrDetail{Code: blocked.Code, Message: blocked.Message}
 	}
+	var locked *service.TodayLockedError
+	if errors.As(err, &locked) {
+		e := httpapi.ErrTodayLocked(model.FormatUTC(locked.Until), locked.ProjectID)
+		return bulkErrDetail{Code: e.Code, Message: e.Message}
+	}
 	var appErr *httpapi.AppError
 	if errors.As(err, &appErr) {
 		return bulkErrDetail{Code: appErr.Code, Message: appErr.Message}

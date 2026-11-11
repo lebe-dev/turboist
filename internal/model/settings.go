@@ -55,4 +55,12 @@ type UserSettings struct {
 	// quickly hop between. Order is significant — slot 0 is the first member,
 	// slot 1 the second. Adding a third reference evicts slot 0 (FIFO).
 	Harpoon []HarpoonRef `json:"harpoon,omitempty"`
+
+	// TodayLockUntil is the moment the Today focus lock ends, as a
+	// model.FormatUTC string; empty means the lock was never turned on. While
+	// the moment is still ahead, no task may land on Today in a project that has
+	// no open task there already (service.TodayLockService). It is written only
+	// through POST /today/lock — PATCH /settings does not accept it, so the lock
+	// cannot be lifted before it runs out.
+	TodayLockUntil string `json:"todayLockUntil,omitempty"`
 }

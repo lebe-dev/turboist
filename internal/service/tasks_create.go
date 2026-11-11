@@ -16,6 +16,21 @@ type TaskService struct {
 	taskLabels *repo.TaskLabelsRepo
 	autoLabels *AutoLabelsService
 	created    TaskCreatedHook
+	todayLock  *TodayLockService
+}
+
+// WithTodayLock makes every create ask the Today focus lock first. Returns the
+// service for chaining.
+func (s *TaskService) WithTodayLock(l *TodayLockService) *TaskService {
+	s.todayLock = l
+	return s
+}
+
+// CheckTodayLock asks the Today focus lock whether a write may leave a task
+// where after says. For callers that change a task without going through Create
+// (the PATCH handler); nil when no lock is wired.
+func (s *TaskService) CheckTodayLock(ctx context.Context, before *model.Task, after TodayPlacement) error {
+	return s.todayLock.Check(ctx, before, after)
 }
 
 // TaskCreatedHook is told about every task TaskService.Create made. It must not
@@ -50,6 +65,9 @@ func (s *TaskService) Create(ctx context.Context, in repo.CreateTask, explicitLa
 	const op = "service.TaskService.Create"
 	log := logging.FromContext(ctx)
 	log.DebugContext(ctx, op)
+	if err := s.todayLock.Check(ctx, nil, TodayPlacement{ProjectID: in.ProjectID, DueAt: in.DueAt, Status: model.TaskStatusOpen}); err != nil {
+		return nil, err
+	}
 	if in.ProjectID != nil && s.projects != nil {
 		p, err := s.projects.Get(ctx, *in.ProjectID)
 		if err != nil {

@@ -38,6 +38,15 @@ type CompleteService struct {
 	users     *repo.UserRepo
 	relations *repo.TaskRelationsRepo
 	loc       *time.Location
+	todayLock *TodayLockService
+}
+
+// WithTodayLock makes reopening a task ask the Today focus lock first: a task
+// due today that comes back open would take its project into the day. Returns
+// the service for chaining.
+func (s *CompleteService) WithTodayLock(l *TodayLockService) *CompleteService {
+	s.todayLock = l
+	return s
 }
 
 func NewCompleteService(tasks *repo.TaskRepo, projects *repo.ProjectRepo, users *repo.UserRepo, relations *repo.TaskRelationsRepo) *CompleteService {
@@ -295,6 +304,11 @@ func (s *CompleteService) Uncomplete(ctx context.Context, taskID int64) (*model.
 	}
 	if t.Status == model.TaskStatusOpen {
 		return t, nil
+	}
+	after := PlacementOf(t)
+	after.Status = model.TaskStatusOpen
+	if err := s.todayLock.Check(ctx, t, after); err != nil {
+		return nil, err
 	}
 	reopened, err := s.tasks.ReopenAndPinProjectPriority(ctx, taskID)
 	if err != nil {

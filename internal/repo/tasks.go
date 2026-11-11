@@ -1101,6 +1101,33 @@ func (r *TaskRepo) CountPinnedProjects(ctx context.Context) (int, error) {
 	return r.scalarCount(ctx, `SELECT COUNT(*) FROM projects WHERE is_pinned = 1`)
 }
 
+// TodayProjectIDs returns the distinct projects that have an open task due
+// before end — the projects the Today screen shows (today plus overdue). The
+// task excludeTaskID is left out, so a write can ask "which projects are on
+// Today without the task I am changing"; pass 0 to leave nothing out. Tasks
+// with no project (the inbox, a bare context) contribute nothing.
+func (r *TaskRepo) TodayProjectIDs(ctx context.Context, end time.Time, excludeTaskID int64) ([]int64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT DISTINCT project_id FROM tasks
+		  WHERE status = 'open' AND project_id IS NOT NULL
+		    AND due_at IS NOT NULL AND due_at < ? AND id <> ?
+		  ORDER BY project_id`,
+		model.FormatUTC(end), excludeTaskID)
+	if err != nil {
+		return nil, fmt.Errorf("today project ids: %w", err)
+	}
+	defer logging.LogClose(ctx, "repo.tasks.TodayProjectIDs", rows)
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("today project ids: scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (r *TaskRepo) scalarCount(ctx context.Context, q string, args ...any) (int, error) {
 	var n int
 	if err := r.db.QueryRowContext(ctx, q, args...).Scan(&n); err != nil {

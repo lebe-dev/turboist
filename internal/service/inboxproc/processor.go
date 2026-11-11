@@ -60,9 +60,12 @@ type Deps struct {
 	AppSettings *repo.AppSettingsRepo
 	Users       *repo.UserRepo
 	Move        *service.MoveService
-	Hub         *events.Hub
-	Location    *time.Location
-	Log         *slog.Logger
+	// TodayLock, when set, keeps a proposed due date off Today while the focus
+	// lock keeps the task's new project out of the day; nil checks nothing.
+	TodayLock *service.TodayLockService
+	Hub       *events.Hub
+	Location  *time.Location
+	Log       *slog.Logger
 }
 
 // RunSummary counts what one run decided.

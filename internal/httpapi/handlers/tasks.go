@@ -253,6 +253,19 @@ func (h *TaskHandler) patch(c fiber.Ctx) error {
 		u.IsComplex = req.IsComplex
 	}
 
+	after := service.PlacementOf(t)
+	if u.DueAtClear {
+		after.DueAt = nil
+	} else if u.DueAt != nil {
+		after.DueAt = u.DueAt
+	}
+	if err := h.taskSvc.CheckTodayLock(c.Context(), t, after); err != nil {
+		if locked := todayLockedErr(c, opTaskPatch, err); locked != nil {
+			return locked
+		}
+		return httpapi.ErrInternal("check today lock").WithCause(err)
+	}
+
 	u.IncPostponeCount = shouldIncPostpone(t, u, time.Now())
 
 	updated, err := h.tasks.Update(c.Context(), id, u)
@@ -662,6 +675,9 @@ func (h *TaskHandler) decompose(c fiber.Ctx) error {
 
 // handleTaskCreateErr maps TaskService.Create errors to API errors.
 func handleTaskCreateErr(c fiber.Ctx, err error) *httpapi.AppError {
+	if locked := todayLockedErr(c, "handler.Task.Create", err); locked != nil {
+		return locked
+	}
 	var ule *service.UnknownLabelError
 	if errors.As(err, &ule) {
 		logValidation(c, "handler.Task.Create", "unknown label", slog.String("label", ule.Name))

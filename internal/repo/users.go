@@ -302,6 +302,42 @@ func (r *UserRepo) IncTroikiCapacity(ctx context.Context, id int64, target model
 	return nil
 }
 
+// LockTodayUntil starts the Today focus lock, ending at until, unless a lock is
+// already running at now — in which case the running one is kept, so locking
+// twice in one day never moves the end. A stored value that is not a timestamp
+// counts as no lock and is overwritten. It returns the end that is in force
+// afterwards.
+//
+// The key is written into the settings blob with json_set in one statement
+// rather than through Get/SetSettings, so a settings PATCH racing it cannot be
+// the read half of a read-modify-write that drops the lock.
+func (r *UserRepo) LockTodayUntil(ctx context.Context, id int64, until, now time.Time) (time.Time, error) {
+	nowText := model.FormatUTC(now)
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users
+		    SET settings = json_set(CASE WHEN json_valid(settings) THEN settings ELSE '{}' END,
+		                            '$.todayLockUntil', ?),
+		        updated_at = ?
+		  WHERE id = ?
+		    AND (NOT json_valid(settings)
+		         OR json_extract(settings, '$.todayLockUntil') IS NULL
+		         OR json_extract(settings, '$.todayLockUntil') NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*Z'
+		         OR json_extract(settings, '$.todayLockUntil') <= ?)`,
+		model.FormatUTC(until), nowText, id, nowText)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("lock today: %w", err)
+	}
+	s, err := r.GetSettings(ctx, id)
+	if err != nil {
+		return time.Time{}, err
+	}
+	effective, err := model.ParseUTC(s.TodayLockUntil)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("lock today: read back: %w", err)
+	}
+	return effective, nil
+}
+
 type TOTPState struct {
 	Secret       string
 	Enabled      bool

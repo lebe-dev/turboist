@@ -66,6 +66,19 @@ func taskBlockedErr(err error) *httpapi.AppError {
 	return httpapi.ErrTaskBlocked("task is blocked by an incomplete task", be.BlockerIDs)
 }
 
+// todayLockedErr converts a service.TodayLockedError into the typed 409, or
+// returns nil when err is something else. The central error handler maps a
+// refusal that slipped through as an internal error too; naming it here keeps
+// the log line a validation warning rather than a server error.
+func todayLockedErr(c fiber.Ctx, op string, err error) *httpapi.AppError {
+	var le *service.TodayLockedError
+	if !errors.As(err, &le) {
+		return nil
+	}
+	logValidation(c, op, "today is locked")
+	return httpapi.ErrTodayLocked(model.FormatUTC(le.Until), le.ProjectID)
+}
+
 var validNamedColors = map[string]struct{}{
 	"red": {}, "orange": {}, "yellow": {}, "green": {},
 	"teal": {}, "blue": {}, "purple": {}, "pink": {},
@@ -151,6 +164,9 @@ func doCreateTask(c fiber.Ctx, svc *service.TaskService, placement repo.Placemen
 	}
 	t, err := svc.Create(c.Context(), in, req.Labels, req.RemovedAutoLabels)
 	if err != nil {
+		if locked := todayLockedErr(c, opTaskCreate, err); locked != nil {
+			return locked
+		}
 		var ule *service.UnknownLabelError
 		if errors.As(err, &ule) {
 			logValidation(c, opTaskCreate, "unknown label", slog.String("label", ule.Name))
