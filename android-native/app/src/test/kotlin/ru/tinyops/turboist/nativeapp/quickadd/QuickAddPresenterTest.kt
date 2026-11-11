@@ -456,6 +456,50 @@ class QuickAddPresenterTest {
         }
 
     @Test
+    fun `under the focus lock a project outside today's plan moves a draft for today on to tomorrow`() =
+        runTest {
+            val today = NOW.atZone(zone).toLocalDate()
+            val midnight = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            workspace.value = workspace.value.copy(todayProjectLocalIds = listOf(3L), todayLockUntil = midnight)
+            val presenter = presenter()
+            watch(presenter)
+            presenter.open()
+            presenter.chooseProject(3L)
+            presenter.setDueDate(today)
+            runCurrent()
+            assertTrue(presenter.state.value.todayLockActive)
+            assertEquals(setOf(3L), presenter.state.value.todayPlanIds)
+            assertEquals(listOf("Garden"), presenter.state.value.todayProjects.map { it.title })
+
+            presenter.chooseProject(2L)
+            runCurrent()
+            assertEquals(today.plusDays(1), presenter.state.value.draft.dueDate)
+            assertTrue(presenter.state.value.dueShiftedByLock)
+            assertFalse(presenter.state.value.todayLockConflict)
+
+            presenter.setDueDate(today)
+            runCurrent()
+            assertFalse(presenter.state.value.dueShiftedByLock)
+            assertTrue(presenter.state.value.todayLockConflict)
+        }
+
+    @Test
+    fun `without the focus lock choosing a project leaves the date alone`() =
+        runTest {
+            val today = NOW.atZone(zone).toLocalDate()
+            workspace.value = workspace.value.copy(todayProjectLocalIds = listOf(3L))
+            val presenter = presenter()
+            watch(presenter)
+            presenter.open()
+            presenter.chooseProject(3L)
+            presenter.setDueDate(today)
+            presenter.chooseProject(2L)
+            runCurrent()
+            assertEquals(today, presenter.state.value.draft.dueDate)
+            assertFalse(presenter.state.value.dueShiftedByLock)
+        }
+
+    @Test
     fun `the project filed into last time is offered next to the destination`() =
         runTest {
             val presenter = presenter(recent = FakeRecentProjects(listOf(4L, 2L)))

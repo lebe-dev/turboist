@@ -55,10 +55,20 @@ data class QuickAddUiState(
     val otherProjects: List<Project> = emptyList(),
     /** Offered for the typed title, never applied. */
     val suggestedProjects: List<Project> = emptyList(),
-    /** The projects holding today's tasks, offered above the destination when opened from Today. */
+    /**
+     * The projects holding today's tasks, offered one tap away under the destination:
+     * when the sheet was opened from Today, and whenever the focus lock is on and
+     * the draft is dated today, since those are then the only places it can go.
+     */
     val todayProjects: List<Project> = emptyList(),
+    /** True while the Today focus lock is on. */
+    val todayLockActive: Boolean = false,
+    /** The projects holding today's tasks, by local id: what the focus lock lets into the day. */
+    val todayPlanIds: Set<Long> = emptySet(),
     /** True while the Today focus lock would refuse the draft as it stands: dated today, outside today's projects. */
     val todayLockConflict: Boolean = false,
+    /** True when choosing a project outside today's plan moved the draft's date from today to tomorrow. */
+    val dueShiftedByLock: Boolean = false,
     /** Will be attached on save unless taken off. */
     val autoLabels: List<String> = emptyList(),
     val knownLabels: List<Label> = emptyList(),
@@ -189,7 +199,15 @@ class QuickAddPresenter(
     }
 
     /** Sets or clears the due date. Tapping the day already set clears it. */
-    fun setDueDate(date: LocalDate?) = edit { it.copy(dueDate = if (it.dueDate == date) null else date) }
+    fun setDueDate(date: LocalDate?) {
+        editing.update { current ->
+            val draft = current.draft
+            current.copy(
+                draft = draft.copy(dueDate = if (draft.dueDate == date) null else date),
+                dueShiftedByLock = false,
+            ).withDayPartGuess()
+        }
+    }
 
     /**
      * Replaces the labels the user chose by hand.
@@ -217,15 +235,35 @@ class QuickAddPresenter(
             }
         }
 
-    /** Files the draft into a project, or into the inbox when given `null`. */
+    /**
+     * Files the draft into a project, or into the inbox when given `null`.
+     *
+     * While the focus lock is on, a draft dated today that is moved to a project
+     * outside today's plan would only be refused on save. Rather than leave the
+     * user facing that, the date moves on to tomorrow and the sheet says so: the
+     * project was the deliberate choice, the date most likely the default.
+     */
     fun chooseProject(projectLocalId: Long?) {
+        val rendered = state.value
+        val today = now().atZone(zone).toLocalDate()
         editing.update { current ->
+            val shift =
+                projectLocalId != null &&
+                    rendered.todayLockActive &&
+                    current.draft.dueDate == today &&
+                    projectLocalId !in rendered.todayPlanIds
             current.copy(
                 // A project and a column of one are the same decision, so picking
                 // a project drops whichever column was chosen before it.
-                draft = current.draft.copy(projectLocalId = projectLocalId, sectionLocalId = null),
+                draft =
+                    current.draft.copy(
+                        projectLocalId = projectLocalId,
+                        sectionLocalId = null,
+                        dueDate = if (shift) today.plusDays(1) else current.draft.dueDate,
+                    ),
                 pickingProject = false,
                 projectQuery = "",
+                dueShiftedByLock = shift,
             ).withDayPartGuess()
         }
     }
@@ -345,6 +383,9 @@ class QuickAddPresenter(
         val leading = pickRecent(order, offered, Project::localId)
         val lifted = leading.mapTo(HashSet()) { it.localId }
         val chosen = edit.draft.projectLocalId
+        val lockActive = space.todayLockUntil?.let { it > now().toEpochMilli() } == true
+        val today = now().atZone(zone).toLocalDate()
+        val lockedToday = lockActive && !edit.draft.isInbox && edit.draft.dueDate == today
         // Everything already spoken for is kept out of the suggestions: the
         // project the draft points at, and every label already on it or already
         // rejected.
@@ -360,12 +401,15 @@ class QuickAddPresenter(
             suggestedProjects =
                 space.appSettings.suggestedProjects(edit.draft.titles, space.projects, setOfNotNull(chosen)),
             todayProjects =
-                if (edit.offerTodayProjects) {
+                if (edit.offerTodayProjects || lockedToday) {
                     space.todayProjectLocalIds.mapNotNull { id -> space.projects.firstOrNull { it.localId == id } }
                 } else {
                     emptyList()
                 },
+            todayLockActive = lockActive,
+            todayPlanIds = space.todayProjectLocalIds.toSet(),
             todayLockConflict = todayLockConflict(edit.draft, space),
+            dueShiftedByLock = edit.dueShiftedByLock,
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
             knownLabels = space.labels,
             lastProject =
@@ -409,6 +453,8 @@ class QuickAddPresenter(
         val dayPartGuessed: Boolean = false,
         /** True when the sheet was opened from the Today screen. */
         val offerTodayProjects: Boolean = false,
+        /** True when the last project chosen moved the date from today to tomorrow under the focus lock. */
+        val dueShiftedByLock: Boolean = false,
     )
 
     private companion object {

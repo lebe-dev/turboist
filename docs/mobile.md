@@ -1717,7 +1717,8 @@ hidden rather than deleted, because the next keystroke may turn it into "3.5" or
 "example.com", which come out whole.
 
 A sheet holding something asks before it closes, whichever way it was asked to:
-a swipe, a tap outside, the back gesture or the cancel button. Text that arrived
+a swipe, a tap outside or the back gesture — there is no cancel button, those
+three already cover it. Text that arrived
 in a share counts, the project the sheet opened on does not, and an empty sheet
 just closes.
 
@@ -1741,9 +1742,30 @@ for is a navigation habit, not a record the workspace owns, and there is no serv
 field for it. More projects are remembered than the row ever shows, so a picker
 narrowed by its search box still has enough history left to fill one.
 
-Due-date shortcuts appear only once the task has a home. A date is a plan and the
+**How the sheet is laid out.** Under the title and description, where the task
+goes and when it is for sit in one card: the destination (tapping it opens the
+picker), a single sideways-scrolling row of places one tap away, and the due date
+as one connected control — no date, today, tomorrow or a day off the calendar.
+Priority, part of the day and labels are set less often, so they wait in a bar
+pinned to the bottom of the sheet, above the keyboard: each shows its current value
+and opens its editor just above the bar, and the save button sits at the end of the
+bar so it never scrolls out of reach. When several lines were typed it carries a
+badge with how many tasks that makes.
+
+The due date appears only once the task has a home. A date is a plan and the
 inbox holds what has not been planned yet, so scheduling waits — the same rule the
 web client applies by hiding those controls there.
+
+**Under the Today focus lock** (`docs/today-lock.md`) the project and the date are
+one decision, and the card treats them as one. Its heading says the lock is on, the
+"today" choice carries a padlock, and while the draft is for today the row of
+places is today's projects. A draft that would be refused — dated today, in a
+project outside today's plan — is explained inside the card with the two ways out,
+another day or a project from the plan, and the save button waits until one is
+taken, since such a write is certain to be refused. The picker is cut the same
+way: today's projects first, then the inbox, then every other project marked as
+moving the date to tomorrow. Choosing one of those (from the picker or from any
+chip) does exactly that, and the card says so, so no choice leads to a dead end.
 
 **Two ways in from outside the app.** A long press on the launcher icon offers
 "add task", which opens the sheet empty. Sharing text from another app opens it

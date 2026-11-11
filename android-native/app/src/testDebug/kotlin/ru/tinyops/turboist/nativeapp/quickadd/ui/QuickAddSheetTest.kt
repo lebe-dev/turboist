@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -33,9 +35,12 @@ import ru.tinyops.turboist.nativeapp.quickadd.RecordingQuickAddActions
 import ru.tinyops.turboist.nativeapp.quickadd.label
 import ru.tinyops.turboist.nativeapp.quickadd.project
 import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * The capture sheet composed for real, driven by its own presenter.
@@ -55,6 +60,9 @@ class QuickAddSheetTest {
     private val actions = RecordingQuickAddActions()
     private val recent = FakeRecentProjects(listOf(4L, 2L))
     private val today: LocalDate = LocalDate.of(2026, 3, 12)
+    private val zone: ZoneId = ZoneId.of("Europe/Berlin")
+    private val noon: Instant = today.atTime(12, 0).atZone(zone).toInstant()
+    private val midnight: Long = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
 
     private val workspace =
         MutableStateFlow(
@@ -87,7 +95,8 @@ class QuickAddSheetTest {
                         workspace = workspace,
                         recent = recent,
                         actions = actions,
-                        zone = ZoneId.of("Europe/Berlin"),
+                        zone = zone,
+                        now = { noon },
                     ).also { it.open() }
                 }
             presenter = live
@@ -96,6 +105,13 @@ class QuickAddSheetTest {
                 QuickAddSheetContent(state = state, today = today, callbacks = quickAddCallbacks(live))
             }
         }
+        compose.waitForIdle()
+    }
+
+    /** Opens the list of places from the destination in the card. */
+    private fun openPicker() {
+        val inbox = text(R.string.nav_inbox)
+        compose.onNodeWithContentDescription(text(R.string.native_quickAdd_changeProject, inbox)).performClick()
         compose.waitForIdle()
     }
 
@@ -112,7 +128,7 @@ class QuickAddSheetTest {
         launch()
 
         type("Renew the passport")
-        compose.onNodeWithText(text(R.string.dialog_quickAdd_submitSingle)).performClick()
+        compose.onNodeWithContentDescription(text(R.string.dialog_quickAdd_submitSingle)).performClick()
         compose.waitForIdle()
 
         assertEquals(1, actions.calls.size)
@@ -126,7 +142,7 @@ class QuickAddSheetTest {
 
         type("Buy milk\nCall the dentist")
 
-        compose.onNodeWithText(text(R.string.dialog_quickAdd_submitMulti, 2)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.dialog_quickAdd_submitMulti, 2)).assertIsDisplayed()
     }
 
     @Test
@@ -169,7 +185,7 @@ class QuickAddSheetTest {
     fun `the picker leads with the inbox and the places this device files things`() {
         launch()
 
-        compose.onNodeWithContentDescription(text(R.string.nav_inbox)).performClick()
+        openPicker()
         compose.waitForIdle()
 
         compose.onNodeWithText(text(R.string.native_quickAdd_recentProjects)).assertIsDisplayed()
@@ -183,11 +199,11 @@ class QuickAddSheetTest {
     }
 
     @Test
-    fun `cancelling a filled in sheet asks first, and only the answer closes it`() {
+    fun `closing a filled in sheet asks first, and only the answer closes it`() {
         launch()
 
         type("Buy milk")
-        compose.onNodeWithText(text(R.string.common_cancel)).performClick()
+        compose.runOnIdle { presenter.requestDismiss() }
         compose.waitForIdle()
 
         compose.onNodeWithText(text(R.string.native_quickAdd_discardTitle)).assertIsDisplayed()
@@ -198,7 +214,7 @@ class QuickAddSheetTest {
         assertEquals(0, shown(R.string.native_quickAdd_discardTitle))
         assertEquals("Buy milk", presenter.state.value.draft.titles)
 
-        compose.onNodeWithText(text(R.string.common_cancel)).performClick()
+        compose.runOnIdle { presenter.requestDismiss() }
         compose.waitForIdle()
         compose.onNodeWithText(text(R.string.native_quickAdd_discardConfirm)).performClick()
         compose.waitForIdle()
@@ -206,10 +222,10 @@ class QuickAddSheetTest {
     }
 
     @Test
-    fun `cancelling an empty sheet closes it without asking`() {
+    fun `closing an empty sheet does not ask`() {
         launch()
 
-        compose.onNodeWithText(text(R.string.common_cancel)).performClick()
+        compose.runOnIdle { presenter.requestDismiss() }
         compose.waitForIdle()
 
         assertEquals(0, shown(R.string.native_quickAdd_discardTitle))
@@ -226,11 +242,58 @@ class QuickAddSheetTest {
 
         assertEquals(0, shown(R.string.common_today))
 
-        compose.onNodeWithContentDescription(text(R.string.nav_inbox)).performClick()
+        openPicker()
         compose.waitForIdle()
         compose.onAllNodesWithContentDescription("Home").onFirst().performClick()
         compose.waitForIdle()
 
         compose.onNodeWithText(text(R.string.common_today)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `under the focus lock a clash is explained in the card and saving waits for a way out`() {
+        workspace.value = workspace.value.copy(todayProjectLocalIds = listOf(3L), todayLockUntil = midnight)
+        launch()
+        type("Mow the lawn")
+        compose.runOnIdle {
+            presenter.chooseProject(1L)
+            presenter.setDueDate(today)
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText(text(R.string.native_quickAdd_conflictTitle, "Home")).assertIsDisplayed()
+        compose.onNodeWithContentDescription(text(R.string.dialog_quickAdd_submitSingle)).assertIsNotEnabled()
+        // Today's plan is what the card offers while the draft is for today.
+        compose.onNodeWithText(text(R.string.native_quickAdd_todayPlan)).assertIsDisplayed()
+
+        compose.onNodeWithText(text(R.string.native_quickAdd_conflictTomorrow)).performClick()
+        compose.waitForIdle()
+
+        assertEquals(today.plusDays(1), presenter.state.value.draft.dueDate)
+        assertEquals(0, shown(R.string.native_quickAdd_conflictTomorrow))
+        compose.onNodeWithContentDescription(text(R.string.dialog_quickAdd_submitSingle)).assertIsEnabled()
+    }
+
+    @Test
+    fun `under the focus lock the picker leads with today's plan and other projects move the date on`() {
+        workspace.value = workspace.value.copy(todayProjectLocalIds = listOf(3L), todayLockUntil = midnight)
+        launch()
+        compose.runOnIdle {
+            presenter.chooseProject(3L)
+            presenter.setDueDate(today)
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription(text(R.string.native_quickAdd_changeProject, "Garden")).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(text(R.string.native_quickAdd_otherProjects)).assertIsDisplayed()
+        assertTrue(shown(R.string.native_quickAdd_notToday) > 0)
+
+        compose.onAllNodesWithContentDescription("Home").onFirst().performClick()
+        compose.waitForIdle()
+
+        assertEquals(today.plusDays(1), presenter.state.value.draft.dueDate)
+        assertFalse(presenter.state.value.todayLockConflict)
+        compose.onNodeWithText(text(R.string.native_quickAdd_dueShifted, "Home")).assertIsDisplayed()
     }
 }

@@ -151,6 +151,27 @@
     <string name="native_quickAdd_discardBody">What you have filled in will be lost.</string>
     <string name="native_quickAdd_discardConfirm">Discard</string>
     <string name="native_quickAdd_discardKeep">Keep editing</string>
+    <string name="native_quickAdd_project">Project</string>
+    <string name="native_quickAdd_changeProject">Project: %1$s. Change</string>
+    <string name="native_quickAdd_due">Due</string>
+    <string name="native_quickAdd_noDue">No date</string>
+    <string name="native_quickAdd_pickDate">Date</string>
+    <string name="native_quickAdd_inboxNoDue">Inbox tasks have no date — pick a project first.</string>
+    <string name="native_quickAdd_todayPlan">In today\'s plan</string>
+    <string name="native_quickAdd_focusTitle">Focus until midnight</string>
+    <string name="native_quickAdd_focusBody">today only takes projects from the plan</string>
+    <string name="native_quickAdd_conflictTitle">“%1$s” is not in today\'s plan</string>
+    <string name="native_quickAdd_conflictBody">Until midnight, today only takes projects from the plan.</string>
+    <string name="native_quickAdd_conflictTomorrow">Tomorrow instead</string>
+    <string name="native_quickAdd_conflictPickProject">Project from the plan</string>
+    <string name="native_quickAdd_dueShifted">Moved to tomorrow: “%1$s” is not in today\'s plan.</string>
+    <string name="native_quickAdd_pickerFocus">Focus until midnight. Today takes projects from the plan; any other moves the date to tomorrow.</string>
+    <string name="native_quickAdd_otherProjects">Other projects</string>
+    <string name="native_quickAdd_notToday">→ tomorrow</string>
+    <string name="native_quickAdd_backToTask">Back to the task</string>
+    <string name="native_quickAdd_noDayPart">Time</string>
+    <string name="native_quickAdd_noLabels">Labels</string>
+    <string name="native_quickAdd_moreLabels">%1$s +%2$d</string>
 
     <!-- Projects and their boards. The web client rearranges a board by dragging,
          which a touch screen cannot offer unambiguously, so the wording here is

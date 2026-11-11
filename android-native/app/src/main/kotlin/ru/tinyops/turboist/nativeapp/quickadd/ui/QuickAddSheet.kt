@@ -1,51 +1,32 @@
 package ru.tinyops.turboist.nativeapp.quickadd.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -54,7 +35,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,12 +43,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -87,15 +69,7 @@ import ru.tinyops.turboist.nativeapp.quickadd.QuickAddPresenter
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddRequest
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddUiState
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddViewModel
-import ru.tinyops.turboist.nativeapp.tasks.ui.DayPartSelector
-import ru.tinyops.turboist.nativeapp.tasks.ui.LabelSelector
-import ru.tinyops.turboist.nativeapp.tasks.ui.PrioritySelector
-import ru.tinyops.turboist.nativeapp.tasks.ui.futureSelectableDates
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /** Every gesture the capture sheet can make. */
 data class QuickAddCallbacks(
@@ -294,7 +268,7 @@ fun QuickAddSheetContent(
     modifier: Modifier = Modifier,
 ) {
     if (state.pickingProject) {
-        ProjectPicker(state = state, callbacks = callbacks, modifier = modifier)
+        ProjectPicker(state = state, today = today, callbacks = callbacks, modifier = modifier)
     } else {
         QuickAddFields(state = state, today = today, callbacks = callbacks, modifier = modifier)
     }
@@ -335,127 +309,83 @@ private fun QuickAddFields(
     LaunchedEffect(Unit) { focus.requestFocus() }
     val titleLabel = stringResource(R.string.dialog_quickAdd_titleAriaLabel)
     val descriptionLabel = stringResource(R.string.dialog_quickAdd_descriptionAriaLabel)
+    var panel by rememberSaveable { mutableStateOf<QuickAddPanel?>(null) }
+    val keyboard = LocalSoftwareKeyboardController.current
 
     // The sheet is anchored to the bottom, so any change in its content height moves
     // its top edge. Chips that appear while typing (auto labels, project
     // suggestions) would make the whole sheet jump up and down, so the content
     // always takes the full height it is offered and grows inside it instead.
-    Column(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        // The title is the one thing the sheet is opened for, so it is written
-        // large and without a box: a field that looks like a form asks to be
-        // filled in, a line that looks like a heading asks to be written.
-        TextField(
-            value = state.draft.titles,
-            onValueChange = callbacks.onTitles,
-            placeholder = { Text(stringResource(R.string.dialog_quickAdd_titlePlaceholder)) },
-            textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
-            colors = borderlessFieldColors(),
-            visualTransformation = HiddenTitleTail,
+    Column(modifier = modifier.fillMaxWidth().fillMaxHeight()) {
+        Column(
             modifier =
                 Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
-                    .focusRequester(focus)
-                    .semantics { contentDescription = titleLabel },
-        )
-
-        TextField(
-            value = state.draft.description,
-            onValueChange = callbacks.onDescription,
-            placeholder = { Text(stringResource(R.string.dialog_quickAdd_descriptionPlaceholder)) },
-            textStyle = MaterialTheme.typography.bodyLarge,
-            colors = borderlessFieldColors(),
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
-                    .semantics { contentDescription = descriptionLabel },
-        )
-
-        AutoLabelChips(names = state.autoLabels, onReject = callbacks.onRejectAutoLabel)
-        SuggestedProjectChips(projects = state.suggestedProjects, onChoose = callbacks.onChooseProject)
-
-        if (state.todayLockConflict) TodayLockHint()
-
-        TodayProjectChips(
-            projects = state.todayProjects,
-            chosen = state.draft.projectLocalId,
-            onChoose = callbacks.onChooseProject,
-        )
-
-        // Where the task goes and when it is for are the two facts a capture
-        // most often settles, so they sit together on one line under the text.
-        FlowRow(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            DestinationChip(projectTitle = state.projectTitle, onPick = { callbacks.onPickingProject(true) })
-            // The project the previous task went to: the next one usually follows it.
-            state.lastProject?.let { last ->
-                AssistChip(
-                    onClick = { callbacks.onChooseProject(last.localId) },
-                    label = { Text(last.title) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Outlined.History,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    modifier = Modifier.semantics { contentDescription = last.title },
-                )
-            }
-            // A date is a plan, and the inbox holds what has not been planned
-            // yet, so scheduling is offered only once the task has a home. The
-            // same rule hides these controls in the web client.
-            if (!state.draft.isInbox) {
-                DueDateChips(dueDate = state.draft.dueDate, today = today, onPick = callbacks.onDueDate)
-            }
+            // The title is the one thing the sheet is opened for, so it is written
+            // large and without a box: a field that looks like a form asks to be
+            // filled in, a line that looks like a heading asks to be written.
+            TextField(
+                value = state.draft.titles,
+                onValueChange = callbacks.onTitles,
+                placeholder = { Text(stringResource(R.string.dialog_quickAdd_titlePlaceholder)) },
+                textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
+                colors = borderlessFieldColors(),
+                visualTransformation = HiddenTitleTail,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                        .focusRequester(focus)
+                        .semantics { contentDescription = titleLabel },
+            )
+
+            TextField(
+                value = state.draft.description,
+                onValueChange = callbacks.onDescription,
+                placeholder = { Text(stringResource(R.string.dialog_quickAdd_descriptionPlaceholder)) },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                colors = borderlessFieldColors(),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                        .semantics { contentDescription = descriptionLabel },
+            )
+
+            AutoLabelChips(names = state.autoLabels, onReject = callbacks.onRejectAutoLabel)
+            SuggestedProjectChips(projects = state.suggestedProjects, onChoose = callbacks.onChooseProject)
+
+            // Where the task goes and when it is for are one decision while the
+            // focus lock is on, so they sit in one card that explains the lock.
+            PlacementCard(state = state, today = today, callbacks = callbacks)
         }
 
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        // Priority, part of the day and labels are set less often than the title,
+        // so they wait in a bar pinned above the keyboard: each shows its value and
+        // opens its editor on a tap. The save button lives there too, so it never
+        // scrolls out of reach.
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        AttributePanel(panel = panel, state = state, callbacks = callbacks, onClose = { panel = null })
+        AttributeBar(
+            state = state,
+            open = panel,
+            onToggle = { target ->
+                if (panel != target) keyboard?.hide()
+                panel = if (panel == target) null else target
+            },
+            onSubmit = callbacks.onSubmit,
+            submitDescription = submitLabel(state.draft.titleLines.size),
         )
-
-        PrioritySelector(priority = state.draft.priority, onSelect = callbacks.onPriority)
-        DayPartSelector(dayPart = state.draft.dayPart, onSelect = callbacks.onDayPart)
-        LabelSelector(
-            known = state.knownLabels,
-            selected = state.draft.labelNames,
-            onChange = callbacks.onLabels,
-            recentOrder = state.recentLabelOrder,
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = callbacks.onDismiss) { Text(stringResource(R.string.common_cancel)) }
-            Button(
-                onClick = callbacks.onSubmit,
-                enabled = state.draft.canSubmit && !state.submitting,
-                contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.ArrowUpward,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(submitLabel(state.draft.titleLines.size), modifier = Modifier.padding(start = 8.dp))
-            }
-        }
     }
 }
+
+/** The editors the bar above the keyboard can open, one at a time. */
+internal enum class QuickAddPanel { PRIORITY, DAY_PART, LABELS }
 
 /** A text field drawn as bare text on the sheet: no box, no underline. */
 @Composable
@@ -562,224 +492,6 @@ private fun SuggestedProjectChips(
             }
         }
     }
-}
-
-/** Says why the draft would be refused today: the focus lock lets only today's projects take work into the day. */
-@Composable
-private fun TodayLockHint() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Lock,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.tertiary,
-        )
-        Text(
-            text = stringResource(R.string.dialog_quickAdd_todayLockedHint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.tertiary,
-        )
-    }
-}
-
-/**
- * The projects holding today's tasks, one tap each, on the line above the destination.
- * Shown only when the sheet was opened from the Today screen.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TodayProjectChips(
-    projects: List<Project>,
-    chosen: Long?,
-    onChoose: (Long?) -> Unit,
-) {
-    if (projects.isEmpty()) return
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Text(
-            text = stringResource(R.string.dialog_quickAdd_todayProjectsHint),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (project in projects) {
-                FilterChip(
-                    selected = project.localId == chosen,
-                    onClick = { onChoose(project.localId) },
-                    label = { Text(project.title) },
-                    modifier = Modifier.semantics { contentDescription = project.title },
-                )
-            }
-        }
-    }
-}
-
-/** Where the task is going, and the way to change it. */
-@Composable
-private fun DestinationChip(
-    projectTitle: String?,
-    onPick: () -> Unit,
-) {
-    val name = projectTitle ?: stringResource(R.string.nav_inbox)
-    AssistChip(
-        onClick = onPick,
-        label = { Text(name) },
-        leadingIcon = {
-            Icon(
-                imageVector = if (projectTitle == null) Icons.Outlined.Inbox else Icons.Outlined.Folder,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        },
-        trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
-        border = null,
-        colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        modifier = Modifier.semantics { contentDescription = name },
-    )
-}
-
-/** Today, tomorrow, or a day off the calendar. Tapping the day already set clears it. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DueDateChips(
-    dueDate: LocalDate?,
-    today: LocalDate,
-    onPick: (LocalDate?) -> Unit,
-) {
-    var picking by remember { mutableStateOf(false) }
-    val tomorrow = today.plusDays(1)
-    val custom = dueDate?.takeIf { it != today && it != tomorrow }
-
-    DayChip(stringResource(R.string.common_today), dueDate == today) { onPick(today) }
-    DayChip(stringResource(R.string.common_tomorrow), dueDate == tomorrow) { onPick(tomorrow) }
-    DayChip(
-        text =
-            custom?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-                ?: stringResource(R.string.dialog_quickAdd_pickDateTitle),
-        selected = custom != null,
-    ) { picking = true }
-
-    if (!picking) return
-    // The picker speaks in UTC midnights, so the day is read back at that offset
-    // and only then handed on, to a caller that knows the user's own zone.
-    val state =
-        rememberDatePickerState(
-            initialSelectedDateMillis = dueDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
-            selectableDates = remember(today) { futureSelectableDates(today) },
-        )
-    DatePickerDialog(
-        onDismissRequest = { picking = false },
-        confirmButton = {
-            TextButton(
-                enabled =
-                    state.selectedDateMillis?.let {
-                        !Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().isBefore(today)
-                    } == true,
-                onClick = {
-                    picking = false
-                    val picked = state.selectedDateMillis ?: return@TextButton
-                    onPick(Instant.ofEpochMilli(picked).atZone(ZoneOffset.UTC).toLocalDate())
-                },
-            ) { Text(stringResource(R.string.common_save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = { picking = false }) { Text(stringResource(R.string.common_cancel)) }
-        },
-    ) {
-        DatePicker(state = state)
-    }
-}
-
-@Composable
-private fun DayChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(text) },
-        modifier = Modifier.semantics { contentDescription = text },
-    )
-}
-
-/**
- * Where the task can go.
- *
- * The inbox leads, because it is the answer for anything not yet decided. The
- * places this device filed work into lately come next, lifted out of the main
- * list so nothing is offered twice, and everything else follows in the order the
- * project list is kept in.
- */
-@Composable
-private fun ProjectPicker(
-    state: QuickAddUiState,
-    callbacks: QuickAddCallbacks,
-    modifier: Modifier = Modifier,
-) {
-    val searchLabel = stringResource(R.string.dialog_quickAdd_searchProjectsPlaceholder)
-    Column(modifier = modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = state.projectQuery,
-            onValueChange = callbacks.onProjectQuery,
-            placeholder = { Text(searchLabel) },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .semantics { contentDescription = searchLabel },
-        )
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
-            contentPadding = PaddingValues(bottom = 24.dp),
-        ) {
-            item {
-                PickerRow(title = stringResource(R.string.nav_inbox)) { callbacks.onChooseProject(null) }
-            }
-            if (state.recentProjects.isNotEmpty()) {
-                item { PickerHeading(stringResource(R.string.native_quickAdd_recentProjects)) }
-                items(state.recentProjects, key = { "recent-${it.localId}" }) { project ->
-                    PickerRow(project.title) { callbacks.onChooseProject(project.localId) }
-                }
-                item { HorizontalDivider() }
-            }
-            items(state.otherProjects, key = { it.localId }) { project ->
-                PickerRow(project.title) { callbacks.onChooseProject(project.localId) }
-            }
-            if (state.recentProjects.isEmpty() && state.otherProjects.isEmpty()) {
-                item { PickerHeading(stringResource(R.string.dialog_quickAdd_noMatches)) }
-            }
-        }
-        TextButton(
-            onClick = { callbacks.onPickingProject(false) },
-            modifier = Modifier.align(Alignment.End).padding(horizontal = 8.dp, vertical = 4.dp),
-        ) { Text(stringResource(R.string.common_cancel)) }
-    }
-}
-
-@Composable
-private fun PickerHeading(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-}
-
-@Composable
-private fun PickerRow(
-    title: String,
-    onClick: () -> Unit,
-) {
-    ListItem(
-        headlineContent = { Text(title) },
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).semantics { contentDescription = title },
-    )
 }
 
 /** How much of the accent the auto-label chips are filled with. The web's `bg-primary/5`. */
