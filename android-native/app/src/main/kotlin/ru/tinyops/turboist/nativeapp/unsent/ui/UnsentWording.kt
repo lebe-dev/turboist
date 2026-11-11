@@ -71,6 +71,7 @@ fun labelFor(kind: OutboxOpKind?): Int =
         OutboxOpKind.TROIKI_RESET -> R.string.native_unsent_op_troikiReset
         OutboxOpKind.HARPOON_ATTACH -> R.string.native_unsent_op_harpoonAttach
         OutboxOpKind.HARPOON_DETACH -> R.string.native_unsent_op_harpoonDetach
+        OutboxOpKind.TODAY_LOCK -> R.string.native_unsent_op_todayLock
     }
 
 /** Why the server would not take the change, in one sentence. */
@@ -85,6 +86,7 @@ fun reasonFor(reason: UnsentReason): Int =
         UnsentReason.INVALID -> R.string.native_unsent_reason_invalid
         UnsentReason.CONFLICT -> R.string.native_unsent_reason_conflict
         UnsentReason.NOT_ALLOWED -> R.string.native_unsent_reason_notAllowed
+        UnsentReason.TODAY_LOCKED -> R.string.task_toast_todayLocked
         UnsentReason.UNSENDABLE -> R.string.native_unsent_reason_unsendable
         UnsentReason.SERVER_ERROR -> R.string.native_unsent_reason_serverError
         UnsentReason.UNKNOWN -> R.string.native_unsent_reason_unknown

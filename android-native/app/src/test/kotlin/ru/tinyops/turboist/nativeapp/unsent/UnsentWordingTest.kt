@@ -52,6 +52,7 @@ class UnsentWordingTest {
     @Test
     fun `the refusals a user can act on are told apart`() {
         assertEquals(UnsentReason.BLOCKED, UnsentReason.of(ApiErrorCodes.TASK_BLOCKED))
+        assertEquals(UnsentReason.TODAY_LOCKED, UnsentReason.of(ApiErrorCodes.TODAY_LOCKED))
         assertEquals(UnsentReason.LIMIT_REACHED, UnsentReason.of(ApiErrorCodes.LIMIT_EXCEEDED))
         assertEquals(UnsentReason.TROIKI_SLOT_FULL, UnsentReason.of(ApiErrorCodes.TROIKI_SLOT_FULL))
         assertEquals(UnsentReason.PLACEMENT_REFUSED, UnsentReason.of(ApiErrorCodes.FORBIDDEN_PLACEMENT))

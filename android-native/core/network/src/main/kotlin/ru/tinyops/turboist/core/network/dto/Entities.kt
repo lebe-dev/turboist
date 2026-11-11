@@ -183,6 +183,7 @@ data class UserSettingsDto(
     val troikiEnabled: Boolean = false,
     val maxPinnedTasks: Int = 0,
     val maxPinnedProjects: Int = 0,
+    val todayLockUntil: String? = null,
 )
 
 @Serializable

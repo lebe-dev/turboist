@@ -827,6 +827,7 @@ class TaskDetailPresenter(
             outgoing.emit(
                 when (refusal) {
                     is WriteRefused.TaskBlocked -> TaskListMessage.BLOCKED
+                    is WriteRefused.TodayLocked -> TaskListMessage.TODAY_LOCKED
                     is WriteRefused.RelationExists -> TaskListMessage.RELATION_EXISTS
                     is WriteRefused.RelationCycle -> TaskListMessage.RELATION_CYCLE
                     else -> onFailure

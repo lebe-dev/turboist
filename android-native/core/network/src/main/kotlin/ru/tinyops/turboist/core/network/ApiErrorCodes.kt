@@ -23,6 +23,7 @@ object ApiErrorCodes {
     const val RECURRENCE_INVALID = "recurrence_invalid"
     const val TROIKI_SLOT_FULL = "troiki_slot_full"
     const val TASK_BLOCKED = "task_blocked"
+    const val TODAY_LOCKED = "today_locked"
     const val TOTP_INVALID_CODE = "totp_invalid_code"
     const val TOTP_ALREADY_ENABLED = "totp_already_enabled"
     const val TOTP_NOT_ENABLED = "totp_not_enabled"

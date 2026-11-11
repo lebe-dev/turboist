@@ -3,10 +3,12 @@ package ru.tinyops.turboist.nativeapp.navigation
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
@@ -117,6 +119,9 @@ class AppNavigationTest {
             // The jump pair is read from a store of the device's own, so the
             // control that draws it stands in for itself; this walk never uses it.
             harpoon = { _, _ -> },
+            // The Today lock reads the replicated preferences; the walk only
+            // checks that it is offered on the Today screen and nowhere else.
+            todayLock = { Box(modifier = Modifier.testTag(TODAY_LOCK_STUB_TAG)) },
             // The capture surface reads the replica for the places a task can go,
             // so it stands in for itself here. Nothing in this walk opens it.
             quickAdd = { _, _, _ -> },
@@ -264,6 +269,25 @@ class AppNavigationTest {
                 "the navigation bar entry ${destination.name} did not open the destination it names",
             )
         }
+    }
+
+    @Test
+    fun `the Today lock is offered on the Today screen and nowhere else`() {
+        launchShell()
+        val tapBar: (DrawerDestination) -> Unit = { destination ->
+            compose
+                .onNode(
+                    hasText(text(destination.labelRes)) and hasClickAction() and
+                        hasAnyAncestor(hasTestTag(BOTTOM_BAR_TAG)),
+                ).performClick()
+            compose.waitForIdle()
+        }
+
+        tapBar(DrawerDestination.Today)
+        compose.onNodeWithTag(TODAY_LOCK_STUB_TAG).assertExists()
+
+        tapBar(DrawerDestination.Inbox)
+        compose.onNodeWithTag(TODAY_LOCK_STUB_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -527,3 +551,6 @@ class AppNavigationTest {
         assertEquals(RecentRef(SwitcherKind.PROJECT, 7), switcherSlot?.visiting)
     }
 }
+
+/** Stands in for the Today lock control in the top bar. */
+private const val TODAY_LOCK_STUB_TAG = "today-lock-stub"

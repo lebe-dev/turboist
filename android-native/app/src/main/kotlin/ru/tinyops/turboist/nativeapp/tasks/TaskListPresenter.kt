@@ -79,6 +79,9 @@ enum class TaskListMessage {
     /** The task cannot be completed while something still stands in its way. */
     BLOCKED,
 
+    /** The Today focus lock keeps the task out of the day: another day, or one of today's projects. */
+    TODAY_LOCKED,
+
     /** The two tasks are already linked that way, so there is nothing to add. */
     RELATION_EXISTS,
 
@@ -437,10 +440,11 @@ class TaskListPresenter(
      * read. A refusal is expected traffic — the device repeats the server's rules
      * precisely so the user meets them here — so it is reported, not thrown.
      *
-     * Only the blocked-task refusal is told apart, because it is the only one a
-     * list can provoke that the user can act on: something else has to be
-     * finished first. Every other refusal, and every unexpected failure, says the
-     * same thing to the user — the change did not happen — and inventing a
+     * Only the blocked-task and the Today-lock refusals are told apart, because
+     * they are the ones a list can provoke that the user can act on: something
+     * else has to be finished first, or the task belongs to another day. Every
+     * other refusal, and every unexpected failure, says the same thing to the
+     * user — the change did not happen — and inventing a
      * different sentence for each would be noise rather than help.
      */
     private suspend fun report(write: suspend () -> Unit) {
@@ -448,7 +452,11 @@ class TaskListPresenter(
             write()
         } catch (refusal: WriteRefused) {
             outgoing.emit(
-                if (refusal is WriteRefused.TaskBlocked) TaskListMessage.BLOCKED else TaskListMessage.FAILED,
+                when (refusal) {
+                    is WriteRefused.TaskBlocked -> TaskListMessage.BLOCKED
+                    is WriteRefused.TodayLocked -> TaskListMessage.TODAY_LOCKED
+                    else -> TaskListMessage.FAILED
+                },
             )
         } catch (failure: RuntimeException) {
             Faults.report("tasks", "A change to a task list failed", failure)

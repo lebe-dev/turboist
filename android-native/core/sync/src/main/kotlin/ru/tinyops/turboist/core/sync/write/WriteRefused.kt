@@ -34,6 +34,15 @@ sealed class WriteRefused(
             "the task is blocked by ${blockerLocalIds.size} open task(s)",
         )
 
+    /**
+     * The Today focus lock keeps the task out of the day: it would land on Today
+     * in a project with no open work there, or in the inbox. The lock ends at
+     * [untilMillis] and cannot be lifted before; the same task is fine for any
+     * other day.
+     */
+    class TodayLocked(val untilMillis: Long) :
+        WriteRefused(ApiErrorCodes.TODAY_LOCKED, "today is locked to the projects already planned for it")
+
     /** The pinned shelf is full. Its size is the user's own setting, read fresh on every pin. */
     class PinLimitReached(val limit: Int) :
         WriteRefused(ApiErrorCodes.LIMIT_EXCEEDED, "no more than $limit may be pinned")

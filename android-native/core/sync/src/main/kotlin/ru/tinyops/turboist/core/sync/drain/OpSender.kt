@@ -65,6 +65,7 @@ import ru.tinyops.turboist.core.sync.write.DuplicateTaskOp
 import ru.tinyops.turboist.core.sync.write.GroupTasksOp
 import ru.tinyops.turboist.core.sync.write.HarpoonTarget
 import ru.tinyops.turboist.core.sync.write.InstantiateTemplateOp
+import ru.tinyops.turboist.core.sync.write.LockTodayOp
 import ru.tinyops.turboist.core.sync.write.MoveTaskOp
 import ru.tinyops.turboist.core.sync.write.OpRef
 import ru.tinyops.turboist.core.sync.write.OutboxOp
@@ -280,6 +281,7 @@ class OpSender(
             is PatchUserStateOp -> settings.patchState(userState(op), key).outcome()
             StartTroikiOp -> troiki.start(key).outcome()
             ResetTroikiOp -> troiki.reset(key).outcome()
+            LockTodayOp -> settings.lockToday(key).outcome()
             is AttachHarpoonOp -> settings.attachHarpoon(harpoonRef(op.target, op.localId), key).outcome()
             is DetachHarpoonOp -> settings.detachHarpoon(harpoonRef(op.target, op.localId), key).outcome()
         }

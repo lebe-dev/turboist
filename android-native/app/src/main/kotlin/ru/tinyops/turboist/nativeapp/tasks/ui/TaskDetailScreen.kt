@@ -229,6 +229,7 @@ fun TaskDetailScreen(
     val context = LocalContext.current
     val undo = stringResource(R.string.view_undo)
     val blocked = stringResource(R.string.task_toast_blockedCannotComplete)
+    val todayLocked = stringResource(R.string.task_toast_todayLocked)
     val linkExists = stringResource(R.string.native_task_relationExists)
     val linkCycle = stringResource(R.string.native_task_relationCycle)
     val failed = stringResource(R.string.task_toast_failedUpdate)
@@ -236,11 +237,12 @@ fun TaskDetailScreen(
     val templateFailed = stringResource(R.string.task_actions_createTemplateFailed)
     val splitFailed = stringResource(R.string.task_toast_failedDecompose)
 
-    LaunchedEffect(messages, blocked, linkExists, linkCycle, failed) {
+    LaunchedEffect(messages, blocked, todayLocked, linkExists, linkCycle, failed) {
         messages.collect { message ->
             snackbars.showSnackbar(
                 when (message) {
                     TaskListMessage.BLOCKED -> blocked
+                    TaskListMessage.TODAY_LOCKED -> todayLocked
                     TaskListMessage.RELATION_EXISTS -> linkExists
                     TaskListMessage.RELATION_CYCLE -> linkCycle
                     TaskListMessage.TEMPLATE_CREATED -> templateCreated

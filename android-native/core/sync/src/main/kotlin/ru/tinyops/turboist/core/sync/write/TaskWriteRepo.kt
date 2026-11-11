@@ -113,28 +113,30 @@ class TaskWriteRepo(
             // inside it, and the server pins a task written into one the same way.
             // Matching that here means the chip is right from the first frame.
             val priority = rules.pinnedPriorityOf(placement.projectLocalId) ?: task.priority
-            val localId =
-                db.tasks().insert(
-                    TaskRow(
-                        title = task.title,
-                        description = task.description,
-                        inboxId = placement.inboxId,
-                        contextLocalId = placement.contextLocalId,
-                        projectLocalId = placement.projectLocalId,
-                        sectionLocalId = placement.sectionLocalId,
-                        parentLocalId = placement.parentLocalId,
-                        priority = priority,
-                        dueAt = task.dueAt,
-                        dueHasTime = task.dueHasTime,
-                        deadlineAt = task.deadlineAt,
-                        deadlineHasTime = task.deadlineHasTime,
-                        dayPart = task.dayPart,
-                        planState = task.planState,
-                        recurrenceRule = task.recurrenceRule,
-                        createdAt = at,
-                        updatedAt = at,
-                    ),
+            val newRow =
+                TaskRow(
+                    title = task.title,
+                    description = task.description,
+                    inboxId = placement.inboxId,
+                    contextLocalId = placement.contextLocalId,
+                    projectLocalId = placement.projectLocalId,
+                    sectionLocalId = placement.sectionLocalId,
+                    parentLocalId = placement.parentLocalId,
+                    priority = priority,
+                    dueAt = task.dueAt,
+                    dueHasTime = task.dueHasTime,
+                    deadlineAt = task.deadlineAt,
+                    deadlineHasTime = task.deadlineHasTime,
+                    dayPart = task.dayPart,
+                    planState = task.planState,
+                    recurrenceRule = task.recurrenceRule,
+                    createdAt = at,
+                    updatedAt = at,
                 )
+            // Work for today may only go into a project already on Today while
+            // the focus lock runs; any other day, or no date, is always fine.
+            rules.assertTodayAllows(before = null, after = newRow, now = at)
+            val localId = db.tasks().insert(newRow)
             val labelNames = task.labels ?: placement.inheritedLabelNames
             db.tasks().setLabels(
                 localId,
@@ -200,6 +202,7 @@ class TaskWriteRepo(
                     isComplex = edit.isComplex ?: row.isComplex,
                     updatedAt = at,
                 )
+            rules.assertTodayAllows(before = row, after = edited, now = at)
             db.tasks().update(edited)
             // Unticking an automatic label has to be stated, not merely left out
             // of the set: the rules run again on both sides and would put it
@@ -319,7 +322,11 @@ class TaskWriteRepo(
         writer.transaction {
             val at = writer.now()
             val row = requireTask(taskLocalId)
-            db.tasks().update(row.copy(status = TaskStatus.OPEN, completedAt = null, updatedAt = at))
+            val reopened = row.copy(status = TaskStatus.OPEN, completedAt = null, updatedAt = at)
+            // A task due today coming back open would take its project into a
+            // locked Today, exactly as scheduling it there would.
+            rules.assertTodayAllows(before = row, after = reopened, now = at)
+            db.tasks().update(reopened)
             val opId = writer.enqueue(UncompleteTaskOp(taskLocalId), ReplicaEntityKind.TASK, taskLocalId)
             QueuedWrite(opId, taskLocalId)
         }
@@ -354,7 +361,7 @@ class TaskWriteRepo(
             val at = writer.now()
             val row = requireTask(taskLocalId)
             val placement = placementFor(destination)
-            db.tasks().update(
+            val moved =
                 row.copy(
                     inboxId = placement.inboxId,
                     contextLocalId = placement.contextLocalId,
@@ -362,8 +369,12 @@ class TaskWriteRepo(
                     sectionLocalId = placement.sectionLocalId,
                     parentLocalId = placement.parentLocalId,
                     updatedAt = at,
-                ),
-            )
+                )
+            // A task standing on Today carries the day with it: moving it into a
+            // project with nothing else there would take that project into a
+            // locked Today.
+            rules.assertTodayAllows(before = row, after = moved, now = at)
+            db.tasks().update(moved)
             placement.projectLocalId?.let { projectLocalId ->
                 rules.pinnedPriorityOf(projectLocalId)?.let { rules.pinProjectPriority(projectLocalId, it, at) }
             }
@@ -441,7 +452,14 @@ class TaskWriteRepo(
         dueHasTime: Boolean = false,
     ): QueuedWrite =
         writer.transaction {
-            requireTask(taskLocalId)
+            val source = requireTask(taskLocalId)
+            // The copy is a new open task where the source sits, due when asked
+            // or when the source is: refused the same way creating it would be.
+            rules.assertTodayAllows(
+                before = null,
+                after = source.copy(localId = 0, status = TaskStatus.OPEN, dueAt = dueAt ?: source.dueAt),
+                now = writer.now(),
+            )
             val op = DuplicateTaskOp(taskLocalId, WireTime.formatOrNull(dueAt), dueHasTime)
             val opId = writer.enqueue(op, ReplicaEntityKind.TASK, taskLocalId)
             QueuedWrite(opId, taskLocalId)
@@ -638,9 +656,10 @@ class TaskWriteRepo(
             val at = writer.now()
             val placement = placementFor(destination)
             val moved = mutableListOf<Long>()
+            val todayLocked = mutableListOf<Long>()
             for (localId in taskLocalIds.distinct()) {
                 val row = db.tasks().byLocalId(localId) ?: continue
-                db.tasks().update(
+                val next =
                     row.copy(
                         inboxId = placement.inboxId,
                         contextLocalId = placement.contextLocalId,
@@ -648,13 +667,23 @@ class TaskWriteRepo(
                         sectionLocalId = placement.sectionLocalId,
                         parentLocalId = placement.parentLocalId,
                         updatedAt = at,
-                    ),
-                )
+                    )
+                // A task the Today lock keeps out of the destination is left out
+                // of the batch, as the server leaves it out, so the rest still move.
+                try {
+                    rules.assertTodayAllows(before = row, after = next, now = at)
+                } catch (_: WriteRefused.TodayLocked) {
+                    todayLocked += localId
+                    continue
+                }
+                db.tasks().update(next)
                 moved += localId
             }
-            if (moved.isEmpty()) return@transaction BulkQueuedWrite(null, moved, emptyMap())
+            if (moved.isEmpty()) {
+                return@transaction BulkQueuedWrite(null, moved, emptyMap(), todayLocked = todayLocked)
+            }
             val opId = writer.enqueue(BulkMoveTasksOp(moved, destination), ReplicaEntityKind.TASK)
-            BulkQueuedWrite(opId, moved, emptyMap())
+            BulkQueuedWrite(opId, moved, emptyMap(), todayLocked = todayLocked)
         }
 
     /**
@@ -1020,6 +1049,8 @@ data class BulkQueuedWrite(
     val accepted: List<Long>,
     val refused: Map<Long, List<Long>>,
     val locked: List<Long> = emptyList(),
+    /** Tasks left out because the Today focus lock keeps them out of where they were sent. */
+    val todayLocked: List<Long> = emptyList(),
 )
 
 /** Where a task sits, as columns rather than as a choice. */

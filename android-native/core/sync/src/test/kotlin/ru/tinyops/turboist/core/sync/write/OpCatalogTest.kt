@@ -197,6 +197,7 @@ class OpCatalogTest {
                 ResetTroikiOp,
                 AttachHarpoonOp(HarpoonTarget.TASK, 1),
                 DetachHarpoonOp(HarpoonTarget.PROJECT, 1),
+                LockTodayOp,
             )
     }
 }

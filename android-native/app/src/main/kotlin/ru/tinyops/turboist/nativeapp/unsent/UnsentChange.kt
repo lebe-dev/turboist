@@ -38,6 +38,9 @@ enum class UnsentReason {
     /** The session was not allowed to make this change. */
     NOT_ALLOWED,
 
+    /** The Today focus lock kept the task out of the day. */
+    TODAY_LOCKED,
+
     /** The change could never be turned into a request, so it was never sent. */
     UNSENDABLE,
 
@@ -60,6 +63,7 @@ enum class UnsentReason {
         fun of(errorCode: String): UnsentReason =
             when (errorCode) {
                 ApiErrorCodes.TASK_BLOCKED -> BLOCKED
+                ApiErrorCodes.TODAY_LOCKED -> TODAY_LOCKED
                 ApiErrorCodes.TARGET_GONE, ApiErrorCodes.NOT_FOUND -> TARGET_GONE
                 ApiErrorCodes.LIMIT_EXCEEDED -> LIMIT_REACHED
                 ApiErrorCodes.FORBIDDEN_PLACEMENT -> PLACEMENT_REFUSED

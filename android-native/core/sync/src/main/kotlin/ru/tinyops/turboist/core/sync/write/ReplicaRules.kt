@@ -6,6 +6,7 @@ import ru.tinyops.turboist.core.model.AppSettings
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.TaskStatus
+import ru.tinyops.turboist.core.model.TodayLock
 import ru.tinyops.turboist.core.model.TroikiCategory
 import ru.tinyops.turboist.core.model.UserSettings
 import ru.tinyops.turboist.core.model.view.openBlockerLocalIds
@@ -55,6 +56,35 @@ class ReplicaRules(private val db: TurboistDatabase) {
                 .getOrElse { return AppSettings() }
         return dto.toAppSettings()
     }
+
+    // --- the Today focus lock -------------------------------------------------
+
+    /**
+     * Refuses a write that would take a task into a locked Today.
+     *
+     * [before] is the row as it stands (`null` for a task being created) and
+     * [after] the row as the write leaves it; [now] is the write's own clock. The
+     * rule is [TodayLock]'s, shared with nothing else here, so the answer is the
+     * one the server will give: the projects already on Today are read live from
+     * the replica, leaving this task out of the count.
+     */
+    suspend fun assertTodayAllows(
+        before: TaskRow?,
+        after: TaskRow,
+        now: Long,
+    ) {
+        val until = userSettings().todayLockUntil ?: return
+        if (!TodayLock.isActive(until, now)) return
+        val from = before?.lockPlacement()
+        val to = after.lockPlacement()
+        // Asked first against no projects at all: a write that passes even then
+        // passes whatever is on Today, and the replica is never read for it.
+        if (!TodayLock.refuses(until, now, from, to) { emptySet() }) return
+        val onToday = db.tasks().todayProjectLocalIds(until, after.localId).toSet()
+        if (TodayLock.refuses(until, now, from, to) { onToday }) throw WriteRefused.TodayLocked(until)
+    }
+
+    private fun TaskRow.lockPlacement() = TodayLock.Placement(projectLocalId, dueAt, status == TaskStatus.OPEN)
 
     // --- blockers ------------------------------------------------------------
 

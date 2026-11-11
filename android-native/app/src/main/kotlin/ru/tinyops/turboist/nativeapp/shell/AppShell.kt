@@ -352,6 +352,8 @@ private fun ShellScaffold(
     var switcherOpen by rememberSaveable { mutableStateOf(false) }
     val currentEntry by navController.currentBackStackEntryAsState()
     val captureButton = currentDestination.allowsCaptureButton() && !screenOwnsChrome && !chrome.selectionActive
+    // The Today screen leads the capture sheet with its projects and carries the focus lock.
+    val onTodayScreen = currentDestination?.hasRoute(TodayRoute::class) == true
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         // A screen that draws its own bar insets it from the status bar itself;
@@ -384,6 +386,9 @@ private fun ShellScaffold(
                     }
                 }
                 val actions: @Composable RowScope.() -> Unit = {
+                    // The focus lock belongs to the day it locks, so it is offered
+                    // on the Today screen and nowhere else.
+                    TodayLockSlot(shown = onTodayScreen, screens = screens)
                     // Picking several tasks used to hide behind a swipe on a row;
                     // the bar is where it can be found without knowing the gesture.
                     val beginSelection = chrome.beginSelection
@@ -465,7 +470,7 @@ private fun ShellScaffold(
         // sheet it raises has to survive moving between destinations.
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             AppNavHost(navController = navController, screens = screens)
-            screens.quickAdd(captureButton, openProject, currentDestination?.hasRoute(TodayRoute::class) == true)
+            screens.quickAdd(captureButton, openProject, onTodayScreen)
             screens.quickSwitcher(
                 QuickSwitcherSlot(
                     open = switcherOpen,
@@ -557,3 +562,12 @@ private fun titleResFor(destination: NavDestination?): Int =
         .firstOrNull { (routeClass, _) -> destination?.hasRoute(routeClass) == true }
         ?.value
         ?: R.string.native_app_name
+
+/** The focus lock control, drawn only while the Today screen is up. */
+@Composable
+private fun TodayLockSlot(
+    shown: Boolean,
+    screens: AppScreens,
+) {
+    if (shown) screens.todayLock()
+}

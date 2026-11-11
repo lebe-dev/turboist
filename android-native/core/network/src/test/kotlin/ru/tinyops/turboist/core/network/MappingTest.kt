@@ -199,6 +199,28 @@ class MappingTest {
     }
 
     @Test
+    fun `the Today lock's end is read as an instant, and its absence as no lock`() {
+        assertEquals(
+            1_710_028_800_000L,
+            UserSettingsDto(todayLockUntil = "2024-03-10T00:00:00.000Z").toUserSettings().todayLockUntil,
+        )
+        assertNull(UserSettingsDto().toUserSettings().todayLockUntil)
+        assertNull(UserSettingsDto(todayLockUntil = "not a time").toUserSettings().todayLockUntil)
+    }
+
+    @Test
+    fun `the Today lock's end comes through a settings document as the server writes it`() {
+        val dto =
+            TurboistJson.decodeFromString(
+                UserSettingsDto.serializer(),
+                """{"locale":"ru","todayLockUntil":"2024-03-10T00:00:00.000Z"}""",
+            )
+        assertEquals(1_710_028_800_000L, dto.toUserSettings().todayLockUntil)
+        val never = TurboistJson.decodeFromString(UserSettingsDto.serializer(), """{"todayLockUntil":null}""")
+        assertNull(never.toUserSettings().todayLockUntil)
+    }
+
+    @Test
     fun `a pinning cap written before the setting existed falls back to the default`() {
         val settings = UserSettingsDto(maxPinnedTasks = 0, maxPinnedProjects = 25).toUserSettings()
 

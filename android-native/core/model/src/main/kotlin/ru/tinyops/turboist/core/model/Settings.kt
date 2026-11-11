@@ -45,6 +45,9 @@ data class HarpoonRef(
  * @property calendarHidePastEvents defaults to on, matching what the server fills
  *   in for a blob written before the setting existed.
  * @property harpoon the ordered jump pair; slot order is significant.
+ * @property todayLockUntil when the Today focus lock ends, in epoch milliseconds,
+ *   or `null` if it was never turned on; a moment already past means no lock
+ *   runs (see [TodayLock]). Written only by the lock action, never by an edit.
  */
 data class UserSettings(
     val weeklyUnplannedExcludedLabelIds: List<Long> = emptyList(),
@@ -60,4 +63,5 @@ data class UserSettings(
     val maxPinnedTasks: Int = DEFAULT_MAX_PINNED,
     val maxPinnedProjects: Int = DEFAULT_MAX_PINNED,
     val harpoon: List<HarpoonRef> = emptyList(),
+    val todayLockUntil: Long? = null,
 )

@@ -13,8 +13,9 @@ import ru.tinyops.turboist.core.sync.write.TaskDestination
  * action half failed.
  *
  * [leftLocked] counts the ones the change was never the user's to make — a
- * project standing in the daily plan decides the priority of its work — which is
- * a different sentence again: there is nothing to wait for and nothing to retry.
+ * project standing in the daily plan decides the priority of its work, or the
+ * Today focus lock keeps a task out of a project for the day — which is a
+ * different sentence again: there is nothing to wait for and nothing to retry.
  */
 data class BulkChange(
     val changed: Int,

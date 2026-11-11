@@ -13,11 +13,15 @@ import ru.tinyops.turboist.core.database.sync.ReplicaEntityKind
 import ru.tinyops.turboist.core.model.AutoLabelRule
 import ru.tinyops.turboist.core.model.LinkTitleRule
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
+import ru.tinyops.turboist.core.model.TodayLock
+import ru.tinyops.turboist.core.model.WireTime
 import ru.tinyops.turboist.core.network.TurboistJson
 import ru.tinyops.turboist.core.network.dto.AutoLabelRuleDto
 import ru.tinyops.turboist.core.network.dto.LinkTitleRuleDto
 import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
 import ru.tinyops.turboist.core.network.dto.ProjectSuggestionRuleDto
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * Writes to the three preference documents, and to the jump pair.
@@ -32,7 +36,33 @@ import ru.tinyops.turboist.core.network.dto.ProjectSuggestionRuleDto
 class SettingsWriteRepo(
     private val db: TurboistDatabase,
     private val writer: OutboxWriter,
+    private val zone: ZoneId = ZoneId.systemDefault(),
 ) {
+    /**
+     * Turns on the Today focus lock until the next midnight.
+     *
+     * The end written into the stored document is this device's midnight, so
+     * the lock holds from the tap even with no network. It is the server's
+     * midnight that counts, and the document the next pull brings replaces this
+     * guess with it. A lock already running keeps its end: locking twice must
+     * not move it.
+     */
+    suspend fun lockToday(): QueuedWrite =
+        writer.transaction {
+            val at = writer.now()
+            val running = ReplicaRules(db).userSettings().todayLockUntil?.takeIf { TodayLock.isActive(it, at) }
+            if (running == null) {
+                val midnight =
+                    Instant.ofEpochMilli(at).atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone)
+                        .toInstant().toEpochMilli()
+                val changed = JsonObject(mapOf("todayLockUntil" to JsonPrimitive(WireTime.format(midnight))))
+                val merged = merge(db.settings().userSettings()?.payload, changed)
+                db.settings().saveUserSettings(UserSettingsRow(payload = merged, updatedAt = at))
+            }
+            val opId = writer.enqueue(LockTodayOp, ReplicaEntityKind.USER_SETTINGS)
+            QueuedWrite(opId, NO_TARGET_ROW)
+        }
+
     /**
      * Changes some of the user's own preferences.
      *

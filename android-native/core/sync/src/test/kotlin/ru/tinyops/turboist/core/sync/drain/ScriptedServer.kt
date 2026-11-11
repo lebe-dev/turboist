@@ -175,6 +175,7 @@ class ScriptedServer(private val now: Long) : Dispatcher() {
         if (path == BULK_COMPLETE) return bulkComplete(body)
         if (path == BULK_MOVE || path == BULK_PRIORITY) return bulkTouch(body)
         if (path == GROUP) return group(body)
+        if (path == TODAY_LOCK) return HTTP_OK to """{"lockedUntil":"${WireTime.format(now)}"}"""
         if (path.startsWith(TEMPLATES)) return instantiate(request, path)
         val segments = path.removePrefix("$API_PREFIX/tasks/").split("/")
         val id = segments.firstOrNull()?.toLongOrNull() ?: return notFound()
@@ -483,6 +484,7 @@ class ScriptedServer(private val now: Long) : Dispatcher() {
         const val BULK_MOVE: String = "$API_PREFIX/tasks/bulk/move"
         const val BULK_PRIORITY: String = "$API_PREFIX/tasks/bulk/priority"
         const val GROUP: String = "$API_PREFIX/tasks/group"
+        const val TODAY_LOCK: String = "$API_PREFIX/today/lock"
         const val TEMPLATES: String = "$API_PREFIX/task-templates"
 
         /** Keeps a template's checklist ids apart from every other template's. */

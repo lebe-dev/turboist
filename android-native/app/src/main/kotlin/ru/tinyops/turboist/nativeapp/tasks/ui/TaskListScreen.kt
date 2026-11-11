@@ -64,13 +64,15 @@ fun TaskListScreen(
 ) {
     val snackbars = remember { SnackbarHostState() }
     val blocked = stringResource(R.string.task_toast_blockedCannotComplete)
+    val todayLocked = stringResource(R.string.task_toast_todayLocked)
     val failed = stringResource(R.string.task_toast_failedUpdate)
 
-    LaunchedEffect(messages, blocked, failed) {
+    LaunchedEffect(messages, blocked, todayLocked, failed) {
         messages.collect { message ->
             snackbars.showSnackbar(
                 when (message) {
                     TaskListMessage.BLOCKED -> blocked
+                    TaskListMessage.TODAY_LOCKED -> todayLocked
                     // A list does not link tasks, make templates out of them or
                     // split them, so none of those answers can reach this screen.
                     // They are still answered rather than left to fall through as
@@ -139,6 +141,13 @@ private fun bulkWording(): (BulkOutcome) -> String {
                     R.string.task_toast_bulkCompletedBlocked,
                     outcome.changed.toString(),
                     outcome.leftBlocked.toString(),
+                )
+
+            outcome.action == BulkAction.MOVED && outcome.leftLocked > 0 ->
+                resources.getString(
+                    R.string.native_task_bulkMovedTodayLocked,
+                    outcome.changed.toString(),
+                    outcome.leftLocked.toString(),
                 )
 
             outcome.action == BulkAction.PRIORITISED && outcome.leftLocked > 0 ->

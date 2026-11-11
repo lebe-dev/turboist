@@ -91,6 +91,7 @@ import ru.tinyops.turboist.core.network.dto.PatchUserSettingsRequest
  * | `troiki.reset` | POST | `api/v1/troiki/reset` |
  * | `harpoon.attach` | POST | `api/v1/harpoon/attach` |
  * | `harpoon.detach` | POST | `api/v1/harpoon/detach` |
+ * | `today.lock` | POST | `api/v1/today/lock` |
  *
  * ## What is deliberately not here
  *
@@ -167,6 +168,7 @@ enum class OutboxOpKind(val stored: String) {
     TROIKI_RESET(OpNames.TROIKI_RESET),
     HARPOON_ATTACH(OpNames.HARPOON_ATTACH),
     HARPOON_DETACH(OpNames.HARPOON_DETACH),
+    TODAY_LOCK(OpNames.TODAY_LOCK),
     ;
 
     /**
@@ -246,6 +248,7 @@ object OpNames {
     const val STATE_PATCH = "state.patch"
     const val TROIKI_START = "troiki.start"
     const val TROIKI_RESET = "troiki.reset"
+    const val TODAY_LOCK = "today.lock"
     const val HARPOON_ATTACH = "harpoon.attach"
     const val HARPOON_DETACH = "harpoon.detach"
 }
@@ -1002,6 +1005,16 @@ data class DetachHarpoonOp(
     override val kind: OutboxOpKind get() = OutboxOpKind.HARPOON_DETACH
 }
 
+/**
+ * Turns on the Today focus lock. The server decides when it ends (its own next
+ * midnight) and keeps a running lock as it is, so the op carries nothing.
+ */
+@Serializable
+@SerialName(OpNames.TODAY_LOCK)
+data object LockTodayOp : OutboxOp {
+    override val kind: OutboxOpKind get() = OutboxOpKind.TODAY_LOCK
+}
+
 // --- the endpoint mapping ---------------------------------------------------
 
 private const val TASKS = "api/v1/tasks"
@@ -1090,6 +1103,7 @@ fun OutboxOp.endpoint(): OpEndpoint =
         ResetTroikiOp -> OpEndpoint(OpMethod.POST, "api/v1/troiki/reset")
         is AttachHarpoonOp -> OpEndpoint(OpMethod.POST, "api/v1/harpoon/attach")
         is DetachHarpoonOp -> OpEndpoint(OpMethod.POST, "api/v1/harpoon/detach")
+        LockTodayOp -> OpEndpoint(OpMethod.POST, "api/v1/today/lock")
     }
 
 /**

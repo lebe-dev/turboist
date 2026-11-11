@@ -13,6 +13,7 @@ import ru.tinyops.turboist.core.model.LinkTitlesSettings
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.model.UserSettings
 import ru.tinyops.turboist.core.model.UserState
+import ru.tinyops.turboist.core.model.WireTime
 import ru.tinyops.turboist.core.model.normalizeMaxPinned
 import ru.tinyops.turboist.core.network.dto.AppSettingsDto
 import ru.tinyops.turboist.core.network.dto.AutoLabelRuleDto
@@ -51,6 +52,7 @@ fun UserSettingsDto.toUserSettings(harpoon: List<HarpoonRef> = emptyList()): Use
         maxPinnedTasks = normalizeMaxPinned(maxPinnedTasks),
         maxPinnedProjects = normalizeMaxPinned(maxPinnedProjects),
         harpoon = harpoon,
+        todayLockUntil = WireTime.parseOrNull(todayLockUntil),
     )
 
 /** The jump pair. Its ids are server ids for the same reason the settings blob's are. */

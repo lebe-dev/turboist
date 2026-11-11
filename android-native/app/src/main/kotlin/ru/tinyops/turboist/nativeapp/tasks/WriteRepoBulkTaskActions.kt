@@ -34,7 +34,12 @@ class WriteRepoBulkTaskActions
         override suspend fun move(
             taskLocalIds: List<Long>,
             destination: TaskDestination,
-        ): BulkChange = BulkChange(tasks.bulkMove(taskLocalIds, destination).accepted.size)
+        ): BulkChange {
+            val written = tasks.bulkMove(taskLocalIds, destination)
+            // A task the Today focus lock keeps out of the destination was left
+            // where it is: nothing to retry today, so it reads as "not theirs".
+            return BulkChange(changed = written.accepted.size, leftLocked = written.todayLocked.size)
+        }
 
         override suspend fun prioritise(
             taskLocalIds: List<Long>,

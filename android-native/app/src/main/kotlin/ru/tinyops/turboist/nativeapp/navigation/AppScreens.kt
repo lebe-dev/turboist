@@ -34,6 +34,7 @@ import ru.tinyops.turboist.nativeapp.tasks.ui.TodayScreen
 import ru.tinyops.turboist.nativeapp.tasks.ui.TomorrowScreen
 import ru.tinyops.turboist.nativeapp.tasks.ui.WeekScreen
 import ru.tinyops.turboist.nativeapp.templates.ui.TemplatesScreen
+import ru.tinyops.turboist.nativeapp.todaylock.ui.TodayLockControl
 import ru.tinyops.turboist.nativeapp.troiki.ui.TroikiScreen
 import ru.tinyops.turboist.nativeapp.unsent.ui.UnsentChangesScreen
 
@@ -183,6 +184,12 @@ class AppScreens(
     val harpoon: @Composable (HarpoonEntry?, (HarpoonEntry) -> Unit) -> Unit = { current, open ->
         HarpoonAction(current = current, onOpen = open)
     },
+    /**
+     * The Today focus lock, in the top bar while the Today screen is up. It reads
+     * the replicated preferences and queues a write, so a check about navigation
+     * puts a stand-in here.
+     */
+    val todayLock: @Composable () -> Unit = { TodayLockControl() },
     /**
      * The capture surface — the button that opens it and the sheet it opens —
      * drawn over whichever screen is on top. It is an entry here rather than a

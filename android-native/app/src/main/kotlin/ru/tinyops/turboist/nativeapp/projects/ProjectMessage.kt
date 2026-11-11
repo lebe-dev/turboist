@@ -18,6 +18,9 @@ sealed interface ProjectMessage {
     /** The task cannot be completed while something still stands in its way. */
     data object Blocked : ProjectMessage
 
+    /** The Today focus lock keeps the task out of the day. */
+    data object TodayLocked : ProjectMessage
+
     /** The pinned shelf is full; [limit] is the user's own setting for it. */
     data class PinLimitReached(val limit: Int) : ProjectMessage
 
@@ -49,6 +52,7 @@ internal suspend fun MutableSharedFlow<ProjectMessage>.reporting(write: suspend 
         emit(
             when (refusal) {
                 is WriteRefused.TaskBlocked -> ProjectMessage.Blocked
+                is WriteRefused.TodayLocked -> ProjectMessage.TodayLocked
                 is WriteRefused.PinLimitReached -> ProjectMessage.PinLimitReached(refusal.limit)
                 is WriteRefused.TroikiSlotFull -> ProjectMessage.TroikiSlotFull(refusal.capacity)
                 is WriteRefused.RelationExists -> ProjectMessage.RelationExists

@@ -111,6 +111,7 @@ fun troikiLabel(category: TroikiCategory): Int? =
 fun projectMessageText(message: ProjectMessage): String =
     when (message) {
         is ProjectMessage.Blocked -> stringResource(R.string.task_toast_blockedCannotComplete)
+        is ProjectMessage.TodayLocked -> stringResource(R.string.task_toast_todayLocked)
         is ProjectMessage.PinLimitReached -> stringResource(R.string.native_project_pinLimit, message.limit)
         is ProjectMessage.TroikiSlotFull -> stringResource(R.string.native_project_troikiFull, message.capacity)
         is ProjectMessage.RelationExists -> stringResource(R.string.native_task_relationExists)

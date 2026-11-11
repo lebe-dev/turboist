@@ -40,6 +40,16 @@ interface SettingsApi {
         @Header(ApiHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
     ): Response<UserSettingsDto>
 
+    /**
+     * Turns on the Today focus lock until the next midnight in the server's
+     * timezone. Answers `{"lockedUntil": …}`; the replica learns the same end
+     * from the settings document on the next catch-up, so the answer is left raw.
+     */
+    @POST("api/v1/today/lock")
+    suspend fun lockToday(
+        @Header(ApiHeaders.IDEMPOTENCY_KEY) idempotencyKey: String? = null,
+    ): Response<JsonObject>
+
     @GET("api/v1/app-settings")
     suspend fun appSettings(): AppSettingsDto
 

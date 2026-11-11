@@ -374,6 +374,20 @@ class TaskDetailPresenterTest {
         }
 
     @Test
+    fun `an edit the Today lock refuses says so rather than failing silently`() =
+        runTest {
+            val presenter = open(task(1))
+            val said = mutableListOf<TaskListMessage>()
+            backgroundScope.launch { presenter.messages.collect { said += it } }
+            actions.refuseWith = WriteRefused.TodayLocked(untilMillis = 0L)
+
+            presenter.setDueDate(LocalDate.of(2026, 3, 12), zone)
+            runCurrent()
+
+            assertEquals(listOf(TaskListMessage.TODAY_LOCKED), said)
+        }
+
+    @Test
     fun `any other refusal says only that the change did not happen`() =
         runTest {
             val presenter = open(task(1))
