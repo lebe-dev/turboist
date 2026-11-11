@@ -4,7 +4,9 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import ru.tinyops.turboist.nativeapp.quickadd.DataStoreProjectActivity
 import ru.tinyops.turboist.nativeapp.quickadd.DataStoreRecentProjects
+import ru.tinyops.turboist.nativeapp.quickadd.ProjectActivity
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddActions
 import ru.tinyops.turboist.nativeapp.quickadd.RecentProjects
 import ru.tinyops.turboist.nativeapp.quickadd.WriteRepoQuickAddActions
@@ -27,4 +29,8 @@ abstract class QuickAddModule {
     @Binds
     @Singleton
     abstract fun bindRecentProjects(recent: DataStoreRecentProjects): RecentProjects
+
+    @Binds
+    @Singleton
+    abstract fun bindProjectActivity(activity: DataStoreProjectActivity): ProjectActivity
 }

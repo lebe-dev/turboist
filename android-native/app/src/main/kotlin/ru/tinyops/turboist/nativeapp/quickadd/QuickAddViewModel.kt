@@ -28,6 +28,7 @@ class QuickAddViewModel
         repository: QuickAddRepository,
         recent: RecentProjects,
         recentLabels: RecentLabels,
+        activity: ProjectActivity,
         actions: QuickAddActions,
         requests: QuickAddRequests,
         clock: DayClock,
@@ -48,6 +49,7 @@ class QuickAddViewModel
                 clock.zone,
                 recentLabels,
                 clock::now,
+                activity = activity,
             )
 
         init {

@@ -12,6 +12,8 @@ import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.sync.write.TaskDestination
+import ru.tinyops.turboist.nativeapp.quickadd.FakeProjectActivity
+import ru.tinyops.turboist.nativeapp.quickadd.ProjectActivity
 import ru.tinyops.turboist.nativeapp.quickadd.RecordingQuickAddActions
 import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import ru.tinyops.turboist.nativeapp.tasks.task
@@ -45,12 +47,14 @@ class QuickSwitcherPresenterTest {
     private fun TestScope.presenterWith(
         repository: QuickSwitcherRepository,
         recent: RecentItems,
+        activity: ProjectActivity = ProjectActivity.None,
     ) = QuickSwitcherPresenter(
         scope = CoroutineScope(StandardTestDispatcher(testScheduler)),
         repository = repository,
         recentItems = recent,
         actions = actions,
         clock = clock,
+        activity = activity,
     )
 
     @Test
@@ -175,5 +179,45 @@ class QuickSwitcherPresenterTest {
             advanceUntilIdle()
 
             assertEquals(listOf(passport.ref, dacha.ref), recent.remembered)
+        }
+
+    @Test
+    fun `opening a project, or a task inside one, marks that project as worked with`() =
+        runTest {
+            val activity = FakeProjectActivity()
+            val inGarden =
+                SwitcherRow.TaskRow(
+                    task(2, title = "Prune roses", projectLocalId = 7),
+                    projectTitle = "Garden",
+                )
+            val presenter =
+                presenterWith(
+                    FakeQuickSwitcherRepository(rows = listOf(inGarden, passport)),
+                    FakeRecentItems(),
+                    activity,
+                )
+            val at = clock.now().toEpochMilli()
+
+            presenter.visit(dacha.ref)
+            presenter.visit(inGarden.ref)
+            presenter.visit(passport.ref)
+            advanceUntilIdle()
+
+            assertEquals(mapOf(5L to at, 7L to at), activity.touched)
+        }
+
+    @Test
+    fun `adding a task for today marks its project as worked with`() =
+        runTest {
+            val activity = FakeProjectActivity()
+            val presenter = presenterWith(FakeQuickSwitcherRepository(), FakeRecentItems(), activity)
+            presenter.open()
+            presenter.type("Water the beds")
+            advanceUntilIdle()
+
+            presenter.create(SwitcherTarget.Today(dacha.project))
+            advanceUntilIdle()
+
+            assertEquals(setOf(5L), activity.touched.keys)
         }
 }

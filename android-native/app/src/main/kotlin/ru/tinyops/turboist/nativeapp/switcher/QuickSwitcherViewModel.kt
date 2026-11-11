@@ -3,6 +3,7 @@ package ru.tinyops.turboist.nativeapp.switcher
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import ru.tinyops.turboist.nativeapp.quickadd.ProjectActivity
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddActions
 import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import javax.inject.Inject
@@ -16,6 +17,7 @@ class QuickSwitcherViewModel
         recentItems: RecentItems,
         actions: QuickAddActions,
         clock: DayClock,
+        activity: ProjectActivity,
     ) : ViewModel() {
         val presenter =
             QuickSwitcherPresenter(
@@ -24,5 +26,6 @@ class QuickSwitcherViewModel
                 recentItems = recentItems,
                 actions = actions,
                 clock = clock,
+                activity = activity,
             )
     }

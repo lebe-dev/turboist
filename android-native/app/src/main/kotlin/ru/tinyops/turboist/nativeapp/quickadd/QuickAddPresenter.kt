@@ -135,14 +135,21 @@ class QuickAddPresenter(
     private val recentLabels: RecentLabels = RecentLabels.None,
     private val now: () -> Instant = Instant::now,
     private val schedule: DayPartSchedule = DayPartSchedule.Default,
+    private val activity: ProjectActivity = ProjectActivity.None,
 ) {
     private val editing = MutableStateFlow(Editing())
     private val outgoing = MutableSharedFlow<QuickAddMessage>(extraBufferCapacity = 4)
 
     /** What the sheet renders. */
     val state: StateFlow<QuickAddUiState> =
-        combine(editing, workspace, recent.observe(), recentLabels.observe()) { edit, space, order, labelOrder ->
-            render(edit, space, order).copy(recentLabelOrder = labelOrder)
+        combine(
+            editing,
+            workspace,
+            recent.observe(),
+            recentLabels.observe(),
+            activity.observe(),
+        ) { edit, space, order, labelOrder, touched ->
+            render(edit, space, order, touched).copy(recentLabelOrder = labelOrder)
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), QuickAddUiState())
 
     /** What the sheet says back, once each. */
@@ -310,7 +317,10 @@ class QuickAddPresenter(
                 stopAfter(draft, pending, written)
                 return@launch
             }
-            draft.projectLocalId?.let { recent.remember(it) }
+            draft.projectLocalId?.let {
+                recent.remember(it)
+                activity.touch(it, now().toEpochMilli())
+            }
             // Only the labels picked by hand: the ones a title earned were never a choice.
             state.value.knownLabels
                 .filter { it.name in draft.labelNames }
@@ -372,6 +382,7 @@ class QuickAddPresenter(
         edit: Editing,
         space: QuickAddWorkspace,
         order: List<Long>,
+        touched: Map<Long, Long>,
     ): QuickAddUiState {
         val query = edit.projectQuery.trim()
         val offered =
@@ -402,7 +413,13 @@ class QuickAddPresenter(
                 space.appSettings.suggestedProjects(edit.draft.titles, space.projects, setOfNotNull(chosen)),
             todayProjects =
                 if (edit.offerTodayProjects || lockedToday) {
-                    space.todayProjectLocalIds.mapNotNull { id -> space.projects.firstOrNull { it.localId == id } }
+                    // The project the user was in last leads: the one they opened, or
+                    // opened a task of, or added to most recently on this device.
+                    byRecentActivity(
+                        space.todayProjectLocalIds.mapNotNull { id -> space.projects.firstOrNull { it.localId == id } },
+                        touched,
+                        Project::localId,
+                    )
                 } else {
                     emptyList()
                 },

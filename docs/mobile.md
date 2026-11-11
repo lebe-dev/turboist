@@ -1759,7 +1759,11 @@ web client applies by hiding those controls there.
 **Under the Today focus lock** (`docs/today-lock.md`) the project and the date are
 one decision, and the card treats them as one. Its heading says the lock is on, the
 "today" choice carries a padlock, and while the draft is for today the row of
-places is today's projects. A draft that would be refused — dated today, in a
+places is today's projects. That row (also shown when the sheet is opened from the
+Today screen) leads with the project this device worked with last — opened, opened
+one of its tasks, or added a task to — kept as a device-local time per project
+that is never synced and is cleared on sign-out; projects never touched follow in
+the plan's order. A draft that would be refused — dated today, in a
 project outside today's plan — is explained inside the card with the two ways out,
 another day or a project from the plan, and the save button waits until one is
 taken, since such a write is certain to be refused. The picker is cut the same

@@ -60,6 +60,29 @@ class FakeRecentProjects(
     }
 }
 
+/** The record of when each project was last worked with, in memory. */
+class FakeProjectActivity(
+    initial: Map<Long, Long> = emptyMap(),
+) : ProjectActivity {
+    private val activity = MutableStateFlow(initial)
+
+    /** The record as it stands, for a case that asserts about it. */
+    val touched: Map<Long, Long> get() = activity.value
+
+    override fun observe(): Flow<Map<Long, Long>> = activity
+
+    override suspend fun touch(
+        projectLocalId: Long,
+        at: Long,
+    ) {
+        activity.value = withProjectActivity(activity.value, projectLocalId, at)
+    }
+
+    override suspend fun clear() {
+        activity.value = emptyMap()
+    }
+}
+
 /** The remembered label order, in memory. */
 class FakeRecentLabels(
     initial: List<Long> = emptyList(),

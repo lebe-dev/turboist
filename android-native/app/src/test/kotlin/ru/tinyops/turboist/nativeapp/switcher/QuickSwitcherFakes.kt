@@ -27,6 +27,13 @@ class FakeQuickSwitcherRepository(
     private val rows: List<SwitcherRow> = emptyList(),
     private val matches: Map<String, SwitcherMatches> = emptyMap(),
 ) : QuickSwitcherRepository {
+    override suspend fun projectOfTask(taskLocalId: Long): Long? =
+        rows
+            .filterIsInstance<SwitcherRow.TaskRow>()
+            .firstOrNull { it.task.localId == taskLocalId }
+            ?.task
+            ?.projectLocalId
+
     val searches = mutableListOf<String>()
 
     override suspend fun search(typed: String): SwitcherMatches {

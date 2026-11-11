@@ -40,6 +40,7 @@ class QuickAddPresenterTest {
     private val actions = RecordingQuickAddActions()
     private val recent = FakeRecentProjects()
     private val recentLabels = FakeRecentLabels()
+    private val activity = FakeProjectActivity()
     private val zone: ZoneId = ZoneId.of("Europe/Berlin")
 
     private val workspace =
@@ -78,6 +79,7 @@ class QuickAddPresenterTest {
             zone = zone,
             recentLabels = recentLabels,
             now = { now },
+            activity = activity,
         )
 
     /**
@@ -481,6 +483,39 @@ class QuickAddPresenterTest {
             runCurrent()
             assertFalse(presenter.state.value.dueShiftedByLock)
             assertTrue(presenter.state.value.todayLockConflict)
+        }
+
+    @Test
+    fun `today's projects lead with the one worked with most recently`() =
+        runTest {
+            workspace.value = workspace.value.copy(todayProjectLocalIds = listOf(3L, 2L, 4L))
+            activity.touch(4L, at = 100L)
+            activity.touch(2L, at = 200L)
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open(QuickAddRequest(todayProjects = true))
+            runCurrent()
+            // Work, then Music, both touched; Garden never was and keeps its place after them.
+            assertEquals(listOf("Work", "Music", "Garden"), presenter.state.value.todayProjects.map { it.title })
+
+            activity.touch(3L, at = 300L)
+            runCurrent()
+            assertEquals(listOf("Garden", "Work", "Music"), presenter.state.value.todayProjects.map { it.title })
+        }
+
+    @Test
+    fun `adding a task to a project marks it as worked with`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+            presenter.open()
+            presenter.chooseProject(4L)
+            presenter.setTitles("Tune the guitar")
+            presenter.submit()
+            runCurrent()
+
+            assertEquals(setOf(4L), activity.touched.keys)
         }
 
     @Test

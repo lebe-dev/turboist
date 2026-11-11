@@ -9,6 +9,7 @@ import ru.tinyops.turboist.core.sync.drain.OutboxDrainer
 import ru.tinyops.turboist.nativeapp.calendar.CalendarCache
 import ru.tinyops.turboist.nativeapp.harpoon.HarpoonStore
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
+import ru.tinyops.turboist.nativeapp.quickadd.ProjectActivity
 import ru.tinyops.turboist.nativeapp.switcher.RecentItems
 import javax.inject.Inject
 import javax.inject.Provider
@@ -54,6 +55,7 @@ class RoomLocalReplica
         private val harpoon: HarpoonStore,
         private val recentLabels: RecentLabels,
         private val recentItems: RecentItems,
+        private val projectActivity: ProjectActivity,
         // Resolved only when asked: the drainer sits on the HTTP stack, whose
         // token refresh sits on the session layer that holds this replica.
         private val drainer: Provider<OutboxDrainer>,
@@ -89,6 +91,8 @@ class RoomLocalReplica
             recentLabels.clear()
             // The quick switcher's recents are local ids too, for the same reason.
             recentItems.clear()
+            // And so is the record of which projects were worked with lately.
+            projectActivity.clear()
         }
     }
 

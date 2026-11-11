@@ -26,6 +26,9 @@ interface QuickSwitcherRepository {
 
     /** The rows [refs] name, in the same order; a ref whose row is gone is dropped. */
     suspend fun resolve(refs: List<RecentRef>): List<SwitcherRow>
+
+    /** The project a task sits in, or `null` for the inbox or a task this device no longer holds. */
+    suspend fun projectOfTask(taskLocalId: Long): Long? = null
 }
 
 /**
@@ -67,6 +70,9 @@ class ReplicaQuickSwitcherRepository
                 }
             }
         }
+
+        override suspend fun projectOfTask(taskLocalId: Long): Long? =
+            tasksById(listOf(taskLocalId))[taskLocalId]?.projectLocalId
 
         private suspend fun tasksById(ids: List<Long>): Map<Long, Task> =
             if (ids.isEmpty()) {

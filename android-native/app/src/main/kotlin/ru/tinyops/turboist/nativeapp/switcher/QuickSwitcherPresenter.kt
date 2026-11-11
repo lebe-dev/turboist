@@ -19,6 +19,7 @@ import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
+import ru.tinyops.turboist.nativeapp.quickadd.ProjectActivity
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddActions
 import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import ru.tinyops.turboist.nativeapp.tasks.DayPartSchedule
@@ -84,6 +85,7 @@ class QuickSwitcherPresenter(
     private val actions: QuickAddActions,
     private val clock: DayClock,
     private val schedule: DayPartSchedule = DayPartSchedule.Default,
+    private val activity: ProjectActivity = ProjectActivity.None,
 ) {
     private val internal = MutableStateFlow(QuickSwitcherUiState())
     private val outbound = Channel<QuickSwitcherMessage>(Channel.BUFFERED)
@@ -126,7 +128,17 @@ class QuickSwitcherPresenter(
 
     /** A task or project was opened — from the panel or anywhere else in the app. */
     fun visit(ref: RecentRef) {
-        scope.launch { recentItems.visit(ref) }
+        scope.launch {
+            recentItems.visit(ref)
+            // Opening a project, or a task inside one, is working with that
+            // project: it is what orders today's projects in the capture sheet.
+            val project =
+                when (ref.kind) {
+                    SwitcherKind.PROJECT -> ref.localId
+                    SwitcherKind.TASK -> repository.projectOfTask(ref.localId)
+                }
+            project?.let { activity.touch(it, clock.now().toEpochMilli()) }
+        }
     }
 
     /** The user chose one of the two "add" rows. */
@@ -167,6 +179,7 @@ class QuickSwitcherPresenter(
                         TaskDestination.InProject(target.project.localId),
                         NewTask(title = title, dueAt = dueAt, dueHasTime = false, dayPart = part),
                     )
+                    activity.touch(target.project.localId, now.toEpochMilli())
                     QuickSwitcherMessage.AddedForToday(target.project.title)
                 }
             }
