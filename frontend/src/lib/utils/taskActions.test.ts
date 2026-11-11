@@ -20,6 +20,21 @@ describe('describeError', () => {
 		expect(describeError(err, 'Fallback')).toBe('Fallback');
 	});
 
+	it('explains a write the Today lock refused instead of the backend wording', () => {
+		const err = new ApiError(
+			'today_locked',
+			'today is locked to the projects already planned for it',
+			409,
+			{
+				lockedUntil: '2026-11-11T21:00:00.000Z',
+				projectId: 4
+			}
+		);
+		expect(describeError(err, 'Fallback')).toBe(
+			'Until midnight, today takes only today’s projects. Pick another day.'
+		);
+	});
+
 	it('returns the message of a generic Error', () => {
 		expect(describeError(new Error('boom'), 'Fallback')).toBe('boom');
 	});

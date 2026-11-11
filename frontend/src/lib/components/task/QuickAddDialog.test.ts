@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { labelsStore } from '$lib/stores/labels.svelte';
 import { projectsStore } from '$lib/stores/projects.svelte';
 import { todayProjectsStore } from '$lib/stores/todayProjects.svelte';
+import { todayLockStore } from '$lib/stores/todayLock.svelte';
+import { nowStore } from '$lib/stores/now.svelte';
 import QuickAddDialog from './QuickAddDialog.svelte';
 
 afterEach(() => {
@@ -107,5 +109,70 @@ describe('QuickAddDialog today projects', () => {
 		render(QuickAddDialog, { props: { open: true } });
 		await screen.findByRole('dialog');
 		expect(screen.queryByRole('group', { name: 'Today projects' })).toBeNull();
+	});
+});
+
+describe('QuickAddDialog under the Today lock', () => {
+	const project = (id: number, title: string) =>
+		({
+			id,
+			title,
+			status: 'active',
+			isPinned: false,
+			pinnedAt: null,
+			labels: []
+		}) as unknown as Parameters<typeof projectsStore.setItems>[0][number];
+	const inHours = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
+
+	afterEach(() => {
+		todayLockStore.clear();
+		todayProjectsStore.clear();
+		projectsStore.clear();
+	});
+
+	function renderFor(projectId: number | null, dueDate = nowStore.todayKey) {
+		projectsStore.setItems([project(1, 'Focus'), project(2, 'Other')]);
+		todayProjectsStore.set([1]);
+		return render(QuickAddDialog, {
+			props: {
+				open: true,
+				defaultTitle: 'Task',
+				defaultProjectId: projectId,
+				defaultDueDate: dueDate
+			}
+		});
+	}
+
+	it('warns before taking work from another project into a locked today', async () => {
+		todayLockStore.setUntil(inHours(48));
+		renderFor(2);
+		const hint = await screen.findByTestId('today-lock-hint');
+		expect(hint.textContent).toContain('Until midnight, today takes only today’s projects');
+	});
+
+	it('warns for the inbox, which a locked today never takes', async () => {
+		todayLockStore.setUntil(inHours(48));
+		renderFor(null);
+		expect(await screen.findByTestId('today-lock-hint')).toBeTruthy();
+	});
+
+	it("says nothing for one of today's projects", async () => {
+		todayLockStore.setUntil(inHours(48));
+		renderFor(1);
+		await screen.findByRole('dialog');
+		expect(screen.queryByTestId('today-lock-hint')).toBeNull();
+	});
+
+	it('says nothing for another day', async () => {
+		todayLockStore.setUntil(inHours(48));
+		renderFor(2, '2999-01-01');
+		await screen.findByRole('dialog');
+		expect(screen.queryByTestId('today-lock-hint')).toBeNull();
+	});
+
+	it('says nothing while no lock runs', async () => {
+		renderFor(2);
+		await screen.findByRole('dialog');
+		expect(screen.queryByTestId('today-lock-hint')).toBeNull();
 	});
 });

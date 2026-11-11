@@ -764,7 +764,8 @@
 			"failedApplySubtaskLabels": "Failed to apply labels to subtasks",
 			"blockedCannotComplete": "Cannot complete: this task is blocked by an unfinished task",
 			"blockedNotCompletedOnMove": "Moved, but not completed: the task is still blocked",
-			"idCopied": "Task ID copied"
+			"idCopied": "Task ID copied",
+			"todayLocked": "Until midnight, today takes only today’s projects. Pick another day."
 		},
 		"backlogLabel": "In backlog",
 		"blockedTooltip": "Blocked by an unfinished task",
@@ -871,7 +872,8 @@
 				"warningMixed": "Selected tasks span different projects, sections, or contexts — they will all move into the new task's location, and their labels and priority will be replaced.",
 				"inboxDisabled": "Inbox can't host a grouped parent — pick a project",
 				"submit": "Create and group"
-			}
+			},
+			"todayLockedHint": "Until midnight, today takes only today’s projects — or pick another day."
 		}
 	},
 	"project": {
@@ -997,7 +999,18 @@
 			"emptyDescription": "No tasks are scheduled for today. Enjoy the calm.",
 			"errorLoading": "Failed to load today",
 			"overdueTitle": "Overdue",
-			"dayPartDropHint": "Drop on a part of the day"
+			"dayPartDropHint": "Drop on a part of the day",
+			"lock": {
+				"button": "Lock today to its projects",
+				"tooltip": "Focus lock: until midnight, only the projects already on Today can take on more work today",
+				"activeTooltip": "Until midnight, today takes only today’s projects. Other days are unrestricted",
+				"confirmTitle": "Lock today to its projects?",
+				"confirmDescription": "Until midnight, tasks from other projects and from the inbox cannot be taken into today. You can still add tasks to any project for other days. The lock cannot be lifted before midnight.",
+				"confirm": "Lock today",
+				"locking": "Locking…",
+				"locked": "Until midnight, today takes only today’s projects",
+				"failed": "Failed to lock today"
+			}
 		},
 		"tomorrow": {
 			"emptyTitle": "Nothing for tomorrow",
