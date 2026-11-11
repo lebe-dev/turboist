@@ -16,6 +16,7 @@ import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.ProjectSuggestionRule
 import ru.tinyops.turboist.core.sync.write.TaskDestination
+import ru.tinyops.turboist.core.sync.write.WriteRefused
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -426,6 +427,35 @@ class QuickAddPresenterTest {
         }
 
     @Test
+    fun `an active today lock is flagged for a draft dated today outside today's projects`() =
+        runTest {
+            val midnight = LocalDate.of(2026, 5, 21).atStartOfDay(zone).toInstant().toEpochMilli()
+            val today = LocalDate.of(2026, 5, 20)
+            workspace.value = workspace.value.copy(todayProjectLocalIds = listOf(3L), todayLockUntil = midnight)
+            val presenter = presenter()
+            watch(presenter)
+            presenter.open()
+            presenter.chooseProject(2L)
+            presenter.setDueDate(today)
+            runCurrent()
+            assertTrue(presenter.state.value.todayLockConflict)
+
+            presenter.chooseProject(3L)
+            runCurrent()
+            assertFalse(presenter.state.value.todayLockConflict)
+
+            presenter.chooseProject(2L)
+            presenter.setDueDate(LocalDate.of(2026, 5, 22))
+            runCurrent()
+            assertFalse(presenter.state.value.todayLockConflict)
+
+            workspace.value = workspace.value.copy(todayLockUntil = null)
+            presenter.setDueDate(today)
+            runCurrent()
+            assertFalse(presenter.state.value.todayLockConflict)
+        }
+
+    @Test
     fun `the project filed into last time is offered next to the destination`() =
         runTest {
             val presenter = presenter(recent = FakeRecentProjects(listOf(4L, 2L)))
@@ -518,6 +548,43 @@ class QuickAddPresenterTest {
             assertTrue(state.visible)
             assertEquals("Third\nFourth", state.draft.titles)
             assertFalse(state.submitting)
+        }
+
+    @Test
+    fun `a task the Today lock keeps out says so and keeps what was typed`() =
+        runTest {
+            actions.failFrom = 1
+            actions.failure = WriteRefused.TodayLocked(untilMillis = 0L)
+            val presenter = presenter()
+            watch(presenter)
+            val heard = mutableListOf<QuickAddMessage>()
+            backgroundScope.launch { presenter.messages.collect { heard += it } }
+
+            presenter.open()
+            presenter.setTitles("Sneak it in")
+            presenter.submit()
+            runCurrent()
+
+            assertEquals(listOf(QuickAddMessage.TODAY_LOCKED), heard)
+            assertEquals("Sneak it in", presenter.state.value.draft.titles)
+            assertTrue(presenter.state.value.visible)
+        }
+
+    @Test
+    fun `a broken write path still says only that nothing was added`() =
+        runTest {
+            actions.failFrom = 1
+            val presenter = presenter()
+            watch(presenter)
+            val heard = mutableListOf<QuickAddMessage>()
+            backgroundScope.launch { presenter.messages.collect { heard += it } }
+
+            presenter.open()
+            presenter.setTitles("Anything")
+            presenter.submit()
+            runCurrent()
+
+            assertEquals(listOf(QuickAddMessage.FAILED), heard)
         }
 
     @Test

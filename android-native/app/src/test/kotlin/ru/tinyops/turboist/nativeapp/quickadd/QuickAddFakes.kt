@@ -26,6 +26,8 @@ data class CreateCall(
 class RecordingQuickAddActions(
     /** The call, counting from one, at which every further create fails. */
     var failFrom: Int = Int.MAX_VALUE,
+    /** What a failing create throws: a broken write path, or a refusal the device repeats. */
+    var failure: Exception = IllegalStateException("the write path is unavailable"),
 ) : QuickAddActions {
     val calls = mutableListOf<CreateCall>()
 
@@ -33,7 +35,7 @@ class RecordingQuickAddActions(
         destination: TaskDestination,
         task: NewTask,
     ) {
-        if (calls.size + 1 >= failFrom) throw IllegalStateException("the write path is unavailable")
+        if (calls.size + 1 >= failFrom) throw failure
         calls += CreateCall(destination, task)
     }
 }

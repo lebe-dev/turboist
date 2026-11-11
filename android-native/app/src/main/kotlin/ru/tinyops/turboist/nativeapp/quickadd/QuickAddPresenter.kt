@@ -16,6 +16,7 @@ import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
+import ru.tinyops.turboist.core.model.TodayLock
 import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
@@ -56,6 +57,8 @@ data class QuickAddUiState(
     val suggestedProjects: List<Project> = emptyList(),
     /** The projects holding today's tasks, offered above the destination when opened from Today. */
     val todayProjects: List<Project> = emptyList(),
+    /** True while the Today focus lock would refuse the draft as it stands: dated today, outside today's projects. */
+    val todayLockConflict: Boolean = false,
     /** Will be attached on save unless taken off. */
     val autoLabels: List<String> = emptyList(),
     val knownLabels: List<Label> = emptyList(),
@@ -89,6 +92,12 @@ enum class QuickAddMessage {
 
     /** Nothing was written down, and the sheet still holds what was typed. */
     FAILED,
+
+    /**
+     * The Today focus lock kept the task out of the day; the sheet still holds
+     * what was typed, ready for another day or one of today's projects.
+     */
+    TODAY_LOCKED,
 }
 
 /**
@@ -252,7 +261,10 @@ class QuickAddPresenter(
                     actions.create(destination, task)
                     written += 1
                 }
-            } catch (refusal: WriteRefused) {
+            } catch (_: WriteRefused.TodayLocked) {
+                stopAfter(draft, pending, written, QuickAddMessage.TODAY_LOCKED)
+                return@launch
+            } catch (_: WriteRefused) {
                 stopAfter(draft, pending, written)
                 return@launch
             } catch (failure: RuntimeException) {
@@ -277,6 +289,7 @@ class QuickAddPresenter(
         draft: QuickAddDraft,
         pending: List<NewTask>,
         written: Int,
+        message: QuickAddMessage = QuickAddMessage.FAILED,
     ) {
         val remaining = pending.drop(written).joinToString("\n") { it.title }
         editing.value =
@@ -286,7 +299,7 @@ class QuickAddPresenter(
                 opened = draft,
                 offerTodayProjects = editing.value.offerTodayProjects,
             )
-        outgoing.emit(QuickAddMessage.FAILED)
+        outgoing.emit(message)
     }
 
     private fun edit(change: (QuickAddDraft) -> QuickAddDraft) {
@@ -352,6 +365,7 @@ class QuickAddPresenter(
                 } else {
                     emptyList()
                 },
+            todayLockConflict = todayLockConflict(edit.draft, space),
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
             knownLabels = space.labels,
             lastProject =
@@ -360,6 +374,24 @@ class QuickAddPresenter(
             projectTitle = space.projects.firstOrNull { it.localId == chosen }?.title,
             holdsInput = edit.draft.holdsInput(edit.opened),
             confirmingDiscard = edit.confirmingDiscard,
+        )
+    }
+
+    /**
+     * Whether the Today focus lock would refuse the draft as it stands. Advisory:
+     * saving stays possible and the write has the last word, exactly as on the web.
+     */
+    private fun todayLockConflict(
+        draft: QuickAddDraft,
+        space: QuickAddWorkspace,
+    ): Boolean {
+        val dueAt = draft.dueDate.takeUnless { draft.isInbox }?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()
+        return TodayLock.refuses(
+            until = space.todayLockUntil,
+            now = now().toEpochMilli(),
+            before = null,
+            after = TodayLock.Placement(draft.projectLocalId, dueAt, open = true),
+            todayProjects = { space.todayProjectLocalIds.toSet() },
         )
     }
 

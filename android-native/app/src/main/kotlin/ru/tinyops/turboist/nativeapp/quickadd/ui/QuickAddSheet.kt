@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Folder
@@ -171,14 +172,16 @@ fun QuickAddHost(
     val addedToInbox = stringResource(R.string.task_toast_addedToInbox)
     val addedToProject = stringResource(R.string.task_toast_addedToProject)
     val failed = stringResource(R.string.task_toast_failedAdd)
+    val todayLocked = stringResource(R.string.task_toast_todayLocked)
 
-    LaunchedEffect(messages, addedToInbox, addedToProject, failed) {
+    LaunchedEffect(messages, addedToInbox, addedToProject, failed, todayLocked) {
         messages.collect { message ->
             snackbars.showSnackbar(
                 when (message) {
                     QuickAddMessage.ADDED_TO_INBOX -> addedToInbox
                     QuickAddMessage.ADDED_TO_PROJECT -> addedToProject
                     QuickAddMessage.FAILED -> failed
+                    QuickAddMessage.TODAY_LOCKED -> todayLocked
                 },
             )
         }
@@ -380,6 +383,8 @@ private fun QuickAddFields(
         AutoLabelChips(names = state.autoLabels, onReject = callbacks.onRejectAutoLabel)
         SuggestedProjectChips(projects = state.suggestedProjects, onChoose = callbacks.onChooseProject)
 
+        if (state.todayLockConflict) TodayLockHint()
+
         TodayProjectChips(
             projects = state.todayProjects,
             chosen = state.draft.projectLocalId,
@@ -556,6 +561,28 @@ private fun SuggestedProjectChips(
                 )
             }
         }
+    }
+}
+
+/** Says why the draft would be refused today: the focus lock lets only today's projects take work into the day. */
+@Composable
+private fun TodayLockHint() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Lock,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.tertiary,
+        )
+        Text(
+            text = stringResource(R.string.dialog_quickAdd_todayLockedHint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.tertiary,
+        )
     }
 }
 

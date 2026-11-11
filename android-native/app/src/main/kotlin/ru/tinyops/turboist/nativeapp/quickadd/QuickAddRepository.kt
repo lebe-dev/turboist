@@ -18,7 +18,9 @@ import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.view.ViewWindows
 import ru.tinyops.turboist.core.network.TurboistJson
 import ru.tinyops.turboist.core.network.dto.AppSettingsDto
+import ru.tinyops.turboist.core.network.dto.UserSettingsDto
 import ru.tinyops.turboist.core.network.mapping.toAppSettings
+import ru.tinyops.turboist.core.network.mapping.toUserSettings
 import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,6 +42,8 @@ data class QuickAddWorkspace(
      * the Today list shows them, each once. Inbox tasks have no project and are left out.
      */
     val todayProjectLocalIds: List<Long> = emptyList(),
+    /** When the Today focus lock ends, in epoch milliseconds, or `null` when none was ever turned on. */
+    val todayLockUntil: Long? = null,
 )
 
 /**
@@ -65,12 +69,14 @@ class QuickAddRepository
                 labels.observeAll(),
                 observeAppSettings(),
                 observeTodayProjectIds(),
-            ) { projectRows, labelRows, appSettings, todayIds ->
+                observeTodayLockUntil(),
+            ) { projectRows, labelRows, appSettings, todayIds, lockUntil ->
                 QuickAddWorkspace(
                     projects = projectRows.map { it.toDomain() }.filter(::isOffered).sortedWith(PICKER_ORDER),
                     labels = labelRows.map(LabelRow::toDomain),
                     appSettings = appSettings,
                     todayProjectLocalIds = todayIds,
+                    todayLockUntil = lockUntil,
                 )
             }
 
@@ -82,6 +88,15 @@ class QuickAddRepository
                 combine(views.queryOverdue(dayStart, null), views.queryToday(dayStart)) { overdue, today ->
                     (overdue + today).mapNotNull { it.projectLocalId }.distinct()
                 }
+            }
+
+        /** When the replicated Today lock ends; an unreadable document counts as no lock. */
+        private fun observeTodayLockUntil(): Flow<Long?> =
+            settings.observeUserSettings().map { row ->
+                val payload = row?.payload ?: return@map null
+                runCatching { TurboistJson.decodeFromString(UserSettingsDto.serializer(), payload) }
+                    .map { it.toUserSettings().todayLockUntil }
+                    .getOrNull()
             }
 
         /** Whether the server names tasks created as a bare https link, as last replicated. */
