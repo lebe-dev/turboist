@@ -18,6 +18,7 @@ Turboist is a task management app for the rest of us.
 - Pinned tasks and pinned projects (separate caps, configurable in Settings → Menu)
 - Recurring tasks (RRULE, advanced on completion)
 - Task relations — `related` cross-references plus `blocks` dependencies that prevent completing a blocked task — [docs/task-relations.md](docs/task-relations.md)
+- Today focus lock — lock the day to the projects already planned for it until midnight; work for other days stays open — [docs/today-lock.md](docs/today-lock.md)
 - Single-user JWT auth with refresh-token rotation
 - Optional TOTP 2FA (RFC 6238) with single-use recovery codes
 - Passkey (WebAuthn) sign-in — Face ID / Touch ID / Windows Hello / security keys, alongside the password — [docs/passkey.md](docs/passkey.md)
@@ -48,6 +49,7 @@ See [docs/configuration.md](docs/configuration.md) for all environment variables
 - [API reference](API.md)
 - [Passkeys](docs/passkey.md) — WebAuthn sign-in, and the native app setup it needs
 - [Task relations](docs/task-relations.md) — `related` / `blocks`, and how blocking works
+- [Today focus lock](docs/today-lock.md) — what the lock refuses, and how it is turned on
 - [Quick switcher](docs/quick-switcher.md) — ⌘/Ctrl+P: jump to a task or project, or add a task
 - [Labels](docs/labels.md) — label descriptions and how labels appear in a task's JSON copy
 - [Link titles](docs/link-titles.md) — naming tasks created from a bare link, templates, renderer fallback, security
