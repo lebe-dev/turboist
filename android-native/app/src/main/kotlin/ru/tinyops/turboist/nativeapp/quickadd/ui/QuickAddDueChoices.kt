@@ -1,5 +1,6 @@
 package ru.tinyops.turboist.nativeapp.quickadd.ui
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
@@ -20,8 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.nativeapp.R
-import ru.tinyops.turboist.nativeapp.tasks.ui.ChoiceColors
-import ru.tinyops.turboist.nativeapp.tasks.ui.ConnectedChoiceGroup
 import ru.tinyops.turboist.nativeapp.tasks.ui.futureSelectableDates
 import java.time.Instant
 import java.time.LocalDate
@@ -32,7 +31,8 @@ import java.time.format.DateTimeFormatter
 private enum class DueChoice { NONE, TODAY, TOMORROW, DATE }
 
 /**
- * No date, today, tomorrow, or a day off the calendar, as one connected control.
+ * No date, today, tomorrow, or a day off the calendar, as one row of choices
+ * sized to their wording.
  *
  * Under the focus lock "today" carries a padlock, so the restriction reads as
  * belonging to that choice; when it is the choice that clashes, it is drawn in
@@ -48,30 +48,25 @@ internal fun DueChoices(
 ) {
     var picking by remember { mutableStateOf(false) }
     val current = dueChoiceOf(dueDate, today)
-    val tertiary = MaterialTheme.colorScheme.tertiary
     val pickedLabel = dueDate?.takeIf { current == DueChoice.DATE }?.format(SHORT_DATE)
-    ConnectedChoiceGroup(
-        options = DueChoice.entries,
-        selected = current,
-        onSelect = { choice ->
-            // Choosing what is already chosen keeps it: in a connected control a
-            // second tap reads as "yes, that one", not as "clear it".
-            if (choice == DueChoice.DATE) {
-                picking = true
-            } else if (choice != current) {
-                onPick(choice.day(today))
+    val segments =
+        DueChoice.entries.map { choice ->
+            dueSegment(
+                chosen = choice == current,
+                clash = choice == current && conflict && choice == DueChoice.TODAY,
+                padlock = locked && choice == DueChoice.TODAY,
+                label = dueChoiceLabel(choice, pickedLabel),
+            ) {
+                // Choosing what is already chosen keeps it: a second tap reads as
+                // "yes, that one", not as "clear it".
+                if (choice == DueChoice.DATE) {
+                    picking = true
+                } else if (choice != current) {
+                    onPick(choice.day(today))
+                }
             }
-        },
-        label = { choice -> dueChoiceLabel(choice, pickedLabel) },
-        selectedColors = { choice ->
-            if (conflict && choice == DueChoice.TODAY) {
-                ChoiceColors(tertiary.copy(alpha = CONFLICT_FILL_ALPHA), tertiary)
-            } else {
-                ChoiceColors(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-        },
-        leading = if (locked) ::TodayPadlock else null,
-    )
+        }
+    FittedSegments(segments = segments, modifier = Modifier.fillMaxWidth())
     if (picking) {
         DueDatePickerDialog(
             dueDate = dueDate,
@@ -83,6 +78,40 @@ internal fun DueChoices(
             },
         )
     }
+}
+
+/**
+ * One choice of the date row. The day that clashes with the focus lock is drawn
+ * in the lock's colour rather than as an ordinary pick.
+ */
+@Composable
+private fun dueSegment(
+    chosen: Boolean,
+    clash: Boolean,
+    padlock: Boolean,
+    label: String,
+    onClick: () -> Unit,
+): Segment {
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    val colors = MaterialTheme.colorScheme
+    return Segment(
+        label = label,
+        selected = chosen,
+        container =
+            when {
+                clash -> tertiary.copy(alpha = CONFLICT_FILL_ALPHA)
+                chosen -> colors.primaryContainer
+                else -> colors.surfaceContainerHighest
+            },
+        content =
+            when {
+                clash -> tertiary
+                chosen -> colors.onPrimaryContainer
+                else -> colors.onSurface
+            },
+        leading = if (padlock) ({ TodayPadlock() }) else null,
+        onClick = onClick,
+    )
 }
 
 private fun dueChoiceOf(
@@ -117,10 +146,8 @@ private fun dueChoiceLabel(
     }
 
 @Composable
-private fun TodayPadlock(choice: DueChoice) {
-    if (choice == DueChoice.TODAY) {
-        Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
-    }
+private fun TodayPadlock() {
+    Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
 }
 
 /**

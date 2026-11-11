@@ -4,12 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -117,47 +115,57 @@ internal fun AttributeBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        BarButton(
-            icon = Icons.Outlined.Flag,
-            iconTint = priorityTint(draft.priority),
-            text = priorityLabel(draft.priority),
-            description = stringResource(R.string.page_task_priority),
-            set = draft.priority != Priority.NONE,
-            open = open == QuickAddPanel.PRIORITY,
-            onClick = { onToggle(QuickAddPanel.PRIORITY) },
-        )
-        val anyTime = draft.dayPart == DayPart.NONE || draft.dayPart == DayPart.UNKNOWN
-        BarButton(
-            icon = Icons.Outlined.Schedule,
-            text =
-                if (anyTime) {
-                    stringResource(R.string.native_quickAdd_noDayPart)
-                } else {
-                    stringResource(dayPartLabel(draft.dayPart))
-                },
-            description = stringResource(R.string.page_task_dayPart),
-            set = !anyTime,
-            open = open == QuickAddPanel.DAY_PART,
-            onClick = { onToggle(QuickAddPanel.DAY_PART) },
-        )
-        if (state.knownLabels.isNotEmpty()) {
-            val labels = draft.labelNames
+        // The three values share what the save button leaves; the labels, the one
+        // with wording of its own, takes whatever room the other two do not need.
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             BarButton(
-                icon = Icons.AutoMirrored.Outlined.Label,
-                text =
-                    when (labels.size) {
-                        0 -> stringResource(R.string.native_quickAdd_noLabels)
-                        1 -> labels.single()
-                        else -> stringResource(R.string.native_quickAdd_moreLabels, labels.first(), labels.size - 1)
-                    },
-                description = stringResource(R.string.page_task_labels),
-                set = labels.isNotEmpty(),
-                open = open == QuickAddPanel.LABELS,
-                onClick = { onToggle(QuickAddPanel.LABELS) },
-                modifier = Modifier.weight(1f, fill = false),
+                icon = Icons.Outlined.Flag,
+                iconTint = priorityTint(draft.priority),
+                text = priorityLabel(draft.priority),
+                description = stringResource(R.string.page_task_priority),
+                set = draft.priority != Priority.NONE,
+                open = open == QuickAddPanel.PRIORITY,
+                onClick = { onToggle(QuickAddPanel.PRIORITY) },
             )
+            val anyTime = draft.dayPart == DayPart.NONE || draft.dayPart == DayPart.UNKNOWN
+            BarButton(
+                icon = Icons.Outlined.Schedule,
+                text =
+                    if (anyTime) {
+                        stringResource(R.string.native_quickAdd_noDayPart)
+                    } else {
+                        stringResource(dayPartLabel(draft.dayPart))
+                    },
+                description = stringResource(R.string.page_task_dayPart),
+                set = !anyTime,
+                open = open == QuickAddPanel.DAY_PART,
+                onClick = { onToggle(QuickAddPanel.DAY_PART) },
+            )
+            if (state.knownLabels.isNotEmpty()) {
+                val labels = draft.labelNames
+                BarButton(
+                    icon = Icons.AutoMirrored.Outlined.Label,
+                    text =
+                        when (labels.size) {
+                            0 -> stringResource(R.string.native_quickAdd_noLabels)
+                            1 -> labels.single()
+                            else -> labels.first()
+                        },
+                    // The count of the others is kept apart from the name so that a
+                    // long name is what gets shortened, never the count.
+                    suffix = if (labels.size > 1) "+${labels.size - 1}" else null,
+                    description = stringResource(R.string.page_task_labels),
+                    set = labels.isNotEmpty(),
+                    open = open == QuickAddPanel.LABELS,
+                    onClick = { onToggle(QuickAddPanel.LABELS) },
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
         }
-        Spacer(modifier = Modifier.weight(1f))
         SubmitButton(
             lines = draft.titleLines.size,
             enabled = draft.canSubmit && !state.submitting && !state.todayLockConflict,
@@ -177,6 +185,7 @@ private fun BarButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     iconTint: Color? = null,
+    suffix: String? = null,
 ) {
     val content = if (set || open) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
     Surface(
@@ -192,10 +201,9 @@ private fun BarButton(
         modifier =
             modifier
                 .heightIn(min = 44.dp)
-                .widthIn(max = BAR_BUTTON_MAX_WIDTH)
                 .semantics {
                     contentDescription = description
-                    stateDescription = text
+                    stateDescription = listOfNotNull(text, suffix).joinToString(" ")
                 },
     ) {
         Row(
@@ -209,7 +217,11 @@ private fun BarButton(
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
+            suffix?.let {
+                Text(text = it, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+            }
         }
     }
 }
@@ -250,6 +262,3 @@ private fun SubmitButton(
 
 /** Labels can be many; past this the panel scrolls rather than pushing the card off screen. */
 private val LABEL_PANEL_MAX_HEIGHT = 280.dp
-
-/** A long label name is cut short rather than pushing the save button off the bar. */
-private val BAR_BUTTON_MAX_WIDTH = 140.dp

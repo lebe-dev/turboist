@@ -143,7 +143,6 @@
     <string name="native_quickAdd_backToTask">Назад к задаче</string>
     <string name="native_quickAdd_noDayPart">Время</string>
     <string name="native_quickAdd_noLabels">Метки</string>
-    <string name="native_quickAdd_moreLabels">%1$s +%2$d</string>
     <string name="native_project_statusUnknown">Неизвестный статус</string>
     <string name="native_project_pinLimit">Можно закрепить не больше %1$d проектов. Сначала открепите один.</string>
     <string name="native_project_troikiFull">В этой части плана на день уже %1$d проектов.</string>

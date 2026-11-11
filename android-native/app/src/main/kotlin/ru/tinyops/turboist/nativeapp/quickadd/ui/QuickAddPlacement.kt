@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.nativeapp.R
@@ -228,7 +230,13 @@ private fun QuickProjects(
             ),
         )
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            // The row runs to the card's edges and scrolls under them, so a chip
+            // that does not fit reads as "more this way" rather than as cut off.
+            modifier =
+                Modifier
+                    .bleed(CARD_PADDING)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = CARD_PADDING),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             for (project in projects) {
@@ -335,6 +343,20 @@ private fun ConflictNotice(
         }
     }
 }
+
+/** The card's inner margin. */
+private val CARD_PADDING = 14.dp
+
+/** Widens a child past its parent's padding by [horizontal] on either side. */
+private fun Modifier.bleed(horizontal: Dp): Modifier =
+    layout { measurable, constraints ->
+        val extra = (horizontal * 2).roundToPx()
+        val placeable =
+            measurable.measure(
+                constraints.copy(minWidth = constraints.maxWidth + extra, maxWidth = constraints.maxWidth + extra),
+            )
+        layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
+    }
 
 /** How much of the lock's colour the focus heading is washed with. */
 internal const val FOCUS_TINT_ALPHA = 0.09f
