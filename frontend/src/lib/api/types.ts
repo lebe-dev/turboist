@@ -396,6 +396,17 @@ export interface UserSettings {
 	maxPinnedTasks: number;
 	/** Max simultaneously pinned projects (1..50). Independent of maxPinnedTasks. */
 	maxPinnedProjects: number;
+	/**
+	 * When the Today focus lock ends (ISO-8601 UTC), or null if it was never turned
+	 * on. A moment already past means no lock runs. Read-only: set through
+	 * `POST /api/v1/today/lock`, never through a settings PATCH.
+	 */
+	todayLockUntil?: string | null;
+}
+
+/** Answer of `POST /api/v1/today/lock`. */
+export interface TodayLockResponse {
+	lockedUntil: string;
 }
 
 export type HarpoonKind = 'task' | 'project';

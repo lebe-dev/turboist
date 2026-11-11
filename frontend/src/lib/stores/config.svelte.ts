@@ -6,6 +6,7 @@ import { projectsStore } from './projects.svelte';
 import { labelsStore } from './labels.svelte';
 import { settingsStore } from './settings.svelte';
 import { appSettingsStore } from './appSettings.svelte';
+import { todayLockStore } from './todayLock.svelte';
 import { userStateStore } from './userState.svelte';
 import { troikiStore } from './troiki.svelte';
 import { planStatsStore } from './planStats.svelte';
@@ -33,6 +34,7 @@ class ConfigStore {
 		projectsStore.setItems(cfg.projects);
 		labelsStore.setItems(cfg.labels);
 		settingsStore.setValue(cfg.settings);
+		todayLockStore.setUntil(cfg.settings?.todayLockUntil);
 		appSettingsStore.setValue(cfg.appSettings);
 		userStateStore.setValue(cfg.userState);
 		troikiStore.setValue(cfg.troiki);
@@ -79,6 +81,10 @@ class ConfigStore {
 		projectsStore.setItems(cfg.projects);
 		labelsStore.setItems(cfg.labels);
 		userStateStore.reconcileFromServer(cfg.userState);
+		// The one slice of `settings` a refresh does apply: the Today focus lock is
+		// server-owned (never edited optimistically), so another device turning it
+		// on must show up here.
+		todayLockStore.setUntil(cfg.settings?.todayLockUntil);
 		troikiStore.setValue(cfg.troiki);
 		planStatsStore.setValue(cfg.planStats);
 		inboxStatsStore.set(cfg.inboxStats.count, cfg.inboxStats.warnThresholdExceeded);

@@ -50,7 +50,14 @@ export async function refreshWorkspace(): Promise<void> {
  * here — the page-level views revalidate off the scopes themselves.
  */
 export async function refreshForScopes(scopes: Set<EventScope>): Promise<void> {
-	if (scopes.has('contexts') || scopes.has('labels') || scopes.has('projects')) {
+	// `settings` is server-held user state shown outside the settings page (the
+	// Today focus lock), which only /config carries.
+	if (
+		scopes.has('contexts') ||
+		scopes.has('labels') ||
+		scopes.has('projects') ||
+		scopes.has('settings')
+	) {
 		await refreshWorkspace();
 		return;
 	}

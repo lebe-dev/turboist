@@ -16,7 +16,9 @@ vi.mock('../stores/contexts.svelte', () => ({ contextsStore: { load: () => conte
 const planSet = vi.fn();
 const inboxSet = vi.fn();
 const pinnedSet = vi.fn();
-vi.mock('../stores/planStats.svelte', () => ({ planStatsStore: { setValue: (v: unknown) => planSet(v) } }));
+vi.mock('../stores/planStats.svelte', () => ({
+	planStatsStore: { setValue: (v: unknown) => planSet(v) }
+}));
 vi.mock('../stores/inboxStats.svelte', () => ({
 	inboxStatsStore: { set: (c: number, w: boolean) => inboxSet(c, w) }
 }));
@@ -88,6 +90,17 @@ describe('selfRefresh.onSelfMutation', () => {
 		onSelfMutation('/api/v1/task-templates/4/instantiate');
 		await vi.advanceTimersByTimeAsync(250);
 		expect(sidebarStats).toHaveBeenCalledTimes(1);
+	});
+
+	// The tab that locked Today already applied the answer; the lock changes no
+	// counter and no entity list, so there is nothing to refetch.
+	it('refetches nothing after locking today', async () => {
+		const seen = invalidations();
+		onSelfMutation('/api/v1/today/lock');
+		await vi.advanceTimersByTimeAsync(250);
+		expect(sidebarStats).not.toHaveBeenCalled();
+		expect(projectsLoad).not.toHaveBeenCalled();
+		expect(seen).toEqual([]);
 	});
 
 	it('ignores paths that map to no scope (events, auth)', async () => {

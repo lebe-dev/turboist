@@ -58,6 +58,9 @@ function scopesForPath(path: string): EventScope[] {
 			// The Inbox processing prompt changes no data any view shows.
 			if (rest === 'app-settings/inbox-processing') return [];
 			return ['labels', 'tasks'];
+		case 'today':
+			// The focus lock: the tab that locked already holds the answer.
+			return ['settings'];
 		case 'task-templates':
 			// Instantiating a template creates a task tree, so the sidebar counters
 			// move even though the list views already rendered it optimistically from

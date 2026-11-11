@@ -31,6 +31,7 @@ import { inboxStatsStore } from './inboxStats.svelte';
 import { pinnedTasksStore } from './pinnedTasks.svelte';
 import { harpoonStore } from './harpoon.svelte';
 import { templatesStore } from './templates.svelte';
+import { todayLockStore } from './todayLock.svelte';
 
 function payload(over: Record<string, unknown> = {}): ConfigResponse {
 	return {
@@ -193,5 +194,33 @@ describe('configStore.refresh (mid-session resync)', () => {
 		expect(planStatsStore.value).toEqual({ week: 1, backlog: 0 });
 		expect(harpoonStore.slots).toEqual([]);
 		expect(templatesStore.items.map((t) => t.id)).toEqual([21]);
+	});
+
+	// The focus lock lives in settings but is server-owned: another device turning
+	// it on must reach this tab on the next refresh, while the rest of settings
+	// stays untouched.
+	it('applies the Today lock from settings on boot and on refresh', async () => {
+		todayLockStore.clear();
+		getConfig.mockResolvedValue(payload());
+		await configStore.load();
+		expect(todayLockStore.until).toBeNull();
+
+		settingsStore.setValue({ locale: 'ru' } as never);
+		getIfChanged.mockResolvedValue(
+			payload({ settings: { locale: 'en', todayLockUntil: '2026-11-11T21:00:00.000Z' } })
+		);
+		await configStore.refresh();
+
+		expect(todayLockStore.until).toBe('2026-11-11T21:00:00.000Z');
+		expect(settingsStore.value.locale).toBe('ru');
+	});
+
+	it('takes the Today lock end from the boot payload', async () => {
+		todayLockStore.clear();
+		getConfig.mockResolvedValue(
+			payload({ settings: { locale: 'en', todayLockUntil: '2026-11-11T21:00:00.000Z' } })
+		);
+		await configStore.load();
+		expect(todayLockStore.until).toBe('2026-11-11T21:00:00.000Z');
 	});
 });

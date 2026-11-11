@@ -17,16 +17,24 @@ export function distinctProjectIds(tasks: Array<{ projectId: number | null }>): 
 
 function createTodayProjectsStore() {
 	let ids = $state<number[]>([]);
+	let known = $state(false);
 
 	return {
 		get ids(): number[] {
 			return ids;
 		},
+		/** Whether the Today page is mounted and `ids` is the real set — an empty
+		 * list then means Today has no project, not that nobody published one. */
+		get known(): boolean {
+			return known;
+		},
 		set(next: number[]): void {
 			ids = next;
+			known = true;
 		},
 		clear(): void {
 			ids = [];
+			known = false;
 		}
 	};
 }

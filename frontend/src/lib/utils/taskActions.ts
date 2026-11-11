@@ -43,6 +43,9 @@ export function describeError(err: unknown, fallback: string): string {
 		// normally guards this before sending, so reaching here means a stale view —
 		// still worth a localized message rather than the backend's English one.
 		if (err.code === 'task_blocked') return tr('task.toast.blockedCannotComplete');
+		// A write the Today focus lock refused: it would have taken a task from a
+		// project that is not on Today (or from the inbox) into the day.
+		if (err.code === 'today_locked') return tr('task.toast.todayLocked');
 		return err.message || fallback;
 	}
 	if (err instanceof Error) return err.message;
@@ -123,7 +126,8 @@ export async function toggleComplete(
 			: await tasksApi.uncomplete(client, task.id);
 		soundStore.playTaskStatus(updated.status === 'completed');
 		if (updated.status === 'completed' && removeWhenCompleted) mutator.remove(task.id);
-		else if (updated.status !== 'completed' && belongs && !belongs(updated)) mutator.remove(task.id);
+		else if (updated.status !== 'completed' && belongs && !belongs(updated))
+			mutator.remove(task.id);
 		else mutator.replace(updated);
 
 		if (wasOpen && updated.status === 'completed' && !updated.recurrenceRule) {

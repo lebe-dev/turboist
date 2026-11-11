@@ -31,6 +31,7 @@
 	import ContextDialog from '$lib/components/dialog/ContextDialog.svelte';
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import TroikiTriggerIcon from './TroikiTriggerIcon.svelte';
+	import TodayLockButton from './TodayLockButton.svelte';
 	import { t } from '$lib/i18n';
 
 	const TITLE_KEYS: Record<string, string> = {
@@ -69,6 +70,7 @@
 		return key ? $t(key) : viewFilterStore.title;
 	});
 	const contextsLocked = $derived(page.url.pathname === '/inbox');
+	const isTodayPage = $derived(page.url.pathname === '/today');
 	const troikiActive = $derived(page.url.pathname === '/troiki');
 
 	function handleSearch(): void {
@@ -126,7 +128,7 @@
 			<button
 				type="button"
 				onclick={handleSearch}
-				class="group/search inline-flex h-9 w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:hidden"
+				class="group/search inline-flex h-9 w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none md:hidden"
 				aria-label={$t('topbar.search')}
 			>
 				<MagnifyingGlassIcon class="size-4 shrink-0" />
@@ -200,6 +202,9 @@
 				{#if pageTitle}
 					<span class="mr-1 shrink-0 text-[13px] font-semibold text-foreground">{pageTitle}</span>
 				{/if}
+				{#if isTodayPage}
+					<TodayLockButton />
+				{/if}
 				{@render chip(null, $t('topbar.all'))}
 				{#each contextsStore.items as ctx (ctx.id)}
 					{@const active = userStateStore.activeContextId === ctx.id}
@@ -224,14 +229,13 @@
 							</DropdownMenu.Trigger>
 							<DropdownMenu.Content align="start" class="min-w-[10rem] rounded-md">
 								<DropdownMenu.Item onclick={() => openEditContext(ctx)}>
-									<PencilIcon class="size-4" /> {$t('common.edit')}
+									<PencilIcon class="size-4" />
+									{$t('common.edit')}
 								</DropdownMenu.Item>
 								<DropdownMenu.Separator />
-								<DropdownMenu.Item
-									variant="destructive"
-									onclick={() => requestDeleteContext(ctx)}
-								>
-									<TrashIcon class="size-4" /> {$t('common.delete')}
+								<DropdownMenu.Item variant="destructive" onclick={() => requestDeleteContext(ctx)}>
+									<TrashIcon class="size-4" />
+									{$t('common.delete')}
 								</DropdownMenu.Item>
 							</DropdownMenu.Content>
 						</DropdownMenu.Root>
@@ -257,7 +261,7 @@
 			<button
 				type="button"
 				onclick={handleSearch}
-				class="group/search hidden h-9 w-full max-w-xs items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:inline-flex"
+				class="group/search hidden h-9 w-full max-w-xs items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none md:inline-flex"
 				aria-label={$t('topbar.search')}
 			>
 				<MagnifyingGlassIcon class="size-4 shrink-0" />
@@ -359,7 +363,7 @@
 				aria-label={$t('topbar.troikiSystem')}
 				title={$t('topbar.troikiSystem')}
 				aria-current={troikiActive ? 'page' : undefined}
-				class="inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+				class="inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
 				class:text-muted-foreground={!troikiActive}
 				class:hover:text-primary={!troikiActive}
 				class:text-foreground={troikiActive}

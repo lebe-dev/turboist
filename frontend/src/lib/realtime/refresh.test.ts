@@ -61,7 +61,7 @@ describe('refreshForScopes', () => {
 		configRefresh.mockReset().mockResolvedValue(null);
 	});
 
-	it.each<EventScope>(['contexts', 'labels', 'projects'])(
+	it.each<EventScope>(['contexts', 'labels', 'projects', 'settings'])(
 		'pulls the config aggregate for the %s scope',
 		async (scope) => {
 			await refreshForScopes(scopes(scope));

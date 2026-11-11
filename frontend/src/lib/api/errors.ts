@@ -11,6 +11,8 @@ export type ApiErrorCode =
 	| 'limit_exceeded'
 	| 'forbidden_placement'
 	| 'recurrence_invalid'
+	| 'task_blocked'
+	| 'today_locked'
 	| 'calendar_reauth_required'
 	| 'inbox_processing_disabled'
 	| 'inbox_processing_nothing_pending'

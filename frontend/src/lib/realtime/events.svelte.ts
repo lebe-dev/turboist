@@ -10,7 +10,8 @@ export type EventScope =
 	| 'labels'
 	| 'contexts'
 	| 'sections'
-	| 'plan';
+	| 'plan'
+	| 'settings';
 
 export type EventHandler = (scope: EventScope) => void;
 

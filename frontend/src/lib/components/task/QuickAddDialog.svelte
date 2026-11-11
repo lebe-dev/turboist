@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { Dialog as DialogPrimitive, Popover as PopoverPrimitive } from 'bits-ui';
 	import { tick } from 'svelte';
 	import { parseDate, type DateValue } from '@internationalized/date';
@@ -8,6 +9,8 @@
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { recentProjectsStore } from '$lib/stores/recentProjects.svelte';
 	import { todayProjectsStore } from '$lib/stores/todayProjects.svelte';
+	import { todayLockStore } from '$lib/stores/todayLock.svelte';
+	import { wouldTodayLockRefuse } from '$lib/utils/todayLock';
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
@@ -173,7 +176,12 @@
 			.map((id) => allLabels.find((l) => l.id === id))
 			.filter((l): l is (typeof allLabels)[number] => !!l)
 	);
-	const titleLines = $derived(titles.split('\n').map((l) => l.trim()).filter(Boolean));
+	const titleLines = $derived(
+		titles
+			.split('\n')
+			.map((l) => l.trim())
+			.filter(Boolean)
+	);
 	const isMultiTask = $derived(titleLines.length > 1);
 
 	const autoLabelRules = $derived(appSettingsStore.autoLabels);
@@ -232,6 +240,19 @@
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
+	// Warn before the server refuses: while the Today focus lock runs, a task
+	// for today may only go into one of today's projects. Advisory — the submit
+	// stays enabled and the server has the last word.
+	const todayLockConflict = $derived(
+		!isWrap &&
+			wouldTodayLockRefuse({
+				lockActive: todayLockStore.isActive(nowStore.now),
+				dueKey: dueDate,
+				todayKey,
+				projectId: projectId ? Number(projectId) : null,
+				todayProjectIds: todayProjectsStore.known ? todayProjectsStore.ids : null
+			})
+	);
 	const weekRange = $derived(weekRangeKeys(nowStore.now, configStore.value?.timezone ?? null));
 	const calendarLocale = $derived($locale === 'ru' ? 'ru-RU' : 'en-US');
 
@@ -239,9 +260,7 @@
 	let titlesEl: HTMLTextAreaElement | undefined = $state();
 	let descriptionEl: HTMLTextAreaElement | undefined = $state();
 
-	const calendarValue = $derived<DateValue | undefined>(
-		dueDate ? parseDate(dueDate) : undefined
-	);
+	const calendarValue = $derived<DateValue | undefined>(dueDate ? parseDate(dueDate) : undefined);
 
 	function pad(n: number): string {
 		return n < 10 ? `0${n}` : String(n);
@@ -320,9 +339,7 @@
 
 	function toggleLabel(id: number) {
 		labelsChanged = true;
-		labelIds = labelIds.includes(id)
-			? labelIds.filter((x) => x !== id)
-			: [...labelIds, id];
+		labelIds = labelIds.includes(id) ? labelIds.filter((x) => x !== id) : [...labelIds, id];
 	}
 
 	async function submit(e: Event) {
@@ -338,14 +355,16 @@
 				description: description.trim() || undefined,
 				priority,
 				dayPart,
-				dueAt: !isInbox && dueDate
-					? toIsoUtc(dayStartUtcInTz(dueDate, configStore.value?.timezone ?? null))
-					: null,
+				dueAt:
+					!isInbox && dueDate
+						? toIsoUtc(dayStartUtcInTz(dueDate, configStore.value?.timezone ?? null))
+						: null,
 				dueHasTime: false as const,
 				recurrenceRule,
-				labels: parentId !== null && resolvedLabels.length === 0 && !labelsChanged
-					? undefined
-					: resolvedLabels,
+				labels:
+					parentId !== null && resolvedLabels.length === 0 && !labelsChanged
+						? undefined
+						: resolvedLabels,
 				removedAutoLabels: dismissedAutoLabels.length > 0 ? [...dismissedAutoLabels] : undefined
 			};
 			const target = {
@@ -372,13 +391,13 @@
 	}
 </script>
 
-<DialogPrimitive.Root bind:open onOpenChange={onOpenChange}>
+<DialogPrimitive.Root bind:open {onOpenChange}>
 	<DialogPrimitive.Portal>
 		<DialogPrimitive.Overlay
-			class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+			class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
 		/>
 		<DialogPrimitive.Content
-			class="fixed left-1/2 top-[15%] z-50 flex max-h-[80vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+			class="fixed top-[15%] left-1/2 z-50 flex max-h-[80vh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
 		>
 			<DialogPrimitive.Title class="sr-only">{$t('dialog.quickAdd.title')}</DialogPrimitive.Title>
 			<DialogPrimitive.Description class="sr-only">
@@ -390,7 +409,9 @@
 					<div class="shrink-0 border-b border-border bg-muted/40 px-5 py-3">
 						<div class="flex items-center gap-2 text-sm font-medium text-foreground">
 							<StackIcon class="size-4 text-primary" weight="bold" />
-							<span>{$t('dialog.quickAdd.wrap.title', { values: { count: wrap.tasks.length } })}</span>
+							<span
+								>{$t('dialog.quickAdd.wrap.title', { values: { count: wrap.tasks.length } })}</span
+							>
 						</div>
 						{#if wrap.tasks.length > 0}
 							<ul class="mt-2 max-h-24 overflow-y-auto pl-6 text-xs text-muted-foreground">
@@ -400,7 +421,9 @@
 							</ul>
 						{/if}
 						{#if wrap.warning}
-							<div class="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200">
+							<div
+								class="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200"
+							>
 								<WarningIcon class="size-3.5 shrink-0" weight="fill" />
 								<span>{wrap.warning}</span>
 							</div>
@@ -416,7 +439,7 @@
 						aria-label={$t('dialog.quickAdd.titleAriaLabel')}
 						rows="1"
 						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
-						class="block w-full resize-none overflow-hidden break-words bg-transparent text-lg font-medium leading-tight outline-none placeholder:text-muted-foreground/70"
+						class="block w-full resize-none overflow-hidden bg-transparent text-lg leading-tight font-medium break-words outline-none placeholder:text-muted-foreground/70"
 						autofocus
 					></textarea>
 					<textarea
@@ -439,13 +462,13 @@
 										class="group/chip inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent/70"
 									>
 										{#if label.color}
-											<span
-												class="size-1.5 rounded-full"
-												style={`background-color: ${label.color}`}
+											<span class="size-1.5 rounded-full" style={`background-color: ${label.color}`}
 											></span>
 										{/if}
 										<span>{label.name}</span>
-										<XIcon class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100" />
+										<XIcon
+											class="size-3 opacity-60 transition-opacity group-hover/chip:opacity-100"
+										/>
 									</button>
 								{/each}
 								{#each detectedAutoLabels as name (name)}
@@ -470,76 +493,87 @@
 					{/snippet}
 
 					{#if !isInbox}
-					<div class="mt-4 flex flex-wrap items-center gap-2">
-						<div
-							class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
-							role="group"
-							aria-label={$t('dialog.quickAdd.dueDateAriaLabel')}
-						>
-							<button
-								type="button"
-								onclick={() => setDate(todayKey)}
-								aria-pressed={isToday}
-								class="inline-flex h-7 items-center rounded-[5px] px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
-								class:bg-accent={isToday}
-								class:text-foreground={isToday}
-								class:text-muted-foreground={!isToday}
-								class:hover:bg-accent={!isToday}
-								class:hover:text-foreground={!isToday}
+						<div class="mt-4 flex flex-wrap items-center gap-2">
+							<div
+								class="inline-flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
+								role="group"
+								aria-label={$t('dialog.quickAdd.dueDateAriaLabel')}
 							>
-								{$t('common.today')}
-							</button>
-							<button
-								type="button"
-								onclick={() => setDate(tomorrowKey)}
-								aria-pressed={isTomorrow}
-								class="inline-flex h-7 items-center rounded-[5px] px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50"
-								class:bg-accent={isTomorrow}
-								class:text-foreground={isTomorrow}
-								class:text-muted-foreground={!isTomorrow}
-								class:hover:bg-accent={!isTomorrow}
-								class:hover:text-foreground={!isTomorrow}
-							>
-								{$t('common.tomorrow')}
-							</button>
-							<PopoverPrimitive.Root bind:open={datePopoverOpen}>
-								<PopoverPrimitive.Trigger
-									aria-pressed={isCustomDate}
-									aria-label={$t('dialog.quickAdd.customDateAriaLabel')}
-									title={isCustomDate ? dueDate : $t('dialog.quickAdd.pickDateTitle')}
-									class="inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/50 {isCustomDate
-										? 'bg-accent text-foreground'
-										: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
+								<button
+									type="button"
+									onclick={() => setDate(todayKey)}
+									aria-pressed={isToday}
+									class="inline-flex h-7 items-center rounded-[5px] px-2.5 text-xs font-medium transition-colors focus-visible:ring-[2px] focus-visible:ring-ring/50 focus-visible:outline-none"
+									class:bg-accent={isToday}
+									class:text-foreground={isToday}
+									class:text-muted-foreground={!isToday}
+									class:hover:bg-accent={!isToday}
+									class:hover:text-foreground={!isToday}
 								>
-									{#if isCustomDate}
-										<span class="font-mono text-[11px]">{dueDate}</span>
-									{:else}
-										<DotsThreeIcon class="size-4" weight="bold" />
-									{/if}
-								</PopoverPrimitive.Trigger>
-								<PopoverPrimitive.Portal>
-									<PopoverPrimitive.Content
-										align="start"
-										sideOffset={6}
-										class="z-[60] rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+									{$t('common.today')}
+								</button>
+								<button
+									type="button"
+									onclick={() => setDate(tomorrowKey)}
+									aria-pressed={isTomorrow}
+									class="inline-flex h-7 items-center rounded-[5px] px-2.5 text-xs font-medium transition-colors focus-visible:ring-[2px] focus-visible:ring-ring/50 focus-visible:outline-none"
+									class:bg-accent={isTomorrow}
+									class:text-foreground={isTomorrow}
+									class:text-muted-foreground={!isTomorrow}
+									class:hover:bg-accent={!isTomorrow}
+									class:hover:text-foreground={!isTomorrow}
+								>
+									{$t('common.tomorrow')}
+								</button>
+								<PopoverPrimitive.Root bind:open={datePopoverOpen}>
+									<PopoverPrimitive.Trigger
+										aria-pressed={isCustomDate}
+										aria-label={$t('dialog.quickAdd.customDateAriaLabel')}
+										title={isCustomDate ? dueDate : $t('dialog.quickAdd.pickDateTitle')}
+										class="inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-xs font-medium transition-colors focus-visible:ring-[2px] focus-visible:ring-ring/50 focus-visible:outline-none {isCustomDate
+											? 'bg-accent text-foreground'
+											: 'text-muted-foreground hover:bg-accent hover:text-foreground'}"
 									>
-										<Calendar
-											type="single"
-											value={calendarValue}
-											minValue={parseDate(todayKey)}
-											onValueChange={setCalendarValue}
-											captionLayout="dropdown"
-											locale={calendarLocale}
-											highlightWeek={weekRange}
-										/>
-									</PopoverPrimitive.Content>
-								</PopoverPrimitive.Portal>
-							</PopoverPrimitive.Root>
-						</div>
-						<PriorityPicker bind:value={priority} />
+										{#if isCustomDate}
+											<span class="font-mono text-[11px]">{dueDate}</span>
+										{:else}
+											<DotsThreeIcon class="size-4" weight="bold" />
+										{/if}
+									</PopoverPrimitive.Trigger>
+									<PopoverPrimitive.Portal>
+										<PopoverPrimitive.Content
+											align="start"
+											sideOffset={6}
+											class="z-[60] rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+										>
+											<Calendar
+												type="single"
+												value={calendarValue}
+												minValue={parseDate(todayKey)}
+												onValueChange={setCalendarValue}
+												captionLayout="dropdown"
+												locale={calendarLocale}
+												highlightWeek={weekRange}
+											/>
+										</PopoverPrimitive.Content>
+									</PopoverPrimitive.Portal>
+								</PopoverPrimitive.Root>
+							</div>
+							<PriorityPicker bind:value={priority} />
 
-						<DayPartPicker bind:value={dayPart} />
-					</div>
+							<DayPartPicker bind:value={dayPart} />
+						</div>
+					{/if}
+
+					{#if todayLockConflict}
+						<p
+							class="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400"
+							role="status"
+							data-testid="today-lock-hint"
+						>
+							<LockSimpleIcon class="size-3.5 shrink-0" weight="fill" />
+							<span>{$t('dialog.quickAdd.todayLockedHint')}</span>
+						</p>
 					{/if}
 
 					{#if todayProjects.length > 0}
@@ -592,7 +626,10 @@
 					{/if}
 
 					{#snippet projectPicker()}
-						<PopoverPrimitive.Root bind:open={projectMenuOpen} onOpenChange={onProjectMenuOpenChange}>
+						<PopoverPrimitive.Root
+							bind:open={projectMenuOpen}
+							onOpenChange={onProjectMenuOpenChange}
+						>
 							<PopoverPrimitive.Trigger>
 								{#snippet child({ props })}
 									<button
@@ -608,7 +645,7 @@
 								<PopoverPrimitive.Content
 									align="start"
 									sideOffset={4}
-									class="z-[60] flex w-64 flex-col rounded-md border border-border bg-popover shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+									class="z-[60] flex w-64 flex-col rounded-md border border-border bg-popover shadow-lg outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
 								>
 									<div class="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
 										<MagnifyingGlassIcon class="size-3.5 text-muted-foreground" />
@@ -648,7 +685,9 @@
 												{/if}
 											</button>
 											{#if isWrap}
-												<div class="px-2 pb-1.5 pt-0.5 text-[11px] leading-snug text-muted-foreground">
+												<div
+													class="px-2 pt-0.5 pb-1.5 text-[11px] leading-snug text-muted-foreground"
+												>
 													{$t('dialog.quickAdd.wrap.inboxDisabled')}
 												</div>
 											{/if}
@@ -679,7 +718,7 @@
 										{/snippet}
 										{#if recentProjects.length > 0}
 											<div
-												class="px-2 pb-0.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+												class="px-2 pt-1 pb-0.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
 											>
 												{$t('project.recent')}
 											</div>
@@ -722,7 +761,9 @@
 					<div class="flex items-center gap-2">
 						<DialogPrimitive.Close>
 							{#snippet child({ props })}
-								<Button {...props} variant="ghost" size="sm" type="button">{$t('common.cancel')}</Button>
+								<Button {...props} variant="ghost" size="sm" type="button"
+									>{$t('common.cancel')}</Button
+								>
 							{/snippet}
 						</DialogPrimitive.Close>
 						<Button
