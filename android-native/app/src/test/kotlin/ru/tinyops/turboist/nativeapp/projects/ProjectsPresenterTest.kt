@@ -161,6 +161,32 @@ class ProjectsPresenterTest {
         }
 
     @Test
+    fun `a search empties the pinned row and leaves the matches where they live`() =
+        runTest {
+            val presenter = presenter()
+            groups.value =
+                listOf(
+                    ProjectGroup(
+                        context(1),
+                        listOf(project(10, "Website", isPinned = true), project(11, "Web shop")),
+                    ),
+                )
+            presenter.search("web")
+            runCurrent()
+
+            assertTrue(presenter.state.value.pinned.isEmpty())
+            assertEquals(
+                listOf("Web shop", "Website"),
+                presenter.state.value.groups.single().projects.map { it.title },
+            )
+
+            presenter.search("  ")
+            runCurrent()
+
+            assertEquals(listOf("Website"), presenter.state.value.pinned.map { it.title })
+        }
+
+    @Test
     fun `a narrowing by kind never hides an open pinned project from the pinned row`() =
         runTest {
             val presenter = presenter()

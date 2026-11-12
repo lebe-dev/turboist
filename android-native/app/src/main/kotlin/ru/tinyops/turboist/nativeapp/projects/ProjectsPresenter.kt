@@ -137,7 +137,7 @@ class ProjectsPresenter(
                 filter = chosen,
                 query = typed,
                 groups = narrow(all, chosen, typed),
-                pinned = pinned(all, chosen),
+                pinned = if (typed.isBlank()) pinned(all, chosen) else emptyList(),
                 counts = ProjectFilter.entries.associateWith { candidate -> count(all, candidate) },
                 contexts = known.contexts,
                 labels = known.labels,
@@ -224,6 +224,8 @@ class ProjectsPresenter(
      * The pinned row. While the narrowing spans every status only open projects
      * are on it — a finished project has nothing left to keep to hand — and a
      * narrowing to one status shows the pinned projects standing there instead.
+     * A search empties it: the matches are listed in their contexts, and a pinned
+     * row above them would show the same project twice or one that does not match.
      */
     private fun pinned(
         all: List<ProjectGroup>,
