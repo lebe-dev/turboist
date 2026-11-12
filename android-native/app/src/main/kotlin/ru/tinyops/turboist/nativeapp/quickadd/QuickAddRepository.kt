@@ -44,6 +44,8 @@ data class QuickAddWorkspace(
     val todayProjectLocalIds: List<Long> = emptyList(),
     /** When the Today focus lock ends, in epoch milliseconds, or `null` when none was ever turned on. */
     val todayLockUntil: Long? = null,
+    /** The names of each project's labels, by project local id; a project with none is absent. */
+    val projectLabelNames: Map<Long, List<String>> = emptyMap(),
 )
 
 /**
@@ -65,18 +67,24 @@ class QuickAddRepository
     ) {
         fun observeWorkspace(): Flow<QuickAddWorkspace> =
             combine(
-                projects.observeAll(),
+                combine(projects.observeAll(), projects.observeLabelLinks(), ::Pair),
                 labels.observeAll(),
                 observeAppSettings(),
                 observeTodayProjectIds(),
                 observeTodayLockUntil(),
-            ) { projectRows, labelRows, appSettings, todayIds, lockUntil ->
+            ) { (projectRows, links), labelRows, appSettings, todayIds, lockUntil ->
+                val names = labelRows.associate { it.localId to it.name }
                 QuickAddWorkspace(
                     projects = projectRows.map { it.toDomain() }.filter(::isOffered).sortedWith(PICKER_ORDER),
                     labels = labelRows.map(LabelRow::toDomain),
                     appSettings = appSettings,
                     todayProjectLocalIds = todayIds,
                     todayLockUntil = lockUntil,
+                    projectLabelNames =
+                        links
+                            .groupBy({ it.projectLocalId }, { names[it.labelLocalId] })
+                            .mapValues { (_, found) -> found.filterNotNull().sorted() }
+                            .filterValues { it.isNotEmpty() },
                 )
             }
 

@@ -148,6 +148,49 @@ class QuickAddPresenterTest {
         }
 
     @Test
+    fun `a sheet opened on a project starts with that project's labels`() =
+        runTest {
+            workspace.value = workspace.value.copy(projectLabelNames = mapOf(1L to listOf("errand")))
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open(QuickAddRequest(projectLocalId = 1))
+            runCurrent()
+
+            assertEquals(listOf("errand"), presenter.state.value.draft.labelNames)
+            assertFalse(presenter.state.value.holdsInput, "labels the project brought are not the user's input")
+
+            presenter.setTitles("Buy milk")
+            presenter.submit()
+            runCurrent()
+
+            assertEquals(listOf("errand"), actions.calls.single().task.labels)
+        }
+
+    @Test
+    fun `choosing another project swaps its labels in and keeps the ones picked by hand`() =
+        runTest {
+            workspace.value =
+                workspace.value.copy(projectLabelNames = mapOf(1L to listOf("errand"), 2L to listOf("work")))
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setLabels(listOf("urgent"))
+            presenter.chooseProject(1)
+            runCurrent()
+            assertEquals(listOf("urgent", "errand"), presenter.state.value.draft.labelNames)
+
+            presenter.chooseProject(2)
+            runCurrent()
+            assertEquals(listOf("urgent", "work"), presenter.state.value.draft.labelNames)
+
+            presenter.chooseProject(null)
+            runCurrent()
+            assertEquals(listOf("urgent"), presenter.state.value.draft.labelNames)
+        }
+
+    @Test
     fun `filing into a project is remembered for the next capture`() =
         runTest {
             val presenter = presenter()

@@ -1742,6 +1742,14 @@ for is a navigation habit, not a record the workspace owns, and there is no serv
 field for it. More projects are remembered than the row ever shows, so a picker
 narrowed by its search box still has enough history left to fill one.
 
+A project's labels travel with work filed into it, as on the web. The sheet puts
+the destination's labels on the draft when it opens on a project and swaps them
+when the project changes — the previous project's labels come off, the ones picked
+by hand stay — so they can still be taken off before saving. A task added without
+labels of its own anywhere else (a project screen, the daily plan) gets the
+project's labels from the write path. The server does not inherit them, so they
+are always sent with the write; a subtask is the exception and takes its parent's.
+
 **How the sheet is laid out.** Under the title and description, where the task
 goes and when it is for sit in one card: the destination (tapping it opens the
 picker), a single sideways-scrolling row of places one tap away, and the due date

@@ -138,6 +138,9 @@ class QuickAddPresenter(
     private val activity: ProjectActivity = ProjectActivity.None,
 ) {
     private val editing = MutableStateFlow(Editing())
+
+    /** Each project's labels as last read, so a save settles them even with nothing watching. */
+    @Volatile private var projectLabels: Map<Long, List<String>> = emptyMap()
     private val outgoing = MutableSharedFlow<QuickAddMessage>(extraBufferCapacity = 4)
 
     /** What the sheet renders. */
@@ -149,7 +152,13 @@ class QuickAddPresenter(
             recentLabels.observe(),
             activity.observe(),
         ) { edit, space, order, labelOrder, touched ->
-            render(edit, space, order, touched).copy(recentLabelOrder = labelOrder)
+            projectLabels = space.projectLabelNames
+            // The destination's labels follow the destination; settling them here
+            // rather than when the project is chosen means a sheet opened before
+            // the replica answered still gets them once it does.
+            val settled = edit.withProjectLabels(space.projectLabelNames)
+            if (settled != edit) editing.compareAndSet(edit, settled)
+            render(settled, space, order, touched).copy(recentLabelOrder = labelOrder)
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), QuickAddUiState())
 
     /** What the sheet says back, once each. */
@@ -293,7 +302,7 @@ class QuickAddPresenter(
      * holding only what is left — resubmitting cannot write the first four twice.
      */
     fun submit() {
-        val current = editing.value
+        val current = editing.value.withProjectLabels(projectLabels)
         if (current.submitting || !current.draft.canSubmit) return
         editing.value = current.copy(submitting = true)
         scope.launch {
@@ -340,12 +349,16 @@ class QuickAddPresenter(
         message: QuickAddMessage = QuickAddMessage.FAILED,
     ) {
         val remaining = pending.drop(written).joinToString("\n") { it.title }
+        val before = editing.value
         editing.value =
             Editing(
                 visible = true,
                 draft = draft.copy(titles = remaining),
                 opened = draft,
-                offerTodayProjects = editing.value.offerTodayProjects,
+                offerTodayProjects = before.offerTodayProjects,
+                labelsSettled = true,
+                labelsFor = draft.projectLocalId,
+                projectLabels = before.projectLabels,
             )
         outgoing.emit(message)
     }
@@ -376,6 +389,28 @@ class QuickAddPresenter(
 
             else -> this
         }
+    }
+
+    /**
+     * Puts the destination's labels on the draft, the way the web client does:
+     * the labels the previous project brought are taken off, the new project's
+     * added, and whatever the user picked by hand stays. The first time, on the
+     * place the sheet was opened on, they count as part of how it opened rather
+     * than as something the user put there.
+     */
+    private fun Editing.withProjectLabels(byProject: Map<Long, List<String>>): Editing {
+        val target = draft.projectLocalId
+        if (labelsSettled && labelsFor == target) return this
+        val incoming = target?.let { byProject[it] }.orEmpty()
+        val labels = ((draft.labelNames - projectLabels.toSet()) + incoming).distinct()
+        val openedHere = !labelsSettled && target == opened.projectLocalId
+        return copy(
+            draft = draft.copy(labelNames = labels),
+            opened = if (openedHere) opened.copy(labelNames = labels) else opened,
+            labelsSettled = true,
+            labelsFor = target,
+            projectLabels = incoming,
+        )
     }
 
     private fun render(
@@ -472,6 +507,12 @@ class QuickAddPresenter(
         val offerTodayProjects: Boolean = false,
         /** True when the last project chosen moved the date from today to tomorrow under the focus lock. */
         val dueShiftedByLock: Boolean = false,
+        /** True once the labels of [labelsFor] have been put on the draft. */
+        val labelsSettled: Boolean = false,
+        /** The project whose labels are on the draft; `null` is the inbox. */
+        val labelsFor: Long? = null,
+        /** The labels that project brought, taken off again when the destination changes. */
+        val projectLabels: List<String> = emptyList(),
     )
 
     private companion object {

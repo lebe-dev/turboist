@@ -118,6 +118,10 @@ abstract class ProjectDao {
     @Query("SELECT labelLocalId FROM project_labels WHERE projectLocalId = :projectLocalId")
     abstract suspend fun labelLocalIds(projectLocalId: Long): List<Long>
 
+    /** Every project-to-label link, and again whenever one changes. */
+    @Query("SELECT * FROM project_labels")
+    abstract fun observeLabelLinks(): Flow<List<ProjectLabelRow>>
+
     /** Replaces a project's labels with exactly [labelLocalIds]. */
     @Transaction
     open suspend fun setLabels(

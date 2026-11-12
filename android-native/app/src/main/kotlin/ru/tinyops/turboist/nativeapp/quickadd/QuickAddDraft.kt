@@ -81,7 +81,8 @@ data class QuickAddDraft(
      * True when closing the sheet would lose something the user put here.
      *
      * The place the sheet was opened on is compared with [opened] rather than with
-     * the inbox: opening on the project on screen is not a choice anybody made. The
+     * the inbox: opening on the project on screen is not a choice anybody made, and
+     * neither are the labels that project brought with it. The
      * text is not compared, so a share that arrived filled in still counts, since
      * it exists nowhere else on this device.
      */
@@ -91,7 +92,7 @@ data class QuickAddDraft(
             priority != Priority.NONE ||
             dayPart != DayPart.NONE ||
             dueDate != null ||
-            labelNames.isNotEmpty() ||
+            labelNames.toSet() != opened.labelNames.toSet() ||
             projectLocalId != opened.projectLocalId ||
             sectionLocalId != opened.sectionLocalId
 
