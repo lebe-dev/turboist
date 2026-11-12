@@ -7,9 +7,12 @@ import { todayLockStore } from '$lib/stores/todayLock.svelte';
 import { nowStore } from '$lib/stores/now.svelte';
 import QuickAddDialog from './QuickAddDialog.svelte';
 
-afterEach(() => {
+afterEach(async () => {
 	labelsStore.clear();
 	vi.restoreAllMocks();
+	// bits-ui releases its body scroll lock on a short timer after the dialog unmounts;
+	// let it fire while the DOM still exists.
+	await new Promise((resolve) => setTimeout(resolve, 40));
 });
 
 describe('QuickAddDialog subtask labels', () => {
