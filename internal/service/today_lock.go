@@ -48,6 +48,11 @@ func PlacementOf(t *model.Task) TodayPlacement {
 // of a project for today closes that project for the rest of the day. Adding work
 // to any project for another day, or with no date, stays allowed.
 //
+// The week is the one exception: an open task already on the Week screen —
+// planned for the week, or dated another day of the current week — may be taken
+// into today whatever its project. It is the task that qualifies, not its
+// project: the project does not open for other work.
+//
 // Every write that can put a task on Today asks Check before it commits:
 // TaskService.Create (and everything built on it: subtasks, duplicates, splits,
 // groups, templates), MoveService.Move, CompleteService.Uncomplete, the task
@@ -133,6 +138,9 @@ func (s *TodayLockService) Check(ctx context.Context, before *model.Task, after 
 	if before != nil && onToday(before.Status, before.DueAt, until) && sameProject(before.ProjectID, after.ProjectID) {
 		return nil
 	}
+	if before != nil && s.onWeek(before, until) {
+		return nil
+	}
 	refused := &TodayLockedError{Until: until, ProjectID: after.ProjectID}
 	if after.ProjectID == nil {
 		s.logRefusal(ctx, after, refused)
@@ -159,6 +167,33 @@ func (s *TodayLockService) logRefusal(ctx context.Context, after TodayPlacement,
 		attrs = append(attrs, slog.Int64("project_id", *e.ProjectID))
 	}
 	logging.FromContext(ctx).WarnContext(ctx, "today lock refused to take a task into today", attrs...)
+}
+
+// onWeek reports whether a task waits on the Week screen: open and either
+// planned for the week or dated a later day of the current Monday-to-Monday
+// week of the server timezone. until is the end of today; a task dated today or
+// earlier is already on Today and is judged by its project.
+func (s *TodayLockService) onWeek(t *model.Task, until time.Time) bool {
+	if t.Status != model.TaskStatusOpen {
+		return false
+	}
+	if t.PlanState == model.PlanStateWeek {
+		return true
+	}
+	if t.DueAt == nil {
+		return false
+	}
+	_, end := weekBounds(s.now(), s.loc)
+	return !t.DueAt.Before(until) && t.DueAt.Before(end)
+}
+
+// weekBounds returns [Monday 00:00, next Monday 00:00) in loc for the week
+// containing t.
+func weekBounds(t time.Time, loc *time.Location) (time.Time, time.Time) {
+	dayStart, _ := dayBounds(t, loc)
+	daysFromMonday := (int(dayStart.Weekday()) + 6) % 7
+	start := time.Date(dayStart.Year(), dayStart.Month(), dayStart.Day()-daysFromMonday, 0, 0, 0, 0, loc)
+	return start, start.AddDate(0, 0, 7)
 }
 
 func onToday(status model.TaskStatus, due *time.Time, until time.Time) bool {

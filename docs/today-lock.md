@@ -18,10 +18,21 @@ Refused, while the lock runs:
 - moving a task that is on Today into another project, or out of the inbox into one;
 - reopening a completed task of another project whose date is today.
 
+The week is the exception. An open task already on the Week screen may be taken into
+Today whatever its project:
+
+- a task planned for the week;
+- a task dated a later day of the current week (Monday to Sunday, server timezone).
+
+It is the task that qualifies, not its project: other work of that project stays out until
+the project has open work on Today of its own. A completed task is not on the Week screen,
+so reopening one onto Today is still judged by its project.
+
 Always allowed:
 
 - adding tasks to any project for another day, or with no date;
 - editing a task that is already on Today, including moving it to another hour;
+- moving a task from this week's plan, or dated later this week, to today;
 - taking work off Today (another day, no date);
 - completing, cancelling and deleting anything.
 

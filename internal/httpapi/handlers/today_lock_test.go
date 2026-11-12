@@ -16,6 +16,9 @@ import (
 func todayWire() string    { return model.FormatUTC(time.Now().UTC()) }
 func tomorrowWire() string { return model.FormatUTC(time.Now().UTC().Add(24 * time.Hour)) }
 
+// nextWeekWire is always past the end of the current Monday-to-Monday week.
+func nextWeekWire() string { return model.FormatUTC(time.Now().UTC().Add(8 * 24 * time.Hour)) }
+
 func nextUTCMidnightWire() string {
 	now := time.Now().UTC()
 	return model.FormatUTC(time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC))
@@ -287,7 +290,7 @@ func TestTodayLock_DuplicateOfATodayTaskIsAllowed(t *testing.T) {
 
 func TestTodayLock_PatchDueTodayInOtherProjectIsRefused(t *testing.T) {
 	f := setupTodayLockEnv(t)
-	task := createInProject(t, f.e, f.other.ID, map[string]any{"title": "later", "dueAt": tomorrowWire()})
+	task := createInProject(t, f.e, f.other.ID, map[string]any{"title": "later", "dueAt": nextWeekWire()})
 	resp, body := doReq(t, f.e.app, f.e.authedReq(t, http.MethodPatch,
 		fmt.Sprintf("/api/v1/tasks/%d", task.ID), map[string]any{"dueAt": todayWire(), "title": "renamed"}))
 	assertLockedResponse(t, resp, body, &f.other.ID)
@@ -303,6 +306,17 @@ func TestTodayLock_PatchDueTodayInOtherProjectIsRefused(t *testing.T) {
 	if got.Title != "later" || got.DueAt == nil || *got.DueAt != *task.DueAt {
 		t.Errorf("task after refused patch: got title %q due %v, want unchanged", got.Title, got.DueAt)
 	}
+}
+
+func TestTodayLock_PatchWeekPlannedTaskOntoTodayIsAllowed(t *testing.T) {
+	f := setupTodayLockEnv(t)
+	task := createInProject(t, f.e, f.other.ID, map[string]any{"title": "this week"})
+	resp, body := doReq(t, f.e.app, f.e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/plan", task.ID), map[string]any{"state": "week"}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("plan: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	patchTask(t, f.e, task.ID, map[string]any{"dueAt": todayWire()})
 }
 
 func TestTodayLock_PatchOfTaskAlreadyOnTodayIsAllowed(t *testing.T) {

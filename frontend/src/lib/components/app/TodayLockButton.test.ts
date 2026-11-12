@@ -102,7 +102,7 @@ describe('TodayLockButton', () => {
 		expect(button.getAttribute('aria-pressed')).toBe('true');
 		await fireEvent.click(button);
 		expect(toastMock.info).toHaveBeenCalledWith(
-			'Until midnight, today takes only today’s projects. Other days are unrestricted'
+			'Until midnight, today takes only today’s projects and this week’s tasks. Other days are unrestricted'
 		);
 		expect(screen.queryByRole('alertdialog')).toBeNull();
 	});

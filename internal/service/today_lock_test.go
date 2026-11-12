@@ -20,6 +20,9 @@ var (
 	dueToday     = time.Date(2026, 11, 11, 9, 0, 0, 0, time.UTC)
 	dueYesterday = time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
 	dueTomorrow  = time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC)
+	// The fixture week runs from Monday 2026-11-09 to Monday 2026-11-16 (Moscow).
+	dueSunday   = time.Date(2026, 11, 15, 9, 0, 0, 0, time.UTC)
+	dueNextWeek = time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC)
 )
 
 func mustLoadLocation(name string) *time.Location {
@@ -416,7 +419,7 @@ func TestTodayLock_CheckSchedulingForTodayFromAnotherProjectIsRefused(t *testing
 	focus := f.project(t, "focus")
 	other := f.project(t, "other")
 	f.taskIn(t, focus, ptrTime(dueToday))
-	task := f.taskIn(t, other, ptrTime(dueTomorrow))
+	task := f.taskIn(t, other, ptrTime(dueNextWeek))
 	f.turnOn(t)
 	after := service.PlacementOf(task)
 	after.DueAt = ptrTime(dueToday)
@@ -459,6 +462,82 @@ func TestTodayLock_NilServiceChecksNothing(t *testing.T) {
 	if err != nil {
 		t.Errorf("check: got %v, want nil", err)
 	}
+}
+
+// --- the week ----------------------------------------------------------------
+
+func (f *lockFixture) planForWeek(t *testing.T, id int64) *model.Task {
+	t.Helper()
+	week := model.PlanStateWeek
+	task, err := f.tasks.Update(context.Background(), id, repo.TaskUpdate{PlanState: &week})
+	if err != nil {
+		t.Fatalf("plan for week: %v", err)
+	}
+	return task
+}
+
+func TestTodayLock_TaskPlannedForTheWeekMayBeTakenIntoToday(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	other := f.project(t, "other")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	task := f.planForWeek(t, f.taskIn(t, other, nil).ID)
+	f.turnOn(t)
+	after := service.PlacementOf(task)
+	after.DueAt = ptrTime(dueToday)
+	if err := f.taskSvc.CheckTodayLock(context.Background(), task, after); err != nil {
+		t.Errorf("schedule week task: got %v, want nil", err)
+	}
+	// The task qualified, not its project.
+	assertTodayLocked(t, f.createIn(other, ptrTime(dueToday)), &other)
+}
+
+func TestTodayLock_TaskDatedLaterThisWeekMayBeTakenIntoToday(t *testing.T) {
+	f := setupTodayLock(t)
+	other := f.project(t, "other")
+	for _, due := range []time.Time{dueTomorrow, dueSunday} {
+		task := f.taskIn(t, other, ptrTime(due))
+		f.turnOn(t)
+		after := service.PlacementOf(task)
+		after.DueAt = ptrTime(dueToday)
+		if err := f.taskSvc.CheckTodayLock(context.Background(), task, after); err != nil {
+			t.Errorf("schedule task due %v: got %v, want nil", due, err)
+		}
+	}
+}
+
+func TestTodayLock_TaskDatedNextWeekIsRefused(t *testing.T) {
+	f := setupTodayLock(t)
+	other := f.project(t, "other")
+	task := f.taskIn(t, other, ptrTime(dueNextWeek))
+	f.turnOn(t)
+	after := service.PlacementOf(task)
+	after.DueAt = ptrTime(dueToday)
+	assertTodayLocked(t, f.taskSvc.CheckTodayLock(context.Background(), task, after), &other)
+}
+
+func TestTodayLock_WeekTaskMovedOntoTodayInAnotherProjectPasses(t *testing.T) {
+	f := setupTodayLock(t)
+	a := f.project(t, "a")
+	b := f.project(t, "b")
+	task := f.taskIn(t, a, ptrTime(dueTomorrow))
+	f.turnOn(t)
+	after := service.PlacementOf(task)
+	after.DueAt = ptrTime(dueToday)
+	after.ProjectID = &b
+	if err := f.taskSvc.CheckTodayLock(context.Background(), task, after); err != nil {
+		t.Errorf("move week task: got %v, want nil", err)
+	}
+}
+
+func TestTodayLock_CompletedWeekTaskReopenedOnTodayIsRefused(t *testing.T) {
+	f := setupTodayLock(t)
+	other := f.project(t, "other")
+	task := f.planForWeek(t, f.taskIn(t, other, ptrTime(dueToday)).ID)
+	f.setStatus(t, task.ID, model.TaskStatusCompleted)
+	f.turnOn(t)
+	_, err := f.complete.Uncomplete(context.Background(), task.ID)
+	assertTodayLocked(t, err, &other)
 }
 
 // --- moving ------------------------------------------------------------------

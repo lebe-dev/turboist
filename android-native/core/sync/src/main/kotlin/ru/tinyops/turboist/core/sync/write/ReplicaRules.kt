@@ -9,12 +9,15 @@ import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.TodayLock
 import ru.tinyops.turboist.core.model.TroikiCategory
 import ru.tinyops.turboist.core.model.UserSettings
+import ru.tinyops.turboist.core.model.view.ViewWindows
 import ru.tinyops.turboist.core.model.view.openBlockerLocalIds
 import ru.tinyops.turboist.core.network.TurboistJson
 import ru.tinyops.turboist.core.network.dto.AppSettingsDto
 import ru.tinyops.turboist.core.network.dto.UserSettingsDto
 import ru.tinyops.turboist.core.network.mapping.toAppSettings
 import ru.tinyops.turboist.core.network.mapping.toUserSettings
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * The handful of the server's rules the device repeats for itself.
@@ -38,7 +41,10 @@ import ru.tinyops.turboist.core.network.mapping.toUserSettings
  *
  * Everything else the server decides alone.
  */
-class ReplicaRules(private val db: TurboistDatabase) {
+class ReplicaRules(
+    private val db: TurboistDatabase,
+    private val zone: ZoneId = ZoneId.systemDefault(),
+) {
     /** The user's own preferences as last replicated, or the product's defaults before a first sync. */
     suspend fun userSettings(): UserSettings {
         val row = db.settings().userSettings() ?: return UserSettings()
@@ -77,14 +83,16 @@ class ReplicaRules(private val db: TurboistDatabase) {
         if (!TodayLock.isActive(until, now)) return
         val from = before?.lockPlacement()
         val to = after.lockPlacement()
+        val weekEnd = ViewWindows.week(Instant.ofEpochMilli(now), zone).untilExclusive
         // Asked first against no projects at all: a write that passes even then
         // passes whatever is on Today, and the replica is never read for it.
-        if (!TodayLock.refuses(until, now, from, to) { emptySet() }) return
+        if (!TodayLock.refuses(until, now, from, to, weekEnd) { emptySet() }) return
         val onToday = db.tasks().todayProjectLocalIds(until, after.localId).toSet()
-        if (TodayLock.refuses(until, now, from, to) { onToday }) throw WriteRefused.TodayLocked(until)
+        if (TodayLock.refuses(until, now, from, to, weekEnd) { onToday }) throw WriteRefused.TodayLocked(until)
     }
 
-    private fun TaskRow.lockPlacement() = TodayLock.Placement(projectLocalId, dueAt, status == TaskStatus.OPEN)
+    private fun TaskRow.lockPlacement() =
+        TodayLock.Placement(projectLocalId, dueAt, status == TaskStatus.OPEN, planState == PlanState.WEEK)
 
     // --- blockers ------------------------------------------------------------
 

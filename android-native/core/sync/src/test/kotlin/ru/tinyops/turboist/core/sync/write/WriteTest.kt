@@ -68,7 +68,7 @@ abstract class WriteTest {
         clock = NOW
         forcedOpId = null
         writer = OutboxWriter(db, { clock }, { forcedOpId ?: "op-${++opCounter}" })
-        rules = ReplicaRules(db)
+        rules = ReplicaRules(db, ZONE)
         tasks = TaskWriteRepo(db, writer, rules, RecurrenceAdvancer(ZONE), ZONE)
         projects = ProjectWriteRepo(db, writer, rules)
         contexts = ContextWriteRepo(db, writer)

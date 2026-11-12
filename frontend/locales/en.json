@@ -765,7 +765,7 @@
 			"blockedCannotComplete": "Cannot complete: this task is blocked by an unfinished task",
 			"blockedNotCompletedOnMove": "Moved, but not completed: the task is still blocked",
 			"idCopied": "Task ID copied",
-			"todayLocked": "Until midnight, today takes only today’s projects. Pick another day."
+			"todayLocked": "Until midnight, today takes only today’s projects and this week’s tasks. Pick another day."
 		},
 		"backlogLabel": "In backlog",
 		"blockedTooltip": "Blocked by an unfinished task",
@@ -1002,13 +1002,13 @@
 			"dayPartDropHint": "Drop on a part of the day",
 			"lock": {
 				"button": "Lock today to its projects",
-				"tooltip": "Focus lock: until midnight, only the projects already on Today can take on more work today",
-				"activeTooltip": "Until midnight, today takes only today’s projects. Other days are unrestricted",
+				"tooltip": "Focus lock: until midnight, today takes more work only from the projects already on Today and from this week’s tasks",
+				"activeTooltip": "Until midnight, today takes only today’s projects and this week’s tasks. Other days are unrestricted",
 				"confirmTitle": "Lock today to its projects?",
-				"confirmDescription": "Until midnight, tasks from other projects and from the inbox cannot be taken into today. You can still add tasks to any project for other days. The lock cannot be lifted before midnight.",
+				"confirmDescription": "Until midnight, tasks from other projects and from the inbox cannot be taken into today. Tasks planned for this week or dated later this week can still be moved to today, and you can add tasks to any project for other days. The lock cannot be lifted before midnight.",
 				"confirm": "Lock today",
 				"locking": "Locking…",
-				"locked": "Until midnight, today takes only today’s projects",
+				"locked": "Until midnight, today takes only today’s projects and this week’s tasks",
 				"failed": "Failed to lock today"
 			}
 		},

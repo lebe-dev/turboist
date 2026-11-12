@@ -12,6 +12,8 @@ class TodayLockTest {
     private val today = 2_000L
     private val overdue = 500L
     private val tomorrow = 6_000L
+    private val weekEnd = 9_000L
+    private val nextWeek = 10_000L
     private val focus = 1L
     private val other = 2L
 
@@ -20,7 +22,7 @@ class TodayLockTest {
         after: TodayLock.Placement,
         lockUntil: Long? = until,
         todayProjects: Set<Long> = setOf(focus),
-    ) = TodayLock.refuses(lockUntil, now, before, after) { todayProjects }
+    ) = TodayLock.refuses(lockUntil, now, before, after, weekEnd) { todayProjects }
 
     private fun open(
         project: Long?,
@@ -91,17 +93,43 @@ class TodayLockTest {
     }
 
     @Test
+    fun `a task planned for the week may be taken into today from any project`() {
+        val planned = TodayLock.Placement(other, null, open = true, plannedForWeek = true)
+        assertFalse(refuses(planned, open(other, today), todayProjects = emptySet()))
+        assertFalse(refuses(planned.copy(dueAt = nextWeek), open(focus, today), todayProjects = emptySet()))
+    }
+
+    @Test
+    fun `a task dated later this week may be taken into today from any project`() {
+        assertFalse(refuses(open(other, tomorrow), open(other, today), todayProjects = emptySet()))
+        assertFalse(refuses(open(other, weekEnd - 1), open(null, today), todayProjects = emptySet()))
+    }
+
+    @Test
+    fun `a task dated next week or undated and unplanned is still refused`() {
+        assertTrue(refuses(open(other, weekEnd), open(other, today)))
+        assertTrue(refuses(open(other, nextWeek), open(other, today)))
+        assertTrue(refuses(open(other, null), open(other, today)))
+    }
+
+    @Test
+    fun `a closed week task reopened on today is refused`() {
+        val done = TodayLock.Placement(other, today, open = false, plannedForWeek = true)
+        assertTrue(refuses(done, open(other, today)))
+    }
+
+    @Test
     fun `the set of projects is only read when the answer depends on it`() {
         var reads = 0
         val read = {
             reads++
             setOf(focus)
         }
-        TodayLock.refuses(null, now, null, open(other, today), read)
-        TodayLock.refuses(until, now, null, open(other, tomorrow), read)
-        TodayLock.refuses(until, now, null, open(null, today), read)
+        TodayLock.refuses(null, now, null, open(other, today), todayProjects = read)
+        TodayLock.refuses(until, now, null, open(other, tomorrow), todayProjects = read)
+        TodayLock.refuses(until, now, null, open(null, today), todayProjects = read)
         assertEquals(0, reads)
-        TodayLock.refuses(until, now, null, open(other, today), read)
+        TodayLock.refuses(until, now, null, open(other, today), todayProjects = read)
         assertEquals(1, reads)
     }
 }

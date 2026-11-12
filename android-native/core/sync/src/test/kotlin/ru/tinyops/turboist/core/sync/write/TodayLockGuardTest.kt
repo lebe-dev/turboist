@@ -3,6 +3,7 @@ package ru.tinyops.turboist.core.sync.write
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import ru.tinyops.turboist.core.database.sync.ReplicaEntityKind
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.WireTime
 import ru.tinyops.turboist.core.network.Clearable
@@ -24,6 +25,9 @@ class TodayLockGuardTest : WriteTest() {
     private val today = NOW - 60_000
     private val overdue = NOW - DAY
     private val tomorrow = MIDNIGHT + HOUR
+
+    // NOW is a Saturday in UTC, so the week ends at the next midnight but one.
+    private val nextWeek = MIDNIGHT + DAY + HOUR
 
     private suspend fun givenLock(until: Long = MIDNIGHT) =
         givenUserSettings("""{"locale":"ru","todayLockUntil":"${WireTime.format(until)}"}""")
@@ -178,7 +182,7 @@ class TodayLockGuardTest : WriteTest() {
     fun `scheduling another project's task for today is refused and the task is untouched`() =
         runTest {
             val (_, other) = givenFocusDay()
-            val later = givenTask(title = "Later", serverId = 11, projectLocalId = other, dueAt = tomorrow)
+            val later = givenTask(title = "Later", serverId = 11, projectLocalId = other, dueAt = nextWeek)
 
             assertFailsWith<WriteRefused.TodayLocked> {
                 tasks.patch(later, TaskEdit(title = "Now", dueAt = Clearable.Set(today)))
@@ -186,8 +190,36 @@ class TodayLockGuardTest : WriteTest() {
 
             val row = assertNotNull(db.tasks().byLocalId(later))
             assertEquals("Later", row.title)
-            assertEquals(tomorrow, row.dueAt)
+            assertEquals(nextWeek, row.dueAt)
             assertTrue(queue().isEmpty())
+        }
+
+    @Test
+    fun `a task dated later this week may be taken into today from another project`() =
+        runTest {
+            val (_, other) = givenFocusDay()
+            val later = givenTask(title = "Sunday", serverId = 11, projectLocalId = other, dueAt = tomorrow)
+
+            // The task qualifies, not its project.
+            assertFailsWith<WriteRefused.TodayLocked> {
+                tasks.create(TaskDestination.InProject(other), NewTask(title = "Sneak in", dueAt = today))
+            }
+
+            tasks.patch(later, TaskEdit(dueAt = Clearable.Set(today)))
+
+            assertEquals(today, assertNotNull(db.tasks().byLocalId(later)).dueAt)
+        }
+
+    @Test
+    fun `a task planned for the week may be taken into today from another project`() =
+        runTest {
+            val (_, other) = givenFocusDay()
+            val planned = givenTask(title = "This week", serverId = 11, projectLocalId = other)
+            db.tasks().update(assertNotNull(db.tasks().byLocalId(planned)).copy(planState = PlanState.WEEK))
+
+            tasks.patch(planned, TaskEdit(dueAt = Clearable.Set(today)))
+
+            assertEquals(today, assertNotNull(db.tasks().byLocalId(planned)).dueAt)
         }
 
     @Test

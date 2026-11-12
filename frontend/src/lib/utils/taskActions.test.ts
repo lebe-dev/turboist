@@ -31,7 +31,7 @@ describe('describeError', () => {
 			}
 		);
 		expect(describeError(err, 'Fallback')).toBe(
-			'Until midnight, today takes only today’s projects. Pick another day.'
+			'Until midnight, today takes only today’s projects and this week’s tasks. Pick another day.'
 		);
 	});
 
