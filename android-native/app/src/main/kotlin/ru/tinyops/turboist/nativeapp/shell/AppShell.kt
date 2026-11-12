@@ -3,6 +3,7 @@ package ru.tinyops.turboist.nativeapp.shell
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -40,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
@@ -91,6 +94,9 @@ private val PermanentDrawerBreakpoint = 840.dp
  * take a fifth of it.
  */
 private val ExpandedTopBarHeight = 120.dp
+
+/** Past this share of its travel the bar counts as collapsed. */
+private const val HALF = 0.5f
 
 /**
  * The places the navigation bar offers on a phone, in its order. They are the
@@ -386,9 +392,6 @@ private fun ShellScaffold(
                     }
                 }
                 val actions: @Composable RowScope.() -> Unit = {
-                    // The focus lock belongs to the day it locks, so it is offered
-                    // on the Today screen and nowhere else.
-                    TodayLockSlot(shown = onTodayScreen, screens = screens)
                     // Picking several tasks used to hide behind a swipe on a row;
                     // the bar is where it can be found without knowing the gesture.
                     val beginSelection = chrome.beginSelection
@@ -448,8 +451,13 @@ private fun ShellScaffold(
                         colors = colors,
                     )
                 } else {
+                    // On Today the focus lock sits right after the title, as on the
+                    // web: it belongs to the day it locks.
+                    val collapsed = scrollBehavior.state.collapsedFraction >= HALF
                     LargeTopAppBar(
-                        title = { Text(text = title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        title = {
+                            TitleWithLock(title = title, lock = onTodayScreen, collapsed = collapsed, screens = screens)
+                        },
                         navigationIcon = navigationIcon,
                         actions = actions,
                         expandedHeight = ExpandedTopBarHeight,
@@ -563,11 +571,29 @@ private fun titleResFor(destination: NavDestination?): Int =
         ?.value
         ?: R.string.native_app_name
 
-/** The focus lock control, drawn only while the Today screen is up. */
+/**
+ * A screen title with the focus lock control right after it, when [lock] says so.
+ *
+ * The large bar composes its title twice, once per row, and only fades between
+ * them. The lock is drawn in the row on show alone, so a tap on it, the question
+ * it asks and its tooltip each exist once. The rows are told apart by the text
+ * style the bar hands each: the expanded row's is the larger.
+ */
 @Composable
-private fun TodayLockSlot(
-    shown: Boolean,
+private fun TitleWithLock(
+    title: String,
+    lock: Boolean,
+    collapsed: Boolean,
     screens: AppScreens,
 ) {
-    if (shown) screens.todayLock()
+    val expandedRow = LocalTextStyle.current.fontSize > MaterialTheme.typography.titleLarge.fontSize
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = title,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (lock && expandedRow != collapsed) screens.todayLock()
+    }
 }

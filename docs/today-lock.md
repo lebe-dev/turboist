@@ -46,7 +46,7 @@ left off, and the task is still filed.
 
 ## Turning it on
 
-The padlock next to the Today title (web) or in the Today screen's top bar (Android) shows a
+The padlock next to the Today title (web and Android) shows a
 tooltip explaining the lock. Tapping it asks for confirmation; once confirmed, the padlock
 closes and only explains itself until midnight. On Android the lock is an ordinary queued
 write, so it applies at once even without a network. The device's own midnight is used
