@@ -1,4 +1,4 @@
-import type { Label, Task, TaskInput, TaskMoveInput } from '$lib/api/types';
+import type { DayPart, Label, Task, TaskInput, TaskMoveInput } from '$lib/api/types';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import { getApiClient } from '$lib/api/client';
 import { ApiError } from '$lib/api/errors';
@@ -21,7 +21,7 @@ import { nowStore } from '$lib/stores/now.svelte';
 import { toast } from 'svelte-sonner';
 import { get } from 'svelte/store';
 import { t } from '$lib/i18n';
-import { buildTree, type TaskNode } from '$lib/utils/taskTree';
+import { buildTree, descendantsToRepart, type TaskNode } from '$lib/utils/taskTree';
 
 function tr(key: string, values?: Record<string, string | number | Date>): string {
 	return get(t)(key, values ? { values } : undefined);
@@ -72,6 +72,8 @@ export interface ListMutator {
 	removeSubtree?: (id: number) => void;
 	insertAfter?: (id: number, task: Task) => void;
 	add?: (task: Task) => void;
+	// The tasks currently in the view; lets a write reach a task's subtasks.
+	all?: () => Task[];
 }
 
 /**
@@ -207,9 +209,30 @@ export async function updateTaskFields(
 	try {
 		const updated = await tasksApi.update(client, task.id, patch);
 		applyUpdate(updated, mutator, options.belongs);
+		if (patch.dayPart !== undefined) await repartSubtasks(task, patch.dayPart, mutator, tz);
 	} catch (err) {
 		toast.error(describeError(err, tr('task.toast.failedUpdate')));
 	}
+}
+
+// A task carried to another phase of the day takes its open subtasks with it.
+// An overdue subtask stays put: a new phase would leave it overdue all the same.
+async function repartSubtasks(
+	task: Task,
+	part: DayPart,
+	mutator: ListMutator,
+	tz: string | null
+): Promise<void> {
+	if (!mutator.all) return;
+	const client = getApiClient();
+	const moving = descendantsToRepart(mutator.all(), task.id, part).filter(
+		(sub) => !isOverdue(sub.dueAt, tz)
+	);
+	await Promise.all(
+		moving.map(async (sub) => {
+			mutator.replace(await tasksApi.update(client, sub.id, { dayPart: part }));
+		})
+	);
 }
 
 export async function moveToBacklog(

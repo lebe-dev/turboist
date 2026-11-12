@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import ru.tinyops.turboist.core.model.DayPart
+import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.network.Clearable
 import ru.tinyops.turboist.core.sync.write.TaskEdit
@@ -213,6 +214,32 @@ class TaskListPresenterTest {
         }
 
     @Test
+    fun `carrying a parent to another phase takes its open subtasks along, wherever they are listed`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            backgroundScope.launch { presenter.state.collect {} }
+            val parent = task(1, dayPart = DayPart.MORNING)
+            val sameBlock = task(2, parentLocalId = 1, dayPart = DayPart.MORNING)
+            val otherBlock = task(3, parentLocalId = 2, dayPart = DayPart.AFTERNOON)
+            val alreadyThere = task(4, parentLocalId = 1, dayPart = DayPart.EVENING)
+            val done = task(5, parentLocalId = 1, dayPart = DayPart.MORNING, status = TaskStatus.COMPLETED)
+            val stranger = task(6, dayPart = DayPart.MORNING)
+            sections.value =
+                listOf(
+                    phaseSection(DayPart.MORNING, parent, sameBlock, done, stranger),
+                    phaseSection(DayPart.AFTERNOON, otherBlock),
+                    phaseSection(DayPart.EVENING, alreadyThere),
+                )
+            runCurrent()
+
+            presenter.moveToDayPart(parent, DayPart.EVENING)
+            runCurrent()
+
+            val evening = TaskEdit(dayPart = DayPart.EVENING)
+            assertEquals(setOf("edit 1 $evening", "edit 2 $evening", "edit 3 $evening"), actions.calls.toSet())
+        }
+
+    @Test
     fun `a refused phase move says the change did not happen`() =
         runTest {
             val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
@@ -305,4 +332,13 @@ class TaskListPresenterTest {
             runCurrent()
             assertEquals(setOf(2L), presenter.state.value.selected)
         }
+
+    private fun phaseSection(
+        part: DayPart,
+        vararg tasks: Task,
+    ) = TaskListSection(
+        key = "phase-" + part.name,
+        heading = SectionHeading.Phase(part, active = false),
+        rows = taskListRows(tasks.toList(), emptyMap()),
+    )
 }

@@ -60,6 +60,10 @@ export function useListMutator<T extends { id: number; parentId?: number | null 
 				items = [...items.slice(0, idx + 1), t, ...items.slice(idx + 1)];
 			}
 		},
+		/** The list as it stands now, for a write that has to look at a task's neighbours. */
+		all(): T[] {
+			return items;
+		},
 		add(t: T) {
 			epoch += 1;
 			if (items.some((x) => x.id === t.id)) return;

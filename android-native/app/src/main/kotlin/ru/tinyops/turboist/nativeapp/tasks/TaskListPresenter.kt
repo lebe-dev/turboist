@@ -314,14 +314,23 @@ class TaskListPresenter(
         scope.launch { report { actions.duplicateTo(task.localId, at, task.dueHasTime) } }
     }
 
-    /** Moves a task to another phase of the day — what a row carried onto another phase's block asks for. */
+    /**
+     * Moves a task to another phase of the day — what a row carried onto another phase's block asks for.
+     * The task's open subtasks go with it, so a piece of work is never split across phases.
+     */
     fun moveToDayPart(
         task: Task,
         part: DayPart,
     ) {
         val edit = dayPartEdit(task, part)
-        if (edit == TaskEdit()) return
-        scope.launch { report { actions.edit(task.localId, edit) } }
+        val followers = subtasksToRepart(state.value.sections, task, part)
+        if (edit == TaskEdit() && followers.isEmpty()) return
+        scope.launch {
+            report {
+                if (edit != TaskEdit()) actions.edit(task.localId, edit)
+                for (sub in followers) actions.edit(sub.localId, dayPartEdit(sub, part))
+            }
+        }
     }
 
     /** Starts picking tasks, with the one that was long-pressed already picked. */

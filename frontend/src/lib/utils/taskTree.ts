@@ -1,4 +1,4 @@
-import type { Task } from '../api/types';
+import type { DayPart, Task } from '../api/types';
 
 export interface TaskNode {
 	task: Task;
@@ -113,4 +113,15 @@ export function collectSubtree(items: Task[], rootId: number): Task[] {
 	};
 	walk(root);
 	return out;
+}
+
+/**
+ * The open descendants of `rootId` that a move of the root to `part` has to carry
+ * along: everything under it that is not already in that phase. Finished
+ * subtasks stay where they were.
+ */
+export function descendantsToRepart(items: Task[], rootId: number, part: DayPart): Task[] {
+	return collectSubtree(items, rootId).filter(
+		(x) => x.id !== rootId && x.status === 'open' && (x.dayPart ?? 'none') !== part
+	);
 }

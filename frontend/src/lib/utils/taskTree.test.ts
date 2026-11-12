@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	buildTree,
 	collectSubtree,
+	descendantsToRepart,
 	flattenTree,
 	matchesSelfOrAncestor,
 	splitByRootCompletion
@@ -169,5 +170,29 @@ describe('collectSubtree', () => {
 
 	it('returns an empty list when the root is absent', () => {
 		expect(collectSubtree([t(2, 1)], 1)).toEqual([]);
+	});
+});
+
+describe('descendantsToRepart', () => {
+	const t = (
+		id: number,
+		parentId: number | null,
+		dayPart: Task['dayPart'] = 'none',
+		status: TaskStatus = 'open'
+	): Task => ({ id, parentId, dayPart, status, title: `t${id}` }) as Task;
+
+	it('picks open descendants at any depth that are in another phase', () => {
+		const items = [t(1, null, 'morning'), t(2, 1, 'morning'), t(3, 2, 'evening'), t(4, null)];
+		expect(descendantsToRepart(items, 1, 'afternoon').map((x) => x.id)).toEqual([2, 3]);
+	});
+
+	it('skips descendants already in the target phase and finished ones', () => {
+		const items = [t(1, null), t(2, 1, 'evening'), t(3, 1, 'none', 'completed'), t(4, 1)];
+		expect(descendantsToRepart(items, 1, 'evening').map((x) => x.id)).toEqual([4]);
+	});
+
+	it('reads a missing phase as none', () => {
+		const items = [t(1, null, 'morning'), { ...t(2, 1), dayPart: undefined } as unknown as Task];
+		expect(descendantsToRepart(items, 1, 'none')).toEqual([]);
 	});
 });
