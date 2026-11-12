@@ -137,12 +137,12 @@ class TaskWriteRepo(
             // the focus lock runs; any other day, or no date, is always fine.
             rules.assertTodayAllows(before = null, after = newRow, now = at)
             val localId = db.tasks().insert(newRow)
-            val labelNames = task.labels ?: placement.inheritedLabelNames
-            db.tasks().setLabels(
-                localId,
-                rules.labelsForTitle(task.title, labelNames, task.removedAutoLabels),
-                at,
-            )
+            // A project's labels are carried onto new work in it, as the web client
+            // does. The server does not do that itself, so they travel in the write;
+            // a subtask is different, its parent's labels are inherited on both sides.
+            val sentLabels = task.labels ?: placement.projectLabelNames
+            val labelNames = sentLabels ?: placement.inheritedLabelNames
+            db.tasks().setLabels(localId, rules.labelsForTitle(task.title, labelNames, task.removedAutoLabels), at)
             val opId =
                 writer.enqueue(
                     CreateTaskOp(
@@ -160,7 +160,7 @@ class TaskWriteRepo(
                                 dayPart = task.dayPart.wireOrNull(),
                                 planState = task.planState.wireOrNull(),
                                 recurrenceRule = task.recurrenceRule,
-                                labels = task.labels,
+                                labels = sentLabels,
                                 removedAutoLabels = task.removedAutoLabels.ifEmpty { null },
                             ),
                     ),
@@ -1001,7 +1001,11 @@ class TaskWriteRepo(
         when (destination) {
             TaskDestination.Inbox -> Placement(inboxId = INBOX_ID)
             is TaskDestination.InContext -> Placement(contextLocalId = destination.contextLocalId)
-            is TaskDestination.InProject -> Placement(projectLocalId = destination.projectLocalId)
+            is TaskDestination.InProject ->
+                Placement(
+                    projectLocalId = destination.projectLocalId,
+                    projectLabelNames = projectLabelNamesOf(destination.projectLocalId),
+                )
             is TaskDestination.InSection -> {
                 val section =
                     db.sections().byLocalId(destination.sectionLocalId)
@@ -1009,6 +1013,7 @@ class TaskWriteRepo(
                 Placement(
                     projectLocalId = section.projectLocalId,
                     sectionLocalId = section.localId,
+                    projectLabelNames = projectLabelNamesOf(section.projectLocalId),
                 )
             }
             is TaskDestination.SubtaskOf -> {
@@ -1025,6 +1030,13 @@ class TaskWriteRepo(
                 )
             }
         }
+
+    private suspend fun projectLabelNamesOf(projectLocalId: Long): List<String>? {
+        val names =
+            db.projects().labelLocalIds(projectLocalId)
+                .mapNotNull { db.labels().byLocalId(it)?.name }
+        return names.ifEmpty { null }
+    }
 
     private suspend fun labelNamesOf(taskLocalId: Long): List<String>? {
         val names =
@@ -1061,6 +1073,8 @@ private data class Placement(
     val sectionLocalId: Long? = null,
     val parentLocalId: Long? = null,
     val inheritedLabelNames: List<String>? = null,
+    /** The labels of the project the task goes into, sent with the write when it names none of its own. */
+    val projectLabelNames: List<String>? = null,
 )
 
 private fun Priority.wireOrNull(): String? = wire.takeIf { this != Priority.NONE }

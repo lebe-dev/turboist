@@ -99,6 +99,44 @@ class OfflineIdentityTest : WriteTest() {
         }
 
     @Test
+    fun `a task created in a project with no labels of its own takes the project's`() =
+        runTest {
+            val contextLocalId = givenContext()
+            val projectLocalId = givenProject(contextLocalId)
+            val labelLocalId = givenLabel(name = "home", serverId = 7)
+            db.projects().setLabels(projectLocalId, listOf(labelLocalId))
+
+            val created = tasks.create(TaskDestination.InProject(projectLocalId), NewTask(title = "Fix the tap"))
+
+            assertEquals(
+                listOf(labelLocalId),
+                db.tasks().labelsOf(created.entityLocalId).map { it.labelLocalId },
+            )
+            val op = queuedOps().last() as CreateTaskOp
+            assertEquals(
+                listOf("home"),
+                op.body.labels,
+                "the server does not inherit a project's labels, so they are sent",
+            )
+        }
+
+    @Test
+    fun `a task given its own labels in a project keeps exactly those`() =
+        runTest {
+            val contextLocalId = givenContext()
+            val projectLocalId = givenProject(contextLocalId)
+            db.projects().setLabels(projectLocalId, listOf(givenLabel(name = "home", serverId = 7)))
+
+            tasks.create(
+                TaskDestination.InProject(projectLocalId),
+                NewTask(title = "Fix the tap", labels = emptyList()),
+            )
+
+            val op = queuedOps().last() as CreateTaskOp
+            assertEquals(emptyList(), op.body.labels)
+        }
+
+    @Test
     fun `a task in the inbox cannot be given subtasks`() =
         runTest {
             val captured =
