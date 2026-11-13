@@ -26,8 +26,7 @@ object ProjectScorer {
         val neighbours =
             Scoring.neighbourVotes(
                 query = query,
-                // Inbox tasks are where nothing was decided yet: they say nothing about a place.
-                history = index.history.filter { it.projectId != null },
+                history = index.projectHistory,
                 now = now,
                 rule = NeighbourRule(NEIGHBOURS, NEIGHBOUR_SHARPNESS, HALF_LIFE_MILLIS),
                 votesOf = { listOfNotNull(it.projectId) },

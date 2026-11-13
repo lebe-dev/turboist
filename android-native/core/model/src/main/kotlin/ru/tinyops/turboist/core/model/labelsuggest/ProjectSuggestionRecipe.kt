@@ -12,7 +12,8 @@ package ru.tinyops.turboist.core.model.labelsuggest
  * Three signals are blended, each a number from 0 to 1 per project:
  *
  * - the neighbours: the most similar earlier tasks vote for the project they
- *   sit in. As with labels, a workspace's own history carries the score;
+ *   sit in, each run of a repeating task counted once. As with labels, a
+ *   workspace's own history carries the score;
  * - the centroid: how close the title is to what each project's recent tasks
  *   read like on average, relative to every other project. The neighbours see a
  *   few tasks; the centroid sees a project's whole recent run of them;
@@ -24,8 +25,13 @@ object ProjectSuggestionRecipe {
     /** How many earlier tasks are asked. */
     const val NEIGHBOURS: Int = 20
 
-    /** How sharply a closer neighbour outvotes a farther one, as for labels. */
-    const val NEIGHBOUR_SHARPNESS: Int = 4
+    /**
+     * How sharply a closer neighbour outvotes a farther one. Much sharper than
+     * for labels: short titles all sit at cosines between about 0.84 and 0.9,
+     * where a fourth power cannot tell a task that matches exactly from a crowd
+     * of loosely related ones, and the crowd then names the wrong project.
+     */
+    const val NEIGHBOUR_SHARPNESS: Int = 16
 
     /**
      * After how long a neighbour's vote counts half. Shorter than for labels:

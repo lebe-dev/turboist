@@ -1971,10 +1971,19 @@ same way before changing a constant.
 per project (`ProjectSuggestionRecipe`, `ProjectScorer`):
 
 - **Neighbours, 0.5.** The 20 most similar tasks that sit in a project vote for
-  that project, weighted like the label neighbours but halving every 60 days:
-  projects come and go faster than what a label means. Inbox tasks do not vote.
-- **The centroid, 0.4.** Each project's 50 newest tasks averaged into one vector;
-  how close the title is to each centroid, turned into shares with a softmax
+  that project. A vote is weighted by similarity to the 16th power and halves
+  every 60 days, since projects come and go faster than what a label means.
+  Inbox tasks do not vote. The runs of a repeating task count once: within one
+  project, only the newest row of each title is asked (case and spacing ignored).
+  Without that, a daily task completed fifty times filled every neighbour slot.
+  With a fourth power, the cosines of short titles (about 0.84–0.9 for nearly
+  everything) could not tell a task that matches exactly from that crowd. So
+  "Помыть посуду", which exists word for word in a home routine, was offered the
+  work routine whose repeating "Прибраться на рабочем столе" sat nearby. Label
+  neighbours keep every run: collapsing them cost label chips a third of their
+  recall.
+- **The centroid, 0.4.** Each project's 50 newest distinct tasks averaged into one
+  vector; how close the title is to each centroid, turned into shares with a softmax
   (temperature 0.02). The neighbours see a few tasks, the centroid a project's
   whole recent run of them.
 - **The project itself, 0.1.** The same softmax over the project documents
@@ -1984,11 +1993,10 @@ A chip needs 0.3.
 
 On the same workspace, with each held-out task seeing only the tasks written
 before it, as the phone would, and with closed projects and their tasks left out:
-at 0.3 about six chips in seven were the project the owner actually filed the
+at 0.3 about nine chips in ten were the project the owner actually filed the
 task into, more than half of the tasks got the right project among their chips,
-and fewer than one task in twelve got only wrong ones. On titles never seen
-before, nearly three chips in four were right and a third of the tasks were
-helped. Leaving closed projects out hands their share to the open ones, so scores
+and about one task in seventeen got only wrong ones. On titles never seen before,
+about four chips in five were right and nearly two tasks in five were helped. Leaving closed projects out hands their share to the open ones, so scores
 run higher than with them in; the bar moved from 0.25 to 0.3 to keep the same
 precision. Project names alone are nearly useless — the right project was
 first for only 8 % of tasks, since most names are proper nouns the model has never

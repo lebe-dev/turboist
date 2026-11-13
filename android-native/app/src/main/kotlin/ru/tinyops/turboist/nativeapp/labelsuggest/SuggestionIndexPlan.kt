@@ -62,6 +62,7 @@ internal class SuggestionIndexPlan(
     private val tasksNewestFirst = tasks.filter { it.title.isNotBlank() }.sortedByDescending { it.createdAt }
 
     val taskTexts: List<Pair<Long, String>> = tasksNewestFirst.map { it.localId to SuggestionTexts.query(it.title) }
+    private val textOfTask: Map<Long, String> = taskTexts.toMap()
 
     private val facts: List<TaskLabelFacts> =
         tasks.map { TaskLabelFacts(it.localId, it.projectLocalId, labelsOfTask[it.localId].orEmpty()) }
@@ -89,13 +90,30 @@ internal class SuggestionIndexPlan(
                     HistoryTask(id, it, labelsOfTask[id].orEmpty(), createdAt.getValue(id), projectOfTask[id])
                 }
             }
+        val runs = onceEach(history)
         return LabelSuggestionIndex(
             labels = labels,
             projects = projects,
             history = history,
             destinations = destinationPriors(labelsOfProject, facts),
-            centroids = projectCentroids(history),
+            centroids = projectCentroids(runs),
+            projectHistory = runs,
         )
+    }
+
+    /**
+     * The tasks in a project with each title counted once per project, the
+     * newest row standing for the rest: the runs of a repeating task are one
+     * piece of evidence about where such work goes, not one per completion.
+     * Labels keep every run, which measured better — a repeating task's labels
+     * are as settled as anything in the history.
+     */
+    private fun onceEach(history: List<HistoryTask>): List<HistoryTask> {
+        val seen = HashSet<Pair<String, Long>>()
+        return history
+            .filter { it.projectId != null }
+            .sortedByDescending { it.createdAt }
+            .filter { seen.add(textOfTask.getValue(it.taskId).lowercase() to it.projectId!!) }
     }
 
     companion object {

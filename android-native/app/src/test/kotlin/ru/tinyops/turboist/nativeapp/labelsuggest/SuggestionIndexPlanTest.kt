@@ -88,6 +88,32 @@ class SuggestionIndexPlanTest {
     }
 
     @Test
+    fun `the runs of a repeating task count once for projects, every time for labels`() {
+        val home = 20L
+        val runs =
+            workspace.copy(
+                tasks =
+                    workspace.tasks +
+                        listOf(
+                            SuggestionTaskFacts(110, "Вытереть пыль", soika, createdAt = 10),
+                            SuggestionTaskFacts(111, "Вытереть пыль", soika, createdAt = 11),
+                            SuggestionTaskFacts(112, "вытереть  пыль", soika, createdAt = 12),
+                            SuggestionTaskFacts(113, "Вытереть пыль", home, createdAt = 13),
+                        ),
+                projects = workspace.projects + SuggestionProjectFacts(home, "Дом", ""),
+            )
+
+        val index = SuggestionIndexPlan(runs).build { floatArrayOf(1f, 0f) }
+
+        // The newest run stands for the rest of its project; another project's run stays its own.
+        assertEquals(
+            setOf(100L, 112L, 113L),
+            index.projectHistory.map { it.taskId }.toSet(),
+        )
+        assertEquals(setOf(100L, 101L, 110L, 111L, 112L, 113L), index.history.map { it.taskId }.toSet())
+    }
+
+    @Test
     fun `a project that is not open is left out with everything it holds`() {
         val closed =
             listOf(

@@ -83,6 +83,27 @@ class ProjectScorerTest {
     }
 
     @Test
+    fun `one task that matches exactly outweighs a crowd that only resembles the title`() {
+        // Five different tasks at a cosine of 0.85, the band every short title sits in.
+        val crowd =
+            (0 until 5).map { i ->
+                val angle = i * 0.3f
+                task(20L + i, v(0.85f, 0.527f * kotlin.math.cos(angle), 0.527f * kotlin.math.sin(angle)), work)
+            }
+        val index =
+            index(
+                crowd + task(10, v(1f, 0f, 0f), home),
+                projects = listOf(project(home, v(0f, 0f, 1f)), project(work, v(0f, 0f, 1f))),
+            )
+
+        val scores = ProjectScorer.score(v(1f, 0f, 0f), index, now)
+
+        assertEquals(listOf(home), ProjectScorer.pick(scores, exclude = emptySet()))
+        // With a fourth power the crowd would take most of the neighbours' share.
+        assertTrue(scores.getValue(home) > 0.75f, "home scored ${scores.getValue(home)}")
+    }
+
+    @Test
     fun `an old neighbour counts for less than a recent one`() {
         val index =
             index(

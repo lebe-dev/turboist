@@ -18,6 +18,10 @@ package ru.tinyops.turboist.core.model.labelsuggest
  *   beyond the project's own — see [destinationPriors].
  * @property centroids per project, what its latest tasks read like on
  *   average — see [projectCentroids].
+ * @property projectHistory the earlier tasks that sit in a project, with every
+ *   run of a repeating task counted once: what project suggestions ask. A daily
+ *   task completed fifty times is fifty rows of one title, which would otherwise
+ *   fill every neighbour slot and outvote a single task that matches exactly.
  */
 class LabelSuggestionIndex(
     val labels: List<LabelVector>,
@@ -25,6 +29,7 @@ class LabelSuggestionIndex(
     val history: List<HistoryTask>,
     val destinations: Map<Long, Map<Long, Float>> = emptyMap(),
     val centroids: Map<Long, FloatArray> = emptyMap(),
+    val projectHistory: List<HistoryTask> = history.filter { it.projectId != null },
 ) {
     /** True when there is nothing a suggestion could name. */
     val isEmpty: Boolean get() = labels.isEmpty()
