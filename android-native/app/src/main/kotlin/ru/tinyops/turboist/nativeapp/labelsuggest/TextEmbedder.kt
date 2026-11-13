@@ -27,6 +27,9 @@ interface TextEmbedder {
      * a text that could not be embedded, and all `null` while there is no model.
      */
     suspend fun embed(texts: List<String>): List<FloatArray?>
+
+    /** Gives back whatever the embedder holds open; the next [embed] opens it again. */
+    suspend fun release() {}
 }
 
 /**
@@ -52,11 +55,21 @@ class LiteRtEmbedder
         private var engine: EmbeddingEngine? = null
         private var closing: Job? = null
 
+        /**
+         * Set once the engine has refused to open. A model that cannot be opened
+         * will not open on the next try either, and the first indexing pass asks
+         * a few hundred times in a row: each failure would be one more identical
+         * report. Cleared by [release], which is what deleting or re-enabling
+         * the model goes through.
+         */
+        private var unavailable = false
+
         override suspend fun embed(texts: List<String>): List<FloatArray?> {
             if (texts.isEmpty()) return emptyList()
             if (model.state.value != ModelState.Ready) return texts.map { null }
             return withContext(thread) {
                 closing?.cancel()
+                if (unavailable) return@withContext texts.map { null }
                 val opened = engine ?: open() ?: return@withContext texts.map { null }
                 val result = texts.chunked(BATCH).flatMap { batch -> embedBatch(opened, batch) }
                 closing = scope.launch(thread) { closeWhenIdle() }
@@ -80,10 +93,12 @@ class LiteRtEmbedder
                 }
             } catch (failure: RuntimeException) {
                 Faults.report("labelsuggest", "The label suggestion model could not be opened", failure)
+                unavailable = true
                 null
             } catch (missing: LinkageError) {
                 // The engine's native library is not built for this phone.
                 Faults.report("labelsuggest", "The label suggestion engine is not available on this device", missing)
+                unavailable = true
                 null
             }
 
@@ -112,10 +127,11 @@ class LiteRtEmbedder
             }
 
         /** Closes the engine now, for when the model is about to be deleted or suggestions are turned off. */
-        suspend fun release() {
+        override suspend fun release() {
             withContext(thread) {
                 closing?.cancel()
                 close()
+                unavailable = false
             }
         }
 

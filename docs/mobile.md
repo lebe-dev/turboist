@@ -1877,13 +1877,19 @@ server or anywhere else, and the web and iOS clients do not have the feature.
 model is [EmbeddingGemma 2 Text 270M](https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm)
 in the LiteRT-LM format (Apache 2.0, about 165 MB). It is not in the APK.
 Switching suggestions on downloads it once from Hugging Face into no-backup
-storage. The download resumes from where it stopped if it is interrupted, and
-the file is checked against a fixed SHA-256 before it is used. The address names
+storage. The download resumes from where it stopped if it is interrupted or the
+switch is turned off and on again, and the file is checked against a fixed
+SHA-256 before it is used. Stopping a download aborts the request at once, and a
+new download waits for the stopped one to finish its last write, so two never
+write the same partial file. The address names
 a fixed revision, so the file on the phone is byte for byte the one the scoring
 was calibrated on. The same screen shows download progress and how many tasks the
 index has learned from, and deletes the model, which turns suggestions off and
 empties the cache. The engine holds a few hundred megabytes while it is open, so
-it is opened on demand and closed after a minute of no questions.
+it is opened on demand and closed after a minute of no questions. If the engine
+cannot be opened, it is not retried until the model is deleted or suggestions are
+switched off and on, so the first indexing pass does not report the same failure
+hundreds of times.
 
 **Where they show up.** In the capture sheet, up to three chips under the
 auto-label chips, labelled "Suggested". They are asked for 300 ms after typing
@@ -1891,7 +1897,9 @@ pauses, from the first line and the chosen project. They are **offered, never
 applied**: a tap moves the label onto the draft. Labels the draft already has,
 labels its project or a title rule gives it, and labels the user took off are
 never suggested. In the task's label sheet, the top three lead the sheet above
-"Recent", with a much lower bar, because the user is already choosing there.
+"Recent", with a much lower bar, because the user is already choosing there. The
+sheet keeps the suggestions it opened with, so a suggested label that is tapped
+stays in its row, now on, and can be tapped off again. A search hides the row.
 
 **How a label is scored.** Four signals are blended, each a number from 0 to 1 per
 label (`LabelSuggestionRecipe`):
@@ -1938,7 +1946,9 @@ label and project tables. Two seconds after a burst of writes it rebuilds the
 index from the replica and the embedding cache, so only new texts go through the
 model. The first pass embeds every task, newest first, and publishes the index
 after every 128, so suggestions work long before it finishes. Embeddings are
-cached in the local-only `text_embeddings` table (migration 3 → 4). The key is a
+cached in the local-only `text_embeddings` table (replica schema 2 → 3). Each
+batch of 16 is stored as soon as it is embedded, so a pass cut short by the next
+change, or by the app closing, keeps everything it finished. The key is a
 hash of the model id and the exact text, so a renamed task asks for a new key,
 the runs of a repeating task share one, and another model can never read this
 one's vectors. Like the full-text indexes, the cache is never uploaded, is wiped
@@ -1948,9 +1958,13 @@ thrown away. Stale keys are swept after each pass.
 **What is checked.** The texts, the vector arithmetic, the project weights and the
 scorer are JVM tests on hand-built vectors in `core/model`. The DAO and the
 migration run against real SQLite. The download (whole, resumed, server ignoring
-the range, damaged file, refusal, no room) runs against MockWebServer. The
-capture sheet and the task screen are tested on a fake: when they ask, what they
-ask, and what they leave out. The engine itself is not run in the JVM suite,
+the range, damaged file, refusal, no room, stopped and resumed, deleted midway)
+runs against MockWebServer. The index (`OnDeviceLabelSuggestionsTest`) runs
+against an in-memory replica with a fake model: what is embedded and when, what
+the cache keeps and sweeps, and what a pass cut short leaves behind. The capture
+sheet and the task screen are tested on a fake: when they ask, what they ask, and
+what they leave out; the label sheet's rows are a pure function
+(`labelSheetRows`). The engine itself is not run in the JVM suite,
 since it is a native library.
 
 **Build notes.** `com.google.ai.edge.litertlm:litertlm-android` adds a native

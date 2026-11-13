@@ -3,11 +3,14 @@ package ru.tinyops.turboist.nativeapp.labelsuggest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
 import okhttp3.OkHttpClient
 import okio.Buffer
 import org.junit.After
@@ -17,10 +20,12 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** Fetching the model file: whole, resumed, refused and damaged. */
 class ModelStoreTest {
@@ -146,6 +151,64 @@ class ModelStoreTest {
 
         assertEquals(ModelState.Absent(), store.state.value)
         assertFalse(store.file.exists())
+    }
+
+    @Test
+    fun `stopping a download keeps what arrived, and starting again carries on`() {
+        server.dispatcher = RangeDispatcher(throttled = true)
+        val store = store()
+        store.download()
+        awaitPartial()
+
+        store.cancel()
+        // Long enough for a progress report racing the stop to have landed.
+        runBlocking { delay(300) }
+
+        val stopped = store.state.value
+        assertTrue(stopped is ModelState.Absent && stopped.downloadedBytes > 0, "after stopping: $stopped")
+        server.dispatcher = RangeDispatcher(throttled = false)
+        store.download()
+        assertEquals(ModelState.Ready, store.settle())
+        assertContentEquals(content, store.file.readBytes())
+    }
+
+    @Test
+    fun `deleting in the middle of a download leaves nothing behind`() {
+        server.dispatcher = RangeDispatcher(throttled = true)
+        val store = store()
+        store.download()
+        awaitPartial()
+
+        runBlocking {
+            store.delete()
+            delay(300)
+        }
+
+        assertEquals(ModelState.Absent(), store.state.value)
+        assertFalse(store.file.exists())
+        assertFalse(File(directory, EmbeddingModel.FILE_NAME + ".part").exists())
+    }
+
+    /** Waits until part of the file has been written. */
+    private fun awaitPartial() =
+        runBlocking {
+            withTimeout(10_000) {
+                while (File(directory, EmbeddingModel.FILE_NAME + ".part").length() == 0L) delay(10)
+            }
+        }
+
+    /** Answers a ranged request with the rest of the file, slowly if asked to. */
+    private inner class RangeDispatcher(
+        private val throttled: Boolean,
+    ) : Dispatcher() {
+        override fun dispatch(request: RecordedRequest): MockResponse {
+            val from = request.headers["Range"]?.removePrefix("bytes=")?.removeSuffix("-")?.toInt() ?: 0
+            return MockResponse.Builder()
+                .code(if (from > 0) 206 else 200)
+                .body(body(content.copyOfRange(from, content.size)))
+                .apply { if (throttled) throttleBody(4_096, 50, TimeUnit.MILLISECONDS) }
+                .build()
+        }
     }
 
     private fun sha256(bytes: ByteArray): String =

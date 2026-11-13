@@ -40,6 +40,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.nativeapp.R
-import ru.tinyops.turboist.nativeapp.labels.pickRecentLabels
 import ru.tinyops.turboist.nativeapp.labels.ui.LabelDot
 import ru.tinyops.turboist.nativeapp.labels.ui.labelTint
 import java.time.Instant
@@ -395,13 +395,16 @@ internal fun LabelsSheet(
             query = ""
         }
     }
-    // What the model suggests leads while nothing is typed — a search is the
-    // user saying what they want instead. Then the labels this device applied
-    // lately. Each row is lifted out of the rows below it so nothing is offered twice.
-    val leading = if (query.isBlank()) suggested.filter { it.name !in selected } else emptyList()
-    val suggestedIds = leading.mapTo(HashSet()) { it.localId }
-    val recent = pickRecentLabels(recentOrder, matches).filterNot { it.localId in suggestedIds }
-    val lifted = recent.mapTo(HashSet(suggestedIds)) { it.localId }
+    // The suggestions as they first arrived, kept while the sheet is open: the
+    // screen stops suggesting a label once it is on the task, and a chip that
+    // vanished from under the finger could not be tapped off again.
+    var offered by remember { mutableStateOf(emptyList<Long>()) }
+    LaunchedEffect(suggested) {
+        if (offered.isEmpty()) offered = suggested.map { it.localId }
+    }
+    val rows = labelSheetRows(matches, searching = query.isNotBlank(), recentOrder, offered)
+    val leading = rows.suggested
+    val recent = rows.recent
     val chip: @Composable (Label) -> Unit = { label ->
         val on = label.name in selected
         FilterChip(
@@ -475,9 +478,7 @@ internal fun LabelsSheet(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            for (label in matches) {
-                if (label.localId !in lifted) chip(label)
-            }
+            for (label in rows.rest) chip(label)
         }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),

@@ -7,10 +7,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -26,7 +30,6 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.coroutines.coroutineContext
 
 /** Where the model file stands on this device. */
 sealed interface ModelState {
@@ -101,29 +104,36 @@ class ModelStore internal constructor(
     private val current = MutableStateFlow(initialState())
     val state: StateFlow<ModelState> = current.asStateFlow()
 
+    /**
+     * The latest download, kept after it is cancelled: a cancelled download can
+     * still be finishing its last write, and whatever touches the partial file
+     * next waits for it rather than writing beside it.
+     */
     private var job: Job? = null
 
     /** Starts fetching the model, or carries on with an interrupted download. Does nothing while one runs. */
     @Synchronized
     fun download() {
         if (job?.isActive == true || current.value == ModelState.Ready) return
-        job = scope.launch(Dispatchers.IO) { fetch() }
+        val previous = job
+        job =
+            scope.launch(Dispatchers.IO) {
+                previous?.join()
+                fetch()
+            }
     }
 
     /** Stops a download, keeping what arrived so far. */
     @Synchronized
     fun cancel() {
         job?.cancel()
-        job = null
         current.value = ModelState.Absent(partial.length())
     }
 
     /** Removes the model and any partial download. */
     suspend fun delete() {
-        synchronized(this) {
-            job?.cancel()
-            job = null
-        }
+        val running = synchronized(this) { job?.also { it.cancel() } }
+        running?.join()
         withContext(Dispatchers.IO) {
             file.delete()
             partial.delete()
@@ -152,27 +162,56 @@ class ModelStore internal constructor(
             if (partial.length() < expectedSize) transfer()
             finish()
         } catch (cancelled: CancellationException) {
+            // Said again once the last write is done, so a progress report that
+            // raced the cancellation does not leave the screen saying "downloading".
+            current.value = ModelState.Absent(partial.length())
             throw cancelled
         } catch (_: IOException) {
-            current.value = ModelState.Failed(ModelFailure.NETWORK, partial.length())
+            current.value =
+                if (currentCoroutineContext().isActive) {
+                    ModelState.Failed(ModelFailure.NETWORK, partial.length())
+                } else {
+                    // The call was aborted because the download was stopped, not because the network failed.
+                    ModelState.Absent(partial.length())
+                }
         } catch (failure: RuntimeException) {
             Faults.report("labelsuggest", "Downloading the label suggestion model failed", failure)
             current.value = ModelState.Failed(ModelFailure.NETWORK, partial.length())
         }
     }
 
+    /**
+     * Streams the file onto the partial one. Stopping the download aborts the
+     * call itself, so a read blocked on a stalled connection returns at once
+     * instead of after the read timeout.
+     */
     private suspend fun transfer() {
         val have = partial.length()
         val request =
             Request.Builder().url(source.url).apply { if (have > 0) header("Range", "bytes=$have-") }.build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("The model server answered ${response.code}")
-            // A server that ignores the range sends the whole file again from the start.
-            val resuming = response.code == HTTP_PARTIAL_CONTENT
-            val written = if (resuming) have else 0L
-            current.value = ModelState.Downloading(written, expectedSize)
-            FileOutputStream(partial, resuming).use { out ->
-                response.body.byteStream().use { input -> copy(input, out, written) }
+        val call = client.newCall(request)
+        coroutineScope {
+            val abort =
+                launch {
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        call.cancel()
+                    }
+                }
+            try {
+                call.execute().use { response ->
+                    if (!response.isSuccessful) throw IOException("The model server answered ${response.code}")
+                    // A server that ignores the range sends the whole file again from the start.
+                    val resuming = response.code == HTTP_PARTIAL_CONTENT
+                    val written = if (resuming) have else 0L
+                    current.value = ModelState.Downloading(written, expectedSize)
+                    FileOutputStream(partial, resuming).use { out ->
+                        response.body.byteStream().use { input -> copy(input, out, written) }
+                    }
+                }
+            } finally {
+                abort.cancel()
             }
         }
     }
@@ -187,7 +226,7 @@ class ModelStore internal constructor(
         var written = start
         var lastReported = start
         while (true) {
-            coroutineContext.ensureActive()
+            currentCoroutineContext().ensureActive()
             val read = input.read(buffer)
             if (read < 0) return
             out.write(buffer, 0, read)
