@@ -98,6 +98,8 @@ import ru.tinyops.turboist.core.database.entity.UserStateRow
     autoMigrations = [
         // 1 -> 2: labels gain a description, empty for every label already copied.
         AutoMigration(from = 1, to = 2),
+        // 2 -> 3: projects gain the today-lock exemption, off for every project already copied.
+        AutoMigration(from = 2, to = 3),
     ],
 )
 @TypeConverters(ReplicaConverters::class)
@@ -137,7 +139,7 @@ abstract class TurboistDatabase : RoomDatabase() {
     abstract fun search(): SearchDao
 
     companion object {
-        const val VERSION: Int = 2
+        const val VERSION: Int = 3
 
         /** The file the replica lives in, inside the app's private storage. */
         const val FILE_NAME: String = "turboist-replica.db"

@@ -14,10 +14,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import ru.tinyops.turboist.core.model.DayPart
-import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.view.TimeWindow
 import ru.tinyops.turboist.core.model.view.ViewWindows
+import ru.tinyops.turboist.core.model.view.countsTowardWeekPlan
 import ru.tinyops.turboist.core.model.view.weekPlanStats
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.calendar.CalendarRepository
@@ -254,9 +254,10 @@ class WeekViewModel
                 }
 
         /**
-         * Which labels the planned week is made of. Only what was planned for the
-         * week counts: a task that is here merely because it falls due inside it
-         * says nothing about what the week was planned around.
+         * Which labels the planned week is made of. What was planned for the week
+         * counts, and so do repeating tasks; a task that is here merely because a
+         * single due date falls inside it says nothing about what the week was
+         * planned around.
          */
         private val planStats =
             combine(
@@ -265,7 +266,7 @@ class WeekViewModel
                 repository.observeUserSettings(),
             ) { tasks, troikiProjects, settings ->
                 PlanStatsHeader(
-                    weekPlanStats(tasks.filter { it.planState == PlanState.WEEK }, troikiProjects),
+                    weekPlanStats(tasks.filter { it.countsTowardWeekPlan() }, troikiProjects),
                     showTroiki = settings.troikiEnabled,
                 )
             }

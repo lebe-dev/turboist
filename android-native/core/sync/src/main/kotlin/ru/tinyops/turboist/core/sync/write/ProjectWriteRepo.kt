@@ -28,6 +28,7 @@ data class ProjectEdit(
     val contextLocalId: Long? = null,
     val labels: List<String>? = null,
     val isPrivate: Boolean? = null,
+    val todayLockExempt: Boolean? = null,
     val type: ProjectType? = null,
 )
 
@@ -99,6 +100,7 @@ class ProjectWriteRepo(
                     color = edit.color ?: row.color,
                     contextLocalId = edit.contextLocalId ?: row.contextLocalId,
                     isPrivate = edit.isPrivate ?: row.isPrivate,
+                    todayLockExempt = edit.todayLockExempt ?: row.todayLockExempt,
                     type = edit.type ?: row.type,
                     updatedAt = at,
                 ),
@@ -114,6 +116,7 @@ class ProjectWriteRepo(
                         contextLocalId = edit.contextLocalId,
                         labels = edit.labels,
                         isPrivate = edit.isPrivate,
+                        todayLockExempt = edit.todayLockExempt,
                         projectType = edit.type?.wire,
                     ),
                     ReplicaEntityKind.PROJECT,

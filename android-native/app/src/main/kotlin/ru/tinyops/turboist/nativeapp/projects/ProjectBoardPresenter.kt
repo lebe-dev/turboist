@@ -313,6 +313,8 @@ class ProjectBoardPresenter(
 
     fun setPrivate(isPrivate: Boolean) = edit(ProjectEdit(isPrivate = isPrivate))
 
+    fun setTodayLockExempt(exempt: Boolean) = edit(ProjectEdit(todayLockExempt = exempt))
+
     /** Finishes, reopens, abandons, files away or brings back the project. */
     fun setStatus(action: ProjectStatusAction) {
         val projectLocalId = state.value.project?.localId ?: return

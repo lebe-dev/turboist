@@ -26,6 +26,7 @@ import ru.tinyops.turboist.nativeapp.tasks.TaskListMessage
 import ru.tinyops.turboist.nativeapp.tasks.TaskListPresenter
 import ru.tinyops.turboist.nativeapp.tasks.TaskListUiState
 import ru.tinyops.turboist.nativeapp.tasks.TaskListViewModel
+import ru.tinyops.turboist.nativeapp.todaylock.ui.ProvideTodayLockActive
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -204,43 +205,45 @@ fun TaskListScreen(
     val onMoveRequested = remember { { sheet.value = SelectionSheet.MOVE } }
     val onGroupRequested = remember { { sheet.value = SelectionSheet.GROUP_TITLE } }
 
-    TaskListScreen(
-        state = state,
-        zone = viewModel.zone,
-        today = today,
-        empty = empty,
-        messages = presenter.messages,
-        callbacks =
-            presenterCallbacks(
-                presenter,
-                viewModel.zone,
-                viewModel.offersDayPartDrops,
-                viewModel.offersDuplicateToTomorrow,
-                onOpenTask,
-                onMoveRequested,
-                onGroupRequested,
-            ),
-        modifier = modifier,
-        bulkOutcomes = presenter.bulkOutcomes,
-    )
-    SelectionSheets(
-        sheet = sheet.value,
-        selectedCount = state.selected.size,
-        destinations = destinations,
-        onDismiss = { sheet.value = SelectionSheet.NONE },
-        onTitleChosen = { chosen ->
-            groupTitle.value = chosen
-            sheet.value = SelectionSheet.GROUP_DESTINATION
-        },
-        onMoveTo = { destination ->
-            sheet.value = SelectionSheet.NONE
-            presenter.moveSelected(destination)
-        },
-        onGroupInto = { destination ->
-            sheet.value = SelectionSheet.NONE
-            presenter.groupSelected(groupTitle.value, destination)
-        },
-    )
+    ProvideTodayLockActive {
+        TaskListScreen(
+            state = state,
+            zone = viewModel.zone,
+            today = today,
+            empty = empty,
+            messages = presenter.messages,
+            callbacks =
+                presenterCallbacks(
+                    presenter,
+                    viewModel.zone,
+                    viewModel.offersDayPartDrops,
+                    viewModel.offersDuplicateToTomorrow,
+                    onOpenTask,
+                    onMoveRequested,
+                    onGroupRequested,
+                ),
+            modifier = modifier,
+            bulkOutcomes = presenter.bulkOutcomes,
+        )
+        SelectionSheets(
+            sheet = sheet.value,
+            selectedCount = state.selected.size,
+            destinations = destinations,
+            onDismiss = { sheet.value = SelectionSheet.NONE },
+            onTitleChosen = { chosen ->
+                groupTitle.value = chosen
+                sheet.value = SelectionSheet.GROUP_DESTINATION
+            },
+            onMoveTo = { destination ->
+                sheet.value = SelectionSheet.NONE
+                presenter.moveSelected(destination)
+            },
+            onGroupInto = { destination ->
+                sheet.value = SelectionSheet.NONE
+                presenter.groupSelected(groupTitle.value, destination)
+            },
+        )
+    }
 }
 
 /**

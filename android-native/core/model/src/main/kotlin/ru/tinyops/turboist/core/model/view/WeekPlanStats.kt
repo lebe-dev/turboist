@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.core.model.view
 
 import ru.tinyops.turboist.core.model.Label
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 
@@ -32,9 +33,20 @@ data class WeekPlanStats(
 }
 
 /**
+ * Whether an open task is part of what the week is made of: planned for it, or
+ * repeating. A repeating task is not planned by hand — it falls on the week by
+ * its own schedule — yet it takes the same time as planned work, so leaving it
+ * out would make the week look emptier than it is. A task that is here merely
+ * because a single due date falls inside the week still says nothing about what
+ * the week was planned around.
+ */
+fun Task.countsTowardWeekPlan(): Boolean =
+    status == TaskStatus.OPEN && (planState == PlanState.WEEK || recurrenceRule != null)
+
+/**
  * Summarises the planned week the same way the web week view does, so the
- * screen can show which labels dominate it. The caller passes only tasks planned
- * for the week.
+ * screen can show which labels dominate it. The caller passes only tasks that count
+ * toward the week ([countsTowardWeekPlan]).
  *
  * Subtasks count on their own: planning a parent cascades onto them, so they
  * are planned work too. Finished work is left out — the plan is about what is

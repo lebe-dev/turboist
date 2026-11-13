@@ -95,6 +95,7 @@ data class ProjectBoardCallbacks(
     val onTogglePin: () -> Unit,
     val onSetTroiki: (TroikiCategory?) -> Unit,
     val onSetPrivate: (Boolean) -> Unit,
+    val onSetTodayLockExempt: (Boolean) -> Unit,
     val onDelete: () -> Unit,
     /** A task was dropped onto another's edge: the first now waits for the second. */
     val onMakeDependent: (draggedLocalId: Long, targetLocalId: Long) -> Unit = { _, _ -> },
@@ -178,6 +179,7 @@ fun ProjectScreen(
                     ProjectHeader(
                         state = state,
                         onRename = { renamingProject = true },
+                        onAddTask = { state.columns.firstOrNull { it.sectionLocalId == null }?.let { addingTo = it } },
                         onAddSection = { addingSection = true },
                         onDelete = { deletingProject = true },
                         callbacks = callbacks,
@@ -262,6 +264,7 @@ fun ProjectScreen(
                     onTogglePin = presenter::togglePin,
                     onSetTroiki = presenter::setTroikiCategory,
                     onSetPrivate = presenter::setPrivate,
+                    onSetTodayLockExempt = presenter::setTodayLockExempt,
                     // Deleting the project takes the screen with it: what it was
                     // showing no longer exists anywhere.
                     onDelete = {
@@ -283,6 +286,7 @@ fun ProjectScreen(
 private fun ProjectHeader(
     state: ProjectBoardUiState,
     onRename: () -> Unit,
+    onAddTask: () -> Unit,
     onAddSection: () -> Unit,
     onDelete: () -> Unit,
     callbacks: ProjectBoardCallbacks,
@@ -335,6 +339,7 @@ private fun ProjectHeader(
                 state = state,
                 onDismiss = { open = false },
                 onRename = onRename,
+                onAddTask = onAddTask,
                 onAddSection = onAddSection,
                 onDelete = onDelete,
                 callbacks = callbacks,
@@ -358,6 +363,7 @@ private fun ProjectActionsMenu(
     state: ProjectBoardUiState,
     onDismiss: () -> Unit,
     onRename: () -> Unit,
+    onAddTask: () -> Unit,
     onAddSection: () -> Unit,
     onDelete: () -> Unit,
     callbacks: ProjectBoardCallbacks,
@@ -367,6 +373,10 @@ private fun ProjectActionsMenu(
         MenuItem(stringResource(R.string.dialog_project_editTitle)) {
             onDismiss()
             onRename()
+        }
+        MenuItem(stringResource(R.string.task_addTask)) {
+            onDismiss()
+            onAddTask()
         }
         MenuItem(stringResource(R.string.project_addSection)) {
             onDismiss()
@@ -383,6 +393,18 @@ private fun ProjectActionsMenu(
         ) {
             onDismiss()
             callbacks.onSetPrivate(!project.isPrivate)
+        }
+        MenuItem(
+            stringResource(
+                if (project.todayLockExempt) {
+                    R.string.native_project_todayLockExemptOff
+                } else {
+                    R.string.native_project_todayLockExemptOn
+                },
+            ),
+        ) {
+            onDismiss()
+            callbacks.onSetTodayLockExempt(!project.todayLockExempt)
         }
         HorizontalDivider()
         if (project.status == ProjectStatus.OPEN) {
@@ -475,17 +497,22 @@ private fun BoardBody(
     ) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             for (column in state.columns) {
-                item(key = "heading-" + column.key, contentType = ListRowType.HEADING) {
-                    ColumnHeading(
-                        column = column,
-                        onAdd = { onAddTo(column) },
-                        onRename = { onRename(column) },
-                        onDelete = { onDelete(column) },
-                        onMoveEarlier = { column.sectionLocalId?.let(callbacks.onMoveSectionEarlier) },
-                        onMoveLater = { column.sectionLocalId?.let(callbacks.onMoveSectionLater) },
-                    )
+                // The project's own column has no heading: it is just where work
+                // goes when no column was chosen, and adding to it is the project
+                // menu's job.
+                if (column.sectionLocalId != null) {
+                    item(key = "heading-" + column.key, contentType = ListRowType.HEADING) {
+                        ColumnHeading(
+                            column = column,
+                            onAdd = { onAddTo(column) },
+                            onRename = { onRename(column) },
+                            onDelete = { onDelete(column) },
+                            onMoveEarlier = { column.sectionLocalId?.let(callbacks.onMoveSectionEarlier) },
+                            onMoveLater = { column.sectionLocalId?.let(callbacks.onMoveSectionLater) },
+                        )
+                    }
                 }
-                if (column.isEmpty) {
+                if (column.isEmpty && (column.sectionLocalId != null || state.isEmpty)) {
                     item(key = "empty-" + column.key, contentType = ListRowType.NOTE) {
                         ColumnNote(stringResource(R.string.section_noTasks))
                     }

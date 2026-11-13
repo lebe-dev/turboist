@@ -48,6 +48,7 @@ data class ProjectDto(
     val isPinned: Boolean = false,
     val pinnedAt: String? = null,
     val isPrivate: Boolean = false,
+    val todayLockExempt: Boolean = false,
     val troikiCategory: String? = null,
     val labels: List<LabelDto> = emptyList(),
     val createdAt: String? = null,

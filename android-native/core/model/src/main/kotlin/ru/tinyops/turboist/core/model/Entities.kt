@@ -38,6 +38,8 @@ data class Label(
 /**
  * A project: a container of tasks and sections inside exactly one context.
  *
+ * @property todayLockExempt the Today focus lock never keeps this project out: work
+ *   for today can be added to it even while it has no open task there.
  * @property troikiCategory set only while the project sits in a capacity bucket
  *   of the daily plan.
  */
@@ -53,6 +55,7 @@ data class Project(
     val isPinned: Boolean = false,
     val pinnedAt: Long? = null,
     val isPrivate: Boolean = false,
+    val todayLockExempt: Boolean = false,
     val troikiCategory: TroikiCategory? = null,
     val labels: List<Label> = emptyList(),
     val createdAt: Long,

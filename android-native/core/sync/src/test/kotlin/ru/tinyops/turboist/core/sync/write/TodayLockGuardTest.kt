@@ -128,6 +128,17 @@ class TodayLockGuardTest : WriteTest() {
         }
 
     @Test
+    fun `a project marked as exempt takes work for today with no open work there`() =
+        runTest {
+            val (_, other) = givenFocusDay()
+            db.projects().update(checkNotNull(db.projects().byLocalId(other)).copy(todayLockExempt = true))
+
+            tasks.create(TaskDestination.InProject(other), NewTask(title = "Spontaneous", dueAt = today))
+
+            assertEquals(1, db.tasks().openInProject(other).size)
+        }
+
+    @Test
     fun `an overdue date is refused like today`() =
         runTest {
             val (_, other) = givenFocusDay()
