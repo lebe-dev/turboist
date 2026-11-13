@@ -1,6 +1,9 @@
 package ru.tinyops.turboist.nativeapp.quickadd
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +12,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -18,10 +26,14 @@ import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.TodayLock
 import ru.tinyops.turboist.core.model.diagnostics.Faults
+import ru.tinyops.turboist.core.model.labelsuggest.LabelSuggestionRecipe
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
+import ru.tinyops.turboist.nativeapp.labelsuggest.LabelSuggestions
+import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionRequest
+import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionSurface
 import ru.tinyops.turboist.nativeapp.tasks.DayPartSchedule
 import java.time.Instant
 import java.time.LocalDate
@@ -74,6 +86,11 @@ data class QuickAddUiState(
     val knownLabels: List<Label> = emptyList(),
     /** The labels this device applied lately, most recent first — what the label row leads with. */
     val recentLabelOrder: List<Long> = emptyList(),
+    /**
+     * Labels the on-device model thinks the title calls for, best first — offered,
+     * never applied. Empty unless suggestions are turned on.
+     */
+    val suggestedLabels: List<Label> = emptyList(),
     /**
      * The project the previous capture was filed into, offered one tap away beside the
      * destination. `null` when there is none, or when it is already the destination.
@@ -136,8 +153,24 @@ class QuickAddPresenter(
     private val now: () -> Instant = Instant::now,
     private val schedule: DayPartSchedule = DayPartSchedule.Default,
     private val activity: ProjectActivity = ProjectActivity.None,
+    private val labelSuggestions: LabelSuggestions = LabelSuggestions.None,
 ) {
     private val editing = MutableStateFlow(Editing())
+
+    /**
+     * The model's labels for the first line being typed and the place it is
+     * headed, asked once typing pauses. A newer question cancels the one in
+     * flight, so a slow answer never lands on top of a newer title.
+     */
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    private val suggestedLabelIds: Flow<List<Long>> =
+        editing
+            .map { SuggestionAsk(it.visible, it.draft.titleLines.firstOrNull().orEmpty(), it.draft.projectLocalId) }
+            .distinctUntilChanged()
+            .debounce(SUGGESTION_PAUSE_MILLIS)
+            .mapLatest(::askForLabels)
+            // The sheet renders at once; suggestions join it when they have something to say.
+            .onStart { emit(emptyList()) }
 
     /** Each project's labels as last read, so a save settles them even with nothing watching. */
     @Volatile private var projectLabels: Map<Long, List<String>> = emptyMap()
@@ -159,7 +192,8 @@ class QuickAddPresenter(
             val settled = edit.withProjectLabels(space.projectLabelNames)
             if (settled != edit) editing.compareAndSet(edit, settled)
             render(settled, space, order, touched).copy(recentLabelOrder = labelOrder)
-        }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), QuickAddUiState())
+        }.combine(suggestedLabelIds, ::withSuggestedLabels)
+            .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), QuickAddUiState())
 
     /** What the sheet says back, once each. */
     val messages: SharedFlow<QuickAddMessage> = outgoing.asSharedFlow()
@@ -491,6 +525,52 @@ class QuickAddPresenter(
         )
     }
 
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun askForLabels(ask: SuggestionAsk): List<Long> {
+        if (!ask.visible || ask.title.isBlank()) return emptyList()
+        return try {
+            labelSuggestions.suggest(
+                SuggestionRequest(
+                    title = ask.title,
+                    projectLocalId = ask.projectLocalId,
+                    surface = SuggestionSurface.CAPTURE,
+                    // Some of the answer may already be on the draft; ask for enough to fill the row anyway.
+                    limit = SUGGESTION_CANDIDATES,
+                ),
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: RuntimeException) {
+            Faults.report("quickadd", "Suggesting labels for a title failed", failure)
+            emptyList()
+        }
+    }
+
+    /**
+     * Keeps out of the suggestions every label the sheet already shows another
+     * way: chosen, brought by the project, earned by a title rule, or taken off.
+     */
+    private fun withSuggestedLabels(
+        state: QuickAddUiState,
+        ids: List<Long>,
+    ): QuickAddUiState {
+        if (ids.isEmpty() || !state.visible || state.draft.titleLines.isEmpty()) return state
+        val shown = state.draft.labelNames.toSet() + state.autoLabels + state.draft.rejectedAutoLabels
+        val byId = state.knownLabels.associateBy { it.localId }
+        val offered =
+            ids.mapNotNull { byId[it] }
+                .filter { it.name !in shown }
+                .take(LabelSuggestionRecipe.MAX_SUGGESTIONS)
+        return state.copy(suggestedLabels = offered)
+    }
+
+    /** What a label suggestion is asked about: the first line, and where it is going. */
+    private data class SuggestionAsk(
+        val visible: Boolean,
+        val title: String,
+        val projectLocalId: Long?,
+    )
+
     /** The part of the sheet's state the user is changing, as one value. */
     private data class Editing(
         val visible: Boolean = false,
@@ -522,5 +602,10 @@ class QuickAddPresenter(
          * observing the replica together.
          */
         const val STOP_TIMEOUT_MILLIS = 5_000L
+
+        /** How long typing has to pause before the title is put to the model. */
+        const val SUGGESTION_PAUSE_MILLIS = 300L
+
+        const val SUGGESTION_CANDIDATES = 8
     }
 }

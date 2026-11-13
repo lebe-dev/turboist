@@ -56,6 +56,36 @@ class MigrationTest {
             }
         }
 
+    @Test
+    fun `version 2 keeps its rows and gains an empty embedding cache`() =
+        runTest {
+            val app = RuntimeEnvironment.getApplication()
+            val file = app.getDatabasePath("migration-v2.db")
+            file.parentFile?.mkdirs()
+            file.delete()
+
+            SQLiteDatabase.openOrCreateDatabase(file, null).use { legacy ->
+                createFromExport(legacy, version = 2)
+                legacy.execSQL(
+                    "INSERT INTO labels (serverId, name, color, description, isFavourite, isPrivate, createdAt, " +
+                        "updatedAt) VALUES (7, 'bug', 'red', 'Ошибки', 0, 0, 1, 1)",
+                )
+                legacy.version = 2
+            }
+
+            val db =
+                Room.databaseBuilder(app, TurboistDatabase::class.java, file.absolutePath)
+                    .allowMainThreadQueries()
+                    .build()
+            try {
+                assertEquals("Ошибки", db.labels().byServerId(7)?.description)
+                assertEquals(emptyList(), db.textEmbeddings().embeddingKeys())
+            } finally {
+                db.close()
+                file.delete()
+            }
+        }
+
     private fun createFromExport(
         target: SQLiteDatabase,
         version: Int,

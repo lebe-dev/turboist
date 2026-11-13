@@ -553,6 +553,7 @@ private fun TaskFieldSheets(
                 onChange = callbacks.onLabels,
                 onDismiss = onClose,
                 onCreate = callbacks.onCreateLabel,
+                suggested = state.suggestedLabels,
             )
 
         TaskField.ACTIONS ->

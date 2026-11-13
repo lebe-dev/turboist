@@ -1,6 +1,8 @@
 package ru.tinyops.turboist.nativeapp.tasks
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -10,6 +12,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -25,6 +32,7 @@ import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.diagnostics.Faults
+import ru.tinyops.turboist.core.model.labelsuggest.LabelSuggestionRecipe
 import ru.tinyops.turboist.core.model.view.BlockEdge
 import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.NestDropRefusal
@@ -39,6 +47,9 @@ import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
+import ru.tinyops.turboist.nativeapp.labelsuggest.LabelSuggestions
+import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionRequest
+import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionSurface
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import ru.tinyops.turboist.nativeapp.templates.TemplateCapture
 import java.time.LocalDate
@@ -61,6 +72,8 @@ data class TaskDetailUiState(
     val blockEdges: List<BlockEdge> = emptyList(),
     /** The labels this device applied lately, most recent first — what the label picker leads with. */
     val recentLabelOrder: List<Long> = emptyList(),
+    /** The labels the on-device model ranks highest for this task, best first; none of them already on it. */
+    val suggestedLabels: List<Label> = emptyList(),
 ) {
     /** True once the task is known not to be here, as opposed to not being known yet. */
     val missing: Boolean get() = !loading && task == null
@@ -267,7 +280,10 @@ class TaskDetailPresenter(
     private val relationSearch: TaskRelationSearch = TaskRelationSearch.None,
     private val templates: TemplateCapture = TemplateCapture.Unavailable,
     private val recentLabels: RecentLabels = RecentLabels.None,
+    private val labelSuggestions: LabelSuggestions = LabelSuggestions.None,
 ) {
+    /** One read of the task for both the screen and the label suggestions asked about it. */
+    private val detail = content.shareIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
     private val refreshing = MutableStateFlow(false)
     private val candidates = MutableStateFlow<List<TaskRelationCandidate>>(emptyList())
     private var searching: Job? = null
@@ -279,9 +295,59 @@ class TaskDetailPresenter(
 
     /** What the screen renders. */
     val state: StateFlow<TaskDetailUiState> =
-        combine(content, refreshing, candidates, recentLabels.observe()) { detail, isRefreshing, offered, recent ->
-            render(detail, isRefreshing, offered).copy(recentLabelOrder = recent)
+        combine(detail, refreshing, candidates, recentLabels.observe(), suggestedLabelIds(detail)) {
+                current,
+                isRefreshing,
+                offered,
+                recent,
+                suggested,
+            ->
+            render(current, isRefreshing, offered).copy(recentLabelOrder = recent).withSuggestedLabels(suggested)
         }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), TaskDetailUiState())
+
+    /**
+     * The model's ranking for the task's title in its project, asked again only
+     * when one of those two changes — labels come and go on the task without a
+     * new question, and are filtered out when the state is drawn.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun suggestedLabelIds(content: Flow<TaskDetailContent?>): Flow<List<Long>> =
+        content
+            .map { shown -> shown?.task?.let { Triple(it.localId, it.title, it.projectLocalId) } }
+            .distinctUntilChanged()
+            .mapLatest { asked ->
+                if (asked == null) return@mapLatest emptyList()
+                val (localId, title, projectLocalId) = asked
+                try {
+                    labelSuggestions.suggest(
+                        SuggestionRequest(
+                            title = title,
+                            projectLocalId = projectLocalId,
+                            taskLocalId = localId,
+                            surface = SuggestionSurface.PICKER,
+                            limit = SUGGESTION_CANDIDATES,
+                        ),
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") failure: RuntimeException,
+                ) {
+                    Faults.report("taskdetail", "Suggesting labels for a task failed", failure)
+                    emptyList()
+                }
+            }.onStart { emit(emptyList()) }
+
+    private fun TaskDetailUiState.withSuggestedLabels(ids: List<Long>): TaskDetailUiState {
+        val task = task ?: return this
+        if (ids.isEmpty()) return this
+        val on = task.labels.mapTo(HashSet()) { it.name }
+        val byId = knownLabels.associateBy { it.localId }
+        return copy(
+            suggestedLabels =
+                ids.mapNotNull { byId[it] }.filter { it.name !in on }.take(LabelSuggestionRecipe.MAX_SUGGESTIONS),
+        )
+    }
 
     /** What the screen says back, once each. */
     val messages: SharedFlow<TaskListMessage> = outgoing.asSharedFlow()
@@ -843,6 +909,9 @@ class TaskDetailPresenter(
     private companion object {
         /** Matches the list presenter, so a screen and the queries behind it stop together. */
         const val STOP_TIMEOUT_MILLIS = 5_000L
+
+        /** More than the picker shows, since some of them may already be on the task. */
+        const val SUGGESTION_CANDIDATES = 8
 
         /** Two-space indentation, the way the web client copies the same tree. */
         @OptIn(ExperimentalSerializationApi::class)

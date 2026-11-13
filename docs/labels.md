@@ -18,6 +18,10 @@ label means and when to apply it.
   `400 validation_failed`.
 - Included in backups; a backup made before descriptions existed restores with empty
   ones.
+- Read by the Android client's on-device label suggestions, together with the titles
+  and descriptions of the projects that carry the label. A description that says what
+  kind of work the label is for helps the right label rank higher in the label picker;
+  see the label suggestions section of `docs/mobile.md`.
 
 ## Labels in a task's JSON copy
 

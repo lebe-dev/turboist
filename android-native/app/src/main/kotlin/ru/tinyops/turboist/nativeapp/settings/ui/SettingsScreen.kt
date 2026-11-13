@@ -442,6 +442,11 @@ private fun settingsSearchEntries(): List<SettingsSearchEntry> {
                 R.string.native_settings_syncOnMeteredDescription,
             ),
             Triple(R.string.offline_unsentTitle, SettingsSection.DEVICE, R.string.native_unsent_settingsDescription),
+            Triple(
+                R.string.native_labelSuggest_toggle,
+                SettingsSection.DEVICE,
+                R.string.native_labelSuggest_searchKeywords,
+            ),
             Triple(R.string.native_settings_serverHeading, SettingsSection.DEVICE, null),
             Triple(
                 R.string.native_settings_changeServer,

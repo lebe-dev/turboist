@@ -30,6 +30,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -61,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
+import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.nativeapp.R
@@ -358,6 +360,10 @@ private fun QuickAddFields(
             )
 
             AutoLabelChips(names = state.autoLabels, onReject = callbacks.onRejectAutoLabel)
+            SuggestedLabelChips(
+                labels = state.suggestedLabels,
+                onAdd = { label -> callbacks.onLabels(state.draft.labelNames + label.name) },
+            )
             SuggestedProjectChips(projects = state.suggestedProjects, onChoose = callbacks.onChooseProject)
 
             // Where the task goes and when it is for are one decision while the
@@ -407,6 +413,42 @@ private fun submitLabel(lines: Int): String =
     } else {
         stringResource(R.string.dialog_quickAdd_submitSingle)
     }
+
+/**
+ * The labels the on-device model thinks the title calls for.
+ *
+ * Unlike the labels a rule earns these are not on the task until tapped: a
+ * model that is right four times out of five is still wrong the fifth, and a
+ * label the user never chose is worse than one they had to pick themselves.
+ * Tapping one moves it onto the draft, where it shows on the labels button
+ * like any other choice.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SuggestedLabelChips(
+    labels: List<Label>,
+    onAdd: (Label) -> Unit,
+) {
+    if (labels.isEmpty()) return
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text(
+            text = stringResource(R.string.native_labelSuggest_suggested),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (label in labels) {
+                val add = stringResource(R.string.native_labelSuggest_add, label.name)
+                SuggestionChip(
+                    onClick = { onAdd(label) },
+                    label = { Text(label.name) },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    modifier = Modifier.semantics { contentDescription = add },
+                )
+            }
+        }
+    }
+}
 
 /**
  * The labels the title has earned, each with a way to take it off.

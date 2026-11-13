@@ -1,0 +1,105 @@
+package ru.tinyops.turboist.core.model.labelsuggest
+
+/**
+ * Everything a suggestion is scored against, already embedded.
+ *
+ * Built once from the replica and reused for every keystroke: only the title
+ * being typed has to go through the model while the user waits.
+ *
+ * Ids are the replica's local ids throughout.
+ *
+ * @property labels every label, as one vector each.
+ * @property projects every project, with the labels it stands for.
+ * @property history earlier tasks with what they were labelled.
+ * @property destinations per project, how often its tasks carry each label
+ *   beyond the project's own — see [destinationPriors].
+ */
+class LabelSuggestionIndex(
+    val labels: List<LabelVector>,
+    val projects: List<ProjectVector>,
+    val history: List<HistoryTask>,
+    val destinations: Map<Long, Map<Long, Float>> = emptyMap(),
+) {
+    /** True when there is nothing a suggestion could name. */
+    val isEmpty: Boolean get() = labels.isEmpty()
+
+    companion object {
+        val EMPTY: LabelSuggestionIndex = LabelSuggestionIndex(emptyList(), emptyList(), emptyList())
+    }
+}
+
+class LabelVector(
+    val labelId: Long,
+    val vector: FloatArray,
+)
+
+/**
+ * A project as a voter: when a title reads like the project, the project's
+ * labels are offered. [labelWeights] is what [projectLabelWeights] works out.
+ */
+class ProjectVector(
+    val projectId: Long,
+    val vector: FloatArray,
+    val labelWeights: Map<Long, Float>,
+)
+
+class HistoryTask(
+    val taskId: Long,
+    val vector: FloatArray,
+    val labels: Set<Long>,
+    val createdAt: Long,
+)
+
+/** The facts about a task the index is built from, without its text. */
+data class TaskLabelFacts(
+    val taskId: Long,
+    val projectId: Long?,
+    val labels: Set<Long>,
+)
+
+/**
+ * The labels each project stands for: its own, at full weight, and every label
+ * carried by at least [LabelSuggestionRecipe.PROJECT_FREQUENT_SHARE] of its
+ * tasks, at the share that carries it. A project with no labels and no tasks
+ * still votes — for nothing — which is what keeps a title that reads like it
+ * from lending its weight to some other project's labels.
+ */
+fun projectLabelWeights(
+    projectIds: Collection<Long>,
+    projectLabels: Map<Long, Set<Long>>,
+    tasks: Collection<TaskLabelFacts>,
+): Map<Long, Map<Long, Float>> {
+    val byProject = tasks.filter { it.projectId != null }.groupBy { it.projectId!! }
+    return projectIds.associateWith { project ->
+        val weights = HashMap<Long, Float>()
+        val own = projectLabels[project].orEmpty()
+        val members = byProject[project].orEmpty()
+        if (members.isNotEmpty()) {
+            members.flatMap { it.labels }.groupingBy { it }.eachCount().forEach { (label, count) ->
+                val share = count.toFloat() / members.size
+                if (share >= LabelSuggestionRecipe.PROJECT_FREQUENT_SHARE) weights[label] = share
+            }
+        }
+        for (label in own) weights[label] = 1f
+        weights
+    }
+}
+
+/**
+ * Per project, the share of its tasks that carry each label the project does
+ * not already give them, shrunk toward nothing by
+ * [LabelSuggestionRecipe.DESTINATION_SHRINK] tasks' worth of doubt.
+ *
+ * The project's own labels are left out because a task filed into the project
+ * already has them: they are never what a suggestion is for.
+ */
+fun destinationPriors(
+    projectLabels: Map<Long, Set<Long>>,
+    tasks: Collection<TaskLabelFacts>,
+): Map<Long, Map<Long, Float>> =
+    tasks.filter { it.projectId != null }.groupBy { it.projectId!! }.mapValues { (project, members) ->
+        val own = projectLabels[project].orEmpty()
+        val denominator = (members.size + LabelSuggestionRecipe.DESTINATION_SHRINK).toFloat()
+        members.flatMap { it.labels - own }.groupingBy { it }.eachCount()
+            .mapValues { (_, count) -> count / denominator }
+    }

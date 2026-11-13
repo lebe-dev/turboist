@@ -22,6 +22,12 @@
     *** Companion;
 }
 
+# The on-device model engine for label suggestions. Its native library creates
+# and calls back into these classes by name over JNI — responses, callbacks,
+# configuration — and the library ships no rules of its own.
+-keep class com.google.ai.edge.litertlm.** { *; }
+-dontwarn com.google.ai.edge.litertlm.**
+
 # The stack traces that come back from a release build are otherwise a list of
 # single-letter names. This keeps enough of the original ones to read them, and
 # costs only the size of the tables.

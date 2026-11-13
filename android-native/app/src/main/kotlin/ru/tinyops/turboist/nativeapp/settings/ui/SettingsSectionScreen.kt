@@ -34,6 +34,7 @@ import ru.tinyops.turboist.core.model.LINK_TITLE_PLACEHOLDER
 import ru.tinyops.turboist.core.model.MAX_MAX_PINNED
 import ru.tinyops.turboist.core.model.MIN_MAX_PINNED
 import ru.tinyops.turboist.nativeapp.R
+import ru.tinyops.turboist.nativeapp.labelsuggest.ui.LabelSuggestionSettingsGroup
 import ru.tinyops.turboist.nativeapp.settings.DeletedRule
 import ru.tinyops.turboist.nativeapp.settings.SettingsMessage
 import ru.tinyops.turboist.nativeapp.settings.SettingsSection
@@ -98,6 +99,7 @@ fun SettingsSectionScreen(
             ),
         destinations = destinations,
         modifier = modifier,
+        labelSuggestions = { LabelSuggestionSettingsGroup() },
     )
 }
 
@@ -116,6 +118,7 @@ fun SettingsSectionScreen(
     destinations: SettingsDestinations,
     modifier: Modifier = Modifier,
     messages: Flow<SettingsMessage> = emptyFlow(),
+    labelSuggestions: @Composable () -> Unit = {},
 ) {
     val snackbars = remember { SnackbarHostState() }
     SettingsMessageHost(messages, snackbars, callbacks.onRestoreRule)
@@ -127,7 +130,7 @@ fun SettingsSectionScreen(
                 SettingsSection.WORKSPACE -> WorkspaceSection(state, callbacks)
                 SettingsSection.RULES -> RulesSection(state, callbacks)
                 SettingsSection.SECURITY -> SettingsSectionLinks(section, destinations)
-                SettingsSection.DEVICE -> DeviceSection(state, callbacks, destinations)
+                SettingsSection.DEVICE -> DeviceSection(state, callbacks, destinations, labelSuggestions)
                 SettingsSection.ABOUT -> AboutSection(state)
             }
             SettingsBottomSpace()

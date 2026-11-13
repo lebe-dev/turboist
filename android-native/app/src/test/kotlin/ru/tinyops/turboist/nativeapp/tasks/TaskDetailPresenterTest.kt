@@ -20,6 +20,8 @@ import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.labels.withRecentLabel
+import ru.tinyops.turboist.nativeapp.labelsuggest.FakeLabelSuggestions
+import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionSurface
 import ru.tinyops.turboist.nativeapp.sync.SyncScheduler
 import ru.tinyops.turboist.nativeapp.templates.TemplateCapture
 import java.time.LocalDate
@@ -194,6 +196,53 @@ class TaskDetailPresenterTest {
         status = TaskStatus.OPEN,
         projectTitle = null,
     )
+
+    @Test
+    fun `the label picker is led by what the model suggests for the task, minus what it already has`() =
+        runTest {
+            val money = Label(localId = 1, name = "money", createdAt = 0, updatedAt = 0)
+            val health = Label(localId = 2, name = "health", createdAt = 0, updatedAt = 0)
+            val work = Label(localId = 3, name = "work", createdAt = 0, updatedAt = 0)
+            val suggestions = FakeLabelSuggestions().apply { answer = listOf(1L, 2L, 3L) }
+            val presenter =
+                TaskDetailPresenter(
+                    backgroundScope,
+                    content,
+                    actions,
+                    sync,
+                    labelSuggestions = suggestions,
+                )
+            backgroundScope.launch { presenter.state.collect {} }
+            content.value =
+                detail(
+                    task(7, title = "Pay the rent", projectLocalId = 4, labels = listOf(health)),
+                    knownLabels = listOf(money, health, work),
+                )
+            runCurrent()
+
+            assertEquals(listOf("money", "work"), presenter.state.value.suggestedLabels.map { it.name })
+            val asked = suggestions.asked.single()
+            assertEquals("Pay the rent", asked.title)
+            assertEquals(4L, asked.projectLocalId)
+            assertEquals(7L, asked.taskLocalId, "the task must not vote for itself")
+            assertEquals(SuggestionSurface.PICKER, asked.surface)
+        }
+
+    @Test
+    fun `labels coming and going do not ask the model again`() =
+        runTest {
+            val money = Label(localId = 1, name = "money", createdAt = 0, updatedAt = 0)
+            val suggestions = FakeLabelSuggestions().apply { answer = listOf(1L) }
+            val presenter = TaskDetailPresenter(backgroundScope, content, actions, sync, labelSuggestions = suggestions)
+            backgroundScope.launch { presenter.state.collect {} }
+            content.value = detail(task(7, title = "Pay the rent"), knownLabels = listOf(money))
+            runCurrent()
+            content.value = detail(task(7, title = "Pay the rent", labels = listOf(money)), knownLabels = listOf(money))
+            runCurrent()
+
+            assertEquals(1, suggestions.asked.size)
+            assertTrue(presenter.state.value.suggestedLabels.isEmpty())
+        }
 
     @Test
     fun `the state carries the task it was given, and is no longer loading`() =

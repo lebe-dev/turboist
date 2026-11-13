@@ -8,6 +8,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import ru.tinyops.turboist.core.database.dao.ContextDao
 import ru.tinyops.turboist.core.database.dao.LabelDao
+import ru.tinyops.turboist.core.database.dao.LabelSuggestionDao
 import ru.tinyops.turboist.core.database.dao.LabelUsageDao
 import ru.tinyops.turboist.core.database.dao.OutboxDao
 import ru.tinyops.turboist.core.database.dao.ProjectDao
@@ -21,6 +22,7 @@ import ru.tinyops.turboist.core.database.dao.TaskHydrationDao
 import ru.tinyops.turboist.core.database.dao.TaskRelationDao
 import ru.tinyops.turboist.core.database.dao.TaskTemplateDao
 import ru.tinyops.turboist.core.database.dao.TaskViewDao
+import ru.tinyops.turboist.core.database.dao.TextEmbeddingDao
 import ru.tinyops.turboist.core.database.entity.AppSettingsRow
 import ru.tinyops.turboist.core.database.entity.ContextFtsRow
 import ru.tinyops.turboist.core.database.entity.ContextRow
@@ -41,6 +43,7 @@ import ru.tinyops.turboist.core.database.entity.TaskTemplateLabelRow
 import ru.tinyops.turboist.core.database.entity.TaskTemplateRow
 import ru.tinyops.turboist.core.database.entity.TaskTemplateSubtaskLabelRow
 import ru.tinyops.turboist.core.database.entity.TaskTemplateSubtaskRow
+import ru.tinyops.turboist.core.database.entity.TextEmbeddingRow
 import ru.tinyops.turboist.core.database.entity.UserSettingsRow
 import ru.tinyops.turboist.core.database.entity.UserStateRow
 
@@ -56,7 +59,8 @@ import ru.tinyops.turboist.core.database.entity.UserStateRow
  *
  * - the workspace tables, which are a copy of records the server owns;
  * - the full-text indexes, which are derived from those tables and maintained by
- *   triggers, so they can always be thrown away and rebuilt;
+ *   triggers, so they can always be thrown away and rebuilt — and, beside them,
+ *   the cache of embeddings label suggestions compute, derived the same way;
  * - the bookkeeping tables, which exist only here. They are how far the copy has
  *   caught up, what this device has changed and not yet sent, and what the
  *   server refused. Nothing in them is ever uploaded as data.
@@ -88,6 +92,8 @@ import ru.tinyops.turboist.core.database.entity.UserStateRow
         ProjectFtsRow::class,
         LabelFtsRow::class,
         ContextFtsRow::class,
+        // Derived on this device by the label-suggestion model, and never sent anywhere.
+        TextEmbeddingRow::class,
         // Local-only bookkeeping.
         SyncStateRow::class,
         OutboxOpRow::class,
@@ -98,6 +104,8 @@ import ru.tinyops.turboist.core.database.entity.UserStateRow
     autoMigrations = [
         // 1 -> 2: labels gain a description, empty for every label already copied.
         AutoMigration(from = 1, to = 2),
+        // 2 -> 3: the cache of embeddings label suggestions read, empty until the model runs.
+        AutoMigration(from = 2, to = 3),
     ],
 )
 @TypeConverters(ReplicaConverters::class)
@@ -133,11 +141,17 @@ abstract class TurboistDatabase : RoomDatabase() {
 
     abstract fun searchIndex(): SearchIndexDao
 
+    /** The workspace as label suggestions read it. */
+    abstract fun labelSuggestions(): LabelSuggestionDao
+
+    /** The embeddings label suggestions have computed so far. */
+    abstract fun textEmbeddings(): TextEmbeddingDao
+
     /** Search itself: the index paired with the rows it names, in ranked order. */
     abstract fun search(): SearchDao
 
     companion object {
-        const val VERSION: Int = 2
+        const val VERSION: Int = 3
 
         /** The file the replica lives in, inside the app's private storage. */
         const val FILE_NAME: String = "turboist-replica.db"

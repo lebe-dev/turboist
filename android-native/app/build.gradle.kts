@@ -281,6 +281,7 @@ dependencies {
     implementation(projects.core.model)
     implementation(projects.core.database)
     implementation(projects.core.network)
+    implementation(libs.litertlm.android)
     implementation(projects.core.sync)
 
     implementation(platform(libs.compose.bom))
@@ -329,6 +330,7 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
     // The shell's navigation is proved by composing it on the JVM rather than on
     // a device: the drawer is the only way into most of the app, and a walk
     // through it is the one check that the destinations, the graph and the

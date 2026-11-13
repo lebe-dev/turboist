@@ -345,6 +345,8 @@ It holds three kinds of table, and they are not the same thing:
   created with the schema, so a row cannot be written, edited or deleted without
   its index entry following — including through a cascade nobody called directly.
   A hand-maintained index would drift the first time a write path forgot it.
+  Beside them sits the other derived table, `text_embeddings`: the cache of
+  vectors label suggestions compute on the device (see *Label suggestions*).
 - **the bookkeeping**, which exists only on the device and is never uploaded:
   how far the copy has caught up, what this device has changed and not yet sent,
   and what the server refused.
@@ -1862,6 +1864,105 @@ is where a report goes wrong silently. The query behind them is checked against 
 its own moment rather than its task's, that work filed nowhere counts towards no
 project, and that deleting a task takes its taggings out of the report. The
 screens are checked as screens.
+
+### Label suggestions (`app/.../labelsuggest`, `core/model/.../labelsuggest`)
+
+The Android client can suggest labels for a task while its title is typed and
+when its labels are being picked. Everything happens on the phone: a small
+language model turns titles, labels and projects into embeddings, and the
+suggestion is worked out from those against the replica. Nothing is sent to the
+server or anywhere else, and the web and iOS clients do not have the feature.
+
+**Off until switched on, under Settings → This device → Label suggestions.** The
+model is [EmbeddingGemma 2 Text 270M](https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm)
+in the LiteRT-LM format (Apache 2.0, about 165 MB). It is not in the APK.
+Switching suggestions on downloads it once from Hugging Face into no-backup
+storage. The download resumes from where it stopped if it is interrupted, and
+the file is checked against a fixed SHA-256 before it is used. The address names
+a fixed revision, so the file on the phone is byte for byte the one the scoring
+was calibrated on. The same screen shows download progress and how many tasks the
+index has learned from, and deletes the model, which turns suggestions off and
+empties the cache. The engine holds a few hundred megabytes while it is open, so
+it is opened on demand and closed after a minute of no questions.
+
+**Where they show up.** In the capture sheet, up to three chips under the
+auto-label chips, labelled "Suggested". They are asked for 300 ms after typing
+pauses, from the first line and the chosen project. They are **offered, never
+applied**: a tap moves the label onto the draft. Labels the draft already has,
+labels its project or a title rule gives it, and labels the user took off are
+never suggested. In the task's label sheet, the top three lead the sheet above
+"Recent", with a much lower bar, because the user is already choosing there.
+
+**How a label is scored.** Four signals are blended, each a number from 0 to 1 per
+label (`LabelSuggestionRecipe`):
+
+- **Neighbours, 0.5.** The 20 most similar tasks on the device vote with their
+  labels. A vote is weighted by similarity to the fourth power and halves every
+  180 days. An unlabelled neighbour is a vote for nothing. The task being edited
+  does not vote for itself.
+- **The label itself, 0.3.** How close the title is to each label's document,
+  turned into shares across all labels with a softmax. The document is the
+  label's name, its description, and the projects that carry it with their
+  descriptions. The softmax matters because raw closeness says nothing: every
+  short title is about as close to every label.
+- **Projects, 0.1.** The same softmax over projects (title and description), with
+  each project voting for the labels it stands for. Those are its own labels and
+  any label on at least 30 % of its tasks.
+- **The destination, 0.1.** When the task already has a project, the share of
+  that project's tasks carrying each label beyond the project's own, shrunk by
+  five tasks' worth of doubt. Without a project, its weight goes to the
+  neighbours.
+
+A chip in the capture sheet needs 0.4. The label sheet shows the best three above
+0.05. Titles are embedded as `task: classification | query: <title>`, labels and
+projects as `title: <name> | text: <body>`, and vectors are cut to 256
+dimensions.
+
+**Where the numbers come from.** They were chosen by running the same `.litertlm`
+file through LiteRT-LM's Python package on a real workspace of about 3,100 tasks
+and 23 labels, holding out the newest fifth and scoring against the labels the
+owner actually gave them. The labels the task's project or a title rule would
+have given it were not counted. At 0.4, about four chips in five were right, and
+a third of the labels the owner added by hand were suggested. On titles never
+seen before, it was about three in five right and one in seven suggested. Fewer
+than one task in twenty without labels of its own got a chip. Most of the
+accuracy comes from history: label names alone were right about one time in
+three. Descriptions and projects mostly improved the ranking in the label sheet,
+where the right label was among the top three for 70 % of tasks (60 % for new
+titles). A 90-day replica holds enough history: limiting it to open tasks plus
+those finished in the last 90 days changed nothing measurable. Re-measure the
+same way before changing a constant.
+
+**The index follows the replica.** `OnDeviceLabelSuggestions` watches the task,
+label and project tables. Two seconds after a burst of writes it rebuilds the
+index from the replica and the embedding cache, so only new texts go through the
+model. The first pass embeds every task, newest first, and publishes the index
+after every 128, so suggestions work long before it finishes. Embeddings are
+cached in the local-only `text_embeddings` table (migration 2 → 3). The key is a
+hash of the model id and the exact text, so a renamed task asks for a new key,
+the runs of a repeating task share one, and another model can never read this
+one's vectors. Like the full-text indexes, the cache is never uploaded, is wiped
+with the replica on sign-out, and loses only a minute of computation if it is
+thrown away. Stale keys are swept after each pass.
+
+**What is checked.** The texts, the vector arithmetic, the project weights and the
+scorer are JVM tests on hand-built vectors in `core/model`. The DAO and the
+migration run against real SQLite. The download (whole, resumed, server ignoring
+the range, damaged file, refusal, no room) runs against MockWebServer. The
+capture sheet and the task screen are tested on a fake: when they ask, what they
+ask, and what they leave out. The engine itself is not run in the JVM suite,
+since it is a native library.
+
+**Build notes.** `com.google.ai.edge.litertlm:litertlm-android` adds a native
+library for arm64-v8a and x86_64 only. It is stored uncompressed, like every
+native library in the APK, so it adds about 23 MB to the installed app (less to
+the download from a store, which is compressed). A 32-bit phone does not offer
+the feature at all (`LabelSuggestionSupport`). The library is
+compiled with Kotlin 2.4 metadata, which is why the project's Kotlin is at least
+2.3. Dagger 2.57 reads metadata through `kotlin-metadata-jvm`, which is pinned
+to the compiler's version on the KSP classpath, because newer Dagger needs AGP 9.
+The library ships no shrinker rules, so `app/proguard-rules.pro` keeps
+`com.google.ai.edge.litertlm.**`, which its native side reaches over JNI.
 
 ### Search (`app/.../search`)
 

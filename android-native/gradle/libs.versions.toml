@@ -25,6 +25,7 @@ work = "2.10.5"
 datastore = "1.1.7"
 credentials = "1.5.0"
 libRecur = "0.17.1"
+litertlm = "0.19.1"
 sentry = "8.63.0"
 sentryPlugin = "6.26.0"
 benchmark = "1.5.0"
@@ -65,6 +66,12 @@ hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", v
 # Newer Dagger bundles a newer copy but needs AGP 9.
 kotlin-metadata-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version.ref = "kotlin" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+# --- On-device model ---
+# On-device embeddings for label suggestions. Ships its own native library
+# (arm64-v8a, x86_64) and is compiled with Kotlin 2.4 metadata, which is why the
+# Kotlin compiler cannot be older than 2.3.
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 
 # --- Persistence (the on-device replica) ---
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

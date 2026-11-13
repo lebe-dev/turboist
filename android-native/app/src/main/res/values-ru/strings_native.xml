@@ -315,4 +315,29 @@
     <string name="native_dayPartDrag_hint">Перетащите в часть дня</string>
     <!-- Beside the finger while a carried task is over another part of the day; the value is that part's name. -->
     <string name="native_dayPartDrag_willMove">Перенести: %1$s</string>
+    <!-- Label suggestions: the group in device settings. -->
+    <string name="native_labelSuggest_heading">Подсказки меток</string>
+    <string name="native_labelSuggest_toggle">Подсказывать метки</string>
+    <!-- The value is the model's download size, such as "165 MB". -->
+    <string name="native_labelSuggest_toggleDescription">Подбирает метки для задачи по прежним задачам и описаниям меток, прямо на телефоне. Один раз скачивает модель на %1$s.</string>
+    <!-- Words a settings search should find the switch by. -->
+    <string name="native_labelSuggest_searchKeywords">метки теги подсказки модель ИИ</string>
+    <!-- The values are sizes, such as "40 MB" and "165 MB". -->
+    <string name="native_labelSuggest_downloading">Скачивается модель: %1$s из %2$s</string>
+    <string name="native_labelSuggest_waiting">Загрузка приостановлена</string>
+    <string name="native_labelSuggest_failedNetwork">Загрузка прервалась. Она продолжится с того же места.</string>
+    <!-- The value is the model's size. -->
+    <string name="native_labelSuggest_failedStorage">Не хватает места для модели (%1$s)</string>
+    <string name="native_labelSuggest_failedCorrupt">Скачанный файл повреждён и удалён</string>
+    <string name="native_labelSuggest_retry">Повторить</string>
+    <string name="native_labelSuggest_ready">Готово</string>
+    <!-- How much of the device's history suggestions have taken in so far. -->
+    <string name="native_labelSuggest_learned">Изучено задач: %1$d из %2$d</string>
+    <string name="native_labelSuggest_delete">Удалить модель</string>
+    <!-- The value is the model's size. -->
+    <string name="native_labelSuggest_deleteDescription">Освободит %1$s и выключит подсказки</string>
+    <!-- Over the suggested labels in the capture sheet and in the label picker. -->
+    <string name="native_labelSuggest_suggested">Подходящие метки</string>
+    <!-- Spoken for a suggested label chip; the value is the label's name. -->
+    <string name="native_labelSuggest_add">Добавить метку %1$s</string>
 </resources>

@@ -372,6 +372,9 @@ internal fun PlanSheet(
  * carries yet is offered as a new one, made and put on the task in one tap, so
  * a label that turns out to be missing does not send the user off to another
  * screen in the middle of filing a task.
+ *
+ * With label suggestions on, the few labels the on-device model ranks highest
+ * for the task lead the sheet, above the ones used lately.
  */
 @Composable
 internal fun LabelsSheet(
@@ -381,6 +384,7 @@ internal fun LabelsSheet(
     onDismiss: () -> Unit,
     recentOrder: List<Long> = emptyList(),
     onCreate: ((String) -> Unit)? = null,
+    suggested: List<Label> = emptyList(),
 ) {
     var query by remember { mutableStateOf("") }
     val matches = known.filter { it.name.contains(query.trim(), ignoreCase = true) }
@@ -391,10 +395,13 @@ internal fun LabelsSheet(
             query = ""
         }
     }
-    // The labels this device applied lately lead, lifted out of the list below
-    // so none is offered twice.
-    val recent = pickRecentLabels(recentOrder, matches)
-    val lifted = recent.mapTo(HashSet()) { it.localId }
+    // What the model suggests leads while nothing is typed — a search is the
+    // user saying what they want instead. Then the labels this device applied
+    // lately. Each row is lifted out of the rows below it so nothing is offered twice.
+    val leading = if (query.isBlank()) suggested.filter { it.name !in selected } else emptyList()
+    val suggestedIds = leading.mapTo(HashSet()) { it.localId }
+    val recent = pickRecentLabels(recentOrder, matches).filterNot { it.localId in suggestedIds }
+    val lifted = recent.mapTo(HashSet(suggestedIds)) { it.localId }
     val chip: @Composable (Label) -> Unit = { label ->
         val on = label.name in selected
         FilterChip(
@@ -430,6 +437,22 @@ internal fun LabelsSheet(
                 leadingIcon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp),
             )
+        }
+        if (leading.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.native_labelSuggest_suggested),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp),
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                for (label in leading) chip(label)
+            }
+            if (recent.isEmpty()) HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
         }
         if (recent.isNotEmpty()) {
             Text(
