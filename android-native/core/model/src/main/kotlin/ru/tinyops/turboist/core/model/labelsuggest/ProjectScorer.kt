@@ -6,16 +6,13 @@ import ru.tinyops.turboist.core.model.labelsuggest.ProjectSuggestionRecipe.NEIGH
 import ru.tinyops.turboist.core.model.labelsuggest.ProjectSuggestionRecipe.SOFTMAX_TEMPERATURE
 
 /**
- * Scores every open project as the place for one title, from an index built
- * beforehand. Pure arithmetic over vectors, like [LabelScorer].
+ * Scores every project in the index — the open ones — as the place for one
+ * title, from an index built beforehand. Pure arithmetic over vectors, like
+ * [LabelScorer].
  */
 object ProjectScorer {
     /**
-     * Each open project's score for [query], from 0 to 1.
-     *
-     * Every project takes part in the shares, finished and archived ones too —
-     * a title that reads like an archived project should not lend that weight to
-     * some open one — but only open projects are scored.
+     * Each project's score for [query], from 0 to 1.
      *
      * @param query the title's embedding, already prepared with [Vectors.prepare].
      * @param now the moment the neighbours' age is measured from.
@@ -25,8 +22,7 @@ object ProjectScorer {
         index: LabelSuggestionIndex,
         now: Long,
     ): Map<Long, Float> {
-        val open = index.projects.filter { it.open }
-        if (open.isEmpty()) return emptyMap()
+        if (index.projects.isEmpty()) return emptyMap()
         val neighbours =
             Scoring.neighbourVotes(
                 query = query,
@@ -38,7 +34,7 @@ object ProjectScorer {
             )
         val documents = shares(query, index.projects.associate { it.projectId to it.vector })
         val centroids = shares(query, index.centroids)
-        return open.associate { project ->
+        return index.projects.associate { project ->
             val id = project.projectId
             id to
                 ProjectSuggestionRecipe.WEIGHT_NEIGHBOURS * neighbours.getOrDefault(id, 0f) +

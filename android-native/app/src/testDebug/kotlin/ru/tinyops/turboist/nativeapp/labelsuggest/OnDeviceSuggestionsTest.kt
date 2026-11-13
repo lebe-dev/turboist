@@ -228,7 +228,7 @@ class OnDeviceSuggestionsTest {
         }
 
     @Test
-    fun `a project that is no longer open is not offered`() =
+    fun `a project that is no longer open is not offered, and its tasks are not learned from`() =
         runBlocking {
             projectsOn.value = true
             val bills = project("Счета", status = ProjectStatus.ARCHIVED)
@@ -236,8 +236,10 @@ class OnDeviceSuggestionsTest {
             task("Оплатить воду", money, projectLocalId = bills)
             project("Поликлиника")
             val suggestions = suggestions().also { it.start() }
-            settle(suggestions, learned = 5)
 
+            // Only the three inbox tasks from the set-up count; the archive's two do not.
+            settle(suggestions, learned = 3)
+            assertTrue(embedder.embedded.none { "Оплатить свет" in it || "Оплатить воду" in it })
             assertEquals(emptyList(), suggestions.projects.suggest(ProjectSuggestionRequest("Оплатить интернет")))
         }
 

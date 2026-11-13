@@ -14,15 +14,14 @@ class ProjectScorerTest {
 
     private val home = 1L
     private val work = 2L
-    private val archive = 3L
+    private val other = 3L
 
     private fun v(vararg values: Float) = Vectors.prepare(values, dimensions = values.size)
 
     private fun project(
         id: Long,
         vector: FloatArray,
-        open: Boolean = true,
-    ) = ProjectVector(id, vector, labelWeights = emptyMap(), open = open)
+    ) = ProjectVector(id, vector, labelWeights = emptyMap())
 
     private fun task(
         id: Long,
@@ -43,8 +42,8 @@ class ProjectScorerTest {
     )
 
     @Test
-    fun `no open project means nothing is scored`() {
-        val index = index(emptyList(), projects = listOf(project(archive, v(1f, 0f, 0f), open = false)))
+    fun `no project means nothing is scored`() {
+        val index = index(listOf(task(10, v(1f, 0f, 0f), null)), projects = emptyList())
 
         assertTrue(ProjectScorer.score(v(1f, 0f, 0f), index, now).isEmpty())
     }
@@ -84,27 +83,6 @@ class ProjectScorerTest {
     }
 
     @Test
-    fun `a project that is not open is never offered, but still takes its share`() {
-        val history = listOf(task(10, v(0f, 0f, 1f), archive), task(11, v(0f, 1f, 0f), work))
-        val index =
-            index(
-                history,
-                projects =
-                    listOf(
-                        project(home, v(1f, 0f, 0f)),
-                        project(work, v(0f, 1f, 0f)),
-                        project(archive, v(0f, 0f, 1f), open = false),
-                    ),
-            )
-
-        val scores = ProjectScorer.score(v(0f, 0f, 1f), index, now)
-
-        assertEquals(setOf(home, work), scores.keys)
-        // The archive soaked up the title's weight instead of lending it to an open project.
-        assertEquals(emptyList(), ProjectScorer.pick(scores, exclude = emptySet()))
-    }
-
-    @Test
     fun `an old neighbour counts for less than a recent one`() {
         val index =
             index(
@@ -122,9 +100,9 @@ class ProjectScorerTest {
 
     @Test
     fun `the place already chosen is left out and the answer is capped`() {
-        val scores = mapOf(home to 0.9f, work to 0.5f, archive to 0.3f, 4L to 0.26f, 5L to 0.1f)
+        val scores = mapOf(home to 0.9f, work to 0.5f, other to 0.4f, 4L to 0.35f, 5L to 0.31f, 6L to 0.2f)
 
-        assertEquals(listOf(work, archive, 4L), ProjectScorer.pick(scores, exclude = setOf(home)))
+        assertEquals(listOf(work, other, 4L), ProjectScorer.pick(scores, exclude = setOf(home)))
     }
 
     @Test

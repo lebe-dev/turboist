@@ -124,7 +124,7 @@ class OnDeviceSuggestions internal constructor(
     val projects: ProjectSuggestions =
         object : ProjectSuggestions {
             override val available: StateFlow<Boolean> =
-                combine(switched, live) { on, current -> on.projects && current?.projects?.any { it.open } == true }
+                combine(switched, live) { on, current -> on.projects && current?.projects?.isNotEmpty() == true }
                     .stateIn(scope, SharingStarted.Eagerly, false)
 
             override suspend fun suggest(request: ProjectSuggestionRequest): List<Long> = suggestProjects(request)
@@ -179,7 +179,7 @@ class OnDeviceSuggestions internal constructor(
     private suspend fun suggestProjects(request: ProjectSuggestionRequest): List<Long> {
         if (!switched.value.projects || request.title.isBlank()) return emptyList()
         val current = index.value ?: return emptyList()
-        if (current.projects.none { it.open }) return emptyList()
+        if (current.projects.isEmpty()) return emptyList()
         val query = embedQuery(request.title) ?: return emptyList()
         val scores = ProjectScorer.score(query = query, index = current, now = System.currentTimeMillis())
         return ProjectScorer.pick(scores, request.exclude, max = request.limit)

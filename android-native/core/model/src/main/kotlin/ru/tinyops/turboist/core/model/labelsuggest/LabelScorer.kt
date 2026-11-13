@@ -39,9 +39,11 @@ object LabelScorer {
             )
         val labelShares = Scoring.softmax(index.labels.map { Vectors.dot(query, it.vector) }, SOFTMAX_TEMPERATURE)
         val projectVotes = projectVotes(query, index.projects)
-        val destination = projectId?.let { index.destinations[it] }.orEmpty()
+        // A project the index does not hold — closed, or not read yet — says nothing about the task.
+        val known = projectId != null && projectId in index.projectIds
+        val destination = if (known) index.destinations[projectId].orEmpty() else emptyMap()
         val neighbourWeight =
-            if (projectId != null) {
+            if (known) {
                 LabelSuggestionRecipe.WEIGHT_NEIGHBOURS
             } else {
                 LabelSuggestionRecipe.WEIGHT_NEIGHBOURS_WITHOUT_PROJECT
@@ -52,7 +54,7 @@ object LabelScorer {
                 neighbourWeight * neighbours.getOrDefault(id, 0f) +
                     LabelSuggestionRecipe.WEIGHT_LABELS * labelShares[i] +
                     LabelSuggestionRecipe.WEIGHT_PROJECTS * projectVotes.getOrDefault(id, 0f)
-            if (projectId != null) score += LabelSuggestionRecipe.WEIGHT_DESTINATION * destination.getOrDefault(id, 0f)
+            if (known) score += LabelSuggestionRecipe.WEIGHT_DESTINATION * destination.getOrDefault(id, 0f)
             id to score
         }
     }

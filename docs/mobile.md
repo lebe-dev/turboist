@@ -1914,8 +1914,15 @@ project once and at most three from the model. They are asked for only while the
 draft is headed for the inbox: a project the user already chose, or the one the
 sheet was opened on, is their decision. Like the rule chips, they are **offered,
 never applied** — a tap files the draft into that project, which takes the
-model's chips away; going back to the inbox brings them back. Only open projects
-are offered. The capture sheet asks about labels and projects for the same title
+model's chips away; going back to the inbox brings them back.
+
+**Only open projects count.** An archived, completed or cancelled project does not
+exist as far as either kind of suggestion is concerned: it is never offered as a
+place, it does not vote for labels, it is left out of the documents of the labels
+it carries, a task headed for it is scored as if it had no project, and its tasks
+are not history. The rule is applied once, where the index is built from the
+replica (`SuggestionIndexPlan`), so no scorer has to remember it. Reopening a
+project brings it and its tasks back on the next rebuild. The capture sheet asks about labels and projects for the same title
 at the same moment, and the engine keeps the last title's vector, so the two
 questions cost the model one embedding.
 
@@ -1956,7 +1963,8 @@ accuracy comes from history: label names alone were right about one time in
 three. Descriptions and projects mostly improved the ranking in the label sheet,
 where the right label was among the top three for 70 % of tasks (60 % for new
 titles). A 90-day replica holds enough history: limiting it to open tasks plus
-those finished in the last 90 days changed nothing measurable. Re-measure the
+those finished in the last 90 days changed nothing measurable, and neither did
+leaving closed projects and their tasks out. Re-measure the
 same way before changing a constant.
 
 **How a project is scored.** Three signals are blended, each a number from 0 to 1
@@ -1972,16 +1980,17 @@ per project (`ProjectSuggestionRecipe`, `ProjectScorer`):
 - **The project itself, 0.1.** The same softmax over the project documents
   (`title: <name> | text: <description>`).
 
-Every project takes part in the shares, finished and archived ones included, so
-a title that reads like an archived project does not lend that weight to an open
-one; only open projects are scored and offered. A chip needs 0.25.
+A chip needs 0.3.
 
 On the same workspace, with each held-out task seeing only the tasks written
-before it, as the phone would: at 0.25 about five chips in six were the project
-the owner actually filed the task into, more than half of the tasks got the right
-project among their chips, and fewer than one task in twelve got only wrong ones.
-On titles never seen before, seven chips in ten were right and a third of the
-tasks were helped. Project names alone are nearly useless — the right project was
+before it, as the phone would, and with closed projects and their tasks left out:
+at 0.3 about six chips in seven were the project the owner actually filed the
+task into, more than half of the tasks got the right project among their chips,
+and fewer than one task in twelve got only wrong ones. On titles never seen
+before, nearly three chips in four were right and a third of the tasks were
+helped. Leaving closed projects out hands their share to the open ones, so scores
+run higher than with them in; the bar moved from 0.25 to 0.3 to keep the same
+precision. Project names alone are nearly useless — the right project was
 first for only 8 % of tasks, since most names are proper nouns the model has never
 met — so almost all of it comes from history. Limiting the history to the
 replica's window (open tasks plus those touched in the last 90 days) did not hurt;

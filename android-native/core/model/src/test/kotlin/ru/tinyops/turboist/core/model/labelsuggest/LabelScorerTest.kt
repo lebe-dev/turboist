@@ -138,7 +138,8 @@ class LabelScorerTest {
         val index =
             LabelSuggestionIndex(
                 labels = labels,
-                projects = emptyList(),
+                // A project that votes for nothing, so only its destination share shows.
+                projects = listOf(ProjectVector(100, v(1f, 1f, 1f), labelWeights = emptyMap())),
                 history = emptyList(),
                 destinations = mapOf(100L to mapOf(money to 0.5f)),
             )
@@ -148,6 +149,23 @@ class LabelScorerTest {
 
         assertEquals(0.1f + LabelSuggestionRecipe.WEIGHT_DESTINATION * 0.5f, inProject.getValue(money), 0.001f)
         assertEquals(0.1f, elsewhere.getValue(money), 0.001f)
+    }
+
+    @Test
+    fun `a project the index does not hold is treated as no project`() {
+        // A closed project is left out of the index; a task headed there gains nothing from it.
+        val index =
+            LabelSuggestionIndex(
+                labels = labels,
+                projects = emptyList(),
+                history = listOf(task(10, v(0f, 1f, 0f), health)),
+                destinations = mapOf(100L to mapOf(money to 1f)),
+            )
+
+        val closed = LabelScorer.score(v(0f, 1f, 0f), index, projectId = 100, now = now)
+        val inbox = LabelScorer.score(v(0f, 1f, 0f), index, projectId = null, now = now)
+
+        assertEquals(inbox, closed)
     }
 
     @Test

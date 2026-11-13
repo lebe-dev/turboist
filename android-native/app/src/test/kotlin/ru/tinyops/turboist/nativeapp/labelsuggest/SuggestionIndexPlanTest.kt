@@ -79,19 +79,39 @@ class SuggestionIndexPlanTest {
     }
 
     @Test
-    fun `history knows where each task sits, and only open projects are places`() {
-        val archived = 11L
-        val withArchive =
-            workspace.copy(
-                projects = workspace.projects + SuggestionProjectFacts(archived, "Old", "", ProjectStatus.ARCHIVED),
-            )
-
-        val index = SuggestionIndexPlan(withArchive).build { floatArrayOf(1f, 0f) }
+    fun `history knows where each task sits, and has a centroid per project`() {
+        val index = plan.build { floatArrayOf(1f, 0f) }
 
         assertEquals(mapOf(100L to soika, 101L to null), index.history.associate { it.taskId to it.projectId })
-        assertEquals(mapOf(soika to true, archived to false), index.projects.associate { it.projectId to it.open })
         // The inbox task has no centroid to add to; Soika's one task is its centroid.
         assertEquals(setOf(soika), index.centroids.keys)
+    }
+
+    @Test
+    fun `a project that is not open is left out with everything it holds`() {
+        val closed =
+            listOf(
+                SuggestionProjectFacts(11, "Old", "", ProjectStatus.ARCHIVED),
+                SuggestionProjectFacts(12, "Done", "", ProjectStatus.COMPLETED),
+                SuggestionProjectFacts(13, "Dropped", "", ProjectStatus.CANCELLED),
+            )
+        val withClosed =
+            workspace.copy(
+                tasks = workspace.tasks + SuggestionTaskFacts(103, "Оплатить сервер", 11, createdAt = 4),
+                taskLabels = workspace.taskLabels + LabelPair(103, money),
+                projects = workspace.projects + closed,
+                projectLabels = workspace.projectLabels + LabelPair(11, health),
+            )
+        val closedPlan = SuggestionIndexPlan(withClosed)
+
+        val index = closedPlan.build { floatArrayOf(1f, 0f) }
+
+        // Not a place, not a voter, not history, and not part of how a label is described.
+        assertEquals(listOf(soika), index.projects.map { it.projectId })
+        assertEquals(setOf(soika), closedPlan.projectDocuments.keys)
+        assertEquals(setOf(100L, 101L), index.history.map { it.taskId }.toSet())
+        assertEquals("title: здоровье | text: здоровье", closedPlan.labelTexts[health])
+        assertTrue(closedPlan.taskTexts.none { it.first == 103L })
     }
 
     @Test

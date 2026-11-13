@@ -21,22 +21,36 @@ import java.security.MessageDigest
  * Kept apart from the engine and from the database so the whole of it can be
  * checked with plain values: which text stands for which row, and which rows
  * make it into the index once their vectors exist.
+ *
+ * Only open projects exist as far as suggestions are concerned. An archived,
+ * completed or cancelled project is not a place to suggest, does not vote for
+ * labels, does not describe the labels it carries, and its tasks are not
+ * history: what it was for is over. Measured on a real workspace, leaving them
+ * out cost label suggestions nothing; project suggestions keep their precision
+ * at the threshold in `ProjectSuggestionRecipe`.
  */
 internal class SuggestionIndexPlan(
     workspace: SuggestionWorkspace,
 ) {
+    private val openProjects = workspace.projects.filter { it.status == ProjectStatus.OPEN }
+    private val openProjectIds: Set<Long> = openProjects.mapTo(HashSet()) { it.localId }
+
+    /** The inbox's tasks and the open projects' tasks. */
+    private val tasks = workspace.tasks.filter { it.projectLocalId == null || it.projectLocalId in openProjectIds }
+    private val projectLabelPairs = workspace.projectLabels.filter { it.ownerLocalId in openProjectIds }
+
     private val labelsOfTask: Map<Long, Set<Long>> =
         workspace.taskLabels.groupBy({ it.ownerLocalId }, { it.labelLocalId }).mapValues { it.value.toSet() }
     private val labelsOfProject: Map<Long, Set<Long>> =
-        workspace.projectLabels.groupBy({ it.ownerLocalId }, { it.labelLocalId }).mapValues { it.value.toSet() }
+        projectLabelPairs.groupBy({ it.ownerLocalId }, { it.labelLocalId }).mapValues { it.value.toSet() }
     private val projectTexts: Map<Long, ProjectText> =
-        workspace.projects.associate { it.localId to ProjectText(it.title, it.description) }
+        openProjects.associate { it.localId to ProjectText(it.title, it.description) }
 
     /** Each label's text: its name, description and the projects carrying it. */
     val labelTexts: Map<Long, String> =
         workspace.labels.associate { label ->
             val carriers =
-                workspace.projectLabels
+                projectLabelPairs
                     .filter { it.labelLocalId == label.localId }
                     .mapNotNull { projectTexts[it.ownerLocalId] }
             label.localId to SuggestionTexts.labelDocument(label.name, label.description, carriers)
@@ -44,18 +58,15 @@ internal class SuggestionIndexPlan(
 
     val projectDocuments: Map<Long, String> = projectTexts.mapValues { SuggestionTexts.projectDocument(it.value) }
 
-    private val openProjects: Set<Long> =
-        workspace.projects.filter { it.status == ProjectStatus.OPEN }.mapTo(HashSet()) { it.localId }
-
     /** Tasks newest first, so a partial index already knows the most relevant history. */
-    private val tasksNewestFirst = workspace.tasks.filter { it.title.isNotBlank() }.sortedByDescending { it.createdAt }
+    private val tasksNewestFirst = tasks.filter { it.title.isNotBlank() }.sortedByDescending { it.createdAt }
 
     val taskTexts: List<Pair<Long, String>> = tasksNewestFirst.map { it.localId to SuggestionTexts.query(it.title) }
 
     private val facts: List<TaskLabelFacts> =
-        workspace.tasks.map { TaskLabelFacts(it.localId, it.projectLocalId, labelsOfTask[it.localId].orEmpty()) }
-    private val createdAt: Map<Long, Long> = workspace.tasks.associate { it.localId to it.createdAt }
-    private val projectOfTask: Map<Long, Long?> = workspace.tasks.associate { it.localId to it.projectLocalId }
+        tasks.map { TaskLabelFacts(it.localId, it.projectLocalId, labelsOfTask[it.localId].orEmpty()) }
+    private val createdAt: Map<Long, Long> = tasks.associate { it.localId to it.createdAt }
+    private val projectOfTask: Map<Long, Long?> = tasks.associate { it.localId to it.projectLocalId }
 
     /** Every text the plan needs, labels and projects first: an index is useless without them. */
     val allTexts: List<String> =
@@ -70,7 +81,7 @@ internal class SuggestionIndexPlan(
         val weights = projectLabelWeights(projectDocuments.keys, labelsOfProject, facts)
         val projects =
             projectDocuments.mapNotNull { (id, text) ->
-                vectorOf(text)?.let { ProjectVector(id, it, weights[id].orEmpty(), open = id in openProjects) }
+                vectorOf(text)?.let { ProjectVector(id, it, weights[id].orEmpty()) }
             }
         val history =
             taskTexts.mapNotNull { (id, text) ->

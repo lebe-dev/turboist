@@ -45,10 +45,10 @@ object ProjectSuggestionRecipe {
 
     /**
      * The score a project needs to be offered in the capture sheet. At this bar
-     * about five chips in six were the project the task actually went to, and
+     * about six chips in seven were the project the task actually went to, and
      * more than half of the tasks got the right one among their chips.
      */
-    const val CAPTURE_THRESHOLD: Float = 0.25f
+    const val CAPTURE_THRESHOLD: Float = 0.3f
 
     /** The most projects offered at once. */
     const val MAX_SUGGESTIONS: Int = 3

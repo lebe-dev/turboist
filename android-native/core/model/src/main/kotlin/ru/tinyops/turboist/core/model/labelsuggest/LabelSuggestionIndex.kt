@@ -3,6 +3,9 @@ package ru.tinyops.turboist.core.model.labelsuggest
 /**
  * Everything a label or project suggestion is scored against, already embedded.
  *
+ * Holds only open projects and the tasks outside closed ones: whoever builds it
+ * leaves an archived, completed or cancelled project out altogether.
+ *
  * Built once from the replica and reused for every keystroke: only the title
  * being typed has to go through the model while the user waits.
  *
@@ -26,6 +29,9 @@ class LabelSuggestionIndex(
     /** True when there is nothing a suggestion could name. */
     val isEmpty: Boolean get() = labels.isEmpty()
 
+    /** The projects in the index, which are exactly the open ones. */
+    val projectIds: Set<Long> by lazy { projects.mapTo(HashSet()) { it.projectId } }
+
     companion object {
         val EMPTY: LabelSuggestionIndex = LabelSuggestionIndex(emptyList(), emptyList(), emptyList())
     }
@@ -39,15 +45,11 @@ class LabelVector(
 /**
  * A project as a voter: when a title reads like the project, the project's
  * labels are offered. [labelWeights] is what [projectLabelWeights] works out.
- *
- * @property open whether new work can be suggested into it. A finished or
- *   archived project still votes for labels, but is never offered as a place.
  */
 class ProjectVector(
     val projectId: Long,
     val vector: FloatArray,
     val labelWeights: Map<Long, Float>,
-    val open: Boolean = true,
 )
 
 /** @property projectId where the task sits; `null` for the inbox. */
