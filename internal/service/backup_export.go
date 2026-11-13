@@ -55,7 +55,7 @@ func (s *BackupService) readLabels(ctx context.Context) ([]BackupLabel, error) {
 func (s *BackupService) readProjects(ctx context.Context) ([]BackupProject, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, context_id, title, description, color, status, is_pinned, pinned_at,
-				is_private, project_type, troiki_category, created_at, updated_at
+				is_private, today_lock_exempt, project_type, troiki_category, created_at, updated_at
 		 FROM projects ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -64,14 +64,15 @@ func (s *BackupService) readProjects(ctx context.Context) ([]BackupProject, erro
 	out := make([]BackupProject, 0)
 	for rows.Next() {
 		var p BackupProject
-		var pinned, priv int
+		var pinned, priv, lockExempt int
 		var pinnedAt, troiki sql.NullString
 		if err := rows.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status,
-			&pinned, &pinnedAt, &priv, &p.ProjectType, &troiki, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&pinned, &pinnedAt, &priv, &lockExempt, &p.ProjectType, &troiki, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		p.IsPinned = pinned == 1
 		p.IsPrivate = priv == 1
+		p.TodayLockExempt = lockExempt == 1
 		if pinnedAt.Valid {
 			v := pinnedAt.String
 			p.PinnedAt = &v

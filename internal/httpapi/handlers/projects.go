@@ -305,12 +305,13 @@ func (h *ProjectHandler) patch(c fiber.Ctx) error {
 		}
 	}
 	p, err := h.projects.Update(c.Context(), id, repo.ProjectUpdate{
-		Title:       req.Title,
-		Description: req.Description,
-		Color:       req.Color,
-		ContextID:   req.ContextID,
-		IsPrivate:   req.IsPrivate,
-		Type:        projectType,
+		Title:           req.Title,
+		Description:     req.Description,
+		Color:           req.Color,
+		ContextID:       req.ContextID,
+		IsPrivate:       req.IsPrivate,
+		TodayLockExempt: req.TodayLockExempt,
+		Type:            projectType,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {

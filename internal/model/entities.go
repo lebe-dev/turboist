@@ -26,20 +26,22 @@ type Label struct {
 }
 
 type Project struct {
-	ID             int64
-	ContextID      int64
-	Title          string
-	Description    string
-	Color          string
-	Status         ProjectStatus
-	Type           ProjectType
-	IsPinned       bool
-	PinnedAt       *time.Time
-	IsPrivate      bool
-	TroikiCategory *TroikiCategory
-	Labels         []Label
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID          int64
+	ContextID   int64
+	Title       string
+	Description string
+	Color       string
+	Status      ProjectStatus
+	Type        ProjectType
+	IsPinned    bool
+	PinnedAt    *time.Time
+	IsPrivate   bool
+	// TodayLockExempt keeps the Today focus lock from refusing work for today in this project.
+	TodayLockExempt bool
+	TroikiCategory  *TroikiCategory
+	Labels          []Label
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type ProjectSection struct {

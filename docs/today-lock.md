@@ -18,6 +18,12 @@ Refused, while the lock runs:
 - moving a task that is on Today into another project, or out of the inbox into one;
 - reopening a completed task of another project whose date is today.
 
+A project can be marked **always allowed on Today** (`todayLockExempt`, set from the
+project menu in Android Native or with `PATCH /api/v1/projects/:id`). Such a project counts as
+having open work on Today at all times, so tasks that appear spontaneously — a household
+project, say — can still be added for today while the lock runs. The task move dialogs on
+Android say that the lock is on, since some projects will refuse a task dated today.
+
 The week is the exception. An open task already on the Week screen may be taken into
 Today whatever its project:
 

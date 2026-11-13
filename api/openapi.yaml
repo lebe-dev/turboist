@@ -4915,6 +4915,10 @@ components:
           type:
           - "null"
           - string
+        todayLockExempt:
+          type:
+          - "null"
+          - boolean
       type: object
     DtoPatchSectionRequest:
       properties:
@@ -5020,6 +5024,8 @@ components:
           type: string
         title:
           type: string
+        todayLockExempt:
+          type: boolean
         troikiCategory:
           type:
           - "null"
@@ -6457,6 +6463,8 @@ components:
           - "null"
         title:
           type: string
+        todayLockExempt:
+          type: boolean
         troikiCategory:
           type:
           - "null"

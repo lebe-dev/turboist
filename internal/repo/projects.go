@@ -23,14 +23,15 @@ func NewProjectRepo(db *sql.DB, labels *ProjectLabelsRepo) *ProjectRepo {
 
 func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	var p model.Project
-	var pinned, priv int
+	var pinned, priv, lockExempt int
 	var pinnedAt, troikiCategory sql.NullString
 	var createdAt, updatedAt string
-	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &p.Type, &pinned, &pinnedAt, &priv, &troikiCategory, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.ContextID, &p.Title, &p.Description, &p.Color, &p.Status, &p.Type, &pinned, &pinnedAt, &priv, &lockExempt, &troikiCategory, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	p.IsPinned = pinned == 1
 	p.IsPrivate = priv == 1
+	p.TodayLockExempt = lockExempt == 1
 	if pinnedAt.Valid {
 		t, err := model.ParseUTC(pinnedAt.String)
 		if err != nil {
@@ -55,7 +56,7 @@ func scanProject(row interface{ Scan(...any) error }) (*model.Project, error) {
 	return &p, nil
 }
 
-const projectColumns = `id, context_id, title, description, color, status, project_type, is_pinned, pinned_at, is_private, troiki_category, created_at, updated_at`
+const projectColumns = `id, context_id, title, description, color, status, project_type, is_pinned, pinned_at, is_private, today_lock_exempt, troiki_category, created_at, updated_at`
 
 type CreateProject struct {
 	ContextID   int64
@@ -177,12 +178,13 @@ func (r *ProjectRepo) List(ctx context.Context, filter ProjectListFilter, page P
 }
 
 type ProjectUpdate struct {
-	Title       *string
-	Description *string
-	Color       *string
-	ContextID   *int64
-	IsPrivate   *bool
-	Type        *model.ProjectType
+	Title           *string
+	Description     *string
+	Color           *string
+	ContextID       *int64
+	IsPrivate       *bool
+	TodayLockExempt *bool
+	Type            *model.ProjectType
 
 	TroikiCategory      *model.TroikiCategory
 	TroikiCategoryClear bool
@@ -216,6 +218,10 @@ func (r *ProjectRepo) Update(ctx context.Context, id int64, u ProjectUpdate) (*m
 			pv = 1
 		}
 		args = append(args, pv)
+	}
+	if u.TodayLockExempt != nil {
+		sets = append(sets, "today_lock_exempt = ?")
+		args = append(args, boolInt(*u.TodayLockExempt))
 	}
 	if u.Type != nil {
 		sets = append(sets, "project_type = ?")
@@ -462,7 +468,7 @@ func (r *ProjectRepo) ListByLabel(ctx context.Context, labelID int64, page Page)
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT p.id, p.context_id, p.title, p.description, p.color, p.status, p.project_type,
-		        p.is_pinned, p.pinned_at, p.is_private, p.troiki_category, p.created_at, p.updated_at
+		        p.is_pinned, p.pinned_at, p.is_private, p.today_lock_exempt, p.troiki_category, p.created_at, p.updated_at
 		 FROM projects p
 		 JOIN project_labels pl ON pl.project_id = p.id
 		 WHERE pl.label_id = ?

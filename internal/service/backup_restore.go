@@ -62,9 +62,9 @@ func insertLabels(ctx context.Context, tx *sql.Tx, rows []BackupLabel) error {
 
 func insertProjects(ctx context.Context, tx *sql.Tx, rows []BackupProject) error {
 	const q = `INSERT INTO projects (id, context_id, title, description, color, status,
-	                                  is_pinned, pinned_at, is_private, project_type, troiki_category,
+	                                  is_pinned, pinned_at, is_private, today_lock_exempt, project_type, troiki_category,
 	                                  created_at, updated_at)
-	           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	for _, r := range rows {
 		projectType := r.ProjectType
 		if projectType == "" {
@@ -72,7 +72,7 @@ func insertProjects(ctx context.Context, tx *sql.Tx, rows []BackupProject) error
 		}
 		if _, err := tx.ExecContext(ctx, q,
 			r.ID, r.ContextID, r.Title, r.Description, r.Color, r.Status,
-			boolToInt(r.IsPinned), nullable(r.PinnedAt), boolToInt(r.IsPrivate),
+			boolToInt(r.IsPinned), nullable(r.PinnedAt), boolToInt(r.IsPrivate), boolToInt(r.TodayLockExempt),
 			projectType, nullable(r.TroikiCategory),
 			r.CreatedAt, r.UpdatedAt); err != nil {
 			return err
