@@ -11,30 +11,32 @@ type CreateProjectRequest struct {
 }
 
 type PatchProjectRequest struct {
-	Title       *string   `json:"title"`
-	Description *string   `json:"description"`
-	Color       *string   `json:"color"`
-	ContextID   *int64    `json:"contextId"`
-	Labels      *[]string `json:"labels"`
-	IsPrivate   *bool     `json:"isPrivate"`
-	ProjectType *string   `json:"projectType"`
+	Title           *string   `json:"title"`
+	Description     *string   `json:"description"`
+	Color           *string   `json:"color"`
+	ContextID       *int64    `json:"contextId"`
+	Labels          *[]string `json:"labels"`
+	IsPrivate       *bool     `json:"isPrivate"`
+	TodayLockExempt *bool     `json:"todayLockExempt"`
+	ProjectType     *string   `json:"projectType"`
 }
 
 type ProjectDTO struct {
-	ID             int64      `json:"id"`
-	ContextID      int64      `json:"contextId"`
-	Title          string     `json:"title"`
-	Description    string     `json:"description"`
-	Color          string     `json:"color"`
-	Status         string     `json:"status"`
-	ProjectType    string     `json:"projectType"`
-	IsPinned       bool       `json:"isPinned"`
-	PinnedAt       *string    `json:"pinnedAt"`
-	IsPrivate      bool       `json:"isPrivate"`
-	TroikiCategory *string    `json:"troikiCategory"`
-	Labels         []LabelDTO `json:"labels"`
-	CreatedAt      string     `json:"createdAt"`
-	UpdatedAt      string     `json:"updatedAt"`
+	ID              int64      `json:"id"`
+	ContextID       int64      `json:"contextId"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	Color           string     `json:"color"`
+	Status          string     `json:"status"`
+	ProjectType     string     `json:"projectType"`
+	IsPinned        bool       `json:"isPinned"`
+	PinnedAt        *string    `json:"pinnedAt"`
+	IsPrivate       bool       `json:"isPrivate"`
+	TodayLockExempt bool       `json:"todayLockExempt"`
+	TroikiCategory  *string    `json:"troikiCategory"`
+	Labels          []LabelDTO `json:"labels"`
+	CreatedAt       string     `json:"createdAt"`
+	UpdatedAt       string     `json:"updatedAt"`
 }
 
 func ProjectFromModel(p model.Project) ProjectDTO {
@@ -52,19 +54,20 @@ func ProjectFromModel(p model.Project) ProjectDTO {
 		pt = model.ProjectTypeGeneric
 	}
 	return ProjectDTO{
-		ID:             p.ID,
-		ContextID:      p.ContextID,
-		Title:          p.Title,
-		Description:    p.Description,
-		Color:          p.Color,
-		Status:         string(p.Status),
-		ProjectType:    string(pt),
-		IsPinned:       p.IsPinned,
-		PinnedAt:       FormatTimePtr(p.PinnedAt),
-		IsPrivate:      p.IsPrivate,
-		TroikiCategory: troikiCat,
-		Labels:         labels,
-		CreatedAt:      FormatTime(p.CreatedAt),
-		UpdatedAt:      FormatTime(p.UpdatedAt),
+		ID:              p.ID,
+		ContextID:       p.ContextID,
+		Title:           p.Title,
+		Description:     p.Description,
+		Color:           p.Color,
+		Status:          string(p.Status),
+		ProjectType:     string(pt),
+		IsPinned:        p.IsPinned,
+		PinnedAt:        FormatTimePtr(p.PinnedAt),
+		IsPrivate:       p.IsPrivate,
+		TodayLockExempt: p.TodayLockExempt,
+		TroikiCategory:  troikiCat,
+		Labels:          labels,
+		CreatedAt:       FormatTime(p.CreatedAt),
+		UpdatedAt:       FormatTime(p.UpdatedAt),
 	}
 }

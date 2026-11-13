@@ -656,3 +656,36 @@ func TestTaskRepo_TodayProjectIDs_ExcludesTheNamedTask(t *testing.T) {
 		t.Errorf("without task: got %v, want [%d]", ids, b)
 	}
 }
+
+// --- exempt projects ---------------------------------------------------------
+
+func TestTodayLock_ExemptProjectTakesTodayWorkWithoutOpenTasks(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	home := f.project(t, "home")
+	other := f.project(t, "other")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	yes := true
+	if _, err := f.projectsRepo.Update(context.Background(), home, repo.ProjectUpdate{TodayLockExempt: &yes}); err != nil {
+		t.Fatalf("mark exempt: %v", err)
+	}
+	f.turnOn(t)
+	if err := f.createIn(home, ptrTime(dueToday)); err != nil {
+		t.Errorf("create in exempt project: got %v, want nil", err)
+	}
+	assertTodayLocked(t, f.createIn(other, ptrTime(dueToday)), &other)
+}
+
+func TestProjectRepo_TodayLockExemptRoundTripsAndClears(t *testing.T) {
+	f := setupTodayLock(t)
+	id := f.project(t, "home")
+	yes, no := true, false
+	p, err := f.projectsRepo.Update(context.Background(), id, repo.ProjectUpdate{TodayLockExempt: &yes})
+	if err != nil || !p.TodayLockExempt {
+		t.Fatalf("mark: got %+v, %v", p, err)
+	}
+	p, err = f.projectsRepo.Update(context.Background(), id, repo.ProjectUpdate{TodayLockExempt: &no})
+	if err != nil || p.TodayLockExempt {
+		t.Fatalf("clear: got %+v, %v", p, err)
+	}
+}

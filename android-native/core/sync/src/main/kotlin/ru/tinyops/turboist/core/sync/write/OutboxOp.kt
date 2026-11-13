@@ -698,6 +698,7 @@ data class PatchProjectOp(
     val labels: List<String>? = null,
     val isPrivate: Boolean? = null,
     val projectType: String? = null,
+    val todayLockExempt: Boolean? = null,
 ) : OutboxOp {
     override val kind: OutboxOpKind get() = OutboxOpKind.PROJECT_PATCH
 }

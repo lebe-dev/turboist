@@ -495,6 +495,7 @@ class OpSender(
                 contextId = op.contextLocalId?.let { contextId(it) },
                 labels = op.labels,
                 isPrivate = op.isPrivate,
+                todayLockExempt = op.todayLockExempt,
                 projectType = op.projectType,
             ),
             key,

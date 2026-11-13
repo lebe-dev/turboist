@@ -120,6 +120,7 @@ class ProjectScreensTest {
             onTogglePin = { record("togglePin") },
             onSetTroiki = { record("troiki ${it?.wire}") },
             onSetPrivate = { record("private $it") },
+            onSetTodayLockExempt = {},
             onDelete = { record("delete") },
         )
 
@@ -255,7 +256,7 @@ class ProjectScreensTest {
     }
 
     @Test
-    fun `the board draws the project's own column first and then its columns`() {
+    fun `the board draws its columns without a heading for the project's own column`() {
         compose.setContent {
             TurboistTheme {
                 ProjectScreen(
@@ -285,10 +286,9 @@ class ProjectScreensTest {
             }
         }
 
-        compose.onNodeWithText(text(R.string.dialog_moveSection_noSection)).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.dialog_moveSection_noSection)).assertDoesNotExist()
         compose.onNodeWithText("Doing").assertIsDisplayed()
         compose.onNodeWithText("Ship it").assertIsDisplayed()
-        compose.onNodeWithText(text(R.string.section_noTasks)).assertIsDisplayed()
     }
 
     @Test

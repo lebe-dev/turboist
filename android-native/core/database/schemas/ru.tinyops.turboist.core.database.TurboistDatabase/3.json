@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "ec08666f3a03d03d7bc92a79984fcc13",
+    "identityHash": "4f5fc7d1048e5c721c0b15ea37003d0b",
     "entities": [
       {
         "tableName": "contexts",
@@ -147,7 +147,7 @@
       },
       {
         "tableName": "projects",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`localId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serverId` INTEGER, `contextLocalId` INTEGER NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `color` TEXT NOT NULL, `status` TEXT NOT NULL, `type` TEXT NOT NULL, `isPinned` INTEGER NOT NULL, `pinnedAt` INTEGER, `isPrivate` INTEGER NOT NULL, `troikiCategory` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, FOREIGN KEY(`contextLocalId`) REFERENCES `contexts`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`localId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serverId` INTEGER, `contextLocalId` INTEGER NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `color` TEXT NOT NULL, `status` TEXT NOT NULL, `type` TEXT NOT NULL, `isPinned` INTEGER NOT NULL, `pinnedAt` INTEGER, `isPrivate` INTEGER NOT NULL, `todayLockExempt` INTEGER NOT NULL DEFAULT 0, `troikiCategory` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, FOREIGN KEY(`contextLocalId`) REFERENCES `contexts`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "localId",
@@ -212,6 +212,13 @@
             "columnName": "isPrivate",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "todayLockExempt",
+            "columnName": "todayLockExempt",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           },
           {
             "fieldPath": "troikiCategory",
@@ -1483,30 +1490,6 @@
         ]
       },
       {
-        "tableName": "text_embeddings",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `vector` BLOB NOT NULL, PRIMARY KEY(`key`))",
-        "fields": [
-          {
-            "fieldPath": "key",
-            "columnName": "key",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "vector",
-            "columnName": "vector",
-            "affinity": "BLOB",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "key"
-          ]
-        }
-      },
-      {
         "tableName": "sync_state",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `epoch` INTEGER NOT NULL, `cursor` INTEGER NOT NULL, `lastSyncAt` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
@@ -1755,7 +1738,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ec08666f3a03d03d7bc92a79984fcc13')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4f5fc7d1048e5c721c0b15ea37003d0b')"
     ]
   }
 }

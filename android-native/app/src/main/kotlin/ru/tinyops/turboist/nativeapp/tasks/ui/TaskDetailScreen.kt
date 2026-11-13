@@ -3,7 +3,6 @@ package ru.tinyops.turboist.nativeapp.tasks.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -123,6 +122,7 @@ import ru.tinyops.turboist.nativeapp.tasks.deadlineTime
 import ru.tinyops.turboist.nativeapp.tasks.dueDate
 import ru.tinyops.turboist.nativeapp.tasks.dueTime
 import ru.tinyops.turboist.nativeapp.tasks.recurrenceWording
+import ru.tinyops.turboist.nativeapp.todaylock.ui.ProvideTodayLockActive
 import ru.tinyops.turboist.nativeapp.ui.markdown.Markdown
 import ru.tinyops.turboist.nativeapp.ui.markdown.MarkdownText
 import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
@@ -1287,7 +1287,7 @@ private fun RecordOfTheTask(
             trailing = if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
             onClick = { open = !open },
         )
-        AnimatedVisibility(visible = open) {
+        if (open) {
             Column {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 DetailRow(
@@ -1342,19 +1342,21 @@ fun TaskDetailScreen(
     // sitting on an empty frame the user has to back out of themselves.
     LaunchedEffect(presenter) { presenter.deleted.collect { onBack() } }
 
-    TaskDetailScreen(
-        state = state,
-        zone = zone,
-        today = today,
-        moveOptions = moveOptions,
-        messages = presenter.messages,
-        callbacks = detailCallbacks(presenter, zone, onOpenTask, onBack, onOpenProject, onOpenContext),
-        modifier = modifier,
-        harpoon = harpoon,
-        dependencyAdded = presenter.dependencyAdded,
-        nestAdded = presenter.nestAdded,
-        subtaskDetached = presenter.subtaskDetached,
-    )
+    ProvideTodayLockActive {
+        TaskDetailScreen(
+            state = state,
+            zone = zone,
+            today = today,
+            moveOptions = moveOptions,
+            messages = presenter.messages,
+            callbacks = detailCallbacks(presenter, zone, onOpenTask, onBack, onOpenProject, onOpenContext),
+            modifier = modifier,
+            harpoon = harpoon,
+            dependencyAdded = presenter.dependencyAdded,
+            nestAdded = presenter.nestAdded,
+            subtaskDetached = presenter.subtaskDetached,
+        )
+    }
 }
 
 /** Wires the screen's gestures onto the presenter behind it. */

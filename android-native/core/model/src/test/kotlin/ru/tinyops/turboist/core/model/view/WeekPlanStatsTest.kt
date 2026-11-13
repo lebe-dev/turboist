@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.core.model.view
 
 import ru.tinyops.turboist.core.model.Label
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import kotlin.test.Test
@@ -76,6 +77,18 @@ class WeekPlanStatsTest {
             )
 
         assertEquals(1, stats.unlabeled)
+    }
+
+    @Test
+    fun `repeating tasks count toward the week even when they are not planned for it`() {
+        val planned = task(1L, labels = listOf(work)).copy(planState = PlanState.WEEK)
+        val repeating = task(2L, labels = listOf(home)).copy(recurrenceRule = "FREQ=DAILY")
+        val plainDated = task(3L, labels = listOf(admin))
+
+        assertEquals(true, planned.countsTowardWeekPlan())
+        assertEquals(true, repeating.countsTowardWeekPlan())
+        assertEquals(false, plainDated.countsTowardWeekPlan())
+        assertEquals(false, repeating.copy(status = TaskStatus.COMPLETED).countsTowardWeekPlan())
     }
 
     @Test

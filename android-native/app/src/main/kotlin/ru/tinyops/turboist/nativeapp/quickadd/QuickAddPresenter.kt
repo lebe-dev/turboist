@@ -77,6 +77,8 @@ data class QuickAddUiState(
     val todayLockActive: Boolean = false,
     /** The projects holding today's tasks, by local id: what the focus lock lets into the day. */
     val todayPlanIds: Set<Long> = emptySet(),
+    /** The projects the focus lock lets today's work into: today's plan plus the projects marked as exempt. */
+    val lockAllowedIds: Set<Long> = emptySet(),
     /** True while the Today focus lock would refuse the draft as it stands: dated today, outside today's projects. */
     val todayLockConflict: Boolean = false,
     /** True when choosing a project outside today's plan moved the draft's date from today to tomorrow. */
@@ -301,7 +303,7 @@ class QuickAddPresenter(
                 projectLocalId != null &&
                     rendered.todayLockActive &&
                     current.draft.dueDate == today &&
-                    projectLocalId !in rendered.todayPlanIds
+                    projectLocalId !in rendered.lockAllowedIds
             current.copy(
                 // A project and a column of one are the same decision, so picking
                 // a project drops whichever column was chosen before it.
@@ -494,6 +496,7 @@ class QuickAddPresenter(
                 },
             todayLockActive = lockActive,
             todayPlanIds = space.todayProjectLocalIds.toSet(),
+            lockAllowedIds = lockAllowedIds(space),
             todayLockConflict = todayLockConflict(edit.draft, space),
             dueShiftedByLock = edit.dueShiftedByLock,
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
@@ -521,9 +524,13 @@ class QuickAddPresenter(
             now = now().toEpochMilli(),
             before = null,
             after = TodayLock.Placement(draft.projectLocalId, dueAt, open = true),
-            todayProjects = { space.todayProjectLocalIds.toSet() },
+            todayProjects = { lockAllowedIds(space) },
         )
     }
+
+    /** Today's plan plus every project marked as exempt from the focus lock. */
+    private fun lockAllowedIds(space: QuickAddWorkspace): Set<Long> =
+        space.todayProjectLocalIds.toSet() + space.projects.filter { it.todayLockExempt }.map { it.localId }
 
     @Suppress("TooGenericExceptionCaught")
     private suspend fun askForLabels(ask: SuggestionAsk): List<Long> {

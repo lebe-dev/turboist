@@ -65,6 +65,7 @@ import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.BulkDestinations
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
+import ru.tinyops.turboist.nativeapp.todaylock.ui.TodayLockMoveHint
 
 /**
  * What can be done to a picked set of tasks.
@@ -359,6 +360,7 @@ fun BulkDestinationSheet(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
+        TodayLockMoveHint()
         LazyColumn(
             modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
             contentPadding = PaddingValues(bottom = 24.dp),

@@ -84,6 +84,7 @@
     <string name="native_dest_project">Проект</string>
     <string name="native_dest_label">Метка</string>
     <string name="native_dest_context">Контекст</string>
+    <string name="native_todayLock_moveHint">Включён фокус до полуночи: задача со сроком «сегодня» перейдёт только в проект, где уже есть задачи на сегодня или который всегда разрешён. В другие её не пустят.</string>
     <string name="native_project_finished">Выполненные</string>
 
     <!-- Everything else the native client says: sign-in, search, sync, settings. -->
@@ -143,6 +144,8 @@
     <string name="native_quickAdd_backToTask">Назад к задаче</string>
     <string name="native_quickAdd_noDayPart">Время</string>
     <string name="native_quickAdd_noLabels">Метки</string>
+    <string name="native_project_todayLockExemptOn">Всегда разрешать на сегодня</string>
+    <string name="native_project_todayLockExemptOff">Больше не разрешать на сегодня</string>
     <string name="native_project_statusUnknown">Неизвестный статус</string>
     <string name="native_project_pinLimit">Можно закрепить не больше %1$d проектов. Сначала открепите один.</string>
     <string name="native_project_troikiFull">В этой части плана на день уже %1$d проектов.</string>

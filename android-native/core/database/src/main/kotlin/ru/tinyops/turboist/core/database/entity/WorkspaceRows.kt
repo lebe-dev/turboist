@@ -85,6 +85,7 @@ data class ProjectRow(
     val isPinned: Boolean = false,
     val pinnedAt: Long? = null,
     val isPrivate: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val todayLockExempt: Boolean = false,
     val troikiCategory: TroikiCategory? = null,
     val createdAt: Long,
     val updatedAt: Long,

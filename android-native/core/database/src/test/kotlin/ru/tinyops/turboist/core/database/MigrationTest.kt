@@ -57,7 +57,7 @@ class MigrationTest {
         }
 
     @Test
-    fun `version 2 keeps its rows and gains an empty embedding cache`() =
+    fun `version 2 projects are not exempt from the today lock`() =
         runTest {
             val app = RuntimeEnvironment.getApplication()
             val file = app.getDatabasePath("migration-v2.db")
@@ -67,10 +67,46 @@ class MigrationTest {
             SQLiteDatabase.openOrCreateDatabase(file, null).use { legacy ->
                 createFromExport(legacy, version = 2)
                 legacy.execSQL(
+                    "INSERT INTO contexts (serverId, name, color, isFavourite, createdAt, updatedAt) " +
+                        "VALUES (1, 'work', 'blue', 0, 1, 1)",
+                )
+                legacy.execSQL(
+                    "INSERT INTO projects (serverId, contextLocalId, title, description, color, status, type, " +
+                        "isPinned, isPrivate, createdAt, updatedAt) " +
+                        "VALUES (7, 1, 'Home', '', '', 'open', 'generic', 0, 0, 1, 1)",
+                )
+                legacy.version = 2
+            }
+
+            val db =
+                Room.databaseBuilder(app, TurboistDatabase::class.java, file.absolutePath)
+                    .allowMainThreadQueries()
+                    .build()
+            try {
+                val project = db.projects().byServerId(7)
+                assertEquals("Home", project?.title)
+                assertEquals(false, project?.todayLockExempt)
+            } finally {
+                db.close()
+                file.delete()
+            }
+        }
+
+    @Test
+    fun `version 3 keeps its rows and gains an empty embedding cache`() =
+        runTest {
+            val app = RuntimeEnvironment.getApplication()
+            val file = app.getDatabasePath("migration-v3.db")
+            file.parentFile?.mkdirs()
+            file.delete()
+
+            SQLiteDatabase.openOrCreateDatabase(file, null).use { legacy ->
+                createFromExport(legacy, version = 3)
+                legacy.execSQL(
                     "INSERT INTO labels (serverId, name, color, description, isFavourite, isPrivate, createdAt, " +
                         "updatedAt) VALUES (7, 'bug', 'red', 'Ошибки', 0, 0, 1, 1)",
                 )
-                legacy.version = 2
+                legacy.version = 3
             }
 
             val db =

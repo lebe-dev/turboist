@@ -1938,7 +1938,7 @@ label and project tables. Two seconds after a burst of writes it rebuilds the
 index from the replica and the embedding cache, so only new texts go through the
 model. The first pass embeds every task, newest first, and publishes the index
 after every 128, so suggestions work long before it finishes. Embeddings are
-cached in the local-only `text_embeddings` table (migration 2 → 3). The key is a
+cached in the local-only `text_embeddings` table (migration 3 → 4). The key is a
 hash of the model id and the exact text, so a renamed task asks for a new key,
 the runs of a repeating task share one, and another model can never read this
 one's vectors. Like the full-text indexes, the cache is never uploaded, is wiped

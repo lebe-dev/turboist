@@ -84,6 +84,7 @@ fun ProjectDto.toProject(ids: ReplicaIds = ReplicaIds.Identity): Project =
         isPinned = isPinned,
         pinnedAt = WireTime.parseOrNull(pinnedAt),
         isPrivate = isPrivate,
+        todayLockExempt = todayLockExempt,
         troikiCategory = troikiCategory?.let(TroikiCategory::fromWireOrNull),
         labels = labels.map { it.toLabel(ids) },
         createdAt = time(createdAt),

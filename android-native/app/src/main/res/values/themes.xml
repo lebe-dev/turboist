@@ -6,5 +6,7 @@
     -->
     <style name="Theme.TurboistNative" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
+        <!-- Opening and closing the screen is instant, like moving between screens inside it. -->
+        <item name="android:windowAnimationStyle">@null</item>
     </style>
 </resources>

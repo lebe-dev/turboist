@@ -59,19 +59,20 @@ type BackupLabel struct {
 }
 
 type BackupProject struct {
-	ID             int64   `json:"id"`
-	ContextID      int64   `json:"contextId"`
-	Title          string  `json:"title"`
-	Description    string  `json:"description"`
-	Color          string  `json:"color"`
-	Status         string  `json:"status"`
-	IsPinned       bool    `json:"isPinned"`
-	PinnedAt       *string `json:"pinnedAt,omitempty"`
-	IsPrivate      bool    `json:"isPrivate"`
-	ProjectType    string  `json:"projectType"`
-	TroikiCategory *string `json:"troikiCategory,omitempty"`
-	CreatedAt      string  `json:"createdAt"`
-	UpdatedAt      string  `json:"updatedAt"`
+	ID              int64   `json:"id"`
+	ContextID       int64   `json:"contextId"`
+	Title           string  `json:"title"`
+	Description     string  `json:"description"`
+	Color           string  `json:"color"`
+	Status          string  `json:"status"`
+	IsPinned        bool    `json:"isPinned"`
+	PinnedAt        *string `json:"pinnedAt,omitempty"`
+	IsPrivate       bool    `json:"isPrivate"`
+	TodayLockExempt bool    `json:"todayLockExempt,omitempty"`
+	ProjectType     string  `json:"projectType"`
+	TroikiCategory  *string `json:"troikiCategory,omitempty"`
+	CreatedAt       string  `json:"createdAt"`
+	UpdatedAt       string  `json:"updatedAt"`
 }
 
 type BackupProjectSection struct {

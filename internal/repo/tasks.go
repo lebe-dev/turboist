@@ -1105,13 +1105,16 @@ func (r *TaskRepo) CountPinnedProjects(ctx context.Context) (int, error) {
 // before end — the projects the Today screen shows (today plus overdue). The
 // task excludeTaskID is left out, so a write can ask "which projects are on
 // Today without the task I am changing"; pass 0 to leave nothing out. Tasks
-// with no project (the inbox, a bare context) contribute nothing.
+// with no project (the inbox, a bare context) contribute nothing. Projects marked
+// today_lock_exempt are always part of the answer, so the focus lock lets work in.
 func (r *TaskRepo) TodayProjectIDs(ctx context.Context, end time.Time, excludeTaskID int64) ([]int64, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT DISTINCT project_id FROM tasks
+		`SELECT project_id FROM tasks
 		  WHERE status = 'open' AND project_id IS NOT NULL
 		    AND due_at IS NOT NULL AND due_at < ? AND id <> ?
-		  ORDER BY project_id`,
+		  UNION
+		 SELECT id FROM projects WHERE today_lock_exempt = 1
+		  ORDER BY 1`,
 		model.FormatUTC(end), excludeTaskID)
 	if err != nil {
 		return nil, fmt.Errorf("today project ids: %w", err)

@@ -196,6 +196,7 @@ data class PatchProjectRequest(
     val contextId: Long? = null,
     val labels: List<String>? = null,
     val isPrivate: Boolean? = null,
+    val todayLockExempt: Boolean? = null,
     val projectType: String? = null,
 )
 

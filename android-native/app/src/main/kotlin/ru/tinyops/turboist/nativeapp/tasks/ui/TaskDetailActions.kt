@@ -36,6 +36,7 @@ import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.MoveProject
 import ru.tinyops.turboist.nativeapp.tasks.hasTitleCounter
+import ru.tinyops.turboist.nativeapp.todaylock.ui.TodayLockMoveHint
 
 /**
  * Everything that can be done to the task as a whole.
@@ -243,6 +244,7 @@ fun TaskMoveSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
+            TodayLockMoveHint()
             ListItem(
                 headlineContent = { Text(stringResource(R.string.nav_inbox)) },
                 modifier = Modifier.clickable { onPick(TaskDestination.Inbox) },

@@ -66,11 +66,14 @@ abstract class TaskDao {
      * The projects with open work due before [end] — what the Today screen shows,
      * today and overdue alike — leaving out the task [exceptLocalId], so a write
      * can ask which projects stand on Today without the task it is changing.
-     * Tasks with no project (the inbox, a bare context) name nothing.
+     * Tasks with no project (the inbox, a bare context) name nothing. Projects
+     * marked as exempt from the focus lock are always part of the answer, as on the
+     * server: the lock never keeps them out.
      */
     @Query(
-        "SELECT DISTINCT projectLocalId FROM tasks WHERE status = 'open' AND projectLocalId IS NOT NULL " +
-            "AND dueAt IS NOT NULL AND dueAt < :end AND localId <> :exceptLocalId",
+        "SELECT projectLocalId FROM tasks WHERE status = 'open' AND projectLocalId IS NOT NULL " +
+            "AND dueAt IS NOT NULL AND dueAt < :end AND localId <> :exceptLocalId " +
+            "UNION SELECT localId FROM projects WHERE todayLockExempt = 1",
     )
     abstract suspend fun todayProjectLocalIds(
         end: Long,
