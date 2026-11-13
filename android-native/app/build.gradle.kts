@@ -324,6 +324,7 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
+    ksp(libs.kotlin.metadata.jvm)
 
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.junit)

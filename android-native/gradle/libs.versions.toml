@@ -4,8 +4,8 @@
 
 [versions]
 agp = "8.13.2"
-kotlin = "2.2.21"
-ksp = "2.2.21-2.0.5"
+kotlin = "2.3.21"
+ksp = "2.3.13"
 ktlint = "12.3.0"
 detekt = "1.23.8"
 composeRules = "0.4.28"
@@ -16,7 +16,7 @@ coreKtx = "1.17.0"
 activityCompose = "1.12.0"
 navigationCompose = "2.9.6"
 lifecycle = "2.9.4"
-coroutines = "1.10.2"
+coroutines = "1.11.0"
 kotlinxSerialization = "1.9.0"
 room = "2.8.1"
 retrofit = "3.0.0"
@@ -60,6 +60,10 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 # --- DI ---
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+# Dagger 2.57 reads Kotlin metadata through this library and only knows the versions it was
+# built against; pinning it to the compiler's own version keeps Hilt reading what Kotlin writes.
+# Newer Dagger bundles a newer copy but needs AGP 9.
+kotlin-metadata-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version.ref = "kotlin" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
 # --- Persistence (the on-device replica) ---
