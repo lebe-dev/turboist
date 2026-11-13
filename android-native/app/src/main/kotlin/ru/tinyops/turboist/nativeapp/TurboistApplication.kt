@@ -5,7 +5,7 @@ import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import ru.tinyops.turboist.nativeapp.auth.SessionManager
 import ru.tinyops.turboist.nativeapp.diagnostics.ErrorReporting
-import ru.tinyops.turboist.nativeapp.labelsuggest.OnDeviceLabelSuggestions
+import ru.tinyops.turboist.nativeapp.labelsuggest.OnDeviceSuggestions
 import ru.tinyops.turboist.nativeapp.sync.SyncStartup
 import ru.tinyops.turboist.nativeapp.sync.SyncWorkerFactory
 import javax.inject.Inject
@@ -43,7 +43,7 @@ class TurboistApplication :
     lateinit var workerFactory: SyncWorkerFactory
 
     @Inject
-    lateinit var labelSuggestions: Provider<OnDeviceLabelSuggestions>
+    lateinit var suggestions: Provider<OnDeviceSuggestions>
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -64,6 +64,6 @@ class TurboistApplication :
         sync.get().start()
         // Dormant unless the user turned suggestions on and the model is here;
         // otherwise it only resumes a download that was cut short.
-        labelSuggestions.get().start()
+        suggestions.get().start()
     }
 }

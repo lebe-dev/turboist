@@ -447,6 +447,11 @@ private fun settingsSearchEntries(): List<SettingsSearchEntry> {
                 SettingsSection.DEVICE,
                 R.string.native_labelSuggest_searchKeywords,
             ),
+            Triple(
+                R.string.native_projectSuggest_toggle,
+                SettingsSection.DEVICE,
+                R.string.native_projectSuggest_searchKeywords,
+            ),
             Triple(R.string.native_settings_serverHeading, SettingsSection.DEVICE, null),
             Triple(
                 R.string.native_settings_changeServer,

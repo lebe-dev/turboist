@@ -318,8 +318,8 @@
     <string name="native_dayPartDrag_hint">Перетащите в часть дня</string>
     <!-- Beside the finger while a carried task is over another part of the day; the value is that part's name. -->
     <string name="native_dayPartDrag_willMove">Перенести: %1$s</string>
-    <!-- Label suggestions: the group in device settings. -->
-    <string name="native_labelSuggest_heading">Подсказки меток</string>
+    <!-- On-device suggestions (labels and projects): the group in device settings. -->
+    <string name="native_labelSuggest_heading">Подсказки</string>
     <string name="native_labelSuggest_toggle">Подсказывать метки</string>
     <!-- The value is the model's download size, such as "165 MB". -->
     <string name="native_labelSuggest_toggleDescription">Подбирает метки для задачи по прежним задачам и описаниям меток, прямо на телефоне. Один раз скачивает модель на %1$s.</string>
@@ -338,9 +338,15 @@
     <string name="native_labelSuggest_learned">Изучено задач: %1$d из %2$d</string>
     <string name="native_labelSuggest_delete">Удалить модель</string>
     <!-- The value is the model's size. -->
-    <string name="native_labelSuggest_deleteDescription">Освободит %1$s и выключит подсказки</string>
+    <string name="native_labelSuggest_deleteDescription">Освободит %1$s и выключит оба вида подсказок</string>
     <!-- Over the suggested labels in the capture sheet and in the label picker. -->
     <string name="native_labelSuggest_suggested">Подходящие метки</string>
     <!-- Spoken for a suggested label chip; the value is the label's name. -->
     <string name="native_labelSuggest_add">Добавить метку %1$s</string>
+    <!-- Project suggestions: the second switch of the suggestions group in device settings. -->
+    <string name="native_projectSuggest_toggle">Подсказывать проекты</string>
+    <!-- The value is the model's download size, such as "165 MB". -->
+    <string name="native_projectSuggest_toggleDescription">Предлагает проект для задачи, которая идёт во Входящие, по тому, куда попадали прежние задачи, прямо на телефоне. Использует ту же модель на %1$s, что и подсказки меток.</string>
+    <!-- Words a settings search should find the switch by. -->
+    <string name="native_projectSuggest_searchKeywords">проекты подсказки входящие модель ИИ</string>
 </resources>

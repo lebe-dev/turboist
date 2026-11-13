@@ -27,11 +27,14 @@ import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.TodayLock
 import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.model.labelsuggest.LabelSuggestionRecipe
+import ru.tinyops.turboist.core.model.labelsuggest.ProjectSuggestionRecipe
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.labelsuggest.LabelSuggestions
+import ru.tinyops.turboist.nativeapp.labelsuggest.ProjectSuggestionRequest
+import ru.tinyops.turboist.nativeapp.labelsuggest.ProjectSuggestions
 import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionRequest
 import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionSurface
 import ru.tinyops.turboist.nativeapp.tasks.DayPartSchedule
@@ -65,7 +68,11 @@ data class QuickAddUiState(
     val recentProjects: List<Project> = emptyList(),
     /** Everything else the picker offers, with the recent ones lifted out. */
     val otherProjects: List<Project> = emptyList(),
-    /** Offered for the typed title, never applied. */
+    /**
+     * Offered for the typed title, never applied: first the ones a title rule
+     * names, then — while the draft is headed for the inbox and project
+     * suggestions are on — the ones the on-device model thinks it belongs in.
+     */
     val suggestedProjects: List<Project> = emptyList(),
     /**
      * The projects holding today's tasks, offered one tap away under the destination:
@@ -143,7 +150,8 @@ enum class QuickAddMessage {
  * The installation's two title rules are both read here and they behave
  * differently on purpose: the labels a title earns are attached, and shown
  * beforehand so they can be taken off; the projects a title suggests are only
- * offered, and the task goes to the inbox unless somebody taps one.
+ * offered, and the task goes to the inbox unless somebody taps one. What the
+ * on-device model thinks of, labels and projects alike, is only ever offered.
  */
 class QuickAddPresenter(
     private val scope: CoroutineScope,
@@ -156,6 +164,7 @@ class QuickAddPresenter(
     private val schedule: DayPartSchedule = DayPartSchedule.Default,
     private val activity: ProjectActivity = ProjectActivity.None,
     private val labelSuggestions: LabelSuggestions = LabelSuggestions.None,
+    private val projectSuggestions: ProjectSuggestions = ProjectSuggestions.None,
 ) {
     private val editing = MutableStateFlow(Editing())
 
@@ -174,6 +183,23 @@ class QuickAddPresenter(
             // The sheet renders at once; suggestions join it when they have something to say.
             .onStart { emit(emptyList()) }
 
+    /**
+     * The model's projects for the first line, asked only while the draft is
+     * headed for the inbox: a project the user already chose is their decision,
+     * and a suggestion against it would only distract.
+     */
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    private val suggestedProjectIds: Flow<List<Long>> =
+        editing
+            .map { ProjectAsk(it.visible && it.draft.isInbox, it.draft.titleLines.firstOrNull().orEmpty()) }
+            .distinctUntilChanged()
+            .debounce(SUGGESTION_PAUSE_MILLIS)
+            .mapLatest(::askForProjects)
+            .onStart { emit(emptyList()) }
+
+    /** The projects new work can go into, as last read, to turn suggested ids back into projects. */
+    @Volatile private var offeredProjects: List<Project> = emptyList()
+
     /** Each project's labels as last read, so a save settles them even with nothing watching. */
     @Volatile private var projectLabels: Map<Long, List<String>> = emptyMap()
     private val outgoing = MutableSharedFlow<QuickAddMessage>(extraBufferCapacity = 4)
@@ -188,6 +214,7 @@ class QuickAddPresenter(
             activity.observe(),
         ) { edit, space, order, labelOrder, touched ->
             projectLabels = space.projectLabelNames
+            offeredProjects = space.projects
             // The destination's labels follow the destination; settling them here
             // rather than when the project is chosen means a sheet opened before
             // the replica answered still gets them once it does.
@@ -195,6 +222,7 @@ class QuickAddPresenter(
             if (settled != edit) editing.compareAndSet(edit, settled)
             render(settled, space, order, touched).copy(recentLabelOrder = labelOrder)
         }.combine(suggestedLabelIds, ::withSuggestedLabels)
+            .combine(suggestedProjectIds, ::withSuggestedProjects)
             .stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), QuickAddUiState())
 
     /** What the sheet says back, once each. */
@@ -570,6 +598,49 @@ class QuickAddPresenter(
                 .take(LabelSuggestionRecipe.MAX_SUGGESTIONS)
         return state.copy(suggestedLabels = offered)
     }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun askForProjects(ask: ProjectAsk): List<Long> {
+        if (!ask.inbox || ask.title.isBlank()) return emptyList()
+        return try {
+            projectSuggestions.suggest(
+                // Some of the answer may already be offered by a title rule; ask for enough to fill the row anyway.
+                ProjectSuggestionRequest(title = ask.title, limit = SUGGESTION_CANDIDATES),
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: RuntimeException) {
+            Faults.report("quickadd", "Suggesting projects for a title failed", failure)
+            emptyList()
+        }
+    }
+
+    /**
+     * Appends the model's projects to the ones a title rule offers, each once,
+     * and only while the draft is still headed for the inbox — the answer may
+     * have been asked before a project was chosen.
+     */
+    private fun withSuggestedProjects(
+        state: QuickAddUiState,
+        ids: List<Long>,
+    ): QuickAddUiState {
+        val stillAsked = state.visible && state.draft.isInbox && state.draft.titleLines.isNotEmpty()
+        if (ids.isEmpty() || !stillAsked) return state
+        val shown = state.suggestedProjects.mapTo(HashSet()) { it.localId }
+        val byId = offeredProjects.associateBy { it.localId }
+        val offered =
+            ids.mapNotNull { byId[it] }
+                .filter { it.localId !in shown }
+                .take(ProjectSuggestionRecipe.MAX_SUGGESTIONS)
+        if (offered.isEmpty()) return state
+        return state.copy(suggestedProjects = state.suggestedProjects + offered)
+    }
+
+    /** What a project suggestion is asked about: the first line, while the draft is headed for the inbox. */
+    private data class ProjectAsk(
+        val inbox: Boolean,
+        val title: String,
+    )
 
     /** What a label suggestion is asked about: the first line, and where it is going. */
     private data class SuggestionAsk(

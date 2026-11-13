@@ -413,8 +413,8 @@
     <string name="native_dayPartDrag_hint">Drop on a part of the day</string>
     <!-- Beside the finger while a carried task is over another part of the day; the value is that part's name. -->
     <string name="native_dayPartDrag_willMove">Move to %1$s</string>
-    <!-- Label suggestions: the group in device settings. -->
-    <string name="native_labelSuggest_heading">Label suggestions</string>
+    <!-- On-device suggestions (labels and projects): the group in device settings. -->
+    <string name="native_labelSuggest_heading">Suggestions</string>
     <string name="native_labelSuggest_toggle">Suggest labels</string>
     <!-- The value is the model's download size, such as "165 MB". -->
     <string name="native_labelSuggest_toggleDescription">Suggests labels for a task from your earlier tasks and the labels\' descriptions, on this phone. Downloads a %1$s model once.</string>
@@ -433,9 +433,15 @@
     <string name="native_labelSuggest_learned">Tasks learned from: %1$d of %2$d</string>
     <string name="native_labelSuggest_delete">Delete the model</string>
     <!-- The value is the model's size. -->
-    <string name="native_labelSuggest_deleteDescription">Frees %1$s and turns suggestions off</string>
+    <string name="native_labelSuggest_deleteDescription">Frees %1$s and turns both kinds of suggestion off</string>
     <!-- Over the suggested labels in the capture sheet and in the label picker. -->
     <string name="native_labelSuggest_suggested">Suggested</string>
     <!-- Spoken for a suggested label chip; the value is the label's name. -->
     <string name="native_labelSuggest_add">Add label %1$s</string>
+    <!-- Project suggestions: the second switch of the suggestions group in device settings. -->
+    <string name="native_projectSuggest_toggle">Suggest projects</string>
+    <!-- The value is the model's download size, such as "165 MB". -->
+    <string name="native_projectSuggest_toggleDescription">Suggests a project for a task headed for the inbox, from where your earlier tasks went, on this phone. Uses the same %1$s model as label suggestions.</string>
+    <!-- Words a settings search should find the switch by. -->
+    <string name="native_projectSuggest_searchKeywords">projects suggestions inbox model AI</string>
 </resources>

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.labelsuggest.LabelSuggestions
+import ru.tinyops.turboist.nativeapp.labelsuggest.ProjectSuggestions
 import ru.tinyops.turboist.nativeapp.tasks.DayClock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,6 +35,7 @@ class QuickAddViewModel
         requests: QuickAddRequests,
         clock: DayClock,
         labelSuggestions: LabelSuggestions,
+        projectSuggestions: ProjectSuggestions,
     ) : ViewModel() {
         /** The zone the day shortcuts are read in. */
         val zone: ZoneId = clock.zone
@@ -53,6 +55,7 @@ class QuickAddViewModel
                 clock::now,
                 activity = activity,
                 labelSuggestions = labelSuggestions,
+                projectSuggestions = projectSuggestions,
             )
 
         init {

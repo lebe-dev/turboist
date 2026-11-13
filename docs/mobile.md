@@ -346,7 +346,8 @@ It holds three kinds of table, and they are not the same thing:
   its index entry following — including through a cascade nobody called directly.
   A hand-maintained index would drift the first time a write path forgot it.
   Beside them sits the other derived table, `text_embeddings`: the cache of
-  vectors label suggestions compute on the device (see *Label suggestions*).
+  vectors label and project suggestions compute on the device (see *Label and
+  project suggestions*).
 - **the bookkeeping**, which exists only on the device and is never uploaded:
   how far the copy has caught up, what this device has changed and not yet sent,
   and what the server refused.
@@ -1865,26 +1866,32 @@ its own moment rather than its task's, that work filed nowhere counts towards no
 project, and that deleting a task takes its taggings out of the report. The
 screens are checked as screens.
 
-### Label suggestions (`app/.../labelsuggest`, `core/model/.../labelsuggest`)
+### Label and project suggestions (`app/.../labelsuggest`, `core/model/.../labelsuggest`)
 
 The Android client can suggest labels for a task while its title is typed and
-when its labels are being picked. Everything happens on the phone: a small
-language model turns titles, labels and projects into embeddings, and the
-suggestion is worked out from those against the replica. Nothing is sent to the
-server or anywhere else, and the web and iOS clients do not have the feature.
+when its labels are being picked, and a project for a task headed for the inbox
+while its title is typed. Everything happens on the phone: a small language model
+turns titles, labels and projects into embeddings, and the suggestion is worked
+out from those against the replica. Nothing is sent to the server or anywhere
+else, and the web and iOS clients do not have the feature.
 
-**Off until switched on, under Settings → This device → Label suggestions.** The
-model is [EmbeddingGemma 2 Text 270M](https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm)
+**Off until switched on, under Settings → This device → Suggestions.** There are
+two switches, *Suggest labels* and *Suggest projects*, both off by default and
+independent of each other (DataStore `label_suggestions`, keys `enabled` and
+`projects_enabled`; the labels key kept its old name, so a phone that had label
+suggestions on keeps them). Both run on the same model and the same index: the
+model is downloaded when either is turned on, the index is kept while either is
+on, and each kind answers only while its own switch is. The model is [EmbeddingGemma 2 Text 270M](https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm)
 in the LiteRT-LM format (Apache 2.0, about 165 MB). It is not in the APK.
-Switching suggestions on downloads it once from Hugging Face into no-backup
-storage. The download resumes from where it stopped if it is interrupted or the
-switch is turned off and on again, and the file is checked against a fixed
+Switching either kind on downloads it once from Hugging Face into no-backup
+storage. Turning the last one off stops the download. The download resumes from
+where it stopped if it is interrupted or a switch is turned off and on again, and the file is checked against a fixed
 SHA-256 before it is used. Stopping a download aborts the request at once, and a
 new download waits for the stopped one to finish its last write, so two never
 write the same partial file. The address names
 a fixed revision, so the file on the phone is byte for byte the one the scoring
 was calibrated on. The same screen shows download progress and how many tasks the
-index has learned from, and deletes the model, which turns suggestions off and
+index has learned from, and deletes the model, which turns both kinds off and
 empties the cache. The engine holds a few hundred megabytes while it is open, so
 it is opened on demand and closed after a minute of no questions. If the engine
 cannot be opened, it is not retried until the model is deleted or suggestions are
@@ -1900,6 +1907,17 @@ never suggested. In the task's label sheet, the top three lead the sheet above
 "Recent", with a much lower bar, because the user is already choosing there. The
 sheet keeps the suggestions it opened with, so a suggested label that is tapped
 stays in its row, now on, and can be tapped off again. A search hides the row.
+
+Suggested projects join the project chips under the title, after the ones a
+title rule names (`projectSuggestions` in the installation settings), each
+project once and at most three from the model. They are asked for only while the
+draft is headed for the inbox: a project the user already chose, or the one the
+sheet was opened on, is their decision. Like the rule chips, they are **offered,
+never applied** — a tap files the draft into that project, which takes the
+model's chips away; going back to the inbox brings them back. Only open projects
+are offered. The capture sheet asks about labels and projects for the same title
+at the same moment, and the engine keeps the last title's vector, so the two
+questions cost the model one embedding.
 
 **How a label is scored.** Four signals are blended, each a number from 0 to 1 per
 label (`LabelSuggestionRecipe`):
@@ -1941,7 +1959,35 @@ titles). A 90-day replica holds enough history: limiting it to open tasks plus
 those finished in the last 90 days changed nothing measurable. Re-measure the
 same way before changing a constant.
 
-**The index follows the replica.** `OnDeviceLabelSuggestions` watches the task,
+**How a project is scored.** Three signals are blended, each a number from 0 to 1
+per project (`ProjectSuggestionRecipe`, `ProjectScorer`):
+
+- **Neighbours, 0.5.** The 20 most similar tasks that sit in a project vote for
+  that project, weighted like the label neighbours but halving every 60 days:
+  projects come and go faster than what a label means. Inbox tasks do not vote.
+- **The centroid, 0.4.** Each project's 50 newest tasks averaged into one vector;
+  how close the title is to each centroid, turned into shares with a softmax
+  (temperature 0.02). The neighbours see a few tasks, the centroid a project's
+  whole recent run of them.
+- **The project itself, 0.1.** The same softmax over the project documents
+  (`title: <name> | text: <description>`).
+
+Every project takes part in the shares, finished and archived ones included, so
+a title that reads like an archived project does not lend that weight to an open
+one; only open projects are scored and offered. A chip needs 0.25.
+
+On the same workspace, with each held-out task seeing only the tasks written
+before it, as the phone would: at 0.25 about five chips in six were the project
+the owner actually filed the task into, more than half of the tasks got the right
+project among their chips, and fewer than one task in twelve got only wrong ones.
+On titles never seen before, seven chips in ten were right and a third of the
+tasks were helped. Project names alone are nearly useless — the right project was
+first for only 8 % of tasks, since most names are proper nouns the model has never
+met — so almost all of it comes from history. Limiting the history to the
+replica's window (open tasks plus those touched in the last 90 days) did not hurt;
+the right project was among the top three for 81 % of tasks.
+
+**The index follows the replica.** `OnDeviceSuggestions` watches the task,
 label and project tables. Two seconds after a burst of writes it rebuilds the
 index from the replica and the embedding cache, so only new texts go through the
 model. The first pass embeds every task, newest first, and publishes the index
@@ -1959,10 +2005,12 @@ thrown away. Stale keys are swept after each pass.
 scorer are JVM tests on hand-built vectors in `core/model`. The DAO and the
 migration run against real SQLite. The download (whole, resumed, server ignoring
 the range, damaged file, refusal, no room, stopped and resumed, deleted midway)
-runs against MockWebServer. The index (`OnDeviceLabelSuggestionsTest`) runs
+runs against MockWebServer. The index (`OnDeviceSuggestionsTest`) runs
 against an in-memory replica with a fake model: what is embedded and when, what
-the cache keeps and sweeps, and what a pass cut short leaves behind. The capture
-sheet and the task screen are tested on a fake: when they ask, what they ask, and
+the cache keeps and sweeps, what a pass cut short leaves behind, which kind
+answers while only one switch is on, that a project that is not open is never
+offered, and that one title costs one embedding for both kinds. The capture
+sheet and the task screen are tested on fakes: when they ask, what they ask, and
 what they leave out; the label sheet's rows are a pure function
 (`labelSheetRows`). The engine itself is not run in the JVM suite,
 since it is a native library.

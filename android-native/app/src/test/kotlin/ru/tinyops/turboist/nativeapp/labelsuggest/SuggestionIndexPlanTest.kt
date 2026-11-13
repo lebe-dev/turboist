@@ -6,6 +6,7 @@ import ru.tinyops.turboist.core.database.dao.SuggestionLabelFacts
 import ru.tinyops.turboist.core.database.dao.SuggestionProjectFacts
 import ru.tinyops.turboist.core.database.dao.SuggestionTaskFacts
 import ru.tinyops.turboist.core.database.dao.SuggestionWorkspace
+import ru.tinyops.turboist.core.model.ProjectStatus
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
@@ -75,6 +76,22 @@ class SuggestionIndexPlanTest {
 
         // The one task in Soika carries only the project's own label.
         assertTrue(index.destinations[soika].orEmpty().isEmpty())
+    }
+
+    @Test
+    fun `history knows where each task sits, and only open projects are places`() {
+        val archived = 11L
+        val withArchive =
+            workspace.copy(
+                projects = workspace.projects + SuggestionProjectFacts(archived, "Old", "", ProjectStatus.ARCHIVED),
+            )
+
+        val index = SuggestionIndexPlan(withArchive).build { floatArrayOf(1f, 0f) }
+
+        assertEquals(mapOf(100L to soika, 101L to null), index.history.associate { it.taskId to it.projectId })
+        assertEquals(mapOf(soika to true, archived to false), index.projects.associate { it.projectId to it.open })
+        // The inbox task has no centroid to add to; Soika's one task is its centroid.
+        assertEquals(setOf(soika), index.centroids.keys)
     }
 
     @Test

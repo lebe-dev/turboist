@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.labelsuggest
 
 import ru.tinyops.turboist.core.database.dao.SuggestionWorkspace
+import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.labelsuggest.HistoryTask
 import ru.tinyops.turboist.core.model.labelsuggest.LabelSuggestionIndex
 import ru.tinyops.turboist.core.model.labelsuggest.LabelVector
@@ -9,6 +10,7 @@ import ru.tinyops.turboist.core.model.labelsuggest.ProjectVector
 import ru.tinyops.turboist.core.model.labelsuggest.SuggestionTexts
 import ru.tinyops.turboist.core.model.labelsuggest.TaskLabelFacts
 import ru.tinyops.turboist.core.model.labelsuggest.destinationPriors
+import ru.tinyops.turboist.core.model.labelsuggest.projectCentroids
 import ru.tinyops.turboist.core.model.labelsuggest.projectLabelWeights
 import java.security.MessageDigest
 
@@ -42,6 +44,9 @@ internal class SuggestionIndexPlan(
 
     val projectDocuments: Map<Long, String> = projectTexts.mapValues { SuggestionTexts.projectDocument(it.value) }
 
+    private val openProjects: Set<Long> =
+        workspace.projects.filter { it.status == ProjectStatus.OPEN }.mapTo(HashSet()) { it.localId }
+
     /** Tasks newest first, so a partial index already knows the most relevant history. */
     private val tasksNewestFirst = workspace.tasks.filter { it.title.isNotBlank() }.sortedByDescending { it.createdAt }
 
@@ -50,6 +55,7 @@ internal class SuggestionIndexPlan(
     private val facts: List<TaskLabelFacts> =
         workspace.tasks.map { TaskLabelFacts(it.localId, it.projectLocalId, labelsOfTask[it.localId].orEmpty()) }
     private val createdAt: Map<Long, Long> = workspace.tasks.associate { it.localId to it.createdAt }
+    private val projectOfTask: Map<Long, Long?> = workspace.tasks.associate { it.localId to it.projectLocalId }
 
     /** Every text the plan needs, labels and projects first: an index is useless without them. */
     val allTexts: List<String> =
@@ -64,13 +70,21 @@ internal class SuggestionIndexPlan(
         val weights = projectLabelWeights(projectDocuments.keys, labelsOfProject, facts)
         val projects =
             projectDocuments.mapNotNull { (id, text) ->
-                vectorOf(text)?.let { ProjectVector(id, it, weights[id].orEmpty()) }
+                vectorOf(text)?.let { ProjectVector(id, it, weights[id].orEmpty(), open = id in openProjects) }
             }
         val history =
             taskTexts.mapNotNull { (id, text) ->
-                vectorOf(text)?.let { HistoryTask(id, it, labelsOfTask[id].orEmpty(), createdAt.getValue(id)) }
+                vectorOf(text)?.let {
+                    HistoryTask(id, it, labelsOfTask[id].orEmpty(), createdAt.getValue(id), projectOfTask[id])
+                }
             }
-        return LabelSuggestionIndex(labels, projects, history, destinationPriors(labelsOfProject, facts))
+        return LabelSuggestionIndex(
+            labels = labels,
+            projects = projects,
+            history = history,
+            destinations = destinationPriors(labelsOfProject, facts),
+            centroids = projectCentroids(history),
+        )
     }
 
     companion object {

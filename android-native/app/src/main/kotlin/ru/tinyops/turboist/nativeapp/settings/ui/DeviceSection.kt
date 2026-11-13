@@ -45,7 +45,7 @@ import ru.tinyops.turboist.nativeapp.settings.SettingsUiState
  * about a device, and a tablet on wi-fi wants a different answer from a phone on
  * a metered plan.
  *
- * Label suggestions are switched on here as well: the model they run on is a
+ * Label and project suggestions are switched on here as well: the model they run on is a
  * download onto this phone, and what it learns never leaves it.
  *
  * The two destructive actions live here too, under a heading of their own,
@@ -58,7 +58,7 @@ internal fun DeviceSection(
     state: SettingsUiState,
     callbacks: SettingsCallbacks,
     destinations: SettingsDestinations,
-    labelSuggestions: @Composable () -> Unit = {},
+    suggestions: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scheme = MaterialTheme.colorScheme
@@ -89,7 +89,7 @@ internal fun DeviceSection(
     }
 
     // A device choice like the two around it: the model and what it learns stay on this phone.
-    labelSuggestions()
+    suggestions()
 
     if (state.device.errorReportingAvailable) {
         SettingsGroupLabel(stringResource(R.string.native_settings_diagnosticsHeading))

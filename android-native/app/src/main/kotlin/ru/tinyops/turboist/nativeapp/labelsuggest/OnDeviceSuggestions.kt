@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import ru.tinyops.turboist.core.database.TurboistDatabase
 import ru.tinyops.turboist.core.database.dao.LabelSuggestionDao
@@ -23,6 +25,7 @@ import ru.tinyops.turboist.core.database.entity.TextEmbeddingRow
 import ru.tinyops.turboist.core.model.labelsuggest.LabelScorer
 import ru.tinyops.turboist.core.model.labelsuggest.LabelSuggestionIndex
 import ru.tinyops.turboist.core.model.labelsuggest.LabelSuggestionRecipe
+import ru.tinyops.turboist.core.model.labelsuggest.ProjectScorer
 import ru.tinyops.turboist.core.model.labelsuggest.SuggestionTexts
 import ru.tinyops.turboist.core.model.labelsuggest.Vectors
 import ru.tinyops.turboist.nativeapp.di.ApplicationScope
@@ -30,8 +33,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Label suggestions on this phone: keeps an index of the workspace embedded,
- * and answers questions from it.
+ * Label and project suggestions on this phone: keeps an index of the workspace
+ * embedded, and answers both kinds of question from it.
  *
  * The index follows the replica. Whenever a task, label or project changes —
  * a sync, an edit, a deletion — it is rebuilt a moment later from the replica
@@ -40,29 +43,31 @@ import javax.inject.Singleton
  * every task on the device, newest first, and the index is published after
  * each slice so suggestions start working long before it finishes.
  *
- * Nothing here runs while suggestions are off or the model is missing, and
- * turning them off drops the index and closes the engine.
+ * One index and one engine serve both kinds, since both read the same titles
+ * through the same model. It runs while either kind is on and the model is
+ * here; turning both off drops the index and closes the engine. Each kind
+ * answers only while its own switch is on.
  */
 @Singleton
-class OnDeviceLabelSuggestions internal constructor(
+class OnDeviceSuggestions internal constructor(
     private val database: TurboistDatabase,
-    private val switchedOn: Flow<Boolean>,
+    switches: Flow<SuggestionSwitches>,
     private val model: ModelStore,
     private val embedder: TextEmbedder,
     private val scope: CoroutineScope,
     private val rebuildDelayMillis: Long = REBUILD_DELAY_MILLIS,
-) : LabelSuggestions {
+) {
     @Inject
     constructor(
         database: TurboistDatabase,
-        preference: LabelSuggestionPreference,
+        preference: SuggestionPreference,
         model: ModelStore,
         embedder: LiteRtEmbedder,
         @ApplicationScope scope: CoroutineScope,
     ) : this(
         database = database,
         // A phone the engine cannot run on is one where suggestions are simply off.
-        switchedOn = preference.enabled.map { it && LabelSuggestionSupport.supported },
+        switches = preference.switches.map { if (LabelSuggestionSupport.supported) it else SuggestionSwitches() },
         model = model,
         embedder = embedder,
         scope = scope,
@@ -73,12 +78,25 @@ class OnDeviceLabelSuggestions internal constructor(
     private val index = MutableStateFlow<LabelSuggestionIndex?>(null)
     private val learned = MutableStateFlow(IndexProgress())
 
+    private val switched: StateFlow<SuggestionSwitches> =
+        switches.stateIn(scope, SharingStarted.Eagerly, SuggestionSwitches())
+    private val switchedOn: Flow<Boolean> = switches.map { it.any }
+
     /**
      * Every vector this process has read or computed, by text, so a rebuild
      * after a single edit reads nothing from the cache table. Only touched
      * from [rebuild], which never runs twice at once.
      */
     private val vectors = HashMap<String, FloatArray>()
+
+    /**
+     * The last title put to the model and its vector. The capture sheet asks
+     * about labels and projects for the same title at the same moment; the
+     * second question reuses the first one's answer instead of waiting for the
+     * model again.
+     */
+    @Volatile private var lastQuery: Pair<String, FloatArray>? = null
+    private val queryLock = Mutex()
 
     /** How much of the device's history the index has taken in, for the settings screen to show. */
     val progress: StateFlow<IndexProgress> = learned
@@ -89,9 +107,28 @@ class OnDeviceLabelSuggestions internal constructor(
         }
             .distinctUntilChanged()
 
-    override val available: StateFlow<Boolean> =
-        combine(enabled, index) { on, current -> on && current != null && !current.isEmpty }
-            .stateIn(scope, SharingStarted.Eagerly, false)
+    private val live: Flow<LabelSuggestionIndex?> =
+        combine(enabled, index) { on, current -> current?.takeIf { on } }
+
+    /** Labels suggested for a title. */
+    val labels: LabelSuggestions =
+        object : LabelSuggestions {
+            override val available: StateFlow<Boolean> =
+                combine(switched, live) { on, current -> on.labels && current != null && !current.isEmpty }
+                    .stateIn(scope, SharingStarted.Eagerly, false)
+
+            override suspend fun suggest(request: SuggestionRequest): List<Long> = suggestLabels(request)
+        }
+
+    /** Projects suggested as the place for a title. */
+    val projects: ProjectSuggestions =
+        object : ProjectSuggestions {
+            override val available: StateFlow<Boolean> =
+                combine(switched, live) { on, current -> on.projects && current?.projects?.any { it.open } == true }
+                    .stateIn(scope, SharingStarted.Eagerly, false)
+
+            override suspend fun suggest(request: ProjectSuggestionRequest): List<Long> = suggestProjects(request)
+        }
 
     /** Starts following the replica. Called once, when the process starts. */
     @OptIn(FlowPreview::class)
@@ -106,6 +143,7 @@ class OnDeviceLabelSuggestions internal constructor(
                 if (!on) {
                     index.value = null
                     vectors.clear()
+                    lastQuery = null
                     learned.value = IndexProgress()
                     embedder.release()
                     return@collectLatest
@@ -118,10 +156,10 @@ class OnDeviceLabelSuggestions internal constructor(
         }
     }
 
-    override suspend fun suggest(request: SuggestionRequest): List<Long> {
-        val current = index.value ?: return emptyList()
-        if (current.isEmpty || request.title.isBlank()) return emptyList()
-        val query = embedder.embed(listOf(SuggestionTexts.query(request.title))).single() ?: return emptyList()
+    private suspend fun suggestLabels(request: SuggestionRequest): List<Long> {
+        if (!switched.value.labels || request.title.isBlank()) return emptyList()
+        val current = index.value?.takeUnless { it.isEmpty } ?: return emptyList()
+        val query = embedQuery(request.title) ?: return emptyList()
         val scores =
             LabelScorer.score(
                 query = query,
@@ -137,6 +175,24 @@ class OnDeviceLabelSuggestions internal constructor(
             }
         return LabelScorer.pick(scores, request.exclude, minScore, request.limit)
     }
+
+    private suspend fun suggestProjects(request: ProjectSuggestionRequest): List<Long> {
+        if (!switched.value.projects || request.title.isBlank()) return emptyList()
+        val current = index.value ?: return emptyList()
+        if (current.projects.none { it.open }) return emptyList()
+        val query = embedQuery(request.title) ?: return emptyList()
+        val scores = ProjectScorer.score(query = query, index = current, now = System.currentTimeMillis())
+        return ProjectScorer.pick(scores, request.exclude, max = request.limit)
+    }
+
+    private suspend fun embedQuery(title: String): FloatArray? =
+        queryLock.withLock {
+            val text = SuggestionTexts.query(title)
+            lastQuery?.takeIf { it.first == text }?.let { return@withLock it.second }
+            val vector = embedder.embed(listOf(text)).single() ?: return@withLock null
+            lastQuery = text to vector
+            vector
+        }
 
     /**
      * Brings the index up to date with the replica, embedding only texts the

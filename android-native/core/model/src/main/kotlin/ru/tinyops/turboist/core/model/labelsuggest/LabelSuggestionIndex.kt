@@ -1,7 +1,7 @@
 package ru.tinyops.turboist.core.model.labelsuggest
 
 /**
- * Everything a suggestion is scored against, already embedded.
+ * Everything a label or project suggestion is scored against, already embedded.
  *
  * Built once from the replica and reused for every keystroke: only the title
  * being typed has to go through the model while the user waits.
@@ -13,12 +13,15 @@ package ru.tinyops.turboist.core.model.labelsuggest
  * @property history earlier tasks with what they were labelled.
  * @property destinations per project, how often its tasks carry each label
  *   beyond the project's own — see [destinationPriors].
+ * @property centroids per project, what its latest tasks read like on
+ *   average — see [projectCentroids].
  */
 class LabelSuggestionIndex(
     val labels: List<LabelVector>,
     val projects: List<ProjectVector>,
     val history: List<HistoryTask>,
     val destinations: Map<Long, Map<Long, Float>> = emptyMap(),
+    val centroids: Map<Long, FloatArray> = emptyMap(),
 ) {
     /** True when there is nothing a suggestion could name. */
     val isEmpty: Boolean get() = labels.isEmpty()
@@ -36,18 +39,24 @@ class LabelVector(
 /**
  * A project as a voter: when a title reads like the project, the project's
  * labels are offered. [labelWeights] is what [projectLabelWeights] works out.
+ *
+ * @property open whether new work can be suggested into it. A finished or
+ *   archived project still votes for labels, but is never offered as a place.
  */
 class ProjectVector(
     val projectId: Long,
     val vector: FloatArray,
     val labelWeights: Map<Long, Float>,
+    val open: Boolean = true,
 )
 
+/** @property projectId where the task sits; `null` for the inbox. */
 class HistoryTask(
     val taskId: Long,
     val vector: FloatArray,
     val labels: Set<Long>,
     val createdAt: Long,
+    val projectId: Long? = null,
 )
 
 /** The facts about a task the index is built from, without its text. */
@@ -102,4 +111,23 @@ fun destinationPriors(
         val denominator = (members.size + LabelSuggestionRecipe.DESTINATION_SHRINK).toFloat()
         members.flatMap { it.labels - own }.groupingBy { it }.eachCount()
             .mapValues { (_, count) -> count / denominator }
+    }
+
+/**
+ * Per project, the average of its [perProject] newest tasks' vectors, scaled
+ * back to unit length: one vector that says what the project's recent work is
+ * about. A project's newest tasks rather than all of them, because what a
+ * project is used for drifts; a project with no tasks has no centroid.
+ */
+fun projectCentroids(
+    history: Collection<HistoryTask>,
+    perProject: Int = ProjectSuggestionRecipe.CENTROID_TASKS,
+): Map<Long, FloatArray> =
+    history.filter { it.projectId != null }.groupBy { it.projectId!! }.mapValues { (_, members) ->
+        val newest = members.sortedByDescending { it.createdAt }.take(perProject)
+        val sum = FloatArray(newest.first().vector.size)
+        for (task in newest) {
+            for (i in sum.indices) sum[i] += task.vector.getOrElse(i) { 0f }
+        }
+        Vectors.prepare(sum, dimensions = sum.size)
     }

@@ -3,8 +3,9 @@ package ru.tinyops.turboist.core.database.dao
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
+import ru.tinyops.turboist.core.model.ProjectStatus
 
-/** A task as label suggestions read it: its text, where it is, and when it was made. */
+/** A task as suggestions read it: its text, where it is, and when it was made. */
 data class SuggestionTaskFacts(
     val localId: Long,
     val title: String,
@@ -22,6 +23,8 @@ data class SuggestionProjectFacts(
     val localId: Long,
     val title: String,
     val description: String,
+    /** Only an open project is offered as a place for new work. */
+    val status: ProjectStatus = ProjectStatus.OPEN,
 )
 
 /** One task-and-label or project-and-label pair, by local ids. */
@@ -30,7 +33,7 @@ data class LabelPair(
     val labelLocalId: Long,
 )
 
-/** Everything a label suggestion is worked out from, read in one transaction. */
+/** Everything a label or project suggestion is worked out from, read in one transaction. */
 data class SuggestionWorkspace(
     val tasks: List<SuggestionTaskFacts>,
     val taskLabels: List<LabelPair>,
@@ -40,7 +43,7 @@ data class SuggestionWorkspace(
 )
 
 /**
- * What label suggestions read from the replica.
+ * What label and project suggestions read from the replica.
  *
  * The workspace is read whole and in narrow columns: suggestions compare a
  * title against every task on the device, and reading descriptions, dates and
@@ -67,7 +70,7 @@ interface LabelSuggestionDao {
     @Query("SELECT localId, name, description FROM labels")
     suspend fun labels(): List<SuggestionLabelFacts>
 
-    @Query("SELECT localId, title, description FROM projects")
+    @Query("SELECT localId, title, description, status FROM projects")
     suspend fun projects(): List<SuggestionProjectFacts>
 
     @Query("SELECT projectLocalId AS ownerLocalId, labelLocalId FROM project_labels")

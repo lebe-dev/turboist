@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
@@ -26,35 +27,37 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.tinyops.turboist.nativeapp.R
-import ru.tinyops.turboist.nativeapp.labelsuggest.LabelSuggestionSettings
-import ru.tinyops.turboist.nativeapp.labelsuggest.LabelSuggestionSettingsViewModel
 import ru.tinyops.turboist.nativeapp.labelsuggest.ModelFailure
 import ru.tinyops.turboist.nativeapp.labelsuggest.ModelState
+import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionSettings
+import ru.tinyops.turboist.nativeapp.labelsuggest.SuggestionSettingsViewModel
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsGroup
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsGroupLabel
 import ru.tinyops.turboist.nativeapp.settings.ui.SettingsSwitchRow
 import ru.tinyops.turboist.nativeapp.settings.ui.groupRowColors
 
 /**
- * The label-suggestion group of the device settings: the switch, then how far
- * the model and the index have got while suggestions are on, then the way to
- * give the space back while the model takes any.
+ * The suggestion group of the device settings: one switch for labels and one
+ * for projects, then how far the model and the index have got while either is
+ * on, then the way to give the space back while the model takes any.
  */
 @Composable
-internal fun LabelSuggestionSettingsGroup(viewModel: LabelSuggestionSettingsViewModel = hiltViewModel()) {
+internal fun SuggestionSettingsGroup(viewModel: SuggestionSettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LabelSuggestionSettingsGroup(
+    SuggestionSettingsGroup(
         state = state,
-        onEnabledChange = viewModel::setEnabled,
+        onLabelsChange = viewModel::setLabelsEnabled,
+        onProjectsChange = viewModel::setProjectsEnabled,
         onRetry = viewModel::retry,
         onDelete = viewModel::deleteModel,
     )
 }
 
 @Composable
-internal fun LabelSuggestionSettingsGroup(
-    state: LabelSuggestionSettings,
-    onEnabledChange: (Boolean) -> Unit,
+internal fun SuggestionSettingsGroup(
+    state: SuggestionSettings,
+    onLabelsChange: (Boolean) -> Unit,
+    onProjectsChange: (Boolean) -> Unit,
     onRetry: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -67,30 +70,46 @@ internal fun LabelSuggestionSettingsGroup(
         }
     SettingsGroupLabel(stringResource(R.string.native_labelSuggest_heading))
     SettingsGroup {
-        row { SwitchRow(state, onEnabledChange) }
-        if (state.enabled) row { StatusRow(state, onRetry) }
+        row { LabelsSwitchRow(state, onLabelsChange) }
+        row { ProjectsSwitchRow(state, onProjectsChange) }
+        if (state.anyEnabled) row { StatusRow(state, onRetry) }
         if (holdsFile) row { DeleteRow(state, onDelete) }
     }
 }
 
 @Composable
-private fun SwitchRow(
-    state: LabelSuggestionSettings,
-    onEnabledChange: (Boolean) -> Unit,
+private fun LabelsSwitchRow(
+    state: SuggestionSettings,
+    onChange: (Boolean) -> Unit,
 ) {
     val size = Formatter.formatShortFileSize(LocalContext.current, state.modelBytes)
     SettingsSwitchRow(
         title = stringResource(R.string.native_labelSuggest_toggle),
-        checked = state.enabled,
-        onCheckedChange = onEnabledChange,
+        checked = state.labelsEnabled,
+        onCheckedChange = onChange,
         description = stringResource(R.string.native_labelSuggest_toggleDescription, size),
         icon = Icons.Outlined.AutoAwesome,
     )
 }
 
 @Composable
+private fun ProjectsSwitchRow(
+    state: SuggestionSettings,
+    onChange: (Boolean) -> Unit,
+) {
+    val size = Formatter.formatShortFileSize(LocalContext.current, state.modelBytes)
+    SettingsSwitchRow(
+        title = stringResource(R.string.native_projectSuggest_toggle),
+        checked = state.projectsEnabled,
+        onCheckedChange = onChange,
+        description = stringResource(R.string.native_projectSuggest_toggleDescription, size),
+        icon = Icons.AutoMirrored.Outlined.DriveFileMove,
+    )
+}
+
+@Composable
 private fun StatusRow(
-    state: LabelSuggestionSettings,
+    state: SuggestionSettings,
     onRetry: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -184,7 +203,7 @@ private fun StatusItem(
 
 @Composable
 private fun DeleteRow(
-    state: LabelSuggestionSettings,
+    state: SuggestionSettings,
     onDelete: () -> Unit,
 ) {
     val size = Formatter.formatShortFileSize(LocalContext.current, state.modelBytes)
