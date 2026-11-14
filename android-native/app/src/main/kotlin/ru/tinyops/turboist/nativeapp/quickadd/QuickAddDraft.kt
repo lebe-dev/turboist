@@ -20,19 +20,9 @@ data class QuickAddRequest(
     val description: String = "",
     val projectLocalId: Long? = null,
     val sectionLocalId: Long? = null,
-    /**
-     * The same share with its https link as the title, or `null` when nothing
-     * shared was a link. Used instead of this request while the server names
-     * link tasks (link titles), because the server only does that for a task
-     * whose title is the bare link.
-     */
-    val linkFirst: QuickAddRequest? = null,
     /** True when the sheet is opened from the Today screen, which then leads with its projects. */
     val todayProjects: Boolean = false,
-) {
-    /** The request to open, given whether the server names link tasks. */
-    fun forLinkTitles(enabled: Boolean): QuickAddRequest = if (enabled) linkFirst ?: this else this
-}
+)
 
 /**
  * A title line with the dots and spaces at its end taken off.

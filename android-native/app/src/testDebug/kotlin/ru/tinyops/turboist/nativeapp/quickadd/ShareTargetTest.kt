@@ -43,14 +43,20 @@ class ShareTargetTest {
             QuickAddRequest(
                 title = "Kotlin coroutines guide",
                 description = "https://example.test/guide",
-                linkFirst =
-                    QuickAddRequest(
-                        title = "https://example.test/guide",
-                        description = "Kotlin coroutines guide",
-                    ),
             ),
             intent.quickAddRequest(),
         )
+    }
+
+    @Test
+    fun `styled shared text is still read`() {
+        val intent =
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, android.text.SpannableString("buy milk"))
+            }
+
+        assertEquals("buy milk", intent.quickAddRequest()?.title)
     }
 
     @Test
