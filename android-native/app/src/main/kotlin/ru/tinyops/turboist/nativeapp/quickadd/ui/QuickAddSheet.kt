@@ -58,7 +58,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
@@ -115,6 +118,12 @@ fun QuickAddHost(
     val presenter = viewModel.presenter
     val state by presenter.state.collectAsStateWithLifecycle()
     val today by viewModel.today.collectAsStateWithLifecycle()
+
+    // Only the instance on screen answers a capture asked for from outside.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.serveRequests() }
+    }
 
     QuickAddHost(
         state = state,

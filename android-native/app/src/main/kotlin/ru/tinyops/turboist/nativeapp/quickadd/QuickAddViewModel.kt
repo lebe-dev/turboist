@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
 import ru.tinyops.turboist.nativeapp.labelsuggest.LabelSuggestions
 import ru.tinyops.turboist.nativeapp.labelsuggest.ProjectSuggestions
@@ -31,7 +30,7 @@ class QuickAddViewModel
         recentLabels: RecentLabels,
         activity: ProjectActivity,
         actions: QuickAddActions,
-        requests: QuickAddRequests,
+        private val requests: QuickAddRequests,
         clock: DayClock,
         labelSuggestions: LabelSuggestions,
         projectSuggestions: ProjectSuggestions,
@@ -57,16 +56,20 @@ class QuickAddViewModel
                 projectSuggestions = projectSuggestions,
             )
 
-        init {
-            // A share or a launcher shortcut can arrive long before this exists —
-            // during sign-in, or while the app was not running at all. It waits
-            // where the activity left it and opens the sheet as soon as there is
-            // one to open.
-            viewModelScope.launch {
-                requests.pending().collect { request ->
-                    presenter.open(request)
-                    requests.consumed()
-                }
+        /**
+         * Opens the sheet for every capture asked for from outside, until cancelled.
+         *
+         * A share or a launcher shortcut can arrive long before this is called —
+         * during sign-in, or while the app was not running at all — and waits
+         * where the activity left it. It is meant to be run only while the screen
+         * is on top: a browser may start a second instance of the activity for
+         * each share, and an instance nobody is looking at must not take the
+         * request and open the sheet where it cannot be seen.
+         */
+        suspend fun serveRequests() {
+            requests.pending().collect { request ->
+                presenter.open(request)
+                requests.consumed()
             }
         }
 
