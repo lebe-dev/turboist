@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.quickadd
 
 import android.content.Intent
+import ru.tinyops.turboist.core.model.LinkCleanup
 
 /**
  * How long a captured title is allowed to be before the rest becomes description.
@@ -79,8 +80,11 @@ fun quickAddRequest(shared: SharedText): QuickAddRequest {
             title.take(TITLE_MAX_CHARS).lastIndexOf(' ').takeIf { it > 0 } ?: TITLE_MAX_CHARS
         }
     return QuickAddRequest(
-        title = title.take(cut).trim(),
-        description = listOf(title.drop(cut).trim(), rest).filter(String::isNotEmpty).joinToString("\n\n"),
+        title = LinkCleanup.strip(title.take(cut).trim()),
+        description =
+            LinkCleanup.strip(
+                listOf(title.drop(cut).trim(), rest).filter(String::isNotEmpty).joinToString("\n\n"),
+            ),
     )
 }
 

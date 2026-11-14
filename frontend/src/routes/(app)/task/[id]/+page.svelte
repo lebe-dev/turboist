@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { cleanLinksOnPaste } from '$lib/actions/cleanLinksOnPaste';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import ArrowLeftIcon from 'phosphor-svelte/lib/ArrowLeft';
@@ -730,6 +731,7 @@ async function save(): Promise<void> {
 						<textarea
 							bind:this={titleEl}
 							bind:value={title}
+							use:cleanLinksOnPaste
 							aria-label={$t('common.title')}
 							placeholder={$t('page.task.namePlaceholder')}
 							rows="1"
@@ -791,6 +793,7 @@ async function save(): Promise<void> {
 					<textarea
 						bind:this={descriptionEl}
 						bind:value={description}
+						use:cleanLinksOnPaste
 						aria-label={$t('common.description')}
 						placeholder={$t('page.task.descriptionPlaceholder')}
 						rows="1"

@@ -96,6 +96,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
+import ru.tinyops.turboist.core.model.LinkCleanup
 import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
@@ -812,7 +813,7 @@ private fun TitleField(
 
     BasicTextField(
         value = text,
-        onValueChange = { text = it },
+        onValueChange = { text = LinkCleanup.afterEdit(text, it) },
         textStyle = style,
         maxLines = TITLE_MAX_LINES,
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -962,7 +963,7 @@ private fun DescriptionBlock(
         LaunchedEffect(Unit) { focusRequester.requestFocus() }
         OutlinedTextField(
             value = text,
-            onValueChange = { text = it },
+            onValueChange = { text = LinkCleanup.afterEdit(text, it) },
             label = { Text(stringResource(R.string.page_task_descriptionPlaceholder)) },
             textStyle = MaterialTheme.typography.bodyMedium,
             modifier =

@@ -2,6 +2,7 @@
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { Dialog as DialogPrimitive, Popover as PopoverPrimitive } from 'bits-ui';
 	import { tick } from 'svelte';
+	import { cleanLinksOnPaste } from '$lib/actions/cleanLinksOnPaste';
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
 	import { Calendar } from '$lib/components/ui/calendar';
@@ -461,6 +462,7 @@
 					<textarea
 						bind:this={titlesEl}
 						bind:value={titles}
+						use:cleanLinksOnPaste
 						placeholder={$t('dialog.quickAdd.titlePlaceholder')}
 						aria-label={$t('dialog.quickAdd.titleAriaLabel')}
 						rows="1"
@@ -471,6 +473,7 @@
 					<textarea
 						bind:this={descriptionEl}
 						bind:value={description}
+						use:cleanLinksOnPaste
 						placeholder={$t('dialog.quickAdd.descriptionPlaceholder')}
 						aria-label={$t('dialog.quickAdd.descriptionAriaLabel')}
 						rows="1"

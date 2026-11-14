@@ -6,6 +6,8 @@
 // title on its own, so the server's link-title job can name the task; the
 // remaining words land in the description instead of being lost.
 
+import { stripTrackingParams } from './linkCleanup';
+
 export interface SharedContent {
 	title?: string | null;
 	text?: string | null;
@@ -53,5 +55,5 @@ export function prefillFromShare(content: SharedContent): SharedPrefill | null {
 				.trim()
 		)
 		.filter((s, i, all) => s !== '' && all.indexOf(s) === i);
-	return { title: link, description: leftovers.join('\n\n') };
+	return { title: stripTrackingParams(link), description: leftovers.join('\n\n') };
 }

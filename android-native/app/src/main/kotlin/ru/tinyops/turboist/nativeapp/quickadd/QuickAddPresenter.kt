@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Label
+import ru.tinyops.turboist.core.model.LinkCleanup
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.TodayLock
@@ -271,9 +272,9 @@ class QuickAddPresenter(
         editing.value = Editing()
     }
 
-    fun setTitles(text: String) = edit { it.copy(titles = text) }
+    fun setTitles(text: String) = edit { it.copy(titles = LinkCleanup.afterEdit(it.titles, text)) }
 
-    fun setDescription(text: String) = edit { it.copy(description = text) }
+    fun setDescription(text: String) = edit { it.copy(description = LinkCleanup.afterEdit(it.description, text)) }
 
     fun setPriority(priority: Priority) = edit { it.copy(priority = priority) }
 
