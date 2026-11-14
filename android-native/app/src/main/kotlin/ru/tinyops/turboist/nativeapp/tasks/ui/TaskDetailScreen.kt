@@ -1161,12 +1161,16 @@ private fun WhenCard(
             leading = Icons.Outlined.Repeat,
             leadingTint = repeatTint.takeIf { repeating },
             supporting =
-                nextOccurrenceLabel(
-                    rule = rule,
-                    dueAt = task.dueAt,
-                    from = today.atStartOfDay(zone).toInstant().toEpochMilli(),
-                    zone = zone,
-                ).takeIf { repeating },
+                if (repeating) {
+                    nextOccurrenceLabel(
+                        rule = rule,
+                        dueAt = task.dueAt,
+                        from = today.atStartOfDay(zone).toInstant().toEpochMilli(),
+                        zone = zone,
+                    )
+                } else {
+                    null
+                },
             valueTint = repeatTint.takeIf { repeating },
             onClick = { onOpen(TaskField.REPEAT) },
         )
