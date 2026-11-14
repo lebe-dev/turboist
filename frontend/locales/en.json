@@ -853,6 +853,7 @@
 			"titlePlaceholder": "Task name (one per line)",
 			"titleAriaLabel": "Task names",
 			"descriptionPlaceholder": "Description",
+			"bugAriaLabel": "File as a bug (bug labels, highest priority)",
 			"descriptionAriaLabel": "Description",
 			"autoLabelHint": "Auto-detected from title — will be applied on save",
 			"rejectAutoLabel": "Reject auto-label {name}",

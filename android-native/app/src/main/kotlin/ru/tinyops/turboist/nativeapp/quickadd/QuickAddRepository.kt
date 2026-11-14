@@ -46,7 +46,12 @@ data class QuickAddWorkspace(
     val todayLockUntil: Long? = null,
     /** The names of each project's labels, by project local id; a project with none is absent. */
     val projectLabelNames: Map<Long, List<String>> = emptyMap(),
+    /** The names of the labels the bug shortcut applies, from the replicated settings; empty hides the shortcut. */
+    val bugLabelNames: List<String> = emptyList(),
 )
+
+/** The two replicated user preferences capture reads. */
+private data class CapturePrefs(val todayLockUntil: Long?, val bugLabelIds: List<Long>)
 
 /**
  * What the capture surface reads.
@@ -71,15 +76,17 @@ class QuickAddRepository
                 labels.observeAll(),
                 observeAppSettings(),
                 observeTodayProjectIds(),
-                observeTodayLockUntil(),
-            ) { (projectRows, links), labelRows, appSettings, todayIds, lockUntil ->
+                observeCapturePrefs(),
+            ) { (projectRows, links), labelRows, appSettings, todayIds, prefs ->
                 val names = labelRows.associate { it.localId to it.name }
                 QuickAddWorkspace(
                     projects = projectRows.map { it.toDomain() }.filter(::isOffered).sortedWith(PICKER_ORDER),
                     labels = labelRows.map(LabelRow::toDomain),
                     appSettings = appSettings,
                     todayProjectLocalIds = todayIds,
-                    todayLockUntil = lockUntil,
+                    todayLockUntil = prefs.todayLockUntil,
+                    bugLabelNames =
+                        prefs.bugLabelIds.mapNotNull { id -> labelRows.firstOrNull { it.serverId == id }?.name },
                     projectLabelNames =
                         links
                             .groupBy({ it.projectLocalId }, { names[it.labelLocalId] })
@@ -98,13 +105,14 @@ class QuickAddRepository
                 }
             }
 
-        /** When the replicated Today lock ends; an unreadable document counts as no lock. */
-        private fun observeTodayLockUntil(): Flow<Long?> =
+        /** The replicated preferences capture reads; an unreadable document counts as none set. */
+        private fun observeCapturePrefs(): Flow<CapturePrefs> =
             settings.observeUserSettings().map { row ->
-                val payload = row?.payload ?: return@map null
+                val payload = row?.payload ?: return@map CapturePrefs(null, emptyList())
                 runCatching { TurboistJson.decodeFromString(UserSettingsDto.serializer(), payload) }
-                    .map { it.toUserSettings().todayLockUntil }
-                    .getOrNull()
+                    .map { it.toUserSettings() }
+                    .map { CapturePrefs(it.todayLockUntil, it.bugLabelIds) }
+                    .getOrElse { CapturePrefs(null, emptyList()) }
             }
 
         /** Whether the server names tasks created as a bare https link, as last replicated. */

@@ -5,6 +5,7 @@ import { projectsStore } from '$lib/stores/projects.svelte';
 import { todayProjectsStore } from '$lib/stores/todayProjects.svelte';
 import { todayLockStore } from '$lib/stores/todayLock.svelte';
 import { nowStore } from '$lib/stores/now.svelte';
+import { settingsStore } from '$lib/stores/settings.svelte';
 import QuickAddDialog from './QuickAddDialog.svelte';
 
 afterEach(async () => {
@@ -177,5 +178,57 @@ describe('QuickAddDialog under the Today lock', () => {
 		renderFor(2);
 		await screen.findByRole('dialog');
 		expect(screen.queryByTestId('today-lock-hint')).toBeNull();
+	});
+});
+
+describe('QuickAddDialog bug shortcut', () => {
+	const label = (id: number, name: string) => ({
+		id,
+		name,
+		color: 'blue',
+		description: '',
+		isFavourite: false,
+		isPrivate: false,
+		createdAt: '2026-01-01T00:00:00Z',
+		updatedAt: '2026-01-01T00:00:00Z'
+	});
+
+	it('is hidden while no bug labels are configured', async () => {
+		settingsStore.value = { ...settingsStore.value, bugLabelIds: [] };
+		render(QuickAddDialog, { props: { open: true, defaultTitle: 'x' } });
+		await screen.findByRole('dialog');
+		expect(screen.queryByTestId('quick-add-bug')).toBeNull();
+	});
+
+	it('adds the bug labels with the highest priority and takes them back', async () => {
+		labelsStore.setItems([label(3, 'bug'), label(4, 'urgent')]);
+		settingsStore.value = { ...settingsStore.value, bugLabelIds: [3, 4] };
+		const onSubmit = vi.fn();
+		render(QuickAddDialog, { props: { open: true, defaultTitle: 'Crash', onSubmit } });
+		const dialog = await screen.findByRole('dialog');
+		const button = screen.getByTestId('quick-add-bug');
+
+		await fireEvent.click(button);
+		expect(button.getAttribute('aria-pressed')).toBe('true');
+		await fireEvent.submit(dialog.querySelector('form')!);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+		expect(onSubmit.mock.calls[0][0].priority).toBe('high');
+		expect(onSubmit.mock.calls[0][0].labels).toEqual(['bug', 'urgent']);
+	});
+
+	it('restores the previous priority when switched off', async () => {
+		labelsStore.setItems([label(3, 'bug')]);
+		settingsStore.value = { ...settingsStore.value, bugLabelIds: [3] };
+		const onSubmit = vi.fn();
+		render(QuickAddDialog, { props: { open: true, defaultTitle: 'Crash', onSubmit } });
+		const dialog = await screen.findByRole('dialog');
+		const button = screen.getByTestId('quick-add-bug');
+
+		await fireEvent.click(button);
+		await fireEvent.click(button);
+		await fireEvent.submit(dialog.querySelector('form')!);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+		expect(onSubmit.mock.calls[0][0].priority).toBe('no-priority');
+		expect(onSubmit.mock.calls[0][0].labels).toEqual([]);
 	});
 });

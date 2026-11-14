@@ -171,6 +171,7 @@
     <string name="native_quickAdd_backToTask">Back to the task</string>
     <string name="native_quickAdd_noDayPart">Time</string>
     <string name="native_quickAdd_noLabels">Labels</string>
+    <string name="native_quickAdd_bug">File as a bug: bug labels and the highest priority</string>
 
     <!-- Projects and their boards. The web client rearranges a board by dragging,
          which a touch screen cannot offer unambiguously, so the wording here is

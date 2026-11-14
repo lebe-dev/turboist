@@ -144,6 +144,7 @@
     <string name="native_quickAdd_backToTask">Назад к задаче</string>
     <string name="native_quickAdd_noDayPart">Время</string>
     <string name="native_quickAdd_noLabels">Метки</string>
+    <string name="native_quickAdd_bug">Завести как баг: метки бага и высший приоритет</string>
     <string name="native_project_todayLockExemptOn">Всегда разрешать на сегодня</string>
     <string name="native_project_todayLockExemptOff">Больше не разрешать на сегодня</string>
     <string name="native_project_statusUnknown">Неизвестный статус</string>

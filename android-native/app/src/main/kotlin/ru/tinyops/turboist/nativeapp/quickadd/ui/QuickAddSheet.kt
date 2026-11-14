@@ -84,6 +84,7 @@ data class QuickAddCallbacks(
     val onDayPart: (DayPart) -> Unit = {},
     val onDueDate: (LocalDate?) -> Unit = {},
     val onLabels: (List<String>) -> Unit = {},
+    val onBug: () -> Unit = {},
     val onRejectAutoLabel: (String) -> Unit = {},
     val onChooseProject: (Long?) -> Unit = {},
     val onPickingProject: (Boolean) -> Unit = {},
@@ -203,6 +204,7 @@ fun quickAddCallbacks(presenter: QuickAddPresenter): QuickAddCallbacks =
             onDayPart = presenter::setDayPart,
             onDueDate = presenter::setDueDate,
             onLabels = presenter::setLabels,
+            onBug = presenter::toggleBug,
             onRejectAutoLabel = presenter::rejectAutoLabel,
             onChooseProject = presenter::chooseProject,
             onPickingProject = presenter::setPickingProject,
@@ -384,6 +386,7 @@ private fun QuickAddFields(
                 if (panel != target) keyboard?.hide()
                 panel = if (panel == target) null else target
             },
+            onBug = callbacks.onBug,
             onSubmit = callbacks.onSubmit,
             submitDescription = submitLabel(state.draft.titleLines.size),
         )

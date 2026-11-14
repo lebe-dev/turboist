@@ -110,6 +110,45 @@ class QuickAddPresenterTest {
         }
 
     @Test
+    fun `the bug shortcut labels the draft with the highest priority and restores it when switched off`() =
+        runTest {
+            workspace.value = workspace.value.copy(bugLabelNames = listOf("errand", "urgent"))
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setPriority(Priority.LOW)
+            presenter.setLabels(listOf("other"))
+            presenter.toggleBug()
+            runCurrent()
+
+            assertEquals(Priority.HIGH, presenter.state.value.draft.priority)
+            assertEquals(listOf("other", "errand", "urgent"), presenter.state.value.draft.labelNames)
+            assertTrue(presenter.state.value.bugActive)
+
+            presenter.toggleBug()
+            runCurrent()
+
+            assertEquals(Priority.LOW, presenter.state.value.draft.priority)
+            assertEquals(listOf("other"), presenter.state.value.draft.labelNames)
+            assertFalse(presenter.state.value.bugActive)
+        }
+
+    @Test
+    fun `the bug shortcut does nothing while no bug labels are configured`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.toggleBug()
+            runCurrent()
+
+            assertEquals(Priority.NONE, presenter.state.value.draft.priority)
+            assertEquals(emptyList(), presenter.state.value.draft.labelNames)
+        }
+
+    @Test
     fun `a captured thought goes to the inbox by default`() =
         runTest {
             val presenter = presenter()

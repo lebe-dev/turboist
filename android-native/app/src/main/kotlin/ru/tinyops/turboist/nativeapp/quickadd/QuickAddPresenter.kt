@@ -93,6 +93,10 @@ data class QuickAddUiState(
     /** Will be attached on save unless taken off. */
     val autoLabels: List<String> = emptyList(),
     val knownLabels: List<Label> = emptyList(),
+    /** The labels the bug shortcut applies; the shortcut is hidden while this is empty. */
+    val bugLabelNames: List<String> = emptyList(),
+    /** True while every bug label is on the draft. */
+    val bugActive: Boolean = false,
     /** The labels this device applied lately, most recent first — what the label row leads with. */
     val recentLabelOrder: List<Long> = emptyList(),
     /**
@@ -272,6 +276,41 @@ class QuickAddPresenter(
     fun setDescription(text: String) = edit { it.copy(description = text) }
 
     fun setPriority(priority: Priority) = edit { it.copy(priority = priority) }
+
+    /**
+     * The bug shortcut: tags the draft with the bug labels and sets the highest
+     * priority, and a second tap takes both back, restoring the priority it
+     * replaced.
+     */
+    fun toggleBug() {
+        val names = state.value.bugLabelNames
+        if (names.isEmpty()) return
+        editing.update { current ->
+            val draft = current.draft
+            if (draft.labelNames.containsAll(names)) {
+                val restored = current.priorityBeforeBug
+                current.copy(
+                    draft =
+                        draft.copy(
+                            labelNames = draft.labelNames - names.toSet(),
+                            priority = if (draft.priority == Priority.HIGH && restored != null) restored else draft.priority,
+                        ),
+                    priorityBeforeBug = null,
+                )
+            } else {
+                val before = draft.priority.takeIf { it != Priority.HIGH }
+                current.copy(
+                    draft =
+                        draft.copy(
+                            labelNames = (draft.labelNames + names).distinct(),
+                            priority = Priority.HIGH,
+                            rejectedAutoLabels = draft.rejectedAutoLabels - names.toSet(),
+                        ),
+                    priorityBeforeBug = before,
+                )
+            }.withDayPartGuess()
+        }
+    }
 
     /** A part of the day the user picked is theirs: no guess replaces it afterwards. */
     fun setDayPart(dayPart: DayPart) {
@@ -529,6 +568,9 @@ class QuickAddPresenter(
             dueShiftedByLock = edit.dueShiftedByLock,
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
             knownLabels = space.labels,
+            bugLabelNames = space.bugLabelNames,
+            bugActive =
+                space.bugLabelNames.isNotEmpty() && edit.draft.labelNames.containsAll(space.bugLabelNames),
             lastProject =
                 order.firstNotNullOfOrNull { id -> space.projects.firstOrNull { it.localId == id } }
                     ?.takeIf { it.localId != chosen },
@@ -661,6 +703,8 @@ class QuickAddPresenter(
         val projectQuery: String = "",
         /** True while the draft's part of the day is the presenter's guess rather than the user's pick. */
         val dayPartGuessed: Boolean = false,
+        /** The priority the bug shortcut replaced, to be put back when it is switched off. */
+        val priorityBeforeBug: Priority? = null,
         /** True when the sheet was opened from the Today screen. */
         val offerTodayProjects: Boolean = false,
         /** True when the last project chosen moved the date from today to tomorrow under the focus lock. */

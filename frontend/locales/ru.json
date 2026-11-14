@@ -853,6 +853,7 @@
 			"titlePlaceholder": "Название задачи (по одной на строку)",
 			"titleAriaLabel": "Названия задач",
 			"descriptionPlaceholder": "Описание",
+			"bugAriaLabel": "Завести как баг (метки бага, высший приоритет)",
 			"descriptionAriaLabel": "Описание",
 			"autoLabelHint": "Определено по заголовку — будет применено при сохранении",
 			"rejectAutoLabel": "Отклонить автометку {name}",

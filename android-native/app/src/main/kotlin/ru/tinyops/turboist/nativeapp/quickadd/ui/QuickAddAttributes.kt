@@ -15,11 +15,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -106,10 +109,12 @@ internal fun AttributeBar(
     state: QuickAddUiState,
     open: QuickAddPanel?,
     onToggle: (QuickAddPanel) -> Unit,
+    onBug: () -> Unit,
     onSubmit: () -> Unit,
     submitDescription: String,
 ) {
     val draft = state.draft
+    val bugDescription = stringResource(R.string.native_quickAdd_bug)
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -163,6 +168,19 @@ internal fun AttributeBar(
                     open = open == QuickAddPanel.LABELS,
                     onClick = { onToggle(QuickAddPanel.LABELS) },
                     modifier = Modifier.weight(1f, fill = false),
+                )
+            }
+        }
+        if (state.bugLabelNames.isNotEmpty()) {
+            FilledTonalIconToggleButton(
+                checked = state.bugActive,
+                onCheckedChange = { onBug() },
+                modifier =
+                    Modifier.size(44.dp).semantics { contentDescription = bugDescription },
+            ) {
+                Icon(
+                    if (state.bugActive) Icons.Filled.BugReport else Icons.Outlined.BugReport,
+                    contentDescription = null,
                 )
             }
         }

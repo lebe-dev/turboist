@@ -14,6 +14,7 @@
 	import { labelsStore } from '$lib/stores/labels.svelte';
 	import { configStore } from '$lib/stores/config.svelte';
 	import { appSettingsStore } from '$lib/stores/appSettings.svelte';
+	import { settingsStore } from '$lib/stores/settings.svelte';
 	import PriorityPicker from './PriorityPicker.svelte';
 	import DayPartPicker from './DayPartPicker.svelte';
 	import LabelPicker from '$lib/components/label/LabelPicker.svelte';
@@ -28,6 +29,7 @@
 	import StackIcon from 'phosphor-svelte/lib/Stack';
 	import WarningIcon from 'phosphor-svelte/lib/Warning';
 	import PushPinIcon from 'phosphor-svelte/lib/PushPin';
+	import BugIcon from 'phosphor-svelte/lib/Bug';
 	import { t, locale } from '$lib/i18n';
 
 	let {
@@ -318,6 +320,7 @@
 		parentId = defaultParentId;
 		sectionId = defaultSectionId;
 		dismissedAutoLabels = [];
+		priorityBeforeBug = null;
 	}
 
 	let prevOpen = false;
@@ -336,6 +339,29 @@
 		}
 		prevOpen = open;
 	});
+
+	// The bug shortcut: tags the task with the labels chosen in settings and sets the
+	// highest priority; tapping it again takes both back.
+	const bugLabelIds = $derived(settingsStore.bugLabelIds);
+	const bugActive = $derived(
+		bugLabelIds.length > 0 && bugLabelIds.every((id) => labelIds.includes(id))
+	);
+	let priorityBeforeBug: Priority | null = null;
+
+	function toggleBug() {
+		labelsChanged = true;
+		if (bugActive) {
+			labelIds = labelIds.filter((id) => !bugLabelIds.includes(id));
+			if (priority === 'high' && priorityBeforeBug !== null) priority = priorityBeforeBug;
+			priorityBeforeBug = null;
+			return;
+		}
+		labelIds = [...new Set([...labelIds, ...bugLabelIds])];
+		if (priority !== 'high') {
+			priorityBeforeBug = priority;
+			priority = 'high';
+		}
+	}
 
 	function toggleLabel(id: number) {
 		labelsChanged = true;
@@ -605,6 +631,22 @@
 						{@render projectPicker()}
 
 						<LabelPicker bind:value={labelIds} onValueChange={() => (labelsChanged = true)} />
+
+						{#if bugLabelIds.length > 0}
+							<button
+								type="button"
+								onclick={toggleBug}
+								aria-pressed={bugActive}
+								aria-label={$t('dialog.quickAdd.bugAriaLabel')}
+								title={$t('dialog.quickAdd.bugAriaLabel')}
+								data-testid="quick-add-bug"
+								class="inline-flex h-8 items-center rounded-md border border-border px-2 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none {bugActive
+									? 'bg-accent text-foreground'
+									: 'bg-background text-muted-foreground'}"
+							>
+								<BugIcon class="size-4" weight={bugActive ? 'fill' : 'regular'} />
+							</button>
+						{/if}
 					</div>
 
 					{#if suggestedProjects.length > 0}
