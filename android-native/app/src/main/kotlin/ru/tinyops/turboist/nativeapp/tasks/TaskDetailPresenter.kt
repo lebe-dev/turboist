@@ -42,7 +42,7 @@ import ru.tinyops.turboist.core.model.view.buildTaskTree
 import ru.tinyops.turboist.core.model.view.dependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.isNestNoop
 import ru.tinyops.turboist.core.model.view.nestDropRefusal
-import ru.tinyops.turboist.core.model.view.splitByRootCompletion
+import ru.tinyops.turboist.core.model.view.splitForSubtaskDisplay
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.core.sync.write.TaskEdit
 import ru.tinyops.turboist.core.sync.write.WriteRefused
@@ -810,7 +810,7 @@ class TaskDetailPresenter(
         // A completed subtask is pulled out of the open list only when its own
         // topmost ancestor inside this subtree is finished, so a finished child
         // of an open parent stays where the reader expects it.
-        val split = splitByRootCompletion(detail.subtasks)
+        val split = splitForSubtaskDisplay(detail.subtasks)
         return TaskDetailUiState(
             loading = false,
             task = detail.task,

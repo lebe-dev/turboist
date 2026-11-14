@@ -1,5 +1,6 @@
 package ru.tinyops.turboist.core.model.view
 
+import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import kotlin.test.Test
@@ -10,11 +11,13 @@ class TaskTreeTest {
         localId: Long,
         parentLocalId: Long? = null,
         status: TaskStatus = TaskStatus.OPEN,
+        priority: Priority = Priority.NONE,
     ) = Task(
         localId = localId,
         title = "task $localId",
         parentLocalId = parentLocalId,
         status = status,
+        priority = priority,
         createdAt = 0L,
         updatedAt = 0L,
     )
@@ -78,5 +81,28 @@ class TaskTreeTest {
         // of what was achieved.
         val split = splitByRootCompletion(listOf(task(1, status = TaskStatus.CANCELLED)))
         assertEquals(listOf(1L), split.open.map { it.localId })
+    }
+
+    @Test
+    fun `subtasks are ordered by priority and finished ones are folded away`() {
+        val split =
+            splitForSubtaskDisplay(
+                listOf(
+                    task(1),
+                    task(2, parentLocalId = 1, priority = Priority.LOW),
+                    task(3, parentLocalId = 1, status = TaskStatus.COMPLETED, priority = Priority.HIGH),
+                    task(4, parentLocalId = 1, priority = Priority.HIGH),
+                    task(5, parentLocalId = 2, status = TaskStatus.COMPLETED),
+                    task(6, parentLocalId = 1, priority = Priority.MEDIUM),
+                ),
+            )
+        assertEquals(listOf(1L, 4L, 6L, 2L), split.open.map { it.localId })
+        assertEquals(setOf(3L, 5L), split.done.map { it.localId }.toSet())
+    }
+
+    @Test
+    fun `top-level tasks keep the order they came in`() {
+        val tasks = listOf(task(1, priority = Priority.LOW), task(2, priority = Priority.HIGH))
+        assertEquals(listOf(1L, 2L), sortSubtasksByPriority(tasks).map { it.localId })
     }
 }

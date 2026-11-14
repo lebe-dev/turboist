@@ -1,5 +1,6 @@
 package ru.tinyops.turboist.core.model.view
 
+import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 
@@ -105,3 +106,42 @@ fun splitByRootCompletion(tasks: List<Task>): TaskSplit {
     }
     return TaskSplit(open, done)
 }
+
+/**
+ * Splits a list for a screen that shows subtasks under their parents: the work
+ * still to do first, by priority, and every finished task in the folded block.
+ *
+ * Unlike [splitByRootCompletion], a finished subtask is not left under its open
+ * parent — it goes to [TaskSplit.done] with the rest of the finished work, where
+ * the screen keeps it folded. A subtask of a finished task goes there too, since
+ * the finished parent takes its subtree with it. Siblings are ordered by priority
+ * (highest first, ties keep the order the list came in); top-level tasks keep the
+ * order the query decided.
+ */
+fun splitForSubtaskDisplay(tasks: List<Task>): TaskSplit {
+    val split = splitByRootCompletion(sortSubtasksByPriority(tasks))
+    val (finished, stillOpen) = split.open.partition { it.status == TaskStatus.COMPLETED }
+    // Keep the input order inside the folded block, finished subtasks included.
+    val doneIds = (split.done + finished).map { it.localId }.toSet()
+    return TaskSplit(open = stillOpen, done = sortSubtasksByPriority(tasks).filter { it.localId in doneIds })
+}
+
+/**
+ * Reorders only the tasks that have a parent in the list, by priority; the tasks
+ * without one stay exactly where they were.
+ */
+fun sortSubtasksByPriority(tasks: List<Task>): List<Task> {
+    val present = tasks.mapTo(HashSet()) { it.localId }
+    val isSubtask = { task: Task -> task.parentLocalId != null && task.parentLocalId in present }
+    val sorted = tasks.filter(isSubtask).sortedBy { it.priority.rank() }.iterator()
+    return tasks.map { if (isSubtask(it)) sorted.next() else it }
+}
+
+private fun Priority.rank(): Int =
+    when (this) {
+        Priority.HIGH -> 0
+        Priority.MEDIUM -> 1
+        Priority.LOW -> 2
+        Priority.NONE -> 3
+        Priority.UNKNOWN -> 4
+    }

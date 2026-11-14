@@ -841,6 +841,7 @@ async function save(): Promise<void> {
 									tasks={openSubtasks}
 									showProject={false}
 									draggable={task?.status !== 'completed'}
+									collapseCompletedChildren
 									mutator={subtaskMutator}
 									onToggle={(t) =>
 										toggleComplete(t, subtaskMutator, { removeWhenCompleted: false })}

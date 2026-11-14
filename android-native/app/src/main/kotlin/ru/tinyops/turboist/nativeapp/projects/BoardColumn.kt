@@ -2,7 +2,7 @@ package ru.tinyops.turboist.nativeapp.projects
 
 import ru.tinyops.turboist.core.model.ProjectSection
 import ru.tinyops.turboist.core.model.Task
-import ru.tinyops.turboist.core.model.view.splitByRootCompletion
+import ru.tinyops.turboist.core.model.view.splitForSubtaskDisplay
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 import ru.tinyops.turboist.nativeapp.tasks.taskListRows
 
@@ -89,7 +89,7 @@ private fun column(
     canMoveEarlier: Boolean = false,
     canMoveLater: Boolean = false,
 ): BoardColumn {
-    val split = splitByRootCompletion(tasks)
+    val split = splitForSubtaskDisplay(tasks)
     return BoardColumn(
         key = key,
         sectionLocalId = sectionLocalId,
