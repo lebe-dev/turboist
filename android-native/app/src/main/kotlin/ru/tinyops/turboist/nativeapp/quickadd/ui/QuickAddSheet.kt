@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -56,6 +57,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -349,6 +352,7 @@ private fun QuickAddFields(
                 textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
                 colors = borderlessFieldColors(),
                 visualTransformation = HiddenTitleTail,
+                keyboardOptions = TEXT_KEYBOARD,
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -363,6 +367,7 @@ private fun QuickAddFields(
                 placeholder = { Text(stringResource(R.string.dialog_quickAdd_descriptionPlaceholder)) },
                 textStyle = MaterialTheme.typography.bodyLarge,
                 colors = borderlessFieldColors(),
+                keyboardOptions = TEXT_KEYBOARD,
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -404,6 +409,18 @@ private fun QuickAddFields(
 
 /** The editors the bar above the keyboard can open, one at a time. */
 internal enum class QuickAddPanel { PRIORITY, DAY_PART, LABELS }
+
+/**
+ * Tells the keyboard exactly what these fields hold: free multi-line prose, so it
+ * capitalises sentences, corrects words and may offer proofreading. Left implicit,
+ * a keyboard has to guess from the defaults.
+ */
+private val TEXT_KEYBOARD =
+    KeyboardOptions(
+        capitalization = KeyboardCapitalization.Sentences,
+        autoCorrectEnabled = true,
+        keyboardType = KeyboardType.Text,
+    )
 
 /** A text field drawn as bare text on the sheet: no box, no underline. */
 @Composable
