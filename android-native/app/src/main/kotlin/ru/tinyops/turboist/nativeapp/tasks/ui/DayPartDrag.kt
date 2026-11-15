@@ -26,11 +26,16 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.node.LayoutAwareModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -53,9 +58,12 @@ internal val DROP_DAY_PARTS = listOf(DayPart.MORNING, DayPart.AFTERNOON, DayPart
  *
  * Positions are in root coordinates, like the subtask drag's: the finger is
  * reported relative to the row it started on, and the root is the only frame
- * the rows, the phase blocks and the drop bar share. The bounds are
- * bookkeeping, not state — they change on every scroll frame and nothing is
- * drawn from them directly.
+ * the rows, the phase blocks and the drop bar share. The rows and blocks are
+ * held as their layout handles rather than as rectangles, and measured only
+ * while something is being carried: they move on every scroll frame, and
+ * working out where each one is on every frame of every scroll — which is what
+ * keeping rectangles current costs — would be paid by every gesture on the
+ * screen for the sake of the rare one that carries a row.
  *
  * Two kinds of target are tracked. The blocks of the list say which phase
  * whatever sits at that height belongs to; the drop bar floats over the list
@@ -87,38 +95,47 @@ class DayPartDragState {
     var overBar by mutableStateOf(false)
         private set
 
-    private val rows = HashMap<Long, Rect>()
-    private val blocks = HashMap<String, Pair<DayPart, Rect>>()
+    private val rows = HashMap<Long, LayoutCoordinates>()
+    private val blocks = HashMap<String, Pair<DayPart, LayoutCoordinates>>()
     private val bar = HashMap<DayPart, Rect>()
 
-    /** Where a row is on screen, so a drag starting on it knows where the finger is. */
-    fun placeRow(
+    /** Where a row is laid out, so a drag starting on it knows where the finger is. */
+    internal fun placeRow(
         localId: Long,
-        rect: Rect,
+        coordinates: LayoutCoordinates,
     ) {
-        rows[localId] = rect
+        rows[localId] = coordinates
     }
 
     /**
      * A row has left the screen. If it was being carried the drag is over: its
      * gesture went with it, and nothing else would ever end it.
+     *
+     * Only the handle the row registered is dropped, so a row that has already
+     * been laid out again under the same id keeps its place.
      */
-    fun forgetRow(localId: Long) {
-        rows.remove(localId)
+    internal fun forgetRow(
+        localId: Long,
+        coordinates: LayoutCoordinates?,
+    ) {
+        if (coordinates != null && rows[localId] === coordinates) rows.remove(localId)
         abandon(localId)
     }
 
-    /** Where one item of a phase's block is on screen; [key] names the item. */
-    fun placeBlock(
+    /** Where one item of a phase's block is laid out; [key] names the item. */
+    internal fun placeBlock(
         key: String,
         part: DayPart,
-        rect: Rect,
+        coordinates: LayoutCoordinates,
     ) {
-        blocks[key] = part to rect
+        blocks[key] = part to coordinates
     }
 
-    fun forgetBlock(key: String) {
-        blocks.remove(key)
+    internal fun forgetBlock(
+        key: String,
+        coordinates: LayoutCoordinates?,
+    ) {
+        if (coordinates != null && blocks[key]?.second === coordinates) blocks.remove(key)
     }
 
     /** Where one phase of the drop bar is on screen, or `null` once the bar is gone. */
@@ -134,7 +151,7 @@ class DayPartDragState {
         part: DayPart,
         offsetInRow: Offset,
     ) {
-        val row = rows[task.localId] ?: return
+        val row = rows[task.localId]?.rootBounds() ?: return
         dragged = task
         origin = part
         anchor = row
@@ -148,7 +165,7 @@ class DayPartDragState {
         if (dragged == null) return false
         pointer += by
         val onBar = bar.entries.firstOrNull { it.value.contains(pointer) }?.key
-        val next = onBar ?: blocks.values.firstOrNull { it.second.contains(pointer) }?.first
+        val next = onBar ?: blocks.values.firstOrNull { it.second.rootBounds()?.contains(pointer) == true }?.first
         overBar = onBar != null
         if (next == hover) return false
         hover = next
@@ -180,6 +197,116 @@ class DayPartDragState {
         anchor = null
         hover = null
         overBar = false
+    }
+}
+
+/** Where a laid-out element is in root coordinates, or `null` once it has left the screen. */
+internal fun LayoutCoordinates.rootBounds(): Rect? = if (isAttached) Rect(positionInRoot(), size.toSize()) else null
+
+/**
+ * Keeps a drag state told where one row or block is laid out.
+ *
+ * It hands over the layout handle once, when the element is first placed, and
+ * takes it back when the element leaves the screen. Nothing runs on the frames
+ * in between, which on a scrolling list is nearly all of them.
+ */
+private abstract class DragPlacementNode :
+    Modifier.Node(),
+    LayoutAwareModifierNode {
+    private var placed: LayoutCoordinates? = null
+
+    override val shouldAutoInvalidate: Boolean = false
+
+    protected abstract fun register(coordinates: LayoutCoordinates)
+
+    protected abstract fun unregister(coordinates: LayoutCoordinates?)
+
+    override fun onPlaced(coordinates: LayoutCoordinates) {
+        if (placed === coordinates) return
+        placed = coordinates
+        register(coordinates)
+    }
+
+    /** Re-registers under a changed name, keeping the handle already in hand. */
+    protected fun moved(change: () -> Unit) {
+        unregister(placed)
+        change()
+        placed?.let(::register)
+    }
+
+    override fun onDetach() {
+        unregister(placed)
+        placed = null
+    }
+}
+
+private class DragRowNode(
+    var localId: Long,
+    var drag: DayPartDragState,
+) : DragPlacementNode() {
+    override fun register(coordinates: LayoutCoordinates) = drag.placeRow(localId, coordinates)
+
+    override fun unregister(coordinates: LayoutCoordinates?) = drag.forgetRow(localId, coordinates)
+
+    fun update(
+        localId: Long,
+        drag: DayPartDragState,
+    ) {
+        if (localId == this.localId && drag === this.drag) return
+        moved {
+            this.localId = localId
+            this.drag = drag
+        }
+    }
+}
+
+private data class DragRowElement(
+    val localId: Long,
+    val drag: DayPartDragState,
+) : ModifierNodeElement<DragRowNode>() {
+    override fun create() = DragRowNode(localId, drag)
+
+    override fun update(node: DragRowNode) = node.update(localId, drag)
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "dayPartDragRow"
+    }
+}
+
+private class DragBlockNode(
+    var key: String,
+    var part: DayPart,
+    var drag: DayPartDragState,
+) : DragPlacementNode() {
+    override fun register(coordinates: LayoutCoordinates) = drag.placeBlock(key, part, coordinates)
+
+    override fun unregister(coordinates: LayoutCoordinates?) = drag.forgetBlock(key, coordinates)
+
+    fun update(
+        key: String,
+        part: DayPart,
+        drag: DayPartDragState,
+    ) {
+        if (key == this.key && part == this.part && drag === this.drag) return
+        moved {
+            this.key = key
+            this.part = part
+            this.drag = drag
+        }
+    }
+}
+
+private data class DragBlockElement(
+    val key: String,
+    val part: DayPart,
+    val drag: DayPartDragState,
+) : ModifierNodeElement<DragBlockNode>() {
+    override fun create() = DragBlockNode(key, part, drag)
+
+    override fun update(node: DragBlockNode) = node.update(key, part, drag)
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "dayPartDropTarget"
     }
 }
 
@@ -233,8 +360,7 @@ internal fun Modifier.dayPartDragSource(
     val pressed by rememberUpdatedState(onPressWithoutDrag)
     val dropped by rememberUpdatedState(onDrop)
     val current by rememberUpdatedState(task)
-    DisposableEffect(drag, localId) { onDispose { drag.forgetRow(localId) } }
-    val placed = onGloballyPositioned { drag.placeRow(localId, Rect(it.positionInRoot(), it.size.toSize())) }
+    val placed = then(DragRowElement(localId, drag))
     if (!enabled || task.status != TaskStatus.OPEN) return placed
     return placed.pointerInput(localId, part) {
         var travelled = 0f
@@ -266,23 +392,35 @@ internal fun Modifier.dayPartDragSource(
     }
 }
 
-/** Registers one item of a phase's block as somewhere a carried row can be dropped. */
-@Composable
+/**
+ * Registers one item of a phase's block as somewhere a carried row can be dropped.
+ *
+ * Not a composable, and equal to itself from one composition to the next, so a
+ * row handed it as a parameter can still be skipped when nothing about it changed.
+ */
 internal fun Modifier.dayPartDropTarget(
     key: String,
     part: DayPart?,
     drag: DayPartDragState?,
 ): Modifier {
     if (drag == null || part == null) return this
-    DisposableEffect(drag, key) { onDispose { drag.forgetBlock(key) } }
-    return onGloballyPositioned { drag.placeBlock(key, part, Rect(it.positionInRoot(), it.size.toSize())) }
+    return then(DragBlockElement(key, part, drag))
 }
 
-/** Fades the row that is being carried. */
+/**
+ * Fades the row that is being carried.
+ *
+ * Read while drawing rather than while composing, so picking a row up redraws
+ * the rows instead of recomposing every one of them.
+ */
 internal fun Modifier.dayPartDragFade(
     task: Task,
     drag: DayPartDragState?,
-): Modifier = if (drag?.dragged?.localId == task.localId) alpha(DRAGGED_ALPHA) else this
+): Modifier {
+    if (drag == null) return this
+    val localId = task.localId
+    return graphicsLayer { alpha = if (drag.dragged?.localId == localId) DRAGGED_ALPHA else 1f }
+}
 
 /** True when [part] is where the carried row would land, and landing there would change something. */
 internal fun DayPartDragState?.wouldLandIn(part: DayPart?): Boolean =

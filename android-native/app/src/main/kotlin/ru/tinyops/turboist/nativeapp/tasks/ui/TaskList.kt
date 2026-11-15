@@ -44,20 +44,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
@@ -67,7 +66,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.PlanState
@@ -173,7 +171,10 @@ fun TaskList(
     val dragState = remember { DayPartDragState() }
     val drag = dragState.takeIf { callbacks.onMoveToDayPart != null }
     // Where the list sits on screen, so the island can open beside the carried row.
-    var listBounds by remember { mutableStateOf(Rect.Zero) }
+    // Kept as a layout handle and measured only while a row is carried: the list
+    // moves on every frame the top bar collapses, and a rectangle held as state
+    // would recompose the whole screen on each of them.
+    val listPlacement = remember { ListPlacement() }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -190,10 +191,7 @@ fun TaskList(
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
                 onRefresh = callbacks.onRefresh,
-                modifier =
-                    Modifier.fillMaxSize().onGloballyPositioned {
-                        listBounds = Rect(it.positionInRoot(), it.size.toSize())
-                    },
+                modifier = Modifier.fillMaxSize().onPlaced { listPlacement.coordinates = it },
             ) {
                 if (state.isEmpty && empty != null) {
                     EmptyList(empty)
@@ -271,13 +269,15 @@ fun TaskList(
                 if (drag?.dragged != null) {
                     DayPartDropBar(
                         drag = drag,
-                        container = listBounds,
+                        container = listPlacement.bounds(),
                         modifier = Modifier.padding(horizontal = LIST_GUTTER),
                     )
                 }
             }
         }
-        if (drag != null) DayPartDragTooltip(drag, islandAbove = drag.islandIsAbove(listBounds))
+        if (drag?.dragged != null) {
+            DayPartDragTooltip(drag, islandAbove = drag.islandIsAbove(listPlacement.bounds()))
+        }
         if (toolbarShown && actions != null) {
             SelectionToolbar(
                 count = state.selected.size,
@@ -289,6 +289,16 @@ fun TaskList(
             )
         }
     }
+}
+
+/**
+ * Where the list was last laid out. Plain bookkeeping rather than state: nothing
+ * is drawn from it until a row is picked up, and that recomposition reads it.
+ */
+private class ListPlacement {
+    var coordinates: LayoutCoordinates? = null
+
+    fun bounds(): Rect = coordinates?.rootBounds() ?: Rect.Zero
 }
 
 /**
@@ -401,24 +411,26 @@ private fun SwipeableTaskRow(
     val completing by remember { derivedStateOf { swipe.offset.let { !it.isNaN() && it > 0f } } }
 
     // Ticking the task off is the one swipe that acts on its own; the row springs
-    // back as soon as it has.
-    LaunchedEffect(swipe.settledValue) {
-        if (swipe.settledValue != RowSwipe.COMPLETE) return@LaunchedEffect
-        callbacks.onToggleComplete(task)
-        swipe.animateTo(RowSwipe.SETTLED)
+    // back as soon as it has. Both effects enter only when they have something
+    // to do, so a row scrolled into view starts no coroutine of its own.
+    if (swipe.settledValue == RowSwipe.COMPLETE) {
+        LaunchedEffect(Unit) {
+            callbacks.onToggleComplete(task)
+            swipe.animateTo(RowSwipe.SETTLED)
+        }
     }
     // Picking starts with every row shut: an open one would hold actions that
     // are not what a tap means any more.
-    LaunchedEffect(selectionMode) {
-        if (selectionMode) swipe.animateTo(RowSwipe.SETTLED)
+    if (selectionMode) {
+        LaunchedEffect(Unit) { swipe.animateTo(RowSwipe.SETTLED) }
     }
 
     // The swipes are unreachable to anyone driving the screen with an assistive
-    // reader, so the same actions are offered as named actions on the row.
-    val completeLabel = stringResource(R.string.task_markComplete)
-    val actionLabels = actions.map { stringResource(it.labelRes) }
-    val phaseLabels =
-        phaseMoves.map { stringResource(R.string.native_dayPartDrag_willMove, stringResource(dayPartLabel(it))) }
+    // reader, so the same actions are offered as named actions on the row. The
+    // names are worked out only when an assistive service asks for them: a row
+    // scrolled into view would otherwise format a sentence per phase of the day
+    // on the frame it appears, for a reader that is usually not there.
+    val resources = LocalResources.current
     Box(
         modifier =
             modifier
@@ -443,19 +455,24 @@ private fun SwipeableTaskRow(
                 }.semantics {
                     customActions =
                         listOf(
-                            CustomAccessibilityAction(completeLabel) {
+                            CustomAccessibilityAction(resources.getString(R.string.task_markComplete)) {
                                 callbacks.onToggleComplete(task)
                                 true
                             },
                         ) +
-                        actions.mapIndexed { index, action ->
-                            CustomAccessibilityAction(actionLabels[index]) {
+                        actions.map { action ->
+                            CustomAccessibilityAction(resources.getString(action.labelRes)) {
                                 action.run()
                                 true
                             }
                         } +
-                        phaseMoves.mapIndexed { index, target ->
-                            CustomAccessibilityAction(phaseLabels[index]) {
+                        phaseMoves.map { target ->
+                            val label =
+                                resources.getString(
+                                    R.string.native_dayPartDrag_willMove,
+                                    resources.getString(dayPartLabel(target)),
+                                )
+                            CustomAccessibilityAction(label) {
                                 onMoveToDayPart?.invoke(task, target)
                                 true
                             }

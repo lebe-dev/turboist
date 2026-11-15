@@ -2,6 +2,7 @@ package ru.tinyops.turboist.nativeapp.tasks
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import ru.tinyops.turboist.core.database.dao.ProjectDao
@@ -166,17 +167,24 @@ class TaskListRepository
                             },
                     )
                 }
-            }
+            }.distinctUntilChanged()
 
-        /** The projects standing in a daily-plan bucket, by local id. */
+        /**
+         * The projects standing in a daily-plan bucket, by local id.
+         *
+         * This and the other readings of the project table below pass on only an
+         * answer that differs from the last: a sync page that touches a project
+         * rewrites its row whether or not anything a list shows changed, and every
+         * screen reading the answer would otherwise rebuild its blocks for nothing.
+         */
         fun observeTroikiProjectIds(): Flow<Set<Long>> =
             projects.observeAll().map { rows ->
                 rows.filter { it.troikiCategory != null }.mapTo(HashSet()) { it.localId }
-            }
+            }.distinctUntilChanged()
 
         /** Project titles by local id, for the folder a row names. */
         fun observeProjectTitles(): Flow<Map<Long, String>> =
-            projects.observeAll().map { rows -> rows.associate { it.localId to it.title } }
+            projects.observeAll().map { rows -> rows.associate { it.localId to it.title } }.distinctUntilChanged()
 
         /**
          * The user's own preferences as last replicated.
@@ -191,7 +199,7 @@ class TaskListRepository
                 runCatching { TurboistJson.decodeFromString(UserSettingsDto.serializer(), payload) }
                     .map { it.toUserSettings() }
                     .getOrElse { UserSettings() }
-            }
+            }.distinctUntilChanged()
 
         /**
          * Joins the labels and the relation rollup onto a list's rows.

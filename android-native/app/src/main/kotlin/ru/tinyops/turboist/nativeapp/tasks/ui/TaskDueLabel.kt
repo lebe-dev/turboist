@@ -12,6 +12,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * How a due date reads on a row: a named day where the day has a name, a short
@@ -34,15 +36,38 @@ fun dueLabel(
             RelativeDay.TODAY -> stringResource(R.string.common_today)
             RelativeDay.TOMORROW -> stringResource(R.string.common_tomorrow)
             RelativeDay.YESTERDAY -> stringResource(R.string.common_yesterday)
-            RelativeDay.OTHER -> day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+            RelativeDay.OTHER -> day.format(DueFormats.date())
         }
     if (!task.dueHasTime) return named
     val time =
         Instant.ofEpochMilli(dueAt)
             .atZone(zone)
             .toLocalTime()
-            .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+            .format(DueFormats.time())
     return "$named · $time"
+}
+
+/**
+ * The localized formatters a row's due date is written with, built once per
+ * locale. Building one resolves the locale's pattern, and a list scrolling past
+ * a screenful of dated rows would otherwise pay that on every row it draws.
+ *
+ * Keyed by the formatting locale exactly as the factory methods read it, so a
+ * change of language is picked up on the next row drawn.
+ */
+private object DueFormats {
+    private val dates = ConcurrentHashMap<Locale, DateTimeFormatter>()
+    private val times = ConcurrentHashMap<Locale, DateTimeFormatter>()
+
+    fun date(): DateTimeFormatter =
+        dates.getOrPut(Locale.getDefault(Locale.Category.FORMAT)) {
+            DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+        }
+
+    fun time(): DateTimeFormatter =
+        times.getOrPut(Locale.getDefault(Locale.Category.FORMAT)) {
+            DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+        }
 }
 
 /** The heading of a day block: a named day where there is one, a full date otherwise. */

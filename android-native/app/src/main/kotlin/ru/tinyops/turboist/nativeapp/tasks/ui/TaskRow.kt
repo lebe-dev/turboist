@@ -35,7 +35,12 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -465,30 +470,50 @@ private fun Tags(
  * picked the mark stays inert, so a tap on it picks the row like a tap anywhere
  * else on it.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NoLabelsMark(explainable: Boolean) {
+    // The tooltip is only built once the mark is first tapped. Most marks are
+    // never asked, and a list builds one for every untagged row it scrolls past.
+    var asked by remember { mutableStateOf(false) }
+    if (asked) {
+        ExplainedNoLabelsMark(explainable)
+        return
+    }
+    NoLabelsText(if (explainable) Modifier.clickable { asked = true } else Modifier)
+}
+
+/** The mark once it has been asked about: the explanation opens now, and on every later tap. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExplainedNoLabelsMark(explainable: Boolean) {
     val tooltip = rememberTooltipState(isPersistent = true)
     val scope = rememberCoroutineScope()
     val explanation = stringResource(R.string.task_noLabelsTooltip)
+    LaunchedEffect(tooltip) { tooltip.show() }
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltip { Text(explanation) } },
         state = tooltip,
         enableUserInput = false,
     ) {
-        Text(
-            text = stringResource(R.string.task_noLabels),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier =
-                if (explainable) {
-                    Modifier.clickable { scope.launch { tooltip.show() } }
-                } else {
-                    Modifier
-                },
+        NoLabelsText(
+            if (explainable) {
+                Modifier.clickable { scope.launch { tooltip.show() } }
+            } else {
+                Modifier
+            },
         )
     }
+}
+
+@Composable
+private fun NoLabelsText(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.task_noLabels),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.error,
+        modifier = modifier,
+    )
 }
 
 /** The size of the tick ring on the left of a row. */

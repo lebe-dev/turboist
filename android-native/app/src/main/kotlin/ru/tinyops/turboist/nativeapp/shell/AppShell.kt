@@ -36,6 +36,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -355,6 +356,11 @@ private fun ShellScaffold(
     // The title shrinks into the bar as a list scrolls under it and comes back
     // at the top, which is what keeps a large title from costing a list its rows.
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // Which half of its travel the bar is in, as a value that changes twice per
+    // scroll rather than on every frame of it: read directly, the fraction would
+    // recompose the whole bar on each frame the list moves it.
+    val barState = scrollBehavior.state
+    val collapsed by remember(barState) { derivedStateOf { barState.collapsedFraction >= HALF } }
     var switcherOpen by rememberSaveable { mutableStateOf(false) }
     val currentEntry by navController.currentBackStackEntryAsState()
     val captureButton = currentDestination.allowsCaptureButton() && !screenOwnsChrome && !chrome.selectionActive
@@ -453,7 +459,6 @@ private fun ShellScaffold(
                 } else {
                     // On Today the focus lock sits right after the title, as on the
                     // web: it belongs to the day it locks.
-                    val collapsed = scrollBehavior.state.collapsedFraction >= HALF
                     LargeTopAppBar(
                         title = {
                             TitleWithLock(title = title, lock = onTodayScreen, collapsed = collapsed, screens = screens)

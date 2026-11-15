@@ -247,4 +247,24 @@ class TaskRowTest {
 
         compose.onNodeWithContentDescription(text(R.string.selection_unselectTask)).assertIsDisplayed()
     }
+
+    @Test
+    fun `an untagged task explains its mark when tapped`() {
+        show(task(1))
+        compose.onNodeWithText(text(R.string.task_noLabelsTooltip)).assertDoesNotExist()
+
+        compose.onNodeWithText(text(R.string.task_noLabels)).performClick()
+        compose.onNodeWithText(text(R.string.task_noLabelsTooltip)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `while tasks are being picked the untagged mark explains nothing`() {
+        var picked = 0
+        show(task(1), selectionMode = true, onSelectToggle = { picked++ })
+
+        compose.onNodeWithText(text(R.string.task_noLabels)).performClick()
+
+        compose.onNodeWithText(text(R.string.task_noLabelsTooltip)).assertDoesNotExist()
+        assertEquals(1, picked)
+    }
 }

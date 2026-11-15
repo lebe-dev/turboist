@@ -3,6 +3,7 @@ package ru.tinyops.turboist.nativeapp.tasks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
@@ -91,6 +93,19 @@ private data class WeekMoment(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
+/**
+ * Builds a screen's blocks away from the main thread, and passes on only blocks
+ * that differ from the last.
+ *
+ * Cutting a list into phases or days, nesting subtasks and folding the calendar
+ * in is real work on a long list, and it reruns on every commit the replica
+ * takes — during a sync, many times a second. Done in the view model's own scope
+ * it would run on the thread that draws, in the middle of whatever the user is
+ * scrolling. An answer equal to the last one, which is what most of those
+ * commits produce for any one screen, goes no further than the comparison.
+ */
+private fun <T> Flow<T>.offMainThread(): Flow<T> = distinctUntilChanged().flowOn(Dispatchers.Default)
+
 private fun DayClock.moments(schedule: DayPartSchedule): Flow<DayMoment> =
     ticks()
         .map { DayMoment(ViewWindows.dayStart(it, zone), schedule.activeAt(it, zone)) }
@@ -123,7 +138,7 @@ class TodayViewModel
                             dayPartSections(today, titles, moment.activePart)
                     withPhaseEvents(blocks, events, clock.zone, DayPartSchedule.Default, moment.activePart)
                 }
-            }
+            }.offMainThread()
 
         @OptIn(ExperimentalCoroutinesApi::class)
         private val announcement =
@@ -176,7 +191,7 @@ class TomorrowViewModel
                     val blocks = dayPartSections(tasks, titles, activePart = null)
                     withPhaseEvents(blocks, events, clock.zone, DayPartSchedule.Default, activePart = null)
                 }
-            }
+            }.offMainThread()
 
         override val presenter =
             TaskListPresenter(
@@ -251,7 +266,7 @@ class WeekViewModel
                             nextMonday,
                         )
                     }
-                }
+                }.offMainThread()
 
         /**
          * Which labels the planned week is made of. What was planned for the week
@@ -269,7 +284,7 @@ class WeekViewModel
                     weekPlanStats(tasks.filter { it.countsTowardWeekPlan() }, troikiProjects),
                     showTroiki = settings.troikiEnabled,
                 )
-            }
+            }.offMainThread()
 
         /** The calendar day the week view calls "today" when it names a heading. */
         private fun dayOf(dayStart: Long) = Instant.ofEpochMilli(dayStart).atZone(clock.zone).toLocalDate()
@@ -337,7 +352,7 @@ class NextWeekViewModel
                         emptyRes = R.string.page_nextWeek_weekEmptyDesc,
                     ),
                 )
-            }
+            }.offMainThread()
 
         /** The planned block only: what is parked in the backlog is not part of the week. */
         private val planStats =
@@ -347,7 +362,7 @@ class NextWeekViewModel
                 repository.observeUserSettings(),
             ) { tasks, troikiProjects, settings ->
                 PlanStatsHeader(weekPlanStats(tasks, troikiProjects), showTroiki = settings.troikiEnabled)
-            }
+            }.offMainThread()
 
         override val presenter =
             TaskListPresenter(
