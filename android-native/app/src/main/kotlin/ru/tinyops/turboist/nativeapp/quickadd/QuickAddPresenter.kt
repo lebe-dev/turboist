@@ -294,7 +294,8 @@ class QuickAddPresenter(
                     draft =
                         draft.copy(
                             labelNames = draft.labelNames - names.toSet(),
-                            priority = if (draft.priority == Priority.HIGH && restored != null) restored else draft.priority,
+                            priority =
+                                if (draft.priority == Priority.HIGH && restored != null) restored else draft.priority,
                         ),
                     priorityBeforeBug = null,
                 )

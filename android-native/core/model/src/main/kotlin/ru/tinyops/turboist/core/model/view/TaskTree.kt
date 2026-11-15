@@ -137,11 +137,7 @@ fun sortSubtasksByPriority(tasks: List<Task>): List<Task> {
     return tasks.map { if (isSubtask(it)) sorted.next() else it }
 }
 
-private fun Priority.rank(): Int =
-    when (this) {
-        Priority.HIGH -> 0
-        Priority.MEDIUM -> 1
-        Priority.LOW -> 2
-        Priority.NONE -> 3
-        Priority.UNKNOWN -> 4
-    }
+/** The order subtasks are read in: the most urgent first, an unknown level last. */
+private val PRIORITY_ORDER = listOf(Priority.HIGH, Priority.MEDIUM, Priority.LOW, Priority.NONE, Priority.UNKNOWN)
+
+private fun Priority.rank(): Int = PRIORITY_ORDER.indexOf(this)
