@@ -1207,3 +1207,49 @@ func TestTaskDuplicate_CopiesIsComplex(t *testing.T) {
 		t.Error("subtask isComplex: got false, want the flag carried onto the cloned subtask")
 	}
 }
+
+// The duplicate response must carry the cloned subtasks with their labels, both
+// inline and when listed afterwards, so the client shows the tags without a reload.
+func TestTaskDuplicate_ClonesSubtaskLabels(t *testing.T) {
+	e := setupAPIEnv(t)
+	ctx := createTestContext(t, e, "Work")
+	createTestLabel(t, e, "alpha")
+	createTestLabel(t, e, "beta")
+	parent := createTestTask(t, e, ctx.ID, "Parent")
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", parent.ID),
+		map[string]any{"title": "Child", "labels": []string{"alpha", "beta"}}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("create subtask: got %d; body: %s", resp.StatusCode, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", parent.ID), nil))
+	if resp.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d; body: %s", resp.StatusCode, body)
+	}
+	var dup dto.TaskDTO
+	if err := json.Unmarshal(body, &dup); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if dup.Subtasks == nil || len(dup.Subtasks.Items) != 1 {
+		t.Fatalf("response subtasks: got %v, want 1", dup.Subtasks)
+	}
+	if n := len(dup.Subtasks.Items[0].Labels); n != 2 {
+		t.Errorf("inline subtask labels: got %d, want 2; body: %s", n, body)
+	}
+
+	resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet,
+		fmt.Sprintf("/api/v1/tasks/%d/subtasks", dup.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("list subtasks: got %d; body: %s", resp.StatusCode, body)
+	}
+	var page dto.PagedResponse[dto.TaskDTO]
+	if err := json.Unmarshal(body, &page); err != nil {
+		t.Fatalf("parse subtasks: %v", err)
+	}
+	if len(page.Items) != 1 || len(page.Items[0].Labels) != 2 {
+		t.Errorf("listed subtask labels: got %+v, want 2 labels", page.Items)
+	}
+}

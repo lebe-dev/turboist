@@ -516,8 +516,8 @@ func (h *TaskHandler) duplicate(c fiber.Ctx) error {
 // top-level task) with the given title, then recursively clones src's subtasks
 // under the freshly created task. The complexity flag is copied along with the
 // rest of the descriptive fields — it describes the work, not this instance of it.
-// Only the top-level clone is renamed; subtasks keep their original titles. Each subtask is re-fetched via Get so its labels
-// are hydrated (ListSubtasks does not hydrate labels).
+// Only the top-level clone is renamed; subtasks keep their original titles. Each subtask is re-fetched via Get so it is
+// cloned from its full stored state.
 func (h *TaskHandler) cloneTask(ctx context.Context, src *model.Task, parentID *int64, title string, due *dueOverride) (*model.Task, error) {
 	// A completed task's due date is history, not a plan — carrying an already
 	// expired one onto the clone would just reproduce the stale label instead

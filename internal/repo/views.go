@@ -156,7 +156,7 @@ func (r *TaskRepo) ListByProjectIDs(ctx context.Context, ids []int64) (map[int64
 
 func (r *TaskRepo) ListSubtasks(ctx context.Context, parentID int64) ([]model.Task, error) {
 	base := "FROM tasks t WHERE t.parent_id = ?"
-	out, _, err := r.listWithBaseArgs(ctx, base, []any{parentID}, TaskFilter{}, Page{Limit: 200}, false)
+	out, _, err := r.listWithBaseArgs(ctx, base, []any{parentID}, TaskFilter{}, Page{Limit: 200}, true)
 	return out, err
 }
 
