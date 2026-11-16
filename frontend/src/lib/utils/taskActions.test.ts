@@ -1,8 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '$lib/api/errors';
 import type { Label, Task } from '$lib/api/types';
+vi.mock('$lib/api/client', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/api/client')>()),
+	getApiClient: () => ({})
+}));
+
+import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
+import type { ListMutator } from '$lib/hooks/useListMutator.svelte';
 import {
 	describeError,
+	duplicateTask,
 	hasTitleCounter,
 	isBlocked,
 	taskToJson,
@@ -214,5 +222,59 @@ describe('tomorrowDuplicateDue', () => {
 			dueAt: '2026-11-09T04:30:00.000Z',
 			dueHasTime: true
 		});
+	});
+});
+
+describe('duplicateTask', () => {
+	const label = (id: number, name: string) =>
+		({ id, name, description: '', color: 'blue', isFavourite: false, isPrivate: false }) as Label;
+	const row = (id: number, title: string, parentId: number | null, labels: Label[]) =>
+		({ id, title, parentId, labels }) as Task;
+
+	// The server answers a duplicate with the copy and its subtasks inline. The row
+	// handed to the list must carry the tags it came with: the list renders from
+	// it directly, so dropping them reads as "the copy lost its tags".
+	it('inserts the copy and its subtasks after the source, tags intact, in order', async () => {
+		const tags = [label(1, 'engineer'), label(2, 'quality')];
+		const created = {
+			...row(10, 'Goal (2)', null, tags),
+			subtasks: {
+				items: [row(11, 'Review', 10, tags), row(12, 'Tests', 10, []), row(13, 'Docs', 10, tags)]
+			}
+		} as Task;
+		const spy = vi.spyOn(tasksApi, 'duplicate').mockResolvedValue(created);
+		const inserted: Array<{ after: number; task: Task }> = [];
+		const mutator = {
+			insertAfter: (after: number, task: Task) => inserted.push({ after, task })
+		} as unknown as ListMutator;
+
+		await duplicateTask(row(1, 'Goal', null, tags), mutator);
+
+		expect(inserted.map((i) => [i.after, i.task.id])).toEqual([
+			[1, 10],
+			[10, 11],
+			[11, 12],
+			[12, 13]
+		]);
+		expect(inserted.map((i) => i.task.labels.map((l) => l.name))).toEqual([
+			['engineer', 'quality'],
+			['engineer', 'quality'],
+			[],
+			['engineer', 'quality']
+		]);
+		spy.mockRestore();
+	});
+
+	it('inserts nothing when the copy does not belong in the list on screen', async () => {
+		const created = row(10, 'Goal (2)', null, []);
+		const spy = vi.spyOn(tasksApi, 'duplicate').mockResolvedValue(created);
+		const insertAfter = vi.fn();
+
+		await duplicateTask(row(1, 'Goal', null, []), { insertAfter } as unknown as ListMutator, {
+			belongs: () => false
+		});
+
+		expect(insertAfter).not.toHaveBeenCalled();
+		spy.mockRestore();
 	});
 });

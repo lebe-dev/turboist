@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 
@@ -1251,5 +1252,114 @@ func TestTaskDuplicate_ClonesSubtaskLabels(t *testing.T) {
 	}
 	if len(page.Items) != 1 || len(page.Items[0].Labels) != 2 {
 		t.Errorf("listed subtask labels: got %+v, want 2 labels", page.Items)
+	}
+}
+
+// Labels survive a duplicate at every depth of the subtree, and every surface a
+// client reads the copy through — the inline subtasks, the subtask list, a single
+// GET, the sync feed — agrees on them. A client that renders from any one of
+// those must not show a copy that looks less tagged than it is.
+func TestTaskDuplicate_SubtreeLabelsAgreeAcrossSurfaces(t *testing.T) {
+	e := setupAPIEnv(t)
+	c := createTestContext(t, e, "Work")
+	createTestLabel(t, e, "alpha")
+	createTestLabel(t, e, "beta")
+	root := createTestTask(t, e, c.ID, "Root")
+
+	addSub := func(parentID int64, title string, labels []string) dto.TaskDTO {
+		t.Helper()
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+			fmt.Sprintf("/api/v1/tasks/%d/subtasks", parentID),
+			map[string]any{"title": title, "labels": labels}))
+		if resp.StatusCode != 201 {
+			t.Fatalf("create subtask %q: got %d; body: %s", title, resp.StatusCode, body)
+		}
+		var out dto.TaskDTO
+		if err := json.Unmarshal(body, &out); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		return out
+	}
+	child := addSub(root.ID, "Child", []string{"alpha"})
+	addSub(child.ID, "Grandchild", []string{"alpha", "beta"})
+	addSub(root.ID, "Untagged", []string{})
+
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/duplicate", root.ID), nil))
+	if resp.StatusCode != 201 {
+		t.Fatalf("duplicate: got %d; body: %s", resp.StatusCode, body)
+	}
+	var dup dto.TaskDTO
+	if err := json.Unmarshal(body, &dup); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	names := func(ls []dto.LabelDTO) string {
+		out := make([]string, len(ls))
+		for i, l := range ls {
+			out[i] = l.Name
+		}
+		sort.Strings(out)
+		return strings.Join(out, ",")
+	}
+	// Reads the whole copied subtree through the single-task GET, the source of truth.
+	want := map[string]string{}
+	var walk func(id int64)
+	walk = func(id int64) {
+		resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, fmt.Sprintf("/api/v1/tasks/%d", id), nil))
+		if resp.StatusCode != 200 {
+			t.Fatalf("get %d: got %d; body: %s", id, resp.StatusCode, body)
+		}
+		var task dto.TaskDTO
+		if err := json.Unmarshal(body, &task); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		want[task.Title] = names(task.Labels)
+		resp, body = doReq(t, e.app, e.authedReq(t, http.MethodGet, fmt.Sprintf("/api/v1/tasks/%d/subtasks", id), nil))
+		if resp.StatusCode != 200 {
+			t.Fatalf("list %d: got %d; body: %s", id, resp.StatusCode, body)
+		}
+		var page dto.PagedResponse[dto.TaskDTO]
+		if err := json.Unmarshal(body, &page); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		for _, s := range page.Items {
+			walk(s.ID)
+			if got := names(s.Labels); got != want[s.Title] {
+				t.Errorf("subtask list labels for %q: got %q, want %q", s.Title, got, want[s.Title])
+			}
+		}
+	}
+	walk(dup.ID)
+
+	expected := map[string]string{"Root (2)": "", "Child": "alpha", "Grandchild": "alpha,beta", "Untagged": ""}
+	for title, labels := range expected {
+		if got, ok := want[title]; !ok || got != labels {
+			t.Errorf("copy of %q: labels %q (present=%v), want %q", title, got, ok, labels)
+		}
+	}
+
+	// The inline subtasks in the duplicate response match what GET says.
+	if dup.Subtasks == nil {
+		t.Fatal("duplicate response has no inline subtasks")
+	}
+	for _, s := range dup.Subtasks.Items {
+		if got := names(s.Labels); got != want[s.Title] {
+			t.Errorf("inline subtask %q labels: got %q, want %q", s.Title, got, want[s.Title])
+		}
+	}
+
+	// The sync feed, which native clients replicate from, carries the same tags
+	// for each copied row as the single-task GET.
+	changes := drainChanges(t, e, 0, "")
+	for _, s := range dup.Subtasks.Items {
+		change := lastChangeFor(t, changes, repo.SyncEntityTask, s.ID)
+		var synced dto.TaskDTO
+		if err := json.Unmarshal(change.Data, &synced); err != nil {
+			t.Fatalf("parse synced task: %v", err)
+		}
+		if got := names(synced.Labels); got != want[s.Title] {
+			t.Errorf("synced subtask %q labels: got %q, want %q", s.Title, got, want[s.Title])
+		}
 	}
 }

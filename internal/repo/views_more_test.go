@@ -217,3 +217,35 @@ func TestSessionRepo_TouchLastUsed(t *testing.T) {
 		t.Fatalf("touch: %v", err)
 	}
 }
+
+// ListSubtasks feeds both the subtask list endpoint and the inline subtasks of a
+// duplicate, so a client renders its tags straight from the result.
+func TestTaskRepo_ListSubtasks_HydratesLabels(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+
+	label, err := f.labels.Create(ctx, "alpha", "blue", false)
+	if err != nil {
+		t.Fatalf("create label: %v", err)
+	}
+	parent, _ := f.tasks.Create(ctx, CreateTask{Placement: Placement{ContextID: &f.contextID}, Title: "parent"})
+	pid := parent.ID
+	child, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ParentID: &pid},
+		Title:     "child",
+	})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	if err := f.tlabels.SetForTask(ctx, child.ID, []int64{label.ID}); err != nil {
+		t.Fatalf("set labels: %v", err)
+	}
+
+	out, err := f.tasks.ListSubtasks(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(out) != 1 || len(out[0].Labels) != 1 || out[0].Labels[0].Name != "alpha" {
+		t.Errorf("subtask labels: got %+v, want [alpha]", out)
+	}
+}
