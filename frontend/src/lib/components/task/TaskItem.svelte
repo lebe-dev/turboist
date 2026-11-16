@@ -461,7 +461,7 @@
 		<div class="flex items-center gap-2">
 			<a
 				href={taskHref}
-				class="min-w-0 flex-1 break-words text-sm leading-snug md:truncate"
+				class="min-w-0 flex-1 break-words text-sm leading-snug"
 				class:font-medium={!checked}
 				class:line-through={checked}
 				class:text-muted-foreground={checked || depth > 0}
