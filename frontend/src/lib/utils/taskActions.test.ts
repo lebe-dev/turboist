@@ -7,12 +7,12 @@ vi.mock('$lib/api/client', async (importOriginal) => ({
 }));
 
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
-import type { ListMutator } from '$lib/hooks/useListMutator.svelte';
 import {
 	describeError,
 	duplicateTask,
 	hasTitleCounter,
 	isBlocked,
+	type ListMutator,
 	taskToJson,
 	tomorrowDuplicateDue
 } from './taskActions';
