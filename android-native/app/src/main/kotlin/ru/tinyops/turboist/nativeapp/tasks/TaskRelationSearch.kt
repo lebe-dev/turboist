@@ -1,11 +1,15 @@
 package ru.tinyops.turboist.nativeapp.tasks
 
+import kotlinx.coroutines.flow.first
 import ru.tinyops.turboist.core.database.dao.ProjectDao
+import ru.tinyops.turboist.core.database.dao.SearchDao
 import ru.tinyops.turboist.core.database.dao.TaskDao
 import ru.tinyops.turboist.core.database.entity.toDomain
 import ru.tinyops.turboist.nativeapp.search.SearchFilters
 import ru.tinyops.turboist.nativeapp.search.SearchKind
 import ru.tinyops.turboist.nativeapp.search.SearchRepository
+import ru.tinyops.turboist.nativeapp.switcher.RecentItems
+import ru.tinyops.turboist.nativeapp.switcher.SwitcherKind
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,6 +28,19 @@ fun interface TaskRelationSearch {
      * to call on every keystroke.
      */
     suspend fun candidates(typed: String): List<TaskRelationCandidate>
+
+    /**
+     * The tasks the user opened most recently, newest first, for the moment
+     * nothing has been typed yet.
+     *
+     * Tasks in [excluding] are skipped before the cut, so the list is still
+     * [limit] long when the task being edited, or one it is already linked to,
+     * sits among the recent ones.
+     */
+    suspend fun recent(
+        excluding: Set<Long>,
+        limit: Int,
+    ): List<TaskRelationCandidate> = emptyList()
 
     companion object {
         /** Offers nothing. For a screen composed without a device behind it. */
@@ -51,7 +68,35 @@ class ReplicaTaskRelationSearch
         private val search: SearchRepository,
         private val tasks: TaskDao,
         private val projects: ProjectDao,
+        private val searchDao: SearchDao,
+        private val recentItems: RecentItems,
     ) : TaskRelationSearch {
+        override suspend fun recent(
+            excluding: Set<Long>,
+            limit: Int,
+        ): List<TaskRelationCandidate> {
+            val ids =
+                recentItems
+                    .observe()
+                    .first()
+                    .filter { it.kind == SwitcherKind.TASK && it.localId !in excluding }
+                    .map { it.localId }
+            if (ids.isEmpty()) return emptyList()
+            val rows = searchDao.tasksByLocalIds(ids).associateBy { it.localId }
+            // A remembered task may have been deleted since, so the cut is made
+            // over the rows that still exist.
+            return ids.mapNotNull { rows[it] }.take(limit).map { row ->
+                val task = row.toDomain()
+                TaskRelationCandidate(
+                    taskLocalId = task.localId,
+                    serverId = task.serverId,
+                    title = task.title,
+                    status = task.status,
+                    projectTitle = task.projectLocalId?.let { projects.byLocalId(it)?.title },
+                )
+            }
+        }
+
         override suspend fun candidates(typed: String): List<TaskRelationCandidate> {
             val term = typed.trim()
             if (term.isEmpty()) return emptyList()

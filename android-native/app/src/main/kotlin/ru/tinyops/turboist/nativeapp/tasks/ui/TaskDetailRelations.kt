@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -188,6 +189,9 @@ private fun AddTaskRelationSheet(
     var group by remember { mutableStateOf(TaskRelationGroup.BLOCKED_BY) }
     var typed by remember { mutableStateOf("") }
 
+    // Before anything is typed the picker offers the tasks opened lately.
+    LaunchedEffect(Unit) { onSearch("") }
+
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
             Text(
@@ -238,6 +242,14 @@ private fun AddTaskRelationSheet(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
                 return@Column
+            }
+            if (typed.isBlank()) {
+                Text(
+                    text = stringResource(R.string.native_task_relationRecent),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
             LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
                 items(candidates, key = { it.taskLocalId }) { candidate ->

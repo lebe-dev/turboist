@@ -623,10 +623,23 @@ class TaskDetailPresenter(
     fun searchRelationCandidates(typed: String) {
         searching?.cancel()
         if (typed.isBlank()) {
-            candidates.value = emptyList()
+            searching = scope.launch { candidates.value = recentRelationCandidates() }
             return
         }
         searching = scope.launch { candidates.value = relationSearch.candidates(typed) }
+    }
+
+    /**
+     * The tasks opened lately, offered before anything is typed.
+     *
+     * The task itself and the ones it is already linked to are left out before
+     * the cut, so the picker still shows [RECENT_RELATION_CANDIDATES] of them.
+     */
+    private suspend fun recentRelationCandidates(): List<TaskRelationCandidate> {
+        val current = state.value
+        val excluded = current.relations.map { it.peerLocalId }.toMutableSet()
+        current.task?.let { excluded += it.localId }
+        return relationSearch.recent(excluded, RECENT_RELATION_CANDIDATES)
     }
 
     /** Empties the picker, so reopening it does not start on the last search. */
@@ -909,6 +922,9 @@ class TaskDetailPresenter(
     private companion object {
         /** Matches the list presenter, so a screen and the queries behind it stop together. */
         const val STOP_TIMEOUT_MILLIS = 5_000L
+
+        /** How many recently opened tasks the link picker offers before anything is typed. */
+        const val RECENT_RELATION_CANDIDATES = 5
 
         /** More than the picker shows, since some of them may already be on the task. */
         const val SUGGESTION_CANDIDATES = 8

@@ -137,6 +137,7 @@
     <string name="native_search_contextsTab">Contexts</string>
     <string name="native_search_openOnly">Open only</string>
     <string name="native_search_emptyDescription">Type at least 2 characters to search the tasks, projects, labels and contexts stored on this device.</string>
+    <string name="native_task_relationRecent">Recently opened</string>
     <string name="native_search_noMatches">Nothing matches</string>
     <string name="native_search_clearQuery">Clear the search</string>
     <string name="native_search_recent">Recent searches</string>

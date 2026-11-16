@@ -114,6 +114,7 @@
     <string name="native_search_contextsTab">Контексты</string>
     <string name="native_search_openOnly">Только открытые</string>
     <string name="native_search_emptyDescription">Введите хотя бы 2 символа, чтобы искать по задачам, проектам, меткам и контекстам на этом устройстве.</string>
+    <string name="native_task_relationRecent">Недавно открытые</string>
     <string name="native_search_noMatches">Ничего не найдено</string>
     <string name="native_search_clearQuery">Очистить поиск</string>
     <string name="native_search_recent">Недавние запросы</string>

@@ -135,10 +135,20 @@ class TaskDetailPresenterTest {
     private class StubRelationSearch : TaskRelationSearch {
         var answer: List<TaskRelationCandidate> = emptyList()
         val asked = mutableListOf<String>()
+        var recents: List<TaskRelationCandidate> = emptyList()
+        val recentAsks = mutableListOf<Pair<Set<Long>, Int>>()
 
         override suspend fun candidates(typed: String): List<TaskRelationCandidate> {
             asked += typed
             return answer
+        }
+
+        override suspend fun recent(
+            excluding: Set<Long>,
+            limit: Int,
+        ): List<TaskRelationCandidate> {
+            recentAsks += excluding to limit
+            return recents
         }
     }
 
@@ -682,7 +692,21 @@ class TaskDetailPresenterTest {
         }
 
     @Test
-    fun `an empty search offers nothing and asks the device nothing`() =
+    fun `an empty search offers the recently opened tasks, minus the task and its links`() =
+        runTest {
+            val presenter = open(task(1), relations = listOf(link(2)))
+            relationSearch.recents = listOf(candidate(3), candidate(4))
+
+            presenter.searchRelationCandidates("")
+            runCurrent()
+
+            assertEquals(listOf(3L, 4L), presenter.state.value.relationCandidates.map { it.taskLocalId })
+            assertEquals(setOf(1L, 2L), relationSearch.recentAsks.single().first)
+            assertEquals(5, relationSearch.recentAsks.single().second)
+        }
+
+    @Test
+    fun `an empty search asks the device nothing`() =
         runTest {
             val presenter = open(task(1))
             relationSearch.answer = listOf(candidate(3))
