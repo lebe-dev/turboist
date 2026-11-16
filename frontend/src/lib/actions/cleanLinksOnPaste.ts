@@ -6,7 +6,8 @@ import { stripTrackingParams } from '$lib/utils/linkCleanup';
  * Pasted text without such parameters is left to the browser.
  */
 export function cleanLinksOnPaste(node: HTMLTextAreaElement | HTMLInputElement) {
-	function onPaste(event: ClipboardEvent) {
+	function onPaste(rawEvent: Event) {
+		const event = rawEvent as ClipboardEvent;
 		const pasted = event.clipboardData?.getData('text/plain');
 		if (!pasted) return;
 		const cleaned = stripTrackingParams(pasted);
