@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -189,8 +190,10 @@ private fun AddTaskRelationSheet(
     var group by remember { mutableStateOf(TaskRelationGroup.BLOCKED_BY) }
     var typed by remember { mutableStateOf("") }
 
-    // Before anything is typed the picker offers the tasks opened lately.
-    LaunchedEffect(Unit) { onSearch("") }
+    // Before anything is typed the picker offers the tasks opened lately. The effect runs once,
+    // so it reads the callback through rememberUpdatedState instead of restarting on a new lambda.
+    val currentOnSearch by rememberUpdatedState(onSearch)
+    LaunchedEffect(Unit) { currentOnSearch("") }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
