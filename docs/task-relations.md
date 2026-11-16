@@ -31,7 +31,7 @@ A task is **blocked** when at least one task blocking it is still `open`.
 
 ## In the UI
 
-**On a task page** a *Relations* section lists the relations in three groups — Blocked by, Blocks, Related — each row linking to the other task and showing whether it is already done. The **Add relation** button opens a picker where you choose the type and then find the task either by typing part of its title or by entering its numeric **ID**.
+**On a task page** a *Relations* section lists the relations in three groups — Blocked by, Blocks, Related — each row linking to the other task and showing whether it is already done. The **Add relation** button opens a picker where you choose the type and then find the task either by typing part of its title or by entering its numeric **ID**. Before anything is typed the picker lists the last 5 tasks you opened (skipping the task itself and tasks it is already linked to), so a recently visited task is one tap away. The list is device-local, on web and on Android.
 
 **Drag and drop between subtasks.** On a task page you can drag one open subtask onto another; where you drop it decides what happens. Drop it on the target row's **top or bottom edge** to make the dragged one depend on it (the target blocks it) — the row is outlined in blue and shows a padlock, and a tooltip says "Will depend on …". Drop it on the row's **middle** to nest it as that row's own subtask instead — the row is outlined in violet and shows an indent arrow, and the tooltip says "Will become a subtask of …". On a desktop, drag with the mouse; on a phone — the web app and both mobile apps — press and hold a subtask, then move it; the same edge/middle split applies to a finger's position over the row.
 

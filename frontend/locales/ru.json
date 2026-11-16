@@ -1247,6 +1247,7 @@
 			"relationRemove": "Удалить связь",
 			"relationSearchPlaceholder": "Поиск задач или ввод ID…",
 			"relationSearchHint": "Введите минимум 2 символа или ID задачи.",
+			"relationRecent": "Недавно открытые",
 			"relationSearchFailed": "Не удалось выполнить поиск",
 			"relationAddFailed": "Не удалось добавить связь",
 			"relationRemoveFailed": "Не удалось удалить связь",

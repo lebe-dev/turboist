@@ -1247,6 +1247,7 @@
 			"relationRemove": "Remove relation",
 			"relationSearchPlaceholder": "Search tasks, or enter an ID…",
 			"relationSearchHint": "Type at least 2 characters, or a task ID.",
+			"relationRecent": "Recently opened",
 			"relationSearchFailed": "Search failed",
 			"relationAddFailed": "Failed to add relation",
 			"relationRemoveFailed": "Failed to remove relation",

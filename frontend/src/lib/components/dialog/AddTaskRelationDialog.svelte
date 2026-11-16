@@ -9,6 +9,8 @@
 	import type { RelationDirection, RelationType, Task } from '$lib/api/types';
 	import { describeError } from '$lib/utils/taskActions';
 	import { t } from '$lib/i18n';
+	import { recentItemsStore } from '$lib/stores/recentItems.svelte';
+	import { recentRelationTasks } from '$lib/utils/recentRelationTasks';
 
 	let {
 		open = $bindable(false),
@@ -50,6 +52,12 @@
 	// rejected as a duplicate — filter both out rather than letting the user hit a 409.
 	const selectable = $derived(
 		results.filter((task) => task.id !== currentTaskId && !excluded.has(task.id))
+	);
+
+	// Before anything is typed the dialog offers the tasks opened lately. They come
+	// from the device-local recents snapshot, so no request is made.
+	const recent = $derived(
+		recentRelationTasks(recentItemsStore.entries, new Set([currentTaskId, ...excludeTaskIds]))
 	);
 
 	// The backend requires q >= 2 characters (GET /api/v1/search), so shorter text is
@@ -110,9 +118,13 @@
 		timer = setTimeout(() => void runSearch(term), 250);
 	}
 
-	async function pick(task: Task): Promise<void> {
-		await onSelect?.(task.id, choice.type, choice.direction);
+	async function pickId(id: number): Promise<void> {
+		await onSelect?.(id, choice.type, choice.direction);
 		open = false;
+	}
+
+	function pick(task: Task): Promise<void> {
+		return pickId(task.id);
 	}
 
 	$effect(() => {
@@ -185,9 +197,27 @@
 						{$t('page.search.searching')}
 					</div>
 				{:else if !isSearchable(query.trim())}
-					<div class="px-2 py-6 text-center text-xs text-muted-foreground">
-						{$t('page.task.relationSearchHint')}
-					</div>
+					{#if recent.length === 0}
+						<div class="px-2 py-6 text-center text-xs text-muted-foreground">
+							{$t('page.task.relationSearchHint')}
+						</div>
+					{:else}
+						<div class="px-2 pb-1 pt-0.5 text-[11px] font-medium text-muted-foreground">
+							{$t('page.task.relationRecent')}
+						</div>
+						{#each recent as entry (entry.id)}
+							<button
+								type="button"
+								onclick={() => void pickId(entry.id)}
+								class="flex items-start gap-2 rounded px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+							>
+								<span class="min-w-0 flex-1">
+									<span class="block truncate">{entry.title}</span>
+									<span class="block text-[10px] text-muted-foreground">#{entry.id}</span>
+								</span>
+							</button>
+						{/each}
+					{/if}
 				{:else if selectable.length === 0}
 					<div class="px-2 py-6 text-center text-xs text-muted-foreground">
 						{$t('page.search.noTasksMatch')}
