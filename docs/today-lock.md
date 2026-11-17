@@ -66,6 +66,10 @@ until the server's answer arrives with the next sync.
 
 - `POST /api/v1/today/lock` (scope `settings:write`) turns the lock on and answers
   `{"lockedUntil": "<ISO-8601 UTC>"}`. Locking again while a lock runs keeps it.
+- `GET /api/v1/today/lock` (scope `settings:read`) answers `{"active", "lockedUntil",
+  "projectIds"}` — the projects that may still take work for today. The web quick-add dialog
+  reads it each time it opens under a lock, so it refuses a draft on every screen (task,
+  project, Today), not only where the Today list is on show.
 - The lock's end is `todayLockUntil` in the user settings (`GET /api/v1/settings`,
   `settings` in `GET /api/v1/config`, `user_settings` in the sync feed); `null` means the lock
   was never turned on and a moment in the past means no lock runs. `PATCH /api/v1/settings`

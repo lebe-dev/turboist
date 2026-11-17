@@ -326,7 +326,10 @@ Locking again while a lock runs keeps it; there is no way to lift it early. Whil
 any write that would put an open task due today or earlier into a project with no other
 open work on Today — or into the inbox — is refused with `409 today_locked`. Work for
 other days is unaffected. The end is served as `todayLockUntil` in the user settings
-(read-only there). See [docs/today-lock.md](docs/today-lock.md).
+(read-only there). `GET /api/v1/today/lock` (scope `settings:read`) answers
+`{"active": bool, "lockedUntil": "…"|null, "projectIds": [...]}`: the projects that may
+still take work for today (those with open work on Today plus the always-allowed ones), so a
+client can refuse a draft before sending it. See [docs/today-lock.md](docs/today-lock.md).
 
 ### Harpoon
 

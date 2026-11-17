@@ -119,6 +119,22 @@ func (s *TodayLockService) ActiveUntil(ctx context.Context) (time.Time, bool, er
 	return until, true, nil
 }
 
+// AllowedProjects returns the projects the running lock lets work for today into:
+// those with an open task due today or overdue plus the ones marked as always
+// allowed. active is false, with no projects, when no lock runs. It is the set
+// Check reads, so a client can refuse a draft before sending it.
+func (s *TodayLockService) AllowedProjects(ctx context.Context) (until time.Time, active bool, ids []int64, err error) {
+	until, active, err = s.ActiveUntil(ctx)
+	if err != nil || !active {
+		return time.Time{}, false, []int64{}, err
+	}
+	ids, err = s.tasks.TodayProjectIDs(ctx, until, 0)
+	if err != nil {
+		return time.Time{}, false, []int64{}, err
+	}
+	return until, true, ids, nil
+}
+
 // Check refuses a write that would put a task on Today in a project the lock
 // keeps out. before is the task as it was (nil for a new one); after is where
 // the write leaves it. A task that already stood on Today in the same project

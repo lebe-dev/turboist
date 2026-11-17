@@ -9,11 +9,15 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 )
 
-const opTodayLock = "handler.TodayLock.Lock"
+const (
+	opTodayLock      = "handler.TodayLock.Lock"
+	opTodayLockState = "handler.TodayLock.State"
+)
 
 // TodayLockHandler turns on the Today focus lock.
 //
 //	POST /api/v1/today/lock -> starts the lock until the next midnight
+//	GET  /api/v1/today/lock -> the running lock and the projects it lets into Today
 //
 // There is deliberately no way to lift the lock early: it ends on its own at
 // midnight in the server timezone. Its state is read from the user settings
@@ -30,6 +34,32 @@ func NewTodayLockHandler(lock *service.TodayLockService) *TodayLockHandler {
 // Register wires the route onto r (the /api/v1 group).
 func (h *TodayLockHandler) Register(r fiber.Router) {
 	r.Post("/today/lock", httpapi.RequireScope("settings:write"), h.lockToday)
+	r.Get("/today/lock", httpapi.RequireScope("settings:read"), h.lockState)
+}
+
+type todayLockStateResp struct {
+	// Active tells whether a lock runs right now.
+	Active bool `json:"active"`
+	// LockedUntil is the end of the running lock; null when none runs.
+	LockedUntil *string `json:"lockedUntil"`
+	// ProjectIDs are the projects that may take work for today while the lock
+	// runs: those with open work on Today plus the always-allowed ones. Empty
+	// when no lock runs.
+	ProjectIDs []int64 `json:"projectIds"`
+}
+
+func (h *TodayLockHandler) lockState(c fiber.Ctx) error {
+	logEntry(c, opTodayLockState)
+	until, active, ids, err := h.lock.AllowedProjects(c.Context())
+	if err != nil {
+		return httpapi.ErrInternal("read today lock").WithCause(err)
+	}
+	resp := todayLockStateResp{Active: active, ProjectIDs: ids}
+	if active {
+		end := model.FormatUTC(until)
+		resp.LockedUntil = &end
+	}
+	return c.JSON(resp)
 }
 
 type todayLockResp struct {

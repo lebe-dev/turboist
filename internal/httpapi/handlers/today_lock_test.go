@@ -406,3 +406,62 @@ func TestTodayLock_WithoutLockEverythingIsAllowed(t *testing.T) {
 		t.Errorf("inbox create: got %d, want 201; body: %s", resp.StatusCode, body)
 	}
 }
+
+// --- the lock state ------------------------------------------------------------
+
+type lockStateBody struct {
+	Active      bool    `json:"active"`
+	LockedUntil *string `json:"lockedUntil"`
+	ProjectIDs  []int64 `json:"projectIds"`
+}
+
+func getLockState(t *testing.T, e *apiEnv) lockStateBody {
+	t.Helper()
+	resp, body := doReq(t, e.app, e.authedReq(t, http.MethodGet, "/api/v1/today/lock", nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("lock state: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+	var out lockStateBody
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("parse lock state: %v; body: %s", err, body)
+	}
+	return out
+}
+
+func TestTodayLock_StateWithoutLockIsInactive(t *testing.T) {
+	e := setupAPIEnv(t)
+	got := getLockState(t, e)
+	if got.Active || got.LockedUntil != nil || got.ProjectIDs == nil || len(got.ProjectIDs) != 0 {
+		t.Errorf("state: got %+v, want inactive with an empty project list", got)
+	}
+}
+
+func TestTodayLock_StateListsTodaysProjects(t *testing.T) {
+	f := setupTodayLockEnv(t)
+	got := getLockState(t, f.e)
+	if !got.Active || got.LockedUntil == nil || *got.LockedUntil != nextUTCMidnightWire() {
+		t.Errorf("state: got %+v, want active until the next midnight", got)
+	}
+	if len(got.ProjectIDs) != 1 || got.ProjectIDs[0] != f.focus.ID {
+		t.Errorf("projectIds: got %v, want [%d]", got.ProjectIDs, f.focus.ID)
+	}
+}
+
+func TestTodayLock_StateIncludesExemptProjects(t *testing.T) {
+	f := setupTodayLockEnv(t)
+	resp, body := doReq(t, f.e.app, f.e.authedReq(t, http.MethodPatch,
+		fmt.Sprintf("/api/v1/projects/%d", f.other.ID), map[string]any{"todayLockExempt": true}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("mark exempt: got %d; body: %s", resp.StatusCode, body)
+	}
+	got := getLockState(t, f.e)
+	found := false
+	for _, id := range got.ProjectIDs {
+		if id == f.other.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("projectIds: got %v, want it to hold the exempt project %d", got.ProjectIDs, f.other.ID)
+	}
+}

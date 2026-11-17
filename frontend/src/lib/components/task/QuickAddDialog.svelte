@@ -1,7 +1,7 @@
 <script lang="ts">
 	import LockSimpleIcon from 'phosphor-svelte/lib/LockSimple';
 	import { Dialog as DialogPrimitive, Popover as PopoverPrimitive } from 'bits-ui';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { cleanLinksOnPaste } from '$lib/actions/cleanLinksOnPaste';
 	import { parseDate, type DateValue } from '@internationalized/date';
 	import { Button } from '$lib/components/ui/button';
@@ -243,6 +243,25 @@
 	const isToday = $derived(dueDate === todayKey);
 	const isTomorrow = $derived(dueDate === tomorrowKey);
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
+	// Projects the lock lets today's work into. The server's live set wins, read
+	// each time the dialog opens under a lock, so it is right on every screen. Until
+	// it arrives (or if the read fails) fall back to what the Today screen
+	// published plus the always-allowed projects; with neither, the set is unknown
+	// and only the inbox is refused here.
+	const lockAllowedProjectIds = $derived.by((): number[] | null => {
+		if (todayLockStore.allowedProjectIds) return todayLockStore.allowedProjectIds;
+		if (!todayProjectsStore.known) return null;
+		const exempt = projectsStore.items.filter((p) => p.todayLockExempt).map((p) => p.id);
+		return [...new Set([...todayProjectsStore.ids, ...exempt])];
+	});
+	$effect(() => {
+		if (!open) {
+			todayLockStore.forgetAllowed();
+			return;
+		}
+		if (isWrap || !untrack(() => todayLockStore.isActive(nowStore.now))) return;
+		void todayLockStore.refreshAllowed();
+	});
 	// Warn before the server refuses: while the Today focus lock runs, a task
 	// for today may only go into one of today's projects. The submit is disabled
 	// while it holds; the server still has the last word.
@@ -253,7 +272,7 @@
 				dueKey: dueDate,
 				todayKey,
 				projectId: projectId ? Number(projectId) : null,
-				todayProjectIds: todayProjectsStore.known ? todayProjectsStore.ids : null
+				todayProjectIds: lockAllowedProjectIds
 			})
 	);
 	const weekRange = $derived(weekRangeKeys(nowStore.now, configStore.value?.timezone ?? null));

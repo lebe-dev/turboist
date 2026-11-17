@@ -1,11 +1,13 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { labelsStore } from '$lib/stores/labels.svelte';
 import { projectsStore } from '$lib/stores/projects.svelte';
 import { todayProjectsStore } from '$lib/stores/todayProjects.svelte';
 import { todayLockStore } from '$lib/stores/todayLock.svelte';
 import { nowStore } from '$lib/stores/now.svelte';
 import { settingsStore } from '$lib/stores/settings.svelte';
+import { setApiClient, type ApiClient } from '$lib/api/client';
+import { today as todayApi } from '$lib/api/endpoints/today';
 import QuickAddDialog from './QuickAddDialog.svelte';
 
 afterEach(async () => {
@@ -128,6 +130,11 @@ describe('QuickAddDialog under the Today lock', () => {
 		}) as unknown as Parameters<typeof projectsStore.setItems>[0][number];
 	const inHours = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 
+	beforeEach(() => {
+		// The lock state is read through the shared client; the endpoint itself is stubbed per test.
+		setApiClient({} as ApiClient);
+	});
+
 	afterEach(() => {
 		todayLockStore.clear();
 		todayProjectsStore.clear();
@@ -168,6 +175,70 @@ describe('QuickAddDialog under the Today lock', () => {
 		await screen.findByRole('dialog');
 		const button = screen.getByRole('button', { name: 'Add task' }) as HTMLButtonElement;
 		expect(button.disabled).toBe(false);
+	});
+
+	it("blocks a project outside today's set read from the server on any screen", async () => {
+		// A task or project page: the Today screen has published nothing.
+		vi.spyOn(todayApi, 'lockState').mockResolvedValue({
+			active: true,
+			lockedUntil: inHours(48),
+			projectIds: [1]
+		});
+		todayLockStore.setUntil(inHours(48));
+		projectsStore.setItems([project(1, 'Focus'), project(2, 'Other')]);
+		render(QuickAddDialog, {
+			props: {
+				open: true,
+				defaultTitle: 'Task',
+				defaultProjectId: 2,
+				defaultDueDate: nowStore.todayKey
+			}
+		});
+		await screen.findByTestId('today-lock-hint');
+		const button = screen.getByRole('button', { name: 'Add task' }) as HTMLButtonElement;
+		expect(button.disabled).toBe(true);
+	});
+
+	it('lets a project through when the server lists it, even if Today shows none of its tasks', async () => {
+		vi.spyOn(todayApi, 'lockState').mockResolvedValue({
+			active: true,
+			lockedUntil: inHours(48),
+			projectIds: [2]
+		});
+		todayLockStore.setUntil(inHours(48));
+		projectsStore.setItems([project(1, 'Focus'), project(2, 'Other')]);
+		render(QuickAddDialog, {
+			props: {
+				open: true,
+				defaultTitle: 'Task',
+				defaultProjectId: 2,
+				defaultDueDate: nowStore.todayKey
+			}
+		});
+		await waitFor(() => expect(todayLockStore.allowedProjectIds).toEqual([2]));
+		expect(screen.queryByTestId('today-lock-hint')).toBeNull();
+		const button = screen.getByRole('button', { name: 'Add task' }) as HTMLButtonElement;
+		expect(button.disabled).toBe(false);
+	});
+
+	it('treats an always-allowed project as open while the server set is not known yet', async () => {
+		vi.spyOn(todayApi, 'lockState').mockRejectedValue(new Error('offline'));
+		todayLockStore.setUntil(inHours(48));
+		projectsStore.setItems([
+			project(1, 'Focus'),
+			{ ...project(2, 'Other'), todayLockExempt: true } as ReturnType<typeof project>
+		]);
+		todayProjectsStore.set([1]);
+		render(QuickAddDialog, {
+			props: {
+				open: true,
+				defaultTitle: 'Task',
+				defaultProjectId: 2,
+				defaultDueDate: nowStore.todayKey
+			}
+		});
+		await screen.findByRole('dialog');
+		expect(screen.queryByTestId('today-lock-hint')).toBeNull();
 	});
 
 	it('warns for the inbox, which a locked today never takes', async () => {

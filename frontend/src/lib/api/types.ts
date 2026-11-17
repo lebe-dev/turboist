@@ -110,6 +110,8 @@ export interface Project {
 	isPrivate: boolean;
 	labels: Label[];
 	troikiCategory: TroikiCategory | null;
+	/** Marked as always allowed on Today while the focus lock runs. */
+	todayLockExempt?: boolean;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -402,6 +404,13 @@ export interface UserSettings {
 	 * `POST /api/v1/today/lock`, never through a settings PATCH.
 	 */
 	todayLockUntil?: string | null;
+}
+
+/** Answer of `GET /api/v1/today/lock`: the running lock and who may still enter Today. */
+export interface TodayLockState {
+	active: boolean;
+	lockedUntil: string | null;
+	projectIds: number[];
 }
 
 /** Answer of `POST /api/v1/today/lock`. */

@@ -3979,6 +3979,31 @@ paths:
       tags:
       - views
   /api/v1/today/lock:
+    get:
+      description: Whether the lock runs, when it ends, and the project ids that may
+        still take work for today while it runs (projects with open work on Today
+        plus the always-allowed ones). Clients use it to refuse a draft before sending
+        it.
+      operationId: getTodayLock
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandlersTodayLockStateResp'
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HttpapiErrorEnvelope'
+          description: Error
+      security:
+      - bearerAuth:
+        - settings:read
+      summary: Today focus lock state
+      tags:
+      - settings
     post:
       description: Until the next midnight in the server timezone, no task may be
         put on Today (due today or earlier) in a project that has no open task there,
@@ -6422,6 +6447,22 @@ components:
       properties:
         lockedUntil:
           type: string
+      type: object
+    HandlersTodayLockStateResp:
+      properties:
+        active:
+          type: boolean
+        lockedUntil:
+          type:
+          - "null"
+          - string
+        projectIds:
+          items:
+            format: int64
+            type: integer
+          type:
+          - array
+          - "null"
       type: object
     HandlersTroikiProjectDTO:
       properties:
