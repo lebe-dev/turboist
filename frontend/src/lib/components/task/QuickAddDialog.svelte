@@ -244,8 +244,8 @@
 	const isTomorrow = $derived(dueDate === tomorrowKey);
 	const isCustomDate = $derived(!!dueDate && !isToday && !isTomorrow);
 	// Warn before the server refuses: while the Today focus lock runs, a task
-	// for today may only go into one of today's projects. Advisory — the submit
-	// stays enabled and the server has the last word.
+	// for today may only go into one of today's projects. The submit is disabled
+	// while it holds; the server still has the last word.
 	const todayLockConflict = $derived(
 		!isWrap &&
 			wouldTodayLockRefuse({
@@ -371,7 +371,7 @@
 
 	async function submit(e: Event) {
 		e.preventDefault();
-		if (titleLines.length === 0 || submitting) return;
+		if (titleLines.length === 0 || submitting || todayLockConflict) return;
 		submitting = true;
 		try {
 			const resolvedLabels = labelIds
@@ -814,7 +814,10 @@
 						<Button
 							type="submit"
 							size="sm"
-							disabled={titleLines.length === 0 || submitting || (isWrap && !projectId)}
+							disabled={titleLines.length === 0 ||
+								submitting ||
+								todayLockConflict ||
+								(isWrap && !projectId)}
 						>
 							{#if isWrap}
 								{$t('dialog.quickAdd.wrap.submit')}

@@ -154,6 +154,22 @@ describe('QuickAddDialog under the Today lock', () => {
 		expect(hint.textContent).toContain('Until midnight, today takes only today’s projects');
 	});
 
+	it('disables the submit button while the lock would refuse the task', async () => {
+		todayLockStore.setUntil(inHours(48));
+		renderFor(2);
+		await screen.findByTestId('today-lock-hint');
+		const button = screen.getByRole('button', { name: 'Add task' }) as HTMLButtonElement;
+		expect(button.disabled).toBe(true);
+	});
+
+	it("keeps the submit button enabled for one of today's projects", async () => {
+		todayLockStore.setUntil(inHours(48));
+		renderFor(1);
+		await screen.findByRole('dialog');
+		const button = screen.getByRole('button', { name: 'Add task' }) as HTMLButtonElement;
+		expect(button.disabled).toBe(false);
+	});
+
 	it('warns for the inbox, which a locked today never takes', async () => {
 		todayLockStore.setUntil(inHours(48));
 		renderFor(null);

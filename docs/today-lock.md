@@ -50,6 +50,10 @@ is never refused.
 The inbox processor follows the same rule: a proposed due date that the lock would refuse is
 left off, and the task is still filed.
 
+The quick-add dialog (web and Android) disables its submit button while the draft would be
+refused, so such a task cannot be added from there at all; pick one of today's projects or
+another day.
+
 ## Turning it on
 
 The padlock next to the Today title (web and Android) shows a
