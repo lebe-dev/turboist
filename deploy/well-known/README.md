@@ -12,9 +12,24 @@ and looks for a `delegate_permission/common.get_login_creds` entry naming this
 package and the certificate that signed the **installed** APK. Without it the
 passkey sheet fails with *"RP ID not found"*.
 
+Both relations in the array are deliberate. Only `get_login_creds` is about
+passkeys, but Google's FIDO2 documentation still asks for
+`delegate_permission/common.handle_all_urls` beside it until its own migration
+completes, and a file carrying `get_login_creds` alone is refused by the device
+with *"RP ID cannot be validated"* — while Google's Digital Asset Links API
+answers `linked: true` for the same file, which is what makes the failure look
+like a fingerprint problem. `handle_all_urls` changes nothing about link
+handling here: this app claims no verified web links.
+
 The Android package is `ru.tinyops.turboist.native`. The entry is keyed by package
 name, so an app missing from this file gets the passkey sheet and then a failure,
-however correct its fingerprint is.
+however correct its fingerprint is. A deployment that predates the native client
+may still name `ru.tinyops.turboist` — the Capacitor app that no longer exists —
+and a file naming only that one vouches for nothing: the device refuses every
+attempt with a `DataError` ("RP ID cannot be validated") before the sheet is
+drawn, which the client reports as *"This device could not verify the server for
+passkeys"*. `just android-native-passkey-preflight` checks the name in this
+directory, but only in this directory; an installed instance serves its own copy.
 
 `sha256_cert_fingerprints` must list every signing certificate in use:
 

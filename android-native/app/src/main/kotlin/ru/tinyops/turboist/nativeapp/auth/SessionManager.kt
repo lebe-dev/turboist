@@ -21,7 +21,9 @@ import ru.tinyops.turboist.core.network.dto.passkeyCredentialOf
 import ru.tinyops.turboist.core.network.isRoutineFailure
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyAuthenticator
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyOutcome
-import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyProblem
+import ru.tinyops.turboist.nativeapp.auth.passkey.faultSeverity
+import ru.tinyops.turboist.nativeapp.auth.passkey.isFault
+import ru.tinyops.turboist.nativeapp.auth.passkey.passkeyDomErrorName
 import ru.tinyops.turboist.nativeapp.auth.passkey.passkeyProblemOf
 import ru.tinyops.turboist.nativeapp.di.ApplicationScope
 import ru.tinyops.turboist.nativeapp.session.OfflineSessionSource
@@ -242,7 +244,16 @@ class SessionManager
             } catch (e: Exception) {
                 Log.i(TAG, "A passkey sign-in did not complete", e)
                 val problem = passkeyProblemOf(e)
-                if (problem == PasskeyProblem.Failed) Faults.report("auth", "A passkey sign-in failed unexpectedly", e)
+                if (problem.isFault) {
+                    val tags = passkeyDomErrorName(e)?.let { mapOf("dom_error" to it) }.orEmpty()
+                    Faults.report(
+                        "auth",
+                        "A passkey sign-in failed",
+                        e,
+                        severity = problem.faultSeverity,
+                        tags = tags,
+                    )
+                }
                 PasskeyOutcome.Failed(problem)
             }
 

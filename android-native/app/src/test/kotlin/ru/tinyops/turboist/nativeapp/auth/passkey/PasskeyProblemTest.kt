@@ -8,10 +8,14 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
 import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
+import androidx.credentials.exceptions.domerrors.AbortError
+import androidx.credentials.exceptions.domerrors.DataError
 import androidx.credentials.exceptions.domerrors.NotAllowedError
 import androidx.credentials.exceptions.domerrors.SecurityError
+import androidx.credentials.exceptions.domerrors.TimeoutError
 import androidx.credentials.exceptions.publickeycredential.CreatePublicKeyCredentialDomException
 import androidx.credentials.exceptions.publickeycredential.GetPublicKeyCredentialDomException
+import ru.tinyops.turboist.core.model.diagnostics.FaultSeverity
 import ru.tinyops.turboist.core.network.ApiErrorBody
 import ru.tinyops.turboist.core.network.ApiErrorCodes
 import ru.tinyops.turboist.core.network.ApiException
@@ -32,6 +36,31 @@ class PasskeyProblemTest {
     fun `a dismissed sheet is a choice, not a failure`() {
         assertEquals(PasskeyProblem.Cancelled, passkeyProblemOf(GetCredentialCancellationException()))
         assertEquals(PasskeyProblem.Cancelled, passkeyProblemOf(CreateCredentialCancellationException()))
+    }
+
+    @Test
+    fun `a sheet closed by the user surfaces as a not-allowed error and is still a choice`() {
+        // The platform reports a dismissed or timed-out passkey sheet to the web
+        // standard's "not allowed" error rather than a cancellation of its own.
+        assertEquals(
+            PasskeyProblem.Cancelled,
+            passkeyProblemOf(GetPublicKeyCredentialDomException(NotAllowedError(), "not allowed")),
+        )
+        assertEquals(
+            PasskeyProblem.Cancelled,
+            passkeyProblemOf(CreatePublicKeyCredentialDomException(NotAllowedError(), "not allowed")),
+        )
+    }
+
+    @Test
+    fun `an aborted or timed out ceremony is a choice too, and names its dom error`() {
+        assertEquals(PasskeyProblem.Cancelled, passkeyProblemOf(GetPublicKeyCredentialDomException(AbortError(), "x")))
+        assertEquals(
+            PasskeyProblem.Cancelled,
+            passkeyProblemOf(GetPublicKeyCredentialDomException(TimeoutError(), "x")),
+        )
+        assertEquals("AbortError", passkeyDomErrorName(GetPublicKeyCredentialDomException(AbortError(), "x")))
+        assertEquals(null, passkeyDomErrorName(IllegalStateException("x")))
     }
 
     @Test
@@ -63,11 +92,45 @@ class PasskeyProblemTest {
     }
 
     @Test
-    fun `any other ceremony failure still points at the password`() {
+    fun `the platform refusing the relying party before the sheet is the same setup problem`() {
+        // Credential Manager validates the association itself, and a validation it
+        // could not complete comes back as a data error ("RP ID cannot be
+        // validated") rather than the web standard's security error. It used to
+        // land in the catch-all, where the user is told only that something failed
+        // and the one actionable sentence — the server's setup is incomplete — was
+        // never shown.
         assertEquals(
-            PasskeyProblem.Failed,
-            passkeyProblemOf(GetPublicKeyCredentialDomException(NotAllowedError(), "not allowed")),
+            PasskeyProblem.Untrusted,
+            passkeyProblemOf(GetPublicKeyCredentialDomException(DataError(), "RP ID cannot be validated.")),
         )
+        assertEquals(
+            PasskeyProblem.Untrusted,
+            passkeyProblemOf(CreatePublicKeyCredentialDomException(DataError(), "RP ID cannot be validated.")),
+        )
+    }
+
+    @Test
+    fun `only a failure nobody chose is worth a report`() {
+        // Everything else is the feature behaving correctly: a dismissal, a phone
+        // without a credential, a refusal the server meant.
+        assertEquals(true, PasskeyProblem.Failed.isFault)
+        assertEquals(true, PasskeyProblem.Untrusted.isFault)
+        assertEquals(false, PasskeyProblem.Cancelled.isFault)
+        assertEquals(false, PasskeyProblem.NotEnrolled.isFault)
+        assertEquals(false, PasskeyProblem.Unsupported.isFault)
+        assertEquals(false, PasskeyProblem.Refused.isFault)
+        assertEquals(false, PasskeyProblem.AlreadyRegistered.isFault)
+        assertEquals(false, PasskeyProblem.LimitReached.isFault)
+        assertEquals(false, PasskeyProblem.Unreachable.isFault)
+
+        // A misconfigured instance is stated on screen and answered with the
+        // password, so it is a warning; an unexplained failure is not.
+        assertEquals(FaultSeverity.WARNING, PasskeyProblem.Untrusted.faultSeverity)
+        assertEquals(FaultSeverity.ERROR, PasskeyProblem.Failed.faultSeverity)
+    }
+
+    @Test
+    fun `any other ceremony failure still points at the password`() {
         assertEquals(PasskeyProblem.Failed, passkeyProblemOf(CreateCredentialUnknownException()))
         assertEquals(PasskeyProblem.Failed, passkeyProblemOf(IllegalStateException("something else")))
     }

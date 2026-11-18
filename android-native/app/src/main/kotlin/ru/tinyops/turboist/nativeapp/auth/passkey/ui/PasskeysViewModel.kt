@@ -14,6 +14,9 @@ import ru.tinyops.turboist.core.network.isRoutineFailure
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyAuthenticator
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyProblem
 import ru.tinyops.turboist.nativeapp.auth.passkey.PasskeyRegistry
+import ru.tinyops.turboist.nativeapp.auth.passkey.faultSeverity
+import ru.tinyops.turboist.nativeapp.auth.passkey.isFault
+import ru.tinyops.turboist.nativeapp.auth.passkey.passkeyDomErrorName
 import ru.tinyops.turboist.nativeapp.auth.passkey.passkeyProblemOf
 import javax.inject.Inject
 
@@ -143,8 +146,15 @@ class PasskeysViewModel
                     throw e
                 } catch (e: Exception) {
                     val problem = passkeyProblemOf(e)
-                    if (problem == PasskeyProblem.Failed) {
-                        Faults.report("account", "A passkey ceremony failed unexpectedly", e)
+                    if (problem.isFault) {
+                        val tags = passkeyDomErrorName(e)?.let { mapOf("dom_error" to it) }.orEmpty()
+                        Faults.report(
+                            "account",
+                            "A passkey ceremony failed",
+                            e,
+                            severity = problem.faultSeverity,
+                            tags = tags,
+                        )
                     }
                     mutable.value = mutable.value.copy(problem = problem)
                 } finally {

@@ -8,9 +8,15 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
 import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
+import androidx.credentials.exceptions.domerrors.AbortError
+import androidx.credentials.exceptions.domerrors.DataError
+import androidx.credentials.exceptions.domerrors.DomError
+import androidx.credentials.exceptions.domerrors.NotAllowedError
 import androidx.credentials.exceptions.domerrors.SecurityError
+import androidx.credentials.exceptions.domerrors.TimeoutError
 import androidx.credentials.exceptions.publickeycredential.CreatePublicKeyCredentialDomException
 import androidx.credentials.exceptions.publickeycredential.GetPublicKeyCredentialDomException
+import ru.tinyops.turboist.core.model.diagnostics.FaultSeverity
 import ru.tinyops.turboist.core.network.ApiErrorCodes
 import ru.tinyops.turboist.core.network.ApiException
 
@@ -84,6 +90,17 @@ fun passkeyProblemOf(error: Throwable): PasskeyProblem =
         // does not name this package, or names a different signing certificate.
         error is GetPublicKeyCredentialDomException && error.domError is SecurityError -> PasskeyProblem.Untrusted
         error is CreatePublicKeyCredentialDomException && error.domError is SecurityError -> PasskeyProblem.Untrusted
+        // The same refusal as the security error above, reported by the platform
+        // instead of the web standard: Credential Manager checks that the relying
+        // party vouches for this app *before* it draws the sheet, and a check it
+        // could not complete arrives as a data error — its own words are "RP ID
+        // cannot be validated" — not as a security one. Nothing reached an
+        // authenticator, so retrying is pointless and the sentence is the same.
+        error is GetPublicKeyCredentialDomException && error.domError is DataError -> PasskeyProblem.Untrusted
+        error is CreatePublicKeyCredentialDomException && error.domError is DataError -> PasskeyProblem.Untrusted
+        // A sheet the user closed, or let time out, is reported by the platform as
+        // the web standard's "not allowed" error rather than as a cancellation.
+        passkeyDomErrorOf(error)?.endsTheCeremonyQuietly() == true -> PasskeyProblem.Cancelled
         error is ApiException.Network -> PasskeyProblem.Unreachable
         error is ApiException && error.code == ApiErrorCodes.PASSKEY_EXISTS -> PasskeyProblem.AlreadyRegistered
         error is ApiException && error.code == ApiErrorCodes.LIMIT_EXCEEDED -> PasskeyProblem.LimitReached
@@ -98,3 +115,44 @@ fun passkeyProblemOf(error: Throwable): PasskeyProblem =
 
 /** The status a server that never brought WebAuthn up answers these routes with. */
 private const val NOT_FOUND = 404
+
+private fun DomError.endsTheCeremonyQuietly(): Boolean =
+    this is NotAllowedError || this is AbortError || this is TimeoutError
+
+/**
+ * The platform's own name for why a ceremony failed, when it gave one.
+ *
+ * Only the class name of the standard error is returned — never its message —
+ * so it is safe to attach to a report and tells which case was not recognised.
+ */
+fun passkeyDomErrorName(error: Throwable): String? = passkeyDomErrorOf(error)?.let { it::class.java.simpleName }
+
+private fun passkeyDomErrorOf(error: Throwable): DomError? =
+    when (error) {
+        is GetPublicKeyCredentialDomException -> error.domError
+        is CreatePublicKeyCredentialDomException -> error.domError
+        else -> null
+    }
+
+/**
+ * Whether this is a fault worth a report, as opposed to one of the ways a passkey
+ * is expected not to work.
+ *
+ * A dismissed sheet, a phone holding no credential for the account, a server
+ * that refused the assertion and a device without passkey support are all the
+ * feature behaving correctly, and reporting them would bury the two cases that
+ * are not: a ceremony that failed for a reason nobody chose, and a relying party
+ * this app cannot be used with at all — a setup problem on the server, which the
+ * user cannot fix and only its owner can.
+ */
+val PasskeyProblem.isFault: Boolean
+    get() = this == PasskeyProblem.Failed || this == PasskeyProblem.Untrusted
+
+/**
+ * How much a report about this problem matters. Only asked of an [isFault].
+ *
+ * A misconfigured instance is handled and stated on screen, so it is a warning;
+ * anything else that ended in [PasskeyProblem.Failed] is unexplained by design.
+ */
+val PasskeyProblem.faultSeverity: FaultSeverity
+    get() = if (this == PasskeyProblem.Failed) FaultSeverity.ERROR else FaultSeverity.WARNING

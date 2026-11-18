@@ -110,10 +110,12 @@ directory into the container. A reverse proxy serving the same two paths works
 just as well.
 
 **`/.well-known/assetlinks.json`** (Android) — needs the
-`delegate_permission/common.get_login_creds` relation and the SHA-256 fingerprint
-of the certificate that signed the **installed** APK, under the package
-`ru.tinyops.turboist.native`. An app that is not named here gets the passkey sheet
-and then a failure, however correct its fingerprint is.
+`delegate_permission/common.get_login_creds` relation **and**
+`delegate_permission/common.handle_all_urls` (Google still requires both, even
+though only the first is about passkeys), plus the SHA-256 fingerprint of the
+certificate that signed the **installed** APK, under the package
+`ru.tinyops.turboist.native`. An app that is not named here gets the passkey
+sheet and then a failure, however correct its fingerprint is.
 
 ```json
 [
@@ -243,7 +245,7 @@ worth reading as a diagnosis:
 | On screen | What it means |
 |---|---|
 | No passkey button on the sign-in screen | `GET /api/config` said `passkeys.enabled` or `passkeys.available` is false: WebAuthn is not configured on that instance, or nobody has enrolled a credential yet. |
-| *"This device could not verify the server for passkeys"* | The device fetched `assetlinks.json` and it did not vouch for this app: the file is missing, answered by the SPA fallback, names only the other package, or lists a fingerprint that is not the installed APK's. |
+| *"This device could not verify the server for passkeys"* | The device would not accept this instance as the credential's owner. It fetched `assetlinks.json` and the file did not vouch for this app — missing, answered by the SPA fallback, naming only the other package, listing a fingerprint that is not the installed APK's, or served from a host the device cannot reach over a trusted certificate. The platform reports this check as a *data* error, the browser as a *security* error; both land on this sentence. |
 | *"This device has no passkey for this account"* | The account has passkeys, but none of them lives on (or syncs to) this phone. Sign in with the password once and add one from settings. |
 | *"The server did not accept that passkey"* | The ceremony finished on the device and the server refused it — most often the `android:apk-key-hash:` origin missing from `WEBAUTHN_ORIGINS`. |
 
@@ -253,12 +255,58 @@ worth reading as a diagnosis:
 |---|---|
 | No passkey button on the login screen | No passkey registered yet, or the browser has no WebAuthn support (check `GET /api/config` → `passkeys.available`). |
 | Registration fails immediately in the browser | Not a secure context — plain HTTP over a LAN address or IP. |
-| Android: *"RP ID not found"* | The device could not fetch a valid `assetlinks.json` from the RP ID's domain: not served, served as HTML by the SPA fallback, or unreadable by the container user. |
-| Android: *"RP ID cannot be validated"* | The file was fetched but does not vouch for this app: wrong package name, or a fingerprint that is not the one which signed the installed APK. |
+| Android: *"RP ID not found"* | The device could not fetch a valid `assetlinks.json` from the RP ID's domain: not served, served as HTML by the SPA fallback, unreadable by the container user, unreachable from the device, or behind a certificate the device does not trust. The platform folds this into its `[50152]` validation failure, which an app only sees as a `DataError` with no further detail. |
+| Android: *"RP ID cannot be validated"* (`GetPublicKeyCredentialDomException` with `dom_error=DataError`) | The file was fetched but does not vouch for this app: wrong package name, a fingerprint that is not the one which signed the installed APK, or a `relation` array without `delegate_permission/common.handle_all_urls`. Google's own Digital Asset Links check reports `linked: true` on `get_login_creds` alone, so the fingerprint being right does not mean the file is. |
+| Android app: the sign-in screen says the server could not be verified, in a development setup | The device fetches `https://<rp-id>/.well-known/assetlinks.json` itself, over the public internet and with its own trust store. An instance on a LAN address, an internal-only DNS name, a self-signed certificate on a development domain, or `WELL_KNOWN_PATH` left unset fails that fetch even though the app reaches the server fine — and a plain-HTTP instance can never pass it. Point the app at an HTTPS instance on a real domain that serves the file. |
 | Native: `Cannot read properties of undefined (reading 'id')` | The passkey plugin is missing from the build, or the call reached it shaped as the wrong ceremony. Both are covered by `frontend/src/lib/webauthn/` and its tests — see [mobile.md](mobile.md). |
 | `401` right after the device prompt succeeds | The reported origin is not allowed: add the Android `apk-key-hash` origin to `WEBAUTHN_ORIGINS`, or check that the iOS build sends the configured HTTPS origin. |
 | Everything is fixed but the device still fails | Both platforms cache the association result. Reinstall the app (Android: or clear Google Play services storage) rather than assuming the fix did not land. |
 | All passkeys stopped working after a move | The RP ID changed. Sign in with the password and enrol again. |
+
+### Android: the device will not accept the server (`DataError`)
+
+`GetPublicKeyCredentialDomException` with `dom_error=DataError` means nothing
+reached an authenticator: Credential Manager validates the association *before*
+it draws the sheet, and everything it can refuse there — no association file, the
+SPA's `index.html` served with `200`, a package name that is not the installed
+app's, a fingerprint that is not the APK's, a host it cannot reach over a trusted
+certificate — arrives as one `DataError` with no detail. The phone shows *"This
+device could not verify the server for passkeys"*, and the server log holds
+`auth: passkey login challenge issued` with no `passkey login ok` or `passkey
+login rejected` after it, because nothing was ever posted back.
+
+The checks, in the order worth doing them:
+
+```sh
+# 1. The file reaches the internet as JSON, from the domain the app is pointed at.
+#    Look at the body: a "200" whose body is the web app proves nothing.
+curl -si https://todo.example.com/.well-known/assetlinks.json
+
+# 2. It names the native package — not the Capacitor app that no longer exists,
+#    `ru.tinyops.turboist` — with the fingerprint of the certificate that signed
+#    the INSTALLED APK (a debug build: this machine's debug keystore).
+keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore \
+    -storepass android | grep SHA256
+
+# 3. Google's own validator agrees. `"linked": true` is the pass; a bare
+#    `{"maxAge": "3600s"}` is "not linked", cached for an hour.
+curl -sG https://digitalassetlinks.googleapis.com/v1/assetlinks:check \
+    --data-urlencode source.web.site=https://todo.example.com \
+    --data-urlencode relation=delegate_permission/common.get_login_creds \
+    --data-urlencode target.android_app.package_name=ru.tinyops.turboist.native \
+    --data-urlencode "target.android_app.certificate.sha256_fingerprint=91:99:F3:…"
+```
+
+If all three pass, the remaining candidate is the origin: the same fingerprint
+converted to `android:apk-key-hash:` has to be in `WEBAUTHN_ORIGINS` (step 3
+above) — but a gap there shows up as a `401` *after* the sheet succeeds, not as
+this error.
+
+Two caches stand between a corrected file and a working phone: Google's validator
+keeps its verdict for up to an hour, and the device keeps its own. Reinstalling
+the app, or clearing Google Play services storage, makes the device ask again,
+but the validator's copy still has to expire — so a fix can take an hour to show
+on a phone that has already tried, and a retry a minute later proves nothing.
 
 ## How it works
 
