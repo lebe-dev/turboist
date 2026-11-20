@@ -185,6 +185,22 @@ class TaskListScreenTest {
     }
 
     @Test
+    fun `a completion the Today lock refuses is said as finished work, not as scheduling`() {
+        refuseWith = WriteRefused.TodayLocked(untilMillis = Long.MAX_VALUE)
+        tasks.value = listOf(task(1, title = "Buy milk"))
+        showDay()
+
+        compose.onNodeWithContentDescription(text(R.string.task_markComplete)).performClick()
+        compose.waitUntil(TIMEOUT_MILLIS) {
+            compose.onAllNodesWithText(text(R.string.task_toast_todayLockedComplete))
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+
+        compose.onNodeWithText("Buy milk").assertIsDisplayed()
+    }
+
+    @Test
     fun `a day with nothing on it says so`() {
         tasks.value = emptyList()
         showDay()

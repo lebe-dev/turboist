@@ -65,8 +65,8 @@ func PlacementOf(t *model.Task) TodayPlacement {
 // TaskService.Create (and everything built on it: subtasks, duplicates, splits,
 // groups, templates), MoveService.Move, CompleteService.Uncomplete, the task
 // PATCH handler and the inbox processor. Every completion asks CheckCompletion
-// first. A recurring task moving on to its next run is the schedule the user
-// already chose and is not checked.
+// first. The advance a repeating task makes to its next run is the schedule the
+// user already chose and is not checked; ticking the task off still is.
 type TodayLockService struct {
 	users *repo.UserRepo
 	tasks *repo.TaskRepo

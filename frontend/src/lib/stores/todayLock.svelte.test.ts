@@ -54,4 +54,41 @@ describe('todayLockStore', () => {
 		await expect(todayLockStore.lock()).rejects.toThrow('offline');
 		expect(todayLockStore.until).toBeNull();
 	});
+
+	it('reads the live set of projects a running lock lets work into', async () => {
+		fetchMock.mockResolvedValue({
+			active: true,
+			lockedUntil: '2026-11-11T21:00:00.000Z',
+			projectIds: [2, 7]
+		});
+		await todayLockStore.refreshAllowed();
+		expect(fetchMock).toHaveBeenCalledWith('/api/v1/today/lock');
+		expect(todayLockStore.allowedProjectIds).toEqual([2, 7]);
+	});
+
+	it('forgets the set once no lock runs, so a stale one cannot judge a draft', async () => {
+		fetchMock.mockResolvedValue({ active: false, lockedUntil: null, projectIds: [] });
+		await todayLockStore.refreshAllowed();
+		expect(todayLockStore.allowedProjectIds).toBeNull();
+	});
+
+	it('leaves the set unknown when the read fails, and the server decides', async () => {
+		todayLockStore.forgetAllowed();
+		expect(todayLockStore.allowedProjectIds).toBeNull();
+		fetchMock.mockRejectedValue(new Error('offline'));
+		await todayLockStore.refreshAllowed();
+		expect(todayLockStore.allowedProjectIds).toBeNull();
+	});
+
+	it('drops the last read on demand', async () => {
+		fetchMock.mockResolvedValue({
+			active: true,
+			lockedUntil: '2026-11-11T21:00:00.000Z',
+			projectIds: [2]
+		});
+		await todayLockStore.refreshAllowed();
+		expect(todayLockStore.allowedProjectIds).toEqual([2]);
+		todayLockStore.forgetAllowed();
+		expect(todayLockStore.allowedProjectIds).toBeNull();
+	});
 });

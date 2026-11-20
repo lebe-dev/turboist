@@ -480,6 +480,42 @@ class TodayLockGuardTest : WriteTest() {
             assertTrue(queue().isEmpty())
         }
 
+    @Test
+    fun `a task planned for the week is not finished until it is taken into the day`() =
+        runTest {
+            val (_, other) = givenFocusDay()
+            val planned = givenTask(title = "This week", serverId = 11, projectLocalId = other)
+            db.tasks().update(assertNotNull(db.tasks().byLocalId(planned)).copy(planState = PlanState.WEEK))
+
+            // The week exception is about taking work into Today, not about
+            // finishing it: the project is not part of the day yet.
+            assertFailsWith<WriteRefused.TodayLocked> { tasks.complete(planned) }
+
+            tasks.patch(planned, TaskEdit(dueAt = Clearable.Set(today)))
+            tasks.complete(planned)
+
+            assertEquals(TaskStatus.COMPLETED, assertNotNull(db.tasks().byLocalId(planned)).status)
+        }
+
+    @Test
+    fun `finishing a task takes its undated subtask along`() =
+        runTest {
+            val (focus, _) = givenFocusDay()
+            val parent = givenTask(title = "Today's work", serverId = 11, projectLocalId = focus, dueAt = today)
+            val child =
+                givenTask(
+                    title = "Step",
+                    serverId = 12,
+                    projectLocalId = focus,
+                    parentLocalId = parent,
+                )
+
+            tasks.complete(parent)
+
+            assertEquals(TaskStatus.COMPLETED, assertNotNull(db.tasks().byLocalId(parent)).status)
+            assertEquals(TaskStatus.COMPLETED, assertNotNull(db.tasks().byLocalId(child)).status)
+        }
+
     // --- when no lock runs ---------------------------------------------------
 
     @Test

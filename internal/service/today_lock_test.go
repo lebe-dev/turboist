@@ -680,6 +680,82 @@ func TestTodayLock_CompleteATodaysTaskTakesItsUndatedSubtasksAlong(t *testing.T)
 	}
 }
 
+func TestTodayLock_CompleteOverdueWorkOfItsProjectIsAllowed(t *testing.T) {
+	f := setupTodayLock(t)
+	other := f.project(t, "other")
+	late := f.taskIn(t, other, ptrTime(dueYesterday))
+	f.turnOn(t)
+	// Overdue work stands on Today, so its project is part of the day: the task
+	// cannot be finished elsewhere without dragging the project in.
+	if _, err := f.complete.Complete(context.Background(), late.ID); err != nil {
+		t.Errorf("complete overdue work of its own project: got %v, want nil", err)
+	}
+}
+
+func TestTodayLock_CompleteWeekPlannedTaskOfAnotherProjectIsRefused(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	other := f.project(t, "other")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	planned := f.planForWeek(t, f.taskIn(t, other, nil).ID)
+	f.turnOn(t)
+	// The week exception is about taking work into the day, not about finishing
+	// it: the task has to be moved onto Today first.
+	_, err := f.complete.Complete(context.Background(), planned.ID)
+	assertTodayLocked(t, err, &other)
+	// Taken into today, its project becomes part of the day with it.
+	if _, err := f.tasks.Update(context.Background(), planned.ID,
+		repo.TaskUpdate{DueAt: ptrTime(dueToday)}); err != nil {
+		t.Fatalf("move onto today: %v", err)
+	}
+	if _, err := f.complete.Complete(context.Background(), planned.ID); err != nil {
+		t.Errorf("complete after taking it into today: got %v, want nil", err)
+	}
+}
+
+func TestTodayLock_CompleteRepeatingTodaysTaskAdvancesIt(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	rule := "FREQ=DAILY"
+	cid := f.ctxID
+	task, err := f.tasks.Create(context.Background(), repo.CreateTask{
+		Placement:      repo.Placement{ContextID: &cid, ProjectID: &focus},
+		Title:          "daily",
+		DueAt:          ptrTime(dueToday),
+		RecurrenceRule: &rule,
+	})
+	if err != nil {
+		t.Fatalf("create repeating task: %v", err)
+	}
+	f.turnOn(t)
+	advanced, err := f.complete.Complete(context.Background(), task.ID)
+	if err != nil {
+		t.Fatalf("complete repeating task: got %v, want nil", err)
+	}
+	if advanced.Status != model.TaskStatusOpen {
+		t.Errorf("status after the tick: got %s, want open", advanced.Status)
+	}
+	if advanced.DueAt == nil || !advanced.DueAt.After(dueToday) {
+		t.Errorf("due after the tick: got %v, want a later run than %v", advanced.DueAt, dueToday)
+	}
+}
+
+func TestTodayLock_CancelAndDeleteStayAllowed(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	other := f.project(t, "other")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	cancelled := f.taskIn(t, other, ptrTime(dueTomorrow))
+	f.turnOn(t)
+	// Nothing is being claimed as done, so the day is not being widened.
+	if _, err := f.complete.Cancel(context.Background(), cancelled.ID); err != nil {
+		t.Errorf("cancel another project's task: got %v, want nil", err)
+	}
+	if err := f.tasks.Delete(context.Background(), cancelled.ID); err != nil {
+		t.Errorf("delete another project's task: got %v, want nil", err)
+	}
+}
+
 func TestTodayLock_CompleteOtherWorkOfTodaysProjectIsAllowed(t *testing.T) {
 	f := setupTodayLock(t)
 	focus := f.project(t, "focus")

@@ -1,11 +1,27 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '$lib/api/errors';
 import type { Label, Task } from '$lib/api/types';
 vi.mock('$lib/api/client', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/api/client')>()),
 	getApiClient: () => ({})
 }));
+vi.mock('svelte-sonner', () => ({
+	toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn(), custom: vi.fn() }
+}));
+vi.mock('$lib/api/endpoints/tasks', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('$lib/api/endpoints/tasks')>();
+	return {
+		...actual,
+		tasks: {
+			...actual.tasks,
+			complete: vi.fn(),
+			uncomplete: vi.fn(),
+			move: vi.fn()
+		}
+	};
+});
 
+import { toast } from 'svelte-sonner';
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import {
 	describeCompleteError,
@@ -14,7 +30,9 @@ import {
 	hasTitleCounter,
 	isBlocked,
 	type ListMutator,
+	moveTaskToProject,
 	taskToJson,
+	toggleComplete,
 	tomorrowDuplicateDue
 } from './taskActions';
 
@@ -107,6 +125,118 @@ describe('describeCompleteError', () => {
 			'Cannot complete: this task is blocked by an unfinished task'
 		);
 		expect(describeCompleteError(new Error('boom'), 'Fallback')).toBe('boom');
+	});
+});
+
+describe('toggleComplete', () => {
+	const mutator = (): ListMutator => ({ replace: vi.fn(), remove: vi.fn() });
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	function task(extra: Partial<Task> = {}): Task {
+		return { id: 1, status: 'open', blockedByCount: 0, relationCount: 0, ...extra } as Task;
+	}
+
+	const locked = () =>
+		new ApiError('today_locked', 'today is locked to the projects already planned for it', 409, {
+			lockedUntil: '2026-11-11T21:00:00.000Z',
+			projectId: 4
+		});
+
+	it('explains a completion the Today lock refused in the finishing sentence', async () => {
+		vi.mocked(tasksApi.complete).mockRejectedValue(locked());
+		const list = mutator();
+
+		await toggleComplete(task(), list);
+
+		expect(toast.error).toHaveBeenCalledWith(
+			'Until midnight, only the work of today’s projects can be finished.'
+		);
+		expect(list.remove).not.toHaveBeenCalled();
+	});
+
+	it('keeps the scheduling sentence for a reopening the Today lock refused', async () => {
+		vi.mocked(tasksApi.uncomplete).mockRejectedValue(locked());
+
+		await toggleComplete(task({ status: 'completed' }), mutator());
+
+		expect(toast.error).toHaveBeenCalledWith(
+			'Until midnight, today takes only today’s projects and this week’s tasks. Pick another day.'
+		);
+	});
+
+	it('still reports a task whose blockers appeared after the view was loaded', async () => {
+		vi.mocked(tasksApi.complete).mockRejectedValue(
+			new ApiError('task_blocked', 'task is blocked by an incomplete task', 409)
+		);
+
+		await toggleComplete(task(), mutator());
+
+		expect(toast.error).toHaveBeenCalledWith(
+			'Cannot complete: this task is blocked by an unfinished task'
+		);
+	});
+
+	it('completes a task the lock allows and takes it off the list', async () => {
+		vi.mocked(tasksApi.complete).mockResolvedValue(task({ status: 'completed' }));
+		const list = mutator();
+
+		await toggleComplete(task(), list);
+
+		expect(tasksApi.complete).toHaveBeenCalledWith(expect.anything(), 1, undefined);
+		expect(list.remove).toHaveBeenCalledWith(1);
+		expect(toast.error).not.toHaveBeenCalled();
+	});
+});
+
+describe('moveTaskToProject into a completed project', () => {
+	const mutator = (): ListMutator => ({ replace: vi.fn(), remove: vi.fn() });
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	function task(): Task {
+		return {
+			id: 1,
+			status: 'open',
+			projectId: 2,
+			sectionId: null,
+			blockedByCount: 0,
+			relationCount: 0
+		} as Task;
+	}
+
+	it('keeps the move when the Today lock refuses the follow-up completion', async () => {
+		vi.mocked(tasksApi.move).mockResolvedValue({ ...task(), projectId: 9 });
+		vi.mocked(tasksApi.complete).mockRejectedValue(
+			new ApiError('today_locked', 'today is locked to the projects already planned for it', 409)
+		);
+		const list = mutator();
+
+		await moveTaskToProject(task(), 1, 9, list, { projectCompleted: true, projectName: 'Done' });
+
+		expect(tasksApi.move).toHaveBeenCalledOnce();
+		expect(list.replace).toHaveBeenCalledOnce();
+		expect(toast.warning).toHaveBeenCalledWith(
+			'Moved, but not completed: until midnight only today’s projects can be finished'
+		);
+		expect(toast.error).not.toHaveBeenCalled();
+	});
+
+	it('still reports any other failure of the follow-up completion as the move failing', async () => {
+		vi.mocked(tasksApi.move).mockResolvedValue({ ...task(), projectId: 9 });
+		vi.mocked(tasksApi.complete).mockRejectedValue(
+			new ApiError('internal_error', 'server exploded', 500)
+		);
+		const list = mutator();
+
+		await moveTaskToProject(task(), 1, 9, list, { projectCompleted: true });
+
+		expect(toast.error).toHaveBeenCalledWith('server exploded');
+		expect(list.replace).not.toHaveBeenCalled();
 	});
 });
 

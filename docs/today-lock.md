@@ -57,7 +57,8 @@ leaves the set once its last open task for today is done, and from then on it ca
 take more work today nor have more of its work finished. Finishing a task on Today takes its
 open subtasks with it, dated or not: they are the same work, and the parent's own place on
 Today is what let the whole of it be completed. A repeating task moving on to its next
-occurrence is the schedule the user already chose and is never refused.
+occurrence is the schedule the user already chose: the advance itself is never refused,
+though ticking the task off still has to be today's work.
 
 The inbox processor follows the same rule: a proposed due date that the lock would refuse is
 left off, and the task is still filed.

@@ -39,6 +39,7 @@ class BulkSelectionTest {
     private class RecordingBulkActions : BulkTaskActions {
         val calls = mutableListOf<Pair<String, List<Long>>>()
         var blocked: Int = 0
+        var locked: Int = 0
         var failWith: WriteRefused? = null
 
         private fun record(
@@ -47,7 +48,11 @@ class BulkSelectionTest {
         ): BulkChange {
             calls += name to ids
             failWith?.let { throw it }
-            return BulkChange(changed = ids.size - blocked, leftBlocked = blocked)
+            return BulkChange(
+                changed = ids.size - blocked - locked,
+                leftBlocked = blocked,
+                leftLocked = locked,
+            )
         }
 
         override suspend fun complete(taskLocalIds: List<Long>) = record("complete", taskLocalIds)
@@ -160,6 +165,26 @@ class BulkSelectionTest {
             runCurrent()
 
             assertContentEquals(listOf(BulkOutcome(BulkAction.COMPLETED, changed = 1, leftBlocked = 2)), heard)
+        }
+
+    @Test
+    fun `a completion the Today lock kept out is counted apart from the blocked ones`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, rowActions, sync, bulk = bulk)
+            val heard = mutableListOf<BulkOutcome>()
+            backgroundScope.launch { presenter.bulkOutcomes.collect { heard += it } }
+            bulk.locked = 2
+            presenter.startSelection(1)
+            presenter.toggleSelection(2)
+            presenter.toggleSelection(3)
+
+            presenter.completeSelected()
+            runCurrent()
+
+            assertContentEquals(
+                listOf(BulkOutcome(BulkAction.COMPLETED, changed = 1, leftLocked = 2)),
+                heard,
+            )
         }
 
     @Test
