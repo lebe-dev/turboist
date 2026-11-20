@@ -67,6 +67,8 @@ refused, so such a task cannot be added from there at all; pick one of today's p
 another day. A refused completion says so in a sentence of its own — the day belongs to its
 projects, so their work is the only work that can be finished — and nothing on screen changes.
 On Android a bulk completion leaves those tasks open and reports how many were left out.
+Dropping a task into a completed project moves it and then leaves it open with a note, since
+the move is what the user asked for and the completion was only the rule that follows from it.
 
 ## Turning it on
 

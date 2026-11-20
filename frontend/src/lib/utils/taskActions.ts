@@ -428,15 +428,22 @@ export async function moveTaskToProject(
 				: { contextId, projectId };
 		let updated = await tasksApi.move(client, task.id, moveInput);
 		// Moving into a completed project auto-completes the task — unless something
-		// still blocks it. Skipping the completion (rather than letting the 409 bubble)
-		// keeps the move itself, which already succeeded, instead of reporting the
-		// whole operation as failed.
-		const completedHere =
-			!!options.projectCompleted && updated.status !== 'completed' && !isBlocked(updated);
-		if (completedHere) {
-			updated = await tasksApi.complete(client, updated.id);
-		} else if (!!options.projectCompleted && isBlocked(updated)) {
+		// still blocks it, or the Today focus lock keeps its project out of the day.
+		// Skipping the completion (rather than letting the refusal bubble) keeps the
+		// move itself, which already succeeded, instead of reporting the whole
+		// operation as failed.
+		const wantsCompletion = !!options.projectCompleted && updated.status !== 'completed';
+		let completedHere = false;
+		if (wantsCompletion && isBlocked(updated)) {
 			toast.warning(tr('task.toast.blockedNotCompletedOnMove'));
+		} else if (wantsCompletion) {
+			try {
+				updated = await tasksApi.complete(client, updated.id);
+				completedHere = true;
+			} catch (err) {
+				if (!(err instanceof ApiError && err.code === 'today_locked')) throw err;
+				toast.warning(tr('task.toast.lockedNotCompletedOnMove'));
+			}
 		}
 		applyUpdate(updated, mutator, options.belongs);
 		const destination = options.projectName

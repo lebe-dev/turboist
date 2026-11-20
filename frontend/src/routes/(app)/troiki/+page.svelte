@@ -25,7 +25,7 @@
 	import ConfirmDestructiveDialog from '$lib/components/dialog/ConfirmDestructiveDialog.svelte';
 	import { projectsStore } from '$lib/stores/projects.svelte';
 	import { splitByRootCompletion } from '$lib/utils/taskTree';
-	import { describeError, isBlocked } from '$lib/utils/taskActions';
+	import { describeCompleteError, describeError, isBlocked } from '$lib/utils/taskActions';
 	import { followUpStore } from '$lib/stores/followUp.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
@@ -121,7 +121,13 @@
 				});
 			}
 		} catch (err) {
-			toast.error(describeError(err, $t('troiki.toast.updateFailed')));
+			// A refused completion says why finishing is what was refused; every other
+			// refusal (a move, a reopen) keeps the shared wording.
+			toast.error(
+				wasOpen
+					? describeCompleteError(err, $t('troiki.toast.updateFailed'))
+					: describeError(err, $t('troiki.toast.updateFailed'))
+			);
 		}
 	}
 

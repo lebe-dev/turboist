@@ -764,6 +764,7 @@
 			"failedApplySubtaskLabels": "Failed to apply labels to subtasks",
 			"blockedCannotComplete": "Cannot complete: this task is blocked by an unfinished task",
 			"blockedNotCompletedOnMove": "Moved, but not completed: the task is still blocked",
+			"lockedNotCompletedOnMove": "Moved, but not completed: until midnight only today’s projects can be finished",
 			"idCopied": "Task ID copied",
 			"todayLocked": "Until midnight, today takes only today’s projects and this week’s tasks. Pick another day.",
 			"todayLockedComplete": "Until midnight, only the work of today’s projects can be finished."
