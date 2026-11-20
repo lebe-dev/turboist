@@ -286,7 +286,8 @@ class TaskWriteRepo(
         }
 
     /**
-     * Ticks a task off, refusing while anything still blocks it.
+     * Ticks a task off, refusing while anything still blocks it or while the Today
+     * focus lock keeps its project out of the day.
      *
      * The refusal is the point of doing this locally at all: without it the tick
      * would land on screen, sit in the queue, and be undone hours later by an
@@ -304,9 +305,10 @@ class TaskWriteRepo(
         writer.transaction {
             val at = writer.now()
             val moment = completedAt ?: at
-            requireTask(taskLocalId)
+            val row = requireTask(taskLocalId)
             val blockers = rules.openBlockerLocalIds(taskLocalId)
             if (blockers.isNotEmpty()) throw WriteRefused.TaskBlocked(blockers)
+            rules.assertTodayAllowsCompletion(row, at)
             applyCompletion(taskLocalId, moment, at)
             val opId =
                 writer.enqueue(
@@ -618,7 +620,9 @@ class TaskWriteRepo(
      *
      * A blocked one is left out rather than failing the whole action, which is
      * how the server answers too: one task that cannot be finished must not undo
-     * the nine that can.
+     * the nine that can. The same goes for one the Today focus lock keeps out of
+     * the day: it is counted apart, because "blocked by something" and "not
+     * today's work" are different things to say.
      *
      * A batch names the tasks and nothing else, so the server times the
      * completion itself. Anything repeating in the batch is therefore left
@@ -632,19 +636,28 @@ class TaskWriteRepo(
             val at = writer.now()
             val accepted = mutableListOf<Long>()
             val refused = mutableMapOf<Long, List<Long>>()
+            val todayLocked = mutableListOf<Long>()
             for (localId in taskLocalIds.distinct()) {
-                if (db.tasks().byLocalId(localId) == null) continue
+                val row = db.tasks().byLocalId(localId) ?: continue
                 val blockers = rules.openBlockerLocalIds(localId)
                 if (blockers.isNotEmpty()) {
                     refused[localId] = blockers
                     continue
                 }
+                try {
+                    rules.assertTodayAllowsCompletion(row, at)
+                } catch (_: WriteRefused.TodayLocked) {
+                    todayLocked += localId
+                    continue
+                }
                 applyCompletion(localId, at, at, moveRepeatingOn = false)
                 accepted += localId
             }
-            if (accepted.isEmpty()) return@transaction BulkQueuedWrite(null, accepted, refused)
+            if (accepted.isEmpty()) {
+                return@transaction BulkQueuedWrite(null, accepted, refused, todayLocked = todayLocked)
+            }
             val opId = writer.enqueue(BulkCompleteTasksOp(accepted), ReplicaEntityKind.TASK)
-            BulkQueuedWrite(opId, accepted, refused)
+            BulkQueuedWrite(opId, accepted, refused, todayLocked = todayLocked)
         }
 
     /** Moves several tasks to the same place. */
@@ -1061,7 +1074,10 @@ data class BulkQueuedWrite(
     val accepted: List<Long>,
     val refused: Map<Long, List<Long>>,
     val locked: List<Long> = emptyList(),
-    /** Tasks left out because the Today focus lock keeps them out of where they were sent. */
+    /**
+     * Tasks left out because the Today focus lock keeps them out of where they
+     * were sent, or out of the day their work may be finished in.
+     */
     val todayLocked: List<Long> = emptyList(),
 )
 

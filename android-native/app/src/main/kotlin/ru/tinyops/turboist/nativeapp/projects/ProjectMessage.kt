@@ -21,6 +21,9 @@ sealed interface ProjectMessage {
     /** The Today focus lock keeps the task out of the day. */
     data object TodayLocked : ProjectMessage
 
+    /** The Today focus lock keeps the task out of the finished work. */
+    data object TodayLockedCompletion : ProjectMessage
+
     /** The pinned shelf is full; [limit] is the user's own setting for it. */
     data class PinLimitReached(val limit: Int) : ProjectMessage
 
@@ -44,15 +47,21 @@ sealed interface ProjectMessage {
  * A refusal is expected traffic rather than an error: the device repeats a few
  * of the server's rules precisely so the user meets them while they are still
  * looking at the thing they tried to change. So it is reported, not thrown.
+ *
+ * [locked] is the sentence a Today-lock refusal gets: finishing a task is refused
+ * for a different reason than scheduling one, and the caller knows which it did.
  */
-internal suspend fun MutableSharedFlow<ProjectMessage>.reporting(write: suspend () -> Unit) {
+internal suspend fun MutableSharedFlow<ProjectMessage>.reporting(
+    locked: ProjectMessage = ProjectMessage.TodayLocked,
+    write: suspend () -> Unit,
+) {
     try {
         write()
     } catch (refusal: WriteRefused) {
         emit(
             when (refusal) {
                 is WriteRefused.TaskBlocked -> ProjectMessage.Blocked
-                is WriteRefused.TodayLocked -> ProjectMessage.TodayLocked
+                is WriteRefused.TodayLocked -> locked
                 is WriteRefused.PinLimitReached -> ProjectMessage.PinLimitReached(refusal.limit)
                 is WriteRefused.TroikiSlotFull -> ProjectMessage.TroikiSlotFull(refusal.capacity)
                 is WriteRefused.RelationExists -> ProjectMessage.RelationExists

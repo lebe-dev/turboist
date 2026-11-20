@@ -504,12 +504,15 @@ class TaskDetailPresenter(
     /** Ticks the task off, or puts it back. Refused while anything still blocks it. */
     fun toggleComplete() {
         val task = state.value.task ?: return
+        val completing = task.status != TaskStatus.COMPLETED
         scope.launch {
-            report {
-                if (task.status == TaskStatus.COMPLETED) {
-                    actions.uncomplete(task.localId)
-                } else {
+            report(
+                locked = if (completing) TaskListMessage.TODAY_LOCKED_COMPLETE else TaskListMessage.TODAY_LOCKED,
+            ) {
+                if (completing) {
                     actions.complete(task.localId)
+                } else {
+                    actions.uncomplete(task.localId)
                 }
             }
         }
@@ -599,12 +602,15 @@ class TaskDetailPresenter(
     }
 
     fun toggleSubtaskComplete(task: Task) {
+        val completing = task.status != TaskStatus.COMPLETED
         scope.launch {
-            report {
-                if (task.status == TaskStatus.COMPLETED) {
-                    actions.uncomplete(task.localId)
-                } else {
+            report(
+                locked = if (completing) TaskListMessage.TODAY_LOCKED_COMPLETE else TaskListMessage.TODAY_LOCKED,
+            ) {
+                if (completing) {
                     actions.complete(task.localId)
+                } else {
+                    actions.uncomplete(task.localId)
                 }
             }
         }
@@ -892,11 +898,14 @@ class TaskDetailPresenter(
      * The refusals told apart are the ones the user can act on: work that has to
      * happen first, a link that is already there, and a link that would leave two
      * tasks waiting on each other. Each of those is a sentence with something to
-     * do in it. Everything else says only that the change did not happen, which
-     * is all that is honestly known.
+     * do in it. The Today lock's sentence is the caller's to choose: finishing a
+     * task is refused for a different reason than scheduling one. Everything else
+     * says only that the change did not happen, which is all that is honestly
+     * known.
      */
     private suspend fun report(
         onFailure: TaskListMessage = TaskListMessage.FAILED,
+        locked: TaskListMessage = TaskListMessage.TODAY_LOCKED,
         write: suspend () -> Unit,
     ): Boolean {
         try {
@@ -906,7 +915,7 @@ class TaskDetailPresenter(
             outgoing.emit(
                 when (refusal) {
                     is WriteRefused.TaskBlocked -> TaskListMessage.BLOCKED
-                    is WriteRefused.TodayLocked -> TaskListMessage.TODAY_LOCKED
+                    is WriteRefused.TodayLocked -> locked
                     is WriteRefused.RelationExists -> TaskListMessage.RELATION_EXISTS
                     is WriteRefused.RelationCycle -> TaskListMessage.RELATION_CYCLE
                     else -> onFailure

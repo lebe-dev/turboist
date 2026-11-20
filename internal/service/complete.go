@@ -41,9 +41,10 @@ type CompleteService struct {
 	todayLock *TodayLockService
 }
 
-// WithTodayLock makes reopening a task ask the Today focus lock first: a task
-// due today that comes back open would take its project into the day. Returns
-// the service for chaining.
+// WithTodayLock makes a completion ask the Today focus lock first: while the lock
+// runs, only the work of the projects already on Today may be finished, and
+// reopening a task due today would take its project into the day. Returns the
+// service for chaining.
 func (s *CompleteService) WithTodayLock(l *TodayLockService) *CompleteService {
 	s.todayLock = l
 	return s
@@ -74,6 +75,21 @@ func (s *CompleteService) CompleteAt(ctx context.Context, taskID int64, complete
 }
 
 func (s *CompleteService) completeAt(ctx context.Context, taskID int64, completedAt *time.Time) (*model.Task, error) {
+	return s.complete(ctx, taskID, completedAt, false)
+}
+
+// complete is completeAt with the Today focus lock's answer already given.
+//
+// The cascade passes true: it runs inside a completion the lock allowed, and a
+// subtask carries its parent's project, so the work was part of the day until the
+// parent's own completion emptied the project. Asking again would refuse an
+// undated subtask on the strength of an order of operations rather than a rule.
+func (s *CompleteService) complete(
+	ctx context.Context,
+	taskID int64,
+	completedAt *time.Time,
+	lockAllowed bool,
+) (*model.Task, error) {
 	const op = "service.CompleteService.Complete"
 	log := logging.FromContext(ctx)
 	log.DebugContext(ctx, op, slog.Int64("task_id", taskID))
@@ -93,6 +109,15 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 	// a blocker was added must stay recoverable.
 	if t.Status != model.TaskStatusCompleted {
 		if err := s.assertNotBlocked(ctx, t.ID); err != nil {
+			return nil, err
+		}
+	}
+	// The Today focus lock: while it runs, only the work of the projects already
+	// part of the day may be finished. Asked only for a task that is still open,
+	// so a repeated completion stays idempotent even after its project was emptied
+	// by the first one.
+	if !lockAllowed && t.Status == model.TaskStatusOpen {
+		if err := s.todayLock.CheckCompletion(ctx, t); err != nil {
 			return nil, err
 		}
 	}
@@ -125,7 +150,7 @@ func (s *CompleteService) completeAt(ctx context.Context, taskID int64, complete
 }
 
 // cascadeCompleteChildren completes every open direct subtask of parentID,
-// recursing into completeAt so each subtask's own recurrence advance, Troiki
+// recursing into complete so each subtask's own recurrence advance, Troiki
 // bump and (grand-)children cascade all apply exactly as if it had been
 // completed on its own. A subtask blocked by a relation outside the parent's
 // own subtree is left open rather than forced through — completing the parent
@@ -138,7 +163,7 @@ func (s *CompleteService) cascadeCompleteChildren(ctx context.Context, parentID 
 		return err
 	}
 	for _, childID := range childIDs {
-		if _, err := s.completeAt(ctx, childID, completedAt); err != nil {
+		if _, err := s.complete(ctx, childID, completedAt, true); err != nil {
 			var blocked *TaskBlockedError
 			if errors.As(err, &blocked) {
 				logging.FromContext(ctx).DebugContext(ctx, op+": child blocked, left open",

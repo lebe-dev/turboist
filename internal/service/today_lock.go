@@ -13,9 +13,10 @@ import (
 )
 
 // TodayLockedError reports a write the Today focus lock refused: it would have
-// put an open task on Today in a project that has no open task there already.
-// ProjectID is the project the task would have landed in; nil means the inbox
-// or a bare context, which the lock never lets in.
+// put an open task on Today in a project that has no open task there already, or
+// finished work of a project that is not part of the day at all. ProjectID is
+// the project the task belongs to; nil means the inbox or a bare context, which
+// the lock never lets in.
 type TodayLockedError struct {
 	Until     time.Time
 	ProjectID *int64
@@ -48,16 +49,24 @@ func PlacementOf(t *model.Task) TodayPlacement {
 // of a project for today closes that project for the rest of the day. Adding work
 // to any project for another day, or with no date, stays allowed.
 //
-// The week is the one exception: an open task already on the Week screen —
-// planned for the week, or dated another day of the current week — may be taken
-// into today whatever its project. It is the task that qualifies, not its
-// project: the project does not open for other work.
+// The lock also decides what may be finished: only the work of those projects can
+// be ticked off, since a task finished elsewhere is work done outside the day the
+// user planned. A task already on Today always qualifies by itself — that is what
+// lets the last task of a project be completed. Cancelling, deleting and taking
+// work off Today stay allowed.
+//
+// The week is the one exception for placement: an open task already on the Week
+// screen — planned for the week, or dated another day of the current week — may be
+// taken into today whatever its project. It is the task that qualifies, not its
+// project: the project does not open for other work, and the task has to be taken
+// into the day before it can be finished.
 //
 // Every write that can put a task on Today asks Check before it commits:
 // TaskService.Create (and everything built on it: subtasks, duplicates, splits,
 // groups, templates), MoveService.Move, CompleteService.Uncomplete, the task
-// PATCH handler and the inbox processor. A recurring task moving on to its next
-// run is the schedule the user already chose and is not checked.
+// PATCH handler and the inbox processor. Every completion asks CheckCompletion
+// first. A recurring task moving on to its next run is the schedule the user
+// already chose and is not checked.
 type TodayLockService struct {
 	users *repo.UserRepo
 	tasks *repo.TaskRepo
@@ -141,6 +150,10 @@ func (s *TodayLockService) AllowedProjects(ctx context.Context) (until time.Time
 // passes unchanged — editing it, or moving it to another hour, takes nothing new
 // into the day. A nil service checks nothing.
 func (s *TodayLockService) Check(ctx context.Context, before *model.Task, after TodayPlacement) error {
+	const (
+		op      = "service.TodayLockService.Check"
+		refusal = "today lock refused to take a task into today"
+	)
 	if s == nil || after.Status != model.TaskStatusOpen || after.DueAt == nil {
 		return nil
 	}
@@ -159,7 +172,7 @@ func (s *TodayLockService) Check(ctx context.Context, before *model.Task, after 
 	}
 	refused := &TodayLockedError{Until: until, ProjectID: after.ProjectID}
 	if after.ProjectID == nil {
-		s.logRefusal(ctx, after, refused)
+		s.logRefusal(ctx, op, refusal, after.TaskID, refused)
 		return refused
 	}
 	allowed, err := s.tasks.TodayProjectIDs(ctx, until, after.TaskID)
@@ -169,20 +182,54 @@ func (s *TodayLockService) Check(ctx context.Context, before *model.Task, after 
 	if slices.Contains(allowed, *after.ProjectID) {
 		return nil
 	}
-	s.logRefusal(ctx, after, refused)
+	s.logRefusal(ctx, op, refusal, after.TaskID, refused)
 	return refused
 }
 
-func (s *TodayLockService) logRefusal(ctx context.Context, after TodayPlacement, e *TodayLockedError) {
+// CheckCompletion refuses finishing a task the lock keeps out of the day: while
+// the lock runs, the day belongs to the projects already part of it, and ticking
+// off the work of another project is doing work the day was meant to exclude.
+//
+// The task itself is part of Today when it is open and due today or overdue, and
+// that alone opens its project — which is why the last task of a project can
+// still be completed, after which the project is closed for the rest of the day.
+// A task with no project (the inbox, a bare context) is never part of the day.
+//
+// A task that is already closed is not checked: completing twice is idempotent,
+// and the repeat must not fail on a project the first completion emptied.
+func (s *TodayLockService) CheckCompletion(ctx context.Context, t *model.Task) error {
+	const op = "service.TodayLockService.CheckCompletion"
+	if s == nil || t == nil || t.Status != model.TaskStatusOpen {
+		return nil
+	}
+	until, active, err := s.ActiveUntil(ctx)
+	if err != nil || !active {
+		return err
+	}
+	if t.ProjectID != nil {
+		allowed, err := s.tasks.TodayProjectIDs(ctx, until, 0)
+		if err != nil {
+			return err
+		}
+		if slices.Contains(allowed, *t.ProjectID) {
+			return nil
+		}
+	}
+	refused := &TodayLockedError{Until: until, ProjectID: t.ProjectID}
+	s.logRefusal(ctx, op, "today lock refused to complete work outside today's projects", t.ID, refused)
+	return refused
+}
+
+func (s *TodayLockService) logRefusal(ctx context.Context, op, msg string, taskID int64, e *TodayLockedError) {
 	attrs := []any{
-		slog.String("op", "service.TodayLockService.Check"),
-		slog.Int64("task_id", after.TaskID),
+		slog.String("op", op),
+		slog.Int64("task_id", taskID),
 		slog.String("until", model.FormatUTC(e.Until)),
 	}
 	if e.ProjectID != nil {
 		attrs = append(attrs, slog.Int64("project_id", *e.ProjectID))
 	}
-	logging.FromContext(ctx).WarnContext(ctx, "today lock refused to take a task into today", attrs...)
+	logging.FromContext(ctx).WarnContext(ctx, msg, attrs...)
 }
 
 // onWeek reports whether a task waits on the Week screen: open and either

@@ -101,6 +101,19 @@ func (f *lockFixture) taskIn(t *testing.T, projectID int64, due *time.Time) *mod
 	return task
 }
 
+func (f *lockFixture) subtaskUnder(t *testing.T, parent *model.Task, due *time.Time) *model.Task {
+	t.Helper()
+	task, err := f.tasks.Create(context.Background(), repo.CreateTask{
+		Placement: repo.Placement{ContextID: &f.ctxID, ProjectID: parent.ProjectID, ParentID: &parent.ID},
+		Title:     "child",
+		DueAt:     due,
+	})
+	if err != nil {
+		t.Fatalf("create subtask: %v", err)
+	}
+	return task
+}
+
 func (f *lockFixture) inboxTask(t *testing.T, due *time.Time) *model.Task {
 	t.Helper()
 	inbox := int64(1)
@@ -593,6 +606,128 @@ func TestTodayLock_MoveUndatedTaskAnywhereIsAllowed(t *testing.T) {
 	inbox := int64(1)
 	if _, err := f.moveSvc.Move(context.Background(), task.ID, repo.Placement{InboxID: &inbox}); err != nil {
 		t.Errorf("move to inbox: got %v, want nil", err)
+	}
+}
+
+// --- completing --------------------------------------------------------------
+
+func TestTodayLock_CompleteWorkOfAnotherProjectIsRefused(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	other := f.project(t, "other")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	task := f.taskIn(t, other, ptrTime(dueTomorrow))
+	f.turnOn(t)
+	_, err := f.complete.Complete(context.Background(), task.ID)
+	assertTodayLocked(t, err, &other)
+	got, _ := f.tasks.Get(context.Background(), task.ID)
+	if got.Status != model.TaskStatusOpen {
+		t.Errorf("status after refused completion: got %s, want open", got.Status)
+	}
+}
+
+func TestTodayLock_CompleteTodaysWorkIsAllowed(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	task := f.taskIn(t, focus, ptrTime(dueToday))
+	f.turnOn(t)
+	if _, err := f.complete.Complete(context.Background(), task.ID); err != nil {
+		t.Errorf("complete: got %v, want nil", err)
+	}
+}
+
+func TestTodayLock_CompleteTheLastTaskOfAProjectIsAllowed(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	other := f.project(t, "other")
+	only := f.taskIn(t, focus, ptrTime(dueToday))
+	f.turnOn(t)
+	if _, err := f.complete.Complete(context.Background(), only.ID); err != nil {
+		t.Fatalf("complete the last task: got %v, want nil", err)
+	}
+	// Its own place on Today was enough to open the project, and finishing it
+	// closes the project for the rest of the day.
+	assertTodayLocked(t, f.createIn(focus, ptrTime(dueToday)), &focus)
+	assertTodayLocked(t, f.createIn(other, ptrTime(dueToday)), &other)
+}
+
+func TestTodayLock_CompleteInboxTaskIsRefused(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	task := f.inboxTask(t, nil)
+	f.turnOn(t)
+	_, err := f.complete.Complete(context.Background(), task.ID)
+	assertTodayLocked(t, err, nil)
+	got, _ := f.tasks.Get(context.Background(), task.ID)
+	if got.Status != model.TaskStatusOpen {
+		t.Errorf("status after refused completion: got %s, want open", got.Status)
+	}
+}
+
+func TestTodayLock_CompleteATodaysTaskTakesItsUndatedSubtasksAlong(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	parent := f.taskIn(t, focus, ptrTime(dueToday))
+	child := f.subtaskUnder(t, parent, nil)
+	f.turnOn(t)
+	if _, err := f.complete.Complete(context.Background(), parent.ID); err != nil {
+		t.Fatalf("complete: got %v, want nil", err)
+	}
+	got, _ := f.tasks.Get(context.Background(), child.ID)
+	if got.Status != model.TaskStatusCompleted {
+		t.Errorf("subtask after its parent was completed: got %s, want completed", got.Status)
+	}
+}
+
+func TestTodayLock_CompleteOtherWorkOfTodaysProjectIsAllowed(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	later := f.taskIn(t, focus, ptrTime(dueTomorrow))
+	f.turnOn(t)
+	if _, err := f.complete.Complete(context.Background(), later.ID); err != nil {
+		t.Errorf("complete tomorrow's work of today's project: got %v, want nil", err)
+	}
+}
+
+func TestTodayLock_CompleteAgainAfterTheProjectWasEmptiedIsAllowed(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	only := f.taskIn(t, focus, ptrTime(dueToday))
+	f.turnOn(t)
+	if _, err := f.complete.Complete(context.Background(), only.ID); err != nil {
+		t.Fatalf("first complete: got %v, want nil", err)
+	}
+	// The project left the day with the task; completing it again is still a
+	// no-op rather than a refusal.
+	if _, err := f.complete.Complete(context.Background(), only.ID); err != nil {
+		t.Errorf("second complete: got %v, want nil", err)
+	}
+}
+
+func TestTodayLock_CompleteInExemptProjectIsAllowed(t *testing.T) {
+	f := setupTodayLock(t)
+	focus := f.project(t, "focus")
+	home := f.project(t, "home")
+	f.taskIn(t, focus, ptrTime(dueToday))
+	yes := true
+	if _, err := f.projectsRepo.Update(context.Background(), home, repo.ProjectUpdate{TodayLockExempt: &yes}); err != nil {
+		t.Fatalf("mark exempt: %v", err)
+	}
+	task := f.taskIn(t, home, nil)
+	f.turnOn(t)
+	if _, err := f.complete.Complete(context.Background(), task.ID); err != nil {
+		t.Errorf("complete in exempt project: got %v, want nil", err)
+	}
+}
+
+func TestTodayLock_CompleteWithoutLockIsFree(t *testing.T) {
+	f := setupTodayLock(t)
+	other := f.project(t, "other")
+	task := f.taskIn(t, other, nil)
+	if _, err := f.complete.Complete(context.Background(), task.ID); err != nil {
+		t.Errorf("complete without lock: got %v, want nil", err)
 	}
 }
 

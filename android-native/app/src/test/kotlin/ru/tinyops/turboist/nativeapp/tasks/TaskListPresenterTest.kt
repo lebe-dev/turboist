@@ -131,6 +131,36 @@ class TaskListPresenterTest {
         }
 
     @Test
+    fun `a completion the Today lock refuses is explained as finished work, not as scheduling`() =
+        runTest {
+            actions.refuseWith = WriteRefused.TodayLocked(untilMillis = 0L)
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            val heard = mutableListOf<TaskListMessage>()
+            backgroundScope.launch { presenter.messages.collect { heard += it } }
+            runCurrent()
+
+            presenter.toggleComplete(task(1))
+            runCurrent()
+
+            assertContentEquals(listOf(TaskListMessage.TODAY_LOCKED_COMPLETE), heard)
+        }
+
+    @Test
+    fun `reopening a task the Today lock refuses keeps the scheduling sentence`() =
+        runTest {
+            actions.refuseWith = WriteRefused.TodayLocked(untilMillis = 0L)
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            val heard = mutableListOf<TaskListMessage>()
+            backgroundScope.launch { presenter.messages.collect { heard += it } }
+            runCurrent()
+
+            presenter.toggleComplete(task(1, status = TaskStatus.COMPLETED))
+            runCurrent()
+
+            assertContentEquals(listOf(TaskListMessage.TODAY_LOCKED), heard)
+        }
+
+    @Test
     fun `any other refusal, and any failure, says only that the change did not happen`() =
         runTest {
             val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)

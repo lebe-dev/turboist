@@ -377,6 +377,80 @@ func TestTodayLock_BulkMoveReportsLockedItems(t *testing.T) {
 	}
 }
 
+// --- completing --------------------------------------------------------------
+
+func TestTodayLock_CompleteWorkOfAnotherProjectIsRefused(t *testing.T) {
+	f := setupTodayLockEnv(t)
+	task := createInProject(t, f.e, f.other.ID, map[string]any{"title": "later", "dueAt": tomorrowWire()})
+	resp, body := doReq(t, f.e.app, f.e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", task.ID), nil))
+	assertLockedResponse(t, resp, body, &f.other.ID)
+	resp, body = doReq(t, f.e.app, f.e.authedReq(t, http.MethodGet, fmt.Sprintf("/api/v1/tasks/%d", task.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Fatalf("get task: got %d; body: %s", resp.StatusCode, body)
+	}
+	var got dto.TaskDTO
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("parse task: %v", err)
+	}
+	if got.Status != "open" {
+		t.Errorf("status after refused completion: got %q, want open", got.Status)
+	}
+}
+
+func TestTodayLock_CompleteTodaysWorkIsAllowed(t *testing.T) {
+	f := setupTodayLockEnv(t)
+	resp, body := doReq(t, f.e.app, f.e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", f.focusOn.ID), nil))
+	if resp.StatusCode != 200 {
+		t.Errorf("complete today's work: got %d, want 200; body: %s", resp.StatusCode, body)
+	}
+}
+
+func TestTodayLock_CompleteInboxTaskIsRefused(t *testing.T) {
+	f := setupTodayLockEnv(t)
+	resp, body := doReq(t, f.e.app, f.e.authedReq(t, http.MethodPost, "/api/v1/inbox/tasks",
+		map[string]any{"title": "capture"}))
+	if resp.StatusCode != 201 {
+		t.Fatalf("capture: got %d; body: %s", resp.StatusCode, body)
+	}
+	var captured dto.TaskDTO
+	if err := json.Unmarshal(body, &captured); err != nil {
+		t.Fatalf("parse task: %v", err)
+	}
+	resp, body = doReq(t, f.e.app, f.e.authedReq(t, http.MethodPost,
+		fmt.Sprintf("/api/v1/tasks/%d/complete", captured.ID), nil))
+	assertLockedResponse(t, resp, body, nil)
+}
+
+func TestTodayLock_BulkCompleteLeavesOutTheLockedItems(t *testing.T) {
+	f := setupTodayLockEnv(t)
+	undated := createInProject(t, f.e, f.other.ID, map[string]any{"title": "someday"})
+	resp, body := doReq(t, f.e.app, f.e.authedReq(t, http.MethodPost, "/api/v1/tasks/bulk/complete",
+		map[string]any{"ids": []int64{f.focusOn.ID, undated.ID}}))
+	if resp.StatusCode != 200 {
+		t.Fatalf("bulk complete: got %d; body: %s", resp.StatusCode, body)
+	}
+	var out struct {
+		Succeeded []int64 `json:"succeeded"`
+		Failed    []struct {
+			ID    int64 `json:"id"`
+			Error struct {
+				Code string `json:"code"`
+			} `json:"error"`
+		} `json:"failed"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("parse bulk: %v", err)
+	}
+	if len(out.Succeeded) != 1 || out.Succeeded[0] != f.focusOn.ID {
+		t.Errorf("succeeded: got %v, want [%d]", out.Succeeded, f.focusOn.ID)
+	}
+	if len(out.Failed) != 1 || out.Failed[0].ID != undated.ID || out.Failed[0].Error.Code != "today_locked" {
+		t.Errorf("failed: got %+v, want task %d refused as today_locked", out.Failed, undated.ID)
+	}
+}
+
 // --- reopening ---------------------------------------------------------------
 
 func TestTodayLock_UncompleteTodayTaskOfOtherProjectIsRefused(t *testing.T) {

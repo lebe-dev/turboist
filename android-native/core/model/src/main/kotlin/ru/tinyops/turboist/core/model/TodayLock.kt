@@ -7,12 +7,15 @@ package ru.tinyops.turboist.core.model
  * cannot be lifted early. While it runs, a task may only be taken into Today —
  * given a date of today or earlier while open — in a project that already has
  * open work there. The inbox, and a task with no project at all, never qualify.
- * Adding work for another day, or with no date, is always allowed.
+ * Adding work for another day, or with no date, is always allowed. The lock also
+ * decides what may be finished: only the work of those projects can be ticked
+ * off, since the day belongs to them.
  *
  * The week is the one exception: an open task already waiting on the Week
  * screen — planned for the week, or dated a later day of the current week — may
  * be taken into Today whatever its project. The task qualifies, not its
- * project, so the project does not open for other work.
+ * project, so the project does not open for other work — and the task has to be
+ * taken into the day before it can be finished.
  *
  * The set of allowed projects is read live, never remembered: once the last
  * task of a project for today is done, that project is closed for the rest of
@@ -67,6 +70,29 @@ object TodayLock {
         if (before != null && onToday(before, until) && before.projectLocalId == after.projectLocalId) return false
         if (before != null && onWeek(before, until, weekEnd)) return false
         val project = after.projectLocalId ?: return true
+        return project !in todayProjects()
+    }
+
+    /**
+     * Whether the lock refuses finishing a task that belongs to [projectLocalId].
+     *
+     * The day belongs to the projects already part of it, so ticking off another
+     * project's work — the future work, the undated work, anything kept out of the
+     * day — is work done outside what the day was for. A task itself standing on
+     * Today opens its project, which is what lets the last task of a project be
+     * finished; the inbox and a task with no project never qualify.
+     *
+     * [todayProjects] is the set of projects with open work on Today *including
+     * this task*, read live at the moment of the tick.
+     */
+    fun refusesCompletion(
+        until: Long?,
+        now: Long,
+        projectLocalId: Long?,
+        todayProjects: () -> Set<Long>,
+    ): Boolean {
+        if (!isActive(until, now)) return false
+        val project = projectLocalId ?: return true
         return project !in todayProjects()
     }
 

@@ -119,6 +119,20 @@ class TroikiPresenterTest {
         }
 
     @Test
+    fun `a completion the Today lock refuses says so in the finishing sentence`() =
+        runTest {
+            val presenter = presenter()
+            taskActions.refuseWith = WriteRefused.TodayLocked(untilMillis = 0L)
+            val heard = mutableListOf<ProjectMessage>()
+            backgroundScope.launch { presenter.messages.collect { heard += it } }
+
+            presenter.toggleComplete(task(5))
+            runCurrent()
+
+            assertEquals(listOf<ProjectMessage>(ProjectMessage.TodayLockedCompletion), heard)
+        }
+
+    @Test
     fun `ticking a task off, and putting it back, go through the port every list uses`() =
         runTest {
             val presenter = presenter()

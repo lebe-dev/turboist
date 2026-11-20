@@ -53,6 +53,20 @@ export function describeError(err: unknown, fallback: string): string {
 }
 
 /**
+ * The sentence for a failed completion.
+ *
+ * Same mapping as `describeError`, except for a write the Today focus lock refused:
+ * the scheduling refusal speaks of days and projects, while a refused completion
+ * is about the one thing the user just tried — while the lock runs, the day
+ * belongs to its projects, and only their work may be finished.
+ */
+export function describeCompleteError(err: unknown, fallback: string): string {
+	if (err instanceof ApiError && err.code === 'today_locked')
+		return tr('task.toast.todayLockedComplete');
+	return describeError(err, fallback);
+}
+
+/**
  * Whether a task cannot be completed because something still blocks it.
  * `blockedByCount` counts only OPEN blockers (the backend filters completed and
  * cancelled ones out), so this needs no extra status check on the peers.
@@ -146,7 +160,11 @@ export async function toggleComplete(
 			followUpStore.push(updated, undoFn);
 		}
 	} catch (err) {
-		toast.error(describeError(err, tr('task.toast.failedUpdate')));
+		toast.error(
+			wasOpen
+				? describeCompleteError(err, tr('task.toast.failedUpdate'))
+				: describeError(err, tr('task.toast.failedUpdate'))
+		);
 	}
 }
 

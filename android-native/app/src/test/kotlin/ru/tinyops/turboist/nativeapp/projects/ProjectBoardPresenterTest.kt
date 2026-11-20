@@ -195,6 +195,22 @@ class ProjectBoardPresenterTest {
         }
 
     @Test
+    fun `a completion the Today lock refuses says so in the finishing sentence`() =
+        runTest {
+            val presenter = presenter()
+            content.value = board()
+            runCurrent()
+            taskActions.refuseWith = WriteRefused.TodayLocked(untilMillis = 0L)
+            val heard = mutableListOf<ProjectMessage>()
+            backgroundScope.launch { presenter.messages.collect { heard += it } }
+
+            presenter.toggleComplete(task(5))
+            runCurrent()
+
+            assertEquals(listOf<ProjectMessage>(ProjectMessage.TodayLockedCompletion), heard)
+        }
+
+    @Test
     fun `a full shelf is reported with the size of the shelf`() =
         runTest {
             val presenter = presenter()

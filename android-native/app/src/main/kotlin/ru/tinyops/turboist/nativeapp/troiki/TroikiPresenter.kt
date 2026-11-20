@@ -88,11 +88,14 @@ class TroikiPresenter(
 
     /** Ticks a task off, or puts it back, depending on where it stands now. */
     fun toggleComplete(task: Task) {
-        queue {
-            if (task.status == TaskStatus.COMPLETED) {
-                taskActions.uncomplete(task.localId)
-            } else {
+        val completing = task.status != TaskStatus.COMPLETED
+        queue(
+            locked = if (completing) ProjectMessage.TodayLockedCompletion else ProjectMessage.TodayLocked,
+        ) {
+            if (completing) {
                 taskActions.complete(task.localId)
+            } else {
+                taskActions.uncomplete(task.localId)
             }
         }
     }
@@ -137,8 +140,11 @@ class TroikiPresenter(
      */
     fun reset() = queue { actions.reset() }
 
-    private fun queue(write: suspend () -> Unit) {
-        scope.launch { outgoing.reporting(write) }
+    private fun queue(
+        locked: ProjectMessage = ProjectMessage.TodayLocked,
+        write: suspend () -> Unit,
+    ) {
+        scope.launch { outgoing.reporting(locked, write) }
     }
 
     private companion object {

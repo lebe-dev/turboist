@@ -229,6 +229,7 @@
     <string name="native_unsent_op_troikiStart">Запуск плана на день</string>
     <string name="native_unsent_op_todayLock">Блокировка дня за его проектами</string>
     <string name="native_task_bulkMovedTodayLocked">Перенесено: %1$s; %2$s не взято на сегодня из-за фокус-блокировки</string>
+    <string name="native_task_bulkCompletedTodayLocked">Выполнено: %1$s; %2$s осталось открытым — до полуночи завершать можно только задачи сегодняшних проектов</string>
     <string name="native_unsent_op_troikiReset">Сброс плана на день</string>
     <string name="native_unsent_op_harpoonAttach">Добавление в пару прыжков</string>
     <string name="native_unsent_op_harpoonDetach">Удаление из пары прыжков</string>

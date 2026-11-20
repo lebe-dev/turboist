@@ -132,6 +132,15 @@ not checked. A refusal is `service.TodayLockedError` → `409 today_locked`; the
 handler also maps one that a handler wrapped as an internal error, so a new caller cannot
 turn it into a `500`. The lock endpoint publishes the `settings` SSE scope.
 
+`CheckCompletion(t)` is the second half of the same rule, asked by
+`CompleteService.completeAt` before it commits (so the single endpoint, the bulk action and
+the Troiki board all ask it once): while the lock runs, a task may only be completed when its
+project is in `TaskRepo.TodayProjectIDs` — `Check`'s one set, read without leaving the task
+out, since an open task due before the end is itself a project's place on Today. That is what
+lets the last task of a project be completed; the project closes afterwards, exactly as it
+closes to new work. A task with no project is refused, and a task that is already closed is
+not asked about at all, so a repeated completion stays idempotent.
+
 ## Label descriptions
 
 `labels.description` (migration `053_labels_description.sql`, `TEXT NOT NULL DEFAULT ''`)

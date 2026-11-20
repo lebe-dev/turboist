@@ -385,6 +385,101 @@ class TodayLockGuardTest : WriteTest() {
             assertEquals(1, queue().size)
         }
 
+    // --- finishing -----------------------------------------------------------
+
+    @Test
+    fun `another project's work is not finished while the lock runs`() =
+        runTest {
+            val (_, other) = givenFocusDay()
+            val later = givenTask(title = "Later", serverId = 11, projectLocalId = other, dueAt = tomorrow)
+
+            assertFailsWith<WriteRefused.TodayLocked> { tasks.complete(later) }
+
+            assertEquals(TaskStatus.OPEN, assertNotNull(db.tasks().byLocalId(later)).status)
+            assertTrue(queue().isEmpty())
+        }
+
+    @Test
+    fun `today's own work is finished`() =
+        runTest {
+            val (focus, _) = givenFocusDay()
+            val more = givenTask(title = "More", serverId = 11, projectLocalId = focus, dueAt = today)
+
+            tasks.complete(more)
+
+            assertEquals(TaskStatus.COMPLETED, assertNotNull(db.tasks().byLocalId(more)).status)
+            assertEquals(listOf<OutboxOp>(CompleteTaskOp(more, WireTime.format(NOW))), queuedOps())
+        }
+
+    @Test
+    fun `the last task of a project is finished, and the project closes afterwards`() =
+        runTest {
+            val ctx = givenContext()
+            val focus = givenProject(ctx, title = "Focus", serverId = 1)
+            val only = givenTask(title = "Today's work", serverId = 10, projectLocalId = focus, dueAt = today)
+            givenLock()
+
+            tasks.complete(only)
+
+            assertFailsWith<WriteRefused.TodayLocked> {
+                tasks.create(TaskDestination.InProject(focus), NewTask(title = "More", dueAt = today))
+            }
+        }
+
+    @Test
+    fun `finishing the same task twice stays a no-op once its project left the day`() =
+        runTest {
+            val ctx = givenContext()
+            val focus = givenProject(ctx, title = "Focus", serverId = 1)
+            val only = givenTask(title = "Today's work", serverId = 10, projectLocalId = focus, dueAt = today)
+            givenLock()
+
+            tasks.complete(only)
+            tasks.complete(only)
+
+            assertEquals(TaskStatus.COMPLETED, assertNotNull(db.tasks().byLocalId(only)).status)
+        }
+
+    @Test
+    fun `the inbox is not finished while the lock runs`() =
+        runTest {
+            givenFocusDay()
+            val captured = givenTask(title = "Captured", serverId = 11, inboxId = 1)
+
+            assertFailsWith<WriteRefused.TodayLocked> { tasks.complete(captured) }
+
+            assertEquals(TaskStatus.OPEN, assertNotNull(db.tasks().byLocalId(captured)).status)
+            assertTrue(queue().isEmpty())
+        }
+
+    @Test
+    fun `a bulk completion leaves out only the tasks the lock keeps out`() =
+        runTest {
+            val (focus, other) = givenFocusDay()
+            val todays = givenTask(title = "Today's too", serverId = 11, projectLocalId = focus, dueAt = today)
+            val later = givenTask(title = "Later", serverId = 12, projectLocalId = other)
+
+            val result = tasks.bulkComplete(listOf(todays, later))
+
+            assertEquals(listOf(todays), result.accepted)
+            assertEquals(listOf(later), result.todayLocked)
+            assertEquals(listOf<OutboxOp>(BulkCompleteTasksOp(listOf(todays))), queuedOps())
+            assertEquals(TaskStatus.OPEN, assertNotNull(db.tasks().byLocalId(later)).status)
+        }
+
+    @Test
+    fun `a bulk completion the lock keeps out entirely queues nothing`() =
+        runTest {
+            val (_, other) = givenFocusDay()
+            val later = givenTask(title = "Later", serverId = 11, projectLocalId = other)
+
+            val result = tasks.bulkComplete(listOf(later))
+
+            assertNull(result.opId)
+            assertEquals(listOf(later), result.todayLocked)
+            assertTrue(queue().isEmpty())
+        }
+
     // --- when no lock runs ---------------------------------------------------
 
     @Test

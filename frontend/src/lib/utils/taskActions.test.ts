@@ -8,6 +8,7 @@ vi.mock('$lib/api/client', async (importOriginal) => ({
 
 import { tasks as tasksApi } from '$lib/api/endpoints/tasks';
 import {
+	describeCompleteError,
 	describeError,
 	duplicateTask,
 	hasTitleCounter,
@@ -85,6 +86,27 @@ describe('describeError task_blocked', () => {
 		expect(describeError(err, 'Fallback')).toBe(
 			'Cannot complete: this task is blocked by an unfinished task'
 		);
+	});
+});
+
+describe('describeCompleteError', () => {
+	const locked = () =>
+		new ApiError('today_locked', 'today is locked to the projects already planned for it', 409, {
+			lockedUntil: '2026-11-11T21:00:00.000Z',
+			projectId: 4
+		});
+
+	it('explains a completion the Today lock refused in terms of finishing work', () => {
+		expect(describeCompleteError(locked(), 'Fallback')).toBe(
+			'Until midnight, only the work of today’s projects can be finished.'
+		);
+	});
+
+	it('leaves every other failure to the shared mapping', () => {
+		expect(describeCompleteError(new ApiError('task_blocked', 'blocked', 409), 'Fallback')).toBe(
+			'Cannot complete: this task is blocked by an unfinished task'
+		);
+		expect(describeCompleteError(new Error('boom'), 'Fallback')).toBe('boom');
 	});
 });
 

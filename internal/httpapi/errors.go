@@ -132,9 +132,10 @@ func ErrTaskBlocked(msg string, blockerIDs []int64) *AppError {
 }
 
 // ErrTodayLocked signals a write the Today focus lock refused: it would have put
-// a task on Today in a project that has no open task there. lockedUntil says
-// when the lock ends; projectId is the project the task would have landed in,
-// null for the inbox or a bare context.
+// a task on Today in a project that has no open task there, or finished work of a
+// project that is not part of the day. lockedUntil says when the lock ends;
+// projectId is the project the task belongs to or would have landed in, null for
+// the inbox or a bare context.
 func ErrTodayLocked(lockedUntil string, projectID *int64) *AppError {
 	return newErr(409, CodeTodayLocked, "today is locked to the projects already planned for it",
 		map[string]any{"lockedUntil": lockedUntil, "projectId": projectID})

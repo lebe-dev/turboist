@@ -91,6 +91,37 @@ class ReplicaRules(
         if (TodayLock.refuses(until, now, from, to, weekEnd) { onToday }) throw WriteRefused.TodayLocked(until)
     }
 
+    /**
+     * Refuses finishing a task the lock keeps out of the day.
+     *
+     * While the lock runs the day belongs to the projects already part of it, so
+     * only their work may be ticked off: finishing another project's task would be
+     * doing the very work the day was meant to exclude. The task being finished is
+     * part of the count — an open task due today is itself a project's place on
+     * Today — so the last task of a project can still be completed, and the project
+     * closes afterwards. The inbox never qualifies.
+     *
+     * A task that is already closed is not asked about at all: a repeated
+     * completion is a no-op rather than something to refuse.
+     */
+    suspend fun assertTodayAllowsCompletion(
+        row: TaskRow,
+        now: Long,
+    ) {
+        if (row.status != TaskStatus.OPEN) return
+        val until = userSettings().todayLockUntil ?: return
+        if (!TodayLock.isActive(until, now)) return
+        val todayProjects =
+            if (row.projectLocalId == null) {
+                emptySet()
+            } else {
+                db.tasks().todayProjectLocalIds(until, exceptLocalId = null).toSet()
+            }
+        if (TodayLock.refusesCompletion(until, now, row.projectLocalId) { todayProjects }) {
+            throw WriteRefused.TodayLocked(until)
+        }
+    }
+
     private fun TaskRow.lockPlacement() =
         TodayLock.Placement(projectLocalId, dueAt, status == TaskStatus.OPEN, planState == PlanState.WEEK)
 

@@ -64,20 +64,22 @@ abstract class TaskDao {
 
     /**
      * The projects with open work due before [end] — what the Today screen shows,
-     * today and overdue alike — leaving out the task [exceptLocalId], so a write
-     * can ask which projects stand on Today without the task it is changing.
+     * today and overdue alike — leaving out the task [exceptLocalId] when one is
+     * named, so a write can ask which projects stand on Today without the task it
+     * is changing. A completion passes no task: the task being finished counts as
+     * its project's place on Today, which is what lets the last one be finished.
      * Tasks with no project (the inbox, a bare context) name nothing. Projects
      * marked as exempt from the focus lock are always part of the answer, as on the
      * server: the lock never keeps them out.
      */
     @Query(
         "SELECT projectLocalId FROM tasks WHERE status = 'open' AND projectLocalId IS NOT NULL " +
-            "AND dueAt IS NOT NULL AND dueAt < :end AND localId <> :exceptLocalId " +
+            "AND dueAt IS NOT NULL AND dueAt < :end AND (:exceptLocalId IS NULL OR localId <> :exceptLocalId) " +
             "UNION SELECT localId FROM projects WHERE todayLockExempt = 1",
     )
     abstract suspend fun todayProjectLocalIds(
         end: Long,
-        exceptLocalId: Long,
+        exceptLocalId: Long?,
     ): List<Long>
 
     /**

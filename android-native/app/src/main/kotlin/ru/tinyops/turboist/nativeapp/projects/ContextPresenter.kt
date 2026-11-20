@@ -129,7 +129,7 @@ class ContextPresenter(
     fun planForWeek(task: Task) = queue { taskActions.planForWeek(task.localId) }
 
     private fun queue(write: suspend () -> Unit) {
-        scope.launch { outgoing.reporting(write) }
+        scope.launch { outgoing.reporting(write = write) }
     }
 
     private companion object {

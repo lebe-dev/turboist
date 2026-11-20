@@ -325,7 +325,11 @@ it until the next midnight in the server timezone, and answers `{"lockedUntil": 
 Locking again while a lock runs keeps it; there is no way to lift it early. While it runs,
 any write that would put an open task due today or earlier into a project with no other
 open work on Today — or into the inbox — is refused with `409 today_locked`. Work for
-other days is unaffected. The end is served as `todayLockUntil` in the user settings
+other days is unaffected. The lock also decides what may be finished: only the work of the
+projects already in the day can be completed, so a task of any other project — or an inbox
+task — answers the same `409 today_locked`. A task standing on Today carries its own
+project into the day, which is what lets the last task of a project be finished. The end is
+served as `todayLockUntil` in the user settings
 (read-only there). `GET /api/v1/today/lock` (scope `settings:read`) answers
 `{"active": bool, "lockedUntil": "…"|null, "projectIds": [...]}`: the projects that may
 still take work for today (those with open work on Today plus the always-allowed ones), so a

@@ -82,6 +82,12 @@ enum class TaskListMessage {
     /** The Today focus lock keeps the task out of the day: another day, or one of today's projects. */
     TODAY_LOCKED,
 
+    /**
+     * The Today focus lock keeps the task out of the finished work: only the work
+     * of the projects already on Today may be ticked off.
+     */
+    TODAY_LOCKED_COMPLETE,
+
     /** The two tasks are already linked that way, so there is nothing to add. */
     RELATION_EXISTS,
 
@@ -266,13 +272,12 @@ class TaskListPresenter(
 
     /** Ticks a task off, or puts it back, depending on where it stands now. */
     fun toggleComplete(task: Task) {
+        val completing = task.status != TaskStatus.COMPLETED
         scope.launch {
-            report {
-                if (task.status == TaskStatus.COMPLETED) {
-                    actions.uncomplete(task.localId)
-                } else {
-                    actions.complete(task.localId)
-                }
+            report(
+                locked = if (completing) TaskListMessage.TODAY_LOCKED_COMPLETE else TaskListMessage.TODAY_LOCKED,
+            ) {
+                if (completing) actions.complete(task.localId) else actions.uncomplete(task.localId)
             }
         }
     }
@@ -451,19 +456,24 @@ class TaskListPresenter(
      *
      * Only the blocked-task and the Today-lock refusals are told apart, because
      * they are the ones a list can provoke that the user can act on: something
-     * else has to be finished first, or the task belongs to another day. Every
-     * other refusal, and every unexpected failure, says the same thing to the
-     * user — the change did not happen — and inventing a
-     * different sentence for each would be noise rather than help.
+     * else has to be finished first, or the task belongs to another day. A
+     * completion says its own sentence for the lock, since "not today's work" and
+     * "not today's project" refuse two different gestures. Every other refusal,
+     * and every unexpected failure, says the same thing to the user — the change
+     * did not happen — and inventing a different sentence for each would be noise
+     * rather than help.
      */
-    private suspend fun report(write: suspend () -> Unit) {
+    private suspend fun report(
+        locked: TaskListMessage = TaskListMessage.TODAY_LOCKED,
+        write: suspend () -> Unit,
+    ) {
         try {
             write()
         } catch (refusal: WriteRefused) {
             outgoing.emit(
                 when (refusal) {
                     is WriteRefused.TaskBlocked -> TaskListMessage.BLOCKED
-                    is WriteRefused.TodayLocked -> TaskListMessage.TODAY_LOCKED
+                    is WriteRefused.TodayLocked -> locked
                     else -> TaskListMessage.FAILED
                 },
             )

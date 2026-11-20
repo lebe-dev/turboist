@@ -4007,8 +4007,9 @@ paths:
     post:
       description: Until the next midnight in the server timezone, no task may be
         put on Today (due today or earlier) in a project that has no open task there,
-        nor in the inbox; such writes answer 409 today_locked. Locking again while
-        a lock runs keeps it. The lock cannot be lifted early.
+        nor in the inbox, and only the work of those projects may be completed; such
+        writes answer 409 today_locked. Locking again while a lock runs keeps it.
+        The lock cannot be lifted early.
       operationId: postTodayLock
       responses:
         "200":

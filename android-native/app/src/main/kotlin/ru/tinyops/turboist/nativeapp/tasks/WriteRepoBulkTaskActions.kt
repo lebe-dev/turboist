@@ -28,7 +28,14 @@ class WriteRepoBulkTaskActions
     ) : BulkTaskActions {
         override suspend fun complete(taskLocalIds: List<Long>): BulkChange {
             val written = tasks.bulkComplete(taskLocalIds)
-            return BulkChange(changed = written.accepted.size, leftBlocked = written.refused.size)
+            // A task of a project the Today focus lock keeps out of the day was
+            // left open: it is not this day's work, so it reads as "not theirs"
+            // rather than as something to retry.
+            return BulkChange(
+                changed = written.accepted.size,
+                leftBlocked = written.refused.size,
+                leftLocked = written.todayLocked.size,
+            )
         }
 
         override suspend fun move(

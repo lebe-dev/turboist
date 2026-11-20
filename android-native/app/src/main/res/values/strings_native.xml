@@ -281,6 +281,7 @@
     <string name="native_unsent_op_troikiStart">Start the daily plan</string>
     <string name="native_unsent_op_todayLock">Lock today to its projects</string>
     <string name="native_task_bulkMovedTodayLocked">%1$s moved; %2$s kept out of today by the focus lock</string>
+    <string name="native_task_bulkCompletedTodayLocked">%1$s completed; %2$s left open — until midnight only today\'s projects can be finished</string>
     <string name="native_unsent_op_troikiReset">Reset the daily plan</string>
     <string name="native_unsent_op_harpoonAttach">Add to the jump pair</string>
     <string name="native_unsent_op_harpoonDetach">Remove from the jump pair</string>

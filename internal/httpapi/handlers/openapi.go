@@ -390,7 +390,7 @@ func Operations() []openapi.Operation {
 		{Method: post, Path: "/api/v1/harpoon/attach", Tag: tagSettings, Auth: api, Scopes: scopes(setw), Summary: "Put an item into the jump pair", Request: harpoonRefReq{}, Response: harpoonResp{}},
 		{Method: post, Path: "/api/v1/harpoon/detach", Tag: tagSettings, Auth: api, Scopes: scopes(setw), Summary: "Remove an item from the jump pair", Request: harpoonRefReq{}, Response: harpoonResp{}},
 		{Method: post, Path: "/api/v1/today/lock", Tag: tagSettings, Auth: api, Scopes: scopes(setw), Summary: "Lock Today to its planned projects",
-			Description: "Until the next midnight in the server timezone, no task may be put on Today (due today or earlier) in a project that has no open task there, nor in the inbox; such writes answer 409 today_locked. Locking again while a lock runs keeps it. The lock cannot be lifted early.",
+			Description: "Until the next midnight in the server timezone, no task may be put on Today (due today or earlier) in a project that has no open task there, nor in the inbox, and only the work of those projects may be completed; such writes answer 409 today_locked. Locking again while a lock runs keeps it. The lock cannot be lifted early.",
 			Response:    todayLockResp{}},
 		{Method: get, Path: "/api/v1/today/lock", Tag: tagSettings, Auth: api, Scopes: scopes(setr), Summary: "Today focus lock state",
 			Description: "Whether the lock runs, when it ends, and the project ids that may still take work for today while it runs (projects with open work on Today plus the always-allowed ones). Clients use it to refuse a draft before sending it.",

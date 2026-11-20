@@ -132,4 +132,40 @@ class TodayLockTest {
         TodayLock.refuses(until, now, null, open(other, today), todayProjects = read)
         assertEquals(1, reads)
     }
+
+    // --- finishing a task -----------------------------------------------------
+
+    private fun refusesCompletion(
+        project: Long?,
+        lockUntil: Long? = until,
+        todayProjects: Set<Long> = setOf(focus),
+    ) = TodayLock.refusesCompletion(lockUntil, now, project) { todayProjects }
+
+    @Test
+    fun `finishing work of one of today's projects is allowed`() {
+        assertFalse(refusesCompletion(focus))
+    }
+
+    @Test
+    fun `finishing another project's work is refused`() {
+        assertTrue(refusesCompletion(other))
+    }
+
+    @Test
+    fun `the inbox is never finished while the lock runs`() {
+        assertTrue(refusesCompletion(null))
+        assertTrue(refusesCompletion(null, todayProjects = emptySet()))
+    }
+
+    @Test
+    fun `without a lock anything may be finished`() {
+        assertFalse(refusesCompletion(other, lockUntil = null))
+        assertFalse(refusesCompletion(null, lockUntil = null))
+        assertFalse(refusesCompletion(other, lockUntil = now - 1))
+    }
+
+    @Test
+    fun `a lock ending exactly now does not refuse anything`() {
+        assertFalse(refusesCompletion(other, lockUntil = now))
+    }
 }
