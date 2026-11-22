@@ -51,10 +51,14 @@ import java.time.ZoneId
  * about the sheet needs no database.
  */
 interface QuickAddActions {
+    /**
+     * Writes [task] down and answers with the local id the replica holds it
+     * under, so a caller can point at what it has just created.
+     */
     suspend fun create(
         destination: TaskDestination,
         task: NewTask,
-    )
+    ): Long
 }
 
 /** Everything the capture sheet renders. */

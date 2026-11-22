@@ -31,12 +31,18 @@ class RecordingQuickAddActions(
 ) : QuickAddActions {
     val calls = mutableListOf<CreateCall>()
 
+    /** The local ids handed back, in the order the writes were asked for. */
+    val createdIds = mutableListOf<Long>()
+
     override suspend fun create(
         destination: TaskDestination,
         task: NewTask,
-    ) {
+    ): Long {
         if (calls.size + 1 >= failFrom) throw failure
         calls += CreateCall(destination, task)
+        val localId = createdIds.size + 1L
+        createdIds += localId
+        return localId
     }
 }
 

@@ -52,10 +52,11 @@ nothing matched.
 ## "Recently opened"
 
 A task or project counts as opened when its page is shown — from the switcher, a list, a
-link or anywhere else. The list is kept on the device only (web: `localStorage`,
-`turboist:recentItems`; Android: its own DataStore file) and is never synced: it is a
-navigation habit, not workspace data. Android forgets it on sign-out together with the
-replica.
+link or anywhere else. A task written down from the panel counts too: it is what you have
+just made, so it leads the recents the next time the panel opens. The list is kept on the
+device only (web: `localStorage`, `turboist:recentItems`; Android: its own DataStore
+file) and is never synced: it is a navigation habit, not workspace data. Android forgets
+it on sign-out together with the replica.
 
 ## Offline
 

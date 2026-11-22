@@ -6,12 +6,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.junit.Rule
 import org.junit.Test
@@ -163,6 +166,22 @@ class SearchScreenTest {
         compose.onNodeWithText("Passport paperwork").performClick()
 
         assertEquals(listOf("task:Renew passport", "project:Passport paperwork"), opened)
+    }
+
+    @Test
+    fun `a refined query opens at its first result rather than where the last one was left`() {
+        repository.answer = SearchResults(tasks = (1L..20L).map { taskHit(it, "Match $it") })
+        launch()
+        search("ma")
+
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(15)
+        compose.waitForIdle()
+
+        repository.answer = SearchResults(tasks = (101L..120L).map { taskHit(it, "Fresh $it") })
+        compose.onNode(hasSetTextAction()).performTextReplacement("match")
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Fresh 101").assertIsDisplayed()
     }
 
     @Test

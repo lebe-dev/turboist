@@ -168,17 +168,19 @@ class QuickSwitcherPresenter(
         try {
             when (target) {
                 SwitcherTarget.Inbox -> {
-                    actions.create(TaskDestination.Inbox, NewTask(title = title))
+                    remember(actions.create(TaskDestination.Inbox, NewTask(title = title)))
                     QuickSwitcherMessage.AddedToInbox
                 }
                 is SwitcherTarget.Today -> {
                     val now = clock.now()
                     val dueAt = now.atZone(clock.zone).toLocalDate().atStartOfDay(clock.zone).toInstant().toEpochMilli()
                     val part = schedule.nearestAt(now, clock.zone) ?: DayPart.NONE
-                    actions.create(
-                        TaskDestination.InProject(target.project.localId),
-                        NewTask(title = title, dueAt = dueAt, dueHasTime = false, dayPart = part),
-                    )
+                    val written =
+                        actions.create(
+                            TaskDestination.InProject(target.project.localId),
+                            NewTask(title = title, dueAt = dueAt, dueHasTime = false, dayPart = part),
+                        )
+                    remember(written)
                     activity.touch(target.project.localId, now.toEpochMilli())
                     QuickSwitcherMessage.AddedForToday(target.project.title)
                 }
@@ -191,6 +193,15 @@ class QuickSwitcherPresenter(
             Faults.report("switcher", "Adding a task from the quick switcher failed", failure)
             QuickSwitcherMessage.Failed
         }
+
+    /**
+     * A task written down here leads the recents the next time the panel opens,
+     * exactly as if it had been opened: it is what the user has just made and is
+     * most likely to come back to.
+     */
+    private suspend fun remember(taskLocalId: Long) {
+        recentItems.visit(RecentRef(SwitcherKind.TASK, taskLocalId))
+    }
 
     // The index lives on this device, so a failed read is a defect rather than
     // something the user can act on: it is reported and the panel shows less.

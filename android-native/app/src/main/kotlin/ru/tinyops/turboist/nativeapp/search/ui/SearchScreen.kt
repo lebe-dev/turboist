@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -35,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -289,7 +291,13 @@ private fun ResultList(
     results: SearchResults,
     callbacks: SearchCallbacks,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    // Each answer is read from its top: the list keeps the row that was at the
+    // top edge in view when the rows are replaced, which would otherwise drop a
+    // new query halfway down its results.
+    val list = rememberLazyListState()
+    LaunchedEffect(results) { list.scrollToItem(0) }
+
+    LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
         kindBlock(SearchKind.TASKS, results.tasks.size) {
             items(results.tasks, key = { "task-" + it.task.localId }) { hit ->
                 TaskResultRow(hit) { callbacks.navigation.onOpenTask(hit.task) }

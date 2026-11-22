@@ -220,4 +220,57 @@ class QuickSwitcherPresenterTest {
 
             assertEquals(setOf(5L), activity.touched.keys)
         }
+
+    @Test
+    fun `a task added from the panel leads the recents the next time it opens`() =
+        runTest {
+            val added = SwitcherRow.TaskRow(task(1, title = "Call mom"), projectTitle = null)
+            val recent = FakeRecentItems(listOf(dacha.ref))
+            val presenter =
+                presenterWith(FakeQuickSwitcherRepository(rows = listOf(added, dacha)), recent)
+
+            presenter.open()
+            presenter.type("Call mom")
+            presenter.create(SwitcherTarget.Inbox)
+            advanceUntilIdle()
+
+            assertEquals(listOf(added.ref, dacha.ref), recent.remembered)
+
+            presenter.open()
+            advanceUntilIdle()
+
+            assertEquals(added.ref, presenter.state.value.rows.first().ref)
+        }
+
+    @Test
+    fun `a task added for today leads the recents too`() =
+        runTest {
+            val added = SwitcherRow.TaskRow(task(1, title = "Water the beds"), projectTitle = "Dacha")
+            val recent = FakeRecentItems()
+            val presenter =
+                presenterWith(FakeQuickSwitcherRepository(rows = listOf(added)), recent)
+
+            presenter.open()
+            presenter.type("Water the beds")
+            advanceUntilIdle()
+            presenter.create(SwitcherTarget.Today(dacha.project))
+            advanceUntilIdle()
+
+            assertEquals(listOf(added.ref), recent.remembered)
+        }
+
+    @Test
+    fun `a task the write refused is not remembered`() =
+        runTest {
+            actions.failFrom = 1
+            val recent = FakeRecentItems()
+            val presenter = presenterWith(FakeQuickSwitcherRepository(), recent)
+
+            presenter.open()
+            presenter.type("Call mom")
+            presenter.create(SwitcherTarget.Inbox)
+            advanceUntilIdle()
+
+            assertTrue(recent.remembered.isEmpty())
+        }
 }

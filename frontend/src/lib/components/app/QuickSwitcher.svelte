@@ -127,6 +127,14 @@
 	});
 
 	$effect(() => {
+		// Every answer is read from its top. Left to itself the browser keeps the
+		// row that was under the top edge anchored when results are inserted above
+		// it, so a refined query would open halfway down an answer never seen.
+		void rows;
+		if (listEl) listEl.scrollTop = 0;
+	});
+
+	$effect(() => {
 		if (open) return;
 		query = '';
 		tasks = [];
@@ -188,6 +196,14 @@
 	}
 
 	function announce(task: Task): void {
+		// A task written down here is one the user will come back to: it leads the
+		// recents the next time the panel opens, exactly as if it had been opened.
+		recentItemsStore.visit({
+			kind: 'task',
+			id: task.id,
+			title: task.title,
+			labels: task.labels.map((l) => l.name)
+		});
 		window.dispatchEvent(
 			new CustomEvent('turboist:task-created', {
 				detail: { task, projectId: task.projectId, contextId: task.contextId }
@@ -323,7 +339,7 @@
 				bind:this={listEl}
 				id="quick-switcher-list"
 				role="listbox"
-				class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2"
+				class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2 [overflow-anchor:none]"
 			>
 				{#if !query.trim() && results.length > 0}
 					<div class="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

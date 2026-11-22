@@ -23,7 +23,5 @@ class WriteRepoQuickAddActions
         override suspend fun create(
             destination: TaskDestination,
             task: NewTask,
-        ) {
-            tasks.create(destination, task)
-        }
+        ): Long = tasks.create(destination, task).entityLocalId
     }

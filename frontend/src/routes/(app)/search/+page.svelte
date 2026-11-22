@@ -14,7 +14,7 @@
 	import TaskTree from '$lib/components/task/TaskTree.svelte';
 	import { toggleComplete, describeError } from '$lib/utils/taskActions';
 	import { ApiError } from '$lib/api/errors';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
 	import { useListMutator } from '$lib/hooks/useListMutator.svelte';
 	import { usePageLoad } from '$lib/hooks/usePageLoad.svelte';
 	import { useInvalidation } from '$lib/hooks/useInvalidation.svelte';
@@ -24,6 +24,7 @@
 	let projects = $state<Project[]>([]);
 	let total = $state({ tasks: 0, projects: 0 });
 	let lastQuery = $state('');
+	let topEl = $state<HTMLDivElement | null>(null);
 
 	let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -79,15 +80,25 @@
 			if (q.trim().length < 2) {
 				loader.cancel();
 				reset();
+				void showTop();
 			} else {
-				void loader.refetch();
+				void loader.refetch().then(showTop);
 			}
 		}, 300);
 	}
 
+	/**
+	 * Read every answer from its top: a list replaced in a scrolled container keeps
+	 * the row it had in view, which would drop a new query halfway down its results.
+	 */
+	async function showTop(): Promise<void> {
+		await tick();
+		topEl?.scrollIntoView?.({ block: 'start' });
+	}
+
 </script>
 
-<div class="px-6 py-3">
+<div bind:this={topEl} class="px-6 py-3">
 	<div class="relative">
 		<MagnifyingGlassIcon
 			class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"

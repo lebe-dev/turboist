@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -56,6 +57,7 @@ import ru.tinyops.turboist.nativeapp.switcher.SwitcherTarget
 
 /** Tags the checks find the panel's parts by. */
 const val QUICK_SWITCHER_FIELD_TAG: String = "quick-switcher-field"
+const val QUICK_SWITCHER_LIST_TAG: String = "quick-switcher-list"
 const val QUICK_SWITCHER_ADD_INBOX_TAG: String = "quick-switcher-add-inbox"
 const val QUICK_SWITCHER_ADD_TODAY_TAG: String = "quick-switcher-add-today"
 
@@ -165,6 +167,12 @@ private fun QuickSwitcherPanel(
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
+    // A new answer always starts at its first row. The list keeps the row that
+    // was under the top edge in view when results are replaced, so a refined
+    // query would open halfway down an answer the user has never seen.
+    val list = rememberLazyListState()
+    LaunchedEffect(state.rows) { list.scrollToItem(0) }
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
@@ -210,7 +218,10 @@ private fun QuickSwitcherPanel(
                 )
             }
             HorizontalDivider()
-            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            LazyColumn(
+                state = list,
+                modifier = Modifier.fillMaxWidth().weight(1f).testTag(QUICK_SWITCHER_LIST_TAG),
+            ) {
                 if (state.typed.isBlank() && state.rows.isNotEmpty()) {
                     item(key = "recent-heading") {
                         Text(
