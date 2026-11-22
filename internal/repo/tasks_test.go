@@ -863,3 +863,27 @@ func TestTaskRepo_CountWeek_IgnoresSubtasks(t *testing.T) {
 		t.Errorf("week count: got %d, want 0 (only top-level tasks are counted)", got)
 	}
 }
+
+func TestTaskRepo_CountBacklog_IgnoresSubtasks(t *testing.T) {
+	f := newTaskFixture(t)
+	ctx := context.Background()
+	backlog := model.PlanStateBacklog
+	parent, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID},
+		Title:     "parent",
+	})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	// A subtask parked on its own, under a parent that is not in the backlog.
+	if _, err := f.tasks.Create(ctx, CreateTask{
+		Placement: Placement{ContextID: &f.contextID, ParentID: &parent.ID},
+		Title:     "child",
+		PlanState: backlog,
+	}); err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	if got, _ := f.tasks.CountBacklog(ctx); got != 0 {
+		t.Errorf("backlog count: got %d, want 0 (only top-level tasks are counted)", got)
+	}
+}

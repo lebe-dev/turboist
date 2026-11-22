@@ -1078,7 +1078,7 @@ func (r *TaskRepo) CountWeek(ctx context.Context) (int, error) {
 }
 
 func (r *TaskRepo) CountBacklog(ctx context.Context) (int, error) {
-	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks WHERE plan_state = 'backlog' AND status = 'open'`)
+	return r.scalarCount(ctx, `SELECT COUNT(*) FROM tasks t WHERE t.plan_state = 'backlog' AND t.status = 'open'`+topLevelOnly)
 }
 
 func (r *TaskRepo) CountInbox(ctx context.Context) (int, error) {

@@ -281,9 +281,10 @@ func (r *TaskRepo) ListWeek(ctx context.Context, start, end time.Time, filter Ta
 	return items, total, nil
 }
 
-// topLevelOnly narrows a `plan_state = 'week'` filter (on alias `t`) to parent
-// tasks. Subtasks never use up a slot of the weekly limit: the limit is a budget of
-// top-level choices, and a parent's subtasks travel with it.
+// topLevelOnly narrows a `plan_state = 'week'` or `plan_state = 'backlog'` filter
+// (on alias `t`) to parent tasks. Subtasks never use up a slot of either limit:
+// the limit is a budget of top-level choices, and a parent's subtasks travel
+// with it.
 const topLevelOnly = ` AND t.parent_id IS NULL`
 
 func (r *TaskRepo) ListBacklog(ctx context.Context, filter TaskFilter) ([]model.Task, int, error) {

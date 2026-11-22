@@ -51,8 +51,14 @@
 	// Counts come from planStatsStore (global), not from list lengths — list is
 	// filtered by active context, so item counts can lag the limit enforced
 	// server-side and let the user trigger a 422.
-	const weekCount = $derived(planStatsStore.value?.week ?? week.items.length);
-	const backlogCount = $derived(planStatsStore.value?.backlog ?? backlog.items.length);
+	// Only parent tasks spend a slot: subtasks travel with their parent, both in
+	// the week and in the backlog, so a fallback list length has to skip them too.
+	const weekCount = $derived(
+		planStatsStore.value?.week ?? week.items.filter((t) => t.parentId === null).length
+	);
+	const backlogCount = $derived(
+		planStatsStore.value?.backlog ?? backlog.items.filter((t) => t.parentId === null).length
+	);
 	const weekFull = $derived(weeklyLimit !== null && weekCount >= weeklyLimit);
 	const backlogFull = $derived(backlogLimit !== null && backlogCount >= backlogLimit);
 
