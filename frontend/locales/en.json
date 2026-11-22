@@ -857,6 +857,7 @@
 			"descriptionPlaceholder": "Description",
 			"bugAriaLabel": "File as a bug (bug labels, highest priority)",
 			"descriptionAriaLabel": "Description",
+			"swapFields": "Swap title and description",
 			"autoLabelHint": "Auto-detected from title — will be applied on save",
 			"rejectAutoLabel": "Reject auto-label {name}",
 			"projectSuggestionHint": "Suggested projects:",

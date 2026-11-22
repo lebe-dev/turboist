@@ -23,6 +23,7 @@
 	import { matchProjectSuggestions } from '$lib/utils/projectSuggestions';
 	import { nowStore } from '$lib/stores/now.svelte';
 	import XIcon from 'phosphor-svelte/lib/X';
+	import ArrowsDownUpIcon from 'phosphor-svelte/lib/ArrowsDownUp';
 	import DotsThreeIcon from 'phosphor-svelte/lib/DotsThree';
 	import SparkleIcon from 'phosphor-svelte/lib/Sparkle';
 	import MagnifyingGlassIcon from 'phosphor-svelte/lib/MagnifyingGlass';
@@ -308,6 +309,22 @@
 		el.style.height = `${el.scrollHeight}px`;
 	}
 
+	/**
+	 * Exchanges the two text fields.
+	 *
+	 * A thought is often typed into the name box before it turns out to be the
+	 * longer of the two, and retyping it to move it down would be the work this
+	 * dialog exists to save. The text moves exactly as it stands — nothing is
+	 * trimmed, and a description holding several lines becomes several titles the
+	 * way typing them there would — so pressing the button again puts everything
+	 * back where it was.
+	 */
+	function swapFields(): void {
+		const previousTitle = titles;
+		titles = description;
+		description = previousTitle;
+	}
+
 	$effect(() => {
 		void description;
 		autoGrow(descriptionEl);
@@ -477,28 +494,42 @@
 					</div>
 				{/if}
 				<div class="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-3">
-					<!-- svelte-ignore a11y_autofocus -->
-					<textarea
-						bind:this={titlesEl}
-						bind:value={titles}
-						use:cleanLinksOnPaste
-						placeholder={$t('dialog.quickAdd.titlePlaceholder')}
-						aria-label={$t('dialog.quickAdd.titleAriaLabel')}
-						rows="1"
-						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
-						class="block w-full resize-none overflow-hidden bg-transparent text-lg leading-tight font-medium break-words outline-none placeholder:text-muted-foreground/70"
-						autofocus
-					></textarea>
-					<textarea
-						bind:this={descriptionEl}
-						bind:value={description}
-						use:cleanLinksOnPaste
-						placeholder={$t('dialog.quickAdd.descriptionPlaceholder')}
-						aria-label={$t('dialog.quickAdd.descriptionAriaLabel')}
-						rows="1"
-						oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
-						class="mt-2 block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
-					></textarea>
+					<div class="flex items-start gap-1">
+						<div class="min-w-0 flex-1">
+							<!-- svelte-ignore a11y_autofocus -->
+							<textarea
+								bind:this={titlesEl}
+								bind:value={titles}
+								use:cleanLinksOnPaste
+								placeholder={$t('dialog.quickAdd.titlePlaceholder')}
+								aria-label={$t('dialog.quickAdd.titleAriaLabel')}
+								rows="1"
+								oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
+								class="block w-full resize-none overflow-hidden bg-transparent text-lg leading-tight font-medium break-words outline-none placeholder:text-muted-foreground/70"
+								autofocus
+							></textarea>
+							<textarea
+								bind:this={descriptionEl}
+								bind:value={description}
+								use:cleanLinksOnPaste
+								placeholder={$t('dialog.quickAdd.descriptionPlaceholder')}
+								aria-label={$t('dialog.quickAdd.descriptionAriaLabel')}
+								rows="1"
+								oninput={(e) => autoGrow(e.currentTarget as HTMLTextAreaElement)}
+								class="mt-2 block w-full resize-none overflow-hidden bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
+							></textarea>
+						</div>
+						<button
+							type="button"
+							onclick={swapFields}
+							title={$t('dialog.quickAdd.swapFields')}
+							aria-label={$t('dialog.quickAdd.swapFields')}
+							data-testid="quick-add-swap"
+							class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+						>
+							<ArrowsDownUpIcon class="size-4" />
+						</button>
+					</div>
 
 					{#snippet selectedLabelChips()}
 						{#if selectedLabels.length > 0 || detectedAutoLabels.length > 0}

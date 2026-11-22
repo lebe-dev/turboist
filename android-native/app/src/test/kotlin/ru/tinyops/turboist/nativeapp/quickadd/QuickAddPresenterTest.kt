@@ -187,6 +187,49 @@ class QuickAddPresenterTest {
         }
 
     @Test
+    fun `the swap button exchanges the title and the description`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setTitles("Fix the fence")
+            presenter.setDescription("Two boards are loose.")
+            presenter.swapFields()
+            runCurrent()
+
+            assertEquals("Two boards are loose.", presenter.state.value.draft.titles)
+            assertEquals("Fix the fence", presenter.state.value.draft.description)
+
+            presenter.swapFields()
+            runCurrent()
+
+            assertEquals("Fix the fence", presenter.state.value.draft.titles)
+            assertEquals("Two boards are loose.", presenter.state.value.draft.description)
+        }
+
+    @Test
+    fun `a paragraph written as a title becomes the description of the task named after it`() =
+        runTest {
+            val presenter = presenter()
+            watch(presenter)
+
+            presenter.open()
+            presenter.setTitles("Two boards are loose. The gate no longer latches.")
+            presenter.setDescription("Fix the fence")
+            presenter.swapFields()
+            presenter.submit()
+            runCurrent()
+
+            assertEquals(1, actions.calls.size)
+            assertEquals("Fix the fence", actions.calls.single().task.title)
+            assertEquals(
+                "Two boards are loose. The gate no longer latches.",
+                actions.calls.single().task.description,
+            )
+        }
+
+    @Test
     fun `a sheet opened on a project starts with that project's labels`() =
         runTest {
             workspace.value = workspace.value.copy(projectLabelNames = mapOf(1L to listOf("errand")))

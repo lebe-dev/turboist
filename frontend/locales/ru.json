@@ -857,6 +857,7 @@
 			"descriptionPlaceholder": "Описание",
 			"bugAriaLabel": "Завести как баг (метки бага, высший приоритет)",
 			"descriptionAriaLabel": "Описание",
+			"swapFields": "Поменять местами заголовок и описание",
 			"autoLabelHint": "Определено по заголовку — будет применено при сохранении",
 			"rejectAutoLabel": "Отклонить автометку {name}",
 			"projectSuggestionHint": "Предлагаемые проекты:",

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,12 +19,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
@@ -86,6 +89,7 @@ data class QuickAddCallbacks(
     val onKeepEditing: () -> Unit = {},
     val onTitles: (String) -> Unit = {},
     val onDescription: (String) -> Unit = {},
+    val onSwapFields: () -> Unit = {},
     val onPriority: (Priority) -> Unit = {},
     val onDayPart: (DayPart) -> Unit = {},
     val onDueDate: (LocalDate?) -> Unit = {},
@@ -212,6 +216,7 @@ fun quickAddCallbacks(presenter: QuickAddPresenter): QuickAddCallbacks =
             onKeepEditing = presenter::keepEditing,
             onTitles = presenter::setTitles,
             onDescription = presenter::setDescription,
+            onSwapFields = presenter::swapFields,
             onPriority = presenter::setPriority,
             onDayPart = presenter::setDayPart,
             onDueDate = presenter::setDueDate,
@@ -325,6 +330,7 @@ private fun QuickAddFields(
     LaunchedEffect(Unit) { focus.requestFocus() }
     val titleLabel = stringResource(R.string.dialog_quickAdd_titleAriaLabel)
     val descriptionLabel = stringResource(R.string.dialog_quickAdd_descriptionAriaLabel)
+    val swapLabel = stringResource(R.string.dialog_quickAdd_swapFields)
     var panel by rememberSaveable { mutableStateOf<QuickAddPanel?>(null) }
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -344,36 +350,61 @@ private fun QuickAddFields(
         ) {
             // The title is the one thing the sheet is opened for, so it is written
             // large and without a box: a field that looks like a form asks to be
-            // filled in, a line that looks like a heading asks to be written.
-            TextField(
-                value = state.draft.titles,
-                onValueChange = callbacks.onTitles,
-                placeholder = { Text(stringResource(R.string.dialog_quickAdd_titlePlaceholder)) },
-                textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
-                colors = borderlessFieldColors(),
-                visualTransformation = HiddenTitleTail,
-                keyboardOptions = TEXT_KEYBOARD,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                        .focusRequester(focus)
-                        .semantics { contentDescription = titleLabel },
-            )
+            // filled in, a line that looks like a heading asks to be written. The
+            // description follows it as prose.
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TextField(
+                        value = state.draft.titles,
+                        onValueChange = callbacks.onTitles,
+                        placeholder = { Text(stringResource(R.string.dialog_quickAdd_titlePlaceholder)) },
+                        textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
+                        colors = borderlessFieldColors(),
+                        visualTransformation = HiddenTitleTail,
+                        keyboardOptions = TEXT_KEYBOARD,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp)
+                                .focusRequester(focus)
+                                .semantics { contentDescription = titleLabel },
+                    )
 
-            TextField(
-                value = state.draft.description,
-                onValueChange = callbacks.onDescription,
-                placeholder = { Text(stringResource(R.string.dialog_quickAdd_descriptionPlaceholder)) },
-                textStyle = MaterialTheme.typography.bodyLarge,
-                colors = borderlessFieldColors(),
-                keyboardOptions = TEXT_KEYBOARD,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                        .semantics { contentDescription = descriptionLabel },
-            )
+                    TextField(
+                        value = state.draft.description,
+                        onValueChange = callbacks.onDescription,
+                        placeholder = { Text(stringResource(R.string.dialog_quickAdd_descriptionPlaceholder)) },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        colors = borderlessFieldColors(),
+                        keyboardOptions = TEXT_KEYBOARD,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp)
+                                .semantics { contentDescription = descriptionLabel },
+                    )
+                }
+
+                // Exchanges the two fields above: a thought written into the wrong
+                // one moves without being retyped, exactly as it stands, and the
+                // same button puts it back.
+                IconButton(
+                    onClick = callbacks.onSwapFields,
+                    modifier =
+                        Modifier
+                            .padding(top = 4.dp, end = 4.dp)
+                            .semantics { contentDescription = swapLabel },
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.SwapVert,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             AutoLabelChips(names = state.autoLabels, onReject = callbacks.onRejectAutoLabel)
             SuggestedLabelChips(

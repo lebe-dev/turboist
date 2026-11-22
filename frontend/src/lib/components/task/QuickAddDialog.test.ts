@@ -268,6 +268,70 @@ describe('QuickAddDialog under the Today lock', () => {
 	});
 });
 
+describe('QuickAddDialog swap button', () => {
+	it('exchanges the two fields', async () => {
+		render(QuickAddDialog, {
+			props: {
+				open: true,
+				defaultTitle: 'Fix the fence',
+				defaultDescription: 'Two boards are loose.'
+			}
+		});
+		await screen.findByRole('dialog');
+
+		await fireEvent.click(screen.getByTestId('quick-add-swap'));
+
+		expect((screen.getByLabelText('Task names') as HTMLTextAreaElement).value).toBe(
+			'Two boards are loose.'
+		);
+		expect((screen.getByLabelText('Description') as HTMLTextAreaElement).value).toBe(
+			'Fix the fence'
+		);
+	});
+
+	it('saves the swapped text under the field it now sits in, without submitting on the click', async () => {
+		const onSubmit = vi.fn();
+		render(QuickAddDialog, {
+			props: {
+				open: true,
+				defaultTitle: 'Fix the fence',
+				defaultDescription: 'Two boards are loose.',
+				onSubmit
+			}
+		});
+		const dialog = await screen.findByRole('dialog');
+
+		await fireEvent.click(screen.getByTestId('quick-add-swap'));
+		expect(onSubmit).not.toHaveBeenCalled();
+
+		await fireEvent.submit(dialog.querySelector('form')!);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+		expect(onSubmit.mock.calls[0][0].title).toBe('Two boards are loose.');
+		expect(onSubmit.mock.calls[0][0].description).toBe('Fix the fence');
+	});
+
+	it('puts everything back when pressed again', async () => {
+		render(QuickAddDialog, {
+			props: {
+				open: true,
+				defaultTitle: 'Fix the fence',
+				defaultDescription: 'Two boards are loose.'
+			}
+		});
+		await screen.findByRole('dialog');
+
+		await fireEvent.click(screen.getByTestId('quick-add-swap'));
+		await fireEvent.click(screen.getByTestId('quick-add-swap'));
+
+		expect((screen.getByLabelText('Task names') as HTMLTextAreaElement).value).toBe(
+			'Fix the fence'
+		);
+		expect((screen.getByLabelText('Description') as HTMLTextAreaElement).value).toBe(
+			'Two boards are loose.'
+		);
+	});
+});
+
 describe('QuickAddDialog bug shortcut', () => {
 	const label = (id: number, name: string) => ({
 		id,

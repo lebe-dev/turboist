@@ -146,6 +146,23 @@ class QuickAddSheetTest {
     }
 
     @Test
+    fun `the swap button exchanges the title and the description`() {
+        launch()
+
+        type("Fix the fence")
+        compose
+            .onNodeWithContentDescription(text(R.string.dialog_quickAdd_descriptionAriaLabel))
+            .performTextInput("Two boards are loose.")
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription(text(R.string.dialog_quickAdd_swapFields)).performClick()
+        compose.waitForIdle()
+
+        assertEquals("Two boards are loose.", presenter.state.value.draft.titles)
+        assertEquals("Fix the fence", presenter.state.value.draft.description)
+    }
+
+    @Test
     fun `the labels a title earns are shown while they can still be refused`() {
         workspace.value =
             workspace.value.copy(

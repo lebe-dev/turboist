@@ -276,6 +276,18 @@ class QuickAddPresenter(
 
     fun setDescription(text: String) = edit { it.copy(description = LinkCleanup.afterEdit(it.description, text)) }
 
+    /**
+     * Exchanges the title and the description.
+     *
+     * A thought is often written into the name box before it turns out to be the
+     * longer of the two, and retyping it to move it down would be the work the
+     * sheet exists to avoid. The text moves exactly as it stands — nothing is
+     * trimmed, and a description holding several lines is saved as several tasks,
+     * exactly as typing those lines into the title would be — so pressing the
+     * button again puts everything back where it was.
+     */
+    fun swapFields() = edit { it.copy(titles = it.description, description = it.titles) }
+
     fun setPriority(priority: Priority) = edit { it.copy(priority = priority) }
 
     /**

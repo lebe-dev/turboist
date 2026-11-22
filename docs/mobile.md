@@ -1753,7 +1753,11 @@ labels of its own anywhere else (a project screen, the daily plan) gets the
 project's labels from the write path. The server does not inherit them, so they
 are always sent with the write; a subtask is the exception and takes its parent's.
 
-**How the sheet is laid out.** Under the title and description, where the task
+**How the sheet is laid out.** A button beside the title and description
+exchanges the two: a paragraph written into the name box before it turns out to
+be the longer of the two moves down as it stands, and the name takes its place —
+nothing is trimmed, the lines move exactly as they were, and pressing it again
+puts both back. Under the title and description, where the task
 goes and when it is for sit in one card: the destination (tapping it opens the
 picker), a single sideways-scrolling row of places one tap away, and the due date
 as one connected control — no date, today, tomorrow or a day off the calendar.
@@ -1800,8 +1804,9 @@ restated, because both implementations answer the same question about the same
 rules document and would otherwise drift. The sheet itself is composed for real
 off-device and driven through its own presenter: a typed line reaches the write
 path with the destination the sheet showed, an earned label can be refused before
-it is attached, a suggested project stays a suggestion until it is tapped, and the
-day shortcuts are absent while the task is headed for the inbox.
+it is attached, a suggested project stays a suggestion until it is tapped, a
+button exchanges the title and the description, and the day shortcuts are absent
+while the task is headed for the inbox.
 
 ### Labels and their usage report (`app/.../labels`)
 
