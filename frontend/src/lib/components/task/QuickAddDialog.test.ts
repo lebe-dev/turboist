@@ -6,6 +6,7 @@ import { todayProjectsStore } from '$lib/stores/todayProjects.svelte';
 import { todayLockStore } from '$lib/stores/todayLock.svelte';
 import { nowStore } from '$lib/stores/now.svelte';
 import { settingsStore } from '$lib/stores/settings.svelte';
+import { appSettingsStore } from '$lib/stores/appSettings.svelte';
 import { setApiClient, type ApiClient } from '$lib/api/client';
 import { today as todayApi } from '$lib/api/endpoints/today';
 import QuickAddDialog from './QuickAddDialog.svelte';
@@ -381,5 +382,78 @@ describe('QuickAddDialog bug shortcut', () => {
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
 		expect(onSubmit.mock.calls[0][0].priority).toBe('no-priority');
 		expect(onSubmit.mock.calls[0][0].labels).toEqual([]);
+	});
+});
+
+describe('QuickAddDialog bug projects', () => {
+	const project = (id: number, title: string, projectType: 'software' | 'generic') =>
+		({
+			id,
+			title,
+			status: 'active',
+			projectType,
+			isPinned: false,
+			pinnedAt: null,
+			labels: []
+		}) as unknown as Parameters<typeof projectsStore.setItems>[0][number];
+	const bugLabel = {
+		id: 3,
+		name: 'bug',
+		color: 'red',
+		description: '',
+		isFavourite: false,
+		isPrivate: false,
+		createdAt: '2026-01-01T00:00:00Z',
+		updatedAt: '2026-01-01T00:00:00Z'
+	};
+
+	beforeEach(() => {
+		labelsStore.setItems([bugLabel]);
+		settingsStore.value = { ...settingsStore.value, bugLabelIds: [3] };
+		projectsStore.setItems([project(1, 'Toolbox', 'software'), project(2, 'Garden', 'generic')]);
+	});
+
+	afterEach(() => {
+		labelsStore.clear();
+		projectsStore.clear();
+		todayProjectsStore.clear();
+		appSettingsStore.clear();
+		settingsStore.value = { ...settingsStore.value, bugLabelIds: [] };
+	});
+
+	async function toggleBug(): Promise<void> {
+		await fireEvent.click(screen.getByTestId('quick-add-bug'));
+	}
+
+	it('narrows the projects offered on the Today row to software ones', async () => {
+		todayProjectsStore.set([1, 2]);
+		render(QuickAddDialog, { props: { open: true, defaultTitle: 'Crash on save' } });
+		await screen.findByRole('dialog');
+
+		const row = await screen.findByRole('group', { name: 'Today projects' });
+		expect(row.textContent).toContain('Toolbox');
+		expect(row.textContent).toContain('Garden');
+
+		await toggleBug();
+
+		const narrowed = await screen.findByRole('group', { name: 'Today projects' });
+		expect(narrowed.textContent).toContain('Toolbox');
+		expect(narrowed.textContent).not.toContain('Garden');
+	});
+
+	it('suggests only software projects while the bug shortcut is on', async () => {
+		appSettingsStore.setValue({
+			...appSettingsStore.value,
+			projectSuggestions: [{ mask: 'crash', projectIds: [1, 2], ignoreCase: true }]
+		});
+		render(QuickAddDialog, { props: { open: true, defaultTitle: 'Crash on save' } });
+		await screen.findByRole('dialog');
+
+		await toggleBug();
+		const hint = await screen.findByText('Suggested projects:');
+		const chips = hint.parentElement!;
+
+		expect(chips.textContent).toContain('Toolbox');
+		expect(chips.textContent).not.toContain('Garden');
 	});
 });

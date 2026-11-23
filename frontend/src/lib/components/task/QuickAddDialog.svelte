@@ -111,11 +111,23 @@
 	let projectSearchInput = $state<HTMLInputElement | null>(null);
 	let dismissedAutoLabels = $state<string[]>([]);
 
+	// The bug shortcut: tags the task with the labels chosen in settings and sets the
+	// highest priority; tapping it again takes both back.
+	const bugLabelIds = $derived(settingsStore.bugLabelIds);
+	const bugActive = $derived(
+		bugLabelIds.length > 0 && bugLabelIds.every((id) => labelIds.includes(id))
+	);
+	let priorityBeforeBug: Priority | null = null;
+
 	const emptyProjectLabel = $derived(emptyProjectLabelProp ?? $t('nav.inbox'));
 
 	const visibleProjects = $derived(
 		projectsStore.items
 			.filter((p) => p.status !== 'completed')
+			// A bug is filed against something written in software, so while the bug
+			// shortcut is on only software projects are offered. A project already
+			// chosen stays as it is: it is the user's decision, not a suggestion.
+			.filter((p) => !bugActive || p.projectType === 'software')
 			.slice()
 			.sort((a, b) => {
 				if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
@@ -376,14 +388,6 @@
 		}
 		prevOpen = open;
 	});
-
-	// The bug shortcut: tags the task with the labels chosen in settings and sets the
-	// highest priority; tapping it again takes both back.
-	const bugLabelIds = $derived(settingsStore.bugLabelIds);
-	const bugActive = $derived(
-		bugLabelIds.length > 0 && bugLabelIds.every((id) => labelIds.includes(id))
-	);
-	let priorityBeforeBug: Priority | null = null;
 
 	function toggleBug() {
 		labelsChanged = true;

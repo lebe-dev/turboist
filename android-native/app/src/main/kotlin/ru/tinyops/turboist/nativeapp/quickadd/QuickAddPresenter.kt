@@ -25,6 +25,7 @@ import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.LinkCleanup
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.Project
+import ru.tinyops.turboist.core.model.ProjectType
 import ru.tinyops.turboist.core.model.TodayLock
 import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.model.labelsuggest.LabelSuggestionRecipe
@@ -541,11 +542,18 @@ class QuickAddPresenter(
         touched: Map<Long, Long>,
     ): QuickAddUiState {
         val query = edit.projectQuery.trim()
+        val bugActive =
+            space.bugLabelNames.isNotEmpty() && edit.draft.labelNames.containsAll(space.bugLabelNames)
+        // A bug is filed against something written in software, so the bug shortcut
+        // narrows what the sheet offers to software projects. A project already
+        // chosen stays: the destination is the user's decision, not a suggestion.
+        val offerable =
+            if (bugActive) space.projects.filter { it.type == ProjectType.SOFTWARE } else space.projects
         val offered =
             if (query.isEmpty()) {
-                space.projects
+                offerable
             } else {
-                space.projects.filter { it.title.contains(query, ignoreCase = true) }
+                offerable.filter { it.title.contains(query, ignoreCase = true) }
             }
         val leading = pickRecent(order, offered, Project::localId)
         val lifted = leading.mapTo(HashSet()) { it.localId }
@@ -566,13 +574,13 @@ class QuickAddPresenter(
             recentProjects = leading,
             otherProjects = offered.filterNot { it.localId in lifted },
             suggestedProjects =
-                space.appSettings.suggestedProjects(edit.draft.titles, space.projects, setOfNotNull(chosen)),
+                space.appSettings.suggestedProjects(edit.draft.titles, offerable, setOfNotNull(chosen)),
             todayProjects =
                 if (edit.offerTodayProjects || lockedToday) {
                     // The project the user was in last leads: the one they opened, or
                     // opened a task of, or added to most recently on this device.
                     byRecentActivity(
-                        space.todayProjectLocalIds.mapNotNull { id -> space.projects.firstOrNull { it.localId == id } },
+                        space.todayProjectLocalIds.mapNotNull { id -> offerable.firstOrNull { it.localId == id } },
                         touched,
                         Project::localId,
                     )
@@ -587,10 +595,9 @@ class QuickAddPresenter(
             autoLabels = space.appSettings.autoLabelNames(edit.draft.titles, space.labels, spokenFor),
             knownLabels = space.labels,
             bugLabelNames = space.bugLabelNames,
-            bugActive =
-                space.bugLabelNames.isNotEmpty() && edit.draft.labelNames.containsAll(space.bugLabelNames),
+            bugActive = bugActive,
             lastProject =
-                order.firstNotNullOfOrNull { id -> space.projects.firstOrNull { it.localId == id } }
+                order.firstNotNullOfOrNull { id -> offerable.firstOrNull { it.localId == id } }
                     ?.takeIf { it.localId != chosen },
             projectTitle = space.projects.firstOrNull { it.localId == chosen }?.title,
             holdsInput = edit.draft.holdsInput(edit.opened),
@@ -690,6 +697,7 @@ class QuickAddPresenter(
         val byId = offeredProjects.associateBy { it.localId }
         val offered =
             ids.mapNotNull { byId[it] }
+                .filter { !state.bugActive || it.type == ProjectType.SOFTWARE }
                 .filter { it.localId !in shown }
                 .take(ProjectSuggestionRecipe.MAX_SUGGESTIONS)
         if (offered.isEmpty()) return state

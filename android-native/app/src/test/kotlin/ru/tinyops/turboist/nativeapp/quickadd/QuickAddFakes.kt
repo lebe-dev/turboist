@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import ru.tinyops.turboist.core.model.Label
 import ru.tinyops.turboist.core.model.Project
 import ru.tinyops.turboist.core.model.ProjectStatus
+import ru.tinyops.turboist.core.model.ProjectType
 import ru.tinyops.turboist.core.sync.write.NewTask
 import ru.tinyops.turboist.core.sync.write.TaskDestination
 import ru.tinyops.turboist.nativeapp.labels.RecentLabels
@@ -119,6 +120,7 @@ fun project(
     serverId: Long? = localId,
     status: ProjectStatus = ProjectStatus.OPEN,
     isPinned: Boolean = false,
+    type: ProjectType = ProjectType.GENERIC,
 ): Project =
     Project(
         localId = localId,
@@ -126,6 +128,7 @@ fun project(
         contextLocalId = 1,
         title = title,
         status = status,
+        type = type,
         isPinned = isPinned,
         createdAt = 0,
         updatedAt = 0,
