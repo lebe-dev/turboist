@@ -32,7 +32,6 @@ import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -80,6 +79,7 @@ import ru.tinyops.turboist.nativeapp.quickadd.QuickAddPresenter
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddRequest
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddUiState
 import ru.tinyops.turboist.nativeapp.quickadd.QuickAddViewModel
+import ru.tinyops.turboist.nativeapp.ui.SnackbarAboveFab
 import java.time.LocalDate
 
 /** Every gesture the capture sheet can make. */
@@ -198,7 +198,16 @@ fun QuickAddHost(
                 )
             }
         }
-        SnackbarHost(hostState = snackbars, modifier = Modifier.align(Alignment.BottomCenter))
+        // What was just written down is said above the button rather than across
+        // it: adding one thing is how the next one starts, and a message covering
+        // the button would be in the way of exactly that. A screen that leaves
+        // the button out still answers a share, so the message then stays on the
+        // bottom edge with nothing to keep clear of.
+        SnackbarAboveFab(
+            hostState = snackbars,
+            fabShown = showButton,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 
     if (state.visible) {

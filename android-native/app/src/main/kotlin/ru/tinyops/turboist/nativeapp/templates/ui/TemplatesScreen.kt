@@ -27,7 +27,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +53,7 @@ import ru.tinyops.turboist.nativeapp.templates.TemplateEditor
 import ru.tinyops.turboist.nativeapp.templates.TemplateMessage
 import ru.tinyops.turboist.nativeapp.templates.TemplatesUiState
 import ru.tinyops.turboist.nativeapp.templates.TemplatesViewModel
+import ru.tinyops.turboist.nativeapp.ui.SnackbarAboveFab
 
 /** What the templates screen can be asked to do. */
 data class TemplatesCallbacks(
@@ -125,7 +125,7 @@ fun TemplatesScreen(
             text = { Text(stringResource(R.string.settings_templates_new)) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         )
-        SnackbarHost(hostState = snackbars, modifier = Modifier.align(Alignment.BottomCenter))
+        SnackbarAboveFab(hostState = snackbars, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
     state.editor?.let { editor ->

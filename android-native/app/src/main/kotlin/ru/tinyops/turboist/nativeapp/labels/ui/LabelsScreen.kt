@@ -20,7 +20,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -49,6 +48,7 @@ import ru.tinyops.turboist.nativeapp.labels.LabelStatsUiState
 import ru.tinyops.turboist.nativeapp.labels.LabelStatsViewModel
 import ru.tinyops.turboist.nativeapp.projects.ui.EmptyMessage
 import ru.tinyops.turboist.nativeapp.projects.ui.projectTint
+import ru.tinyops.turboist.nativeapp.ui.SnackbarAboveFab
 
 /** What the label report can be asked to do. */
 data class LabelsCallbacks(
@@ -112,7 +112,7 @@ fun LabelsScreen(
         ) {
             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.dialog_label_newTitle))
         }
-        SnackbarHost(hostState = snackbars, modifier = Modifier.align(Alignment.BottomCenter))
+        SnackbarAboveFab(hostState = snackbars, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
     if (creating) {

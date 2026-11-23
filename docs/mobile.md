@@ -1741,6 +1741,14 @@ from nothing, and the whole of it works with no network: the task is in the
 replica and on every list it belongs to the moment the sheet closes, and the queue
 reaches the server whenever the phone next can.
 
+Saving closes the sheet and says where the work went — the inbox, or the project
+it was filed into — in a message along the bottom of the screen. That message is
+drawn above the capture button rather than across it, because adding one thing is
+how the next one starts and a confirmation covering the way back in would be in
+the way of exactly that. The two other screens with an add button of their own,
+the label report and the templates list, keep their messages clear of it the same
+way.
+
 The title field takes several lines and writes one task per line — capturing five
 things in one sitting is one gesture, and they all take the same project, date,
 priority, phase and labels, because they were written down about one thing. If
@@ -1839,8 +1847,9 @@ rules document and would otherwise drift. The sheet itself is composed for real
 off-device and driven through its own presenter: a typed line reaches the write
 path with the destination the sheet showed, an earned label can be refused before
 it is attached, a suggested project stays a suggestion until it is tapped, a
-button exchanges the title and the description, and the day shortcuts are absent
-while the task is headed for the inbox.
+button exchanges the title and the description, the day shortcuts are absent
+while the task is headed for the inbox, and the confirmation a save raises leaves
+the capture button in the clear.
 
 ### Labels and their usage report (`app/.../labels`)
 
