@@ -469,6 +469,13 @@ android-native-run:
     APK="app/build/outputs/apk/debug/app-debug.apk"
     echo "==> installing $APK on $DEVICE"
     "$ADB" -s "$DEVICE" install -r "$APK"
+    # adb installs the APK alone, without the profile Gradle or a store would hand
+    # the platform, so nothing is compiled ahead of time and the first scrolls of
+    # every launch run through the interpreter. Compile all of it now instead: a
+    # few seconds here buys a build that is smooth from its first frame.
+    echo "==> compiling the app ahead of time"
+    "$ADB" -s "$DEVICE" shell cmd package compile -m speed -f ru.tinyops.turboist.native >/dev/null \
+        || echo "note: ahead-of-time compilation failed; the first scrolls may stutter" >&2
     echo "==> launching"
     "$ADB" -s "$DEVICE" shell am start -n ru.tinyops.turboist.native/ru.tinyops.turboist.nativeapp.MainActivity
 
@@ -609,6 +616,13 @@ android-native-deploy variant="debug":
         exit 1
     fi
     printf '%s\n' "$out"
+    # adb installs the APK alone, without the profile Gradle or a store would hand
+    # the platform, so nothing is compiled ahead of time and the first scrolls of
+    # every launch run through the interpreter. Compile all of it now instead: a
+    # few seconds here buys a build that is smooth from its first frame.
+    echo "==> compiling the app ahead of time"
+    "$ADB" -s "$DEVICE" shell cmd package compile -m speed -f ru.tinyops.turboist.native >/dev/null \
+        || echo "note: ahead-of-time compilation failed; the first scrolls may stutter" >&2
 
     echo "==> done"
     echo "    installed the $VARIANT build on $DEVICE"
@@ -750,7 +764,7 @@ android-native-e2e:
     echo "==> running the on-device suite"
     cd "$ROOT/android-native"
     set +e
-    ANDROID_SERIAL="$DEVICE" ./gradlew --console=plain :app:connectedDebugAndroidTest \
+    ANDROID_SERIAL="$DEVICE" ./gradlew --console=plain :app:connectedDebugAndroidTest -Pturboist.debuggable=true \
         "-Pandroid.testInstrumentationRunnerArguments.turboistAppBaseUrl=http://$APP_HOST:$PORT" \
         "-Pandroid.testInstrumentationRunnerArguments.turboistControlBaseUrl=http://127.0.0.1:$PORT" \
         "-Pandroid.testInstrumentationRunnerArguments.turboistUsername={{ e2eUser }}" \

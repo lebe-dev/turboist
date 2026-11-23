@@ -96,6 +96,13 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
+            // The debug build is the one used day to day, so it is not debuggable
+            // unless asked for (-Pturboist.debuggable=true, for a debugger or the
+            // layout inspector). A debuggable app is never compiled ahead of time:
+            // it runs interpreted until the JIT catches up, and every list stutters
+            // on its first scrolls after each launch.
+            isDebuggable = providers.gradleProperty("turboist.debuggable").orNull.toBoolean()
+            isProfileable = true
         }
         release {
             // What ships is minified. Beyond the size, it is the only build that

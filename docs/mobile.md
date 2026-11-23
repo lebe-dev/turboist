@@ -167,6 +167,14 @@ Notes for a **free** Apple ID: the app expires after **7 days** — keep AltServ
 
 The SDK is located from `ANDROID_SDK_ROOT`/`ANDROID_HOME`, else common install paths (Homebrew `android-commandlinetools`, `~/Library/Android/sdk`). With several devices attached, pick one with `ANDROID_DEVICE_ID=<serial>` (from `adb devices`).
 
+The Debug APK is **not debuggable** by default: a debuggable app is never compiled
+ahead of time, so it runs interpreted until the JIT catches up and every list
+stutters on its first scrolls after each launch. To attach a debugger or the Layout
+Inspector, build with `-Pturboist.debuggable=true` (for example
+`./gradlew :app:installDebug -Pturboist.debuggable=true` in `android-native/`, or
+`turboist.debuggable=true` in `~/.gradle/gradle.properties`); the on-device suite
+(`just android-native-e2e`) passes it itself.
+
 On the phone, **enable USB debugging** first (Settings → About → tap *Build number* ×7, then Developer options → *USB debugging*), set the USB mode to *File transfer*, and accept the **"Allow USB debugging?"** prompt. There is no trust-the-developer dance like iOS — a Debug APK launches straight away.
 
 ### Local build version stamp
