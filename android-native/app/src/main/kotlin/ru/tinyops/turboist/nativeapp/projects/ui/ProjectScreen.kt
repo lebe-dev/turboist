@@ -544,15 +544,13 @@ private fun BoardBody(
             }
         }
         // The one thing a drag opens: the action panel, beside the carried row.
-        if (drag.draggedLocalId != null) {
-            SubtaskDragPanel(
-                drag = drag,
-                dependencies = dependencies,
-                rows = rows,
-                container = placement.bounds(),
-                modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 12.dp),
-            )
-        }
+        SubtaskDragPanel(
+            drag = drag,
+            dependencies = dependencies,
+            rows = rows,
+            placement = placement,
+            modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 12.dp),
+        )
     }
 }
 

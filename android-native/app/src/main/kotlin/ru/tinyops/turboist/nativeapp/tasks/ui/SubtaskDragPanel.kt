@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -60,6 +61,20 @@ import kotlin.math.roundToInt
  */
 @Composable
 internal fun SubtaskDragPanel(
+    drag: SubtaskDragState,
+    dependencies: SubtaskDependencies,
+    rows: List<TaskListRow>,
+    placement: ListPlacement,
+    modifier: Modifier = Modifier,
+) {
+    // Read here, in a scope of its own, so picking a row up or letting it go
+    // recomposes the panel alone rather than the page it floats over.
+    if (drag.draggedLocalId == null) return
+    DragPanel(drag, dependencies, rows, placement.bounds(), modifier)
+}
+
+@Composable
+private fun DragPanel(
     drag: SubtaskDragState,
     dependencies: SubtaskDependencies,
     rows: List<TaskListRow>,
@@ -328,11 +343,19 @@ fun BoxScope.SubtaskDragMarks(
     }
 }
 
-/** Fades the row that is being carried. */
+/**
+ * Fades the row that is being carried.
+ *
+ * Read while drawing rather than while composing, so picking a row up redraws
+ * the rows instead of recomposing every one of them.
+ */
 fun Modifier.subtaskDragFade(
     row: TaskListRow,
     drag: SubtaskDragState,
-): Modifier = if (drag.draggedLocalId == row.task.localId) alpha(DRAGGED_ALPHA) else this
+): Modifier {
+    val localId = row.task.localId
+    return graphicsLayer { alpha = if (drag.draggedLocalId == localId) DRAGGED_ALPHA else 1f }
+}
 
 /** Whether [action] on [target] would be refused, or would change nothing. */
 private fun isRefused(

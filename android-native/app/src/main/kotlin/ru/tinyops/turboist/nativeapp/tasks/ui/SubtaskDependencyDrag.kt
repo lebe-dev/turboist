@@ -17,19 +17,17 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.toSize
-import androidx.compose.ui.window.PopupPositionProvider
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.NestDropRefusal
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
+import kotlin.math.roundToInt
 
 /**
  * What the rows need to take part in the drop gestures — on the subtask card of
@@ -123,16 +121,38 @@ class SubtaskDragState {
     // state means a move only recomposes the screen when the target or the action
     // under it really changed, rather than on every frame of the gesture.
     private var pointer: Offset = Offset.Zero
-    private val bounds = HashMap<Long, Rect>()
+    private val rows = HashMap<Long, RowBounds>()
     private var carried: Rect? = null
     private var panel: Rect? = null
     private val actionBounds = HashMap<SubtaskDropAction, Rect>()
 
+    /** Where a row is, as a fixed rectangle in root coordinates. */
     fun place(
         localId: Long,
         rect: Rect,
     ) {
-        bounds[localId] = rect
+        rows[localId] = RowBounds(rect, null)
+    }
+
+    /**
+     * Where a row is laid out, as its layout handle. The row is measured only
+     * while something is being carried: it moves on every scroll frame, and
+     * keeping a rectangle current would charge every scroll for the rare one
+     * that carries a row.
+     */
+    internal fun placeRow(
+        localId: Long,
+        coordinates: LayoutCoordinates,
+    ) {
+        rows[localId] = RowBounds(null, coordinates)
+    }
+
+    /** Drops the handle a row registered, unless the row has registered a newer one since. */
+    internal fun forgetRow(
+        localId: Long,
+        coordinates: LayoutCoordinates?,
+    ) {
+        if (coordinates != null && rows[localId]?.coordinates === coordinates) rows.remove(localId)
     }
 
     /**
@@ -141,7 +161,7 @@ class SubtaskDragState {
      * hovered it is no longer something to drop onto.
      */
     fun forget(localId: Long) {
-        bounds.remove(localId)
+        rows.remove(localId)
         abandon(localId)
         if (hoverLocalId == localId) hoverLocalId = null
     }
@@ -169,7 +189,7 @@ class SubtaskDragState {
         localId: Long,
         offsetInRow: Offset,
     ) {
-        val row = bounds[localId] ?: return
+        val row = rows[localId]?.current() ?: return
         draggedLocalId = localId
         carried = row
         anchor = row
@@ -201,10 +221,13 @@ class SubtaskDragState {
     private fun hoverRow(dragged: Long): Boolean {
         val leftAction = hoveredAction != null
         hoveredAction = null
-        val hit = bounds.entries.firstOrNull { (id, rect) -> id != dragged && rect.contains(pointer) }?.key
-        if (hit == hoverLocalId) return leftAction
-        hoverLocalId = hit
-        anchor = hit?.let { bounds[it] } ?: carried
+        val hit =
+            rows.entries.firstNotNullOfOrNull { (id, row) ->
+                if (id == dragged) null else row.current()?.takeIf { it.contains(pointer) }?.let { id to it }
+            }
+        if (hit?.first == hoverLocalId) return leftAction
+        hoverLocalId = hit?.first
+        anchor = hit?.second ?: carried
         return true
     }
 
@@ -225,6 +248,47 @@ class SubtaskDragState {
         hoveredAction = null
         carried = null
         anchor = null
+    }
+}
+
+/** Where one row is: fixed, or read from its layout handle at the moment it is asked. */
+private class RowBounds(
+    private val fixed: Rect?,
+    val coordinates: LayoutCoordinates?,
+) {
+    fun current(): Rect? = fixed ?: coordinates?.rootBounds()
+}
+
+private class SubtaskRowNode(
+    var localId: Long,
+    var drag: SubtaskDragState,
+) : DragPlacementNode() {
+    override fun register(coordinates: LayoutCoordinates) = drag.placeRow(localId, coordinates)
+
+    override fun unregister(coordinates: LayoutCoordinates?) = drag.forgetRow(localId, coordinates)
+
+    fun update(
+        localId: Long,
+        drag: SubtaskDragState,
+    ) {
+        if (localId == this.localId && drag === this.drag) return
+        moved {
+            this.localId = localId
+            this.drag = drag
+        }
+    }
+}
+
+private data class SubtaskRowElement(
+    val localId: Long,
+    val drag: SubtaskDragState,
+) : ModifierNodeElement<SubtaskRowNode>() {
+    override fun create() = SubtaskRowNode(localId, drag)
+
+    override fun update(node: SubtaskRowNode) = node.update(localId, drag)
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "subtaskDragRow"
     }
 }
 
@@ -252,8 +316,7 @@ fun Modifier.subtaskDragSource(
     val haptics = LocalHapticFeedback.current
     val current by rememberUpdatedState(dependencies)
     val pressed by rememberUpdatedState(onPressWithoutDrag)
-    val placed =
-        onGloballyPositioned { drag.place(localId, Rect(it.positionInRoot(), it.size.toSize())) }
+    val placed = then(SubtaskRowElement(localId, drag))
     if (!dependencies.enabled || row.task.status != TaskStatus.OPEN) return placed
     return placed.pointerInput(localId) {
         var travelled = 0f
@@ -354,22 +417,27 @@ private fun deliver(
     }
 }
 
-/** Centres the tooltip above a point in root coordinates, kept inside the window. */
-internal class AboveFinger(
-    private val pointer: Offset,
-    private val lift: Int,
-    private val edge: Int,
-) : PopupPositionProvider {
-    override fun calculatePosition(
-        anchorBounds: IntRect,
-        windowSize: IntSize,
-        layoutDirection: LayoutDirection,
-        popupContentSize: IntSize,
-    ): IntOffset {
-        val x =
-            (pointer.x.toInt() - popupContentSize.width / 2)
-                .coerceIn(edge, (windowSize.width - popupContentSize.width - edge).coerceAtLeast(edge))
-        val y = (pointer.y.toInt() - lift - popupContentSize.height).coerceAtLeast(edge)
-        return IntOffset(x, y)
+/**
+ * Places the tooltip centred above a point in root coordinates, kept inside the
+ * area it is laid out in. The point is read while placing, so a moving finger
+ * re-places the tooltip without recomposing it.
+ */
+internal fun Modifier.aboveFinger(
+    pointer: () -> Offset,
+    lift: Int,
+    edge: Int,
+): Modifier =
+    layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        layout(width, height) {
+            val origin = coordinates?.positionInRoot() ?: Offset.Zero
+            val finger = pointer() - origin
+            val x =
+                (finger.x.roundToInt() - placeable.width / 2)
+                    .coerceIn(edge, (width - placeable.width - edge).coerceAtLeast(edge))
+            val y = (finger.y.roundToInt() - lift - placeable.height).coerceAtLeast(edge)
+            placeable.place(x, y)
+        }
     }
-}

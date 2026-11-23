@@ -43,7 +43,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
-import androidx.compose.ui.window.Popup
 import ru.tinyops.turboist.core.model.DayPart
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
@@ -210,7 +209,7 @@ internal fun LayoutCoordinates.rootBounds(): Rect? = if (isAttached) Rect(positi
  * takes it back when the element leaves the screen. Nothing runs on the frames
  * in between, which on a scrolling list is nearly all of them.
  */
-private abstract class DragPlacementNode :
+internal abstract class DragPlacementNode :
     Modifier.Node(),
     LayoutAwareModifierNode {
     private var placed: LayoutCoordinates? = null
@@ -438,11 +437,15 @@ internal fun DayPartDragState?.wouldLandIn(part: DayPart?): Boolean =
 @Composable
 internal fun DayPartDropBar(
     drag: DayPartDragState,
-    container: Rect,
+    placement: ListPlacement,
     modifier: Modifier = Modifier,
 ) {
+    // Read here, in a scope of its own, so picking a row up or letting it go
+    // recomposes the bar alone rather than the list it floats over.
+    if (drag.dragged == null) return
     DisposableEffect(drag) { onDispose { DROP_DAY_PARTS.forEach { drag.placeBar(it, null) } } }
     val anchor = drag.anchor ?: return
+    val container = placement.bounds()
     val gap = with(LocalDensity.current) { ISLAND_GAP.roundToPx() }.toFloat()
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -535,45 +538,48 @@ private fun DropBarPhase(
 @Composable
 internal fun DayPartDragTooltip(
     drag: DayPartDragState,
-    islandAbove: Boolean,
+    placement: ListPlacement,
 ) {
     val task = drag.dragged ?: return
-    if (drag.overBar || islandAbove) return
+    if (drag.overBar || drag.islandIsAbove(placement.bounds())) return
     val target = drag.hover?.takeIf { drag.wouldLandIn(it) }
     val lift = with(LocalDensity.current) { TOOLTIP_LIFT.roundToPx() }
     val edge = with(LocalDensity.current) { TOOLTIP_EDGE.roundToPx() }
-    Popup(popupPositionProvider = AboveFinger(drag.pointer, lift, edge)) {
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            shadowElevation = 6.dp,
+    // Drawn in the screen's own window and moved while placing, never while
+    // composing: the finger moves on every frame of the gesture, and a popup
+    // window repositioned that often costs a round trip to the window manager
+    // per frame, which shows as stutter under the finger.
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        shadowElevation = 6.dp,
+        modifier = Modifier.aboveFinger({ drag.pointer }, lift, edge),
+    ) {
+        Row(
+            modifier = Modifier.widthIn(max = 320.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.widthIn(max = 320.dp).padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (target != null) {
-                    Icon(
-                        imageVector = dayPartIcon(target),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.inversePrimary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-                Text(
-                    text =
-                        if (target != null) {
-                            stringResource(R.string.native_dayPartDrag_willMove, stringResource(dayPartLabel(target)))
-                        } else {
-                            task.title
-                        },
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+            if (target != null) {
+                Icon(
+                    imageVector = dayPartIcon(target),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.inversePrimary,
+                    modifier = Modifier.size(16.dp),
                 )
             }
+            Text(
+                text =
+                    if (target != null) {
+                        stringResource(R.string.native_dayPartDrag_willMove, stringResource(dayPartLabel(target)))
+                    } else {
+                        task.title
+                    },
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

@@ -496,15 +496,13 @@ private fun TaskDetailBody(
             }
             // The one thing a drag opens: an action panel beside the carried row.
             // It replaces nothing here, and the page keeps its scroll position.
-            if (subtaskDrag.draggedLocalId != null) {
-                SubtaskDragPanel(
-                    drag = subtaskDrag,
-                    dependencies = dependencies,
-                    rows = state.openSubtasks + state.doneSubtasks,
-                    container = placement.bounds(),
-                    modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 12.dp),
-                )
-            }
+            SubtaskDragPanel(
+                drag = subtaskDrag,
+                dependencies = dependencies,
+                rows = state.openSubtasks + state.doneSubtasks,
+                placement = placement,
+                modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 12.dp),
+            )
         }
     }
 

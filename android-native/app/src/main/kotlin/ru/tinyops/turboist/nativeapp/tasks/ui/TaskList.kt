@@ -266,18 +266,16 @@ fun TaskList(
                         }
                     }
                 }
-                if (drag?.dragged != null) {
+                if (drag != null) {
                     DayPartDropBar(
                         drag = drag,
-                        container = listPlacement.bounds(),
+                        placement = listPlacement,
                         modifier = Modifier.padding(horizontal = LIST_GUTTER),
                     )
                 }
             }
         }
-        if (drag?.dragged != null) {
-            DayPartDragTooltip(drag, islandAbove = drag.islandIsAbove(listPlacement.bounds()))
-        }
+        if (drag != null) DayPartDragTooltip(drag, listPlacement)
         if (toolbarShown && actions != null) {
             SelectionToolbar(
                 count = state.selected.size,
