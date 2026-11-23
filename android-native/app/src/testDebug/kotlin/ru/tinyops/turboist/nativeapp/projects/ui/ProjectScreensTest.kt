@@ -427,7 +427,7 @@ class ProjectScreensTest {
     }
 
     @Test
-    fun `dragging a subtask shows the detach zone, and dropping it there lifts the subtask`() {
+    fun `a carried subtask is lifted out through the action panel`() {
         val calls = mutableListOf<String>()
         val parent = task(5, "Ship it")
         val child = task(6, "Write notes").copy(parentLocalId = 5)
@@ -446,9 +446,8 @@ class ProjectScreensTest {
                 )
             }
         }
-        val hint = text(R.string.page_task_detachDrag_hint)
-        // Once the row is picked up the tooltip by the finger names it too, so the
-        // row is the first of the two from then on.
+        // Once the row is picked up the panel names the task too, so the row is
+        // the first of the two from then on.
         val row = compose.onAllNodesWithText("Write notes").onFirst()
         val rowTopLeft = row.fetchSemanticsNode().boundsInRoot.topLeft
 
@@ -458,10 +457,13 @@ class ProjectScreensTest {
             moveBy(Offset(0f, 10f))
         }
         compose.waitForIdle()
-        val zoneCentre = compose.onNodeWithText(hint).fetchSemanticsNode().boundsInRoot.center
-        // Gesture coordinates are the row's own, so the zone's centre is moved into them.
+        val actionCentre =
+            compose.onNodeWithText(text(R.string.native_task_dragAction_detach))
+                .fetchSemanticsNode()
+                .boundsInRoot.center
+        // Gesture coordinates are the row's own, so the action's centre is moved into them.
         row.performTouchInput {
-            moveTo(zoneCentre - rowTopLeft)
+            moveTo(actionCentre - rowTopLeft)
             up()
         }
         compose.waitForIdle()

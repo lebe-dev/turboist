@@ -93,7 +93,7 @@ func setupAPIEnvWithLog(t *testing.T) *loggingEnv {
 		repo.NewTemplateRepo(d), troikiSvc, service.NewHarpoonService(users, tasks, projs), testBaseURL).Register(api)
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewStateHandler(users).Register(api)
-	handlers.NewAppSettingsHandler(appSettings, lbls, projs).Register(api)
+	handlers.NewAppSettingsHandler(appSettings, lbls, projs, handlers.PlanLimitsOf(cfg)).Register(api)
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewBackupHandler(service.NewBackupService(d)).

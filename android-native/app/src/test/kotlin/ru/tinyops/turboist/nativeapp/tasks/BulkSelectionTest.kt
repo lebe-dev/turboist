@@ -40,6 +40,7 @@ class BulkSelectionTest {
         val calls = mutableListOf<Pair<String, List<Long>>>()
         var blocked: Int = 0
         var locked: Int = 0
+        var capped: Int = 0
         var failWith: WriteRefused? = null
 
         private fun record(
@@ -49,9 +50,10 @@ class BulkSelectionTest {
             calls += name to ids
             failWith?.let { throw it }
             return BulkChange(
-                changed = ids.size - blocked - locked,
+                changed = ids.size - blocked - locked - capped,
                 leftBlocked = blocked,
                 leftLocked = locked,
+                leftCapped = capped,
             )
         }
 
@@ -165,6 +167,27 @@ class BulkSelectionTest {
             runCurrent()
 
             assertContentEquals(listOf(BulkOutcome(BulkAction.COMPLETED, changed = 1, leftBlocked = 2)), heard)
+        }
+
+    @Test
+    fun `a planning budget with no room is counted apart from everything else`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, rowActions, sync, bulk = bulk)
+            val heard = mutableListOf<BulkOutcome>()
+            backgroundScope.launch { presenter.bulkOutcomes.collect { heard += it } }
+            bulk.capped = 2
+            presenter.startSelection(1)
+            presenter.toggleSelection(2)
+            presenter.toggleSelection(3)
+
+            presenter.planSelected(PlanState.BACKLOG)
+            runCurrent()
+
+            assertContentEquals(
+                listOf(BulkOutcome(BulkAction.PARKED, changed = 1, leftCapped = 2)),
+                heard,
+                "a full backlog is neither something to wait for nor someone else's decision",
+            )
         }
 
     @Test

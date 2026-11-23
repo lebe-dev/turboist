@@ -16,11 +16,17 @@ import ru.tinyops.turboist.core.sync.write.TaskDestination
  * project standing in the daily plan decides the priority of its work, or the
  * Today focus lock keeps a task out of a project for the day — which is a
  * different sentence again: there is nothing to wait for and nothing to retry.
+ *
+ * [leftCapped] counts the ones the installation's own planning budget had no
+ * room for: the week or the backlog was already full. Nothing is wrong with them
+ * and nothing is waiting; there is simply no slot, and emptying one is the only
+ * thing that changes it.
  */
 data class BulkChange(
     val changed: Int,
     val leftBlocked: Int = 0,
     val leftLocked: Int = 0,
+    val leftCapped: Int = 0,
 )
 
 /** Which change a selection was put through, so the screen can name it afterwards. */

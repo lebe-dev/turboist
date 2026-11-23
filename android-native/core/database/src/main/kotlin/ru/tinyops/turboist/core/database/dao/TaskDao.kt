@@ -10,6 +10,7 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import ru.tinyops.turboist.core.database.entity.TaskLabelRow
 import ru.tinyops.turboist.core.database.entity.TaskRow
+import ru.tinyops.turboist.core.model.PlanState
 
 @Dao
 abstract class TaskDao {
@@ -134,6 +135,21 @@ abstract class TaskDao {
      */
     @Query("SELECT COUNT(*) FROM tasks WHERE isPinned = 1")
     abstract suspend fun countPinned(): Int
+
+    /**
+     * How many top-level open tasks stand in [planState] — the number the
+     * installation's weekly/backlog budget is spent against.
+     *
+     * Subtasks do not count, exactly as on the server: the limit is a budget of
+     * top-level choices, and a parent's subtasks travel with it. The rule is
+     * mirrored so a park into a full backlog is refused while the user is still
+     * looking at the row, rather than queued and returned undone a sync later.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM tasks WHERE planState = :planState AND status = 'open' " +
+            "AND parentLocalId IS NULL",
+    )
+    abstract suspend fun countOpenTopLevelPlanned(planState: PlanState): Int
 
     /**
      * Writes the server id onto a row created on this device.

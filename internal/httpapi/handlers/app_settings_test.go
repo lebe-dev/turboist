@@ -39,6 +39,30 @@ func TestAppSettings_GetDefault(t *testing.T) {
 	}
 }
 
+func TestAppSettings_CarriesPlanLimits(t *testing.T) {
+	env := setupAPIEnv(t)
+	req := env.authedReq(t, http.MethodGet, "/api/v1/app-settings", nil)
+	resp, err := env.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	// The caps are configuration, not stored settings, and a native replica
+	// repeats them on the device — so they have to travel with this blob.
+	if got := body["weeklyLimit"]; got != float64(7) {
+		t.Errorf("weeklyLimit: got %v, want 7", got)
+	}
+	if got := body["backlogLimit"]; got != float64(100) {
+		t.Errorf("backlogLimit: got %v, want 100", got)
+	}
+}
+
 func TestAppSettings_PutAutoLabels(t *testing.T) {
 	env := setupAPIEnv(t)
 	ctx := context.Background()

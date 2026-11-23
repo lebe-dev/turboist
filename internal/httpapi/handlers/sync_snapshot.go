@@ -86,7 +86,7 @@ func (h *SyncHandler) snapshot(c fiber.Ctx) error {
 		TaskRelations:  renderSnapshot(snap.TaskRelations, func(r *model.TaskRelation) dto.TaskRelationEdgeDTO { return dto.TaskRelationEdgeFromModel(*r) }),
 		TaskTemplates:  renderSnapshot(snap.TaskTemplates, func(t *model.TaskTemplate) dto.TaskTemplateDTO { return dto.TaskTemplateFromModel(*t) }),
 		UserSettings:   toResp(snap.UserSettings),
-		AppSettings:    toAppSettingsResp(snap.AppSettings),
+		AppSettings:    toAppSettingsResp(snap.AppSettings, h.limits),
 		UserState:      json.RawMessage(snap.UserState),
 	})
 }

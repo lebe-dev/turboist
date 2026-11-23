@@ -7,13 +7,11 @@
     <ID>CompositionLocalAllowlist:ShellChrome.kt$LocalShellChrome</ID>
     <ID>CyclomaticComplexMethod:PasskeyProblem.kt$fun passkeyProblemOf(error: Throwable): PasskeyProblem</ID>
     <ID>CyclomaticComplexMethod:RecurrenceWording.kt$@Suppress("ReturnCount") fun recurrenceWording(rule: String?): RecurrenceWording</ID>
-    <ID>CyclomaticComplexMethod:SubtaskDependencyDrag.kt$@Composable fun SubtaskDragTooltip( drag: SubtaskDragState, rows: List&lt;TaskListRow&gt;, dependencies: SubtaskDependencies, )</ID>
     <ID>CyclomaticComplexMethod:TaskDetailScreen.kt$@Composable private fun WhenCard( task: Task, zone: ZoneId, today: LocalDate, onOpen: (TaskField) -&gt; Unit, onDayPart: (DayPart) -&gt; Unit, onDueDate: (LocalDate?) -&gt; Unit, headingTop: Dp, )</ID>
     <ID>CyclomaticComplexMethod:TaskEdits.kt$fun TaskEdit.touchedFields(): List&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:TaskList.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TaskList( state: TaskListUiState, zone: ZoneId, today: LocalDate, empty: EmptyListText?, callbacks: TaskListCallbacks, modifier: Modifier = Modifier, )</ID>
     <ID>CyclomaticComplexMethod:TaskRow.kt$@Composable private fun MetaLine( task: Task, projectTitle: String?, zone: ZoneId, today: LocalDate, completed: Boolean, selectionMode: Boolean, )</ID>
     <ID>CyclomaticComplexMethod:UnsentWording.kt$@StringRes fun labelFor(kind: OutboxOpKind?): Int</ID>
-    <ID>InstanceOfCheckForException:TaskListPresenter.kt$TaskListPresenter$refusal is WriteRefused.TaskBlocked</ID>
     <ID>LambdaParameterInRestartableEffect:CompletedScreen.kt$onShowMore</ID>
     <ID>LambdaParameterInRestartableEffect:SettingsSectionScreen.kt$onRestoreRule</ID>
     <ID>LambdaParameterInRestartableEffect:TaskDetailScreen.kt$onBack</ID>
@@ -26,11 +24,12 @@
     <ID>LongParameterList:CompletedHistoryPresenter.kt$CompletedHistoryPresenter$( private val scope: CoroutineScope, private val history: CompletedHistorySource, private val older: OlderCompletions, private val actions: CompletedHistoryActions, private val sync: SyncScheduler, private val zone: ZoneId, today: Flow&lt;LocalDate&gt;, )</ID>
     <ID>LongParameterList:LabelFakes.kt$( labelLocalId: Long, taggedAt: Long? = null, status: TaskStatus = TaskStatus.OPEN, dueAt: Long? = null, completedAt: Long? = null, projectLocalId: Long? = null, )</ID>
     <ID>LongParameterList:ProjectFakes.kt$( localId: Long, title: String = "project $localId", contextLocalId: Long = 1L, status: ProjectStatus = ProjectStatus.OPEN, type: ProjectType = ProjectType.GENERIC, isPinned: Boolean = false, pinnedAt: Long? = null, troikiCategory: TroikiCategory? = null, color: String = "", )</ID>
+    <ID>LongParameterList:QuickAddFakes.kt$( localId: Long, title: String, serverId: Long? = localId, status: ProjectStatus = ProjectStatus.OPEN, isPinned: Boolean = false, type: ProjectType = ProjectType.GENERIC, )</ID>
     <ID>LongParameterList:QuickAddPresenter.kt$QuickAddPresenter$( private val scope: CoroutineScope, workspace: Flow&lt;QuickAddWorkspace&gt;, private val recent: RecentProjects, private val actions: QuickAddActions, private val zone: ZoneId, private val recentLabels: RecentLabels = RecentLabels.None, private val now: () -&gt; Instant = Instant::now, private val schedule: DayPartSchedule = DayPartSchedule.Default, private val activity: ProjectActivity = ProjectActivity.None, private val labelSuggestions: LabelSuggestions = LabelSuggestions.None, private val projectSuggestions: ProjectSuggestions = ProjectSuggestions.None, )</ID>
     <ID>LongParameterList:QuickSwitcherPresenter.kt$QuickSwitcherPresenter$( private val scope: CoroutineScope, private val repository: QuickSwitcherRepository, private val recentItems: RecentItems, private val actions: QuickAddActions, private val clock: DayClock, private val schedule: DayPartSchedule = DayPartSchedule.Default, private val activity: ProjectActivity = ProjectActivity.None, )</ID>
     <ID>LongParameterList:SessionManagerTest.kt$SessionManagerTest$( gateway: FakeAuthGateway = FakeAuthGateway(), tokens: FakeRefreshTokenStore = FakeRefreshTokenStore(), addresses: FakeServerAddressStore = FakeServerAddressStore(), replica: FakeLocalReplica = FakeLocalReplica(), serverUrl: ServerUrl = ServerUrl(), networks: FakeNetworkAvailability = FakeNetworkAvailability(), accessTokens: SessionTokens = SessionTokens(), cleartext: CleartextPolicy = CleartextPolicy(allowed = false), )</ID>
     <ID>LongParameterList:SettingsPresenter.kt$SettingsPresenter$( private val scope: CoroutineScope, userSettings: Flow&lt;UserSettings&gt;, appSettings: Flow&lt;AppSettings&gt;, labels: Flow&lt;List&lt;Label&gt;&gt;, projects: Flow&lt;List&lt;Project&gt;&gt;, deviceOptions: Flow&lt;DeviceOptions&gt;, private val actions: SettingsActions, private val device: DeviceOptionActions, private val connection: ServerConnection, private val release: AppRelease, refusedChanges: Flow&lt;Int&gt; = flowOf(0), )</ID>
-    <ID>LongParameterList:SubtaskDependencyDrag.kt$SubtaskDependencies$( val enabled: Boolean, val dependencyRefusal: (draggedLocalId: Long, targetLocalId: Long) -&gt; DependencyDropRefusal?, val nestRefusal: (draggedLocalId: Long, targetLocalId: Long) -&gt; NestDropRefusal?, val nestNoop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Boolean, val onDependencyDrop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Unit, val onNestDrop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Unit, /** Lifts the dropped row out to the top level; `null` where the screen offers no detach zone. */ val onDetachDrop: ((draggedLocalId: Long) -&gt; Unit)? = null, )</ID>
+    <ID>LongParameterList:SubtaskDependencyDrag.kt$SubtaskDependencies$( val enabled: Boolean, val dependencyRefusal: (draggedLocalId: Long, targetLocalId: Long) -&gt; DependencyDropRefusal?, val nestRefusal: (draggedLocalId: Long, targetLocalId: Long) -&gt; NestDropRefusal?, val nestNoop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Boolean, val onDependencyDrop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Unit, val onNestDrop: (draggedLocalId: Long, targetLocalId: Long) -&gt; Unit, /** Lifts the dropped row out to the top level; `null` where the screen offers no detach at all. */ val onDetachDrop: ((draggedLocalId: Long) -&gt; Unit)? = null, )</ID>
     <ID>LongParameterList:SyncModule.kt$SyncModule$( stream: ChangeStream, network: NetworkAvailability, schedule: BackgroundSyncSchedule, scheduler: SyncScheduler, @SignedInState signedIn: Flow&lt;Boolean&gt;, @ForegroundState foreground: Flow&lt;Boolean&gt;, writer: OutboxWriter, database: TurboistDatabase, )</ID>
     <ID>LongParameterList:TaskDetailPresenter.kt$TaskDetailPresenter$( private val scope: CoroutineScope, content: Flow&lt;TaskDetailContent?&gt;, private val actions: TaskDetailActions, private val sync: SyncScheduler, private val relationSearch: TaskRelationSearch = TaskRelationSearch.None, private val templates: TemplateCapture = TemplateCapture.Unavailable, private val recentLabels: RecentLabels = RecentLabels.None, private val labelSuggestions: LabelSuggestions = LabelSuggestions.None, )</ID>
     <ID>LongParameterList:TaskDetailPresenterTest.kt$TaskDetailPresenterTest$( task: Task, subtasks: List&lt;Task&gt; = emptyList(), blockers: List&lt;BlockerRef&gt; = emptyList(), relations: List&lt;TaskRelationRef&gt; = emptyList(), placement: TaskPlacement = TaskPlacement(), knownLabels: List&lt;Label&gt; = emptyList(), priorityLockedByTroiki: Boolean = false, blockEdges: List&lt;BlockEdge&gt; = emptyList(), )</ID>
@@ -119,7 +118,7 @@
     <ID>MagicNumber:ProjectVisuals.kt$0xFFE5484D</ID>
     <ID>MagicNumber:ProjectVisuals.kt$0xFFF76B15</ID>
     <ID>MagicNumber:ProjectVisuals.kt$0xFFFFB224</ID>
-    <ID>MagicNumber:SubtaskDependencyDrag.kt$0xFF8B5CF6</ID>
+    <ID>MagicNumber:SubtaskDragPanel.kt$0xFF8B5CF6</ID>
     <ID>MatchingDeclarationName:ApiTokensScreen.kt$ApiTokenCallbacks</ID>
     <ID>MatchingDeclarationName:CompletedScreen.kt$CompletedCallbacks</ID>
     <ID>MatchingDeclarationName:ConnectedChoiceGroup.kt$ChoiceColors</ID>
@@ -131,7 +130,6 @@
     <ID>MatchingDeclarationName:ProjectFilters.kt$ProjectFilter</ID>
     <ID>MatchingDeclarationName:ProjectScreen.kt$ProjectBoardCallbacks</ID>
     <ID>MatchingDeclarationName:ProjectsScreen.kt$ProjectsCallbacks</ID>
-    <ID>MatchingDeclarationName:QuickAddSheet.kt$QuickAddCallbacks</ID>
     <ID>MatchingDeclarationName:SearchScreen.kt$SearchCallbacks</ID>
     <ID>MatchingDeclarationName:TaskDetailScreen.kt$TaskDetailCallbacks</ID>
     <ID>MatchingDeclarationName:TemplatesScreen.kt$TemplatesCallbacks</ID>
@@ -141,9 +139,8 @@
     <ID>ModifierMissing:CalendarSettingsNote.kt$CalendarSettingsNote</ID>
     <ID>ModifierMissing:HarpoonAction.kt$HarpoonAction</ID>
     <ID>ModifierMissing:RecurrenceSheet.kt$RecurrenceSheet</ID>
-    <ID>ModifierMissing:SubtaskDependencyDrag.kt$SubtaskDragMarks</ID>
+    <ID>ModifierMissing:SubtaskDragPanel.kt$SubtaskDragMarks</ID>
     <ID>MultipleEmitters:PasskeysScreen.kt$AddPasskey</ID>
-    <ID>MultipleEmitters:QuickAddSheet.kt$DueDateChips</ID>
     <ID>MultipleEmitters:SignInScreen.kt$PasskeySignIn</ID>
     <ID>MultipleEmitters:TaskDetailFields.kt$LabelSelector</ID>
     <ID>MultipleEmitters:TwoFactorScreen.kt$DisableForm</ID>
@@ -161,18 +158,9 @@
     <ID>ReturnCount:TaskEdits.kt$fun deadlineDateEdit( task: Task, date: LocalDate?, zone: ZoneId, ): TaskEdit</ID>
     <ID>ReturnCount:TaskEdits.kt$fun dueDateEdit( task: Task, date: LocalDate?, zone: ZoneId, ): TaskEdit</ID>
     <ID>SpreadOperator:Markdown.kt$Markdown$(*TRAILING_PUNCTUATION)</ID>
-    <ID>SwallowedException:CompletedHistoryPresenter.kt$CompletedHistoryPresenter$failure: RuntimeException</ID>
     <ID>SwallowedException:CompletedHistoryPresenter.kt$CompletedHistoryPresenter$refusal: WriteRefused</ID>
-    <ID>SwallowedException:LabelActions.kt$failure: RuntimeException</ID>
     <ID>SwallowedException:LabelActions.kt$refusal: WriteRefused</ID>
-    <ID>SwallowedException:ProjectMessage.kt$failure: RuntimeException</ID>
-    <ID>SwallowedException:QuickAddPresenter.kt$QuickAddPresenter$failure: RuntimeException</ID>
-    <ID>SwallowedException:QuickAddPresenter.kt$QuickAddPresenter$refusal: WriteRefused</ID>
-    <ID>SwallowedException:SettingsPresenter.kt$SettingsPresenter$failure: RuntimeException</ID>
     <ID>SwallowedException:SettingsPresenter.kt$SettingsPresenter$refusal: WriteRefused</ID>
-    <ID>SwallowedException:TaskDetailPresenter.kt$TaskDetailPresenter$failure: RuntimeException</ID>
-    <ID>SwallowedException:TaskListPresenter.kt$TaskListPresenter$failure: RuntimeException</ID>
-    <ID>SwallowedException:TemplatesPresenter.kt$TemplatesPresenter$failure: RuntimeException</ID>
     <ID>SwallowedException:TemplatesPresenter.kt$TemplatesPresenter$refusal: WriteRefused</ID>
     <ID>SwallowedException:WriteRepoBulkTaskActions.kt$WriteRepoBulkTaskActions$missing: WriteRefused.RowMissing</ID>
     <ID>TooGenericExceptionCaught:ApiTokensViewModel.kt$ApiTokensViewModel$e: Exception</ID>
@@ -207,6 +195,8 @@
     <ID>TooManyFunctions:SessionManager.kt$SessionManager : SessionStateSourceOfflineSessionSource</ID>
     <ID>TooManyFunctions:SettingsPieces.kt$ru.tinyops.turboist.nativeapp.settings.ui.SettingsPieces.kt</ID>
     <ID>TooManyFunctions:SettingsPresenter.kt$SettingsPresenter</ID>
+    <ID>TooManyFunctions:SubtaskDependencyDrag.kt$SubtaskDragState</ID>
+    <ID>TooManyFunctions:SubtaskDragPanel.kt$ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragPanel.kt</ID>
     <ID>TooManyFunctions:SyncModule.kt$SyncModule</ID>
     <ID>TooManyFunctions:TaskDetailFields.kt$ru.tinyops.turboist.nativeapp.tasks.ui.TaskDetailFields.kt</ID>
     <ID>TooManyFunctions:TaskDetailPresenter.kt$TaskDetailActions : TaskListActions</ID>
@@ -236,7 +226,6 @@
     <ID>UnusedPrivateMember:TwoFactorScreen.kt$@Preview(showBackground = true) @Composable private fun TwoFactorScreenPreview()</ID>
     <ID>UnusedPrivateMember:UnsentChangesScreen.kt$@Preview(showBackground = true) @Composable private fun UnsentChangesScreenPreview()</ID>
     <ID>UseCheckOrError:LabelFakes.kt$RecordingLabelActions$throw IllegalStateException("the write path refused this one")</ID>
-    <ID>UseCheckOrError:QuickAddFakes.kt$RecordingQuickAddActions$throw IllegalStateException("the write path is unavailable")</ID>
     <ID>UseCheckOrError:SettingsFakes.kt$RecordingSettingsActions$throw IllegalStateException("the server refused this write")</ID>
     <ID>ViewModelForwarding:DatedTaskScreens.kt$TaskListScreen( viewModel = viewModel, empty = EmptyListText( title = stringResource(R.string.page_today_emptyTitle), description = stringResource(R.string.page_today_emptyDescription), ), onOpenTask = onOpenTask, modifier = modifier, )</ID>
     <ID>ViewModelForwarding:DatedTaskScreens.kt$TaskListScreen( viewModel = viewModel, empty = EmptyListText( title = stringResource(R.string.page_tomorrow_emptyTitle), description = stringResource(R.string.page_tomorrow_emptyDescription), ), onOpenTask = onOpenTask, modifier = modifier, )</ID>

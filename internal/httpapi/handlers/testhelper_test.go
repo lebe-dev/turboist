@@ -156,7 +156,7 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 	handlers.NewSettingsHandler(users).Register(api)
 	handlers.NewHarpoonHandler(harpoonSvc).Register(api)
 	handlers.NewTodayLockHandler(todayLockSvc).Register(api)
-	handlers.NewAppSettingsHandler(appSettings, lbls, projs).Register(api)
+	handlers.NewAppSettingsHandler(appSettings, lbls, projs, handlers.PlanLimitsOf(cfg)).Register(api)
 	inboxProc := repo.NewInboxProcessingRepo(d, tlabels)
 	processor := inboxproc.NewProcessor(inboxproc.Config{
 		Enabled:    inboxLLM != nil,
@@ -169,9 +169,9 @@ func buildAPIEnv(t *testing.T, cfg *config.Config, inboxLLM inboxproc.Classifier
 		Tasks: tasks, TaskLabels: tlabels, State: inboxProc, Contexts: ctxs, Projects: projs, Labels: lbls,
 		AppSettings: appSettings, Users: users, Move: moveSvc, TodayLock: todayLockSvc, Hub: hub, Location: cfg.Location, Log: slog.Default(),
 	})
-	handlers.NewInboxProcessingHandler(processor, inboxProc, appSettings, testBaseURL).Register(api)
+	handlers.NewInboxProcessingHandler(processor, inboxProc, appSettings, testBaseURL, handlers.PlanLimitsOf(cfg)).Register(api)
 	handlers.NewStateHandler(users).Register(api)
-	handlers.NewSyncHandler(repo.NewChangeLogRepo(d), testBaseURL).Register(api.Group("/sync"))
+	handlers.NewSyncHandler(repo.NewChangeLogRepo(d), testBaseURL, handlers.PlanLimitsOf(cfg)).Register(api.Group("/sync"))
 	handlers.NewAPITokensHandler(apiTokens, salt).
 		Register(api.Group("/api-tokens", httpapi.RequireJWTAuth()))
 	handlers.NewSessionsHandler(sessions).

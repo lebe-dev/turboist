@@ -28,7 +28,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -42,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -66,11 +66,11 @@ import ru.tinyops.turboist.nativeapp.projects.ProjectMessage
 import ru.tinyops.turboist.nativeapp.tasks.DependencyAdded
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 import ru.tinyops.turboist.nativeapp.tasks.ui.CompletedToggle
+import ru.tinyops.turboist.nativeapp.tasks.ui.ListPlacement
 import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDependencies
-import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDetachZone
 import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragMarks
+import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragPanel
 import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragState
-import ru.tinyops.turboist.nativeapp.tasks.ui.SubtaskDragTooltip
 import ru.tinyops.turboist.nativeapp.tasks.ui.TaskRow
 import ru.tinyops.turboist.nativeapp.tasks.ui.subtaskDragFade
 import ru.tinyops.turboist.nativeapp.tasks.ui.subtaskDragSource
@@ -477,6 +477,7 @@ private fun BoardBody(
     onMoveTask: (Task) -> Unit,
 ) {
     val drag = remember { SubtaskDragState() }
+    val placement = remember { ListPlacement() }
     val dependencies =
         SubtaskDependencies(
             enabled = true,
@@ -493,7 +494,7 @@ private fun BoardBody(
     PullToRefreshBox(
         isRefreshing = state.refreshing,
         onRefresh = callbacks.onRefresh,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().onPlaced { placement.coordinates = it },
     ) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             for (column in state.columns) {
@@ -542,20 +543,17 @@ private fun BoardBody(
                 }
             }
         }
-        // Over the list rather than in it, so appearing never pushes the rows out
-        // from under the finger; and only for a subtask, the one thing it can lift.
-        val dragged = drag.draggedLocalId
-        if (dragged != null && state.canDetach(dragged)) {
-            Surface(
-                tonalElevation = 3.dp,
-                shadowElevation = 6.dp,
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-            ) {
-                SubtaskDetachZone(drag, modifier = Modifier.padding(bottom = 8.dp))
-            }
+        // The one thing a drag opens: the action panel, beside the carried row.
+        if (drag.draggedLocalId != null) {
+            SubtaskDragPanel(
+                drag = drag,
+                dependencies = dependencies,
+                rows = rows,
+                container = placement.bounds(),
+                modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 12.dp),
+            )
         }
     }
-    SubtaskDragTooltip(drag, rows, dependencies)
 }
 
 @Composable

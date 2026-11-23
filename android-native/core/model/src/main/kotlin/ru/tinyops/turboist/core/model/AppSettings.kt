@@ -92,9 +92,17 @@ fun normalizeLinkTitleDomain(input: String): String {
  * Server-wide settings, one row for the whole installation — distinct from
  * [UserSettings], which is the user's own preferences. The two are never merged:
  * they have different owners and different write paths.
+ *
+ * @property weeklyLimit how many top-level tasks may be committed to the week,
+ *   or 0 when the server did not say. The same number the server enforces, so a
+ *   plan the device knows is over the budget is refused here rather than sent
+ *   and bounced back a sync later.
+ * @property backlogLimit the same budget for the backlog.
  */
 data class AppSettings(
     val autoLabels: List<AutoLabelRule> = emptyList(),
     val projectSuggestions: List<ProjectSuggestionRule> = emptyList(),
     val linkTitles: LinkTitlesSettings = LinkTitlesSettings(),
+    val weeklyLimit: Int = 0,
+    val backlogLimit: Int = 0,
 )

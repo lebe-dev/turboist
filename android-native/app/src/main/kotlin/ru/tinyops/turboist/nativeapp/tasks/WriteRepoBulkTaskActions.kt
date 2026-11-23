@@ -59,7 +59,26 @@ class WriteRepoBulkTaskActions
         override suspend fun plan(
             taskLocalIds: List<Long>,
             state: PlanState,
-        ): BulkChange = BulkChange(eachRemaining(taskLocalIds) { tasks.plan(it, state) })
+        ): BulkChange {
+            var changed = 0
+            var capped = 0
+            // One request per task, so the budget is spent one task at a time:
+            // the ones that fit go, and the ones that do not are counted rather
+            // than thrown, for the same reason a blocked completion is counted.
+            for (taskLocalId in taskLocalIds.distinct()) {
+                try {
+                    tasks.plan(taskLocalId, state)
+                    changed++
+                } catch (refusal: WriteRefused) {
+                    when (refusal) {
+                        is WriteRefused.RowMissing -> continue
+                        is WriteRefused.PlanLimitReached -> capped++
+                        else -> throw refusal
+                    }
+                }
+            }
+            return BulkChange(changed = changed, leftCapped = capped)
+        }
 
         /**
          * Deletes the selection, one task at a time.

@@ -317,6 +317,12 @@ Global, server-wide rules. The same payload is embedded as `appSettings` in
   three keys; `rules` replaces the list. Templates must contain `{title}`;
   domains are normalised (`https://www.youtube.com/` → `youtube.com`). See
   [docs/link-titles.md](docs/link-titles.md).
+- **Planning limits** (`weeklyLimit`, `backlogLimit`) — read-only numbers copied
+  from the server's `weekly.limit` / `backlog.limit` configuration. They are not
+  stored settings and no request body carries them; they are here because a
+  native replica repeats the cap on the device, so parking a task into a full
+  backlog is refused while the user is still looking at the row instead of
+  coming back undone a sync later.
 
 ### Today focus lock
 

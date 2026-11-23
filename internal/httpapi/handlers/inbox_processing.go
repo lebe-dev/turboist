@@ -40,10 +40,17 @@ type InboxProcessingHandler struct {
 	journal  *repo.InboxProcessingRepo
 	settings *repo.AppSettingsRepo
 	baseURL  string
+	limits   PlanLimits
 }
 
-func NewInboxProcessingHandler(proc *inboxproc.Processor, journal *repo.InboxProcessingRepo, settings *repo.AppSettingsRepo, baseURL string) *InboxProcessingHandler {
-	return &InboxProcessingHandler{proc: proc, journal: journal, settings: settings, baseURL: baseURL}
+func NewInboxProcessingHandler(
+	proc *inboxproc.Processor,
+	journal *repo.InboxProcessingRepo,
+	settings *repo.AppSettingsRepo,
+	baseURL string,
+	limits PlanLimits,
+) *InboxProcessingHandler {
+	return &InboxProcessingHandler{proc: proc, journal: journal, settings: settings, baseURL: baseURL, limits: limits}
 }
 
 func (h *InboxProcessingHandler) Register(r fiber.Router) {
@@ -208,7 +215,7 @@ func (h *InboxProcessingHandler) putSettings(c fiber.Ctx) error {
 		attrs = append(attrs, slog.Bool("default_prompt", prompt == ""), slog.Int("prompt_length", len(prompt)))
 	}
 	logMutation(c, opInboxProcessingPut, attrs...)
-	return c.JSON(toAppSettingsResp(current))
+	return c.JSON(toAppSettingsResp(current, h.limits))
 }
 
 // normalizePrompt stores the built-in default as the empty string, so an

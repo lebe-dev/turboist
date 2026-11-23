@@ -3,11 +3,16 @@ package ru.tinyops.turboist.nativeapp.tasks.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -24,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,6 +39,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
@@ -109,9 +116,8 @@ fun TaskDetailSubtasks(
             )
             return@DetailCard
         }
-        AddSubtaskField(onAdd)
+        AddSubtaskField(onAdd, count = total)
     }
-    SubtaskDragTooltip(drag, open + done, dependencies)
 }
 
 /** How much of the work under the task is finished. */
@@ -176,12 +182,36 @@ private fun SubtaskRow(
  * itself and stays where it is, because subtasks are written down in runs: the
  * user has a list in their head, and making them find the field again after every
  * line is what turns a run into a chore.
+ *
+ * The page is one long scroll and this is a row in the middle of it, so opening
+ * the field has to scroll it into view: the keyboard would otherwise cover the
+ * very line being typed. Every subtask accepted above the field pushes it down
+ * again, so [count] re-reveals it; the keyboard appearing is the other moment,
+ * since the scroll viewport only changes then.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AddSubtaskField(onAdd: (String) -> Unit) {
-    var writing by remember { mutableStateOf(false) }
-    var title by remember { mutableStateOf("") }
+private fun AddSubtaskField(
+    onAdd: (String) -> Unit,
+    count: Int,
+) {
+    var writing by rememberSaveable { mutableStateOf(false) }
+    var title by rememberSaveable { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
+    val intoView = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    val imeVisible = WindowInsets.isImeVisible
+
+    // Focus first, then scroll: the field only has to be on screen once it is
+    // the thing the keyboard is typing into. Kept running after the keyboard
+    // opens, because the viewport shrinks by its height at that moment.
+    LaunchedEffect(writing, count, imeVisible) {
+        if (!writing) return@LaunchedEffect
+        intoView.bringIntoView()
+    }
+    LaunchedEffect(writing) {
+        if (writing) focusRequester.requestFocus()
+    }
 
     if (!writing) {
         Row(
@@ -213,10 +243,17 @@ private fun AddSubtaskField(onAdd: (String) -> Unit) {
         if (trimmed.isNotEmpty()) {
             onAdd(trimmed)
             title = ""
+            // Revealed again as soon as the row above lands, without waiting for
+            // the list to settle: a run of subtasks must not walk off screen.
+            scope.launch { intoView.bringIntoView() }
         }
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .bringIntoViewRequester(intoView),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -236,5 +273,4 @@ private fun AddSubtaskField(onAdd: (String) -> Unit) {
             )
         }
     }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 }

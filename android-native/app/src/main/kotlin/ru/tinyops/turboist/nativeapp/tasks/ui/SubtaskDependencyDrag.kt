@@ -1,41 +1,16 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.SubdirectoryArrowRight
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -44,31 +19,23 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.model.view.DependencyDropRefusal
 import ru.tinyops.turboist.core.model.view.NestDropRefusal
-import ru.tinyops.turboist.core.model.view.SubtaskDropMode
-import ru.tinyops.turboist.core.model.view.subtaskDropMode
-import ru.tinyops.turboist.nativeapp.R
 import ru.tinyops.turboist.nativeapp.tasks.TaskListRow
 
 /**
- * What the rows need to take part in the two related drop gestures — on the
- * subtask card of a task, and across the whole board of a project:
- * dropping one onto the edge of another to make it wait for it, or onto its
- * middle to nest it as that row's subtask (see [SubtaskDropMode]).
+ * What the rows need to take part in the drop gestures — on the subtask card of
+ * a task, and across the whole board of a project: dropping one onto another to
+ * make it wait for it, to nest it as that row's subtask, or lifting it out to the
+ * top level (see [SubtaskDropAction]).
  *
  * The refusal lambdas are asked on every hover, so they have to be a cheap read
  * of the replica — they are: the screen state already holds the tree and the
@@ -83,7 +50,7 @@ class SubtaskDependencies(
     val nestNoop: (draggedLocalId: Long, targetLocalId: Long) -> Boolean,
     val onDependencyDrop: (draggedLocalId: Long, targetLocalId: Long) -> Unit,
     val onNestDrop: (draggedLocalId: Long, targetLocalId: Long) -> Unit,
-    /** Lifts the dropped row out to the top level; `null` where the screen offers no detach zone. */
+    /** Lifts the dropped row out to the top level; `null` where the screen offers no detach at all. */
     val onDetachDrop: ((draggedLocalId: Long) -> Unit)? = null,
 ) {
     companion object {
@@ -99,56 +66,73 @@ class SubtaskDependencies(
     }
 }
 
-/** What a drag was let go over. */
-sealed interface SubtaskDrop {
-    /** Another row, at an edge or in its middle (see [SubtaskDropMode]). */
-    data class OntoRow(
-        val draggedLocalId: Long,
-        val targetLocalId: Long,
-        val mode: SubtaskDropMode,
-    ) : SubtaskDrop
+/** What a release over the drag panel asks for. */
+enum class SubtaskDropAction {
+    /** Become a subtask of the row it was carried onto. */
+    NEST,
 
-    /** The detach zone: the row leaves its parent for the top level. */
-    data class Detach(val draggedLocalId: Long) : SubtaskDrop
+    /** Wait for the row it was carried onto. */
+    DEPENDENCY,
+
+    /** Leave its parent for the top level of the same project and section. */
+    DETACH,
 }
 
+/** What a drag was let go over: an action, and the row it was hovered on — if the action needs one. */
+data class SubtaskDrop(
+    val draggedLocalId: Long,
+    val action: SubtaskDropAction,
+    val targetLocalId: Long?,
+)
+
 /**
- * One drag in progress over the subtask card.
+ * One drag in progress over the subtask card or a project board.
  *
  * Positions are in root coordinates: the finger is reported relative to the row
- * it started on, and the only frame every row and the tooltip share is the root.
+ * it started on, and the only frame every row and the panel share is the root.
  * The row bounds are plain bookkeeping rather than state — they change on every
- * scroll frame, and nothing is drawn from them directly. [mode] is recomputed on
- * every move from where inside the hovered row's own height the finger sits, so
- * crossing from the middle band into an edge switches modes mid-drag.
+ * scroll frame, and nothing is drawn from them directly.
+ *
+ * Two kinds of target are tracked. The rows say which task the drop is about;
+ * the panel floats over the list with one icon per action, and says what is being
+ * asked of it. The panel is hit first because it is drawn on top, and a finger
+ * over the panel keeps the last hovered row as its target — the gesture is "point
+ * at a task, then release on an action", and moving onto the panel must not
+ * forget which task was pointed at.
  */
 @Stable
 class SubtaskDragState {
     var draggedLocalId by mutableStateOf<Long?>(null)
         private set
-    var pointer by mutableStateOf(Offset.Zero)
-        private set
     var hoverLocalId by mutableStateOf<Long?>(null)
         private set
-    var mode by mutableStateOf<SubtaskDropMode?>(null)
-        private set
-    var overDetachZone by mutableStateOf(false)
+
+    /** The action the finger is over on the panel, or `null` while it is over the list. */
+    var hoveredAction by mutableStateOf<SubtaskDropAction?>(null)
         private set
 
+    /**
+     * Where the row the drag is pointed at sits; the panel opens beside it. While
+     * nothing is pointed at it is the carried row, so a drag that has not reached
+     * anything yet still has somewhere to put its panel.
+     */
+    var anchor by mutableStateOf<Rect?>(null)
+        private set
+
+    // The finger's own position is bookkeeping, never drawn: keeping it out of
+    // state means a move only recomposes the screen when the target or the action
+    // under it really changed, rather than on every frame of the gesture.
+    private var pointer: Offset = Offset.Zero
     private val bounds = HashMap<Long, Rect>()
-    private var detachZone: Rect? = null
+    private var carried: Rect? = null
+    private var panel: Rect? = null
+    private val actionBounds = HashMap<SubtaskDropAction, Rect>()
 
     fun place(
         localId: Long,
         rect: Rect,
     ) {
         bounds[localId] = rect
-    }
-
-    /** Where the detach zone is on screen, or `null` once it is gone. */
-    fun placeDetachZone(rect: Rect?) {
-        detachZone = rect
-        if (rect == null) overDetachZone = false
     }
 
     /**
@@ -159,10 +143,21 @@ class SubtaskDragState {
     fun forget(localId: Long) {
         bounds.remove(localId)
         abandon(localId)
-        if (hoverLocalId == localId) {
-            hoverLocalId = null
-            mode = null
-        }
+        if (hoverLocalId == localId) hoverLocalId = null
+    }
+
+    /** Where the panel is on screen, or `null` once it is gone. */
+    fun placePanel(rect: Rect?) {
+        panel = rect
+        if (rect == null) hoveredAction = null
+    }
+
+    /** Where one action of the panel is on screen. */
+    fun placeAction(
+        action: SubtaskDropAction,
+        rect: Rect?,
+    ) {
+        if (rect == null) actionBounds.remove(action) else actionBounds[action] = rect
     }
 
     /** Ends the drag without a drop, if [localId] is the row being carried. */
@@ -176,54 +171,60 @@ class SubtaskDragState {
     ) {
         val row = bounds[localId] ?: return
         draggedLocalId = localId
+        carried = row
+        anchor = row
         pointer = row.topLeft + offsetInRow
         hoverLocalId = null
-        mode = null
-        overDetachZone = false
+        hoveredAction = null
     }
 
-    /** Moves the finger; answers true when the hovered row, the mode or the detach zone changed. */
+    /** Moves the finger; answers true when what the panel says would change. */
     fun move(by: Offset): Boolean {
         val dragged = draggedLocalId ?: return false
         pointer += by
-        val inZone = detachZone?.contains(pointer) == true
-        if (inZone) {
-            val changed = !overDetachZone || hoverLocalId != null
-            overDetachZone = true
-            hoverLocalId = null
-            mode = null
-            return changed
-        }
-        val leftZone = overDetachZone
-        overDetachZone = false
-        val hit = bounds.entries.firstOrNull { (id, rect) -> id != dragged && rect.contains(pointer) }
-        val newMode = hit?.let { subtaskDropMode(((pointer.y - it.value.top) / it.value.height)) }
-        if (!leftZone && hit?.key == hoverLocalId && newMode == mode) return false
-        hoverLocalId = hit?.key
-        mode = newMode
+        return if (panel?.contains(pointer) == true) hoverAction() else hoverRow(dragged)
+    }
+
+    /** The finger is over the panel: only the action under it matters. */
+    private fun hoverAction(): Boolean {
+        val next = actionBounds.entries.firstOrNull { it.value.contains(pointer) }?.key
+        val changed = next != hoveredAction
+        hoveredAction = next
+        return changed
+    }
+
+    /**
+     * The finger is over the list. The target is the row under it, and the panel
+     * moves beside that row — never on top of it, so the row under the finger
+     * stays the target while the finger travels up to an action.
+     */
+    private fun hoverRow(dragged: Long): Boolean {
+        val leftAction = hoveredAction != null
+        hoveredAction = null
+        val hit = bounds.entries.firstOrNull { (id, rect) -> id != dragged && rect.contains(pointer) }?.key
+        if (hit == hoverLocalId) return leftAction
+        hoverLocalId = hit
+        anchor = hit?.let { bounds[it] } ?: carried
         return true
     }
 
-    /** Ends the drag; answers what the finger was lifted over, if it was anything to drop onto. */
+    /** Ends the drag; answers what the finger was lifted over, if it was an action. */
     fun finish(): SubtaskDrop? {
         val dragged = draggedLocalId
+        val action = hoveredAction
         val target = hoverLocalId
-        val droppedMode = mode
-        val detach = overDetachZone
         reset()
-        return when {
-            dragged == null -> null
-            detach -> SubtaskDrop.Detach(dragged)
-            target != null && droppedMode != null -> SubtaskDrop.OntoRow(dragged, target, droppedMode)
-            else -> null
-        }
+        if (dragged == null || action == null) return null
+        if (action != SubtaskDropAction.DETACH && target == null) return null
+        return SubtaskDrop(dragged, action, if (action == SubtaskDropAction.DETACH) null else target)
     }
 
     fun reset() {
         draggedLocalId = null
         hoverLocalId = null
-        mode = null
-        overDetachZone = false
+        hoveredAction = null
+        carried = null
+        anchor = null
     }
 }
 
@@ -278,7 +279,7 @@ fun Modifier.subtaskDragSource(
         } finally {
             // The gesture is torn down without a cancel when the row stops being
             // draggable mid-drag — it finished, or the parent did — and a drag
-            // nobody ends leaves its tooltip hanging over the page.
+            // nobody ends leaves its panel hanging over the page.
             drag.abandon(localId)
         }
     }
@@ -334,234 +335,24 @@ private fun deliver(
     drop: SubtaskDrop,
     dependencies: SubtaskDependencies,
 ) {
-    when (drop) {
-        is SubtaskDrop.Detach -> dependencies.onDetachDrop?.invoke(drop.draggedLocalId)
-        is SubtaskDrop.OntoRow -> {
-            val (dragged, target, mode) = drop
-            when (mode) {
-                SubtaskDropMode.DEPENDENCY ->
-                    if (dependencies.dependencyRefusal(dragged, target) == null) {
-                        dependencies.onDependencyDrop(dragged, target)
-                    }
-                SubtaskDropMode.NEST ->
-                    if (!dependencies.nestNoop(dragged, target) && dependencies.nestRefusal(dragged, target) == null) {
-                        dependencies.onNestDrop(dragged, target)
-                    }
+    when (drop.action) {
+        SubtaskDropAction.DETACH -> dependencies.onDetachDrop?.invoke(drop.draggedLocalId)
+        SubtaskDropAction.DEPENDENCY -> {
+            val target = drop.targetLocalId ?: return
+            if (dependencies.dependencyRefusal(drop.draggedLocalId, target) == null) {
+                dependencies.onDependencyDrop(drop.draggedLocalId, target)
             }
         }
-    }
-}
-
-/**
- * Where a carried subtask is dropped to leave its parent for the top level of
- * the same project and section. It exists only while a drag is under way, and
- * the screen floats it over its own foot rather than laying it out among the
- * rows: in the page it could sit below the fold, and appearing there would
- * push the rows out from under the finger that just picked one up.
- */
-@Composable
-fun SubtaskDetachZone(
-    drag: SubtaskDragState,
-    modifier: Modifier = Modifier,
-) {
-    DisposableEffect(drag) { onDispose { drag.placeDetachZone(null) } }
-    val active = drag.overDetachZone
-    val outline = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-    Box(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .onGloballyPositioned { drag.placeDetachZone(Rect(it.positionInRoot(), it.size.toSize())) }
-                .background(
-                    if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                    RoundedCornerShape(8.dp),
-                ).border(width = 1.dp, color = outline, shape = RoundedCornerShape(8.dp))
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.page_task_detachDrag_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color =
-                if (active) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-        )
-    }
-}
-
-/**
- * The marks a row wears during a drag: outlined with the padlock the drop
- * would add when hovered at an edge, or the indent arrow when hovered at its
- * middle — or, either way, outlined in the error colour when the drop would be
- * refused. A nest that would be a no-op (already its parent) shows nothing,
- * the same way hovering the dragged row itself shows nothing.
- */
-@Composable
-fun BoxScope.SubtaskDragMarks(
-    row: TaskListRow,
-    drag: SubtaskDragState,
-    dependencies: SubtaskDependencies,
-) {
-    val dragged = drag.draggedLocalId ?: return
-    val mode = drag.mode ?: return
-    if (drag.hoverLocalId != row.task.localId) return
-    if (mode == SubtaskDropMode.NEST && dependencies.nestNoop(dragged, row.task.localId)) return
-    val refused = isRefused(mode, dependencies, dragged, row.task.localId)
-    val color =
-        when {
-            refused -> MaterialTheme.colorScheme.error
-            mode == SubtaskDropMode.NEST -> NEST_COLOR
-            else -> MaterialTheme.colorScheme.primary
-        }
-    val onColor = if (refused) MaterialTheme.colorScheme.onError else Color.White
-    Box(
-        modifier =
-            Modifier
-                .matchParentSize()
-                .border(width = 2.dp, color = color, shape = RoundedCornerShape(8.dp)),
-    )
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier =
-            Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 12.dp)
-                .size(28.dp)
-                .background(color, CircleShape),
-    ) {
-        Icon(
-            imageVector = dropIcon(refused, mode),
-            contentDescription = null,
-            tint = onColor,
-            modifier = Modifier.size(16.dp),
-        )
-    }
-}
-
-/** Fades the row that is being carried. */
-fun Modifier.subtaskDragFade(
-    row: TaskListRow,
-    drag: SubtaskDragState,
-): Modifier = if (drag.draggedLocalId == row.task.localId) alpha(DRAGGED_ALPHA) else this
-
-/**
- * What the drop would do, said next to the finger while it is still down.
- *
- * It floats above the finger rather than below it, where the hand would cover
- * it, and over a row it names that row: "will depend on …" or "will become a
- * subtask of …", or why not. Away from any row it shows what is being carried,
- * so the drag is visibly alive.
- */
-@Composable
-fun SubtaskDragTooltip(
-    drag: SubtaskDragState,
-    rows: List<TaskListRow>,
-    dependencies: SubtaskDependencies,
-) {
-    val dragged = drag.draggedLocalId ?: return
-    val hover = drag.hoverLocalId
-    val mode = drag.mode
-    val target = hover?.let { id -> rows.firstOrNull { it.task.localId == id } }
-    val carried = rows.firstOrNull { it.task.localId == dragged } ?: return
-    // Nothing to show over a row without a settled mode, or over a nest that
-    // would be a no-op — both read as "not really hovering a target".
-    val showTarget =
-        target != null && mode != null &&
-            !(mode == SubtaskDropMode.NEST && dependencies.nestNoop(dragged, target.task.localId))
-    val lift = with(LocalDensity.current) { TOOLTIP_LIFT_DP.dp.roundToPx() }
-    val edge = with(LocalDensity.current) { TOOLTIP_EDGE_DP.dp.roundToPx() }
-
-    Popup(popupPositionProvider = AboveFinger(drag.pointer, lift, edge)) {
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            shadowElevation = 6.dp,
-        ) {
-            Row(
-                modifier = Modifier.widthIn(max = 320.dp).padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        SubtaskDropAction.NEST -> {
+            val target = drop.targetLocalId ?: return
+            if (!dependencies.nestNoop(drop.draggedLocalId, target) &&
+                dependencies.nestRefusal(drop.draggedLocalId, target) == null
             ) {
-                if (showTarget && target != null && mode != null) {
-                    val refused = isRefused(mode, dependencies, dragged, target.task.localId)
-                    Icon(
-                        imageVector = dropIcon(refused, mode),
-                        contentDescription = null,
-                        tint =
-                            if (refused) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.inversePrimary
-                            },
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-                Text(
-                    text =
-                        if (showTarget && target != null && mode != null) {
-                            tooltipText(mode, dependencies, dragged, target.task.localId, target.task.title)
-                        } else {
-                            carried.task.title
-                        },
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                dependencies.onNestDrop(drop.draggedLocalId, target)
             }
         }
     }
 }
-
-private fun isRefused(
-    mode: SubtaskDropMode,
-    dependencies: SubtaskDependencies,
-    draggedLocalId: Long,
-    targetLocalId: Long,
-): Boolean =
-    when (mode) {
-        SubtaskDropMode.DEPENDENCY -> dependencies.dependencyRefusal(draggedLocalId, targetLocalId) != null
-        SubtaskDropMode.NEST -> dependencies.nestRefusal(draggedLocalId, targetLocalId) != null
-    }
-
-/** The icon a mark or tooltip shows: refused always wins, otherwise per mode. */
-private fun dropIcon(
-    refused: Boolean,
-    mode: SubtaskDropMode,
-): ImageVector =
-    when {
-        refused -> Icons.Filled.Block
-        mode == SubtaskDropMode.NEST -> Icons.Filled.SubdirectoryArrowRight
-        else -> Icons.Filled.Lock
-    }
-
-@Composable
-private fun tooltipText(
-    mode: SubtaskDropMode,
-    dependencies: SubtaskDependencies,
-    draggedLocalId: Long,
-    targetLocalId: Long,
-    title: String,
-): String =
-    if (mode == SubtaskDropMode.NEST) {
-        when (dependencies.nestRefusal(draggedLocalId, targetLocalId)) {
-            null -> stringResource(R.string.page_task_nestDrag_willNest, title)
-            NestDropRefusal.DESCENDANT -> stringResource(R.string.page_task_nestDrag_refusedDescendant)
-            NestDropRefusal.COMPLETED -> stringResource(R.string.page_task_nestDrag_refusedCompleted, title)
-        }
-    } else {
-        when (dependencies.dependencyRefusal(draggedLocalId, targetLocalId)) {
-            null -> stringResource(R.string.page_task_dependencyDrag_willDepend, title)
-            DependencyDropRefusal.ANCESTOR -> stringResource(R.string.page_task_dependencyDrag_refusedAncestor)
-            DependencyDropRefusal.DESCENDANT -> stringResource(R.string.page_task_dependencyDrag_refusedDescendant)
-            DependencyDropRefusal.COMPLETED -> stringResource(R.string.page_task_dependencyDrag_refusedCompleted, title)
-            DependencyDropRefusal.EXISTS -> stringResource(R.string.page_task_dependencyDrag_refusedExists, title)
-            DependencyDropRefusal.CYCLE -> stringResource(R.string.page_task_dependencyDrag_refusedCycle, title)
-        }
-    }
 
 /** Centres the tooltip above a point in root coordinates, kept inside the window. */
 internal class AboveFinger(
@@ -582,11 +373,3 @@ internal class AboveFinger(
         return IntOffset(x, y)
     }
 }
-
-// The same violet accent the web client uses for a nest drop, distinct from the
-// primary blue a dependency drop uses — the two gestures must never look alike.
-private val NEST_COLOR = Color(0xFF8B5CF6)
-
-private const val DRAGGED_ALPHA = 0.4f
-private const val TOOLTIP_LIFT_DP = 24
-private const val TOOLTIP_EDGE_DP = 8

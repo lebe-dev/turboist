@@ -230,6 +230,14 @@
     <string name="native_unsent_op_todayLock">Блокировка дня за его проектами</string>
     <string name="native_task_bulkMovedTodayLocked">Перенесено: %1$s; %2$s не взято на сегодня из-за фокус-блокировки</string>
     <string name="native_task_bulkCompletedTodayLocked">Выполнено: %1$s; %2$s осталось открытым — до полуночи завершать можно только задачи сегодняшних проектов</string>
+    <string name="native_task_weekFull">Неделя заполнена. Сначала освободите в ней место.</string>
+    <string name="native_task_backlogFull">Бэклог заполнен. Сначала освободите в нём место.</string>
+    <string name="native_task_bulkParkedCapped">В бэклог перенесено: %1$s; %2$s не влезло — бэклог заполнен</string>
+    <string name="native_task_bulkPlannedCapped">На неделю запланировано: %1$s; %2$s не влезло — неделя заполнена</string>
+    <string name="native_task_dragPanel_hint">Перетащите на задачу и отпустите на действии</string>
+    <string name="native_task_dragAction_nest">Подзадача</string>
+    <string name="native_task_dragAction_depend">Зависимость</string>
+    <string name="native_task_dragAction_detach">Вынести</string>
     <string name="native_unsent_op_troikiReset">Сброс плана на день</string>
     <string name="native_unsent_op_harpoonAttach">Добавление в пару прыжков</string>
     <string name="native_unsent_op_harpoonDetach">Удаление из пары прыжков</string>

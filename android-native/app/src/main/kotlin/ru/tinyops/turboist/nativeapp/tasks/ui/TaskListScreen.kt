@@ -68,14 +68,18 @@ fun TaskListScreen(
     val todayLocked = stringResource(R.string.task_toast_todayLocked)
     val todayLockedComplete = stringResource(R.string.task_toast_todayLockedComplete)
     val failed = stringResource(R.string.task_toast_failedUpdate)
+    val weekFull = stringResource(R.string.native_task_weekFull)
+    val backlogFull = stringResource(R.string.native_task_backlogFull)
 
-    LaunchedEffect(messages, blocked, todayLocked, todayLockedComplete, failed) {
+    LaunchedEffect(messages, blocked, todayLocked, todayLockedComplete, failed, weekFull, backlogFull) {
         messages.collect { message ->
             snackbars.showSnackbar(
                 when (message) {
                     TaskListMessage.BLOCKED -> blocked
                     TaskListMessage.TODAY_LOCKED -> todayLocked
                     TaskListMessage.TODAY_LOCKED_COMPLETE -> todayLockedComplete
+                    TaskListMessage.WEEK_LIMIT_REACHED -> weekFull
+                    TaskListMessage.BACKLOG_LIMIT_REACHED -> backlogFull
                     // A list does not link tasks, make templates out of them or
                     // split them, so none of those answers can reach this screen.
                     // They are still answered rather than left to fall through as
@@ -165,6 +169,20 @@ private fun bulkWording(): (BulkOutcome) -> String {
                     R.string.task_toast_bulkPrioritySetPartial,
                     outcome.changed.toString(),
                     outcome.leftLocked.toString(),
+                )
+
+            outcome.action == BulkAction.PARKED && outcome.leftCapped > 0 ->
+                resources.getString(
+                    R.string.native_task_bulkParkedCapped,
+                    outcome.changed.toString(),
+                    outcome.leftCapped.toString(),
+                )
+
+            outcome.action == BulkAction.PLANNED && outcome.leftCapped > 0 ->
+                resources.getString(
+                    R.string.native_task_bulkPlannedCapped,
+                    outcome.changed.toString(),
+                    outcome.leftCapped.toString(),
                 )
 
             else -> resources.getString(wordingFor(outcome.action), outcome.changed.toString())

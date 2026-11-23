@@ -186,6 +186,11 @@ class TaskWriteRepo(
             // And the inverse, as the server does it: giving a parked task a day
             // takes it out of the backlog, unless the edit names a plan itself.
             val unparks = edit.dueAt is Clearable.Set && edit.planState == null && row.planState == PlanState.BACKLOG
+            // A plan named by an edit is not held to the budget: the server's
+            // plan endpoint is where that cap lives, and an edit that names a
+            // state is answered by the ordinary update path, which does not
+            // count. The app plans through [plan], exactly as the server
+            // expects, so refusing here would be stricter than the server.
             val edited =
                 row.copy(
                     title = edit.title ?: row.title,
@@ -400,6 +405,10 @@ class TaskWriteRepo(
         writer.transaction {
             val at = writer.now()
             val row = requireTask(taskLocalId)
+            // Only a change of plan is asked about: a task already committed to
+            // the week is not spending its budget twice, and the server returns
+            // early on the same state too.
+            if (row.planState != state) rules.assertRoomInPlanState(state)
             val parked = state == PlanState.BACKLOG
             db.tasks().update(
                 row.copy(

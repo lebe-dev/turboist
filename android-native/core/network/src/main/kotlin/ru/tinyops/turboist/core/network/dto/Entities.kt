@@ -221,6 +221,10 @@ data class AppSettingsDto(
     val autoLabels: List<AutoLabelRuleDto> = emptyList(),
     val projectSuggestions: List<ProjectSuggestionRuleDto> = emptyList(),
     val linkTitles: LinkTitlesSettingsDto = LinkTitlesSettingsDto(),
+    /** How many top-level tasks may be planned for the week, or 0 when the build cannot tell. */
+    val weeklyLimit: Int = 0,
+    /** How many top-level tasks may be parked in the backlog, or 0 when the build cannot tell. */
+    val backlogLimit: Int = 0,
 )
 
 /** One entity of the two-slot jump pair, hydrated with the title for display. */

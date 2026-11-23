@@ -918,6 +918,7 @@ class TaskDetailPresenter(
                     is WriteRefused.TodayLocked -> locked
                     is WriteRefused.RelationExists -> TaskListMessage.RELATION_EXISTS
                     is WriteRefused.RelationCycle -> TaskListMessage.RELATION_CYCLE
+                    is WriteRefused.PlanLimitReached -> refusal.planMessage()
                     else -> onFailure
                 },
             )

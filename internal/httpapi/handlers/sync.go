@@ -43,10 +43,11 @@ const (
 type SyncHandler struct {
 	changes *repo.ChangeLogRepo
 	baseURL string
+	limits  PlanLimits
 }
 
-func NewSyncHandler(changes *repo.ChangeLogRepo, baseURL string) *SyncHandler {
-	return &SyncHandler{changes: changes, baseURL: baseURL}
+func NewSyncHandler(changes *repo.ChangeLogRepo, baseURL string, limits PlanLimits) *SyncHandler {
+	return &SyncHandler{changes: changes, baseURL: baseURL, limits: limits}
 }
 
 // Register wires the delta feed onto the given router.
@@ -178,7 +179,7 @@ func (h *SyncHandler) render(payload any) (any, error) {
 	case *model.UserSettings:
 		return toResp(v), nil
 	case *model.AppSettings:
-		return toAppSettingsResp(v), nil
+		return toAppSettingsResp(v, h.limits), nil
 	case repo.SyncUserState:
 		return json.RawMessage(v), nil
 	}

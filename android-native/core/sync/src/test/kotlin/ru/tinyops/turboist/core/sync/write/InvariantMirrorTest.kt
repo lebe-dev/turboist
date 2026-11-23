@@ -2,6 +2,7 @@ package ru.tinyops.turboist.core.sync.write
 
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Priority
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.TaskStatus
@@ -262,6 +263,91 @@ class InvariantMirrorTest : WriteTest() {
             tasks.move(taskLocalId, TaskDestination.InProject(projectLocalId))
 
             assertEquals(Priority.LOW, assertNotNull(db.tasks().byLocalId(taskLocalId)).priority)
+        }
+
+    @Test
+    fun `a full backlog refuses another park and queues nothing`() =
+        runTest {
+            givenAppSettings("""{"backlogLimit":1}""")
+            val parked = givenTask(title = "Already parked", serverId = 1)
+            val extra = givenTask(title = "One too many", serverId = 2)
+            tasks.plan(parked, PlanState.BACKLOG)
+
+            val refused = assertFailsWith<WriteRefused.PlanLimitReached> { tasks.plan(extra, PlanState.BACKLOG) }
+
+            assertEquals(PlanState.BACKLOG, refused.planState)
+            assertEquals(1, refused.limit)
+            assertEquals(PlanState.NONE, assertNotNull(db.tasks().byLocalId(extra)).planState)
+            assertEquals(1, queue().size, "the refused park must not be queued")
+        }
+
+    @Test
+    fun `a full week refuses another commitment`() =
+        runTest {
+            givenAppSettings("""{"weeklyLimit":1}""")
+            val planned = givenTask(title = "Planned", serverId = 1)
+            val extra = givenTask(title = "One too many", serverId = 2)
+            tasks.plan(planned, PlanState.WEEK)
+
+            val refused = assertFailsWith<WriteRefused.PlanLimitReached> { tasks.plan(extra, PlanState.WEEK) }
+
+            assertEquals(PlanState.WEEK, refused.planState)
+            assertEquals(PlanState.NONE, assertNotNull(db.tasks().byLocalId(extra)).planState)
+        }
+
+    @Test
+    fun `subtasks follow their parent without spending the budget`() =
+        runTest {
+            givenAppSettings("""{"backlogLimit":1}""")
+            val parent = givenTask(title = "Parent", serverId = 1)
+            givenTask(title = "Under it", serverId = 2, parentLocalId = parent)
+
+            tasks.plan(parent, PlanState.BACKLOG)
+
+            // The cascade is deliberately not counted: the limit gates what the
+            // user parks by hand, and a parked tree is one choice.
+            assertEquals(1, db.tasks().countOpenTopLevelPlanned(PlanState.BACKLOG))
+            assertEquals(
+                PlanState.BACKLOG,
+                assertNotNull(db.tasks().byLocalId(parent)).planState,
+            )
+        }
+
+    @Test
+    fun `a task already in the budget is not counted twice`() =
+        runTest {
+            givenAppSettings("""{"backlogLimit":1}""")
+            val parked = givenTask(title = "Parked", serverId = 1)
+            tasks.plan(parked, PlanState.BACKLOG)
+
+            tasks.plan(parked, PlanState.BACKLOG)
+
+            assertEquals(PlanState.BACKLOG, assertNotNull(db.tasks().byLocalId(parked)).planState)
+        }
+
+    @Test
+    fun `taking a task out of a full budget is always allowed`() =
+        runTest {
+            givenAppSettings("""{"backlogLimit":1, "weeklyLimit":1}""")
+            val parked = givenTask(title = "Parked", serverId = 1)
+            tasks.plan(parked, PlanState.BACKLOG)
+
+            tasks.plan(parked, PlanState.NONE)
+
+            assertEquals(PlanState.NONE, assertNotNull(db.tasks().byLocalId(parked)).planState)
+        }
+
+    @Test
+    fun `a server that says nothing about the budget is trusted to answer`() =
+        runTest {
+            givenAppSettings("""{}""")
+            val first = givenTask(title = "One", serverId = 1)
+            val second = givenTask(title = "Two", serverId = 2)
+
+            tasks.plan(first, PlanState.BACKLOG)
+            tasks.plan(second, PlanState.BACKLOG)
+
+            assertEquals(2, db.tasks().countOpenTopLevelPlanned(PlanState.BACKLOG))
         }
 
     @Test

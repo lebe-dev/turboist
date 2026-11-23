@@ -103,9 +103,27 @@ enum class TaskListMessage {
     /** The task was not split — most often because there is already work under it. */
     DECOMPOSE_FAILED,
 
+    /** The week already holds as many top-level tasks as the installation allows. */
+    WEEK_LIMIT_REACHED,
+
+    /** The backlog already holds as many top-level tasks as the installation allows. */
+    BACKLOG_LIMIT_REACHED,
+
     /** The change did not happen, and the user is not expected to know why. */
     FAILED,
 }
+
+/**
+ * The sentence a spent planning budget gets, whichever screen asked for the plan.
+ *
+ * The week and the backlog are two different budgets, and "the week is full" is
+ * not what a person who tried to park something needs to read.
+ */
+internal fun WriteRefused.PlanLimitReached.planMessage(): TaskListMessage =
+    when (planState) {
+        PlanState.WEEK -> TaskListMessage.WEEK_LIMIT_REACHED
+        else -> TaskListMessage.BACKLOG_LIMIT_REACHED
+    }
 
 /**
  * What a change to a whole selection did, in the words a screen needs to report it.
@@ -120,6 +138,7 @@ data class BulkOutcome(
     val changed: Int,
     val leftBlocked: Int = 0,
     val leftLocked: Int = 0,
+    val leftCapped: Int = 0,
 )
 
 /**
@@ -443,7 +462,7 @@ class TaskListPresenter(
                 val change = write(port, ids)
                 clearSelection()
                 bulkOutgoing.emit(
-                    BulkOutcome(action, change.changed, change.leftBlocked, change.leftLocked),
+                    BulkOutcome(action, change.changed, change.leftBlocked, change.leftLocked, change.leftCapped),
                 )
             }
         }
@@ -474,6 +493,7 @@ class TaskListPresenter(
                 when (refusal) {
                     is WriteRefused.TaskBlocked -> TaskListMessage.BLOCKED
                     is WriteRefused.TodayLocked -> locked
+                    is WriteRefused.PlanLimitReached -> refusal.planMessage()
                     else -> TaskListMessage.FAILED
                 },
             )

@@ -294,8 +294,11 @@ fun TaskList(
 /**
  * Where the list was last laid out. Plain bookkeeping rather than state: nothing
  * is drawn from it until a row is picked up, and that recomposition reads it.
+ *
+ * Shared with the task screen, which floats the drag panel over its own page the
+ * same way a day list floats its island.
  */
-private class ListPlacement {
+internal class ListPlacement {
     var coordinates: LayoutCoordinates? = null
 
     fun bounds(): Rect = coordinates?.rootBounds() ?: Rect.Zero

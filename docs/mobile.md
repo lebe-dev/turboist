@@ -612,6 +612,14 @@ change they made came back undone:
   the room a slot earns as work is finished is a counter the server keeps and the
   replica does not carry — so the check is never stricter than the server's and
   the plainly hopeless attempt is answered immediately.
+- **The week and the backlog are budgets, and the device knows their sizes.** The
+  numbers are configuration rather than a stored setting, so they travel in the
+  replicated installation settings (`weeklyLimit`, `backlogLimit`). The check
+  counts what the server counts — open, top-level tasks only, since a parent's
+  subtasks follow it and never spend a slot — and refuses before anything is
+  queued. Without it the park would be applied to the replica, refused a sync
+  later, and the task would reappear on the day it came from with nothing said
+  about why. A server that says nothing (0) is trusted to answer for itself.
 - **Moving a board column renumbers the whole board.** The server lifts the moved
   column out, drops it back in at the requested slot and renumbers every column
   to `0..n-1`, clamping a target past either end to that end; `boardAfterMove`
@@ -1503,6 +1511,29 @@ here exactly as it does on the day it is due, and finished ones sit in a block o
 their own. A task in the inbox is told why it has none rather than being offered
 a field the write path would refuse.
 
+Adding one keeps the field in sight. It is a row until it is asked for, then a
+text field that stays open and keeps focus, because subtasks are written down in
+runs; the page is one long scroll and every accepted line lands above the field
+and pushes it down, so the field asks to be brought into view when it opens and
+again whenever a line is added — and the page pads itself for the keyboard, so
+"into view" means above the keyboard rather than under it. Opening, typing and
+surviving a rotation keep the half-typed line.
+
+**A dragged subtask is dropped through one panel of actions.** The old gesture
+chose between "wait for" and "become a subtask of" by where inside the target row
+the finger sat — an edge or the middle — which nothing on screen could tell a
+person. A long press now picks a subtask up, dragging over another row marks it
+as the target, and a panel opens beside it with the three things the drop can
+mean: nest under it, wait for it, or lift the row out of its parent. The row
+under the finger is kept as the target while the finger travels up onto an icon,
+so releasing on an icon is the commit and releasing anywhere else changes
+nothing. An action the target refuses is dimmed and the panel says why; the panel
+never covers the row it belongs to, and it is anchored above that row because a
+finger travels down a list far more often than up. The same panel serves the
+project board. A dependency it commits is confirmed in words with an undo,
+because a drop onto the wrong row is an easy slip; a nest or a lift is visible in
+the list itself.
+
 **Links to other tasks are listed under the three things they say** — what this
 task waits for, what waits for it, and what is merely worth reading beside it.
 One stored kind of edge carries the first two; which one it is depends on the end
@@ -1577,11 +1608,14 @@ a phone is a tall screen, and a sideways board puts every column but one out of
 sight.
 
 **Columns move from a menu; tasks are picked up.** A column is moved one place at
-a time from its own menu. A long press on an open task picks it up: dropped on the
-edge of another task it waits for that task, dropped on the middle it becomes that
-task's subtask, and a subtask dropped on the zone at the foot of the screen goes
-back to the top of its column — the same rules, answered from the replica, as the
-subtask card on the task screen. Released without moving, the long press asks which
+a time from its own menu. A long press on an open task picks it up, dragging over
+another row makes it the target, and the floating action panel that opens beside
+it says what the drop can mean — nest under the target, wait for it, or lift the
+row out of its parent — with the refused ones dimmed and the reason in its
+caption. That is the same panel, with the same rules answered from the replica, as
+the subtask card on the task screen: one gesture learnt once. Releasing on the row
+itself changes nothing, since the action is what commits. Released without moving,
+the long press asks which
 column the task should go to, which is also offered as an accessibility action,
 because a drag cannot reach a column scrolled out of sight and never reaches anyone
 driving the screen with an assistive reader. The gesture is read before the row and

@@ -16,6 +16,15 @@ import (
 	"github.com/lebe-dev/turboist/internal/service"
 )
 
+// PlanLimitsOf reads the planning budget out of the server configuration, in the
+// shape the settings payload carries it to a replica.
+func PlanLimitsOf(cfg *config.Config) PlanLimits {
+	if cfg == nil {
+		return PlanLimits{}
+	}
+	return PlanLimits{Weekly: cfg.Weekly.Limit, Backlog: cfg.Backlog.Limit}
+}
+
 // configListLimit caps the number of contexts/projects/labels returned in the
 // embedded bootstrap sections. Frontend used a 500-row limit for the same
 // lists when they were fetched via dedicated endpoints; keep parity.
@@ -266,7 +275,7 @@ func (h *MetaHandler) config(c fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
-		appSettings = toAppSettingsResp(s)
+		appSettings = toAppSettingsResp(s, PlanLimitsOf(h.cfg))
 		return nil
 	})
 

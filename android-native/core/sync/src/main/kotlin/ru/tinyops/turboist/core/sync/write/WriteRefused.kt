@@ -1,5 +1,6 @@
 package ru.tinyops.turboist.core.sync.write
 
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.TroikiCategory
 import ru.tinyops.turboist.core.network.ApiErrorCodes
 
@@ -46,6 +47,20 @@ sealed class WriteRefused(
     /** The pinned shelf is full. Its size is the user's own setting, read fresh on every pin. */
     class PinLimitReached(val limit: Int) :
         WriteRefused(ApiErrorCodes.LIMIT_EXCEEDED, "no more than $limit may be pinned")
+
+    /**
+     * The weekly or the backlog budget is spent: committing another top-level
+     * task to [planState] would take it over the installation's limit.
+     *
+     * The device repeats this cap because the server refuses the same park a
+     * sync later, and the refusal used to arrive as the task silently reappearing
+     * on the day it came from. [limit] is what the server says the budget is.
+     */
+    class PlanLimitReached(val planState: PlanState, val limit: Int) :
+        WriteRefused(
+            ApiErrorCodes.LIMIT_EXCEEDED,
+            "the ${planState.wire} plan already holds $limit top-level tasks",
+        )
 
     /** The daily slot already holds as many projects as it takes. */
     class TroikiSlotFull(val category: TroikiCategory, val capacity: Int) :

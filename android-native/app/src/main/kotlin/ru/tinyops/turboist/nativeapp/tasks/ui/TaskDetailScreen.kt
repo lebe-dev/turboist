@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -78,6 +79,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
@@ -229,33 +231,7 @@ fun TaskDetailScreen(
     val snackbars = remember { SnackbarHostState() }
     val context = LocalContext.current
     val undo = stringResource(R.string.view_undo)
-    val blocked = stringResource(R.string.task_toast_blockedCannotComplete)
-    val todayLocked = stringResource(R.string.task_toast_todayLocked)
-    val todayLockedComplete = stringResource(R.string.task_toast_todayLockedComplete)
-    val linkExists = stringResource(R.string.native_task_relationExists)
-    val linkCycle = stringResource(R.string.native_task_relationCycle)
-    val failed = stringResource(R.string.task_toast_failedUpdate)
-    val templateCreated = stringResource(R.string.task_actions_createTemplateSuccess)
-    val templateFailed = stringResource(R.string.task_actions_createTemplateFailed)
-    val splitFailed = stringResource(R.string.task_toast_failedDecompose)
-
-    LaunchedEffect(messages, blocked, todayLocked, todayLockedComplete, linkExists, linkCycle, failed) {
-        messages.collect { message ->
-            snackbars.showSnackbar(
-                when (message) {
-                    TaskListMessage.BLOCKED -> blocked
-                    TaskListMessage.TODAY_LOCKED -> todayLocked
-                    TaskListMessage.TODAY_LOCKED_COMPLETE -> todayLockedComplete
-                    TaskListMessage.RELATION_EXISTS -> linkExists
-                    TaskListMessage.RELATION_CYCLE -> linkCycle
-                    TaskListMessage.TEMPLATE_CREATED -> templateCreated
-                    TaskListMessage.TEMPLATE_FAILED -> templateFailed
-                    TaskListMessage.DECOMPOSE_FAILED -> splitFailed
-                    TaskListMessage.FAILED -> failed
-                },
-            )
-        }
-    }
+    TaskMessageSnackbars(messages, snackbars)
 
     // A drop is a gesture with no other trace on screen than a padlock appearing,
     // so it is confirmed in words, and it is the one confirmation that can be taken
@@ -308,6 +284,65 @@ fun TaskDetailScreen(
     )
 }
 
+/**
+ * The sentences a task screen says back, resolved once per composition.
+ *
+ * A refusal is expected traffic rather than an error — the device repeats a few
+ * of the server's rules so the user meets them while still looking at the thing
+ * they changed — so each one that can be acted on gets its own sentence, and
+ * everything else says only that the change did not happen.
+ */
+@Composable
+private fun TaskMessageSnackbars(
+    messages: Flow<TaskListMessage>,
+    snackbars: SnackbarHostState,
+) {
+    val blocked = stringResource(R.string.task_toast_blockedCannotComplete)
+    val todayLocked = stringResource(R.string.task_toast_todayLocked)
+    val todayLockedComplete = stringResource(R.string.task_toast_todayLockedComplete)
+    val linkExists = stringResource(R.string.native_task_relationExists)
+    val linkCycle = stringResource(R.string.native_task_relationCycle)
+    val failed = stringResource(R.string.task_toast_failedUpdate)
+    val templateCreated = stringResource(R.string.task_actions_createTemplateSuccess)
+    val templateFailed = stringResource(R.string.task_actions_createTemplateFailed)
+    val splitFailed = stringResource(R.string.task_toast_failedDecompose)
+    val weekFull = stringResource(R.string.native_task_weekFull)
+    val backlogFull = stringResource(R.string.native_task_backlogFull)
+
+    LaunchedEffect(
+        messages,
+        blocked,
+        todayLocked,
+        todayLockedComplete,
+        linkExists,
+        linkCycle,
+        failed,
+        templateCreated,
+        templateFailed,
+        splitFailed,
+        weekFull,
+        backlogFull,
+    ) {
+        messages.collect { message ->
+            snackbars.showSnackbar(
+                when (message) {
+                    TaskListMessage.BLOCKED -> blocked
+                    TaskListMessage.TODAY_LOCKED -> todayLocked
+                    TaskListMessage.TODAY_LOCKED_COMPLETE -> todayLockedComplete
+                    TaskListMessage.RELATION_EXISTS -> linkExists
+                    TaskListMessage.RELATION_CYCLE -> linkCycle
+                    TaskListMessage.TEMPLATE_CREATED -> templateCreated
+                    TaskListMessage.TEMPLATE_FAILED -> templateFailed
+                    TaskListMessage.DECOMPOSE_FAILED -> splitFailed
+                    TaskListMessage.WEEK_LIMIT_REACHED -> weekFull
+                    TaskListMessage.BACKLOG_LIMIT_REACHED -> backlogFull
+                    TaskListMessage.FAILED -> failed
+                },
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TaskDetailBody(
@@ -323,6 +358,10 @@ private fun TaskDetailBody(
     var field by remember { mutableStateOf<TaskField?>(null) }
     val scroll = rememberScrollState()
     val subtaskDrag = remember { SubtaskDragState() }
+    // Where the page sits on screen, so the drag panel can open beside the row
+    // being carried. Kept as a layout handle and measured only while a drag runs.
+    val placement = remember { ListPlacement() }
+    val dependencies = subtaskDependencies(state, callbacks)
     // The title moves into the bar once the one on the page has gone: a detail
     // screen with no heading anywhere says nothing about what is being edited.
     // The distance is in dp, since the same number of pixels is a different
@@ -368,6 +407,8 @@ private fun TaskDetailBody(
                 modifier =
                     Modifier
                         .fillMaxSize()
+                        .imePadding()
+                        .onPlaced { placement.coordinates = it }
                         .verticalScroll(scroll)
                         .padding(bottom = 28.dp),
             ) {
@@ -420,17 +461,7 @@ private fun TaskDetailBody(
                     onToggleComplete = callbacks.onToggleSubtask,
                     onOpen = { callbacks.onOpenTask(it.localId) },
                     onAdd = callbacks.onAddSubtask,
-                    dependencies =
-                        SubtaskDependencies(
-                            enabled = task.status == TaskStatus.OPEN,
-                            dependencyRefusal = state::dependencyRefusal,
-                            nestRefusal = state::nestRefusal,
-                            nestNoop = state::nestNoop,
-                            onDependencyDrop = callbacks.onMakeDependent,
-                            onNestDrop = callbacks.onNestUnder,
-                            // An inbox task has no subtasks to lift, and no top level to lift them to.
-                            onDetachDrop = callbacks.onDetachSubtask.takeUnless { state.placement.inInbox },
-                        ),
+                    dependencies = dependencies,
                     drag = subtaskDrag,
                 )
 
@@ -463,15 +494,16 @@ private fun TaskDetailBody(
                     RecordOfTheTask(task = task, zone = zone)
                 }
             }
-            // An inbox task has no subtasks to lift, and no top level to lift them to.
-            if (subtaskDrag.draggedLocalId != null && !state.placement.inInbox) {
-                Surface(
-                    tonalElevation = 3.dp,
-                    shadowElevation = 6.dp,
-                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-                ) {
-                    SubtaskDetachZone(subtaskDrag, modifier = Modifier.padding(bottom = 8.dp))
-                }
+            // The one thing a drag opens: an action panel beside the carried row.
+            // It replaces nothing here, and the page keeps its scroll position.
+            if (subtaskDrag.draggedLocalId != null) {
+                SubtaskDragPanel(
+                    drag = subtaskDrag,
+                    dependencies = dependencies,
+                    rows = state.openSubtasks + state.doneSubtasks,
+                    container = placement.bounds(),
+                    modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 12.dp),
+                )
             }
         }
     }
@@ -487,6 +519,22 @@ private fun TaskDetailBody(
         onField = { field = it },
     )
 }
+
+/** The drag rules for the subtasks card, wired to this task and its screen. */
+private fun subtaskDependencies(
+    state: TaskDetailUiState,
+    callbacks: TaskDetailCallbacks,
+): SubtaskDependencies =
+    SubtaskDependencies(
+        enabled = state.task?.status == TaskStatus.OPEN,
+        dependencyRefusal = state::dependencyRefusal,
+        nestRefusal = state::nestRefusal,
+        nestNoop = state::nestNoop,
+        onDependencyDrop = callbacks.onMakeDependent,
+        onNestDrop = callbacks.onNestUnder,
+        // An inbox task has no subtasks to lift, and no top level to lift them to.
+        onDetachDrop = callbacks.onDetachSubtask.takeUnless { state.placement.inInbox },
+    )
 
 /**
  * The sheets every field on the screen opens, in one place.

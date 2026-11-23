@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.tasks.ui
 
 import android.app.Application
+import androidx.annotation.StringRes
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -40,6 +42,7 @@ import ru.tinyops.turboist.nativeapp.ui.theme.TurboistTheme
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The detail screen composed for real, in every state it has to survive.
@@ -273,6 +276,27 @@ class TaskDetailScreenTest {
             .performScrollTo()
             .assertIsDisplayed()
         compose.onAllNodesWithText(text(R.string.page_task_addSubtaskPlaceholder)).assertCountEquals(0)
+    }
+
+    @Test
+    fun `the add-subtask field opens on screen and adds the line that was typed`() {
+        show(stateOf(task(1), openSubtasks = listOf(task(2, title = "First"))))
+
+        compose
+            .onNodeWithText(text(R.string.page_task_addSubtaskPlaceholder))
+            .performScrollTo()
+            .performClick()
+        compose.waitForIdle()
+
+        // Opened at the bottom of a long page, it has to be brought into view
+        // for the keyboard to have something to type into.
+        val field = compose.onNodeWithText(text(R.string.page_task_addSubtaskPlaceholder))
+        field.assertIsDisplayed()
+        field.performTextInput("Second")
+        compose.onNodeWithText("Second").assertIsDisplayed().performImeAction()
+        compose.waitForIdle()
+
+        assertTrue("subtask Second" in performed)
     }
 
     @Test
@@ -578,6 +602,7 @@ class TaskDetailScreenTest {
                     callbacks =
                         callbacks().copy(
                             onNestUnder = { dragged, target -> performed += "nest $dragged $target" },
+                            onMakeDependent = { dragged, target -> performed += "depend $dragged $target" },
                             onDetachSubtask = { performed += "detach $it" },
                         ),
                 )
@@ -586,14 +611,25 @@ class TaskDetailScreenTest {
         compose.waitForIdle()
     }
 
-    /** Long-presses [title], then carries it to the root-coordinate point [to] and lets go. */
-    private fun carry(
+    /**
+     * Long-presses [title], carries it over [over] when given, then onto the
+     * panel's action labelled [action] and lets go there.
+     *
+     * The panel is how a drop is committed: the row under the finger only ever
+     * says which task the drop is about.
+     */
+    private fun carryToAction(
         title: String,
-        to: () -> Offset,
+        @StringRes action: Int,
+        onto: String? = null,
     ) {
+        // The target is brought on screen first, so the row carried to it is
+        // still visible when the gesture starts; the page is long and its foot is
+        // the only part the subtasks card occupies.
+        onto?.let { compose.onNodeWithText(it).performScrollTo() }
         compose.onNodeWithText(title).performScrollTo()
-        // Once the row is picked up the tooltip by the finger names it too, so the
-        // row is the first of the two from then on.
+        // Once the row is picked up the panel names the task too, so the row is
+        // the first of the two from then on.
         val row = compose.onAllNodesWithText(title).onFirst()
         val rowTopLeft = row.fetchSemanticsNode().boundsInRoot.topLeft
         row.performTouchInput {
@@ -602,26 +638,32 @@ class TaskDetailScreenTest {
             moveBy(Offset(0f, 4f))
         }
         compose.waitForIdle()
-        val target = to()
+        onto?.let { there ->
+            val target = compose.onNodeWithText(there).fetchSemanticsNode().boundsInRoot.center
+            row.performTouchInput { moveTo(target - rowTopLeft) }
+            compose.waitForIdle()
+        }
+        val actionCentre = compose.onNodeWithText(text(action)).fetchSemanticsNode().boundsInRoot.center
         row.performTouchInput {
-            moveTo(target - rowTopLeft)
+            moveTo(actionCentre - rowTopLeft)
             up()
         }
         compose.waitForIdle()
     }
 
     @Test
-    fun `a subtask carried onto another's middle is nested under it`() {
+    fun `a subtask carried over another and released on the nest action is nested under it`() {
         val subtasks =
             listOf(
                 task(2, title = "Order the parts", parentLocalId = 1),
                 task(3, title = "Assemble", parentLocalId = 1),
+                task(4, title = "Paint it", parentLocalId = 1),
             )
         showWithDrag(stateOf(task(1, title = "Build a shelf"), openSubtasks = subtasks))
 
-        carry("Assemble") { compose.onNodeWithText("Order the parts").fetchSemanticsNode().boundsInRoot.center }
+        carryToAction("Assemble", R.string.native_task_dragAction_nest, onto = "Paint it")
 
-        assertEquals(listOf("nest 3 2"), performed)
+        assertEquals(listOf("nest 3 4"), performed)
     }
 
     /**
@@ -651,7 +693,7 @@ class TaskDetailScreenTest {
     }
 
     @Test
-    fun `a subtask carried onto the detach zone is lifted to the top level`() {
+    fun `a subtask released on the lift-out action leaves its parent`() {
         val subtasks =
             listOf(
                 task(2, title = "Order the parts", parentLocalId = 1),
@@ -659,11 +701,24 @@ class TaskDetailScreenTest {
             )
         showWithDrag(stateOf(task(1, title = "Build a shelf"), openSubtasks = subtasks))
 
-        carry("Assemble") {
-            compose.onNodeWithText(text(R.string.page_task_detachDrag_hint)).fetchSemanticsNode().boundsInRoot.center
-        }
+        carryToAction("Assemble", R.string.native_task_dragAction_detach)
 
         assertEquals(listOf("detach 3"), performed)
+    }
+
+    @Test
+    fun `the panel offers a dependency and names the row it will point at`() {
+        val subtasks =
+            listOf(
+                task(2, title = "Order the parts", parentLocalId = 1),
+                task(3, title = "Assemble", parentLocalId = 1),
+                task(4, title = "Paint it", parentLocalId = 1),
+            )
+        showWithDrag(stateOf(task(1, title = "Build a shelf"), openSubtasks = subtasks))
+
+        carryToAction("Assemble", R.string.native_task_dragAction_depend, onto = "Paint it")
+
+        assertEquals(listOf("depend 3 4"), performed)
     }
 
     @Test

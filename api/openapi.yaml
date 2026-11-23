@@ -5433,6 +5433,8 @@ components:
           type:
           - array
           - "null"
+        backlogLimit:
+          type: integer
         inboxProcessing:
           $ref: '#/components/schemas/HandlersInboxProcessingSettingsDTO'
         linkTitles:
@@ -5443,6 +5445,8 @@ components:
           type:
           - array
           - "null"
+        weeklyLimit:
+          type: integer
       type: object
     HandlersAutoLabelDTO:
       properties:

@@ -1,6 +1,7 @@
 package ru.tinyops.turboist.nativeapp.projects
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.diagnostics.Faults
 import ru.tinyops.turboist.core.sync.write.WriteRefused
 
@@ -29,6 +30,12 @@ sealed interface ProjectMessage {
 
     /** The slot of the daily plan already holds as many projects as it takes. */
     data class TroikiSlotFull(val capacity: Int) : ProjectMessage
+
+    /**
+     * The week or the backlog already holds as many top-level tasks as the
+     * installation allows.
+     */
+    data class PlanLimitReached(val planState: PlanState) : ProjectMessage
 
     /** The two tasks are already linked that way round. */
     data object RelationExists : ProjectMessage
@@ -64,6 +71,7 @@ internal suspend fun MutableSharedFlow<ProjectMessage>.reporting(
                 is WriteRefused.TodayLocked -> locked
                 is WriteRefused.PinLimitReached -> ProjectMessage.PinLimitReached(refusal.limit)
                 is WriteRefused.TroikiSlotFull -> ProjectMessage.TroikiSlotFull(refusal.capacity)
+                is WriteRefused.PlanLimitReached -> ProjectMessage.PlanLimitReached(refusal.planState)
                 is WriteRefused.RelationExists -> ProjectMessage.RelationExists
                 is WriteRefused.RelationCycle -> ProjectMessage.RelationCycle
                 else -> ProjectMessage.Failed

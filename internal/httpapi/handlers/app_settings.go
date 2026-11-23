@@ -18,6 +18,18 @@ const (
 	opAppSettingsPutLinkTitles         = "handler.AppSettings.PutLinkTitles"
 )
 
+// PlanLimits is the weekly/backlog planning budget this installation allows.
+//
+// The numbers come from the configuration rather than from a stored setting, but
+// they travel with the server-wide settings blob because a native replica repeats
+// the cap on the device: parking a task into a full backlog is then refused while
+// the user is still looking at the row, instead of being queued and coming back
+// undone a sync later, with the task silently returned to the day it came from.
+type PlanLimits struct {
+	Weekly  int
+	Backlog int
+}
+
 // AppSettingsHandler exposes global application settings.
 //
 //	GET /api/v1/app-settings                      -> returns AppSettings
@@ -28,10 +40,16 @@ type AppSettingsHandler struct {
 	repo     *repo.AppSettingsRepo
 	labels   *repo.LabelRepo
 	projects *repo.ProjectRepo
+	limits   PlanLimits
 }
 
-func NewAppSettingsHandler(r *repo.AppSettingsRepo, labels *repo.LabelRepo, projects *repo.ProjectRepo) *AppSettingsHandler {
-	return &AppSettingsHandler{repo: r, labels: labels, projects: projects}
+func NewAppSettingsHandler(
+	r *repo.AppSettingsRepo,
+	labels *repo.LabelRepo,
+	projects *repo.ProjectRepo,
+	limits PlanLimits,
+) *AppSettingsHandler {
+	return &AppSettingsHandler{repo: r, labels: labels, projects: projects, limits: limits}
 }
 
 func (h *AppSettingsHandler) Register(r fiber.Router) {
@@ -76,6 +94,10 @@ type appSettingsResp struct {
 	ProjectSuggestions []projectSuggestionDTO     `json:"projectSuggestions"`
 	InboxProcessing    inboxProcessingSettingsDTO `json:"inboxProcessing"`
 	LinkTitles         linkTitlesSettingsDTO      `json:"linkTitles"`
+	// WeeklyLimit and BacklogLimit are read-only: they are configuration, not
+	// stored settings, and no request body carries them.
+	WeeklyLimit  int `json:"weeklyLimit"`
+	BacklogLimit int `json:"backlogLimit"`
 }
 
 // linkTitlesPutReq updates any subset of the link-title settings; a field left
@@ -94,7 +116,7 @@ type projectSuggestionsPutReq struct {
 	ProjectSuggestions []projectSuggestionDTO `json:"projectSuggestions"`
 }
 
-func toAppSettingsResp(s *model.AppSettings) appSettingsResp {
+func toAppSettingsResp(s *model.AppSettings, limits PlanLimits) appSettingsResp {
 	rules := make([]autoLabelDTO, len(s.AutoLabels))
 	for i, r := range s.AutoLabels {
 		ids := r.LabelIDs
@@ -124,6 +146,8 @@ func toAppSettingsResp(s *model.AppSettings) appSettingsResp {
 			Template: s.LinkTitles.Template,
 			Rules:    linkRules,
 		},
+		WeeklyLimit:  limits.Weekly,
+		BacklogLimit: limits.Backlog,
 	}
 }
 
@@ -132,7 +156,7 @@ func (h *AppSettingsHandler) get(c fiber.Ctx) error {
 	if err != nil {
 		return httpapi.ErrInternal("load app settings").WithCause(err)
 	}
-	return c.JSON(toAppSettingsResp(s))
+	return c.JSON(toAppSettingsResp(s, h.limits))
 }
 
 func (h *AppSettingsHandler) putAutoLabels(c fiber.Ctx) error {
@@ -176,7 +200,7 @@ func (h *AppSettingsHandler) putAutoLabels(c fiber.Ctx) error {
 		return httpapi.ErrInternal("save app settings").WithCause(err)
 	}
 	logMutation(c, opAppSettingsPutAutoLabels, slog.Int("rules", len(rules)))
-	return c.JSON(toAppSettingsResp(current))
+	return c.JSON(toAppSettingsResp(current, h.limits))
 }
 
 func (h *AppSettingsHandler) putProjectSuggestions(c fiber.Ctx) error {
@@ -220,7 +244,7 @@ func (h *AppSettingsHandler) putProjectSuggestions(c fiber.Ctx) error {
 		return httpapi.ErrInternal("save app settings").WithCause(err)
 	}
 	logMutation(c, opAppSettingsPutProjectSuggestions, slog.Int("rules", len(rules)))
-	return c.JSON(toAppSettingsResp(current))
+	return c.JSON(toAppSettingsResp(current, h.limits))
 }
 
 func (h *AppSettingsHandler) putLinkTitles(c fiber.Ctx) error {
@@ -274,7 +298,7 @@ func (h *AppSettingsHandler) putLinkTitles(c fiber.Ctx) error {
 	}
 	logMutation(c, opAppSettingsPutLinkTitles, slog.Bool("enabled", current.LinkTitles.Enabled),
 		slog.Int("rules", len(current.LinkTitles.Rules)))
-	return c.JSON(toAppSettingsResp(current))
+	return c.JSON(toAppSettingsResp(current, h.limits))
 }
 
 func (h *AppSettingsHandler) ensureLabelExists(ctx context.Context, id int64) error {

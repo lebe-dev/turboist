@@ -408,6 +408,33 @@ class ReplicaRules(
     }
 
     /**
+     * Refuses committing another top-level task to the week, or parking one in
+     * the backlog, once the installation's budget for it is spent.
+     *
+     * The numbers are the server's, carried in the replicated settings; a server
+     * that says nothing (0) is trusted to answer for itself. The count mirrors
+     * the server's: open, top-level tasks only, since a parent's subtasks travel
+     * with it and never use up a slot. Without this the park would be applied to
+     * the replica, refused a sync later, and the task would reappear on the day
+     * it came from with nothing said about why.
+     */
+    suspend fun assertRoomInPlanState(state: PlanState) {
+        val settings = appSettings()
+        val limit =
+            when (state) {
+                PlanState.WEEK -> settings.weeklyLimit
+                PlanState.BACKLOG -> settings.backlogLimit
+                // Unplanned — and a spelling this build does not know, which is
+                // no budget to spend either.
+                PlanState.NONE, PlanState.UNKNOWN -> return
+            }
+        if (limit <= 0) return
+        if (db.tasks().countOpenTopLevelPlanned(state) >= limit) {
+            throw WriteRefused.PlanLimitReached(state, limit)
+        }
+    }
+
+    /**
      * Refuses a project into a daily slot that is already full.
      *
      * The check uses the starting size of a slot, which is a constant of the

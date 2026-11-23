@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import ru.tinyops.turboist.core.model.DayPart
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.Task
 import ru.tinyops.turboist.core.model.TaskStatus
 import ru.tinyops.turboist.core.network.Clearable
@@ -158,6 +159,29 @@ class TaskListPresenterTest {
             runCurrent()
 
             assertContentEquals(listOf(TaskListMessage.TODAY_LOCKED), heard)
+        }
+
+    @Test
+    fun `a spent planning budget is explained as the budget it was`() =
+        runTest {
+            val presenter = TaskListPresenter(backgroundScope, sections, actions, sync)
+            val heard = mutableListOf<TaskListMessage>()
+            backgroundScope.launch { presenter.messages.collect { heard += it } }
+            runCurrent()
+
+            actions.refuseWith = WriteRefused.PlanLimitReached(PlanState.BACKLOG, limit = 30)
+            presenter.park(task(1))
+            runCurrent()
+
+            actions.refuseWith = WriteRefused.PlanLimitReached(PlanState.WEEK, limit = 7)
+            presenter.planForWeek(task(2))
+            runCurrent()
+
+            assertContentEquals(
+                listOf(TaskListMessage.BACKLOG_LIMIT_REACHED, TaskListMessage.WEEK_LIMIT_REACHED),
+                heard,
+                "the week and the backlog are two budgets, and one sentence for both would mislead",
+            )
         }
 
     @Test

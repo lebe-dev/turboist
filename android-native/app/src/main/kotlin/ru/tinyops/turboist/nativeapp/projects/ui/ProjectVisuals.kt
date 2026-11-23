@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import ru.tinyops.turboist.core.model.PlanState
 import ru.tinyops.turboist.core.model.ProjectStatus
 import ru.tinyops.turboist.core.model.TroikiCategory
 import ru.tinyops.turboist.nativeapp.R
@@ -115,6 +116,12 @@ fun projectMessageText(message: ProjectMessage): String =
         is ProjectMessage.TodayLockedCompletion -> stringResource(R.string.task_toast_todayLockedComplete)
         is ProjectMessage.PinLimitReached -> stringResource(R.string.native_project_pinLimit, message.limit)
         is ProjectMessage.TroikiSlotFull -> stringResource(R.string.native_project_troikiFull, message.capacity)
+        is ProjectMessage.PlanLimitReached ->
+            if (message.planState == PlanState.WEEK) {
+                stringResource(R.string.native_task_weekFull)
+            } else {
+                stringResource(R.string.native_task_backlogFull)
+            }
         is ProjectMessage.RelationExists -> stringResource(R.string.native_task_relationExists)
         is ProjectMessage.RelationCycle -> stringResource(R.string.native_task_relationCycle)
         is ProjectMessage.Failed -> stringResource(R.string.task_toast_failedUpdate)

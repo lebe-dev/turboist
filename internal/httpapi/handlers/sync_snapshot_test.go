@@ -153,6 +153,29 @@ func TestSyncSnapshot_CarriesEveryCollection(t *testing.T) {
 	}
 }
 
+// The planning budget is configuration rather than a stored setting, and a
+// replica repeats it so parking a task into a full backlog is refused on the
+// device instead of coming back undone a sync later. It therefore has to be in
+// the seed.
+func TestSyncSnapshot_AppSettingsCarriesPlanLimits(t *testing.T) {
+	e := setupAPIEnv(t)
+	snap, _ := fetchSnapshot(t, e)
+
+	var settings struct {
+		WeeklyLimit  int `json:"weeklyLimit"`
+		BacklogLimit int `json:"backlogLimit"`
+	}
+	if err := json.Unmarshal(snap.AppSettings, &settings); err != nil {
+		t.Fatalf("parse appSettings: %v", err)
+	}
+	if settings.WeeklyLimit != 7 {
+		t.Errorf("weeklyLimit: got %d, want 7", settings.WeeklyLimit)
+	}
+	if settings.BacklogLimit != 100 {
+		t.Errorf("backlogLimit: got %d, want 100", settings.BacklogLimit)
+	}
+}
+
 // A client decoding into non-nullable lists must not have to special-case an
 // empty workspace, so every collection is an array even when nothing is in it.
 func TestSyncSnapshot_EmptyCollectionsAreArrays(t *testing.T) {

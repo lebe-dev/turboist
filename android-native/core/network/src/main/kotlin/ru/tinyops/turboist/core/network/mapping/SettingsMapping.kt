@@ -76,6 +76,8 @@ fun AppSettingsDto.toAppSettings(): AppSettings =
         autoLabels = autoLabels.map { it.toRule() },
         projectSuggestions = projectSuggestions.map { it.toRule() },
         linkTitles = linkTitles.toLinkTitles(),
+        weeklyLimit = weeklyLimit,
+        backlogLimit = backlogLimit,
     )
 
 /**
