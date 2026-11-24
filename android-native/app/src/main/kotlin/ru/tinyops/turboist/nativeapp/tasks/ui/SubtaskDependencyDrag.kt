@@ -418,14 +418,16 @@ private fun deliver(
 }
 
 /**
- * Places the tooltip centred above a point in root coordinates, kept inside the
- * area it is laid out in. The point is read while placing, so a moving finger
- * re-places the tooltip without recomposing it.
+ * Places the tooltip centred on one side of a point in root coordinates [lift]
+ * away from it, kept inside the area it is laid out in. The side is chosen so the
+ * line never lands on a panel that opens over the finger; the point is read while
+ * placing, so a moving finger re-places the tooltip without recomposing it.
  */
-internal fun Modifier.aboveFinger(
+internal fun Modifier.fingerSide(
     pointer: () -> Offset,
     lift: Int,
     edge: Int,
+    above: Boolean,
 ): Modifier =
     layout { measurable, constraints ->
         val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
@@ -437,7 +439,13 @@ internal fun Modifier.aboveFinger(
             val x =
                 (finger.x.roundToInt() - placeable.width / 2)
                     .coerceIn(edge, (width - placeable.width - edge).coerceAtLeast(edge))
-            val y = (finger.y.roundToInt() - lift - placeable.height).coerceAtLeast(edge)
+            val y =
+                if (above) {
+                    (finger.y.roundToInt() - lift - placeable.height).coerceAtLeast(edge)
+                } else {
+                    (finger.y.roundToInt() + lift)
+                        .coerceAtMost((height - placeable.height - edge).coerceAtLeast(edge))
+                }
             placeable.place(x, y)
         }
     }

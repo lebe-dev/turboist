@@ -1381,14 +1381,18 @@ assistive reader, so the same actions are also named actions on the row.
 of the day's phases picks it up; dropped on another phase's heading or rows it
 moves there, which is a write of the phase alone. Since the list leaves out a
 phase with nothing in it and a long day pushes most of them off screen, a bar
-naming all four phases floats over the top of the list while a task is carried —
-at the top, because the bottom edge belongs to the capture button, and over the
-list rather than in it, so appearing never shifts the rows under the finger.
-Released without moving, the long press starts a selection exactly as before.
-Overdue tasks are not carried: a new phase would leave them overdue all the
-same. An assistive reader gets each other phase as a named action on the row.
-The web client's Today page offers the same gesture and the same bar, with the
-mouse (HTML5 drag) and with a long press on touch screens.
+naming all four phases opens just above the carried row while a task is carried —
+over the list rather than in it, so appearing never shifts the rows under the
+finger, and above rather than under the row because the finger is what has to
+reach it: a bar opened underneath sits in the way of the rows down the list and
+of the hand holding the phone. Only at the very top of the list, where nothing
+fits above, does it open underneath instead. The line saying what the drop would
+do takes the other side of the finger — under it while the bar is above — so the
+two never cover one another. Released without moving, the long press starts a
+selection exactly as before. Overdue tasks are not carried: a new phase would
+leave them overdue all the same. An assistive reader gets each other phase as a
+named action on the row. The web client's Today page offers the same gesture and
+the same bar, with the mouse (HTML5 drag) and with a long press on touch screens.
 
 **Acting on a selection.** A long press starts selection mode; tapping rows adds
 and removes them, a heading offers its whole block at once, and un-picking the

@@ -316,9 +316,14 @@ internal data class IslandPlacement(
 )
 
 /**
- * Puts the island of phases right next to the carried row: under it when the
- * list has room there, over it otherwise. When neither side fits it is pinned to
- * the top of the list, which covers the row but keeps every phase reachable.
+ * Puts the island of phases right next to the carried row: over it when the list
+ * has room there, under it otherwise. When neither side fits it is pinned to the
+ * top of the list, which covers the row but keeps every phase reachable.
+ *
+ * Over rather than under, because the finger is what has to reach it: a panel
+ * opened below the row sits in the way of the finger and of the rows further
+ * down, while one opened above leaves the held pose — thumb below, screen above
+ * — working in the panel's favour.
  */
 internal fun islandPlacement(
     anchor: Rect,
@@ -326,10 +331,10 @@ internal fun islandPlacement(
     islandHeight: Float,
     gap: Float,
 ): IslandPlacement {
-    val below = anchor.bottom + gap
-    if (below + islandHeight <= container.bottom) return IslandPlacement(below, above = false)
     val over = anchor.top - gap - islandHeight
     if (over >= container.top) return IslandPlacement(over, above = true)
+    val below = anchor.bottom + gap
+    if (below + islandHeight <= container.bottom) return IslandPlacement(below, above = false)
     return IslandPlacement(container.top + gap, above = false)
 }
 
@@ -426,7 +431,7 @@ internal fun DayPartDragState?.wouldLandIn(part: DayPart?): Boolean =
     this != null && part != null && dragged != null && hover == part && origin != part
 
 /**
- * Every phase of the day, opened as an island beside the row being carried.
+ * Every phase of the day, opened as an island right over the row being carried.
  *
  * The list leaves out a phase nothing falls into, so without the island an empty
  * evening could not be dropped onto at all; and a long day pushes most of its
@@ -476,7 +481,10 @@ internal fun DayPartDropBar(
     }
 }
 
-/** True when the island would open above the carried row, where the tooltip would cover it. */
+/**
+ * True when the island would open above the carried row — the usual side, and the
+ * one the tooltip has to stay away from.
+ */
 @Composable
 internal fun DayPartDragState.islandIsAbove(container: Rect): Boolean {
     val anchor = anchor ?: return false
@@ -529,11 +537,12 @@ private fun DropBarPhase(
 }
 
 /**
- * What the drop would do, said above the finger while it is still down: the
+ * What the drop would do, said beside the finger while it is still down: the
  * phase the row would move to, or — away from any — what is being carried, so
- * the drag is visibly alive. Over the island it says nothing, and neither does it
- * while the island sits above the row: the island lights the phase itself, and a
- * tooltip lifted above the finger would cover it.
+ * the drag is visibly alive. It takes the side of the finger the island is not
+ * on: the island opens above the carried row, so the line reads under the finger
+ * and never covers the phases. Over the island it says nothing, since the island
+ * lights the phase itself.
  */
 @Composable
 internal fun DayPartDragTooltip(
@@ -541,7 +550,8 @@ internal fun DayPartDragTooltip(
     placement: ListPlacement,
 ) {
     val task = drag.dragged ?: return
-    if (drag.overBar || drag.islandIsAbove(placement.bounds())) return
+    if (drag.overBar) return
+    val islandAbove = drag.islandIsAbove(placement.bounds())
     val target = drag.hover?.takeIf { drag.wouldLandIn(it) }
     val lift = with(LocalDensity.current) { TOOLTIP_LIFT.roundToPx() }
     val edge = with(LocalDensity.current) { TOOLTIP_EDGE.roundToPx() }
@@ -554,7 +564,7 @@ internal fun DayPartDragTooltip(
         color = MaterialTheme.colorScheme.inverseSurface,
         contentColor = MaterialTheme.colorScheme.inverseOnSurface,
         shadowElevation = 6.dp,
-        modifier = Modifier.aboveFinger({ drag.pointer }, lift, edge),
+        modifier = Modifier.fingerSide({ drag.pointer }, lift, edge, above = !islandAbove),
     ) {
         Row(
             modifier = Modifier.widthIn(max = 320.dp).padding(horizontal = 12.dp, vertical = 8.dp),
