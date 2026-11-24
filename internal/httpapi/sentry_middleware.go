@@ -1,32 +1,35 @@
 package httpapi
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 
 	sentry "github.com/getsentry/sentry-go"
 	"github.com/gofiber/fiber/v3"
+	"github.com/lebe-dev/turboist/internal/obs"
 )
 
 // SentryMiddleware reports server-side failures to Sentry: any recovered panic,
-// plus every request whose error maps to a status shouldReportStatus selects. It
-// uses a per-request hub clone so concurrent requests never share scope state.
+// plus every request whose error is answered with a status shouldReportStatus
+// selects. It uses a per-request hub clone so concurrent requests never share
+// scope state.
 //
-// For AppError values carrying an Internal cause the underlying error is sent —
-// it holds the real failure, whereas the AppError message is the sanitized text
-// shown to clients. Recovered panics are converted to a 500 AppError so the
-// central ErrorHandler still renders a clean JSON envelope.
+// Classification goes through resolveAppError, the same mapping the central
+// error handler renders. A refusal the API answers as a 4xx — a locked Today, a
+// task held back by a blocker — is therefore never reported as a server failure,
+// even when a handler wrapped it in an internal error on its way out.
+//
+// Recovered panics are converted to a 500 AppError so the central ErrorHandler
+// still renders a clean JSON envelope.
 func SentryMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) (err error) {
 		hub := sentry.CurrentHub().Clone()
 
 		defer func() {
 			if r := recover(); r != nil {
-				enrichSentryScope(c, hub, fiber.StatusInternalServerError)
-				hub.RecoverWithContext(c.Context(), r)
 				err = ErrInternal("internal server error").
 					WithCause(fmt.Errorf("panic recovered: %v", r))
+				reportFailure(c, hub, err, "panic")
 			}
 		}()
 
@@ -34,14 +37,23 @@ func SentryMiddleware() fiber.Handler {
 		if err == nil {
 			return nil
 		}
-		status := statusFromError(err)
-		if !shouldReportStatus(status) {
-			return err
-		}
-		enrichSentryScope(c, hub, status)
-		hub.CaptureException(reportableError(err))
+		reportFailure(c, hub, err, "")
 		return err
 	}
+}
+
+// reportFailure sends one event for a failed request unless the client is
+// answered with a status that is not worth reporting.
+func reportFailure(c fiber.Ctx, hub *sentry.Hub, err error, kind string) {
+	appErr := resolveAppError(err)
+	if !shouldReportStatus(appErr.HTTPStatus) {
+		return
+	}
+	route := routePattern(c)
+	enrichSentryScope(c, hub, appErr, route, kind)
+	event := obs.FailureEvent(err, failureFingerprint(appErr, route, kind))
+	event.Transaction = route
+	hub.CaptureEvent(event)
 }
 
 // shouldReportStatus decides which response statuses are worth a Sentry event.
@@ -53,13 +65,47 @@ func shouldReportStatus(status int) bool {
 	return status == fiber.StatusBadRequest || status >= fiber.StatusInternalServerError
 }
 
+// failureFingerprint groups events by what failed rather than by where the event
+// was captured. An error reported from middleware is captured on the request
+// goroutine, so every event carries the same middleware frames and Sentry would
+// otherwise file unrelated failures under one issue.
+func failureFingerprint(appErr *AppError, route, kind string) []string {
+	if kind == "" {
+		kind = "error"
+	}
+	return []string{kind, route, appErr.Code, obs.ErrorType(reportableError(appErr))}
+}
+
+// routePattern names the endpoint that failed. The concrete path carries ids,
+// which would split one failure into an issue per task and inflate tag
+// cardinality, so the registered pattern is preferred; the concrete path still
+// travels in the request context.
+func routePattern(c fiber.Ctx) string {
+	if endpoint := c.Endpoint(); endpoint != nil && endpoint.Path != "" {
+		return endpoint.Path
+	}
+	return c.Path()
+}
+
 // enrichSentryScope attaches request-scoped context (method, route, status,
-// request id, user) so events are searchable and correlate with access logs.
-func enrichSentryScope(c fiber.Ctx, hub *sentry.Hub, status int) {
+// error code, request id, user) so events are searchable and correlate with
+// access logs.
+func enrichSentryScope(c fiber.Ctx, hub *sentry.Hub, appErr *AppError, route, kind string) {
 	hub.ConfigureScope(func(scope *sentry.Scope) {
 		scope.SetTag("http.method", c.Method())
-		scope.SetTag("http.route", c.Path())
-		scope.SetTag("http.status", strconv.Itoa(status))
+		scope.SetTag("http.route", route)
+		scope.SetTag("http.status", strconv.Itoa(appErr.HTTPStatus))
+		scope.SetTag("error.code", appErr.Code)
+		scope.SetTag("error.type", obs.ErrorType(reportableError(appErr)))
+		if kind != "" {
+			scope.SetTag("error.kind", kind)
+		}
+		scope.SetContext("http", sentry.Context{
+			"method": c.Method(),
+			"path":   c.Path(),
+			"route":  route,
+			"status": appErr.HTTPStatus,
+		})
 		if rid, ok := c.Locals(localsRequestIDKey).(string); ok && rid != "" {
 			scope.SetTag("request_id", rid)
 		}
@@ -69,28 +115,12 @@ func enrichSentryScope(c fiber.Ctx, hub *sentry.Hub, status int) {
 	})
 }
 
-// statusFromError extracts the HTTP status an error maps to, mirroring the
-// central ErrorHandler: AppError carries it explicitly, fiber.Error exposes
-// Code, and anything else is treated as a 500.
-func statusFromError(err error) int {
-	var appErr *AppError
-	if errors.As(err, &appErr) {
-		return appErr.HTTPStatus
-	}
-	var fiberErr *fiber.Error
-	if errors.As(err, &fiberErr) {
-		return fiberErr.Code
-	}
-	return fiber.StatusInternalServerError
-}
-
-// reportableError unwraps an AppError to its Internal cause when present so the
-// Sentry event carries the underlying failure rather than the sanitized client
-// message.
-func reportableError(err error) error {
-	var appErr *AppError
-	if errors.As(err, &appErr) && appErr.Internal != nil {
+// reportableError picks the error an event is described by: an AppError's
+// Internal cause when present, since that is the real failure, otherwise the
+// AppError itself.
+func reportableError(appErr *AppError) error {
+	if appErr.Internal != nil {
 		return appErr.Internal
 	}
-	return err
+	return appErr
 }

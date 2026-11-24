@@ -130,7 +130,8 @@ templates), `MoveService.Move`, `CompleteService.Uncomplete`, the task PATCH han
 inbox processor (which drops a refused due date instead of failing). Recurrence advance is
 not checked. A refusal is `service.TodayLockedError` → `409 today_locked`; the central error
 handler also maps one that a handler wrapped as an internal error, so a new caller cannot
-turn it into a `500`. The lock endpoint publishes the `settings` SSE scope.
+turn it into a `500`. Sentry classifies through that same mapping, so a refusal never reaches
+it as a server failure either. The lock endpoint publishes the `settings` SSE scope.
 
 `CheckCompletion(t)` is the second half of the same rule, asked by
 `CompleteService.completeAt` before it commits (so the single endpoint, the bulk action and

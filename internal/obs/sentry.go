@@ -4,6 +4,7 @@
 package obs
 
 import (
+	"reflect"
 	"time"
 
 	sentry "github.com/getsentry/sentry-go"
@@ -28,11 +29,47 @@ func Init(dsn, environment, release string) (flush func(), err error) {
 		Dsn:         dsn,
 		Environment: environment,
 		Release:     release,
-		// Errors only — no performance tracing (TracesSampleRate defaults to 0).
+		// Errors only — no performance tracing.
+		TracesSampleRate: 0,
+		// Every event is built by FailureEvent, which carries the error's own
+		// chain and a message. The goroutine stack at the capture site is not
+		// the error's origin and would only add noise.
+		AttachStacktrace: false,
+		// Nothing request-shaped is ever attached to an event (no headers, no
+		// body, no query string), so the SDK's data-collection defaults have
+		// nothing to pick up: an event holds the error text, the route, the
+		// user id and the request id.
+		BeforeSend: dropEmptyEvents,
 	}); initErr != nil {
 		return func() {}, initErr
 	}
 	return func() { sentry.Flush(flushTimeout) }, nil
+}
+
+// dropEmptyEvents discards an event that carries neither a message nor an
+// exception: Sentry shows it as "Unknown error", an issue with nothing to
+// investigate and no way to tell two failures apart.
+func dropEmptyEvents(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
+	if event.Message == "" && len(event.Exception) == 0 {
+		return nil
+	}
+	return event
+}
+
+// FailureEvent builds the event reported for err: the whole unwrapped error
+// chain as the exception, err.Error() as the message so the issue always has a
+// readable title, and fingerprint as its grouping key. It returns nil for a nil
+// err.
+func FailureEvent(err error, fingerprint []string) *sentry.Event {
+	if err == nil {
+		return nil
+	}
+	event := sentry.NewEvent()
+	event.Level = sentry.LevelError
+	event.SetException(err, -1)
+	event.Message = err.Error()
+	event.Fingerprint = fingerprint
+	return event
 }
 
 // CaptureError reports err to Sentry from a freshly cloned hub, which makes it
@@ -49,5 +86,25 @@ func CaptureError(err error, tags map[string]string) {
 			scope.SetTags(tags)
 		})
 	}
-	hub.CaptureException(err)
+	hub.CaptureEvent(FailureEvent(err, backgroundFingerprint(err, tags)))
+}
+
+// ErrorType names err's concrete Go type — the part of a failure that stays the
+// same across occurrences when its message does not.
+func ErrorType(err error) string {
+	if err == nil {
+		return ""
+	}
+	return reflect.TypeOf(err).String()
+}
+
+// backgroundFingerprint groups a background failure by the operation that ran
+// and what broke, instead of by the goroutine stack it was reported from, which
+// is the same for every call of one worker.
+func backgroundFingerprint(err error, tags map[string]string) []string {
+	fingerprint := []string{"background"}
+	if op := tags["op"]; op != "" {
+		fingerprint = append(fingerprint, op)
+	}
+	return append(fingerprint, ErrorType(err))
 }

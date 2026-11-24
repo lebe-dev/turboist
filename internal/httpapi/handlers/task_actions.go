@@ -101,6 +101,9 @@ func (h *TaskActionHandler) complete(c fiber.Ctx) error {
 		if blocked := taskBlockedErr(err); blocked != nil {
 			return blocked
 		}
+		if locked := todayLockedErr(c, opTaskComplete, err); locked != nil {
+			return locked
+		}
 		var re *service.RecurrenceError
 		if errors.As(err, &re) {
 			return httpapi.ErrRecurrenceInvalid(re.Err.Error())

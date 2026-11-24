@@ -13,6 +13,7 @@ import (
 	sentry "github.com/getsentry/sentry-go"
 	"github.com/gofiber/fiber/v3"
 	"github.com/lebe-dev/turboist/internal/httpapi"
+	"github.com/lebe-dev/turboist/internal/service"
 )
 
 // captureTransport is a synchronous Sentry transport that records every event
@@ -62,6 +63,14 @@ func sentryTestApp() *fiber.App {
 	app.Get("/boom", func(c fiber.Ctx) error {
 		return httpapi.ErrInternal("internal server error").WithCause(errBoom)
 	})
+	app.Get("/tasks/:id", func(c fiber.Ctx) error {
+		return httpapi.ErrInternal("load task").WithCause(errBoom)
+	})
+	app.Post("/tasks/:id/complete", func(c fiber.Ctx) error {
+		return httpapi.ErrInternal("complete task").WithCause(&service.TodayLockedError{
+			Until: time.Date(2026, 11, 23, 21, 0, 0, 0, time.UTC),
+		})
+	})
 	app.Get("/panic", func(c fiber.Ctx) error { panic("kaboom") })
 	return app
 }
@@ -106,6 +115,9 @@ func TestSentryMiddleware_Captures400(t *testing.T) {
 	if tag := events[0].Tags["http.status"]; tag != "400" {
 		t.Errorf("http.status tag: got %q, want 400", tag)
 	}
+	if tag := events[0].Tags["error.code"]; tag != httpapi.CodeValidationFailed {
+		t.Errorf("error.code tag: got %q, want %q", tag, httpapi.CodeValidationFailed)
+	}
 }
 
 func TestSentryMiddleware_DropsExpected4xx(t *testing.T) {
@@ -118,6 +130,24 @@ func TestSentryMiddleware_DropsExpected4xx(t *testing.T) {
 	}
 	if n := len(tr.all()); n != 0 {
 		t.Errorf("captured events: got %d, want 0 (401/404 are expected client errors)", n)
+	}
+}
+
+// A business refusal wrapped by a handler as an internal error is answered as a
+// 409 and must not reach Sentry as a server failure.
+func TestSentryMiddleware_DropsWrappedBusinessRefusal(t *testing.T) {
+	tr := bindSentry(t)
+	app := sentryTestApp()
+	resp, err := app.Test(httptest.NewRequest(http.MethodPost, "/tasks/42/complete", nil))
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status: got %d, want 409", resp.StatusCode)
+	}
+	if n := len(tr.all()); n != 0 {
+		t.Errorf("captured events: got %d, want 0 (a locked Today is not a server failure)", n)
 	}
 }
 
@@ -136,6 +166,45 @@ func TestSentryMiddleware_Captures5xxWithUnderlyingCause(t *testing.T) {
 	}
 }
 
+// Every event names the route pattern rather than the concrete path, and groups
+// by what failed — a stacktrace captured in middleware is identical for every
+// request and would otherwise file unrelated failures under one issue.
+func TestSentryMiddleware_EventIsReadableAndGrouped(t *testing.T) {
+	tr := bindSentry(t)
+	app := sentryTestApp()
+	if status := get(t, app, "/tasks/42"); status != http.StatusInternalServerError {
+		t.Fatalf("status: got %d, want 500", status)
+	}
+	events := tr.all()
+	if len(events) != 1 {
+		t.Fatalf("captured events: got %d, want 1", len(events))
+	}
+	event := events[0]
+	if event.Message == "" {
+		t.Error("event has no message; the issue title would fall back to \"Unknown error\"")
+	}
+	if event.Transaction != "/tasks/:id" {
+		t.Errorf("transaction: got %q, want the route pattern /tasks/:id", event.Transaction)
+	}
+	if got := event.Tags["http.route"]; got != "/tasks/:id" {
+		t.Errorf("http.route tag: got %q, want the route pattern /tasks/:id", got)
+	}
+	if got := event.Tags["error.type"]; got != "*httpapi_test.stringErr" {
+		t.Errorf("error.type tag: got %q, want the cause's type", got)
+	}
+	httpCtx, ok := event.Contexts["http"]
+	if !ok {
+		t.Fatalf("contexts: got %v, want an http context", event.Contexts)
+	}
+	if httpCtx["path"] != "/tasks/42" {
+		t.Errorf("http context path: got %v, want /tasks/42", httpCtx["path"])
+	}
+	if len(event.Fingerprint) != 4 || event.Fingerprint[0] != "error" ||
+		event.Fingerprint[1] != "/tasks/:id" || event.Fingerprint[2] != httpapi.CodeInternalError {
+		t.Errorf("fingerprint: got %v, want [error /tasks/:id internal_error <type>]", event.Fingerprint)
+	}
+}
+
 func TestSentryMiddleware_CapturesPanic(t *testing.T) {
 	tr := bindSentry(t)
 	app := sentryTestApp()
@@ -148,6 +217,18 @@ func TestSentryMiddleware_CapturesPanic(t *testing.T) {
 	}
 	if !eventMentions(events[0], "kaboom") {
 		t.Errorf("panic event should mention the panic value, got %+v", events[0].Exception)
+	}
+	if got := events[0].Tags["error.kind"]; got != "panic" {
+		t.Errorf("error.kind tag: got %q, want panic", got)
+	}
+	if got := events[0].Fingerprint; len(got) == 0 || got[0] != "panic" {
+		t.Errorf("fingerprint: got %v, want it to lead with panic", got)
+	}
+	// The event is captured from the deferred recover, so the stack it carries
+	// still runs through the panicking handler — that is the frame worth seeing.
+	outermost := events[0].Exception[len(events[0].Exception)-1]
+	if outermost.Stacktrace == nil || len(outermost.Stacktrace.Frames) == 0 {
+		t.Error("panic event has no stacktrace")
 	}
 }
 

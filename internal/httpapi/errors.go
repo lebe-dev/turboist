@@ -45,13 +45,23 @@ type AppError struct {
 }
 
 func (e *AppError) Error() string {
+	if e == nil {
+		return ""
+	}
 	if e.Internal != nil {
 		return fmt.Sprintf("%s: %s: %v", e.Code, e.Message, e.Internal)
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
-func (e *AppError) Unwrap() error { return e.Internal }
+// Unwrap is nil-safe because a typed nil *AppError can still sit in an error
+// interface, and errors.As / errors.Is walk the chain through it.
+func (e *AppError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Internal
+}
 
 // WithCause attaches the underlying error so the central handler can log it.
 // The cause is intentionally not added to Details — it stays server-side only.

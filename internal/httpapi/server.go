@@ -170,37 +170,49 @@ func RegisterRoutes(app *fiber.App, deps Deps) fiber.Router {
 	)
 }
 
+// resolveAppError maps an error returned by a handler to the AppError the
+// response is rendered from. Both the central error handler and the Sentry
+// middleware go through it, so what is reported is what the client actually
+// received: a refusal the API answers as a 4xx is never reported as a 500.
+func resolveAppError(err error) *AppError {
+	// The Today focus lock is asked deep inside services that many handlers call
+	// and wrap as an internal error. A refusal is never a server fault, so
+	// whichever path it came up through, it is answered as the lock's 409.
+	var locked *service.TodayLockedError
+	if errors.As(err, &locked) {
+		return ErrTodayLocked(model.FormatUTC(locked.Until), locked.ProjectID)
+	}
+	var appErr *AppError
+	if errors.As(err, &appErr) {
+		if appErr != nil {
+			return appErr
+		}
+		// A typed nil *AppError is still a failed request, but it carries no
+		// cause worth keeping (calling Error on it would panic).
+		return &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error"}
+	}
+	var fiberErr *fiber.Error
+	if errors.As(err, &fiberErr) && fiberErr != nil {
+		code := CodeInternalError
+		if fiberErr.Code == fiber.StatusNotFound {
+			code = CodeNotFound
+		}
+		return &AppError{HTTPStatus: fiberErr.Code, Code: code, Message: fiberErr.Message}
+	}
+	return &AppError{
+		HTTPStatus: 500,
+		Code:       CodeInternalError,
+		Message:    "unexpected server error",
+		Internal:   err,
+	}
+}
+
 func makeErrorHandler(log *slog.Logger) fiber.ErrorHandler {
 	return func(c fiber.Ctx, err error) error {
-		var appErr *AppError
-		switch e := err.(type) {
-		case nil:
+		if err == nil {
 			return nil
-		case *AppError:
-			if e != nil {
-				appErr = e
-			}
-		case *fiber.Error:
-			if e != nil {
-				code := CodeInternalError
-				if e.Code == 404 {
-					code = CodeNotFound
-				}
-				appErr = &AppError{HTTPStatus: e.Code, Code: code, Message: e.Message}
-			}
-		default:
-			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error", Internal: err}
 		}
-		if appErr == nil {
-			appErr = &AppError{HTTPStatus: 500, Code: CodeInternalError, Message: "unexpected server error"}
-		}
-		// The Today focus lock is asked deep inside services that many handlers
-		// call and wrap as an internal error. A refusal is never a server fault,
-		// so whichever path it came up through, it is answered as the lock's 409.
-		var locked *service.TodayLockedError
-		if appErr.HTTPStatus >= 500 && appErr.Internal != nil && errors.As(appErr.Internal, &locked) {
-			appErr = ErrTodayLocked(model.FormatUTC(locked.Until), locked.ProjectID)
-		}
+		appErr := resolveAppError(err)
 		ctx := c.Context()
 		reqLog := logging.FromContext(ctx)
 		if log != nil && appErr.HTTPStatus >= 500 && appErr.Internal != nil {
